@@ -1,0 +1,753 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\OmManual;
+use App\Services\DocumentTemplateService;
+use PhpOffice\PhpWord\Element\Section;
+use PhpOffice\PhpWord\IOFactory;
+use PhpOffice\PhpWord\PhpWord;
+use PhpOffice\PhpWord\SimpleType\Jc;
+use PhpOffice\PhpWord\Style\Font;
+use PhpOffice\PhpWord\TemplateProcessor;
+
+/**
+ * Builds the O&M Manual .docx file from the generated_data JSON.
+ *
+ * Document structure:
+ *   Cover page  (template if available, else programmatic)
+ *   1.  Introduction (scope table + contacts table)
+ *   2–N System Operation (per room/area)
+ *   N+1 Routine Maintenance
+ *   N+2 Fault Finding
+ *   N+3 Network & IP Configuration
+ *   N+4 Manufacturer Support & Warranty
+ *   N+5 Installed Asset Register
+ *   N+6 Document Control
+ */
+class OmManualDocxService
+{
+    public function __construct(
+        private readonly DocumentTemplateService $templates,
+    ) {}
+
+    // Brand colours
+    private const TEAL  = '007B8A';
+    private const WHITE = 'FFFFFF';
+    private const DARK  = '1A1A1A';
+    private const GREY  = 'F4F6F8';
+    private const MID   = 'CCCCCC';
+
+    // ── Public entry point ───────────────────────────────────────────────────
+
+    /**
+     * Build the .docx, save it to storage/app/om-manuals/, update the model
+     * filename column and return the absolute path.
+     */
+    public function build(array $data, OmManual $manual): string
+    {
+        $project = $data['project'] ?? [];
+
+        if ($this->templates->exists('om-manual')) {
+            $phpWord = $this->loadTemplate('om-manual', [
+                'project_ref'     => $project['ref']    ?? ($manual->project_ref  ?? '—'),
+                'project_name'    => $project['name']   ?? ($manual->project_name ?? '—'),
+                'client_name'     => $project['client'] ?? ($manual->client_name  ?? '—'),
+                'site_address'    => $project['site']   ?? ($manual->site_address ?? '—'),
+                'date'            => now()->format('F Y'),
+                'status'          => 'For Review',
+                'equipment_table' => '',
+            ]);
+            $this->configureStyles($phpWord);
+        } else {
+            $phpWord = new PhpWord();
+            $this->configureStyles($phpWord);
+
+            // ── Cover page (programmatic fallback) ───────────────────────────
+            $cover = $phpWord->addSection($this->sectionProps(true));
+            $this->buildCover($cover, $data, $manual);
+        }
+
+        // ── Section 1: Introduction ─────────────────────────────────────────
+        $s = $phpWord->addSection($this->sectionProps());
+        $this->addHeading1($s, '1.  Introduction', 1);
+        $this->addParagraph($s,
+            'This Operation and Maintenance Manual has been prepared by 21st Century AV Ltd for '
+            . ($data['project']['client'] ?? 'the Client')
+            . ' in relation to the AV installation at '
+            . ($data['project']['site'] ?? 'the above site')
+            . ' (Project Reference ' . ($data['project']['ref'] ?? '') . ').'
+        );
+        $this->addParagraph($s,
+            'The manual covers the operation of all installed AV systems, day-to-day user guidance, '
+            . 'routine maintenance requirements, fault-finding procedures, and contact information for '
+            . 'technical support. It should be retained on site or with the facilities management team '
+            . 'and made available to all relevant staff.'
+        );
+
+        // 1.1 Scope of installation
+        $this->addHeading2($s, '1.1  Scope of Installation');
+        $this->addParagraph($s,
+            '21st Century AV Ltd supplied and installed AV systems in the following areas:'
+        );
+        $this->buildScopeTable($s, $data['rooms_summary'] ?? []);
+
+        // 1.2 Document contacts
+        $this->addHeading2($s, '1.2  Document Contacts');
+        $this->buildContactsTable($s, $data['project'] ?? []);
+
+        // ── Sections 2–N: System Operation per room ─────────────────────────
+        $sectionNum = 2;
+        foreach ($data['operation_sections'] ?? [] as $roomSection) {
+            $s = $phpWord->addSection($this->sectionProps());
+            $this->buildOperationSection($s, $roomSection, $sectionNum);
+            $sectionNum++;
+        }
+
+        // ── Maintenance ─────────────────────────────────────────────────────
+        $s = $phpWord->addSection($this->sectionProps());
+        $this->buildMaintenanceSection($s, $data['maintenance_schedule'] ?? [], $sectionNum++);
+
+        // ── Fault Finding ────────────────────────────────────────────────────
+        $s = $phpWord->addSection($this->sectionProps());
+        $this->buildFaultFindingSection($s, $data['fault_finding'] ?? [], $sectionNum++);
+
+        // ── Network & IP ─────────────────────────────────────────────────────
+        $s = $phpWord->addSection($this->sectionProps());
+        $this->buildNetworkSection($s, $data, $sectionNum++);
+
+        // ── Manufacturer Support ─────────────────────────────────────────────
+        $s = $phpWord->addSection($this->sectionProps());
+        $this->buildManufacturerSection($s, $data, $sectionNum++);
+
+        // ── Asset Register ───────────────────────────────────────────────────
+        $s = $phpWord->addSection($this->sectionProps());
+        $this->buildAssetRegisterSection($s, $data['rooms_summary'] ?? [], $sectionNum++);
+
+        // ── Document Control ─────────────────────────────────────────────────
+        $s = $phpWord->addSection($this->sectionProps());
+        $this->buildDocumentControlSection($s, $sectionNum, $manual);
+
+        // ── Save ──────────────────────────────────────────────────────────────
+        $storageDir = storage_path('app/om-manuals');
+        if (! is_dir($storageDir)) {
+            mkdir($storageDir, 0755, true);
+        }
+
+        $filename = 'OM_'
+            . preg_replace('/[^A-Za-z0-9_\-]/', '_', $manual->project_ref ?? 'manual')
+            . '_' . now()->format('YmdHis') . '.docx';
+
+        $filePath = $storageDir . '/' . $filename;
+
+        $writer = IOFactory::createWriter($phpWord, 'Word2007');
+        $writer->save($filePath);
+
+        $manual->update(['filename' => $filename]);
+
+        return $filePath;
+    }
+
+    // ── Cover page ───────────────────────────────────────────────────────────
+
+    private function buildCover(Section $s, array $data, OmManual $manual): void
+    {
+        $project = $data['project'] ?? [];
+
+        // Vertical spacer
+        for ($i = 0; $i < 4; $i++) {
+            $s->addTextBreak();
+        }
+
+        // Company name
+        $s->addText(
+            '21st Century AV Ltd',
+            ['name' => 'Arial', 'size' => 28, 'bold' => true, 'color' => self::TEAL],
+            ['alignment' => Jc::CENTER]
+        );
+        $s->addTextBreak();
+
+        // Document title
+        $s->addText(
+            'Operation & Maintenance Manual',
+            ['name' => 'Arial', 'size' => 22, 'bold' => true, 'color' => self::DARK],
+            ['alignment' => Jc::CENTER]
+        );
+        $s->addTextBreak();
+
+        // Project name
+        $s->addText(
+            $project['client'] ?? $manual->client_name ?? '',
+            ['name' => 'Arial', 'size' => 16, 'color' => self::DARK],
+            ['alignment' => Jc::CENTER]
+        );
+
+        // Site address
+        $s->addText(
+            $project['site'] ?? $manual->site_address ?? '',
+            ['name' => 'Arial', 'size' => 12, 'color' => '555555'],
+            ['alignment' => Jc::CENTER]
+        );
+        $s->addText(
+            'Project Reference: ' . ($project['ref'] ?? $manual->project_ref ?? ''),
+            ['name' => 'Arial', 'size' => 11, 'color' => '555555'],
+            ['alignment' => Jc::CENTER]
+        );
+
+        for ($i = 0; $i < 3; $i++) {
+            $s->addTextBreak();
+        }
+
+        // Info table (Document Type, Client, Site, Reference, Prepared by, Date, Revision, Status)
+        $infoRows = [
+            ['Document Type:',   'Operation & Maintenance Manual'],
+            ['Client:',          $project['client']  ?? $manual->client_name   ?? '—'],
+            ['Site:',            $project['site']    ?? $manual->site_address  ?? '—'],
+            ['Project Reference:', $project['ref']   ?? $manual->project_ref   ?? '—'],
+            ['Prepared by:',     '21st Century AV Ltd'],
+            ['Date:',            now()->format('F Y')],
+            ['Revision:',        '01 – Initial Issue'],
+            ['Status:',          $manual->status === 'final' ? 'Final' : 'For Client Use'],
+        ];
+
+        $table = $s->addTable(['borderColor' => self::MID, 'borderSize' => 6]);
+        foreach ($infoRows as [$label, $value]) {
+            $row = $table->addRow();
+            $cell = $row->addCell(2500, ['bgColor' => 'E0F4F6']);
+            $cell->addText($label, ['name' => 'Arial', 'size' => 10, 'bold' => true, 'color' => self::TEAL]);
+            $cell = $row->addCell(6000);
+            $cell->addText($value, ['name' => 'Arial', 'size' => 10, 'color' => self::DARK]);
+        }
+
+        $s->addTextBreak(3);
+
+        // Company footer on cover
+        $s->addText(
+            'Unit 4 Thames Court  |  2 Richfield Avenue  |  Reading  |  Berkshire  |  RG4 8EQ',
+            ['name' => 'Arial', 'size' => 9, 'color' => '888888'],
+            ['alignment' => Jc::CENTER]
+        );
+        $s->addText(
+            'Tel: 01189 977 771  |  alison@21stcenturyav.com',
+            ['name' => 'Arial', 'size' => 9, 'color' => '888888'],
+            ['alignment' => Jc::CENTER]
+        );
+    }
+
+    // ── Scope and contact tables ─────────────────────────────────────────────
+
+    private function buildScopeTable(Section $s, array $rooms): void
+    {
+        if (empty($rooms)) {
+            $this->addParagraph($s, 'No room data available.');
+            return;
+        }
+
+        foreach ($rooms as $room) {
+            $roomName = (string) ($room['name'] ?? 'Room');
+            $drawing  = (string) ($room['drawing_ref'] ?? '');
+
+            $title = $roomName;
+            if ($drawing !== '') {
+                $title .= ' (Drg: ' . $drawing . ')';
+            }
+            $this->addHeading2($s, $title);
+
+            $table = $s->addTable(['borderColor' => self::MID, 'borderSize' => 6]);
+            $header = $table->addRow();
+            foreach (['Qty', 'Description', 'Model', 'Part No.'] as $i => $heading) {
+                $widths = [800, 3600, 2600, 1500];
+                $cell = $header->addCell($widths[$i], ['bgColor' => self::TEAL]);
+                $cell->addText($heading, ['name' => 'Arial', 'size' => 9, 'bold' => true, 'color' => self::WHITE]);
+            }
+
+            foreach ($room['equipment'] ?? [] as $eq) {
+                $row = $table->addRow();
+                $row->addCell(800)->addText((string) ($eq['qty'] ?? 1), ['name' => 'Arial', 'size' => 9], ['alignment' => Jc::CENTER]);
+                $row->addCell(3600)->addText($eq['description'] ?? '—', ['name' => 'Arial', 'size' => 9]);
+                $row->addCell(2600)->addText($eq['model'] ?? '—', ['name' => 'Arial', 'size' => 9]);
+                $row->addCell(1500)->addText($eq['part_no'] ?? '', ['name' => 'Arial', 'size' => 9]);
+            }
+
+            $s->addTextBreak(1);
+        }
+    }
+
+    private function buildContactsTable(Section $s, array $project): void
+    {
+        $table = $s->addTable(['borderColor' => self::MID, 'borderSize' => 6]);
+
+        $header = $table->addRow();
+        foreach (['Role', 'Name / Organisation', 'Contact'] as $i => $heading) {
+            $widths = [2000, 3500, 3000];
+            $cell = $header->addCell($widths[$i], ['bgColor' => self::TEAL]);
+            $cell->addText($heading, ['name' => 'Arial', 'size' => 9, 'bold' => true, 'color' => self::WHITE]);
+        }
+
+        $contacts = [
+            ['AV Installer',       '21st Century AV Ltd',                       'alison@21stcenturyav.com  |  01189 977 771'],
+            ['Client',             $project['client'] ?? '—',                   '—'],
+            ['Facilities Management', 'TBC',                                    'TBC'],
+            ['Client IT / Network', ($project['client'] ?? '') . ' IT',         'TBC'],
+        ];
+
+        foreach ($contacts as [$role, $name, $contact]) {
+            $row = $table->addRow();
+            $row->addCell(2000)->addText($role,    ['name' => 'Arial', 'size' => 9, 'bold' => true]);
+            $row->addCell(3500)->addText($name,    ['name' => 'Arial', 'size' => 9]);
+            $row->addCell(3000)->addText($contact, ['name' => 'Arial', 'size' => 9]);
+        }
+    }
+
+    // ── System Operation (per room) ──────────────────────────────────────────
+
+    private function buildOperationSection(Section $s, array $roomSection, int $num): void
+    {
+        $title = $num . '.  System Operation — ' . ($roomSection['room_name'] ?? 'Unknown Room');
+        if (! empty($roomSection['drawing_ref'])) {
+            $title .= ' (' . $roomSection['drawing_ref'] . ')';
+        }
+
+        $this->addHeading1($s, $title, $num);
+
+        foreach ($roomSection['subsections'] ?? [] as $sub) {
+            $this->addHeading2($s, $sub['title'] ?? '');
+
+            foreach ($sub['steps'] ?? [] as $i => $step) {
+                $this->addNumberedStep($s, ($i + 1) . '.  ' . $step);
+            }
+
+            foreach ($sub['notes'] ?? [] as $note) {
+                $this->addCallout($s, $note['type'] ?? 'info', $note['text'] ?? '');
+            }
+        }
+    }
+
+    // ── Routine Maintenance ──────────────────────────────────────────────────
+
+    private function buildMaintenanceSection(Section $s, array $schedule, int $num): void
+    {
+        $this->addHeading1($s, $num . '.  Routine Maintenance', $num);
+        $this->addParagraph($s,
+            'The installed AV systems are largely maintenance-free under normal use. '
+            . 'The following routine checks and tasks are recommended to keep systems performing correctly.'
+        );
+
+        $this->addHeading2($s, $num . '.1  Recommended Maintenance Schedule');
+
+        if (empty($schedule)) {
+            $this->addParagraph($s, 'See individual manufacturer documentation for maintenance schedules.');
+            return;
+        }
+
+        $table = $s->addTable(['borderColor' => self::MID, 'borderSize' => 6]);
+
+        $header = $table->addRow();
+        foreach (['Frequency', 'Item', 'Task'] as $i => $heading) {
+            $widths = [1400, 2400, 4700];
+            $cell = $header->addCell($widths[$i], ['bgColor' => self::TEAL]);
+            $cell->addText($heading, ['name' => 'Arial', 'size' => 9, 'bold' => true, 'color' => self::WHITE]);
+        }
+
+        foreach ($schedule as $item) {
+            $row = $table->addRow();
+            $row->addCell(1400)->addText($item['frequency'] ?? '', ['name' => 'Arial', 'size' => 9, 'bold' => true]);
+            $row->addCell(2400)->addText($item['item']      ?? '', ['name' => 'Arial', 'size' => 9]);
+            $row->addCell(4700)->addText($item['task']      ?? '', ['name' => 'Arial', 'size' => 9]);
+        }
+    }
+
+    // ── Fault Finding ────────────────────────────────────────────────────────
+
+    private function buildFaultFindingSection(Section $s, array $faults, int $num): void
+    {
+        $this->addHeading1($s, $num . '.  Fault Finding & First-Line Support', $num);
+        $this->addParagraph($s,
+            'The following table covers the most common issues staff may encounter and the '
+            . 'recommended first-line steps before contacting 21st Century AV for support.'
+        );
+
+        if (empty($faults)) {
+            $this->addParagraph($s, 'For all faults contact 21st Century AV on 01189 977 771.');
+            return;
+        }
+
+        $table = $s->addTable(['borderColor' => self::MID, 'borderSize' => 6]);
+
+        $header = $table->addRow();
+        foreach (['Symptom', 'Likely Cause', 'Action'] as $i => $heading) {
+            $widths = [2000, 2000, 4500];
+            $cell = $header->addCell($widths[$i], ['bgColor' => self::TEAL]);
+            $cell->addText($heading, ['name' => 'Arial', 'size' => 9, 'bold' => true, 'color' => self::WHITE]);
+        }
+
+        foreach ($faults as $fault) {
+            $stepsStr = implode("\n", array_map(
+                fn (int $i, string $step) => ($i + 1) . '. ' . $step,
+                array_keys($fault['steps'] ?? []),
+                array_values($fault['steps'] ?? [])
+            ));
+
+            $row = $table->addRow();
+            $row->addCell(2000)->addText($fault['symptom'] ?? '', ['name' => 'Arial', 'size' => 9, 'bold' => true]);
+            $row->addCell(2000)->addText($fault['cause']   ?? '', ['name' => 'Arial', 'size' => 9]);
+            $actionCell = $row->addCell(4500);
+            foreach ($fault['steps'] ?? [] as $i => $step) {
+                $actionCell->addText(($i + 1) . '. ' . $step, ['name' => 'Arial', 'size' => 9]);
+            }
+        }
+
+        $this->addCallout($s, 'info',
+            'For any fault not covered above, or if the above steps do not resolve the issue, '
+            . 'contact 21st Century AV on 01189 977 771 or alison@21stcenturyav.com.'
+        );
+    }
+
+    // ── Network & IP Configuration ────────────────────────────────────────────
+
+    private function buildNetworkSection(Section $s, array $data, int $num): void
+    {
+        $this->addHeading1($s, $num . '.  Network & IP Configuration', $num);
+        $this->addParagraph($s,
+            'The following networked AV devices require IP addresses on the client LAN. '
+            . 'IP addresses, VLAN assignments and credentials should be recorded by the IT team. '
+            . 'The table below provides the device type, its network requirements, and columns for the '
+            . 'IT team to record the assigned addresses after commissioning.'
+        );
+
+        $this->addCallout($s, 'info',
+            'All IP addresses, VLAN tags and admin credentials must be stored securely by the client IT team. '
+            . '21st Century AV does not retain login credentials after commissioning handover.'
+        );
+
+        $this->addHeading2($s, $num . '.1  Networked Device IP Register');
+
+        // IP register table (device rows — IP/VLAN/MAC left blank for IT to complete)
+        $networkDevices = $data['network_devices'] ?? [];
+        if (! empty($networkDevices)) {
+            $table = $s->addTable(['borderColor' => self::MID, 'borderSize' => 6]);
+            $header = $table->addRow();
+            foreach (['Room', 'Dwg', 'Device', 'IP Address', 'VLAN', 'MAC Address'] as $i => $heading) {
+                $widths = [1600, 700, 2800, 1500, 800, 1200];
+                $cell = $header->addCell($widths[$i], ['bgColor' => self::TEAL]);
+                $cell->addText($heading, ['name' => 'Arial', 'size' => 8, 'bold' => true, 'color' => self::WHITE]);
+            }
+
+            foreach ($networkDevices as $dev) {
+                $row   = $table->addRow();
+                $small = ['name' => 'Arial', 'size' => 8];
+                $grey  = ['name' => 'Arial', 'size' => 8, 'color' => 'AAAAAA', 'italic' => true];
+                $row->addCell(1600)->addText($dev['room']        ?? '', $small);
+                $row->addCell(700) ->addText($dev['drawing_ref'] ?? '', $small);
+                $row->addCell(2800)->addText($dev['device']      ?? '', $small);
+                $row->addCell(1500)->addText('(to complete)', $grey);
+                $row->addCell(800) ->addText('(to complete)', $grey);
+                $row->addCell(1200)->addText('(to complete)', $grey);
+            }
+        }
+
+        // Device-specific network notes
+        if (! empty($networkDevices)) {
+            $this->addHeading2($s, $num . '.2  Device-Specific Network Notes');
+            foreach ($networkDevices as $dev) {
+                if (! empty($dev['network_notes'])) {
+                    $s->addText(
+                        $dev['device'] ?? '',
+                        ['name' => 'Arial', 'size' => 10, 'bold' => true, 'color' => self::TEAL]
+                    );
+                    $this->addParagraph($s, $dev['network_notes']);
+                }
+            }
+        }
+
+        // Security recommendations
+        $secNotes = $data['network_security_notes'] ?? [];
+        if (! empty($secNotes)) {
+            $this->addHeading2($s, $num . '.3  Network Security Recommendations');
+            foreach ($secNotes as $note) {
+                $this->addBullet($s, $note);
+            }
+        }
+    }
+
+    // ── Manufacturer Support ─────────────────────────────────────────────────
+
+    private function buildManufacturerSection(Section $s, array $data, int $num): void
+    {
+        $this->addHeading1($s, $num . '.  Manufacturer Support & UK Contact Information', $num);
+        $this->addParagraph($s,
+            'The following section provides support information for each manufacturer whose equipment '
+            . 'is installed. For all warranty claims and support requests within the first 12 months of '
+            . 'installation, contact 21st Century AV in the first instance on 01189 977 771 or '
+            . 'alison@21stcenturyav.com, quoting the project reference. We will manage the manufacturer '
+            . 'liaison on your behalf where the fault relates to the original installation.'
+        );
+
+        $subNum = 1;
+        foreach ($data['manufacturer_support'] ?? [] as $mfr) {
+            $this->addHeading2($s, $num . '.' . $subNum . '  ' . ($mfr['brand'] ?? 'Unknown'));
+            $subNum++;
+
+            $infoRows = [
+                ['Equipment installed:', $mfr['equipment_installed'] ?? '—'],
+                ['UK support telephone:', $mfr['uk_phone']           ?? '—'],
+                ['Support portal:',       $mfr['support_portal']     ?? '—'],
+            ];
+            if (! empty($mfr['support_email'])) {
+                $infoRows[] = ['Support email:', $mfr['support_email']];
+            }
+            $infoRows[] = ['Warranty:', $mfr['warranty'] ?? '—'];
+
+            $table = $s->addTable(['borderColor' => self::MID, 'borderSize' => 6]);
+            foreach ($infoRows as [$label, $value]) {
+                $row = $table->addRow();
+                $row->addCell(2400, ['bgColor' => 'F0FAFB'])
+                    ->addText($label, ['name' => 'Arial', 'size' => 9, 'bold' => true, 'color' => self::TEAL]);
+                $row->addCell(6100)
+                    ->addText($value, ['name' => 'Arial', 'size' => 9]);
+            }
+
+            foreach ($mfr['notes'] ?? [] as $note) {
+                $this->addBullet($s, $note);
+            }
+
+            $s->addTextBreak();
+        }
+
+        // 21CAV own support entry
+        $this->addHeading2($s, $num . '.' . $subNum . '  21st Century AV Ltd — Installation Support');
+        $cavRows = [
+            ['Company:',              '21st Century AV Ltd'],
+            ['Address:',              'Unit 4 Thames Court, 2 Richfield Avenue, Reading, Berkshire, RG4 8EQ'],
+            ['Telephone:',            '01189 977 771'],
+            ['Email:',                'alison@21stcenturyav.com'],
+            ['Project reference:',    ($data['project']['ref'] ?? '') . ' — always quote when contacting support'],
+            ['Scope of support:',     'Configuration changes, system re-programming, additional training, fault investigation, equipment replacement coordination, annual maintenance visits'],
+            ['Installation warranty:', '12 months from practical completion for defects arising from 21st Century AV installation workmanship'],
+        ];
+
+        $table = $s->addTable(['borderColor' => self::MID, 'borderSize' => 6]);
+        foreach ($cavRows as [$label, $value]) {
+            $row = $table->addRow();
+            $row->addCell(2400, ['bgColor' => 'F0FAFB'])
+                ->addText($label, ['name' => 'Arial', 'size' => 9, 'bold' => true, 'color' => self::TEAL]);
+            $row->addCell(6100)
+                ->addText($value, ['name' => 'Arial', 'size' => 9]);
+        }
+
+        // Warranty summary table
+        $warrantySummary = $data['warranty_summary'] ?? [];
+        if (! empty($warrantySummary)) {
+            $subNum++;
+            $this->addHeading2($s, $num . '.' . $subNum . '  Warranty Summary');
+
+            $table = $s->addTable(['borderColor' => self::MID, 'borderSize' => 6]);
+            $header = $table->addRow();
+            foreach (['Equipment', 'Warranty Period', 'Notes'] as $i => $heading) {
+                $widths = [3500, 1800, 3200];
+                $cell = $header->addCell($widths[$i], ['bgColor' => self::TEAL]);
+                $cell->addText($heading, ['name' => 'Arial', 'size' => 9, 'bold' => true, 'color' => self::WHITE]);
+            }
+
+            foreach ($warrantySummary as $w) {
+                $row = $table->addRow();
+                $row->addCell(3500)->addText($w['equipment'] ?? '', ['name' => 'Arial', 'size' => 9]);
+                $row->addCell(1800)->addText($w['period']    ?? '', ['name' => 'Arial', 'size' => 9]);
+                $row->addCell(3200)->addText($w['notes']     ?? '', ['name' => 'Arial', 'size' => 9]);
+            }
+
+            $this->addCallout($s, 'warning',
+                'Warranty is void if equipment has been physically damaged, moved from its installed position, '
+                . 'or modified by parties other than 21st Century AV or the manufacturer\'s authorised service team.'
+            );
+        }
+    }
+
+    // ── Asset Register ────────────────────────────────────────────────────────
+
+    private function buildAssetRegisterSection(Section $s, array $rooms, int $num): void
+    {
+        $this->addHeading1($s, $num . '.  Installed Asset Register', $num);
+        $this->addParagraph($s,
+            'The following table lists all AV equipment installed as part of this project. '
+            . 'Serial numbers should be completed by the facilities team from equipment labels after handover.'
+        );
+
+        if (empty($rooms)) {
+            return;
+        }
+
+        foreach ($rooms as $room) {
+            $roomName = (string) ($room['name'] ?? 'Room');
+            $this->addHeading2($s, $roomName);
+
+            $table = $s->addTable(['borderColor' => self::MID, 'borderSize' => 6]);
+            $header = $table->addRow();
+            foreach (['Qty', 'Equipment', 'Model / Part No.', 'Serial No. (to complete)'] as $i => $heading) {
+                $widths = [700, 3000, 3200, 2000];
+                $cell = $header->addCell($widths[$i], ['bgColor' => self::TEAL]);
+                $cell->addText($heading, ['name' => 'Arial', 'size' => 9, 'bold' => true, 'color' => self::WHITE]);
+            }
+
+            foreach ($room['equipment'] ?? [] as $eq) {
+                $row   = $table->addRow();
+                $small = ['name' => 'Arial', 'size' => 9];
+                $grey  = ['name' => 'Arial', 'size' => 9, 'color' => 'AAAAAA', 'italic' => true];
+                $row->addCell(700)->addText((string) ($eq['qty'] ?? 1), $small, ['alignment' => Jc::CENTER]);
+                $row->addCell(3000)->addText($eq['description'] ?? '', $small);
+                $model = trim(($eq['model'] ?? '') . ($eq['part_no'] ? ' ' . $eq['part_no'] : ''));
+                $row->addCell(3200)->addText($model, $small);
+                $row->addCell(2000)->addText('', $grey);
+            }
+
+            $s->addTextBreak(1);
+        }
+    }
+
+    // ── Document Control ─────────────────────────────────────────────────────
+
+    private function buildDocumentControlSection(Section $s, int $num, OmManual $manual): void
+    {
+        $this->addHeading1($s, $num . '.  Document Control', $num);
+
+        $table = $s->addTable(['borderColor' => self::MID, 'borderSize' => 6]);
+
+        $header = $table->addRow();
+        foreach (['Rev', 'Date', 'Author', 'Checked', 'Description'] as $i => $heading) {
+            $widths = [600, 1500, 2000, 1800, 2600];
+            $cell = $header->addCell($widths[$i], ['bgColor' => self::TEAL]);
+            $cell->addText($heading, ['name' => 'Arial', 'size' => 9, 'bold' => true, 'color' => self::WHITE]);
+        }
+
+        $row   = $table->addRow();
+        $small = ['name' => 'Arial', 'size' => 9];
+        $row->addCell(600) ->addText('01',                          $small);
+        $row->addCell(1500)->addText(now()->format('F Y'),          $small);
+        $row->addCell(2000)->addText('21st Century AV Ltd',         $small);
+        $row->addCell(1800)->addText('—',                           $small);
+        $row->addCell(2600)->addText('Initial Issue — For Client Use', $small);
+    }
+
+    // ── PhpWord helpers ──────────────────────────────────────────────────────
+
+    private function sectionProps(bool $coverPage = false): array
+    {
+        return [
+            'marginTop'    => 1440,   // 1 inch in twips
+            'marginBottom' => 1440,
+            'marginLeft'   => 1440,
+            'marginRight'  => 1440,
+            'headerHeight' => $coverPage ? 0 : 720,
+            'footerHeight' => $coverPage ? 0 : 720,
+        ];
+    }
+
+    /**
+     * Process a .docx template via TemplateProcessor, substitute {{placeholders}},
+     * save to a temp file, and return a mutable PhpWord object for section appending.
+     */
+    private function loadTemplate(string $name, array $values): PhpWord
+    {
+        $processor = new TemplateProcessor($this->templates->path($name));
+        $processor->setMacroOpeningChars('{{');
+        $processor->setMacroClosingChars('}}');
+
+        foreach ($values as $key => $value) {
+            $processor->setValue((string) $key, htmlspecialchars((string) $value, ENT_XML1 | ENT_QUOTES, 'UTF-8'));
+        }
+
+        $tmp = tempnam(sys_get_temp_dir(), 'om_tpl_') . '.docx';
+        $processor->saveAs($tmp);
+
+        $phpWord = IOFactory::load($tmp);
+        @unlink($tmp);
+
+        return $phpWord;
+    }
+
+    private function configureStyles(PhpWord $phpWord): void
+    {
+        $phpWord->setDefaultFontName('Arial');
+        $phpWord->setDefaultFontSize(10);
+
+        $phpWord->addParagraphStyle('Heading1Style', [
+            'spaceAfter'  => 120,
+            'spaceBefore' => 240,
+        ]);
+
+        $phpWord->addParagraphStyle('Heading2Style', [
+            'spaceAfter'  => 80,
+            'spaceBefore' => 160,
+        ]);
+
+        $phpWord->addParagraphStyle('BodyStyle', [
+            'spaceAfter'  => 80,
+            'lineHeight'  => 1.15,
+        ]);
+
+        $phpWord->addParagraphStyle('CalloutStyle', [
+            'spaceAfter'  => 80,
+            'spaceBefore' => 80,
+            'indentation' => ['left' => 360],
+        ]);
+    }
+
+    private function addHeading1(Section $s, string $text, int $num = 0): void
+    {
+        $s->addText(
+            $text,
+            ['name' => 'Arial', 'size' => 14, 'bold' => true, 'color' => self::TEAL],
+            ['spaceBefore' => 280, 'spaceAfter' => 120, 'pageBreakBefore' => ($num > 1)]
+        );
+    }
+
+    private function addHeading2(Section $s, string $text): void
+    {
+        $s->addText(
+            $text,
+            ['name' => 'Arial', 'size' => 11, 'bold' => true, 'color' => self::DARK],
+            ['spaceBefore' => 160, 'spaceAfter' => 80]
+        );
+    }
+
+    private function addParagraph(Section $s, string $text): void
+    {
+        $s->addText(
+            $text,
+            ['name' => 'Arial', 'size' => 10, 'color' => self::DARK],
+            ['spaceAfter' => 80, 'lineHeight' => 1.15]
+        );
+    }
+
+    private function addNumberedStep(Section $s, string $text): void
+    {
+        $s->addText(
+            $text,
+            ['name' => 'Arial', 'size' => 10, 'color' => self::DARK],
+            ['spaceAfter' => 40, 'indentation' => ['left' => 360]]
+        );
+    }
+
+    private function addBullet(Section $s, string $text): void
+    {
+        $s->addListItem($text, 0, ['name' => 'Arial', 'size' => 10], 'listBullet');
+    }
+
+    private function addCallout(Section $s, string $type, string $text): void
+    {
+        $icon   = $type === 'warning' ? '⚠  ' : 'ℹ  ';
+        $colour = $type === 'warning' ? '856404' : '0C4A52';
+        $bg     = $type === 'warning' ? 'FFF3CD' : 'E0F4F6';
+
+        // PhpWord doesn't have a native callout — approximate with a single-cell table
+        $table  = $s->addTable(['borderColor' => $type === 'warning' ? 'FFC107' : self::TEAL, 'borderSize' => 4]);
+        $row    = $table->addRow();
+        $cell   = $row->addCell(8500, ['bgColor' => $bg]);
+        $cell->addText(
+            $icon . $text,
+            ['name' => 'Arial', 'size' => 9, 'color' => $colour],
+            ['spaceAfter' => 0]
+        );
+        $s->addTextBreak();
+    }
+}

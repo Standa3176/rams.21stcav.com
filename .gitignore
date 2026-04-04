@@ -1,0 +1,33 @@
+# Global
+.DS_Store
+Thumbs.db
+
+# Archives
+*.zip
+
+# Environment
+.env
+.env.*
+
+# Logs
+*.log
+storage/logs/
+
+# Cache / runtime
+.phpunit.result.cache
+/storage/framework/
+/bootstrap/cache/
+
+# Dependencies
+/vendor/
+/node_modules/
+
+# SQLite
+/database/*.sqlite
+
+# IDE
+.idea/
+.vscode/
+
+# Build output
+/public/build/

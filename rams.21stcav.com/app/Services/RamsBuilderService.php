@@ -1,0 +1,457 @@
+<?php
+
+namespace App\Services;
+
+use App\Core\Modules\KnowledgeLibrary\HazardLibraryService;
+use App\Models\RamsDocument;
+use Illuminate\Support\Facades\Log;
+
+/**
+ * Orchestrates RAMS document generation.
+ *
+ * Entry points:
+ *
+ *   buildFromForm($formData, $record)
+ *     Synchronous build for the manual create form. No PDF involved.
+ *     Confidence is always 1.0 (form input is fully structured).
+ *
+ *   buildFromReview($reviewedData, $formData, $record)   ← Phase B
+ *     Used by BuildRamsDocumentJob. Takes reviewed_data as the sole
+ *     source-of-truth. No re-parsing. No re-classification. AI is called
+ *     only for the method statement.
+ *
+ * The old buildFromQuote() entry point remains for backwards compatibility
+ * with any direct callers (e.g. regenerate in RamsController), but the
+ * quote-upload pipeline now dispatches ExtractRamsDraftJob (Phase A) +
+ * BuildRamsDocumentJob (Phase B) instead of calling this method directly.
+ *
+ * Pipeline stages (Phases A and B combined for direct calls):
+ *   1. Parse / classify / resolve risks  (local, no AI)
+ *   2. Generate method statement         (AI — single AI call)
+ *   3. Assemble + normalise data
+ *   4. Pre-render guard
+ *   5. Persist generated_data
+ *   6. Render DOCX
+ */
+class RamsBuilderService
+{
+    private const CONFIDENCE_THRESHOLD = 0.5;
+
+    public function __construct(
+        private readonly QuoteParserService              $quoteParser,
+        private readonly EquipmentClassifierService      $classifier,
+        private readonly RiskTemplateResolverService     $riskResolver,
+        private readonly MethodStatementGeneratorService $methodStatementGen,
+        private readonly RamsDataBuilderService          $dataBuilder,
+        private readonly RamsDocumentRendererService     $renderer,
+        private readonly HazardLibraryService            $hazardLibrary,
+        private readonly RoomOverviewSummaryService      $roomOverviewSummary,
+    ) {}
+
+    // =========================================================================
+    // PUBLIC ENTRY POINTS
+    // =========================================================================
+
+    /**
+     * Phase B — Build from reviewed (human-approved) data.
+     *
+     * This is the correct entry point after the review workflow. It uses
+     * reviewed_data exclusively and does NOT touch the raw PDF or re-run
+     * the parser/classifier/risk resolver.
+     */
+    public function buildFromReview(array $reviewedData, array $formData, RamsDocument $record): string
+    {
+        try {
+            return $this->runFromReview($reviewedData, $formData, $record);
+        } catch (\Throwable $e) {
+            Log::error('RamsBuilderService::buildFromReview failed', [
+                'record_id' => $record->id,
+                'error'     => $e->getMessage(),
+                'file'      => $e->getFile(),
+                'line'      => $e->getLine(),
+            ]);
+            $record->update(['status' => RamsDocument::STATUS_FAILED]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Build a RAMS DOCX from extracted quote PDF text + optional form overrides.
+     *
+     * Used by the manual create form and the regenerate action.
+     * Form-data overrides are applied exclusively inside
+     * RamsDataBuilderService::resolveProjectFields().
+     */
+    public function buildFromQuote(string $extractedText, array $formData, RamsDocument $record): string
+    {
+        $parsed = $this->quoteParser->parse($extractedText);
+
+        Log::info('RamsBuilderService: quote parsed', [
+            'record_id'       => $record->id,
+            'client'          => $parsed['client']    ?: '(not detected)',
+            'site'            => $parsed['site']      ?: '(not detected)',
+            'ref'             => $parsed['ref'],
+            'equipment_count' => count($parsed['equipment'] ?? []),
+            'confidence'      => $parsed['confidence'] ?? 0.0,
+        ]);
+
+        return $this->pipeline($parsed, $formData, $record);
+    }
+
+    /**
+     * Build a RAMS DOCX from form data only (no quote PDF).
+     */
+    public function buildFromForm(array $formData, RamsDocument $record): string
+    {
+        $parsed = [
+            'client'        => $formData['client_name']      ?? '',
+            'site'          => $formData['site_address']      ?? '',
+            'ref'           => $formData['project_ref']       ?? '',
+            'project_name'  => $formData['project_name']      ?? '',
+            'works_summary' => $formData['works_description'] ?? '',
+            'equipment'     => [],
+            'tasks'         => [],
+            'rooms'         => [],
+            'confidence'    => 1.0,
+        ];
+
+        return $this->pipeline($parsed, $formData, $record);
+    }
+
+    // =========================================================================
+    // PRIVATE — PHASE B (FROM REVIEWED DATA)
+    // =========================================================================
+
+    private function runFromReview(array $reviewedData, array $formData, RamsDocument $record): string
+    {
+        // Convert reviewed_data sections to the formats expected by existing services.
+        $parsedQuote = $this->reviewedToParsed($reviewedData);
+        $classified  = $this->reviewedToClassified($reviewedData);
+        $risk        = $this->reviewedToRisk($reviewedData, $record->user_id);
+        $mergedForm  = $this->mergeReviewedIntoFormData($reviewedData, $formData);
+
+        // Generate fresh AI summaries for each room overview at generation time.
+        if (! empty($reviewedData['room_overviews'])) {
+            $reviewedData['room_overviews'] = $this->roomOverviewSummary->summarize(
+                (array) $reviewedData['room_overviews']
+            );
+
+            // Persist updated summaries so the review UI shows the latest output.
+            $record->update([
+                'reviewed_data' => array_merge($record->reviewed_data ?? [], [
+                    'room_overviews' => $reviewedData['room_overviews'],
+                ]),
+            ]);
+
+            $parsedQuote['room_overviews'] = $reviewedData['room_overviews'];
+            $parsedQuote['rooms'] = array_values(array_map(
+                fn ($r) => (string) ($r['room'] ?? ''),
+                $reviewedData['room_overviews'],
+            ));
+        }
+
+        Log::info('RamsBuilderService::buildFromReview: inputs prepared', [
+            'record_id'      => $record->id,
+            'activities'     => $classified['activities'],
+            'hazard_count'   => count($risk['hazards']),
+            'equipment_count'=> count($parsedQuote['equipment']),
+        ]);
+
+        // AI call — method statement only.
+        $methodStatement = $this->methodStatementGen->generate(
+            $parsedQuote,
+            $classified,
+            $risk['hazards'] ?? [],
+        );
+
+        Log::info('RamsBuilderService::buildFromReview: method statement generated', [
+            'record_id'   => $record->id,
+            'phase_count' => count($methodStatement['phases'] ?? []),
+        ]);
+
+        // Assemble + normalise final data.
+        $data = $this->dataBuilder->assemble(
+            $parsedQuote,
+            $classified,
+            $risk,
+            $methodStatement,
+            $mergedForm,
+        );
+
+        // Pre-render guard.
+        if (empty($data) || ! array_key_exists('method_statement', $data)) {
+            throw new \RuntimeException(
+                'Pre-render guard failed: generated_data is empty or method_statement key is missing.'
+            );
+        }
+
+        // Persist.
+        $record->update([
+            'project_ref'    => $data['project']['ref']          ?: $record->project_ref,
+            'project_name'   => $data['project']['name']         ?: $record->project_name,
+            'client_name'    => $data['project']['client']       ?: $record->client_name,
+            'site_address'   => $data['project']['site_address'] ?: $record->site_address,
+            'generated_data' => $data,
+        ]);
+
+        // Render DOCX.
+        $path = $this->renderer->render($data, $record);
+
+        Log::info('RamsBuilderService::buildFromReview: DOCX written', [
+            'record_id' => $record->id,
+            'path'      => $path,
+        ]);
+
+        return $path;
+    }
+
+    // ── Conversion helpers ────────────────────────────────────────────────────
+
+    /**
+     * Convert reviewed_data into the parsedQuote shape expected by downstream services.
+     * Confidence is always 1.0 for reviewed data — the human has approved it.
+     */
+    private function reviewedToParsed(array $rd): array
+    {
+        $equipment = array_values(array_map(
+            fn ($e) => [
+                'qty'         => max(1, (int) ($e['quantity'] ?? 1)),
+                'description' => (string) ($e['name'] ?? ''),
+                'location'    => '',
+            ],
+            $rd['equipment'] ?? [],
+        ));
+
+        $notes = trim((string) ($rd['method_statement_notes'] ?? ''));
+        $roomOverviews = array_values(array_filter(
+            $rd['room_overviews'] ?? [],
+            fn ($r) => is_array($r) && trim((string) ($r['room'] ?? '')) !== ''
+        ));
+        $rooms = array_values(array_map(
+            fn ($r) => (string) ($r['room'] ?? ''),
+            $roomOverviews,
+        ));
+
+        return [
+            'client'        => (string) ($rd['project']['client_name']  ?? ''),
+            'site'          => (string) ($rd['project']['site_address']  ?? ''),
+            'ref'           => (string) ($rd['project']['quote_ref']     ?? ''),
+            'project_name'  => (string) ($rd['project']['project_name']  ?? ''),
+            'works_summary' => $notes,
+            'equipment'     => $equipment,
+            'tasks'         => $notes !== '' ? [$notes] : [],
+            'rooms'         => $rooms,
+            'room_overviews'=> $roomOverviews,
+            'confidence'    => 1.0,
+        ];
+    }
+
+    /**
+     * Convert reviewed_data.activities into the classified shape.
+     */
+    private function reviewedToClassified(array $rd): array
+    {
+        $activities = array_values(array_filter(
+            array_column($rd['activities'] ?? [], 'key'),
+            fn ($k) => $k !== '',
+        ));
+
+        $labels = array_column($rd['activities'] ?? [], 'label');
+
+        return [
+            'activities'        => $activities,
+            'categories'        => [],
+            'summary'           => implode(', ', array_filter($labels)),
+            'heavy_items'       => [],
+            'drilling_required' => false,
+        ];
+    }
+
+    /**
+     * Convert reviewed_data hazards + ppe + access into the risk shape
+     * expected by RamsDataBuilderService::assemble().
+     */
+    private function reviewedToRisk(array $rd, ?int $userId = null): array
+    {
+        $hazards = array_values(array_map(function (array $h, int $i) {
+            $preL = null;
+            $preS = null;
+            $postL = null;
+            $postS = null;
+            $controls = (array) ($h['control_measures'] ?? []);
+
+            $name = (string) ($h['hazard'] ?? '');
+
+            // Prefer hazard library values when available
+            if ($name !== '') {
+                $resolved = $this->hazardLibrary->resolveFromSeeds($userId ?? 0, [$name], false);
+                $tpl = $resolved->first();
+                if ($tpl) {
+                    $preL = (int) ($tpl->pre_likelihood  ?? null);
+                    $preS = (int) ($tpl->pre_severity    ?? null);
+                    $postL = (int) ($tpl->post_likelihood ?? null);
+                    $postS = (int) ($tpl->post_severity   ?? null);
+                    if (empty($controls)) {
+                        $controls = (array) ($tpl->controls ?? []);
+                    }
+                }
+            }
+
+            if ($preL === null || $preS === null) {
+                [$preL, $preS] = $this->riskLevelsFromString((string) ($h['risk'] ?? 'Medium'));
+            }
+
+            if ($postL === null || $postS === null) {
+                $postL = max(1, $preL - 1);
+                $postS = max(1, $preS - 1);
+            }
+            return [
+                'id'              => $i + 1,
+                'hazard'          => $name,
+                'persons_at_risk' => ['21CAV Staff', 'Client Staff', 'Others'],
+                'pre_likelihood'  => $preL,
+                'pre_severity'    => $preS,
+                'controls'        => array_values(array_filter(
+                                         array_map('strval', $controls),
+                                         fn ($s) => strlen(trim($s)) > 0,
+                                     )),
+                'post_likelihood' => $postL,
+                'post_severity'   => $postS,
+            ];
+        }, $rd['hazards'] ?? [], array_keys($rd['hazards'] ?? [])));
+
+        // Convert access booleans to access_equipment strings.
+        $access = $rd['access'] ?? [];
+        $accessEquipment = [];
+        if (! empty($access['ladders']))       $accessEquipment[] = 'Podium Steps';
+        if (! empty($access['tower']))         $accessEquipment[] = 'Access Tower';
+        if (! empty($access['scissor_lift']))  $accessEquipment[] = 'Scissor Lift';
+        if (empty($accessEquipment))           $accessEquipment   = ['Kick Stool'];
+
+        return [
+            'hazards'          => $hazards,
+            'ppe'              => array_values(array_filter(
+                                      array_map('strval', (array) ($rd['ppe'] ?? [])),
+                                      fn ($s) => strlen(trim($s)) > 0,
+                                  )),
+            'access_equipment' => $accessEquipment,
+        ];
+    }
+
+    /**
+     * Merge reviewed project fields into formData so RamsDataBuilderService
+     * resolveProjectFields() picks up the correct values. Reviewed data takes
+     * priority over original form_data.
+     */
+    private function mergeReviewedIntoFormData(array $reviewedData, array $formData): array
+    {
+        $project = $reviewedData['project'] ?? [];
+        return array_merge($formData, array_filter([
+            'project_ref'       => ($project['quote_ref']    ?? '') ?: null,
+            'project_name'      => ($project['project_name'] ?? '') ?: null,
+            'client_name'       => ($project['client_name']  ?? '') ?: null,
+            'site_address'      => ($project['site_address'] ?? '') ?: null,
+            'site_contact'      => ($project['site_contact'] ?? '') ?: null,
+            'doc_author'        => ($project['prepared_by']  ?? '') ?: null,
+            'project_manager'      => ($project['project_manager']      ?? '') ?: null,
+            'lead_engineer'        => ($project['lead_engineer']        ?? '') ?: null,
+            'additional_engineers' => ($project['additional_engineers'] ?? '') ?: null,
+            'programmer'           => ($project['programmer']           ?? '') ?: null,
+            'works_description' => ($reviewedData['method_statement_notes'] ?? '') ?: null,
+        ]));
+    }
+
+    /**
+     * Map a risk string to [likelihood, severity] integers (1–5).
+     */
+    private function riskLevelsFromString(string $risk): array
+    {
+        return match (strtolower(trim($risk))) {
+            'high'   => [4, 4],
+            'low'    => [2, 2],
+            default  => [3, 3],
+        };
+    }
+
+    // =========================================================================
+    // PRIVATE — ORIGINAL PIPELINE (for buildFromForm / buildFromQuote)
+    // =========================================================================
+
+    private function pipeline(array $parsed, array $formData, RamsDocument $record): string
+    {
+        try {
+            return $this->runPipeline($parsed, $formData, $record);
+        } catch (\Throwable $e) {
+            Log::error('RamsBuilderService: pipeline failed', [
+                'record_id' => $record->id,
+                'error'     => $e->getMessage(),
+                'file'      => $e->getFile(),
+                'line'      => $e->getLine(),
+            ]);
+            $record->update(['status' => RamsDocument::STATUS_FAILED]);
+            throw $e;
+        }
+    }
+
+    private function runPipeline(array $parsed, array $formData, RamsDocument $record): string
+    {
+        $confidence = (float) ($parsed['confidence'] ?? 1.0);
+
+        if ($confidence < self::CONFIDENCE_THRESHOLD) {
+            Log::warning('RamsBuilderService: confidence below threshold — setting awaiting_review, skipping AI and render', [
+                'record_id'  => $record->id,
+                'confidence' => $confidence,
+                'threshold'  => self::CONFIDENCE_THRESHOLD,
+            ]);
+            $record->update(['status' => RamsDocument::STATUS_AWAITING_REVIEW]);
+            return '';
+        }
+
+        $classified = $this->classifier->classify($parsed['equipment'] ?? []);
+
+        $risk = $this->riskResolver->resolve(
+            $classified['activities'],
+            $classified['drilling_required'] ?? false,
+            $record->user_id,
+            $formData['hazards'] ?? [],
+            $formData['persons_at_risk'] ?? [],
+        );
+
+        $methodStatement = $this->methodStatementGen->generate(
+            $parsed,
+            $classified,
+            $risk['hazards'] ?? [],
+        );
+
+        $data = $this->dataBuilder->assemble(
+            $parsed,
+            $classified,
+            $risk,
+            $methodStatement,
+            $formData,
+        );
+
+        if (empty($data) || ! array_key_exists('method_statement', $data)) {
+            throw new \RuntimeException(
+                'Pre-render guard failed: generated_data is empty or method_statement key is missing.'
+            );
+        }
+
+        $record->update([
+            'project_ref'    => $data['project']['ref']          ?: $record->project_ref,
+            'project_name'   => $data['project']['name']         ?: $record->project_name,
+            'client_name'    => $data['project']['client']       ?: $record->client_name,
+            'site_address'   => $data['project']['site_address'] ?: $record->site_address,
+            'generated_data' => $data,
+        ]);
+
+        $path = $this->renderer->render($data, $record);
+
+        Log::info('RamsBuilderService: DOCX written', [
+            'record_id' => $record->id,
+            'path'      => $path,
+        ]);
+
+        return $path;
+    }
+}

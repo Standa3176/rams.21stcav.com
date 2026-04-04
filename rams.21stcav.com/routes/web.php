@@ -1,0 +1,202 @@
+<?php
+
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\AIUsageController;
+use App\Http\Controllers\CableScheduleController;
+use App\Http\Controllers\HazardTemplateController;
+use App\Http\Controllers\OmManualController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\QuoteImportController;
+use App\Http\Controllers\QuoteUploadController;
+use App\Http\Controllers\RamsController;
+use App\Http\Controllers\RamsReviewController;
+use App\Http\Controllers\ProjectPackageReviewController;
+use App\Http\Controllers\SiteSurveyController;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
+
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/', function () {
+    return view('welcome');
+});
+
+Route::post('/logout', function () {
+    Auth::logout();
+    request()->session()->invalidate();
+    request()->session()->regenerateToken();
+    return redirect('/login');
+})->name('logout');
+
+/*
+|--------------------------------------------------------------------------
+| RAMS Generator — authenticated routes
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware('auth')->group(function () {
+
+    // ── Dashboard ─────────────────────────────────────────────────────────
+    Route::get('/dashboard', function () {
+        return view('dashboard', [
+            'statActiveProjects' => \App\Models\Project::whereNotIn('status', ['archived'])->count(),
+            'statAllProjects'    => \App\Models\Project::count(),
+            'statRams'           => \App\Models\RamsDocument::count(),
+            'statSurveys'        => \App\Models\SiteSurvey::count(),
+            'statImports'        => \App\Models\ProjectPackage::count(),
+            'recentProjects'     => \App\Models\Project::with('owner')->orderByDesc('updated_at')->limit(6)->get(),
+            'recentRams'         => \App\Models\RamsDocument::with('project')->orderByDesc('created_at')->limit(6)->get(),
+        ]);
+    })->name('dashboard');
+
+    // ── Profile ───────────────────────────────────────────────────────────
+    Route::get('/profile',    [ProfileController::class, 'edit'])   ->name('profile.edit');
+    Route::patch('/profile',  [ProfileController::class, 'update']) ->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // ── Quote Import (enterprise PDF → ProjectPackage pipeline) ───────────
+    Route::get('/quote-import',                                [QuoteImportController::class, 'create'])   ->name('quote-import.create');
+    Route::post('/quote-import',                               [QuoteImportController::class, 'store'])    ->name('quote-import.store')->middleware('throttle:10,1');
+    Route::get('/quote-import/{package}/review',               [QuoteImportController::class, 'review'])   ->name('quote-import.review');
+    Route::post('/quote-import/{package}/confirm',             [QuoteImportController::class, 'confirm'])  ->name('quote-import.confirm');
+
+    // Project-level data review (shared by all docs)
+    Route::get('/project-packages/{package}/review',           [ProjectPackageReviewController::class, 'show'])   ->name('project-packages.review.show');
+    Route::post('/project-packages/{package}/review',          [ProjectPackageReviewController::class, 'update']) ->name('project-packages.review.update');
+    Route::post('/project-packages/{package}/approve',         [ProjectPackageReviewController::class, 'approve'])->name('project-packages.review.approve');
+    Route::post('/quote-import/{package}/re-extract',          [QuoteImportController::class, 'reextract'])->name('quote-import.reextract');
+
+    // ── Projects ──────────────────────────────────────────────────────────
+    Route::resource('projects', ProjectController::class)
+        ->only(['index', 'create', 'store', 'show', 'edit', 'update', 'destroy']);
+    Route::post('projects/{project}/transition',  [ProjectController::class, 'transition']) ->name('projects.transition');
+    Route::post('projects/{project}/archive',     [ProjectController::class, 'archive'])    ->name('projects.archive');
+    Route::post('projects/{project}/reopen',      [ProjectController::class, 'reopen'])     ->name('projects.reopen');
+    Route::post('projects/{id}/restore',          [ProjectController::class, 'restore'])    ->name('projects.restore');
+    Route::delete('projects/{id}/force-destroy',  [ProjectController::class, 'forceDestroy'])->name('projects.force-destroy');
+
+    // ── Admin-only routes ─────────────────────────────────────────────────
+    Route::middleware('admin')->group(function () {
+
+        // RAMS settings
+        Route::get('/rams/settings',  [RamsController::class, 'settings'])
+            ->name('rams.settings');
+        Route::post('/rams/settings', [RamsController::class, 'saveSettings'])
+            ->name('rams.settings.save');
+        Route::post('/rams/settings/test-connection', [RamsController::class, 'testConnection'])
+            ->name('rams.settings.test');
+
+        // User management
+        Route::get('/admin/users',                          [UserController::class, 'index'])        ->name('admin.users.index');
+        Route::get('/admin/users/create',                   [UserController::class, 'create'])       ->name('admin.users.create');
+        Route::post('/admin/users',                         [UserController::class, 'store'])        ->name('admin.users.store');
+        Route::get('/admin/users/{user}/edit',              [UserController::class, 'edit'])         ->name('admin.users.edit');
+        Route::put('/admin/users/{user}',                   [UserController::class, 'update'])       ->name('admin.users.update');
+        Route::post('/admin/users/{user}/toggle-active',    [UserController::class, 'toggleActive']) ->name('admin.users.toggle-active');
+        Route::delete('/admin/users/{user}',                [UserController::class, 'destroy'])      ->name('admin.users.destroy');
+
+        // AI usage dashboard
+        Route::get('/admin/ai-usage', [AIUsageController::class, 'index'])->name('admin.ai-usage.index');
+
+        // ── Worker Monitor (admin only) ───────────────────────────────────────
+        Route::prefix('admin')->group(function () {
+            Route::get ('worker',          [\App\Http\Controllers\WorkerMonitorController::class, 'index'])  ->name('admin.worker.index');
+            Route::post('worker/start',    [\App\Http\Controllers\WorkerMonitorController::class, 'start'])  ->name('admin.worker.start');
+            Route::post('worker/stop',     [\App\Http\Controllers\WorkerMonitorController::class, 'stop'])   ->name('admin.worker.stop');
+            Route::post('worker/restart',  [\App\Http\Controllers\WorkerMonitorController::class, 'restart'])->name('admin.worker.restart');
+        });
+    });
+
+    // ── Quote upload (before resource to prevent {rams} capturing "upload") ─
+    Route::get('/rams/upload',  [QuoteUploadController::class, 'create'])->name('rams.upload.create');
+    Route::post('/rams/upload', [QuoteUploadController::class, 'store'])->name('rams.upload.store')->middleware('throttle:10,1');
+
+    // ── Post-upload processing page + JSON status poll ────────────────────
+    // These must be registered before the RAMS resource so {rams} in the path
+    // does not conflict with the "processing" and "check-ready" literal segments.
+    Route::get('rams/{rams}/processing',  [QuoteUploadController::class, 'processing']) ->name('rams.processing');
+    Route::get('rams/{rams}/check-ready', [QuoteUploadController::class, 'checkReady'])->name('rams.check-ready');
+
+    // ── Core RAMS resource ────────────────────────────────────────────────
+    Route::resource('rams', RamsController::class)
+        ->only(['index', 'create', 'store', 'destroy']);
+
+    // ── Existing RAMS actions ─────────────────────────────────────────────
+    Route::get('rams/{rams}/review',               [RamsController::class, 'review'])            ->name('rams.review');
+    Route::post('rams/{rams}/update-and-download', [RamsController::class, 'updateAndDownload'])->name('rams.update-and-download');
+    Route::get('rams/{rams}/download',             [RamsController::class, 'download'])         ->name('rams.download');
+    Route::get('rams/{rams}/download-pdf',         [RamsController::class, 'downloadPdf'])      ->name('rams.download-pdf');
+    Route::post('rams/{rams}/email',               [RamsController::class, 'email'])            ->name('rams.email');
+    Route::post('rams/{rams}/status',              [RamsController::class, 'updateStatus'])     ->name('rams.status');
+    Route::post('rams/{rams}/regenerate',          [RamsController::class, 'regenerate'])       ->name('rams.regenerate');
+
+    // ── Retry / recovery actions ──────────────────────────────────────────
+    Route::post('rams/{rams}/retry-extraction', [RamsController::class, 'retryExtraction'])->name('rams.retry-extraction');
+    Route::post('rams/{rams}/retry-generation', [RamsController::class, 'retryGeneration'])->name('rams.retry-generation');
+    Route::post('rams/from-project/{project}',  [RamsController::class, 'generateFromProject'])->name('rams.from-project');
+
+    // ── Restore / permanent delete (admin only) ───────────────────────────
+    Route::post('rams/{id}/restore',         [RamsController::class, 'restore'])        ->name('rams.restore');
+    Route::delete('rams/{id}/force-destroy', [RamsController::class, 'forceDestroy'])   ->name('rams.force-destroy');
+
+    // ── Pre-generation review workflow ────────────────────────────────────
+    // GET  — display the review/edit form (extracted or reviewed data)
+    // POST — save edits to reviewed_data (without generating)
+    // POST — validate and approve (sets status=approved; generation triggered separately)
+    Route::get('rams/{rams}/quote-review',         [RamsReviewController::class, 'show'])       ->name('rams.quote-review.show');
+    Route::post('rams/{rams}/quote-review',        [RamsReviewController::class, 'update'])     ->name('rams.quote-review.update');
+    Route::post('rams/{rams}/room-overviews/summarize', [RamsReviewController::class, 'summarize'])
+        ->name('rams.room-overviews.summarize');
+    Route::post('rams/{rams}/approve',             [RamsReviewController::class, 'approve'])    ->name('rams.approve');
+
+    // ── Hazard Template Library ───────────────────────────────────────────
+    Route::get('/hazard-templates/api',                     [HazardTemplateController::class, 'apiIndex']) ->name('hazard-templates.api');
+    Route::get('/hazard-templates',                         [HazardTemplateController::class, 'index'])    ->name('hazard-templates.index');
+    Route::post('/hazard-templates',                        [HazardTemplateController::class, 'store'])    ->name('hazard-templates.store');
+    Route::get('/hazard-templates/{hazardTemplate}/edit',   [HazardTemplateController::class, 'edit'])    ->name('hazard-templates.edit');
+    Route::put('/hazard-templates/{hazardTemplate}',        [HazardTemplateController::class, 'update'])  ->name('hazard-templates.update');
+    Route::delete('/hazard-templates/{hazardTemplate}',     [HazardTemplateController::class, 'destroy']) ->name('hazard-templates.destroy');
+
+    // ── Cable Schedules ───────────────────────────────────────────────────
+    Route::resource('cable-schedules', CableScheduleController::class)
+        ->only(['index', 'create', 'store', 'destroy']);
+    Route::get('cable-schedules/{cableSchedule}/edit',      [CableScheduleController::class, 'edit'])        ->name('cable-schedules.edit');
+    Route::put('cable-schedules/{cableSchedule}',           [CableScheduleController::class, 'update'])      ->name('cable-schedules.update');
+    Route::post('cable-schedules/{id}/restore',             [CableScheduleController::class, 'restore'])     ->name('cable-schedules.restore');
+    Route::delete('cable-schedules/{id}/force-destroy',     [CableScheduleController::class, 'forceDestroy'])->name('cable-schedules.force-destroy');
+
+    // ── Site Surveys ──────────────────────────────────────────────────────
+    Route::resource('site-surveys', SiteSurveyController::class)
+        ->only(['index', 'create', 'store', 'show', 'edit', 'update', 'destroy']);
+    Route::post('site-surveys/{siteSurvey}/complete',                           [SiteSurveyController::class, 'complete'])          ->name('site-surveys.complete');
+    Route::post('site-surveys/{id}/restore',                                    [SiteSurveyController::class, 'restore'])            ->name('site-surveys.restore');
+    Route::delete('site-surveys/{id}/force-destroy',                            [SiteSurveyController::class, 'forceDestroy'])       ->name('site-surveys.force-destroy');
+    Route::post('site-surveys/{siteSurvey}/rooms/{room}/photos',                [SiteSurveyController::class, 'uploadPhoto'])    ->name('site-surveys.photos.upload')->middleware('throttle:30,1');
+    Route::delete('site-surveys/photos/{photo}',                                [SiteSurveyController::class, 'deletePhoto'])    ->name('site-surveys.photos.delete');
+    Route::get('site-surveys/photos/{photo}',                                   [SiteSurveyController::class, 'servePhoto'])     ->name('site-surveys.photos.serve');
+    Route::get('site-surveys/{siteSurvey}/pdf',                                 [SiteSurveyController::class, 'downloadPdf'])    ->name('site-surveys.pdf');
+    Route::get('site-surveys/blank-form',                                       [SiteSurveyController::class, 'downloadBlankForm'])->name('site-surveys.blank-form');
+
+    // ── O&M Manuals ───────────────────────────────────────────────────────
+    Route::resource('om-manuals', OmManualController::class)
+        ->only(['index', 'create', 'store', 'destroy']);
+    Route::post('om-manuals/from-project/{project}', [OmManualController::class, 'storeFromProject'])
+        ->name('om-manuals.from-project');
+    Route::post('om-manuals/generate-from-project/{project}', [OmManualController::class, 'generateFromProject'])
+        ->name('om-manuals.generate-from-project');
+    Route::get('om-manuals/{omManual}/edit',         [OmManualController::class, 'edit'])        ->name('om-manuals.edit');
+    Route::put('om-manuals/{omManual}',              [OmManualController::class, 'update'])      ->name('om-manuals.update');
+    Route::post('om-manuals/{omManual}/generate',        [OmManualController::class, 'generate'])        ->name('om-manuals.generate');
+    Route::post('om-manuals/{omManual}/retry-generation',[OmManualController::class, 'retryGeneration']) ->name('om-manuals.retry-generation');
+    Route::get('om-manuals/{omManual}/download',         [OmManualController::class, 'download'])        ->name('om-manuals.download');
+    Route::get('om-manuals/{omManual}/download-pdf',     [OmManualController::class, 'downloadPdf'])     ->name('om-manuals.download-pdf');
+    Route::post('om-manuals/{id}/restore',           [OmManualController::class, 'restore'])     ->name('om-manuals.restore');
+    Route::delete('om-manuals/{id}/force-destroy',   [OmManualController::class, 'forceDestroy'])->name('om-manuals.force-destroy');
+});
+
+require __DIR__.'/auth.php';
