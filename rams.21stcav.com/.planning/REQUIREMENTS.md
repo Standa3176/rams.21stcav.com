@@ -114,13 +114,51 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (Populated during roadmap creation) | | |
+| PROJ-01 | Phase 1 | Pending |
+| PROJ-02 | Phase 1 | Pending |
+| PROJ-03 | Phase 1 | Pending |
+| PROJ-04 | Phase 1 | Pending |
+| PROJ-05 | Phase 1 | Pending |
+| DATA-01 | Phase 1 | Pending |
+| DATA-02 | Phase 1 | Pending |
+| DATA-03 | Phase 1 | Pending |
+| DATA-04 | Phase 1 | Pending |
+| DATA-05 | Phase 1 | Pending |
+| QWSQL-01 | Phase 2 | Pending |
+| QWSQL-02 | Phase 2 | Pending |
+| QWSQL-03 | Phase 2 | Pending |
+| QWSQL-04 | Phase 2 | Pending |
+| QWSQL-05 | Phase 2 | Pending |
+| QWSQL-06 | Phase 2 | Pending |
+| QWSQL-07 | Phase 2 | Pending |
+| SURV-01 | Phase 3 | Pending |
+| SURV-02 | Phase 3 | Pending |
+| SURV-03 | Phase 3 | Pending |
+| SURV-04 | Phase 3 | Pending |
+| SURV-05 | Phase 3 | Pending |
+| WORK-01 | Phase 4 | Pending |
+| WORK-02 | Phase 4 | Pending |
+| WORK-03 | Phase 4 | Pending |
+| WORK-04 | Phase 4 | Pending |
+| OM-01 | Phase 4 | Pending |
+| OM-02 | Phase 4 | Pending |
+| OM-03 | Phase 4 | Pending |
+| OM-04 | Phase 4 | Pending |
+| CABLE-01 | Phase 4 | Pending |
+| CABLE-02 | Phase 4 | Pending |
+| CABLE-03 | Phase 4 | Pending |
+| CABLE-04 | Phase 4 | Pending |
+| RAMS-01 | Phase 5 | Pending |
+| RAMS-02 | Phase 5 | Pending |
+| RAMS-03 | Phase 5 | Pending |
 
 **Coverage:**
-- v1 requirements: 32 total
-- Mapped to phases: 0
-- Unmapped: 32
+- v1 requirements: 37 total
+- Mapped to phases: 37
+- Unmapped: 0
+
+Note: The original coverage count of "32" was incorrect. Actual count is 37 requirements across 8 categories.
 
 ---
 *Requirements defined: 2026-04-09*
-*Last updated: 2026-04-09 after initial definition*
+*Last updated: 2026-04-09 — traceability populated after roadmap creation*
