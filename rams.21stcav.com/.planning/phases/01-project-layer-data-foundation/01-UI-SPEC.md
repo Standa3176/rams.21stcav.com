@@ -76,6 +76,8 @@ Exceptions:
 - Touch targets: all interactive elements (buttons, filter tabs, table rows) achieve minimum 36px height through existing padding declarations. No new touch target exceptions needed.
 - Lifecycle step badges in the progress bar use `padding: .3rem .75rem` — preserve this compact size for the 8-step horizontal stepper to avoid overflow.
 
+Brownfield exception note: spacing values `1.1rem` and `.3rem` exist only in pre-existing CSS inherited from the brownfield codebase. These values must never appear in new style blocks written for Phase 1 or later phases. New code uses the token scale above.
+
 New Phase 1 templates must not introduce spacing values outside these tokens. Use existing CSS classes where possible rather than inline style values.
 
 ---
@@ -87,8 +89,8 @@ Source: body declaration in `layouts/app.blade.php`.
 | Role | Size | Weight | Line Height | Notes |
 |------|------|--------|-------------|-------|
 | Body | 15px (0.9375rem) | 400 | 1.5 | Base body; used for all paragraph and td text |
-| Label / small body | 14px (0.875rem) | 400 / 500 | 1.5 | Form labels at 600, helper text at 400, table cells at 400 |
-| Caption / muted | 12–13px (0.75–0.8125rem) | 400–600 | 1.4 | Timestamps, badge text, stat labels |
+| Label / small body | 14px (0.875rem) | 400 / 600 | 1.5 | Form labels at 600, helper text at 400, table cells at 400 |
+| Caption / muted | 12–13px (0.75–0.8125rem) | 400 / 600 | 1.4 | Timestamps, badge text, stat labels |
 | Heading / page title | 22px (1.375rem) | 700 | 1.2 | `.page-title` — one per page only |
 | Section heading | 15px (0.9375rem) | 700 | 1.2 | `.section-heading` with teal bottom border |
 | Card title | 15px (0.9375rem) | 600 | 1.3 | `.card-title` |
@@ -97,7 +99,7 @@ Font stack: `Figtree, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'In
 
 Rules:
 - Use exactly these 4 size tiers: 12–13px caption, 14px label, 15px body/heading, 22px page title.
-- Weight is either 400 (body) or 600–700 (emphasis). Do not introduce other weights.
+- Weight is either 400 (regular) or 600/700 (emphasis). Weight 500 is not permitted. Do not introduce any other weights.
 - Never use `font-size` values outside the 4 tiers above in Phase 1 templates.
 
 ---
@@ -193,6 +195,8 @@ These existing components and classes must be used for Phase 1 surfaces. Do not 
 
 **Current state:** Partially implemented — lifecycle progress bar and Quote History section exist. Phase 1 extends this with a unified linked records panel.
 
+**Primary focal point:** The lifecycle progress bar at the top of the left column. It is the dominant visual element on this page and must remain the first thing the eye lands on. All new content sections sit below it.
+
 **Layout:** Two-column grid `grid-template-columns: 1fr 320px` (pre-existing). Left column contains main content sections stacked as `.card.card-sm` blocks. Right column (sidebar) shows project metadata summary.
 
 **New section required — "Linked Records":** Add a `.card.card-sm` with flush padding, placed below Quote History in the left column. It displays a table of all record types linked to this project:
@@ -225,7 +229,7 @@ DATA-01 through DATA-05 are backend service contracts with no dedicated UI surfa
 |---------|------|
 | Page title — create | "New Project" |
 | Primary CTA — create form | "Create Project" |
-| Cancel link — create form | "Cancel" |
+| Navigation link — create form | "Back to Projects" (links to /projects; renders as a text link, not a button) |
 | Primary CTA — advance lifecycle | "Advance → {Next Status Label}" (e.g. "Advance → Survey Pending") |
 | Secondary action — archive | "Archive" |
 | Archive confirmation | "Archive this project?" |
@@ -252,6 +256,7 @@ Rules:
 - No ellipsis in button labels.
 - Status labels in confirmations always match `Project::STATUS_LABELS` values exactly.
 - Do not use "Please" in any copy.
+- "Cancel" is a blocked generic label. Use a descriptive navigation label that states the destination (e.g. "Back to Projects").
 
 ---
 
