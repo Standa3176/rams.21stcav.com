@@ -76,6 +76,29 @@ class SiteSurveyController extends Controller
             ->with('success', 'Site survey created. Add photos to each room below.');
     }
 
+    /**
+     * GET /site-surveys/from-project/{project}
+     *
+     * Pre-create a survey seeded from the project's reviewed package data,
+     * then redirect the authenticated user straight to the edit page so they
+     * can review the pre-filled rooms before sharing the engineer link.
+     */
+    public function createFromProject(Project $project): RedirectResponse
+    {
+        // Only the project owner or an admin may create a survey for this project.
+        abort_if(
+            $project->user_id !== auth()->id() && ! auth()->user()?->isAdmin(),
+            403
+        );
+
+        /** @var \App\Models\User $user */
+        $user   = auth()->user();
+        $survey = $this->service->createFromProject($project, $user);
+
+        return redirect()->route('site-surveys.edit', $survey)
+            ->with('success', 'Survey created and pre-filled from project data. Review the rooms below, then share the engineer link.');
+    }
+
     // ─── Edit ────────────────────────────────────────────────────────────────
 
     public function edit(SiteSurvey $siteSurvey): View
@@ -88,7 +111,54 @@ class SiteSurveyController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        return view('site-survey.edit', ['survey' => $siteSurvey, 'projects' => $projects]);
+        // Build kit-by-area lookup from the linked project's latest package so
+        // each room card can display a collapsible quote kit list.
+        $kitByArea = [];
+        if ($siteSurvey->project_id) {
+            $proj = Project::with('latestPackage')->find($siteSurvey->project_id);
+            foreach ((array) ($proj?->latestPackage?->extracted_data['equipment'] ?? []) as $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+                // Only include hardware items in the survey kit list
+                $category = strtolower(trim((string) ($item['category'] ?? 'hardware')));
+                if ($category !== 'hardware') {
+                    continue;
+                }
+                $area = trim((string) ($item['area'] ?? $item['location'] ?? ''));
+                if ($area === '') {
+                    continue;
+                }
+                $kitByArea[$area][] = $item;
+            }
+        }
+
+        return view('site-survey.edit', [
+            'survey'    => $siteSurvey,
+            'projects'  => $projects,
+            'kitByArea' => $kitByArea,
+        ]);
+    }
+
+    /**
+     * GET /site-surveys/project-data/{project}
+     *
+     * Returns the project's name / ref / client / site address as JSON so the
+     * create form can auto-fill those fields when a project is selected.
+     */
+    public function projectData(Project $project): JsonResponse
+    {
+        abort_unless(
+            $project->user_id === auth()->id() || auth()->user()?->isAdmin(),
+            403
+        );
+
+        return response()->json([
+            'name'         => $project->name,
+            'ref'          => $project->ref,
+            'client_name'  => $project->client_name,
+            'site_address' => $project->site_address,
+        ]);
     }
 
     public function update(Request $request, SiteSurvey $siteSurvey): RedirectResponse
@@ -201,13 +271,16 @@ class SiteSurveyController extends Controller
 
     /**
      * GET /site-surveys/photos/{photo} — serve photo through local storage
+     *
+     * Uses storagePath() to support both legacy flat paths and the new
+     * project-scoped path format (projects/{id}/surveys/{id}/file.jpg).
      */
     public function servePhoto(SiteSurveyPhoto $photo): \Symfony\Component\HttpFoundation\Response
     {
         $survey = $photo->room->survey;
         $this->authorizeSurvey($survey);
 
-        $path = \Illuminate\Support\Facades\Storage::disk('local')->path('survey-photos/' . $photo->filename);
+        $path = \Illuminate\Support\Facades\Storage::disk('local')->path($photo->storagePath());
         abort_unless(file_exists($path), 404);
 
         return response()->file($path, [
@@ -258,11 +331,17 @@ class SiteSurveyController extends Controller
             'survey_date'                           => ['nullable', 'date'],
             'surveyor_name'                         => ['nullable', 'string', 'max:100'],
             'general_notes'                         => ['nullable', 'string', 'max:3000'],
+            'survey_type'                           => ['nullable', 'string', 'in:general,pa_system,infrastructure,signage,upgrade,mixed'],
+            // Rooms
             'rooms'                                 => ['nullable', 'array'],
             'rooms.*.id'                            => ['nullable', 'integer'],
+            'rooms.*.qty'                           => ['nullable', 'integer', 'min:1', 'max:99'],
             'rooms.*.room_name'                     => ['required', 'string', 'max:150'],
             'rooms.*.room_ref'                      => ['nullable', 'string', 'max:50'],
             'rooms.*.floor'                         => ['nullable', 'string', 'max:50'],
+            'rooms.*.area_type'                     => ['nullable', 'string', 'max:50'],
+            'rooms.*.space_type'                    => ['nullable', 'string', 'in:general,pa_system,infrastructure,signage,upgrade,mixed'],
+            // Dimensions / structure
             'rooms.*.room_width_m'                  => ['nullable', 'numeric', 'min:0', 'max:999'],
             'rooms.*.room_depth_m'                  => ['nullable', 'numeric', 'min:0', 'max:999'],
             'rooms.*.room_height_m'                 => ['nullable', 'numeric', 'min:0', 'max:99'],
@@ -270,8 +349,10 @@ class SiteSurveyController extends Controller
             'rooms.*.ceiling_height_m'              => ['nullable', 'numeric', 'min:0', 'max:99'],
             'rooms.*.wall_material'                 => ['nullable', 'string', 'max:50'],
             'rooms.*.floor_type'                    => ['nullable', 'string', 'max:50'],
-            'rooms.*.av_requirements'               => ['nullable', 'string', 'max:1000'],
-            'rooms.*.av_equipment_list'             => ['nullable', 'string', 'max:1000'],
+            // AV
+            'rooms.*.av_requirements'               => ['nullable', 'string', 'max:5000'],
+            'rooms.*.av_equipment_list'             => ['nullable', 'string', 'max:5000'],
+            // Services
             'rooms.*.has_power'                     => ['nullable', 'boolean'],
             'rooms.*.has_network'                   => ['nullable', 'boolean'],
             'rooms.*.power_outlet_count'            => ['nullable', 'integer', 'min:0', 'max:999'],
@@ -280,6 +361,22 @@ class SiteSurveyController extends Controller
             'rooms.*.requires_additional_power'     => ['nullable', 'boolean'],
             'rooms.*.access_notes'                  => ['nullable', 'string', 'max:500'],
             'rooms.*.notes'                         => ['nullable', 'string', 'max:500'],
+            // PA system
+            'rooms.*.speaker_count'                 => ['nullable', 'integer', 'min:0', 'max:999'],
+            'rooms.*.speaker_type'                  => ['nullable', 'string', 'max:50'],
+            'rooms.*.speaker_mounting'              => ['nullable', 'string', 'max:50'],
+            'rooms.*.bg_noise_db'                   => ['nullable', 'integer', 'min:0', 'max:200'],
+            // Digital signage
+            'rooms.*.display_size_in'               => ['nullable', 'numeric', 'min:0', 'max:999'],
+            'rooms.*.display_orient'                => ['nullable', 'string', 'in:landscape,portrait'],
+            'rooms.*.display_mounting'              => ['nullable', 'string', 'max:50'],
+            // Infrastructure
+            'rooms.*.rack_unit_space'               => ['nullable', 'integer', 'min:0', 'max:999'],
+            'rooms.*.cable_route_desc'              => ['nullable', 'string', 'max:3000'],
+            // Upgrade / strip-out
+            'rooms.*.existing_condition'            => ['nullable', 'string', 'max:3000'],
+            'rooms.*.items_to_remove'               => ['nullable', 'string', 'max:3000'],
+            'rooms.*.items_to_retain'               => ['nullable', 'string', 'max:3000'],
         ]);
     }
 }

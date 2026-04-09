@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Log;
  *   2. Content-validation with retry logic on top of the AI call.
  *
  * Validation rules (all must pass):
- *   - Exactly 6 phases
+ *   - Between 4 and 6 phases
  *   - Each phase has at least 2 steps
  *   - Total flattened text length >= 200 characters
  *   - Does not contain the phrase "I cannot"
@@ -32,8 +32,11 @@ class MethodStatementGeneratorService
     /** Minimum total character count across all phase steps. */
     private const MIN_CONTENT_LENGTH = 200;
 
-    /** Exactly this many phases must be present for the result to be valid. */
-    private const REQUIRED_PHASE_COUNT = 6;
+    /** Minimum number of phases required for the result to be valid. */
+    private const MIN_PHASE_COUNT = 4;
+
+    /** Maximum number of phases allowed for the result to be valid. */
+    private const MAX_PHASE_COUNT = 6;
 
     /** Each phase must have at least this many steps. */
     private const MIN_STEPS_PER_PHASE = 2;
@@ -41,7 +44,7 @@ class MethodStatementGeneratorService
     /** Maximum number of generate() attempts before falling back. */
     private const MAX_ATTEMPTS = 2;
 
-    /** Exactly this many phases the fallback must return. */
+    /** Number of phases the fallback must return. */
     private const FALLBACK_PHASE_COUNT = 6;
 
     public function __construct(
@@ -269,11 +272,23 @@ class MethodStatementGeneratorService
             return '';
         }
 
+        // Pre-load solution types referenced in room_overviews
+        $stIds = array_filter(array_unique(array_map(
+            fn ($r) => (int) ($r['solution_type_id'] ?? 0),
+            $rows
+        )));
+        $solutionTypes = [];
+        if (! empty($stIds)) {
+            foreach (\App\Models\SolutionType::whereIn('id', $stIds)->get() as $st) {
+                $solutionTypes[$st->id] = $st;
+            }
+        }
+
         $parts = [];
         foreach ($rows as $row) {
-            $room = trim((string) ($row['room'] ?? ''));
-            $summary = trim((string) ($row['summary'] ?? ''));
-            $overview = trim((string) ($row['overview'] ?? ''));
+            $room     = trim((string) ($row['room']          ?? ''));
+            $summary  = trim((string) ($row['works_summary'] ?? $row['summary'] ?? ''));
+            $overview = trim((string) ($row['overview']      ?? ''));
 
             if ($room === '') {
                 continue;
@@ -283,11 +298,21 @@ class MethodStatementGeneratorService
                 $summary = $this->firstSentence($overview);
             }
 
-            if ($summary === '') {
+            $stId  = (int) ($row['solution_type_id'] ?? 0);
+            $st    = $stId ? ($solutionTypes[$stId] ?? null) : null;
+            $label = $st ? "{$room} [{$st->name}]" : $room;
+
+            if ($summary === '' && ! $st) {
                 continue;
             }
 
-            $parts[] = "{$room}: {$summary}";
+            $methodNote = '';
+            if ($st && $st->install_method) {
+                $steps      = $st->methodLines();
+                $methodNote = ' [Install: ' . implode('; ', array_slice($steps, 0, 3)) . ']';
+            }
+
+            $parts[] = "{$label}: {$summary}{$methodNote}";
         }
 
         return $parts ? implode(' | ', $parts) : '';
@@ -321,8 +346,9 @@ class MethodStatementGeneratorService
             return false;
         }
 
-        // Guard 1: exactly 6 phases.
-        if (count($phases) !== self::REQUIRED_PHASE_COUNT) {
+        // Guard 1: phase count must be within the allowed range (4–6).
+        $phaseCount = count($phases);
+        if ($phaseCount < self::MIN_PHASE_COUNT || $phaseCount > self::MAX_PHASE_COUNT) {
             return false;
         }
 
@@ -390,10 +416,11 @@ class MethodStatementGeneratorService
         }
 
         $count = count($phases);
-        if ($count !== self::REQUIRED_PHASE_COUNT) {
+        if ($count < self::MIN_PHASE_COUNT || $count > self::MAX_PHASE_COUNT) {
             return sprintf(
-                'expected %d phases, got %d',
-                self::REQUIRED_PHASE_COUNT,
+                'expected %d–%d phases, got %d',
+                self::MIN_PHASE_COUNT,
+                self::MAX_PHASE_COUNT,
                 $count,
             );
         }

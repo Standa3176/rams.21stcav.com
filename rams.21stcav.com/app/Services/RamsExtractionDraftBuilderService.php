@@ -20,7 +20,6 @@ namespace App\Services;
  *   'ppe'      => string[],
  *   'access'   => ['ladders'=>bool,'tower'=>bool,'scissor_lift'=>bool,'out_of_hours'=>bool,'live_environment'=>bool],
  *   'method_statement_notes' => string,
- *   'room_overviews' => [['room'=>string,'overview'=>string,'summary'=>string], ...],
  *   'meta'     => ['parser_confidence'=>float|null,'source'=>'extracted'],
  * ]
  */
@@ -60,7 +59,6 @@ class RamsExtractionDraftBuilderService
             'ppe'      => $risk['ppe'] ?? [],
             'access'   => $this->buildAccess($risk['access_equipment'] ?? []),
             'method_statement_notes' => (string) ($formData['works_description'] ?? ''),
-            'room_overviews' => $this->buildRoomOverviews($parsed),
             'meta'     => [
                 'parser_confidence' => $parsed['confidence'] ?? null,
                 'source'            => 'extracted',
@@ -96,10 +94,10 @@ class RamsExtractionDraftBuilderService
         $preparedBy = ($formData['doc_author'] ?? '') ?: ($parsed['prepared_by'] ?? '');
 
         $siteAddress = ($formData['site_address'] ?? '') ?: ($parsed['site'] ?? '');
-
-        // Use the dedicated site_name from the parser (SITENAMESTART tag) when
-        // available; fall back to the client name if not present.
-        $siteName = ($formData['site_name'] ?? '') ?: ($parsed['site_name'] ?? '') ?: $client;
+        $siteName    = ($formData['site_name'] ?? '') ?: ($parsed['site_name'] ?? '');
+        if ($siteName === '') {
+            $siteName = $projectName !== '' ? $projectName : $client;
+        }
 
         return [
             'project_name' => $projectName,
@@ -118,42 +116,14 @@ class RamsExtractionDraftBuilderService
     private function buildEquipment(array $items): array
     {
         return array_values(array_map(
-            function ($item) {
-                $description = (string) ($item['description'] ?? '');
-                $partNumber  = (string) ($item['part_number'] ?? '');
-                return [
-                    'quantity'    => max(1, (int) ($item['qty'] ?? 1)),
-                    'part_number' => $partNumber,
-                    'name'        => $description,
-                    'area'        => (string) ($item['area'] ?? ''),
-                    'category'    => $this->detectCategory($description, $partNumber),
-                ];
-            },
+            fn ($item) => [
+                'quantity'    => max(1, (int) ($item['qty'] ?? 1)),
+                'part_number' => (string) ($item['part_number'] ?? ''),
+                'name'        => (string) ($item['description'] ?? ''),
+                'area'        => (string) ($item['area'] ?? ''),
+            ],
             $items,
         ));
-    }
-
-    private function detectCategory(string $description, string $partNumber = ''): string
-    {
-        $text = strtolower($description . ' ' . $partNumber);
-
-        foreach (['optional', 'option'] as $kw) {
-            if (str_contains($text, $kw)) return 'option';
-        }
-
-        foreach (['consumable', 'fixing', 'fastener', 'rawlplug', 'anchor', 'screw', 'bolt', 'tape', 'label', 'cleat', 'tie', 'strap'] as $kw) {
-            if (str_contains($text, $kw)) return 'consumables';
-        }
-
-        foreach (['cable', 'cat6', 'cat6a', 'cat5', 'hdmi', 'sdi', 'utp', 'ftp', 'stp', 'patch', 'lead', 'usb', 'fibre', 'fiber', 'rg6', 'rg59'] as $kw) {
-            if (str_contains($text, $kw)) return 'cables';
-        }
-
-        foreach (['install', 'installation', 'commission', 'configuration', 'programming', 'labour', 'support', 'survey', 'management', 'training'] as $kw) {
-            if (str_contains($text, $kw)) return 'services';
-        }
-
-        return 'hardware';
     }
 
     private function buildActivities(array $activityKeys): array
@@ -205,63 +175,6 @@ class RamsExtractionDraftBuilderService
             'out_of_hours'     => false,
             'live_environment' => false,
         ];
-    }
-
-    /**
-     * Build room overview entries from parsed overview sections and equipment areas.
-     */
-    private function buildRoomOverviews(array $parsed): array
-    {
-        $sections = (array) ($parsed['overview_sections'] ?? []);
-        $map = [];
-
-        foreach ($sections as $section) {
-            $title = trim((string) ($section['title'] ?? ''));
-            $text  = trim((string) ($section['text']  ?? ''));
-            if ($text !== '' && $title !== '') {
-                $text = $this->stripLeadingTitle($title, $text);
-            }
-            if ($title === '') {
-                continue;
-            }
-            $map[mb_strtolower($title)] = [
-                'room'     => $title,
-                'overview' => $text,
-                'summary'  => '',
-            ];
-        }
-
-        foreach ((array) ($parsed['equipment'] ?? []) as $item) {
-            $room = trim((string) ($item['area'] ?? ''));
-            if ($room === '') {
-                continue;
-            }
-            $key = mb_strtolower($room);
-            if (! isset($map[$key])) {
-                $map[$key] = [
-                    'room'     => $room,
-                    'overview' => '',
-                    'summary'  => '',
-                ];
-            }
-        }
-
-        return array_values($map);
-    }
-
-    private function stripLeadingTitle(string $title, string $text): string
-    {
-        $lines = preg_split('/\r?\n/', $text);
-        if (! $lines) {
-            return $text;
-        }
-
-        $first = trim((string) $lines[0]);
-        if ($first !== '' && strcasecmp($first, $title) === 0) {
-            array_shift($lines);
-        }
-
-        return trim(implode("\n", $lines));
     }
 
     // =========================================================================

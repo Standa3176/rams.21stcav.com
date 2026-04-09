@@ -15,12 +15,12 @@
             @endif
         @endif
         @if (! $showDeleted)
-        <a href="{{ route('projects.create') }}" class="btn btn-teal btn-sm">
+        <a href="{{ route('quote-import.create') }}" class="btn btn-teal btn-sm">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
-            New Project
+            + New Project
         </a>
         @endif
     </x-slot>
@@ -156,19 +156,25 @@
                     <th>Status</th>
                     <th>Ref</th>
                     <th>Updated</th>
-                    <th style="width:120px;"></th>
+                    <th style="width:140px;"></th>
                 </tr>
             </thead>
             <tbody>
             @foreach ($projects as $project)
                 <tr style="{{ $project->isArchived() ? 'opacity:.5;' : '' }}">
                     <td>
-                        <a href="{{ route('projects.show', $project) }}" style="font-weight:600;">
-                            {{ $project->name }}
+                        <a href="{{ route('projects.show', $project) }}"
+                           style="font-weight:600;color:var(--teal);text-decoration:none;">
+                            {{ Str::limit($project->name, 70) }}
                         </a>
-                        @if ($project->site_address)
+                        @php
+                            $addr = Str::limit($project->site_address ?? '', 60);
+                            // Don't repeat the address if the project name already contains it
+                            $showAddr = $addr !== '' && stripos($project->name, substr($addr, 0, 20)) === false;
+                        @endphp
+                        @if ($showAddr)
                             <div style="font-size:.78rem; color:#9CA3AF; margin-top:1px;">
-                                {{ Str::limit($project->site_address, 60) }}
+                                {{ $addr }}
                             </div>
                         @endif
                     </td>
@@ -181,12 +187,12 @@
                         {{ $project->updated_at->diffForHumans() }}
                     </td>
                     <td style="text-align:right;">
-                        <div class="actions" style="justify-content:flex-end;">
+                        <div style="display:flex;flex-direction:row;gap:.4rem;align-items:center;justify-content:flex-end;flex-wrap:nowrap;">
                             <a href="{{ route('projects.show', $project) }}" class="btn btn-outline btn-sm">View</a>
                             <form method="POST" action="{{ route('projects.destroy', $project->id) }}" style="margin:0;"
-                                  onsubmit="return confirm('Delete project &quot;{{ addslashes($project->name) }}&quot;? Admins can restore it later.');">
+                                  onsubmit="return confirm('Delete project &quot;{{ addslashes($project->name) }}&quot;?\n\nAdmins can restore it from the deleted projects view.');">
                                 @csrf @method('DELETE')
-                                <button type="submit" class="btn btn-danger-outline btn-sm" title="Delete">✕</button>
+                                <button type="submit" class="btn btn-danger-outline btn-sm" title="Delete project">✕</button>
                             </form>
                         </div>
                     </td>
@@ -241,14 +247,14 @@
     white-space: nowrap;
 }
 .proj-filter-tab:hover {
-    background: #EBF6F7;
-    border-color: #C8E9EC;
-    color: #178A95;
+    background: var(--teal-light);
+    border-color: var(--teal-mid);
+    color: var(--teal);
     text-decoration: none;
 }
 .proj-filter-tab.active {
-    background: #178A95;
-    border-color: #178A95;
+    background: var(--teal);
+    border-color: var(--teal);
     color: #fff;
 }
 .proj-filter-tab.active .proj-filter-tab__count { opacity: .75; }
@@ -275,7 +281,7 @@
 }
 .proj-search-input:focus {
     outline: none;
-    border-color: #178A95;
+    border-color: var(--teal);
     box-shadow: 0 0 0 3px rgba(23,138,149,.15);
 }
 

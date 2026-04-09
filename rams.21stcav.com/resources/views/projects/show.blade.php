@@ -132,28 +132,26 @@
                         ->filter(fn ($r) => ! empty($r->form_data['original_filename'] ?? null))
                         ->groupBy(fn ($r) => $r->form_data['original_filename'])
                         ->map(fn ($g) => $g->sortByDesc('id')->first());
+                    // Use the package already eager-loaded on the project where possible.
+                    $headerPackage = $project->latestPackage
+                        ?: $project->packages()->latest()->first();
                 @endphp
-                <div style="display:flex; gap:.5rem;">
-                    <a href="{{ route('quote-import.create', ['project_id' => $project->id]) }}" class="btn btn-teal btn-sm" style="font-size:.78rem;">
-                        ↑ Upload New Quote
-                    </a>
-                    @if ($latestRams)
-                        <a href="{{ route('rams.quote-review.show', $latestRams) }}"
-                           class="btn btn-sm"
-                           style="font-size:.78rem; background:#f6c343; color:#1a1a1a; border:1px solid #d8a62e;">
+                <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap;">
+                    {{-- Primary CTA: Edit Project Data if a package exists, otherwise Upload --}}
+                    @if ($headerPackage)
+                        <a href="{{ route('project-packages.review.show', $headerPackage) }}"
+                           class="btn btn-teal btn-sm" style="font-size:.78rem;">
                             ✎ Edit Project Data
                         </a>
-                        @if (! empty($latestRams->form_data['original_filename'] ?? null))
-                            <form method="POST"
-                                  action="{{ route('rams.retry-extraction', $latestRams) }}"
-                                  onsubmit="return confirm('Re-extract the quote PDF and rebuild the review data? This will overwrite the extracted data for this RAMS.');"
-                                  style="margin:0;">
-                                @csrf
-                                <button type="submit" class="btn btn-outline btn-sm" style="font-size:.78rem;">
-                                    ↺ Re-extract
-                                </button>
-                            </form>
-                        @endif
+                        <a href="{{ route('quote-import.create', ['project_id' => $project->id]) }}"
+                           class="btn btn-outline btn-sm" style="font-size:.78rem;">
+                            ↑ Upload New Quote
+                        </a>
+                    @else
+                        <a href="{{ route('quote-import.create', ['project_id' => $project->id]) }}"
+                           class="btn btn-teal btn-sm" style="font-size:.78rem;">
+                            ↑ Upload New Quote
+                        </a>
                     @endif
                 </div>
             </div>
@@ -237,11 +235,14 @@
                         {{-- A RAMS is currently being built — suppress the create button --}}
                         <span style="font-size:.78rem; color:#888; font-style:italic;">Processing…</span>
                     @elseif ($hasCompletedRams)
-                        {{-- Completed RAMS exists — new version requires a fresh quote upload --}}
-                        <a href="{{ route('quote-import.create', ['project_id' => $project->id]) }}"
-                           class="btn btn-outline btn-sm" style="font-size:.78rem;">
-                            + New Version
-                        </a>
+                        {{-- Completed RAMS exists — generate a new version from the reviewed project data --}}
+                        <form method="POST" action="{{ route('rams.from-project', $project) }}" style="margin:0;"
+                              onsubmit="return confirm('Generate a new RAMS document from the current project data?');">
+                            @csrf
+                            <button type="submit" class="btn btn-outline btn-sm" style="font-size:.78rem;">
+                                + New Version
+                            </button>
+                        </form>
                     @elseif ($latestPackage && $latestPackage->status === \App\Models\ProjectPackage::STATUS_REVIEWED)
                         {{-- Classic package-based flow: reviewed data ready to generate directly --}}
                         <form method="POST" action="{{ route('rams.from-project', $project) }}" style="margin:0;">
@@ -251,8 +252,8 @@
                             </button>
                         </form>
                     @elseif ($latestPackage)
-                        <a href="{{ route('quote-import.review', $latestPackage) }}"
-                           class="btn btn-outline btn-sm" style="font-size:.78rem;">Review Quote Data</a>
+                        <a href="{{ route('project-packages.review.show', $latestPackage) }}"
+                           class="btn btn-teal btn-sm" style="font-size:.78rem;">✎ Edit Project Data</a>
                     @else
                         <span style="font-size:.78rem; color:#888;">Upload quote in Quote History</span>
                     @endif
@@ -271,7 +272,7 @@
                         </form>
                         from the reviewed project data.
                     @elseif ($latestPackage)
-                        <a href="{{ route('quote-import.review', $latestPackage) }}" style="color:var(--teal);">Review quote data</a> to enable RAMS generation.
+                        <a href="{{ route('project-packages.review.show', $latestPackage) }}" style="color:var(--teal);">Review quote data</a> to enable RAMS generation.
                     @else
                         Upload a quote in Quote History to enable RAMS generation.
                     @endif
@@ -438,7 +439,7 @@
                         </button>
                     </form>
                 @elseif ($latestPackage)
-                    <a href="{{ route('quote-import.review', $latestPackage) }}"
+                    <a href="{{ route('project-packages.review.show', $latestPackage) }}"
                        class="btn btn-outline btn-sm" style="font-size:.78rem;">
                         Review Quote Data
                     </a>
@@ -458,7 +459,7 @@
                             </button>
                         </form>
                     @elseif ($latestPackage)
-                        <a href="{{ route('quote-import.review', $latestPackage) }}"
+                        <a href="{{ route('project-packages.review.show', $latestPackage) }}"
                            style="color:var(--teal);">Review quote data</a> to enable O&amp;M generation.
                     @else
                         Upload a quote in Quote History to enable O&amp;M generation.
@@ -552,40 +553,140 @@
         </div>
 
         {{-- ── Site Surveys ────────────────────────────────────────────────── --}}
-        @if ($project->siteSurveys->isNotEmpty())
+        @php
+            $latestSurvey = $project->siteSurveys->sortByDesc('created_at')->first();
+        @endphp
         <div class="card card-sm" style="margin-bottom:1.25rem; padding:0; overflow:hidden;">
-            <div style="padding:1rem 1.25rem; border-bottom:1px solid var(--border);">
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:1rem 1.25rem; border-bottom:1px solid var(--border);">
                 <h2 class="section-heading" style="font-size:.9rem; margin:0;">
                     Site Surveys
                     <span style="background:#f0f0f0; color:#666; font-size:.72rem; font-weight:600; padding:.1rem .45rem; border-radius:10px; margin-left:.35rem;">
                         {{ $project->siteSurveys->count() }}
                     </span>
                 </h2>
+                <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap;">
+                    {{-- Always show "Create Survey" — multiple surveys per project are allowed --}}
+                    <a href="{{ route('site-surveys.from-project', $project) }}"
+                       class="btn btn-teal btn-sm" style="font-size:.78rem;">
+                        + Create Survey
+                    </a>
+                </div>
             </div>
-            <table class="data-table" style="font-size:.84rem;">
-                <thead>
-                    <tr>
-                        <th>Survey</th>
-                        <th>Status</th>
-                        <th>Created</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($project->siteSurveys->sortByDesc('created_at') as $survey)
-                    <tr>
-                        <td>{{ $survey->name ?? 'Site Survey #' . $survey->id }}</td>
-                        <td><span class="badge badge-grey">{{ ucfirst($survey->status ?? 'draft') }}</span></td>
-                        <td style="color:#888; white-space:nowrap;">{{ $survey->created_at->format('d M Y') }}</td>
-                        <td>
-                            <a href="{{ route('site-surveys.show', $survey) }}" class="btn btn-outline btn-sm" style="font-size:.75rem;">View</a>
-                        </td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
+
+            @if ($project->siteSurveys->isEmpty())
+                <p style="color:#888; font-size:.875rem; padding:1rem 1.25rem; margin:0;">
+                    No site surveys yet.
+                    <a href="{{ route('site-surveys.from-project', $project) }}"
+                       style="color:var(--teal);">Create a survey</a>
+                    to share a pre-filled form with your on-site engineer.
+                </p>
+            @else
+                <table class="data-table" style="font-size:.84rem;">
+                    <thead>
+                        <tr>
+                            <th>Survey</th>
+                            <th>Status</th>
+                            <th style="white-space:nowrap;">Created</th>
+                            <th style="min-width:220px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($project->siteSurveys->sortByDesc('created_at') as $survey)
+                        @php
+                            $badgeStyle = match($survey->status) {
+                                'completed' => 'background:#D1FAE5; color:#065F46; border-color:#6EE7B7;',
+                                default     => 'background:#FEF3C7; color:#92400E; border-color:#FCD34D;',
+                            };
+                        @endphp
+                        <tr>
+                            <td>
+                                <strong>{{ 'Site Survey #' . $survey->id }}</strong>
+                                @if ($survey->surveyor_name)
+                                    <br><small style="color:#888; font-size:.75rem;">By: {{ $survey->surveyor_name }}</small>
+                                @endif
+                                @if ($survey->survey_date)
+                                    <br><small style="color:#888; font-size:.75rem;">{{ $survey->survey_date->format('d M Y') }}</small>
+                                @endif
+                            </td>
+                            <td>
+                                <span class="badge" style="{{ $badgeStyle }} padding:.15rem .45rem; border-radius:10px; border:1px solid; font-size:.75rem;">
+                                    {{ ucfirst($survey->status ?? 'draft') }}
+                                    @if ($survey->isSubmitted()) · Submitted @endif
+                                </span>
+                            </td>
+                            <td style="color:#888; white-space:nowrap;">
+                                {{ $survey->created_at->format('d M Y') }}<br>
+                                <small>{{ $survey->created_at->format('H:i') }}</small>
+                            </td>
+                            <td>
+                                <div style="display:flex; gap:.35rem; flex-wrap:wrap; align-items:center;">
+
+                                    {{-- Engineer link — copy to clipboard --}}
+                                    @if ($survey->access_token && !$survey->isTokenExpired())
+                                        <button type="button"
+                                                class="btn btn-outline btn-sm"
+                                                style="font-size:.75rem;"
+                                                onclick="copyEngineerLink('{{ $survey->publicUrl() }}', this)"
+                                                title="{{ $survey->publicUrl() }}">
+                                            🔗 Copy Link
+                                        </button>
+                                    @endif
+
+                                    {{-- View / Edit (authenticated) --}}
+                                    <a href="{{ route('site-surveys.show', $survey) }}"
+                                       class="btn btn-outline btn-sm" style="font-size:.75rem;">👁 View</a>
+                                    @if (!$survey->isCompleted())
+                                        <a href="{{ route('site-surveys.edit', $survey) }}"
+                                           class="btn btn-outline btn-sm" style="font-size:.75rem;">✎ Edit</a>
+                                    @endif
+
+                                    {{-- Mark complete (if still draft) --}}
+                                    @if (!$survey->isCompleted())
+                                        <form method="POST"
+                                              action="{{ route('site-surveys.complete', $survey) }}"
+                                              style="margin:0;"
+                                              onsubmit="return confirm('Mark this survey as completed?');">
+                                            @csrf
+                                            <button type="submit" class="btn btn-outline btn-sm"
+                                                    style="font-size:.75rem; color:#065F46; border-color:#6EE7B7;">
+                                                ✓ Complete
+                                            </button>
+                                        </form>
+                                    @endif
+
+                                    {{-- Delete --}}
+                                    <form method="POST"
+                                          action="{{ route('site-surveys.destroy', $survey) }}"
+                                          onsubmit="return confirm('Delete this survey?');"
+                                          style="margin:0;">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="btn btn-danger-outline btn-sm"
+                                                title="Delete" style="font-size:.75rem;">✕</button>
+                                    </form>
+
+                                </div>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @endif
         </div>
-        @endif
+
+        {{-- Copy-to-clipboard script for engineer links --}}
+        <script>
+        function copyEngineerLink(url, btn) {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(url).then(function() {
+                    var orig = btn.textContent;
+                    btn.textContent = '✓ Copied!';
+                    setTimeout(function() { btn.textContent = orig; }, 2000);
+                });
+            } else {
+                window.prompt('Copy this engineer link:', url);
+            }
+        }
+        </script>
 
         {{-- ── Cable Schedules ─────────────────────────────────────────────── --}}
         @if ($project->cableSchedules->isNotEmpty())
@@ -720,7 +821,7 @@
                         </button>
                     </form>
                 @elseif ($latestPackage)
-                    <a href="{{ route('quote-import.review', $latestPackage) }}"
+                    <a href="{{ route('project-packages.review.show', $latestPackage) }}"
                        class="btn btn-outline btn-sm" style="text-align:center;">
                         Review Quote Data
                     </a>

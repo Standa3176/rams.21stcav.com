@@ -186,14 +186,16 @@ p { margin: 3pt 0; }
 <body>
 
 @php
-    $project  = $data['project']          ?? [];
-    $hazards  = $data['hazards']          ?? [];
-    $ppe      = $data['ppe']              ?? [];
-    $persons  = $data['persons_at_risk']  ?? [];
-    $team     = $data['team']             ?? [];
-    $ms       = $data['method_statement'] ?? [];
-    $quote    = $data['quote']            ?? [];
-    $formData = $rams->form_data          ?? [];
+    $project       = $data['project']          ?? [];
+    $hazards       = $data['hazards']          ?? [];
+    $ppe           = $data['ppe']              ?? [];
+    $persons       = $data['persons_at_risk']  ?? [];
+    $team          = $data['team']             ?? [];
+    $ms            = $data['method_statement'] ?? [];
+    $quote         = $data['quote']            ?? [];
+    $formData      = $rams->form_data          ?? [];
+    $siteLogistics = $data['site_logistics']   ?? [];
+    $scopeOfWorks  = $data['scope_of_works']   ?? '';
     $company  = config('rams.company_name',    '21st Century AV Ltd');
     $address  = config('rams.company_address', 'Thames Court, 2 Richfield Ave, Reading, RG1 8EQ');
     $tel      = config('rams.company_tel',     '0118 977 771');
@@ -284,16 +286,16 @@ p { margin: 3pt 0; }
 
 <div class="sec-subheading">Operations Info</div>
 <table class="std-table">
-    <tr><td class="lbl">Project Manager</td><td>{{ $project['project_manager'] ?? '' }}</td></tr>
-    <tr><td class="lbl">Lead Engineer</td><td>{{ $project['lead_engineer'] ?? '' }}</td></tr>
-    <tr><td class="lbl">Additional Engineer(s)</td><td>{{ $project['additional_engineers'] ?? '' }}</td></tr>
-    <tr><td class="lbl">Programmer</td><td>{{ $project['programmer'] ?? '' }}</td></tr>
+    <tr><td class="lbl">Project Manager</td><td>{{ $formData['project_manager'] ?? ($project['project_manager'] ?? '') }}</td></tr>
+    <tr><td class="lbl">Lead Engineer</td><td>{{ $formData['lead_engineer'] ?? ($project['lead_engineer'] ?? '') }}</td></tr>
+    <tr><td class="lbl">Additional Engineer(s)</td><td>{{ $formData['additional_engineers'] ?? ($project['additional_engineers'] ?? '') }}</td></tr>
+    <tr><td class="lbl">Programmer</td><td>{{ $formData['programmer'] ?? ($project['programmer'] ?? '') }}</td></tr>
 </table>
 
 {{-- ═══ 1. SCOPE OF WORKS ═══════════════════════════════════════════════════ --}}
 <div class="sec-heading">1. Scope of Works</div>
 <p style="margin-bottom:8px;">
-    {{ $project['works_description'] ?? $formData['works_description'] ?? 'AV installation works as per quotation.' }}
+    {{ $scopeOfWorks ?: ($project['works_description'] ?? $formData['works_description'] ?? 'AV installation works as per quotation.') }}
 </p>
 <p class="note-text">
     Works will be carried out by {{ $company }} qualified AV Engineers during standard working hours:
@@ -371,6 +373,59 @@ p { margin: 3pt 0; }
     </table>
 @endif
 
+@php
+    $slContact    = trim(implode('  |  ', array_filter([$siteLogistics['contact_name'] ?? '', $siteLogistics['contact_phone'] ?? '', $siteLogistics['contact_email'] ?? ''])));
+    $slParking    = $siteLogistics['parking'] ?? '';
+    $slParkingNote= $siteLogistics['parking_notes'] ?? '';
+    $slFloor      = $siteLogistics['install_floor'] ?? '';
+    $slDelivery   = $siteLogistics['delivery_area'] ?? '';
+    $slAccessType = $siteLogistics['access_type'] ?? '';
+    $slAccessNote = $siteLogistics['access_notes'] ?? '';
+    $slRestrict   = $siteLogistics['restrictions'] ?? '';
+    $slCommission = $siteLogistics['commissioning_notes'] ?? '';
+    $hasLogistics = $slContact || $slParking || $slFloor || $slDelivery || $slAccessType || $slRestrict;
+@endphp
+@if($hasLogistics)
+<div class="sec-subheading">Site Logistics</div>
+<table class="std-table">
+    @if($slContact)
+    <tr><td class="lbl" style="width:30%;">Site Contact</td><td>{{ $slContact }}</td></tr>
+    @endif
+    @if($slParking !== '')
+    <tr><td class="lbl">Parking Available</td><td>{{ $slParking === 'yes' ? 'Yes' : 'No' }}@if($slParkingNote) &mdash; {{ $slParkingNote }}@endif</td></tr>
+    @endif
+    @if($slFloor)
+    <tr><td class="lbl">Installation Floor</td><td>{{ $slFloor }}</td></tr>
+    @endif
+    @if($slDelivery)
+    <tr><td class="lbl">Delivery &amp; Staging Area</td><td>{{ $slDelivery }}</td></tr>
+    @endif
+    @if($slAccessType)
+    <tr><td class="lbl">Site Access</td>
+        <td>
+            @php
+                $accessLabels = [
+                    'no_special'  => 'No special access requirements',
+                    'induction'   => 'Site induction required before commencing work',
+                    'reception'   => 'Report to reception on arrival',
+                    'security'    => 'Report to security on arrival',
+                    'other'       => 'Other (see notes)',
+                ];
+            @endphp
+            {{ $accessLabels[$slAccessType] ?? $slAccessType }}
+            @if($slAccessNote) &mdash; {{ $slAccessNote }}@endif
+        </td>
+    </tr>
+    @endif
+    @if($slRestrict)
+    <tr><td class="lbl">Site Restrictions</td><td>{{ $slRestrict }}</td></tr>
+    @endif
+    @if($slCommission)
+    <tr><td class="lbl">Commissioning Notes</td><td>{{ $slCommission }}</td></tr>
+    @endif
+</table>
+@endif
+
 {{-- ═══ 3. LEGISLATION ════════════════════════════════════════════════════ --}}
 <div class="sec-heading">3. Relevant Legislation &amp; Standards</div>
 <ul class="blist">
@@ -392,7 +447,7 @@ p { margin: 3pt 0; }
 </p>
 
 {{-- ═══ 4. RISK ASSESSMENT ════════════════════════════════════════════════ --}}
-<div class="sec-heading">4. Risk Assessment</div>
+<div class="sec-heading" style="page-break-before: always;">4. Risk Assessment</div>
 <p style="font-size:8.5pt; margin-bottom:6px;">
     Risk Rating = Likelihood (L) &times; Severity (S). &nbsp; Key: L/S scale 1–5.
 </p>
@@ -419,7 +474,12 @@ p { margin: 3pt 0; }
 
 <div class="sec-subheading">Hazard Register</div>
 @if(! empty($hazards))
-<table class="haz-table">
+@foreach($hazards as $h)
+@php
+    $preScore  = ($h['pre_likelihood']  ?? 1) * ($h['pre_severity']  ?? 1);
+    $postScore = ($h['post_likelihood'] ?? 1) * ($h['post_severity'] ?? 1);
+@endphp
+<table class="haz-table" style="margin-bottom:10pt; page-break-inside:avoid;">
     <thead>
         <tr>
             <th rowspan="2" style="width:20%;">Hazard</th>
@@ -438,11 +498,6 @@ p { margin: 3pt 0; }
         </tr>
     </thead>
     <tbody>
-    @foreach($hazards as $h)
-    @php
-        $preScore  = ($h['pre_likelihood']  ?? 1) * ($h['pre_severity']  ?? 1);
-        $postScore = ($h['post_likelihood'] ?? 1) * ($h['post_severity'] ?? 1);
-    @endphp
     <tr>
         <td><strong>{{ $h['hazard'] ?? '' }}</strong></td>
         <td>
@@ -470,9 +525,9 @@ p { margin: 3pt 0; }
         <td class="score-cell">{{ $h['post_severity']   ?? '' }}</td>
         <td class="score-cell" style="background: {{ $riskCellColor($postScore) }};">{{ $postScore }}</td>
     </tr>
-    @endforeach
     </tbody>
 </table>
+@endforeach
 <p style="font-size:7.5pt; color:#555; margin-bottom:8px;">
     L = Likelihood &nbsp;|&nbsp; S = Severity &nbsp;|&nbsp; Risk = L &times; S &nbsp;|&nbsp;
     Ratings based on controls being in place as described.
@@ -482,7 +537,7 @@ p { margin: 3pt 0; }
 @endif
 
 {{-- ═══ 5. METHOD STATEMENT ════════════════════════════════════════════════ --}}
-<div class="sec-heading">5. Method Statement</div>
+<div class="sec-heading" style="page-break-before: always;">5. Method Statement</div>
 @php $phases = is_array($ms) ? ($ms['phases'] ?? []) : []; @endphp
 @if(! empty($phases))
     @foreach($phases as $i => $phase)

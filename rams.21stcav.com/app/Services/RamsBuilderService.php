@@ -185,6 +185,10 @@ class RamsBuilderService
             );
         }
 
+        // Inject scope_of_works and site_logistics from reviewed data into the PDF data bag.
+        $data['scope_of_works']  = trim((string) ($reviewedData['scope_of_works'] ?? ''));
+        $data['site_logistics']  = (array) ($reviewedData['site_logistics'] ?? []);
+
         // Persist.
         $record->update([
             'project_ref'    => $data['project']['ref']          ?: $record->project_ref,
@@ -213,13 +217,24 @@ class RamsBuilderService
      */
     private function reviewedToParsed(array $rd): array
     {
+        // Only hardware items belong in the equipment schedule and risk assessment.
+        // Services, cables, consumables and options are excluded.
+        $hardware  = array_values(array_filter(
+            $rd['equipment'] ?? [],
+            fn ($e) => in_array(
+                strtolower(trim((string) ($e['category'] ?? 'hardware'))),
+                ['hardware', ''],
+                true,
+            ),
+        ));
+
         $equipment = array_values(array_map(
             fn ($e) => [
                 'qty'         => max(1, (int) ($e['quantity'] ?? 1)),
-                'description' => (string) ($e['name'] ?? ''),
-                'location'    => '',
+                'description' => (string) ($e['name']  ?? ''),
+                'location'    => (string) ($e['area']  ?? ''),   // preserve room/area
             ],
-            $rd['equipment'] ?? [],
+            $hardware,
         ));
 
         $notes = trim((string) ($rd['method_statement_notes'] ?? ''));
@@ -339,26 +354,157 @@ class RamsBuilderService
     }
 
     /**
-     * Merge reviewed project fields into formData so RamsDataBuilderService
-     * resolveProjectFields() picks up the correct values. Reviewed data takes
-     * priority over original form_data.
+     * Merge reviewed project/programme fields into formData so downstream services
+     * pick up the correct values. Reviewed data takes priority over original form_data.
+     *
+     * Personnel is now stored in reviewed_data['programme'] (new schema) so we read
+     * from there first and fall back to the legacy reviewed_data['project'] fields.
      */
     private function mergeReviewedIntoFormData(array $reviewedData, array $formData): array
     {
-        $project = $reviewedData['project'] ?? [];
-        return array_merge($formData, array_filter([
-            'project_ref'       => ($project['quote_ref']    ?? '') ?: null,
-            'project_name'      => ($project['project_name'] ?? '') ?: null,
-            'client_name'       => ($project['client_name']  ?? '') ?: null,
-            'site_address'      => ($project['site_address'] ?? '') ?: null,
-            'site_contact'      => ($project['site_contact'] ?? '') ?: null,
-            'doc_author'        => ($project['prepared_by']  ?? '') ?: null,
-            'project_manager'      => ($project['project_manager']      ?? '') ?: null,
-            'lead_engineer'        => ($project['lead_engineer']        ?? '') ?: null,
-            'additional_engineers' => ($project['additional_engineers'] ?? '') ?: null,
-            'programmer'           => ($project['programmer']           ?? '') ?: null,
-            'works_description' => ($reviewedData['method_statement_notes'] ?? '') ?: null,
+        $project   = $reviewedData['project']   ?? [];
+        $programme = $reviewedData['programme'] ?? [];
+
+        // ── Personnel — prefer programme section (new schema) ─────────────────
+        $pmName  = trim((string) ($programme['project_manager_name'] ?? $project['project_manager']      ?? ''));
+        $pmPhone = trim((string) ($programme['project_manager_phone'] ?? ''));
+        $pmEmail = trim((string) ($programme['project_manager_email'] ?? ''));
+        $leName  = trim((string) ($programme['lead_engineer_name']   ?? $project['lead_engineer']        ?? ''));
+        $lePhone = trim((string) ($programme['lead_engineer_phone']  ?? ''));
+
+        $addEngsArr = array_values(array_filter(
+            array_map('trim', (array) ($programme['additional_engineers'] ?? [])),
+            fn (string $s) => $s !== '',
+        ));
+        $progsArr = array_values(array_filter(
+            array_map('trim', (array) ($programme['programmers'] ?? [])),
+            fn (string $s) => $s !== '',
+        ));
+
+        // ── Engineering team array for DocxBuilderService::addTeamTable() ─────
+        $team = [];
+        if ($pmName !== '') {
+            $team[] = ['role' => 'Project Manager', 'name' => $pmName, 'mobile' => $pmPhone];
+        }
+        if ($leName !== '') {
+            $team[] = ['role' => 'Lead Engineer', 'name' => $leName, 'mobile' => $lePhone];
+        }
+        foreach ($addEngsArr as $eng) {
+            $team[] = ['role' => 'Engineer', 'name' => $eng, 'mobile' => ''];
+        }
+        foreach ($progsArr as $prog) {
+            $team[] = ['role' => 'Programmer', 'name' => $prog, 'mobile' => ''];
+        }
+
+        // ── Auto-generate a scope summary when works_description is blank ─────
+        $worksDesc = trim((string) ($reviewedData['method_statement_notes'] ?? ''));
+        if ($worksDesc === '') {
+            $worksDesc = $this->buildScopeFromEquipment($reviewedData);
+        }
+
+        // ── Start date ────────────────────────────────────────────────────────
+        $startDate = trim((string) ($programme['planned_start_date'] ?? ''));
+
+        $merged = array_merge($formData, array_filter([
+            'project_ref'          => ($project['quote_ref']    ?? '') ?: null,
+            'project_name'         => ($project['project_name'] ?? '') ?: null,
+            'client_name'          => ($project['client_name']  ?? '') ?: null,
+            'site_address'         => ($project['site_address'] ?? '') ?: null,
+            'site_contact'         => ($project['site_contact'] ?? '') ?: null,
+            'doc_author'           => ($project['prepared_by']  ?? '') ?: null,
+            'project_manager'      => $pmName  ?: null,
+            'lead_engineer'        => $leName  ?: null,
+            'additional_engineers' => $addEngsArr ? implode(', ', $addEngsArr)
+                                        : (($project['additional_engineers'] ?? '') ?: null),
+            'programmer'           => $progsArr ? implode(', ', $progsArr)
+                                        : (($project['programmer'] ?? '') ?: null),
+            'emergency_contact'    => $pmName  ?: null,
+            'emergency_tel'        => $pmPhone ?: null,
+            'start_date'           => $startDate ?: null,
+            'works_description'    => $worksDesc ?: null,
         ]));
+
+        // team must always be set (array_filter would strip an empty array)
+        $merged['team'] = $team;
+
+        return $merged;
+    }
+
+    /**
+     * Build a plain-English scope sentence from the equipment list and room names
+     * when the user hasn't written a method statement / works description.
+     *
+     * When all items within an area share the same qty (e.g. 9× per line item for
+     * "Small Room - 4 Person"), that qty is treated as the number of identical rooms
+     * in that area. This produces "9× Small Room - 4 Person" rather than "1 space".
+     */
+    private function buildScopeFromEquipment(array $reviewedData): string
+    {
+        $equipment = array_values(array_filter(
+            $reviewedData['equipment'] ?? [],
+            fn ($e) => in_array(strtolower(trim((string) ($e['category'] ?? 'hardware'))), ['hardware', ''], true),
+        ));
+
+        if (empty($equipment)) {
+            return '';
+        }
+
+        // Group items by area and infer room count per area.
+        // If every line item in an area shares the same qty, that qty = room count.
+        $areaQtys = [];
+        foreach ($equipment as $item) {
+            $area = trim((string) ($item['area'] ?? ''));
+            if ($area === '') {
+                continue;
+            }
+            $areaQtys[$area][] = max(1, (int) ($item['quantity'] ?? 1));
+        }
+
+        $roomLabels = [];
+        $totalRooms = 0;
+        foreach ($areaQtys as $area => $qtys) {
+            $uniqueQtys = array_unique($qtys);
+            $roomCount  = count($uniqueQtys) === 1 ? reset($uniqueQtys) : 1;
+            $totalRooms += $roomCount;
+            $roomLabels[$area] = $roomCount;
+        }
+
+        // Top-3 hardware items by quantity (descending) for the item list.
+        usort($equipment, fn ($a, $b) => (int) ($b['quantity'] ?? 1) <=> (int) ($a['quantity'] ?? 1));
+        $topItems = array_slice($equipment, 0, 3);
+        $itemList = implode(', ', array_map(
+            fn ($e) => (($e['quantity'] ?? 1) > 1 ? ($e['quantity'] . '× ') : '') . ($e['name'] ?? ''),
+            $topItems,
+        ));
+        if (count($equipment) > 3) {
+            $itemList .= ' and associated AV equipment';
+        }
+
+        $siteName = trim((string) ($reviewedData['project']['site_name'] ?? $reviewedData['project']['site_address'] ?? ''));
+
+        $scope = 'Supply and installation of ' . $itemList;
+
+        if (! empty($roomLabels)) {
+            // Build room description: "9× Small Room - 4 Person, Medium Room + Boardroom"
+            $roomParts = [];
+            foreach ($roomLabels as $area => $count) {
+                $roomParts[] = ($count > 1 ? $count . '× ' : '') . $area;
+            }
+            $roomStr = implode(', ', array_slice($roomParts, 0, 4));
+            if (count($roomParts) > 4) {
+                $roomStr .= ' and others';
+            }
+
+            $scope .= ' across ' . $totalRooms . ' ' . ($totalRooms === 1 ? 'space' : 'spaces');
+            if ($siteName !== '') {
+                $scope .= ' at ' . $siteName;
+            }
+            $scope .= ' (' . $roomStr . ')';
+        } elseif ($siteName !== '') {
+            $scope .= ' at ' . $siteName;
+        }
+
+        return $scope . '. Works will be carried out by qualified AV engineers during agreed working hours.';
     }
 
     /**

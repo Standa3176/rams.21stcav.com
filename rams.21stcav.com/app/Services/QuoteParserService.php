@@ -625,15 +625,19 @@ class QuoteParserService
                 // Strip trailing price
                 $tmpDesc = trim(preg_replace('/\s+[\d,]+\.\d{2}\s*$/', '', $tmpDesc));
 
-                if (preg_match('/^([A-Za-z][A-Za-z0-9\-\.]{3,29})\s+(.{4,})$/', $tmpDesc, $pm)) {
+                if (preg_match('/^([A-Za-z0-9][A-Za-z0-9\-\.\/]{3,29})\s+(.{4,})$/', $tmpDesc, $pm)) {
                     $pn = $pm[1];
                     $pr = trim($pm[2]);
-                    $hasH = str_contains($pn, '-');
+                    $hasH = str_contains($pn, '-') || str_contains($pn, '/');
                     $hasD = (bool) preg_match('/\d/', $pn);
-                    $hasA = (bool) preg_match('/[a-zA-Z]{2,}/', $pn);
+                    $hasA = (bool) preg_match('/[a-zA-Z]/', $pn);
+
+                    // Digit-first (e.g. 3000c, 993-001903): only require alpha present.
+                    // Alpha-first: original hyphen-or-digit+alpha condition.
+                    $validPn = (bool) preg_match('/^\d/', $pn) ? $hasA : ($hasH || ($hasD && $hasA));
 
                     if (
-                        ($hasH || ($hasD && $hasA))
+                        $validPn
                         && preg_match('/[a-zA-Z]{2,}/', $pr)
                         && ! preg_match('/^\d+[\.,]\d{2}/', $pr)
                     ) {
@@ -714,16 +718,21 @@ class QuoteParserService
 
             if (! $hasEgInDesc) {
                 // Strategy 1 — Prefix: "PARTNUM Description text"
-                if (preg_match('/^([A-Za-z][A-Za-z0-9\-\.]{3,29})\s+(.{4,})$/', $desc, $pm)) {
+                if (preg_match('/^([A-Za-z0-9][A-Za-z0-9\-\.\/]{3,29})\s+(.{4,})$/', $desc, $pm)) {
                     $partNum  = $pm[1];
                     $partDesc = trim($pm[2]);
 
-                    $hasHyphen     = str_contains($partNum, '-');
+                    $hasHyphen     = str_contains($partNum, '-') || str_contains($partNum, '/');
                     $hasDigit      = (bool) preg_match('/\d/', $partNum);
-                    $hasAlphaChars = (bool) preg_match('/[a-zA-Z]{2,}/', $partNum);
+                    $hasAlphaChars = (bool) preg_match('/[a-zA-Z]/', $partNum);
+
+                    // Digit-first: only require alpha present; alpha-first: original logic.
+                    $validPn = (bool) preg_match('/^\d/', $partNum)
+                        ? $hasAlphaChars
+                        : ($hasHyphen || ($hasDigit && $hasAlphaChars));
 
                     if (
-                        ($hasHyphen || ($hasDigit && $hasAlphaChars))
+                        $validPn
                         && preg_match('/[a-zA-Z]{2,}/', $partDesc)
                         && ! preg_match('/^\d+[\.,]\d{2}/', $partDesc)
                     ) {
@@ -735,16 +744,20 @@ class QuoteParserService
                 // Strategy 2 — Trailing parenthetical: "Description text (PARTNUM)"
                 // e.g. "Yealink Ceiling Mic's (CM20)" → part_number=CM20
                 if ($partNumber === '') {
-                    if (preg_match('/^(.{3,}?)\s*\(([A-Za-z][A-Za-z0-9\-\.]{2,29})\)\s*$/', $desc, $pm)) {
+                    if (preg_match('/^(.{3,}?)\s*\(([A-Za-z0-9][A-Za-z0-9\-\.\/]{2,29})\)\s*$/', $desc, $pm)) {
                         $candidate     = $pm[2];
                         $remainingDesc = trim($pm[1]);
 
-                        $hasHyphen = str_contains($candidate, '-');
+                        $hasHyphen = str_contains($candidate, '-') || str_contains($candidate, '/');
                         $hasDigit  = (bool) preg_match('/\d/', $candidate);
-                        $hasAlpha  = (bool) preg_match('/[a-zA-Z]{2,}/', $candidate);
+                        $hasAlpha  = (bool) preg_match('/[a-zA-Z]/', $candidate);
+
+                        $validPn = (bool) preg_match('/^\d/', $candidate)
+                            ? $hasAlpha
+                            : ($hasHyphen || ($hasDigit && $hasAlpha));
 
                         if (
-                            ($hasHyphen || ($hasDigit && $hasAlpha))
+                            $validPn
                             && strlen($remainingDesc) >= 3
                             && preg_match('/[a-zA-Z]{2,}/', $remainingDesc)
                         ) {
@@ -758,16 +771,20 @@ class QuoteParserService
                 // e.g. "Yealink Ceiling Mic CM20" → part_number=CM20
                 // Only fires when strategies 1 & 2 produced nothing.
                 if ($partNumber === '') {
-                    if (preg_match('/^(.{5,})\s+([A-Za-z][A-Za-z0-9\-\.]{2,29})$/', $desc, $pm)) {
+                    if (preg_match('/^(.{5,})\s+([A-Za-z0-9][A-Za-z0-9\-\.\/]{2,29})$/', $desc, $pm)) {
                         $candidate     = $pm[2];
                         $remainingDesc = trim($pm[1]);
 
-                        $hasHyphen = str_contains($candidate, '-');
+                        $hasHyphen = str_contains($candidate, '-') || str_contains($candidate, '/');
                         $hasDigit  = (bool) preg_match('/\d/', $candidate);
-                        $hasAlpha  = (bool) preg_match('/[a-zA-Z]{2,}/', $candidate);
+                        $hasAlpha  = (bool) preg_match('/[a-zA-Z]/', $candidate);
+
+                        $validPn = (bool) preg_match('/^\d/', $candidate)
+                            ? $hasAlpha
+                            : ($hasHyphen || ($hasDigit && $hasAlpha));
 
                         if (
-                            ($hasHyphen || ($hasDigit && $hasAlpha))
+                            $validPn
                             && strlen($remainingDesc) >= 4
                             && preg_match('/[a-zA-Z]{2,}/', $remainingDesc)
                         ) {
@@ -1278,16 +1295,22 @@ class QuoteParserService
     {
         $trimmed = trim($line);
 
-        if (! preg_match('/^([A-Za-z][A-Za-z0-9\-\.]{3,29})$/', $trimmed, $m)) {
+        if (! preg_match('/^([A-Za-z0-9][A-Za-z0-9\-\.\/]{3,29})$/', $trimmed, $m)) {
             return false;
         }
 
         $token         = $m[1];
-        $hasHyphen     = str_contains($token, '-');
+        $hasHyphen     = str_contains($token, '-') || str_contains($token, '/');
         $hasDigit      = (bool) preg_match('/\d/', $token);
-        $hasAlphaChars = (bool) preg_match('/[a-zA-Z]{2,}/', $token);
+        $hasAlphaChars = (bool) preg_match('/[a-zA-Z]/', $token);
 
-        if (! ($hasHyphen || ($hasDigit && $hasAlphaChars))) {
+        // Digit-first (e.g. 3000c, 993-001903): require at least one alpha char.
+        // Alpha-first: original hyphen-or-(digit+alpha) condition.
+        if (preg_match('/^\d/', $token)) {
+            if (! $hasAlphaChars) {
+                return false;
+            }
+        } elseif (! ($hasHyphen || ($hasDigit && $hasAlphaChars))) {
             return false;
         }
 
@@ -1737,7 +1760,30 @@ class QuoteParserService
         // ── 6. Tasks ────────────────────────────────────────────────────────
         $tasks = $this->extractTasks($this->toLines($overview));
 
-        // ── 7. Confidence ────────────────────────────────────────────────────
+        // ── 7. Build per-room overviews from non-master sections ─────────────
+        // Each non-overview section in the QuoteWerks PDF has a title (room name)
+        // and a description text (the phrased overview written in the quote).
+        // Carry these forward so the review UI can pre-populate the overview
+        // column without requiring the user to re-type them.
+        $roomOverviews = [];
+        foreach ($sections as $section) {
+            if (! empty($section['is_overview'])) {
+                continue; // master overview — not a room entry
+            }
+            $sTitle = trim((string) ($section['title'] ?? ''));
+            $sText  = trim((string) ($section['text']  ?? ''));
+            if ($sTitle === '') {
+                continue;
+            }
+            $roomOverviews[] = [
+                'room'          => $sTitle,
+                'overview'      => $sText,
+                'works_summary' => '',
+                'summary'       => '',
+            ];
+        }
+
+        // ── 8. Confidence ────────────────────────────────────────────────────
         $confidence = $this->calculateConfidence($client, $site, $ref, $equipment);
 
         return [
@@ -1750,6 +1796,7 @@ class QuoteParserService
             'prepared_by'   => $preparedBy,
             'tasks'         => $tasks,
             'rooms'         => $rooms,
+            'room_overviews' => $roomOverviews,
             'project_name'  => '',
             'works_summary' => '',
             'confidence'    => $confidence,
@@ -2121,6 +2168,13 @@ class QuoteParserService
         $hasH = str_contains($raw, '-') || str_contains($raw, '/');
         $hasD = (bool) preg_match('/\d/', $raw);
         $hasA = (bool) preg_match('/[a-zA-Z]/', $raw);
+
+        // Biamp-style dot-separated numeric codes: e.g. 910.1995.900, 913.0091.900.
+        // These have digits and dots only, with 2+ dots acting as separators (not
+        // decimal points).  They must not be confused with single-decimal values.
+        if (preg_match('/^\d+(\.\d+){2,}$/', $raw)) {
+            return $raw;
+        }
 
         // Also allow: all-digit codes ≥ 4 chars (e.g. 37871, 45353 — numeric SKUs)
         // and all-uppercase alpha tokens (e.g. DELIVERY, RAMS, FIRST FIX, O&M).
@@ -2587,6 +2641,26 @@ class QuoteParserService
             }
 
             $descParts[] = $line;
+        }
+
+        // If qty is still unset, check whether the last description line ends with
+        // a standalone numeric value — e.g. "Biamp PoE AVB/USB expander 1.00".
+        // This happens in QuoteWerks PDFs where the PDF extractor collapses the
+        // quantity column into the end of the description text instead of putting
+        // it inside the QTYSTART…QTYEND block.
+        if ($qty <= 0.0 && ! empty($descParts)) {
+            $lastIdx  = count($descParts) - 1;
+            $lastLine = $descParts[$lastIdx];
+            if (preg_match('/^(.+?)\s+(\d+(?:\.\d+)?)\s*$/', $lastLine, $qm)) {
+                $candidate = (float) $qm[2];
+                if ($candidate > 0.0) {
+                    $qty                  = $candidate;
+                    $descParts[$lastIdx]  = trim($qm[1]);
+                    if ($descParts[$lastIdx] === '') {
+                        array_splice($descParts, $lastIdx, 1);
+                    }
+                }
+            }
         }
 
         $desc = trim(preg_replace('/\s+/', ' ', implode(' ', $descParts)));

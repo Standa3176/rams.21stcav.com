@@ -159,7 +159,20 @@ class ClaudeProvider implements AIProviderContract
 
         $raw = $this->stripFences($response->json('content.0.text', ''));
 
-        $decoded = json_decode($raw, true);
+        // Safety net: replace literal unescaped newlines/tabs inside JSON string values.
+        // Claude occasionally emits real newlines inside string values, which is invalid JSON.
+        // This regex replaces \n and \t that appear inside a quoted string (between " ... ")
+        // with their proper JSON escape sequences.
+        $sanitised = preg_replace_callback(
+            '/"((?:[^"\\\\]|\\\\.)*)"/su',
+            function (array $m): string {
+                $inner = str_replace(["\r\n", "\r", "\n", "\t"], ['\\n', '\\n', '\\n', '\\t'], $m[1]);
+                return '"' . $inner . '"';
+            },
+            $raw
+        ) ?? $raw;
+
+        $decoded = json_decode($sanitised, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new RuntimeException(

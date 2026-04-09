@@ -57,7 +57,6 @@ class MethodStatementService
         try {
             $result     = AIManager::run($prompt, $context);
             $normalised = $this->normalise($result);
-            $normalised = $this->applyStructuredOverrides($normalised, $parsedQuote);
 
             if (! empty($normalised['phases'])) {
                 Log::info('MethodStatementService: AI method statement generated', [
@@ -76,7 +75,7 @@ class MethodStatementService
 
         Log::info('MethodStatementService: returning static fallback method statement.');
 
-        return $this->applyStructuredOverrides($this->fallbackPhases(), $parsedQuote);
+        return $this->fallbackPhases();
     }
 
     // =========================================================================
@@ -171,6 +170,7 @@ class MethodStatementService
 
     /**
      * Build a compact room summary list for the prompt.
+     * Includes solution type name and install method steps where available.
      */
     private function buildRoomOverviewSummary(array $parsed): string
     {
@@ -183,28 +183,54 @@ class MethodStatementService
             return '';
         }
 
+        // Pre-load all referenced solution types in one query.
+        $solutionTypeIds = array_filter(array_unique(array_map(
+            fn ($r) => (int) ($r['solution_type_id'] ?? 0),
+            $rows
+        )));
+        $solutionTypes = [];
+        if (! empty($solutionTypeIds)) {
+            foreach (\App\Models\SolutionType::whereIn('id', $solutionTypeIds)->get() as $st) {
+                $solutionTypes[$st->id] = $st;
+            }
+        }
+
         $parts = [];
         foreach ($rows as $row) {
-            $room = trim((string) ($row['room'] ?? ''));
-            $summary = trim((string) ($row['summary'] ?? ''));
-            $overview = trim((string) ($row['overview'] ?? ''));
+            $room     = trim((string) ($row['room']          ?? ''));
+            $summary  = trim((string) ($row['works_summary'] ?? $row['summary'] ?? ''));
+            $overview = trim((string) ($row['overview']      ?? ''));
 
             if ($room === '') {
                 continue;
             }
 
+            // Build the line: "Room [Solution Type]: summary/overview"
+            $stId  = (int) ($row['solution_type_id'] ?? 0);
+            $st    = $stId ? ($solutionTypes[$stId] ?? null) : null;
+            $label = $st ? "{$room} [{$st->name}]" : $room;
+
             if ($summary === '' && $overview !== '') {
                 $summary = $this->firstSentence($overview);
             }
 
-            if ($summary === '') {
+            // If a solution type has install_method, append abbreviated steps as context
+            $methodNote = '';
+            if ($st && $st->install_method) {
+                $steps = $st->methodLines();
+                // Include first 3 steps as a brief hint
+                $abbreviated = array_slice($steps, 0, 3);
+                $methodNote  = ' [Install: ' . implode('; ', $abbreviated) . ']';
+            }
+
+            if ($summary === '' && $methodNote === '') {
                 continue;
             }
 
-            $parts[] = "{$room}: {$summary}";
+            $parts[] = "{$label}: {$summary}{$methodNote}";
         }
 
-        return $parts ? implode(' | ', $parts) : '';
+        return $parts ? implode("\n", $parts) : '';
     }
 
     /**
@@ -299,8 +325,8 @@ class MethodStatementService
     }
 
     /**
-     * Static five-phase fallback used when the AI is unavailable or returns
-     * an unusable response. Covers all standard AV installation phases.
+     * Static fallback method statement used when the AI is unavailable or returns
+     * an unusable response. Uses generic AV installation language — no brand references.
      */
     private function fallbackPhases(): array
     {
@@ -313,16 +339,16 @@ class MethodStatementService
                         'Complete site induction, confirm the emergency assembly point, and agree room-by-room sequencing to minimise disruption.',
                         'Check the asbestos register or survey before any drilling or ceiling access is undertaken.',
                         'Confirm permit-to-work requirements for ceiling access, electrical isolation, or hot works with building management.',
-                        'Coordinate with the client IT team on network access, VLAN provisioning, and platform licensing where applicable.',
+                        'Coordinate with the client IT and facilities teams to confirm network access requirements, room booking arrangements, and any constraints on working hours.',
                     ],
                 ],
                 [
                     'title' => '2. Delivery and Materials Handling',
                     'steps' => [
                         'Confirm delivery vehicle access, parking or loading bay arrangements, and agreed delivery time with the site contact.',
-                        'Verify goods lift availability and suitability for the 85-inch display packaging, and agree a contingency if lift access is unavailable.',
-                        'Offload and move equipment using suitable trolleys and team lifts, keeping routes clear and protecting finishes.',
-                        'Identify any displaced existing systems such as the Crestron sensor or amplifier and agree retention or decommissioning with the client.',
+                        'Verify goods lift availability and suitability for large display and equipment packaging, and agree a contingency if lift access is unavailable.',
+                        'Offload and move equipment using suitable trolleys and team lifts, keeping routes clear and protecting floor and wall finishes.',
+                        'Log all delivered items against the delivery note and raise any shortages or damages with the project manager before installation begins.',
                     ],
                 ],
                 [
@@ -337,132 +363,32 @@ class MethodStatementService
                 [
                     'title' => '4. Installation Works',
                     'steps' => [
-                        'Route cables through agreed containment (ceiling void, trunking or conduit), fire-stop all penetrations, and segregate data, audio, and power.',
-                        'Survey walls, select appropriate fixings, and mount displays with two-person lifts, torquing fixings to manufacturer guidance and using safety straps until secure.',
-                        'Install pendant speakers using approved structural fixings, route drops to the DSP, and assign speaker zones to Q-SYS channels.',
-                        'Populate racks from the bottom up, manage weight distribution, and install UPS hardware without disrupting existing infrastructure.',
-                        'Commission Cisco devices by registering in the agreed platform, applying network credentials and VLAN tagging, pairing touch panels, and integrating the partition sensor into Q-SYS/Cisco logic.',
+                        'Sequence installation by room in the agreed order, completing containment, mounting and cabling in each area before moving on.',
+                        'Route cables via the agreed containment (ceiling void, trunking or conduit as per survey), fire-stop all penetrations, and segregate data, audio and power runs.',
+                        'Survey wall substrates, select fixings appropriate to the surface type, and mount displays and screens using two-person lifts, torquing fixings to manufacturer guidance.',
+                        'Install audio equipment including speakers and amplifiers using approved structural fixings, routing cables neatly back to equipment locations.',
+                        'Build rack infrastructure from the bottom up to manage weight distribution and install equipment to manufacturer specifications, without disrupting any live infrastructure.',
+                        'Connect control and switching equipment, apply labelling to all interfaces, and verify signal flow before proceeding to commissioning.',
                     ],
                 ],
                 [
-                    'title' => '5. Cable Termination and Testing',
+                    'title' => '5. Testing and Commissioning',
                     'steps' => [
-                        'Terminate and label cables using the agreed convention (e.g., room code and port number) at both ends.',
-                        'Confirm all test equipment calibration is current and record test results for handover.',
-                        'Configure Dante networking in Dante Controller, confirm IP addressing, and set latency settings as required.',
-                        'Perform an RF scan and frequency coordination for Shure wireless microphones before deployment.',
-                        'Complete Q-SYS commissioning with EQ, gain structure, and voicing to achieve target coverage and intelligibility.',
+                        'Terminate and label all cables using the agreed convention (e.g., room code and port number) at both ends.',
+                        'Confirm all test equipment calibration is current and record test results for inclusion in the handover pack.',
+                        'Power up systems in sequence, verify signal paths, and confirm audio, video and control functionality in each room.',
+                        'Carry out control system programming and test all user-facing functions including source switching, volume control, and display operation.',
+                        'Address any faults identified during commissioning and re-test to confirm resolution before proceeding to handover.',
                     ],
                 ],
                 [
                     'title' => '6. Final Checks and Handover',
                     'steps' => [
-                        'Remove all access equipment, barriers, packaging and waste from the actual work areas and leave the site clean.',
-                        'Provide end-user training to the client team on system operation and key room functions.',
-                        'Carry out a snagging walkthrough, log defects, and agree a close-out plan before final sign-off.',
+                        'Remove all access equipment, barriers, packaging and waste from work areas and leave the site clean and tidy.',
+                        'Provide end-user training to the client team on system operation, covering day-to-day use and basic fault diagnosis.',
+                        'Carry out a snagging walkthrough, log any defects, and agree a close-out plan before final sign-off.',
                         'Hand over as-built documentation, test results, and commissioning records to the client representative.',
                     ],
-                ],
-            ],
-        ];
-    }
-
-    /**
-     * Replace AI output with a structured, audit-ready method statement.
-     */
-    private function applyStructuredOverrides(array $result, array $parsed): array
-    {
-        $result['phases'] = $this->buildStructuredPhases($parsed);
-
-        return $result;
-    }
-
-    private function buildInstallationSteps(array $parsed): array
-    {
-        $rooms = [];
-        foreach ((array) ($parsed['room_overviews'] ?? []) as $row) {
-            $room = trim((string) ($row['room'] ?? ''));
-            $overview = trim((string) ($row['overview'] ?? ''));
-            $summary = trim((string) ($row['summary'] ?? ''));
-            if ($room !== '' && ($overview !== '' || $summary !== '')) {
-                $rooms[] = $room;
-            }
-        }
-        $rooms = array_values(array_unique($rooms));
-
-        $steps = [];
-        if (! empty($rooms)) {
-            $steps[] = 'Sequence installation by room in the agreed order (' . implode(', ', $rooms)
-                . '), completing containment, mounting and cabling in each area before moving on.';
-        } else {
-            $steps[] = 'Sequence installation by room in the agreed order, completing containment, mounting and cabling in each area before moving on.';
-        }
-
-        $steps[] = 'Route cables via the agreed containment (ceiling void, trunking or conduit as per survey), fire-stop all penetrations, and segregate data, audio and power runs.';
-        $steps[] = 'Survey wall substrates, select fixings appropriate to masonry or studwork, and mount displays using two-person lifts, torquing fixings to manufacturer guidance and retaining safety straps until secure.';
-        $steps[] = 'Install pendant speakers using approved structural fixings, route drops back to the DSP, and assign speaker zones correctly within the Q-SYS configuration.';
-        $steps[] = 'Build the rack from the bottom up to manage weight distribution, integrate with the existing rack without disrupting live infrastructure, and install UPS hardware with appropriate load consideration.';
-        $steps[] = 'Provision Cisco devices in the agreed platform (Webex Control Hub or on-prem), apply network credentials/VLAN tagging, and pair touch panels before functional checks.';
-        $steps[] = 'Decommission the existing Crestron partition sensor and install the Extron replacement, then validate combined-room logic within Q-SYS and Cisco control workflows.';
-
-        return $steps;
-    }
-
-    /**
-     * Build a full structured method statement with required content.
-     */
-    private function buildStructuredPhases(array $parsed): array
-    {
-        return [
-            [
-                'title' => '1. Pre-Start Checks',
-                'steps' => [
-                    'Hold a toolbox talk and brief all operatives on the RAMS, scope, and site constraints before starting work.',
-                    'Complete site induction, confirm the emergency assembly point, and agree room-by-room sequencing to minimise disruption.',
-                    'Check the asbestos register or survey before any drilling or ceiling access is undertaken.',
-                    'Confirm permit-to-work requirements for ceiling access, electrical isolation, or hot works with building management.',
-                    'Coordinate with the client IT team on network access, VLAN provisioning, and platform licensing where applicable.',
-                ],
-            ],
-            [
-                'title' => '2. Delivery and Materials Handling',
-                'steps' => [
-                    'Confirm delivery vehicle access, parking or loading bay arrangements, and agreed delivery times with the site contact.',
-                    'Verify goods lift suitability for the 85-inch display packaging and agree a contingency plan if lift access is unavailable.',
-                    'Offload and move equipment using suitable trolleys and team lifts, keeping routes clear and protecting finishes.',
-                    'Identify any displaced existing systems such as the Crestron sensor or amplifier and agree retention or decommissioning with the client.',
-                ],
-            ],
-            [
-                'title' => '3. Access Equipment Setup',
-                'steps' => [
-                    'Select access equipment appropriate to the task and confirm maximum working height limits before use.',
-                    'Ensure operatives using platforms or towers are competent and trained (e.g., PASMA or WAH training where required).',
-                    'Establish a work-at-height rescue plan and brief all team members before commencing overhead works.',
-                    'Set exclusion zones and signage around overhead work areas and maintain three points of contact while working at height.',
-                ],
-            ],
-            [
-                'title' => '4. Installation Works',
-                'steps' => $this->buildInstallationSteps($parsed),
-            ],
-            [
-                'title' => '5. Cable Termination and Testing',
-                'steps' => [
-                    'Terminate and label cables using the agreed convention (for example, room code and port number) at both ends.',
-                    'Confirm all test equipment calibration is current and record test results for handover.',
-                    'Configure Dante networking in Dante Controller, confirm IP addressing, and set latency settings as required.',
-                    'Perform an RF scan and frequency coordination for wireless microphones before deployment.',
-                    'Complete Q-SYS commissioning with EQ, gain structure, and voicing to achieve target coverage and intelligibility.',
-                ],
-            ],
-            [
-                'title' => '6. Final Checks and Handover',
-                'steps' => [
-                    'Remove all access equipment, barriers, packaging and waste from the actual work areas and leave the site clean.',
-                    'Provide end-user training to the client team on system operation and key room functions.',
-                    'Carry out a snagging walkthrough, log defects, and agree a close-out plan before final sign-off.',
-                    'Hand over as-built documentation, test results, and commissioning records to the client representative.',
                 ],
             ],
         ];

@@ -57,7 +57,7 @@
         transform: translateY(-50%);
         width: 3px;
         height: 60%;
-        background: #178A95;
+        background: var(--teal);
         border-radius: 0 3px 3px 0;
     }
 
@@ -204,6 +204,17 @@
             <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
         </svg>
         Users
+        <span class="snav-admin-dot" aria-hidden="true"></span>
+    </a>
+
+    <a href="{{ route('admin.solution-types.index') }}"
+       class="snav-link admin-only {{ request()->routeIs('admin.solution-types.*') ? 'active' : '' }}">
+        <svg class="snav-icon" width="15" height="15" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+        </svg>
+        Solution Types
         <span class="snav-admin-dot" aria-hidden="true"></span>
     </a>
 

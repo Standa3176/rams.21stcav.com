@@ -26,7 +26,11 @@ class ProjectPackageRamsReviewService
             ?? ($data['equipment_list'] ?? $data['equipment'] ?? []);
 
         $equipment = $this->normaliseEquipment($equipmentRaw);
-        $equipment = $this->filterHardware($equipment);
+        // Only keep hardware items for RAMS — but if the filter would leave us with
+        // nothing (e.g. all items are cables/services), fall back to the full list
+        // so validation never fails due to an over-eager category filter.
+        $hardwareOnly = $this->filterHardware($equipment);
+        $equipment    = ! empty($hardwareOnly) ? $hardwareOnly : $equipment;
 
         // Activities
         $activities = $this->normaliseActivities($data['activities'] ?? []);

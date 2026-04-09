@@ -17,6 +17,7 @@ use App\Services\PdfService;
 use App\Services\ProjectPackageRamsReviewService;
 use App\Services\RamsBuilderService;
 use App\Services\RamsDocumentRendererService;
+use App\Services\RamsReviewDataService;
 use App\Services\RamsReviewValidatorService;
 use App\Services\WordDocumentService;
 use App\Services\WorkerMonitorService;
@@ -40,6 +41,7 @@ class RamsController extends Controller
         private readonly PdfService          $pdfService,
         private readonly ProjectPackageRamsReviewService $packageToReview,
         private readonly RamsReviewValidatorService      $reviewValidator,
+        private readonly RamsReviewDataService           $reviewDataService,
         private readonly AiSettingsService               $aiSettings,
     ) {}
 
@@ -185,16 +187,34 @@ class RamsController extends Controller
 
         $package = $project->latestPackage;
 
-        if (! $package || $package->status !== ProjectPackage::STATUS_REVIEWED) {
-            return back()->with('error', 'No reviewed quote data found for this project. Please review the quote first.');
+        if (! $package) {
+            return back()->with('error', 'No quote data found for this project. Please upload a quote PDF first.');
         }
 
-        $reviewPayload = $this->packageToReview->build($package);
+        // If the package hasn't been reviewed yet, send the user directly to the review page.
+        if ($package->status !== ProjectPackage::STATUS_REVIEWED) {
+            return redirect()
+                ->route('project-packages.review.show', $package)
+                ->with('error', 'Please review and save the project data before generating a RAMS.');
+        }
+
+        // Use the data that was already saved and validated by the review/approve
+        // process — do NOT rebuild via ProjectPackageRamsReviewService::build(),
+        // which re-runs equipment filtering and classification and can produce a
+        // different (incomplete) payload from what the user actually reviewed.
+        $reviewPayload = $this->reviewDataService->normalise(
+            $package->extracted_data ?? []
+        );
 
         try {
             $this->reviewValidator->validate($reviewPayload);
         } catch (\Illuminate\Validation\ValidationException $e) {
-            return back()->with('error', 'Cannot generate RAMS — reviewed data is incomplete. Please review and save the quote data first.');
+            // Send the user back to the review page with the specific field errors
+            // so they know exactly what needs to be fixed.
+            $messages = collect($e->errors())->flatten()->implode(' ');
+            return redirect()
+                ->route('project-packages.review.show', $package)
+                ->with('error', 'Some required fields are missing — please fix and click Save & Return. ' . $messages);
         }
 
         $ramsDocument = RamsDocument::create([
@@ -310,6 +330,7 @@ class RamsController extends Controller
         $hasDocxExt = is_string($rams->filename) && str_ends_with(strtolower($rams->filename), '.docx');
 
         // If missing/invalid/or not .docx, try a safe rebuild from generated_data.
+        $rebuildError = null;
         if (! $hasDocxExt || ! $rams->filename || ! file_exists($filePath) || ! $this->isValidDocx($filePath)) {
             if (! empty($rams->generated_data)) {
                 try {
@@ -320,15 +341,22 @@ class RamsController extends Controller
                     Log::error('RamsController: DOCX rebuild failed during download', [
                         'record_id' => $rams->id,
                         'error'     => $e->getMessage(),
+                        'file'      => $e->getFile(),
+                        'line'      => $e->getLine(),
                     ]);
+                    $rebuildError = $e->getMessage();
                 }
             }
         }
 
         if (! $rams->filename || ! file_exists($filePath) || ! $this->isValidDocx($filePath)) {
-            $msg = empty($rams->generated_data)
-                ? 'DOCX download failed: document data is missing. Please click Regenerate and try again.'
-                : 'DOCX download failed: the file is missing or invalid. Please click Regenerate and try again.';
+            if (empty($rams->generated_data)) {
+                $msg = 'DOCX download failed: document data is missing. Please click Regenerate and try again.';
+            } elseif ($rebuildError) {
+                $msg = 'DOCX download failed: ' . $rebuildError . ' — please contact support or try Regenerate.';
+            } else {
+                $msg = 'DOCX download failed: the file is missing or invalid. Please click Regenerate and try again.';
+            }
 
             return back()->with('error', $msg);
         }
@@ -576,15 +604,30 @@ class RamsController extends Controller
     {
         $this->authorize('update', $rams);
 
-        if (empty($rams->reviewed_data)) {
-            return back()->with('error', 'Cannot generate RAMS — the document has not been reviewed and approved yet. Please review it first.');
-        }
-
         if (in_array($rams->status, [
             RamsDocument::STATUS_GENERATING,
             RamsDocument::STATUS_APPROVED_FOR_GENERATION,
         ], true)) {
-            return back()->with('error', 'This document is already queued for generation. Please wait.');
+            return redirect()->route('projects.show', $rams->project_id)
+                ->with('error', 'This document is already queued for generation. Please wait.');
+        }
+
+        // Always refresh reviewed_data from the latest reviewed package so that
+        // any changes made in the review UI (e.g. recategorising equipment) are
+        // picked up on every Regen, not just the first time.
+        if ($rams->project_id) {
+            $package = ProjectPackage::where('project_id', $rams->project_id)
+                ->where('status', ProjectPackage::STATUS_REVIEWED)
+                ->latest()
+                ->first();
+
+            if (! $package) {
+                return redirect()->route('projects.show', $rams->project_id)
+                    ->with('error', 'No reviewed project data found. Please review the project data first.');
+            }
+
+            $reviewedData = $this->reviewDataService->normalise($package->extracted_data ?? []);
+            $rams->update(['reviewed_data' => $reviewedData]);
         }
 
         $rams->update([
@@ -600,7 +643,8 @@ class RamsController extends Controller
             'user_id'   => auth()->id(),
         ]);
 
-        return back()->with('success', 'Generation queued. The document will be ready to download shortly.');
+        return redirect()->route('projects.show', $rams->project_id)
+            ->with('success', 'Regeneration queued. The document will be ready to download shortly.');
     }
 
     // ─────────────────────────────────────────────────────────────────────────

@@ -2,35 +2,38 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Log;
 use Smalot\PdfParser\Parser;
 
 /**
- * Extracts plain text from a PDF file using local parsing only.
+ * Extracts plain text from a PDF using layered local fallbacks.
  *
- * Extraction order:
- *   1. smalot/pdfparser  — fast, accurate for selectable-text PDFs.
- *   2. Raw stream fallback — proper PDF literal-string parser over the raw byte
- *      stream, used when pdfparser yields fewer than 50 characters.
- *      Correctly handles: nested parentheses, all PDF escape sequences
- *      (\n \r \t \b \f \\ \( \) \ddd), and filters out binary / non-printable
- *      content before returning.
- *   3. PdfOcrExtractorService (Tesseract) — last resort for scanned/image PDFs.
+ * Order:
+ *   1) Smalot parser
+ *   2) Raw literal-string extraction from PDF streams
+ *   3) OCR (Tesseract)
  *
- * All three paths pass through cleanText() which strips PDF structural noise
- * (object headers, xref entries, structural keywords) before the text reaches
- * QuoteParserService.
- *
- * No AI usage. No external API calls.
- * Requires: composer require smalot/pdfparser
- * Optional: tesseract-ocr + poppler-utils installed on the server (for OCR fallback).
+ * Every stage is cleaned and quality-scored before it is accepted.
  */
 class PdfTextExtractorService
 {
-    /** Below this length pdfparser result triggers the raw-stream fallback. */
+    /** Below this length after Smalot, force raw-stream fallback. */
     private const RAW_FALLBACK_THRESHOLD = 50;
 
-    /** Below this length after raw fallback, Tesseract OCR is attempted. */
+    /** Below this length after raw fallback, force OCR fallback. */
     private const OCR_FALLBACK_THRESHOLD = 200;
+
+    /** Minimum trimmed length for a candidate to be considered usable. */
+    private const MIN_USABLE_CHARS = 120;
+
+    /** Max ratio of "special" characters in a single line during cleaning. */
+    private const MAX_LINE_SPECIAL_RATIO = 0.10;
+
+    /** Minimum average alphabetic run length for text to look human-readable. */
+    private const MIN_ALPHA_RUN_AVG = 2.8;
+
+    /** Maximum fraction of alphabetic runs that may be <= 2 chars. */
+    private const MAX_SHORT_RUN_RATIO = 0.45;
 
     public function __construct(
         private readonly Parser                 $parser,
@@ -38,40 +41,79 @@ class PdfTextExtractorService
     ) {}
 
     /**
-     * Extract and clean all readable text from the given PDF file.
-     *
-     * @param  string $path  Absolute filesystem path to the PDF file.
-     * @return string        Extracted, normalised plain text.
-     *
-     * @throws \Exception If the file cannot be parsed and all fallbacks fail.
+     * Extract and clean readable text from the given PDF file.
      */
     public function extract(string $path): string
     {
-        $text = $this->parseText($path);
-
-        // Fallback 1 — raw stream extraction (no extra dependencies)
-        if (strlen(trim($text)) < self::RAW_FALLBACK_THRESHOLD) {
-            $text = $this->rawStreamText($path);
+        // Stage 1: Smalot
+        $smalot = $this->cleanText($this->parseText($path));
+        if ($this->isUsableText($smalot)) {
+            Log::debug('PdfTextExtractorService: using Smalot output', [
+                'path'   => basename($path),
+                'length' => strlen($smalot),
+            ]);
+            return $smalot;
         }
 
-        // Fallback 2 — Tesseract OCR (scanned / image-only PDFs)
-        if (mb_strlen(trim($text)) < self::OCR_FALLBACK_THRESHOLD) {
-            $text = $this->ocr->extract($path);
+        // Stage 2: Raw stream fallback
+        $raw = '';
+        if (
+            mb_strlen(trim($smalot)) < self::RAW_FALLBACK_THRESHOLD
+            || ! $this->looksHumanReadable($smalot)
+        ) {
+            $raw = $this->cleanText($this->rawStreamText($path));
+            if ($this->isUsableText($raw)) {
+                Log::debug('PdfTextExtractorService: using raw-stream fallback output', [
+                    'path'   => basename($path),
+                    'length' => strlen($raw),
+                ]);
+                return $raw;
+            }
         }
 
-        // Final shared pass — strip any remaining PDF structural noise regardless
-        // of which extraction path was used.
-        return $this->cleanText($text);
+        // Stage 3: OCR fallback
+        $bestSoFar = $raw !== '' ? $raw : $smalot;
+        $shouldTryOcr =
+            mb_strlen(trim($bestSoFar)) < self::OCR_FALLBACK_THRESHOLD
+            || ! $this->looksHumanReadable($bestSoFar);
+
+        if ($shouldTryOcr) {
+            try {
+                $ocr = $this->cleanText($this->ocr->extract($path));
+                if ($this->isUsableText($ocr)) {
+                    Log::debug('PdfTextExtractorService: using OCR fallback output', [
+                        'path'   => basename($path),
+                        'length' => strlen($ocr),
+                    ]);
+                    return $ocr;
+                }
+                if ($ocr !== '') {
+                    Log::warning('PdfTextExtractorService: OCR output still low-quality; returning best OCR text', [
+                        'path'   => basename($path),
+                        'length' => strlen($ocr),
+                    ]);
+                    return $ocr;
+                }
+            } catch (\Throwable $e) {
+                Log::warning('PdfTextExtractorService: OCR fallback failed', [
+                    'error' => $e->getMessage(),
+                    'path'  => basename($path),
+                ]);
+            }
+        }
+
+        Log::warning('PdfTextExtractorService: returning low-confidence extraction output', [
+            'path'   => basename($path),
+            'length' => strlen($bestSoFar),
+        ]);
+
+        return $bestSoFar;
     }
 
     // ── Private — extraction ──────────────────────────────────────────────────
 
     /**
      * Parse selectable text from the PDF using smalot/pdfparser.
-     *
-     * Lines shorter than 3 characters or with no alphabetic content are dropped
-     * here so that simple numeric fragments from font metrics / encoding tables
-     * inside the PDF structure do not pollute the output.
      */
     private function parseText(string $path): string
     {
@@ -85,28 +127,20 @@ class PdfTextExtractorService
             $lines = array_filter(
                 $lines,
                 static fn (string $l): bool =>
-                    mb_strlen($l) >= 3 && (bool) preg_match('/[a-zA-Z]/', $l),
+                    mb_strlen($l) >= 3 && (
+                        (bool) preg_match('/[a-zA-Z]/', $l) ||
+                        (bool) preg_match('/^[\d\.\-\/]{2,30}$/', $l)
+                    ),
             );
 
             return implode("\n", $lines);
         } catch (\Throwable $e) {
-            // Smalot can throw "Secured pdf file are currently not supported."
-            // Treat this as a non-fatal parse failure and fall back to raw/OCR.
             return '';
         }
     }
 
     /**
-     * Raw stream fallback: walk the raw PDF bytes and extract all PDF literal
-     * strings (sequences delimited by parentheses).
-     *
-     * Uses a proper state machine that correctly handles:
-     *   - Nested balanced parentheses via depth tracking
-     *   - All PDF escape sequences: \n \r \t \b \f \\ \( \) \ddd (octal)
-     *   - Non-printable / binary content (stripped after decoding)
-     *
-     * Results are filtered: each extracted string must contain at least two
-     * consecutive alphabetic characters to be included in the output.
+     * Raw-stream fallback over PDF literal strings.
      */
     private function rawStreamText(string $path): string
     {
@@ -115,7 +149,6 @@ class PdfTextExtractorService
         $usable  = [];
 
         foreach ($strings as $s) {
-            // Strip non-printable characters; keep tab, LF, CR, printable ASCII
             $clean = preg_replace('/[^\x09\x0A\x0D\x20-\x7E]/', '', $s);
             $clean = trim($clean);
 
@@ -123,20 +156,14 @@ class PdfTextExtractorService
                 continue;
             }
 
-            // Must contain at least 2 consecutive alphabetic characters.
-            // This filters binary fragments, pure-numeric strings, single-letter
-            // PDF operator tokens, and other non-text content.
             if (! preg_match('/[a-zA-Z]{2,}/', $clean)) {
                 continue;
             }
 
-            // Skip PDF date/time strings: D:YYYYMMDDHHmmSS
             if (preg_match('/^D:\d/', $clean)) {
                 continue;
             }
 
-            // Skip strings that are entirely numeric / punctuation after removing spaces
-            // (e.g. standalone prices, page numbers, version numbers)
             if (preg_match('/^[\d\s\.\-\+\,\/\:\(\)]+$/', $clean)) {
                 continue;
             }
@@ -148,17 +175,9 @@ class PdfTextExtractorService
     }
 
     /**
-     * Walk the raw PDF byte stream and return all PDF literal strings.
+     * Extract all decoded PDF literal strings from raw bytes.
      *
-     * PDF literal strings are enclosed in parentheses and may contain:
-     *   - Balanced nested parentheses: (Hello (World)) is a single string.
-     *   - Escaped parentheses: \( and \) do not affect nesting depth.
-     *   - Escape sequences decoded in-place:
-     *       \n → LF      \r → CR       \t → HT
-     *       \b → BS      \f → FF       \\ → backslash
-     *       \( → (       \) → )        \ddd → octal character
-     *
-     * @return string[]  Raw (decoded) strings found in the PDF byte stream.
+     * @return string[]
      */
     private function extractPdfLiteralStrings(string $raw): array
     {
@@ -172,7 +191,7 @@ class PdfTextExtractorService
                 continue;
             }
 
-            $i++;       // skip the opening (
+            $i++;
             $str   = '';
             $depth = 1;
 
@@ -182,7 +201,6 @@ class PdfTextExtractorService
                 if ($ch === '\\' && ($i + 1) < $len) {
                     $next = $raw[$i + 1];
 
-                    // Octal escape: \d, \dd, or \ddd  (1–3 octal digits)
                     if ($next >= '0' && $next <= '7') {
                         $oct = '';
                         $j   = $i + 1;
@@ -201,7 +219,7 @@ class PdfTextExtractorService
                             '('     => '(',
                             ')'     => ')',
                             '\\'    => '\\',
-                            default => $next,  // unknown escape: pass through the escaped char
+                            default => $next,
                         };
                         $i += 2;
                     }
@@ -228,19 +246,7 @@ class PdfTextExtractorService
     }
 
     /**
-     * Final cleaning pass applied to text from all three extraction paths.
-     *
-     * Removes:
-     *   - Lines shorter than 3 characters.
-     *   - Lines with no alphabetic content (pure numbers, symbols, binary).
-     *   - PDF cross-reference table entries  (e.g. "0000000017 00000 n").
-     *   - PDF object header/trailer lines    (e.g. "17 0 obj", "3 0 R").
-     *   - PDF structural keywords on their own line
-     *     (endobj, endstream, xref, startxref, trailer, stream).
-     *
-     * This is the last line of defence before the text is handed to
-     * QuoteParserService, and is intentionally conservative — it only removes
-     * patterns that are unambiguously PDF internal structure.
+     * Shared final line-cleaning pass.
      */
     private function cleanText(string $text): string
     {
@@ -254,39 +260,127 @@ class PdfTextExtractorService
                 continue;
             }
 
-            // Must contain at least one alphabetic character
-            if (! preg_match('/[a-zA-Z]/', $line)) {
+            if (! preg_match('/[a-zA-Z]/', $line) && ! preg_match('/^[\d\.\-\/]{2,30}$/', $line)) {
                 continue;
             }
 
-            // Reject lines where more than 15% of characters are non-alphanumeric/
-            // non-whitespace — these are binary PDF stream fragments that slipped
-            // through the extraction filter (e.g. encoded font data, CMap tables).
-            // Threshold is intentionally conservative: real prose never exceeds ~5%;
-            // garbled binary stream data typically runs 20–45%.
-            $specialCount = preg_match_all('/[^a-zA-Z0-9\s\.,\-\'\"\/\(\)\&\:\#\@\+\!\?\;\=]/', $line);
-            if (strlen($line) > 0 && ($specialCount / strlen($line)) > 0.10) {
+            // PDF structural noise that often leaks when OCR/smalot output is poor.
+            if (preg_match('/(?:\/Type\s*\/Page|\/Parent\s+\d+\s+\d+\s+R|\/MediaBox|\/Contents\s*\[|\/Resources|\/Length|\/Filter|FlateDecode|DeviceRGB|Transparency|startxref|endobj|endstream|xref|trailer|\bstream\b)/i', $line)) {
                 continue;
             }
-
-            // PDF cross-reference entries: "0000000017 00000 n" / "0000000017 00000 f"
+            if (preg_match('/^\d+\s+\d+\s+(?:obj|R)\s*$/i', $line)) {
+                continue;
+            }
             if (preg_match('/^\d{5,}\s+\d{5}\s+[fn]\s*$/i', $line)) {
                 continue;
             }
 
-            // PDF object header / trailer: "17 0 obj"  or  "3 0 R"
-            if (preg_match('/^\d+\s+\d+\s+(?:obj|R)\s*$/i', $line)) {
+            $specialCount = preg_match_all('/[^a-zA-Z0-9\s\.,\-\'\"\/\(\)\&\:\#\@\+\!\?\;\=]/', $line);
+            if (strlen($line) > 0 && ($specialCount / strlen($line)) > self::MAX_LINE_SPECIAL_RATIO) {
                 continue;
             }
 
-            // PDF structural keywords standing alone on a line
-            if (preg_match('/^(?:endobj|endstream|xref|startxref|trailer|stream)\s*$/i', $line)) {
-                continue;
+            // Reject lines that look like symbol-separated binary gibberish.
+            preg_match_all('/[a-zA-Z]+/', $line, $alphaRunMatches);
+            $runs = $alphaRunMatches[0];
+            if (! empty($runs)) {
+                $avgRunLen = array_sum(array_map('strlen', $runs)) / count($runs);
+                if (strlen($line) >= 30 && $avgRunLen < self::MIN_ALPHA_RUN_AVG) {
+                    continue;
+                }
             }
 
             $out[] = $line;
         }
 
         return implode("\n", $out);
+    }
+
+    // ── Private — quality scoring ─────────────────────────────────────────────
+
+    /**
+     * True when text is usable for downstream quote parsing.
+     */
+    private function isUsableText(string $text): bool
+    {
+        $trimmed = trim($text);
+        if (mb_strlen($trimmed) < self::MIN_USABLE_CHARS) {
+            return false;
+        }
+
+        if (! preg_match('/[A-Za-z]{4,}/', $trimmed)) {
+            return false;
+        }
+
+        if (! $this->looksHumanReadable($trimmed)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Heuristic readability gate to reject encoded/PDF-structure garbage.
+     */
+    private function looksHumanReadable(string $text): bool
+    {
+        $trimmed = trim($text);
+        if ($trimmed === '') {
+            return false;
+        }
+
+        if ($this->hasPdfStructuralDominance($trimmed)) {
+            return false;
+        }
+
+        // Fast fail for obvious PDF internals that should never dominate real quote text.
+        $pdfNoiseHits = preg_match_all(
+            '/(?:\/Type\s*\/Page|\/Parent\s+\d+\s+\d+\s+R|\/MediaBox|\/Contents\s*\[|FlateDecode|startxref|endobj|endstream|xref|trailer|\d+\s+\d+\s+obj)/i',
+            $trimmed
+        );
+        if ($pdfNoiseHits >= 3) {
+            return false;
+        }
+
+        preg_match_all('/[a-zA-Z]+/', $trimmed, $alphaRunMatches);
+        $runs = $alphaRunMatches[0] ?? [];
+        if (count($runs) < 20) {
+            return false;
+        }
+
+        $runLengths = array_map('strlen', $runs);
+        $avgRunLen  = array_sum($runLengths) / count($runLengths);
+        if ($avgRunLen < self::MIN_ALPHA_RUN_AVG) {
+            return false;
+        }
+
+        $shortRunCount = count(array_filter($runLengths, static fn (int $len): bool => $len <= 2));
+        if (($shortRunCount / count($runLengths)) > self::MAX_SHORT_RUN_RATIO) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Detect when extracted text is dominated by PDF object/structure tokens.
+     */
+    private function hasPdfStructuralDominance(string $text): bool
+    {
+        $hits = (int) preg_match_all(
+            '/(?:\/Type|\/Page|\/Resources|\/Parent|\/Contents|\/MediaBox|\/Length|\/Filter|FlateDecode|DeviceRGB|Transparency|startxref|endobj|endstream|\bxref\b|\btrailer\b|\bstream\b|\bobj\b)/i',
+            $text
+        );
+        $words = (int) preg_match_all('/[A-Za-z]{3,}/', $text);
+
+        if ($hits >= 8) {
+            return true;
+        }
+
+        if ($words > 0 && ($hits / $words) > 0.12) {
+            return true;
+        }
+
+        return false;
     }
 }

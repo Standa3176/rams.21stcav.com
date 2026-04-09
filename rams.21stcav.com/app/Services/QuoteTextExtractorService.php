@@ -40,6 +40,15 @@ class QuoteTextExtractorService
     /** Maximum ratio of non-printable bytes before text is rejected as binary. */
     private const MAX_BINARY_RATIO = 0.10;
 
+    /** Hard reject when PDF structural tokens dominate extracted text. */
+    private const MAX_PDF_STRUCT_RATIO = 0.12;
+
+    /** Minimum average alphabetic run length for human-readable text. */
+    private const MIN_ALPHA_RUN_AVG = 2.8;
+
+    /** Maximum fraction of alphabetic runs that may be <= 2 chars. */
+    private const MAX_SHORT_RUN_RATIO = 0.45;
+
     public function __construct(
         private readonly Parser $parser,
     ) {}
@@ -157,8 +166,18 @@ class QuoteTextExtractorService
             $lines = array_map('trim', explode("\n", $text));
             $lines = array_filter(
                 $lines,
-                static fn (string $l): bool =>
-                    mb_strlen($l) >= 3 && (bool) preg_match('/[a-zA-Z]/', $l),
+                function (string $l): bool {
+                    if (mb_strlen($l) < 3 || ! preg_match('/[a-zA-Z]/', $l)) {
+                        return false;
+                    }
+
+                    // Reject obvious PDF object/stream structure fragments.
+                    if (preg_match('/(?:\/Type\s*\/Page|\/Parent\s+\d+\s+\d+\s+R|\/MediaBox|\/Contents\s*\[|\/Resources|\/Length|\/Filter|FlateDecode|DeviceRGB|Transparency|startxref|endobj|endstream|xref|trailer|\bstream\b)/i', $l)) {
+                        return false;
+                    }
+
+                    return true;
+                },
             );
 
             return implode("\n", $lines);
@@ -242,6 +261,14 @@ class QuoteTextExtractorService
             return false;
         }
 
+        if ($this->hasPdfStructuralDominance($trimmed)) {
+            return false;
+        }
+
+        if (! $this->hasHumanReadableWordProfile($trimmed)) {
+            return false;
+        }
+
         return true;
     }
 
@@ -254,5 +281,47 @@ class QuoteTextExtractorService
         }
 
         return $text;
+    }
+
+    private function hasPdfStructuralDominance(string $text): bool
+    {
+        $hits = (int) preg_match_all(
+            '/(?:\/Type|\/Page|\/Resources|\/Parent|\/Contents|\/MediaBox|\/Length|\/Filter|FlateDecode|DeviceRGB|Transparency|startxref|endobj|endstream|\bxref\b|\btrailer\b|\bstream\b|\bobj\b)/i',
+            $text
+        );
+        $words = (int) preg_match_all('/[A-Za-z]{3,}/', $text);
+
+        if ($hits >= 8) {
+            return true;
+        }
+
+        if ($words > 0 && ($hits / $words) > self::MAX_PDF_STRUCT_RATIO) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function hasHumanReadableWordProfile(string $text): bool
+    {
+        preg_match_all('/[A-Za-z]+/', $text, $alphaRunMatches);
+        $runs = $alphaRunMatches[0] ?? [];
+
+        if (count($runs) < 20) {
+            return false;
+        }
+
+        $runLengths = array_map('strlen', $runs);
+        $avgRunLen  = array_sum($runLengths) / max(1, count($runLengths));
+        if ($avgRunLen < self::MIN_ALPHA_RUN_AVG) {
+            return false;
+        }
+
+        $shortRunCount = count(array_filter($runLengths, static fn (int $len): bool => $len <= 2));
+        if (($shortRunCount / max(1, count($runLengths))) > self::MAX_SHORT_RUN_RATIO) {
+            return false;
+        }
+
+        return true;
     }
 }

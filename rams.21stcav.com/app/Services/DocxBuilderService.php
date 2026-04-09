@@ -62,17 +62,23 @@ class DocxBuilderService
         if ($this->templates->exists('rams')) {
             // ── Template path: load branded cover, append programmatic sections ──
             $phpWord = $this->loadTemplate('rams', [
-                'project_ref'       => $project['ref']               ?? ($formData['project_ref']       ?? '—'),
-                'project_name'      => $project['name']              ?? ($formData['project_name']      ?? '—'),
-                'client_name'       => $project['client']            ?? ($formData['client_name']       ?? '—'),
-                'site_address'      => $project['site_address']      ?? ($formData['site_address']      ?? '—'),
-                'contractor'        => config('rams.company_name'),
-                'works_description' => $project['works_description'] ?? ($formData['works_description'] ?? '—'),
-                'start_date'        => $formData['start_date']       ?? 'TBC',
-                'expected_duration' => $formData['expected_duration'] ?? 'TBC',
-                'document_status'   => 'For Review',
-                'date'              => now()->format('F Y'),
-                'doc_author'        => $formData['doc_author']       ?? '',
+                'project_ref'          => $project['ref']               ?? ($formData['project_ref']          ?? '—'),
+                'project_name'         => $project['name']              ?? ($formData['project_name']         ?? '—'),
+                'client_name'          => $project['client']            ?? ($formData['client_name']          ?? '—'),
+                'site_address'         => $project['site_address']      ?? ($formData['site_address']         ?? '—'),
+                'contractor'           => config('rams.company_name'),
+                'works_description'    => $project['works_description'] ?? ($formData['works_description']    ?? '—'),
+                'start_date'           => $formData['start_date']          ?? 'TBC',
+                'expected_duration'    => $formData['expected_duration']   ?? 'TBC',
+                'document_status'      => 'For Review',
+                'date'                 => now()->format('F Y'),
+                'doc_author'           => $formData['doc_author']          ?? '',
+                // Personnel — populated from reviewed_data['programme'] via mergeReviewedIntoFormData()
+                'project_manager'      => $formData['project_manager']     ?? '',
+                'lead_engineer'        => $formData['lead_engineer']       ?? '',
+                'additional_engineers' => $formData['additional_engineers']?? '',
+                'programmer'           => $formData['programmer']          ?? '',
+                'site_contact'         => $formData['site_contact']        ?? '',
             ]);
 
             // Append dynamic tables to the last section of the loaded template
@@ -101,7 +107,7 @@ class DocxBuilderService
         $this->buildSection3($phpWord);
 
         // Write file
-        $filename = 'rams_' . $record->id . '_' . now()->format('Ymd') . '.docx';
+        $filename = 'rams_' . $record->id . '_' . now()->format('Ymd_His') . '.docx';
         $filePath = $storageDir . '/' . $filename;
 
         IOFactory::createWriter($phpWord, 'Word2007')->save($filePath);
@@ -548,7 +554,7 @@ class DocxBuilderService
                     $bg  = ($i % 2 === 0) ? $valueCell : $altCell;
                     $row = $table->addRow(380);
                     $row->addCell(600,  $bg)->addText((string)($item['qty'] ?? ''), $valueFont, ['alignment' => Jc::CENTER]);
-                    $row->addCell(9266, $bg)->addText((string)($item['description'] ?? ''), $valueFont);
+                    $row->addCell(9266, $bg)->addText($this->t((string)($item['description'] ?? '')), $valueFont);
                 }
 
                 $section->addTextBreak(1);
@@ -566,7 +572,7 @@ class DocxBuilderService
                 $bg  = ($i % 2 === 0) ? $valueCell : $altCell;
                 $row = $table->addRow(380);
                 $row->addCell(600,  $bg)->addText((string)($item['qty'] ?? ''), $valueFont, ['alignment' => Jc::CENTER]);
-                $row->addCell(9266, $bg)->addText((string)($item['description'] ?? ''), $valueFont);
+                $row->addCell(9266, $bg)->addText($this->t((string)($item['description'] ?? '')), $valueFont);
             }
 
             $section->addTextBreak(1);
@@ -599,7 +605,7 @@ class DocxBuilderService
 
     private function buildSection2(PhpWord $phpWord, array $data): void
     {
-        $section = $phpWord->addSection($this->landscapeStyle());
+        $section = $phpWord->addSection($this->landscapeStyle() + ['breakType' => 'nextPage']);
         $this->attachFooter($section);
 
         // Page header
@@ -656,7 +662,7 @@ class DocxBuilderService
 
             // Hazard name (bold)
             $dr->addCell($wH, ['bgColor' => $rowBg, 'valign' => 'top'])
-               ->addText((string)($hazard['hazard'] ?? ''), $boldFont);
+               ->addText($this->t((string)($hazard['hazard'] ?? '')), $boldFont);
 
             // Persons at risk (replaces 'consequences' — not present in normalised data)
             $personsCell = $dr->addCell($wC, ['bgColor' => $rowBg, 'valign' => 'top']);
@@ -680,7 +686,7 @@ class DocxBuilderService
             // Control measures — numbered list
             $ctrlCell = $dr->addCell($wCt, ['bgColor' => $rowBg, 'valign' => 'top']);
             foreach ($hazard['controls'] ?? [] as $j => $ctrl) {
-                $ctrlCell->addText(($j + 1) . '.  ' . (string)$ctrl, $bodyFont);
+                $ctrlCell->addText(($j + 1) . '.  ' . $this->t((string)$ctrl), $bodyFont);
             }
 
             // Post L / S / Risk
@@ -704,7 +710,7 @@ class DocxBuilderService
             return;
         }
 
-        $section    = $phpWord->addSection($this->portraitStyle());
+        $section    = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
         $this->attachFooter($section);
 
         $projectName = $data['project']['name'] ?? 'RAMS Document';
@@ -724,14 +730,14 @@ class DocxBuilderService
 
         foreach ($phases as $i => $phase) {
             $section->addText(
-                ($i + 1) . '.  ' . ($phase['title'] ?? ''),
+                ($i + 1) . '.  ' . $this->t((string) ($phase['title'] ?? '')),
                 $this->font(10, bold: true, colour: self::TEAL),
                 ['spacing' => ['before' => 80, 'after' => 80]],
             );
 
             foreach (($phase['steps'] ?? []) as $step) {
                 $section->addText(
-                    '    •  ' . $step,
+                    '    •  ' . $this->t((string) $step),
                     $this->font(9),
                     ['spacing' => ['before' => 40, 'after' => 40]],
                 );
@@ -861,6 +867,15 @@ class DocxBuilderService
                     ['alignment' => Jc::CENTER],
                 );
         }
+    }
+
+    /**
+     * Strip XML 1.0 control characters that cause PhpWord / libxml to throw.
+     * Keeps tabs (0x09), newlines (0x0A) and carriage returns (0x0D).
+     */
+    private function t(string $text): string
+    {
+        return (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $text);
     }
 
     /** Return the risk-score background colour. */

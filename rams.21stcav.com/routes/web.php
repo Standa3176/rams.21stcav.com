@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\AIUsageController;
+use App\Http\Controllers\Admin\SolutionTypeController;
 use App\Http\Controllers\CableScheduleController;
 use App\Http\Controllers\HazardTemplateController;
 use App\Http\Controllers\OmManualController;
@@ -12,6 +13,7 @@ use App\Http\Controllers\QuoteUploadController;
 use App\Http\Controllers\RamsController;
 use App\Http\Controllers\RamsReviewController;
 use App\Http\Controllers\ProjectPackageReviewController;
+use App\Http\Controllers\PublicSurveyController;
 use App\Http\Controllers\SiteSurveyController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -32,6 +34,23 @@ Route::post('/logout', function () {
     request()->session()->regenerateToken();
     return redirect('/login');
 })->name('logout');
+
+/*
+|--------------------------------------------------------------------------
+| Public Survey Routes — no authentication required
+|
+| Engineers access these via a unique UUID token embedded in the URL.
+| The token is generated automatically when a SiteSurvey is created.
+|--------------------------------------------------------------------------
+*/
+
+Route::get('survey/{token}',                           [PublicSurveyController::class, 'show'])        ->name('survey.show');
+Route::post('survey/{token}/save',                     [PublicSurveyController::class, 'save'])        ->name('survey.save')         ->middleware('throttle:30,1');
+Route::post('survey/{token}/submit',                   [PublicSurveyController::class, 'submit'])      ->name('survey.submit')       ->middleware('throttle:10,1');
+Route::post('survey/{token}/rooms/{room}/photos',      [PublicSurveyController::class, 'uploadPhoto'])    ->name('survey.photos.upload')   ->middleware('throttle:30,1');
+Route::post('survey/{token}/rooms/{room}/complete',    [PublicSurveyController::class, 'completeRoom'])   ->name('survey.room.complete')   ->middleware('throttle:60,1');
+Route::post('survey/{token}/rooms/{room}/uncomplete',  [PublicSurveyController::class, 'uncompleteRoom']) ->name('survey.room.uncomplete') ->middleware('throttle:60,1');
+Route::get('survey/{token}/photos/{photo}',            [PublicSurveyController::class, 'servePhoto'])     ->name('survey.photos.serve');
 
 /*
 |--------------------------------------------------------------------------
@@ -68,7 +87,10 @@ Route::middleware('auth')->group(function () {
     // Project-level data review (shared by all docs)
     Route::get('/project-packages/{package}/review',           [ProjectPackageReviewController::class, 'show'])   ->name('project-packages.review.show');
     Route::post('/project-packages/{package}/review',          [ProjectPackageReviewController::class, 'update']) ->name('project-packages.review.update');
-    Route::post('/project-packages/{package}/approve',         [ProjectPackageReviewController::class, 'approve'])->name('project-packages.review.approve');
+    Route::post('/project-packages/{package}/approve',              [ProjectPackageReviewController::class, 'approve'])->name('project-packages.review.approve');
+    Route::post('/project-packages/{package}/room-summary',        [ProjectPackageReviewController::class, 'generateRoomSummary'])->name('project-packages.room-summary');
+    Route::post('/project-packages/{package}/generate-survey-rooms', [ProjectPackageReviewController::class, 'generateSurveyRooms'])->name('project-packages.generate-survey-rooms');
+    Route::post('/project-packages/{package}/scope-of-works',    [ProjectPackageReviewController::class, 'generateScopeOfWorks'])->name('project-packages.scope-of-works');
     Route::post('/quote-import/{package}/re-extract',          [QuoteImportController::class, 'reextract'])->name('quote-import.reextract');
 
     // ── Projects ──────────────────────────────────────────────────────────
@@ -102,6 +124,11 @@ Route::middleware('auth')->group(function () {
 
         // AI usage dashboard
         Route::get('/admin/ai-usage', [AIUsageController::class, 'index'])->name('admin.ai-usage.index');
+
+        // ── Solution Types ────────────────────────────────────────────────────
+        Route::resource('admin/solution-types', SolutionTypeController::class)
+             ->names('admin.solution-types')
+             ->parameters(['solution-types' => 'solutionType']);
 
         // ── Worker Monitor (admin only) ───────────────────────────────────────
         Route::prefix('admin')->group(function () {
@@ -171,6 +198,10 @@ Route::middleware('auth')->group(function () {
     Route::delete('cable-schedules/{id}/force-destroy',     [CableScheduleController::class, 'forceDestroy'])->name('cable-schedules.force-destroy');
 
     // ── Site Surveys ──────────────────────────────────────────────────────
+    // Literal-segment routes must be before the resource so they are not
+    // captured by {siteSurvey} route model binding.
+    Route::get('site-surveys/from-project/{project}', [SiteSurveyController::class, 'createFromProject'])->name('site-surveys.from-project');
+    Route::get('site-surveys/project-data/{project}', [SiteSurveyController::class, 'projectData'])      ->name('site-surveys.project-data');
     Route::resource('site-surveys', SiteSurveyController::class)
         ->only(['index', 'create', 'store', 'show', 'edit', 'update', 'destroy']);
     Route::post('site-surveys/{siteSurvey}/complete',                           [SiteSurveyController::class, 'complete'])          ->name('site-surveys.complete');

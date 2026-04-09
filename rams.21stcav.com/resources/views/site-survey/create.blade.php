@@ -21,6 +21,8 @@
     </div>
 @endif
 
+@php $currentType = old('survey_type', 'general'); @endphp
+
 <form method="POST" action="{{ route('site-surveys.store') }}" id="survey-form">
     @csrf
 
@@ -30,13 +32,25 @@
         <div class="form-grid-2">
             <div class="form-group">
                 <label class="form-label" for="project_id">Link to Project</label>
-                <select id="project_id" name="project_id" class="form-control">
+                <select id="project_id" name="project_id" class="form-control" onchange="onProjectChange(this)">
                     <option value="">— Standalone (no project) —</option>
                     @foreach ($projects as $p)
                         <option value="{{ $p->id }}" {{ (old('project_id', $selectedProjectId) == $p->id) ? 'selected' : '' }}>
                             {{ $p->name }}
                         </option>
                     @endforeach
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="survey_type">Default Space Type <span style="font-weight:400;color:#6B7280;">(for new spaces added)</span></label>
+                <select id="survey_type" name="survey_type" class="form-control"
+                        onchange="CURRENT_DEFAULT_TYPE = this.value">
+                    <option value="general"        {{ $currentType === 'general'        ? 'selected' : '' }}>General AV / Meeting Room</option>
+                    <option value="pa_system"      {{ $currentType === 'pa_system'      ? 'selected' : '' }}>PA / Background Music</option>
+                    <option value="infrastructure" {{ $currentType === 'infrastructure' ? 'selected' : '' }}>Infrastructure / Cable Route</option>
+                    <option value="signage"        {{ $currentType === 'signage'        ? 'selected' : '' }}>Digital Signage</option>
+                    <option value="upgrade"        {{ $currentType === 'upgrade'        ? 'selected' : '' }}>Upgrade / Strip-out</option>
+                    <option value="mixed"          {{ $currentType === 'mixed'          ? 'selected' : '' }}>Mixed (all sections)</option>
                 </select>
             </div>
             <div class="form-group">
@@ -77,21 +91,38 @@
         </div>
     </div>
 
-    {{-- Rooms --}}
+    {{-- Areas / Rooms --}}
     <div class="section-block">
-        <h2 class="section-heading">Rooms / Areas</h2>
+        <h2 class="section-heading" id="areas-heading">{{ match($currentType) {
+            'pa_system'      => 'PA Zones / Areas',
+            'infrastructure' => 'Locations / Routes',
+            'signage'        => 'Display Positions',
+            default          => 'Rooms / Areas',
+        } }}</h2>
         <p style="color:#666;font-size:.875rem;margin-bottom:1rem;">
-            Add each room or area to be surveyed. You can upload photos after saving.
+            Add each area to be surveyed. You can upload photos after saving.
         </p>
 
         <div id="rooms-container">
             @php $roomsOld = old('rooms', [[]]); @endphp
             @foreach ($roomsOld as $ri => $room)
-                @include('site-survey._room-form', ['ri' => $ri, 'room' => $room, 'isNew' => true])
+                @include('site-survey._room-form', [
+                    'ri'         => $ri,
+                    'room'       => $room,
+                    'isNew'      => true,
+                    'surveyType' => $currentType,
+                ])
             @endforeach
         </div>
 
-        <button type="button" class="btn btn-outline btn-sm" onclick="addRoom()">+ Add Room</button>
+        <button type="button" id="add-area-btn" class="btn btn-outline btn-sm" onclick="addRoom()">
+            + Add {{ match($currentType) {
+                'pa_system'      => 'PA Zone',
+                'infrastructure' => 'Location',
+                'signage'        => 'Display Position',
+                default          => 'Room',
+            } }}
+        </button>
     </div>
 
     <div style="display:flex;gap:1rem;flex-wrap:wrap;">
@@ -104,158 +135,216 @@
 
 @push('scripts')
 <script>
+// ── State ──────────────────────────────────────────────────────────────────────
+let CURRENT_DEFAULT_TYPE = '{{ $currentType }}';
 let roomIndex = {{ count(old('rooms', [[]])) }};
 
+// ── Project auto-fill ──────────────────────────────────────────────────────────
+function onProjectChange(sel) {
+    const id = sel.value;
+    if (! id) return;
+    fetch(`/site-surveys/project-data/${id}`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+    })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+        if (! data) return;
+        if (data.name)         document.getElementById('project_name').value = data.name;
+        if (data.ref != null)  document.getElementById('project_ref').value  = data.ref ?? '';
+        if (data.client_name)  document.getElementById('client_name').value  = data.client_name;
+        if (data.site_address) document.getElementById('site_address').value = data.site_address;
+    })
+    .catch(() => {});
+}
+
+// ── Per-card type change — only affects that one card ─────────────────────────
+function onSpaceTypeChange(sel) {
+    applySpaceType(sel.closest('.room-card'), sel.value);
+}
+
+function applySpaceType(card, type) {
+    const showPa      = type === 'pa_system'  || type === 'mixed';
+    const showSignage = type === 'signage'     || type === 'mixed';
+    const showUpgrade = type === 'upgrade'     || type === 'mixed';
+    const showAreaType = type !== 'general';
+
+    card.querySelectorAll('.type-panel--pa').forEach(el => el.style.display = showPa ? 'block' : 'none');
+    card.querySelectorAll('.type-panel--signage').forEach(el => el.style.display = showSignage ? 'block' : 'none');
+    card.querySelectorAll('.type-panel--upgrade').forEach(el => el.style.display = showUpgrade ? 'block' : 'none');
+    card.querySelectorAll('.area-type-group').forEach(el => el.style.display = showAreaType ? 'block' : 'none');
+}
+
+// ── Add new space card (uses current default type) ────────────────────────────
 function addRoom() {
     const i = roomIndex++;
     const container = document.getElementById('rooms-container');
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = roomCardHtml(i);
+    const wrapper   = document.createElement('div');
+    wrapper.innerHTML = roomCardHtml(i, CURRENT_DEFAULT_TYPE);
     container.appendChild(wrapper.firstElementChild);
-    container.lastElementChild.querySelector('input[name*="room_name"]').focus();
+    container.lastElementChild.querySelector('input[name*="room_name"]')?.focus();
 }
 
+// ── Infrastructure accordion ───────────────────────────────────────────────────
 function toggleInfra(btn) {
-    const card = btn.closest('.room-card');
-    const panel = card.querySelector('.infra-panel');
-    const hidden = panel.style.display === 'none';
+    const panel  = btn.closest('.room-card').querySelector('.infra-panel');
+    const hidden = panel.style.display === 'none' || panel.style.display === '';
     panel.style.display = hidden ? 'block' : 'none';
-    btn.textContent = hidden ? '▲ Hide Infrastructure' : '▼ Infrastructure Details';
+    btn.textContent = hidden ? '\u25b2 Hide Measurements' : '\u25bc Measurements \u0026 Infrastructure';
 }
 
-function roomCardHtml(i) {
-    const d = document.createElement('div');
-    d.className = 'room-card';
-    d.style.cssText = 'border:1.5px solid #e0e0e0;border-radius:6px;padding:1.25rem;margin-bottom:1rem;background:#fafafa;';
-
-    // Header
-    const hdr = document.createElement('div');
-    hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;';
-    const title = document.createElement('strong');
-    title.style.color = '#007B8A';
-    title.textContent = 'Room ' + (i + 1);
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.style.cssText = 'background:none;border:none;color:#c0392b;cursor:pointer;font-size:1.1rem;padding:0 .25rem;';
-    removeBtn.textContent = '\u2715';
-    removeBtn.onclick = function() { d.remove(); };
-    hdr.appendChild(title);
-    hdr.appendChild(removeBtn);
-    d.appendChild(hdr);
-
-    // Basic grid (name/ref/floor)
-    const grid1 = document.createElement('div');
-    grid1.className = 'form-grid-2';
-    grid1.innerHTML =
-        field('Room Name', `rooms[${i}][room_name]`, 'text', '', true, 150) +
-        field('Room Ref', `rooms[${i}][room_ref]`, 'text', '', false, 50) +
-        field('Floor', `rooms[${i}][floor]`, 'text', 'e.g. Ground, 1st', false, 50);
-    d.appendChild(grid1);
-
-    // AV requirements
-    const avReq = document.createElement('div');
-    avReq.className = 'form-group';
-    avReq.innerHTML = '<label class="form-label">AV Requirements</label>'
-        + `<textarea name="rooms[${i}][av_requirements]" class="form-control" rows="2" maxlength="1000"></textarea>`;
-    d.appendChild(avReq);
-
-    // Power/network quick checkboxes
-    const checks = document.createElement('div');
-    checks.style.cssText = 'display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:.75rem;';
-    checks.innerHTML =
-        checkbox(`rooms[${i}][has_power]`, 'Power present') +
-        checkbox(`rooms[${i}][has_network]`, 'Network present') +
-        checkbox(`rooms[${i}][requires_additional_power]`, 'Additional power required');
-    d.appendChild(checks);
-
-    // Infrastructure toggle
-    const infraBtn = document.createElement('button');
-    infraBtn.type = 'button';
-    infraBtn.className = 'btn btn-outline btn-sm';
-    infraBtn.style.marginBottom = '.75rem';
-    infraBtn.textContent = '\u25BC Infrastructure Details';
-    infraBtn.onclick = function() { toggleInfra(this); };
-    d.appendChild(infraBtn);
-
-    // Infrastructure panel (hidden by default)
-    const panel = document.createElement('div');
-    panel.className = 'infra-panel';
-    panel.style.display = 'none';
-
-    const grid2 = document.createElement('div');
-    grid2.className = 'form-grid-2';
-    grid2.innerHTML =
-        numField('Width (m)', `rooms[${i}][room_width_m]`) +
-        numField('Depth (m)', `rooms[${i}][room_depth_m]`) +
-        numField('Height (m)', `rooms[${i}][room_height_m]`) +
-        selectField('Ceiling Type', `rooms[${i}][ceiling_type]`, {
-            '': '— Select —', 'concrete': 'Concrete', 'suspended': 'Suspended',
-            'plasterboard': 'Plasterboard', 'open': 'Open (exposed)', 'other': 'Other'
-        }) +
-        numField('Ceiling Height (m)', `rooms[${i}][ceiling_height_m]`) +
-        selectField('Wall Material', `rooms[${i}][wall_material]`, {
-            '': '— Select —', 'brick': 'Brick', 'plasterboard': 'Plasterboard',
-            'glass': 'Glass', 'concrete': 'Concrete', 'other': 'Other'
-        }) +
-        selectField('Floor Type', `rooms[${i}][floor_type]`, {
-            '': '— Select —', 'concrete': 'Concrete', 'carpet': 'Carpet',
-            'tiles': 'Tiles', 'raised': 'Raised Access', 'other': 'Other'
-        }) +
-        numField('Power Outlets', `rooms[${i}][power_outlet_count]`, 0, 999, true) +
-        numField('Network Ports', `rooms[${i}][network_port_count]`, 0, 999, true);
-    panel.appendChild(grid2);
-
-    const existCab = document.createElement('div');
-    existCab.className = 'form-group';
-    existCab.innerHTML = '<label class="form-label">Existing Cabling</label>'
-        + `<textarea name="rooms[${i}][existing_cabling]" class="form-control" rows="2" maxlength="500"></textarea>`;
-    panel.appendChild(existCab);
-
-    const avEquip = document.createElement('div');
-    avEquip.className = 'form-group';
-    avEquip.innerHTML = '<label class="form-label">Existing AV Equipment</label>'
-        + `<textarea name="rooms[${i}][av_equipment_list]" class="form-control" rows="2" maxlength="1000"></textarea>`;
-    panel.appendChild(avEquip);
-
-    const accessNotes = document.createElement('div');
-    accessNotes.className = 'form-group';
-    accessNotes.innerHTML = '<label class="form-label">Access / Hazard Notes</label>'
-        + `<textarea name="rooms[${i}][access_notes]" class="form-control" rows="2" maxlength="500"></textarea>`;
-    panel.appendChild(accessNotes);
-
-    d.appendChild(panel);
-
-    // General notes
-    const notesGrp = document.createElement('div');
-    notesGrp.className = 'form-group';
-    notesGrp.style.marginBottom = '0';
-    notesGrp.innerHTML = '<label class="form-label">Notes</label>'
-        + `<textarea name="rooms[${i}][notes]" class="form-control" rows="2" maxlength="500"></textarea>`;
-    d.appendChild(notesGrp);
-
-    return d.outerHTML;
+// ── Kit list drawer ────────────────────────────────────────────────────────────
+function toggleKit(btn) {
+    const drawer  = btn.nextElementSibling;
+    const chevron = btn.querySelector('.kit-chevron');
+    const isOpen  = drawer.style.maxHeight && drawer.style.maxHeight !== '0px';
+    drawer.style.maxHeight  = isOpen ? '0' : '600px';
+    chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
 }
 
-// Helpers
-function field(label, name, type, placeholder, required, maxlength) {
-    return `<div class="form-group"><label class="form-label">${label}${required ? ' <span class="req">*</span>' : ''}</label>`
-        + `<input type="${type}" name="${name}" class="form-control"${required ? ' required' : ''}`
-        + `${placeholder ? ` placeholder="${placeholder}"` : ''} maxlength="${maxlength}"></div>`;
+// ── Build a new room card as HTML string ────────────────────────────────────────
+function roomCardHtml(i, type) {
+    type = type || 'general';
+    const showPa      = type === 'pa_system'  || type === 'mixed';
+    const showSignage = type === 'signage'     || type === 'mixed';
+    const showUpgrade = type === 'upgrade'     || type === 'mixed';
+    const showAreaType = type !== 'general';
+
+    const n = k => `rooms[${i}][${k}]`;
+
+    return `<div class="room-card" style="border:1.5px solid #e0e0e0;border-radius:6px;padding:1.25rem;margin-bottom:1rem;background:#fafafa;position:relative;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+            <strong style="color:#007B8A;">Space ${i + 1}</strong>
+            <button type="button" onclick="this.closest('.room-card').remove()" style="background:none;border:none;color:#c0392b;cursor:pointer;font-size:1.1rem;padding:0 .25rem;">&#10005;</button>
+        </div>
+
+        <div class="form-grid-2" style="margin-bottom:.75rem;">
+            <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">Space / Survey Type</label>
+                <select name="${n('space_type')}" class="form-control" onchange="onSpaceTypeChange(this)">
+                    <option value="general"        ${type==='general'        ? 'selected' : ''}>General AV / Meeting Room</option>
+                    <option value="pa_system"      ${type==='pa_system'      ? 'selected' : ''}>PA / Background Music</option>
+                    <option value="infrastructure" ${type==='infrastructure' ? 'selected' : ''}>Infrastructure / Cable Route</option>
+                    <option value="signage"        ${type==='signage'        ? 'selected' : ''}>Digital Signage</option>
+                    <option value="upgrade"        ${type==='upgrade'        ? 'selected' : ''}>Upgrade / Strip-out</option>
+                    <option value="mixed"          ${type==='mixed'          ? 'selected' : ''}>Mixed (all sections)</option>
+                </select>
+            </div>
+            <div class="area-type-group form-group" style="margin-bottom:0;${showAreaType ? '' : 'display:none'}">
+                <label class="form-label">Area Classification</label>
+                <select name="${n('area_type')}" class="form-control">
+                    <option value="">— Select —</option>
+                    <option value="room">Meeting Room</option>
+                    <option value="open_plan">Open Plan Area</option>
+                    <option value="lobby">Lobby / Reception</option>
+                    <option value="auditorium">Auditorium / Theatre</option>
+                    <option value="outdoor_area">Outdoor Area</option>
+                    <option value="zone">PA Zone / Coverage Area</option>
+                    <option value="rack_location">Rack / Equipment Room</option>
+                    <option value="cable_route">Cable Route / Riser</option>
+                    <option value="display_position">Display Position</option>
+                    <option value="stairwell">Stairwell / Corridor</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-grid-2">
+            ${fld('Space Name <span class="req">*</span>', n('room_name'), 'text', 'e.g. Boardroom, Reception, Zone A', true, 150)}
+            ${fld('Ref / Number', n('room_ref'), 'text', '', false, 50)}
+            ${fld('Floor / Level', n('floor'), 'text', 'e.g. Ground, 1st, B1', false, 50)}
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">AV Requirements</label>
+            <textarea name="${n('av_requirements')}" class="form-control" rows="2" maxlength="5000"></textarea>
+        </div>
+
+        <div style="display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:.75rem;">
+            ${chk(n('has_power'), 'Power present')}
+            ${chk(n('has_network'), 'Network present')}
+            ${chk(n('requires_additional_power'), 'Additional power required')}
+        </div>
+
+        <button type="button" class="btn btn-outline btn-sm" style="margin-bottom:.75rem;" onclick="toggleInfra(this)">
+            &#9660; Measurements &amp; Infrastructure
+        </button>
+
+        <div class="infra-panel" style="display:none;">
+            <div class="form-grid-2">
+                ${num('Width (m)', n('room_width_m'))}
+                ${num('Depth (m)', n('room_depth_m'))}
+                ${num('Height (m)', n('room_height_m'), 0, 99)}
+                ${sel('Ceiling Type', n('ceiling_type'), {'':'— Select —','concrete':'Concrete','suspended':'Suspended','plasterboard':'Plasterboard','open':'Open (exposed)','other':'Other'})}
+                ${num('Ceiling Height (m)', n('ceiling_height_m'), 0, 99)}
+                ${sel('Wall Material', n('wall_material'), {'':'— Select —','brick':'Brick','plasterboard':'Plasterboard','glass':'Glass','concrete':'Concrete','other':'Other'})}
+                ${sel('Floor Type', n('floor_type'), {'':'— Select —','concrete':'Concrete','carpet':'Carpet','tiles':'Tiles','raised':'Raised Access','other':'Other'})}
+                ${num('Power Outlets', n('power_outlet_count'), 0, 999, true)}
+                ${num('Network Ports', n('network_port_count'), 0, 999, true)}
+            </div>
+            ${ta('Existing Cabling', n('existing_cabling'), 500)}
+            ${ta('Existing AV Equipment', n('av_equipment_list'), 5000)}
+            ${ta('Access / Hazard Notes', n('access_notes'), 500)}
+        </div>
+
+        <div class="type-panel type-panel--pa" style="${showPa ? '' : 'display:none'}">
+            <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#178A95;margin:.75rem 0 .5rem;border-top:1px solid #eee;padding-top:.75rem;">PA System Details</div>
+            <div class="form-grid-2">
+                ${num('Number of Speakers', n('speaker_count'), 0, 999, true)}
+                ${sel('Speaker Type', n('speaker_type'), {'':'— Select —','ceiling':'Ceiling (flush)','pendant':'Pendant','surface':'Surface mount','column':'Column array','horn':'Horn / outdoor','sub':'Subwoofer','line_array':'Line array','other':'Other'})}
+                ${sel('Speaker Mounting', n('speaker_mounting'), {'':'— Select —','ceiling_recessed':'Ceiling — recessed','ceiling_surface':'Ceiling — surface','pendant':'Pendant drop','wall':'Wall mount','bracket':'Bracket / truss','floor_stand':'Floor stand','other':'Other'})}
+                ${num('Background Noise (dB)', n('bg_noise_db'), 0, 120, true)}
+            </div>
+        </div>
+
+        <div class="type-panel type-panel--signage" style="${showSignage ? '' : 'display:none'}">
+            <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#178A95;margin:.75rem 0 .5rem;border-top:1px solid #eee;padding-top:.75rem;">Digital Signage Details</div>
+            <div class="form-grid-2">
+                ${num('Display Size (inches)', n('display_size_in'), 0, 999, false, '0.1')}
+                ${sel('Orientation', n('display_orient'), {'':'— Select —','landscape':'Landscape','portrait':'Portrait'})}
+                <div class="form-group" style="grid-column:1/-1;">
+                    ${sel('Mounting Type', n('display_mounting'), {'':'— Select —','wall_flush':'Wall — flush / fixed','wall_tilt':'Wall — tilt / articulating','ceiling':'Ceiling drop mount','floor_stand':'Floor stand / totem','desk_stand':'Desk / counter stand','other':'Other'})}
+                </div>
+            </div>
+        </div>
+
+        <div class="type-panel type-panel--upgrade" style="${showUpgrade ? '' : 'display:none'}">
+            <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#178A95;margin:.75rem 0 .5rem;border-top:1px solid #eee;padding-top:.75rem;">Upgrade / Strip-out Details</div>
+            ${ta('Existing Equipment Condition', n('existing_condition'), 3000, 'Describe the general condition of existing AV equipment…')}
+            ${ta('Items to Remove / Strip Out', n('items_to_remove'), 3000, 'List equipment to be decommissioned and removed…')}
+            ${ta('Items to Retain / Reuse', n('items_to_retain'), 3000, 'List equipment that will be kept and integrated into the new system…')}
+        </div>
+
+        <div class="form-group" style="margin-bottom:0;margin-top:.5rem;">
+            <label class="form-label">Other Notes</label>
+            <textarea name="${n('notes')}" class="form-control" rows="2" maxlength="500"></textarea>
+        </div>
+    </div>`;
 }
-function numField(label, name, min = 0, max = 999, isInt = false) {
+
+// ── HTML helpers ───────────────────────────────────────────────────────────────
+function fld(labelHtml, name, type, ph, req, max) {
+    return `<div class="form-group"><label class="form-label">${labelHtml}</label>`
+        + `<input type="${type}" name="${name}" class="form-control"${req ? ' required' : ''}`
+        + `${ph ? ` placeholder="${ph}"` : ''} maxlength="${max}"></div>`;
+}
+function num(label, name, min = 0, max = 999, isInt = false, step = null) {
+    const s = step || (isInt ? '1' : '0.01');
     return `<div class="form-group"><label class="form-label">${label}</label>`
-        + `<input type="number" name="${name}" class="form-control" min="${min}" max="${max}"${isInt ? ' step="1"' : ' step="0.01"'}></div>`;
+        + `<input type="number" name="${name}" class="form-control" min="${min}" max="${max}" step="${s}"></div>`;
 }
-function selectField(label, name, options) {
-    let opts = Object.entries(options).map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
+function sel(label, name, opts) {
+    const options = Object.entries(opts).map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
     return `<div class="form-group"><label class="form-label">${label}</label>`
-        + `<select name="${name}" class="form-control">${opts}</select></div>`;
+        + `<select name="${name}" class="form-control">${options}</select></div>`;
 }
-function checkbox(name, label) {
+function ta(label, name, max, ph = '') {
+    return `<div class="form-group"><label class="form-label">${label}</label>`
+        + `<textarea name="${name}" class="form-control" rows="2" maxlength="${max}"${ph ? ` placeholder="${ph}"` : ''}></textarea></div>`;
+}
+function chk(name, label) {
     return `<label class="check-item" style="cursor:pointer;">`
         + `<input type="hidden" name="${name}" value="0">`
-        + `<input type="checkbox" name="${name}" value="1">`
-        + ` <span>${label}</span></label>`;
+        + `<input type="checkbox" name="${name}" value="1"> <span>${label}</span></label>`;
 }
 </script>
 @endpush

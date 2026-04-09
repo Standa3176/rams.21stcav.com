@@ -60,9 +60,9 @@ class MethodStatementPrompt extends BasePrompt
 
     public function maxTokens(): int
     {
-        // 6 phases × up to 5 steps × ~25 words ≈ 750 words ≈ ~1 000 tokens.
-        // 1 500 provides headroom without encouraging verbosity.
-        return 1500;
+        // 6 phases × up to 5 steps × ~30 words ≈ 900 words ≈ ~1 200 tokens.
+        // 2 500 provides generous headroom for larger projects with many rooms.
+        return 2500;
     }
 
     public function temperature(): float
@@ -124,8 +124,8 @@ Requirements:
 - Phase 1 must include: toolbox talk briefing, asbestos register check before drilling, permit-to-work confirmation if required, assembly point confirmation, and coordination with client IT/network access where relevant.
 - Phase 2 must include: delivery vehicle access/parking or loading bay coordination, confirmation of goods lift suitability (or contingency plan), and handling of any displaced existing systems (retain/relocate/decommission).
 - Phase 3 must include: maximum working height for access equipment, competency requirements (e.g., PASMA/WAH training), and a rescue plan for work at height.
-- Phase 4 must describe the installation methodology (how), not just what is being installed. Include cable routing/containment and fire-stopping, segregation of data/audio/power, display mounting sequence and safe lifting, pendant speaker fixing and zoning, rack build sequence/weight distribution/UPS considerations, Cisco provisioning and touch panel pairing, and partition sensor replacement/integration steps, and note sequencing/phasing for an occupied site. Include room names only where they add clarity.
-- Phase 5 must include: labelling convention, confirmation of test equipment calibration, Dante network setup, RF scan/coordination for wireless microphones, and audio tuning/voicing in Q-SYS (EQ/gain structure).
+- Phase 4 must describe the installation methodology (how), not just what is being installed. Focus only on the equipment and solution types listed in the scope and room summaries above. Include: cable routing/containment and fire-stopping, segregation of data/audio/power, display or screen mounting sequence and safe lifting procedures, rack build sequence (if applicable), network or control system configuration steps specific to the equipment being installed, and sequencing/phasing considerations for an occupied site. Do NOT mention any brand, product, or technology not referenced in the scope or equipment list above. Include room names only where they add clarity.
+- Phase 5 must include: labelling convention for all cables and interfaces, confirmation of test equipment calibration, signal path verification and functional testing appropriate to the equipment being installed, and any commissioning steps specific to the installed solution (e.g. network configuration, audio level setting, or display calibration). Do NOT reference any product brand, platform, or protocol not present in the scope above.
 - Phase 6 must include: removal of access equipment and waste from the actual work areas, end-user training, and a snagging/defects process before final sign-off.
 - Each step is one plain-English sentence. No bullet points, no bold, no markdown.
 - Steps must be specific to the project details above. Do not use generic filler.

@@ -187,6 +187,8 @@ class RamsDataBuilderService
             'survey', 'site survey', 'project management', 'pm ', 'engineering', 'labour',
             'training', 'handover', 'design', 'draw', 'tech check', 'testing', 'travel',
             'accommodation', 'logistics', 'delivery cost', 'consumables - service',
+            'delivery', 'pallet delivery', 'rams', 'risk assessment', 'method statement',
+            'first fix', 'snagging', 'commissioning',
         ];
         $cableKw = [
             'cat5', 'cat5e', 'cat6', 'cat6a', 'cat7', 'cat8', 'u/utp', 's/ftp', 'f/utp',

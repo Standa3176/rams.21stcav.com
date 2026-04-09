@@ -22,13 +22,44 @@ class SiteSurveyPhoto extends Model
         return $this->belongsTo(SiteSurveyRoom::class, 'site_survey_room_id');
     }
 
-    public function url(): string
+    /**
+     * Returns the full relative path used to address this file on the local disk.
+     *
+     * Two filename formats are supported for backwards compatibility:
+     *
+     *   Legacy  — filename stores only the basename:  "uuid.jpg"
+     *             → resolved as "survey-photos/uuid.jpg"
+     *
+     *   Current — filename stores the full relative path:
+     *             "projects/51/surveys/23/uuid.jpg"
+     *             → used as-is
+     */
+    public function storagePath(): string
     {
-        return Storage::disk('local')->url('survey-photos/' . $this->filename);
+        // If the filename contains a path separator it already is a full path.
+        if (str_contains($this->filename, '/')) {
+            return $this->filename;
+        }
+
+        // Legacy: bare filename → prepend the original flat directory.
+        return 'survey-photos/' . $this->filename;
     }
 
+    /**
+     * Absolute filesystem path (used by DOCX/PDF builders that embed images).
+     */
     public function absolutePath(): string
     {
-        return Storage::disk('local')->path('survey-photos/' . $this->filename);
+        return Storage::disk('local')->path($this->storagePath());
+    }
+
+    /**
+     * Storage URL — typically not used directly; photos are served through
+     * the authenticated SiteSurveyController::servePhoto() route or the
+     * public PublicSurveyController::servePhoto() route.
+     */
+    public function url(): string
+    {
+        return Storage::disk('local')->url($this->storagePath());
     }
 }

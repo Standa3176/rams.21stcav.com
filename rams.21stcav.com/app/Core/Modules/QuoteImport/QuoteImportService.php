@@ -10,10 +10,10 @@ use App\Models\Project;
 use App\Models\ProjectActivityLog;
 use App\Models\ProjectPackage;
 use App\Models\User;
-use App\Services\ProjectQuoteVersionService;
 use App\Services\EquipmentLineParserService;
 use App\Services\EquipmentNormalizerService;
 use App\Services\PdfTextExtractorService;
+use App\Services\ProjectQuoteVersionService;
 use App\Services\QuoteParserService;
 use App\Services\QuoteLineExtractorService;
 use Illuminate\Http\UploadedFile;
@@ -49,8 +49,8 @@ class QuoteImportService
         private readonly QuoteLineExtractorService  $lineExtractor,
         private readonly EquipmentNormalizerService $normalizer,
         private readonly EquipmentLineParserService $lineParser,
-        private readonly ProjectQuoteVersionService $quoteVersioner,
         private readonly QuoteParserService         $quoteParser,
+        private readonly ProjectQuoteVersionService $quoteVersioner,
     ) {}
 
     // ── Primary entry point ───────────────────────────────────────────────────
@@ -109,30 +109,23 @@ class QuoteImportService
                     'status'            => ProjectPackage::STATUS_EXTRACTED,
                 ]);
 
-                // 4b. Create a ProjectQuote version so Quote History shows the upload
+                // 5. Create a ProjectQuote history record so it appears in Quote History
                 if ($project !== null) {
-                    $parsedSnapshot = [
-                        'ref'         => $extracted['qw_number']    ?? $extracted['project_ref'] ?? $project->ref ?? '',
-                        'client'      => $extracted['client_name']  ?? $project->client_name ?? '',
-                        'site'        => $extracted['site_address'] ?? $project->site_address ?? '',
-                        'line_items'  => $extracted['line_items']   ?? [],
-                        'equipment'   => $extracted['equipment_list'] ?? [],
-                        'cables'      => $extracted['cable_hints']  ?? [],
-                        'source'      => 'quote-import',
-                        'package_id'  => $package->id,
-                    ];
-
                     $this->quoteVersioner->create(
                         project:          $project,
                         uploader:         $user,
                         originalFilename: $file->getClientOriginalName(),
                         storedFilename:   $storagePath,
-                        parsed:           $parsedSnapshot,
-                        formData:         [],
+                        parsed:           [
+                            'ref'    => $extracted['qw_number']    ?? $extracted['quote_ref']   ?? '',
+                            'client' => $extracted['client_name']  ?? '',
+                            'site'   => $extracted['site_address'] ?? '',
+                        ],
+                        formData: [],
                     );
                 }
 
-                // 5. Activity log
+                // 6. Activity log
                 if ($project !== null) {
                     $this->projectService->log(
                         project:     $project,
@@ -296,6 +289,7 @@ class QuoteImportService
         $absolutePath = Storage::disk('local')->path($storagePath);
 
         $text  = $this->pdfExtractor->extract($absolutePath);
+        $parsed = $this->quoteParser->parse($text);
         $lines = $this->lineExtractor->extractEquipmentLines($text);
         $lines = $this->normalizer->normalize($lines);
         $items = $this->lineParser->parse($lines);
@@ -306,91 +300,124 @@ class QuoteImportService
             $provider,
         );
 
-        // Ensure equipment_list is populated (prompt returns "equipment")
-        if (empty($ai['equipment_list']) && ! empty($ai['equipment'])) {
-            $ai['equipment_list'] = $ai['equipment'];
+        return $this->mergeParsedQuoteData($ai, $parsed);
+    }
+
+    /**
+     * Merge parser-derived data into AI output to harden mapping reliability.
+     *
+     * QuoteWerks OCR exports often carry richer structured tags than the
+     * quantity-line extractor can preserve. When parser equipment exists, it
+     * becomes the canonical source for project mapping and equipment rows.
+     */
+    private function mergeParsedQuoteData(array $ai, array $parsed): array
+    {
+        $ref = (string) ($parsed['ref'] ?? '');
+        if (($ai['qw_number'] ?? '') === '' || strtoupper((string) $ai['qw_number']) === 'RAMS-001') {
+            if ($ref !== '' && strtoupper($ref) !== 'RAMS-001') {
+                $ai['qw_number'] = $ref;
+            }
         }
 
-        // Parse project info + overview from full text (local parser)
-        $parsed = $this->quoteParser->parse($text);
-        $project = [
-            'project_name' => (string) ($parsed['project_name'] ?? ''),
-            'quote_ref'    => (string) ($parsed['ref'] ?? ''),
-            'client_name'  => (string) ($parsed['client'] ?? ''),
-            'site_name'    => (string) ($parsed['site_name'] ?? ''),
-            'site_address' => (string) ($parsed['site'] ?? ''),
-            'site_contact' => (string) ($parsed['site_contact'] ?? ''),
-            'prepared_by'  => (string) ($parsed['prepared_by'] ?? ''),
-            'overview'     => (string) ($parsed['overview'] ?? ''),
-        ];
+        if (($ai['client_name'] ?? '') === '' && ($parsed['client'] ?? '') !== '') {
+            $ai['client_name'] = (string) $parsed['client'];
+        }
+        if (($ai['site_name'] ?? '') === '' && ($parsed['site_name'] ?? '') !== '') {
+            $ai['site_name'] = (string) $parsed['site_name'];
+        }
+        if (($ai['site_address'] ?? '') === '' && ($parsed['site'] ?? '') !== '') {
+            $ai['site_address'] = (string) $parsed['site'];
+        }
+        if (($ai['prepared_by'] ?? '') === '' && ($parsed['prepared_by'] ?? '') !== '') {
+            $ai['prepared_by'] = (string) $parsed['prepared_by'];
+        }
+        if (($ai['overview'] ?? '') === '' && ($parsed['overview'] ?? '') !== '') {
+            $ai['overview'] = (string) $parsed['overview'];
+        }
+        if (empty($ai['rooms']) && ! empty($parsed['rooms'])) {
+            $ai['rooms'] = array_values((array) $parsed['rooms']);
+        }
+        // Carry forward per-room overview texts extracted from OVERVIEWTITLE/TXT tags.
+        // The AI does not produce these; only the structured parser does.
+        if (empty($ai['room_overviews']) && ! empty($parsed['room_overviews'])) {
+            $ai['room_overviews'] = array_values((array) $parsed['room_overviews']);
+        }
 
-        $ai['project']        = $project;
-        $ai['room_overviews'] = $this->buildRoomOverviews($parsed);
-        $ai['meta'] = array_merge(
-            $ai['meta'] ?? [],
-            [
-                'parser_confidence' => $parsed['confidence'] ?? null,
-                'source'            => 'quote-import',
-            ],
-        );
+        if (($ai['project_name'] ?? '') === '') {
+            $client = trim((string) ($ai['client_name'] ?? ''));
+            $qref   = trim((string) ($ai['qw_number'] ?? ''));
+            $site   = trim((string) ($ai['site_name'] ?? ''));
+
+            if ($qref !== '' && strtoupper($qref) !== 'RAMS-001' && $client !== '') {
+                $ai['project_name'] = "{$qref} - {$client}";
+            } elseif ($site !== '') {
+                $ai['project_name'] = $site;
+            } elseif ($client !== '') {
+                $ai['project_name'] = $client;
+            }
+        }
+
+        $parserEquipment = array_values(array_filter(array_map(
+            function (array $row): ?array {
+                $name = trim((string) ($row['description'] ?? ''));
+                if ($name === '') {
+                    return null;
+                }
+
+                return [
+                    'quantity'    => max(1, (int) ($row['qty'] ?? 1)),
+                    'qty'         => max(1, (int) ($row['qty'] ?? 1)),
+                    'part_number' => trim((string) ($row['part_number'] ?? '')),
+                    'part_no'     => trim((string) ($row['part_number'] ?? '')),
+                    'name'        => $name,
+                    'description' => $name,
+                    'area'        => trim((string) ($row['area'] ?? '')),
+                    'location'    => trim((string) ($row['location'] ?? '')),
+                    'category'    => self::classifyDescription($name),
+                ];
+            },
+            (array) ($parsed['equipment'] ?? [])
+        )));
+
+        if (! empty($parserEquipment)) {
+            $ai['equipment']      = $parserEquipment;
+            $ai['equipment_list'] = $parserEquipment;
+            $ai['line_items']     = $parserEquipment;
+        }
+
+        $ai['meta'] = array_merge((array) ($ai['meta'] ?? []), [
+            'parser_confidence' => $parsed['confidence'] ?? null,
+            'source'            => 'extracted',
+        ]);
 
         return $ai;
     }
 
-    /**
-     * Build room overview entries from parsed overview sections and equipment areas.
-     */
-    private function buildRoomOverviews(array $parsed): array
+    private static function classifyDescription(string $desc): string
     {
-        $sections = (array) ($parsed['overview_sections'] ?? []);
-        $map = [];
+        $d = strtolower($desc);
 
-        foreach ($sections as $section) {
-            $title = trim((string) ($section['title'] ?? ''));
-            $text  = trim((string) ($section['text']  ?? ''));
-            if ($text !== '' && $title !== '') {
-                $text = $this->stripLeadingTitle($title, $text);
-            }
-            if ($title === '') {
-                continue;
-            }
-            $map[mb_strtolower($title)] = [
-                'room'     => $title,
-                'overview' => $text,
-                'summary'  => '',
-            ];
-        }
+        $serviceKw = [
+            'install', 'installation', 'commission', 'programming', 'configuration', 'setup',
+            'survey', 'site survey', 'project management', 'engineering', 'labour', 'training',
+            'handover', 'design', 'draw', 'tech check', 'testing', 'travel', 'accommodation',
+            'logistics', 'delivery cost', 'delivery', 'pallet delivery', 'rams', 'risk assessment',
+            'method statement', 'first fix', 'snagging', 'commissioning',
+        ];
+        $cableKw = [
+            'cat5', 'cat5e', 'cat6', 'cat6a', 'cat7', 'cat8', 'cable', 'patch lead',
+            'hdmi', 'displayport', 'usb', 'ethernet', 'network cable', 'coupler', 'plug',
+            'connector', 'socket',
+        ];
+        $consumableKw = [
+            'consumable', 'consumables', 'sundry', 'sundries', 'fixing', 'fixings',
+            'screws', 'anchors', 'bolt', 'cable tie', 'velcro', 'tape', 'label', 'grommet',
+        ];
 
-        foreach ((array) ($parsed['equipment'] ?? []) as $item) {
-            $room = trim((string) ($item['area'] ?? ''));
-            if ($room === '') {
-                continue;
-            }
-            $key = mb_strtolower($room);
-            if (! isset($map[$key])) {
-                $map[$key] = [
-                    'room'     => $room,
-                    'overview' => '',
-                    'summary'  => '',
-                ];
-            }
-        }
+        foreach ($serviceKw   as $kw) { if (str_contains($d, $kw)) return 'services'; }
+        foreach ($cableKw     as $kw) { if (str_contains($d, $kw)) return 'cables'; }
+        foreach ($consumableKw as $kw) { if (str_contains($d, $kw)) return 'consumables'; }
 
-        return array_values($map);
-    }
-
-    private function stripLeadingTitle(string $title, string $text): string
-    {
-        $lines = preg_split('/\r?\n/', $text);
-        if (! $lines) {
-            return $text;
-        }
-
-        $first = trim((string) $lines[0]);
-        if ($first !== '' && strcasecmp($first, $title) === 0) {
-            array_shift($lines);
-        }
-
-        return trim(implode("\n", $lines));
+        return 'hardware';
     }
 }

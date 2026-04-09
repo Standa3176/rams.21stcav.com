@@ -209,6 +209,80 @@ class HazardTemplateSeeder extends Seeder
                     'No lone working at height or with high-risk power tools.',
                 ],
             ],
+
+            // ── 10. Display Installation / Wall Mounting ─────────────────────
+            [
+                'name'            => 'Display Installation / Wall Mounting',
+                'description'     => 'Risk of display or bracket failure during and after mounting.',
+                'pre_likelihood'  => 2,
+                'pre_severity'    => 4,
+                'post_likelihood' => 1,
+                'post_severity'   => 3,
+                'controls'        => [
+                    'Survey wall substrate before mounting — confirm masonry, stud, or structural steel and select appropriate fixings.',
+                    'Use fixing load ratings appropriate to the combined weight of bracket and display.',
+                    'Two-person lift required for all displays above 40" — use suction lifting aids where available.',
+                    'Retain safety straps or anti-tilt cables on all wall-mounted displays until bracket is fully torqued.',
+                    'Torque all fixings to bracket manufacturer guidance using a calibrated torque wrench.',
+                    'Conduct a pull-test on the installed bracket before hanging the display.',
+                    'Record fixing type, depth, and torque values in the commissioning documentation.',
+                ],
+            ],
+
+            // ── 11. Fixings / Substrate Failure ──────────────────────────────
+            [
+                'name'            => 'Fixings / Substrate Failure',
+                'description'     => 'Inadequate fixings or unsuitable substrate causing mounted equipment to fall.',
+                'pre_likelihood'  => 2,
+                'pre_severity'    => 4,
+                'post_likelihood' => 1,
+                'post_severity'   => 3,
+                'controls'        => [
+                    'Obtain building drawings or structural information from the client before drilling.',
+                    'Use a materials detector to identify hollow stud, solid masonry, or metal behind plasterboard.',
+                    'Never fix into plasterboard or lightweight partition alone — locate studs or use appropriate hollow-wall fixings rated to the load.',
+                    'Where substrate suitability cannot be confirmed, refer to structural engineer guidance before proceeding.',
+                    'Use resin anchors for fixings into aerated concrete (e.g. Thermalite) — never expansion bolts.',
+                    'Label all fixing locations in as-built documentation.',
+                ],
+            ],
+
+            // ── 12. Cable Installation in Ceiling Voids ───────────────────────
+            [
+                'name'            => 'Cable Installation in Ceiling Voids',
+                'description'     => 'Hazards from restricted access, dust, fibres, and hidden services in ceiling voids.',
+                'pre_likelihood'  => 3,
+                'pre_severity'    => 3,
+                'post_likelihood' => 2,
+                'post_severity'   => 2,
+                'controls'        => [
+                    'Check the asbestos register before removing any ceiling tiles or making any penetrations.',
+                    'Wear an FFP2 or FFP3 mask and safety glasses when working in ceiling voids.',
+                    'Use a head torch and ensure adequate lighting before entering any void.',
+                    'Do not apply body weight to ceiling tile frames or suspended ceiling systems.',
+                    'Use a cable and pipe detector before drilling or cutting any penetration.',
+                    'Fire-stop all cable penetrations through fire compartment walls and floors immediately after cabling.',
+                    'Brief the client facilities team before opening any ceiling void adjacent to occupied areas.',
+                ],
+            ],
+
+            // ── 13. Interaction with Other Trades ────────────────────────────
+            [
+                'name'            => 'Interaction with Other Trades',
+                'description'     => 'Conflicts, strikes, or interference with other contractors working in the same area.',
+                'pre_likelihood'  => 3,
+                'pre_severity'    => 3,
+                'post_likelihood' => 2,
+                'post_severity'   => 2,
+                'controls'        => [
+                    'Attend site co-ordination meetings and agree sequencing of works with the principal contractor.',
+                    'Establish clear zone delineation for AV works — erect barriers to prevent uninvited access to active areas.',
+                    'Brief all operatives on which other trades are on site and the areas they occupy.',
+                    'Do not re-route or interfere with cabling or equipment installed by other trades without written authority.',
+                    'Report any damage to other trades\' work to the principal contractor or site manager immediately.',
+                    'Ensure overhead exclusion zones are communicated to all trades working below.',
+                ],
+            ],
         ];
     }
 }

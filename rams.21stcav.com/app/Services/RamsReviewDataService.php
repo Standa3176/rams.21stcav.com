@@ -79,8 +79,11 @@ class RamsReviewDataService
             'ppe'                    => $this->normaliseStringArray($data['ppe'] ?? []),
             'access'                 => $this->normaliseAccess($data['access'] ?? []),
             'method_statement_notes' => (string) ($data['method_statement_notes'] ?? ''),
+            'scope_of_works'         => (string) ($data['scope_of_works'] ?? ''),
             'room_overviews'         => $this->normaliseRoomOverviews($data['room_overviews'] ?? []),
             'meta'                   => $this->normaliseMeta($data['meta'] ?? []),
+            'programme'              => $this->normaliseProgramme($data['programme'] ?? []),
+            'site_logistics'         => $this->normaliseSiteLogistics($data['site_logistics'] ?? []),
         ];
     }
 
@@ -179,9 +182,11 @@ class RamsReviewDataService
 
         return array_values(array_map(
             fn ($r) => [
-                'room'     => (string) ($r['room']     ?? ''),
-                'overview' => (string) ($r['overview'] ?? ''),
-                'summary'  => (string) ($r['summary']  ?? ''),
+                'room'             => (string) ($r['room']             ?? ''),
+                'overview'         => (string) ($r['overview']         ?? ''),
+                'works_summary'    => (string) ($r['works_summary']    ?? ''),
+                'summary'          => (string) ($r['summary']          ?? ''),
+                'solution_type_id' => (int)    ($r['solution_type_id'] ?? 0) ?: null,
             ],
             $raw,
         ));
@@ -208,5 +213,58 @@ class RamsReviewDataService
             array_map('strval', $raw),
             fn (string $s) => strlen(trim($s)) > 0,
         ));
+    }
+
+    private function normaliseProgramme(mixed $raw): array
+    {
+        $p = is_array($raw) ? $raw : [];
+        $engineers = array_values(array_filter(
+            array_map('strval', (array) ($p['additional_engineers'] ?? [])),
+            fn (string $s) => strlen(trim($s)) > 0,
+        ));
+        $wh = in_array($p['working_hours'] ?? '', ['in_hours', 'out_of_hours'], true)
+            ? $p['working_hours']
+            : 'in_hours';
+        return [
+            'project_manager_name'  => (string) ($p['project_manager_name']  ?? ''),
+            'project_manager_phone' => (string) ($p['project_manager_phone'] ?? ''),
+            'project_manager_email' => (string) ($p['project_manager_email'] ?? ''),
+            'lead_engineer_name'    => (string) ($p['lead_engineer_name']    ?? ''),
+            'lead_engineer_phone'   => (string) ($p['lead_engineer_phone']   ?? ''),
+            'additional_engineers'  => $engineers,
+            'programmers'           => array_values(array_filter(
+                array_map('strval', (array) ($p['programmers'] ?? [])),
+                fn (string $s) => strlen(trim($s)) > 0,
+            )),
+            'working_hours'         => $wh,
+            'planned_start_date'    => (string) ($p['planned_start_date'] ?? ''),
+            'planned_end_date'      => (string) ($p['planned_end_date']   ?? ''),
+            'ongoing'               => (bool)   ($p['ongoing']            ?? false),
+            'planned_start_time'    => (string) ($p['planned_start_time'] ?? ''),
+        ];
+    }
+
+    private function normaliseSiteLogistics(mixed $raw): array
+    {
+        $s = is_array($raw) ? $raw : [];
+        $validAccessTypes = ['no_special', 'induction', 'reception', 'security', 'other'];
+        return [
+            'contact_name'        => (string) ($s['contact_name']        ?? ''),
+            'contact_phone'       => (string) ($s['contact_phone']       ?? ''),
+            'contact_email'       => (string) ($s['contact_email']       ?? ''),
+            'delivery_area'       => (string) ($s['delivery_area']       ?? ''),
+            'restrictions'        => (string) ($s['restrictions']        ?? ''),
+            'commissioning_notes' => (string) ($s['commissioning_notes'] ?? ''),
+            // New logistics fields
+            'parking'             => in_array($s['parking'] ?? '', ['yes', 'no'], true)
+                                        ? $s['parking']
+                                        : '',
+            'parking_notes'       => (string) ($s['parking_notes']       ?? ''),
+            'install_floor'       => (string) ($s['install_floor']       ?? ''),
+            'access_type'         => in_array($s['access_type'] ?? '', $validAccessTypes, true)
+                                        ? $s['access_type']
+                                        : '',
+            'access_notes'        => (string) ($s['access_notes']        ?? ''),
+        ];
     }
 }

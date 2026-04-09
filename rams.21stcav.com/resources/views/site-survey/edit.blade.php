@@ -20,6 +20,8 @@
     </div>
 @endif
 
+@php $currentType = old('survey_type', $survey->survey_type ?? 'general'); @endphp
+
 <form method="POST" action="{{ route('site-surveys.update', $survey) }}" id="survey-form">
     @csrf
     @method('PUT')
@@ -30,13 +32,25 @@
         <div class="form-grid-2">
             <div class="form-group">
                 <label class="form-label" for="project_id">Link to Project</label>
-                <select id="project_id" name="project_id" class="form-control">
+                <select id="project_id" name="project_id" class="form-control" onchange="onProjectChange(this)">
                     <option value="">— Standalone (no project) —</option>
                     @foreach ($projects as $p)
                         <option value="{{ $p->id }}" {{ (old('project_id', $survey->project_id) == $p->id) ? 'selected' : '' }}>
                             {{ $p->name }}
                         </option>
                     @endforeach
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="survey_type">Default Space Type <span style="font-weight:400;color:#6B7280;">(for new spaces added)</span></label>
+                <select id="survey_type" name="survey_type" class="form-control"
+                        onchange="CURRENT_DEFAULT_TYPE = this.value">
+                    <option value="general"        {{ $currentType === 'general'        ? 'selected' : '' }}>General AV / Meeting Room</option>
+                    <option value="pa_system"      {{ $currentType === 'pa_system'      ? 'selected' : '' }}>PA / Background Music</option>
+                    <option value="infrastructure" {{ $currentType === 'infrastructure' ? 'selected' : '' }}>Infrastructure / Cable Route</option>
+                    <option value="signage"        {{ $currentType === 'signage'        ? 'selected' : '' }}>Digital Signage</option>
+                    <option value="upgrade"        {{ $currentType === 'upgrade'        ? 'selected' : '' }}>Upgrade / Strip-out</option>
+                    <option value="mixed"          {{ $currentType === 'mixed'          ? 'selected' : '' }}>Mixed (all sections)</option>
                 </select>
             </div>
             <div class="form-group">
@@ -77,20 +91,38 @@
         </div>
     </div>
 
-    {{-- Rooms --}}
+    {{-- Areas / Rooms --}}
     <div class="section-block">
-        <h2 class="section-heading">Rooms / Areas</h2>
+        <h2 class="section-heading" id="areas-heading">{{ match($currentType) {
+            'pa_system'      => 'PA Zones / Areas',
+            'infrastructure' => 'Locations / Routes',
+            'signage'        => 'Display Positions',
+            default          => 'Rooms / Areas',
+        } }}</h2>
         <p style="color:#666;font-size:.875rem;margin-bottom:1rem;">
-            Existing rooms are preserved. Removed rooms will be deleted along with their photos.
+            Existing areas are preserved. Removed areas will be deleted along with their photos.
         </p>
 
         <div id="rooms-container">
             @foreach ($survey->rooms as $ri => $room)
-                @include('site-survey._room-form', ['ri' => $ri, 'room' => $room, 'isNew' => false])
+                @include('site-survey._room-form', [
+                    'ri'         => $ri,
+                    'room'       => $room,
+                    'isNew'      => false,
+                    'surveyType' => $currentType,
+                    'kitItems'   => $kitByArea[$room->room_name] ?? [],
+                ])
             @endforeach
         </div>
 
-        <button type="button" class="btn btn-outline btn-sm" onclick="addRoom()">+ Add Room</button>
+        <button type="button" id="add-area-btn" class="btn btn-outline btn-sm" onclick="addRoom()">
+            + Add {{ match($currentType) {
+                'pa_system'      => 'PA Zone',
+                'infrastructure' => 'Location',
+                'signage'        => 'Display Position',
+                default          => 'Room',
+            } }}
+        </button>
     </div>
 
     <div style="display:flex;gap:1rem;flex-wrap:wrap;">
@@ -103,122 +135,220 @@
 
 @push('scripts')
 <script>
+// ── State ──────────────────────────────────────────────────────────────────────
+let CURRENT_DEFAULT_TYPE = '{{ $currentType }}';
 let roomIndex = {{ $survey->rooms->count() }};
 
+// ── Project auto-fill ──────────────────────────────────────────────────────────
+function onProjectChange(sel) {
+    const id = sel.value;
+    if (! id) return;
+    fetch(`/site-surveys/project-data/${id}`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+    })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+        if (! data) return;
+        if (data.name)         document.getElementById('project_name').value = data.name;
+        if (data.ref != null)  document.getElementById('project_ref').value  = data.ref ?? '';
+        if (data.client_name)  document.getElementById('client_name').value  = data.client_name;
+        if (data.site_address) document.getElementById('site_address').value = data.site_address;
+    })
+    .catch(() => {});
+}
+
+// ── Collapsible room cards ────────────────────────────────────────────────────
+function toggleAdminCard(header) {
+    const card    = header.closest('.room-card');
+    const body    = card.querySelector('.room-card-body');
+    const chevron = header.querySelector('.room-card-chevron');
+    const open    = body.style.display === 'none' || body.style.display === '';
+    body.style.display      = open ? 'block' : 'none';
+    chevron.style.transform = open ? 'rotate(90deg)' : 'rotate(0deg)';
+}
+
+// Update the card header label as the user types the room name
+function updateCardLabel(input) {
+    const label = input.closest('.room-card')?.querySelector('.room-card-label');
+    if (label) label.textContent = input.value || 'New Space';
+}
+
+// ── Per-card type change ───────────────────────────────────────────────────────
+function onSpaceTypeChange(sel) {
+    applySpaceType(sel.closest('.room-card'), sel.value);
+}
+function applySpaceType(card, type) {
+    const showPa      = type === 'pa_system'  || type === 'mixed';
+    const showSignage = type === 'signage'     || type === 'mixed';
+    const showUpgrade = type === 'upgrade'     || type === 'mixed';
+    const showAreaType = type !== 'general';
+    card.querySelectorAll('.type-panel--pa').forEach(el => el.style.display = showPa ? 'block' : 'none');
+    card.querySelectorAll('.type-panel--signage').forEach(el => el.style.display = showSignage ? 'block' : 'none');
+    card.querySelectorAll('.type-panel--upgrade').forEach(el => el.style.display = showUpgrade ? 'block' : 'none');
+    card.querySelectorAll('.area-type-group').forEach(el => el.style.display = showAreaType ? 'block' : 'none');
+}
+
+// ── Add new space (expanded, new rooms always open) ───────────────────────────
 function addRoom() {
-    const i = roomIndex++;
+    const i         = roomIndex++;
     const container = document.getElementById('rooms-container');
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = roomCardHtml(i);
+    const wrapper   = document.createElement('div');
+    wrapper.innerHTML = roomCardHtml(i, CURRENT_DEFAULT_TYPE);
     container.appendChild(wrapper.firstElementChild);
-    container.lastElementChild.querySelector('input[name*="room_name"]').focus();
+    container.lastElementChild.querySelector('input[name*="room_name"]')?.focus();
 }
 
+// ── Infrastructure accordion ──────────────────────────────────────────────────
 function toggleInfra(btn) {
-    const card = btn.closest('.room-card');
-    const panel = card.querySelector('.infra-panel');
-    const hidden = panel.style.display === 'none';
+    const body   = btn.closest('.room-card-body');
+    const panel  = body.querySelector('.infra-panel');
+    const hidden = panel.style.display === 'none' || panel.style.display === '';
     panel.style.display = hidden ? 'block' : 'none';
-    btn.textContent = hidden ? '\u25b2 Hide Infrastructure' : '\u25bc Infrastructure Details';
+    btn.textContent = hidden ? '\u25b2 Hide Measurements' : '\u25bc Measurements \u0026 Infrastructure';
 }
 
-function roomCardHtml(i) {
-    const d = document.createElement('div');
-    d.className = 'room-card';
-    d.style.cssText = 'border:1.5px solid #e0e0e0;border-radius:6px;padding:1.25rem;margin-bottom:1rem;background:#fafafa;';
-
-    const hdr = document.createElement('div');
-    hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;';
-    const title = document.createElement('strong');
-    title.style.color = '#007B8A';
-    title.textContent = 'New Room';
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.style.cssText = 'background:none;border:none;color:#c0392b;cursor:pointer;font-size:1.1rem;padding:0 .25rem;';
-    removeBtn.textContent = '\u2715';
-    removeBtn.onclick = function() { d.remove(); };
-    hdr.appendChild(title);
-    hdr.appendChild(removeBtn);
-    d.appendChild(hdr);
-
-    const grid1 = document.createElement('div');
-    grid1.className = 'form-grid-2';
-    grid1.innerHTML =
-        fld('Room Name', `rooms[${i}][room_name]`, 'text', '', true, 150) +
-        fld('Room Ref', `rooms[${i}][room_ref]`, 'text', '', false, 50) +
-        fld('Floor', `rooms[${i}][floor]`, 'text', 'e.g. Ground, 1st', false, 50);
-    d.appendChild(grid1);
-
-    const avReq = document.createElement('div');
-    avReq.className = 'form-group';
-    avReq.innerHTML = '<label class="form-label">AV Requirements</label>'
-        + `<textarea name="rooms[${i}][av_requirements]" class="form-control" rows="2" maxlength="1000"></textarea>`;
-    d.appendChild(avReq);
-
-    const checks = document.createElement('div');
-    checks.style.cssText = 'display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:.75rem;';
-    checks.innerHTML = chk(`rooms[${i}][has_power]`, 'Power present')
-        + chk(`rooms[${i}][has_network]`, 'Network present')
-        + chk(`rooms[${i}][requires_additional_power]`, 'Additional power required');
-    d.appendChild(checks);
-
-    const infraBtn = document.createElement('button');
-    infraBtn.type = 'button';
-    infraBtn.className = 'btn btn-outline btn-sm';
-    infraBtn.style.marginBottom = '.75rem';
-    infraBtn.textContent = '\u25bc Infrastructure Details';
-    infraBtn.onclick = function() { toggleInfra(this); };
-    d.appendChild(infraBtn);
-
-    const panel = document.createElement('div');
-    panel.className = 'infra-panel';
-    panel.style.display = 'none';
-    const grid2 = document.createElement('div');
-    grid2.className = 'form-grid-2';
-    grid2.innerHTML =
-        num('Width (m)', `rooms[${i}][room_width_m]`) +
-        num('Depth (m)', `rooms[${i}][room_depth_m]`) +
-        num('Height (m)', `rooms[${i}][room_height_m]`) +
-        sel('Ceiling Type', `rooms[${i}][ceiling_type]`, {'':'— Select —','concrete':'Concrete','suspended':'Suspended','plasterboard':'Plasterboard','open':'Open (exposed)','other':'Other'}) +
-        num('Ceiling Height (m)', `rooms[${i}][ceiling_height_m]`) +
-        sel('Wall Material', `rooms[${i}][wall_material]`, {'':'— Select —','brick':'Brick','plasterboard':'Plasterboard','glass':'Glass','concrete':'Concrete','other':'Other'}) +
-        sel('Floor Type', `rooms[${i}][floor_type]`, {'':'— Select —','concrete':'Concrete','carpet':'Carpet','tiles':'Tiles','raised':'Raised Access','other':'Other'}) +
-        num('Power Outlets', `rooms[${i}][power_outlet_count]`, true) +
-        num('Network Ports', `rooms[${i}][network_port_count]`, true);
-    panel.appendChild(grid2);
-
-    ['existing_cabling|Existing Cabling|500', 'av_equipment_list|Existing AV Equipment|1000', 'access_notes|Access / Hazard Notes|500'].forEach(function(s) {
-        const parts = s.split('|');
-        const ta = document.createElement('div');
-        ta.className = 'form-group';
-        ta.innerHTML = `<label class="form-label">${parts[1]}</label>`
-            + `<textarea name="rooms[${i}][${parts[0]}]" class="form-control" rows="2" maxlength="${parts[2]}"></textarea>`;
-        panel.appendChild(ta);
-    });
-    d.appendChild(panel);
-
-    const notesGrp = document.createElement('div');
-    notesGrp.className = 'form-group';
-    notesGrp.style.marginBottom = '0';
-    notesGrp.innerHTML = '<label class="form-label">Other Notes</label>'
-        + `<textarea name="rooms[${i}][notes]" class="form-control" rows="2" maxlength="500"></textarea>`;
-    d.appendChild(notesGrp);
-
-    return d.outerHTML;
+// ── Kit list drawer ───────────────────────────────────────────────────────────
+function toggleKit(btn) {
+    const drawer  = btn.nextElementSibling;
+    const chevron = btn.querySelector('.kit-chevron');
+    const isOpen  = drawer.style.maxHeight && drawer.style.maxHeight !== '0px';
+    drawer.style.maxHeight  = isOpen ? '0' : '600px';
+    chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
 }
 
-function fld(label, name, type, ph, req, max) {
-    return `<div class="form-group"><label class="form-label">${label}${req ? ' <span class="req">*</span>' : ''}</label>`
-        + `<input type="${type}" name="${name}" class="form-control"${req ? ' required' : ''}${ph ? ` placeholder="${ph}"` : ''} maxlength="${max}"></div>`;
+// ── Build new room card HTML (new rooms start expanded) ───────────────────────
+function roomCardHtml(i, type) {
+    type = type || 'general';
+    const showPa      = type === 'pa_system'  || type === 'mixed';
+    const showSignage = type === 'signage'     || type === 'mixed';
+    const showUpgrade = type === 'upgrade'     || type === 'mixed';
+    const showAreaType = type !== 'general';
+    const n = k => `rooms[${i}][${k}]`;
+
+    return `<div class="room-card" style="border:1.5px solid #e0e0e0;border-radius:6px;margin-bottom:.6rem;background:#fafafa;">
+        <div class="room-card-header" onclick="toggleAdminCard(this)"
+             style="display:flex;align-items:center;gap:.6rem;padding:.75rem 1rem;cursor:pointer;user-select:none;border-radius:6px 6px 0 0;">
+            <span class="room-card-chevron" style="color:#6B7280;font-size:.9rem;transition:transform 200ms;transform:rotate(90deg);">&#9654;</span>
+            <strong class="room-card-label" style="color:#007B8A;flex:1;font-size:.9rem;">New Space</strong>
+            <button type="button" onclick="event.stopPropagation();if(confirm('Remove this space from the survey? This cannot be undone.'))this.closest('.room-card').remove()"
+                    style="background:none;border:none;color:#c0392b;cursor:pointer;font-size:1rem;padding:0 .25rem;line-height:1;">&#10005;</button>
+        </div>
+        <div class="room-card-body" style="padding:0 1rem 1rem;">
+            <div class="form-grid-2" style="margin-bottom:.75rem;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Space / Survey Type</label>
+                    <select name="${n('space_type')}" class="form-control" onchange="onSpaceTypeChange(this)">
+                        <option value="general"        ${type==='general'        ? 'selected':''}>General AV / Meeting Room</option>
+                        <option value="pa_system"      ${type==='pa_system'      ? 'selected':''}>PA / Background Music</option>
+                        <option value="infrastructure" ${type==='infrastructure' ? 'selected':''}>Infrastructure / Cable Route</option>
+                        <option value="signage"        ${type==='signage'        ? 'selected':''}>Digital Signage</option>
+                        <option value="upgrade"        ${type==='upgrade'        ? 'selected':''}>Upgrade / Strip-out</option>
+                        <option value="mixed"          ${type==='mixed'          ? 'selected':''}>Mixed (all sections)</option>
+                    </select>
+                </div>
+                <div class="area-type-group form-group" style="margin-bottom:0;${showAreaType?'':'display:none'}">
+                    <label class="form-label">Area Classification</label>
+                    <select name="${n('area_type')}" class="form-control">
+                        <option value="">— Select —</option>
+                        <option value="room">Meeting Room</option><option value="open_plan">Open Plan Area</option>
+                        <option value="lobby">Lobby / Reception</option><option value="auditorium">Auditorium / Theatre</option>
+                        <option value="outdoor_area">Outdoor Area</option><option value="zone">PA Zone / Coverage Area</option>
+                        <option value="rack_location">Rack / Equipment Room</option><option value="cable_route">Cable Route / Riser</option>
+                        <option value="display_position">Display Position</option><option value="stairwell">Stairwell / Corridor</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-grid-2">
+                <div class="form-group">
+                    <label class="form-label">Space Name <span class="req">*</span></label>
+                    <input type="text" name="${n('room_name')}" class="form-control" required maxlength="150"
+                           placeholder="e.g. Boardroom, Reception, Zone A" oninput="updateCardLabel(this)">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Qty <span style="font-weight:400;color:#6B7280;">(creates multiple rooms)</span></label>
+                    <input type="number" name="${n('qty')}" class="form-control" value="1" min="1" max="99" step="1">
+                </div>
+                ${fld('Ref / Number', n('room_ref'), 'text', '', false, 50)}
+                ${fld('Floor / Level', n('floor'), 'text', 'e.g. Ground, 1st, B1', false, 50)}
+            </div>
+            <div class="form-group">
+                <label class="form-label">AV Requirements</label>
+                <textarea name="${n('av_requirements')}" class="form-control" rows="2" maxlength="5000"></textarea>
+            </div>
+            <div style="display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:.75rem;">
+                ${chk(n('has_power'), 'Power present')}
+                ${chk(n('has_network'), 'Network present')}
+                ${chk(n('requires_additional_power'), 'Additional power required')}
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" style="margin-bottom:.75rem;" onclick="toggleInfra(this)">
+                &#9660; Measurements &amp; Infrastructure
+            </button>
+            <div class="infra-panel" style="display:none;">
+                <div class="form-grid-2">
+                    ${num('Width (m)', n('room_width_m'))} ${num('Depth (m)', n('room_depth_m'))}
+                    ${num('Height (m)', n('room_height_m'), 0, 99)}
+                    ${sel('Ceiling Type', n('ceiling_type'), {'':'— Select —','concrete':'Concrete','suspended':'Suspended','plasterboard':'Plasterboard','open':'Open (exposed)','other':'Other'})}
+                    ${num('Ceiling Height (m)', n('ceiling_height_m'), 0, 99)}
+                    ${sel('Wall Material', n('wall_material'), {'':'— Select —','brick':'Brick','plasterboard':'Plasterboard','glass':'Glass','concrete':'Concrete','other':'Other'})}
+                    ${sel('Floor Type', n('floor_type'), {'':'— Select —','concrete':'Concrete','carpet':'Carpet','tiles':'Tiles','raised':'Raised Access','other':'Other'})}
+                    ${num('Power Outlets', n('power_outlet_count'), 0, 999, true)}
+                    ${num('Network Ports', n('network_port_count'), 0, 999, true)}
+                </div>
+                ${ta('Existing Cabling', n('existing_cabling'), 500)}
+                ${ta('Existing AV Equipment', n('av_equipment_list'), 5000)}
+                ${ta('Access / Hazard Notes', n('access_notes'), 500)}
+            </div>
+            <div class="type-panel type-panel--pa" style="${showPa?'':'display:none'}">
+                <div class="type-panel-heading">PA System Details</div>
+                <div class="form-grid-2">
+                    ${num('Number of Speakers', n('speaker_count'), 0, 999, true)}
+                    ${sel('Speaker Type', n('speaker_type'), {'':'— Select —','ceiling':'Ceiling (flush)','pendant':'Pendant','surface':'Surface mount','column':'Column array','horn':'Horn / outdoor','sub':'Subwoofer','line_array':'Line array','other':'Other'})}
+                    ${sel('Speaker Mounting', n('speaker_mounting'), {'':'— Select —','ceiling_recessed':'Ceiling — recessed','ceiling_surface':'Ceiling — surface','pendant':'Pendant drop','wall':'Wall mount','bracket':'Bracket / truss','floor_stand':'Floor stand','other':'Other'})}
+                    ${num('Background Noise (dB)', n('bg_noise_db'), 0, 120, true)}
+                </div>
+            </div>
+            <div class="type-panel type-panel--signage" style="${showSignage?'':'display:none'}">
+                <div class="type-panel-heading">Digital Signage Details</div>
+                <div class="form-grid-2">
+                    ${num('Display Size (inches)', n('display_size_in'), 0, 999, false, '0.1')}
+                    ${sel('Orientation', n('display_orient'), {'':'— Select —','landscape':'Landscape','portrait':'Portrait'})}
+                    ${sel('Mounting Type', n('display_mounting'), {'':'— Select —','wall_flush':'Wall — flush / fixed','wall_tilt':'Wall — tilt / articulating','ceiling':'Ceiling drop mount','floor_stand':'Floor stand / totem','desk_stand':'Desk / counter stand','other':'Other'})}
+                </div>
+            </div>
+            <div class="type-panel type-panel--upgrade" style="${showUpgrade?'':'display:none'}">
+                <div class="type-panel-heading">Upgrade / Strip-out Details</div>
+                ${ta('Existing Equipment Condition', n('existing_condition'), 3000, 'Describe condition of existing AV kit…')}
+                ${ta('Items to Remove / Strip Out', n('items_to_remove'), 3000, 'List equipment to be decommissioned…')}
+                ${ta('Items to Retain / Reuse', n('items_to_retain'), 3000, 'List equipment to keep and integrate…')}
+            </div>
+            <div class="form-group" style="margin-bottom:0;margin-top:.5rem;">
+                <label class="form-label">Other Notes</label>
+                <textarea name="${n('notes')}" class="form-control" rows="2" maxlength="500"></textarea>
+            </div>
+        </div>
+    </div>`;
 }
-function num(label, name, isInt) {
+
+// ── HTML helpers ──────────────────────────────────────────────────────────────
+function fld(labelHtml, name, type, ph, req, max) {
+    return `<div class="form-group"><label class="form-label">${labelHtml}</label>`
+        + `<input type="${type}" name="${name}" class="form-control"${req?' required':''}`
+        + `${ph?` placeholder="${ph}"`:''} maxlength="${max}"></div>`;
+}
+function num(label, name, min=0, max=999, isInt=false, step=null) {
+    const s = step||(isInt?'1':'0.01');
     return `<div class="form-group"><label class="form-label">${label}</label>`
-        + `<input type="number" name="${name}" class="form-control" min="0" max="999" step="${isInt ? '1' : '0.01'}"></div>`;
+        + `<input type="number" name="${name}" class="form-control" min="${min}" max="${max}" step="${s}"></div>`;
 }
 function sel(label, name, opts) {
-    const options = Object.entries(opts).map(function(e) { return `<option value="${e[0]}">${e[1]}</option>`; }).join('');
+    const options = Object.entries(opts).map(([v,t])=>`<option value="${v}">${t}</option>`).join('');
     return `<div class="form-group"><label class="form-label">${label}</label>`
         + `<select name="${name}" class="form-control">${options}</select></div>`;
+}
+function ta(label, name, max, ph='') {
+    return `<div class="form-group"><label class="form-label">${label}</label>`
+        + `<textarea name="${name}" class="form-control" rows="2" maxlength="${max}"${ph?` placeholder="${ph}"`:''} ></textarea></div>`;
 }
 function chk(name, label) {
     return `<label class="check-item" style="cursor:pointer;">`

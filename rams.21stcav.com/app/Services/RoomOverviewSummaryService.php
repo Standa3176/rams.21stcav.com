@@ -80,9 +80,16 @@ class RoomOverviewSummaryService
             return '';
         }
 
-        $sentence = preg_split('/(?<=[.!?])\s+/', $text)[0] ?? $text;
-        $sentence = trim($sentence);
+        // Build a minimal structured block from keywords we can detect without AI.
+        $lines = [];
 
-        return mb_strlen($sentence) > 200 ? mb_substr($sentence, 0, 200) . '…' : $sentence;
+        // Try to derive a room type hint from the room name (passed via context elsewhere;
+        // here we just use the first sentence of the overview as a fallback label).
+        $firstSentence = preg_split('/(?<=[.!?])\s+/', $text)[0] ?? $text;
+        $lines[] = 'Works: ' . (mb_strlen($firstSentence) > 120
+            ? mb_substr($firstSentence, 0, 120) . '…'
+            : trim($firstSentence));
+
+        return implode("\n", $lines);
     }
 }

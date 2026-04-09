@@ -693,6 +693,157 @@ class QuoteParserServiceTest extends TestCase
         $this->assertEmpty($result['rooms']);
     }
 
+    public function test_tagged_part_number_strips_leading_ocr_punctuation_noise(): void
+    {
+        $text = implode("\n", [
+            'SITENAMESTART Example Client SITENAMEEND',
+            'SHIPADDSTART 10 High Street, London SW1A 1AA SHIPADDEND',
+            'QUOTENUMSTART 21CQ30246-06-OPS QUOTENUMEND',
+            'PARTSTART ~LHBSWAFWLGCXEN PARTEND PARTDESCSTART Samsung 65 inch display PARTDESCEND QTYSTART 1.00 QTYEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $this->assertNotEmpty($result['equipment']);
+        $this->assertSame('LHBSWAFWLGCXEN', $result['equipment'][0]['part_number']);
+    }
+
+    public function test_tagged_part_number_strips_trailing_punctuation_noise(): void
+    {
+        $text = implode("\n", [
+            'SITENAMESTART Example Client SITENAMEEND',
+            'SHIPADDSTART 10 High Street, London SW1A 1AA SHIPADDEND',
+            'QUOTENUMSTART 21CQ30246-06-OPS QUOTENUMEND',
+            'PARTSTART LH65QETELGCXEN, PARTEND PARTDESCSTART Samsung display PARTDESCEND QTYSTART 2.00 QTYEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $this->assertNotEmpty($result['equipment']);
+        $this->assertSame('LH65QETELGCXEN', $result['equipment'][0]['part_number']);
+    }
+
+    public function test_tagged_parser_accepts_dot_separated_numeric_part_numbers(): void
+    {
+        $text = implode("\n", [
+            'SITENAMESTART Example Client SITENAMEEND',
+            'SHIPADDSTART 10 High Street, London SW1A 1AA SHIPADDEND',
+            'PARTSTART 910.1995.900 PARTEND PARTDESCSTART Logitech Tap Cat5e PARTDESCEND QTYSTART 1.00 QTYEND',
+            'PARTSTART 911.0498.900 PARTEND PARTDESCSTART Logitech Tap HDMI Kit PARTDESCEND QTYSTART 2.00 QTYEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $this->assertCount(2, $result['equipment']);
+        $this->assertSame('910.1995.900', $result['equipment'][0]['part_number']);
+        $this->assertSame('911.0498.900', $result['equipment'][1]['part_number']);
+    }
+
+    public function test_tagged_parser_extracts_qty_when_trailing_in_partdesc_block(): void
+    {
+        $text = implode("\n", [
+            'SITENAMESTART Example Client SITENAMEEND',
+            'SHIPADDSTART 10 High Street, London SW1A 1AA SHIPADDEND',
+            'PARTSTART 960-001227 PARTEND PARTDESCSTART Logitech Rally Conference Camera 1.00 PARTDESCEND QTYSTART QTYEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $this->assertNotEmpty($result['equipment']);
+        $this->assertSame('960-001227', $result['equipment'][0]['part_number']);
+        $this->assertSame(1, $result['equipment'][0]['qty']);
+        $this->assertStringNotContainsString('1.00', $result['equipment'][0]['description']);
+    }
+
+    public function test_tagged_column_layout_extracts_company_site_name_and_part_rows(): void
+    {
+        $text = implode("\n", [
+            'Mtg Room Fit out',
+            'SITENAMESTART',
+            'SITENAMEEND',
+            'Integra Building Ltd',
+            'SHIPCOMPSTART',
+            'SHIPCOMPEND',
+            'SHIPADDSTART',
+            '21CQ30246-06-OPS',
+            'West Burton Power Station',
+            'Retford',
+            'Rich -0771 8386409 (Site)',
+            'DN22 9BL Nottinghamshire',
+            'United Kingdom',
+            'SHIPADDEND',
+            'PARTSTART',
+            'PARTEND',
+            'PARTDESCSTART',
+            '4.00',
+            'LH65WAFWLGCXEN',
+            'PARTDESCEND',
+            'QTYSTART',
+            'QTYEND',
+            'Samsung 65 Interactive Display',
+            'PARTSTART',
+            'PARTEND',
+            'PARTDESCSTART',
+            '1.00',
+            '36742',
+            'PARTDESCEND',
+            'QTYSTART',
+            'QTYEND',
+            'USB-A to USB-B Cable',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $this->assertSame('Integra Building Ltd', $result['client']);
+        $this->assertSame('Mtg Room Fit out', $result['site_name']);
+        $this->assertStringContainsString('West Burton Power Station', $result['site']);
+        $this->assertStringNotContainsString('0771', $result['site']);
+
+        $this->assertGreaterThanOrEqual(2, count($result['equipment']));
+        $this->assertSame('LH65WAFWLGCXEN', $result['equipment'][0]['part_number']);
+        $this->assertSame(4, $result['equipment'][0]['qty']);
+        $this->assertStringContainsString('Samsung', $result['equipment'][0]['description']);
+    }
+
+    public function test_tagged_parser_handles_qtvend_variant_and_rejects_time_like_part_number(): void
+    {
+        $text = implode("\n", [
+            'Mtg Room Fit out',
+            'SITENAMESTART',
+            'SITENAMEEND',
+            'Integra Building Ltd',
+            'SHIPCOMPSTART',
+            'SHIPCOMPEND',
+            'SHIPEMAILSTART jamesscarlett@integrabuildings.co.uk SHIPEMAILEND',
+            'SHIPADDSTART West Burton Power Station DN22 9BL SHIPADDEND',
+            'OVERVIEWTITLESTART Small Room - 4 Person OVERVIEWTITLEEND',
+            'PARTSTART R9861633EUB2 PARTEND PARTDESCSTART Clickshare Bar Pro PARTDESCEND QTYSTART 4.00 QTVEND',
+            'PARTSTART 9am PARTEND PARTDESCSTART 21st Engineering AV Team In-Hours Mon-Friday 9am - 50M PARTDESCEND QTYSTART 100 QTVEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $this->assertNotEmpty($result['equipment']);
+        $this->assertSame('James Scarlett', $result['prepared_by']);
+        $this->assertSame('R9861633EUB2', $result['equipment'][0]['part_number']);
+        $this->assertSame('', $result['equipment'][1]['part_number']);
+        $this->assertSame(1, $result['equipment'][1]['qty']);
+    }
+
+    public function test_tagged_equipment_deduplicates_same_area_and_part_number(): void
+    {
+        $text = implode("\n", [
+            'OVERVIEWTITLESTART Small Room - 4 Person OVERVIEWTITLEEND',
+            'PARTSTART LHBSWAFWLGCXEN PARTEND PARTDESCSTART Samsung, 65 Black Interactive Display PARTDESCEND QTYSTART 4.00 QTYEND',
+            'PARTSTART LHBSWAFWLGCXEN PARTEND PARTDESCSTART Samsung, 65 Black Interactive Display PARTDESCEND QTYSTART 5.00 QTYEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $this->assertCount(1, $result['equipment']);
+        $this->assertSame(4, $result['equipment'][0]['qty']);
+    }
+
     // =========================================================================
     // NORMALISATION
     // =========================================================================
