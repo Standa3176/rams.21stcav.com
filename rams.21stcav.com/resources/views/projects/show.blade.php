@@ -11,6 +11,12 @@
     $isAdmin    = auth()->user()?->isAdmin();
 @endphp
 
+<nav class="breadcrumb" aria-label="breadcrumb">
+    <a href="{{ route('projects.index') }}" style="color:var(--teal);text-decoration:none;">Projects</a>
+    <span style="margin:0 .5rem;color:var(--text-faint);">›</span>
+    <span style="color:var(--text-muted);">{{ $project->name }}</span>
+</nav>
+
 <div class="page-header">
     <div>
         <h1 class="page-title">{{ $project->name }}</h1>
@@ -62,7 +68,7 @@
 </div>
 
 {{-- ── Main grid ──────────────────────────────────────────────────────────── --}}
-<div style="display:grid; grid-template-columns:1fr 320px; gap:1.25rem; align-items:start;">
+<div class="proj-show-grid" style="display:grid; grid-template-columns:1fr 320px; gap:1.25rem; align-items:start;">
 
     {{-- Left column --}}
     <div>
@@ -207,6 +213,81 @@
                     </tbody>
                 </table>
             @endif
+        </div>
+
+        {{-- ── Linked Records ──────────────────────────────────────────────── --}}
+        <div class="card card-sm" style="margin-bottom:1.25rem; padding:0; overflow:hidden;">
+            <div style="padding:1rem 1.25rem; border-bottom:1px solid var(--border);">
+                <h2 class="section-heading" style="font-size:.9rem; margin:0;">Linked Records</h2>
+            </div>
+
+            @foreach($linkedRecords as $entry)
+                <div style="border-bottom:1px solid var(--border);">
+                    @if($entry['records']->isNotEmpty())
+                        <x-dashboard.table-wrapper>
+                            <table class="data-table" style="font-size:.84rem;">
+                                <thead>
+                                    <tr>
+                                        <th style="width:120px;">Type</th>
+                                        <th>Reference / Name</th>
+                                        <th>Status</th>
+                                        <th style="white-space:nowrap;">Date</th>
+                                        <th style="width:80px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($entry['records'] as $record)
+                                    <tr>
+                                        <td>
+                                            <span class="badge {{ $entry['badge_class'] }}">{{ $entry['type'] }}</span>
+                                        </td>
+                                        <td>
+                                            {{ \Illuminate\Support\Str::limit($record->project_name ?? $record->name ?? ('Record #' . $record->id), 50) }}
+                                        </td>
+                                        <td>
+                                            @if(isset($record->status))
+                                                <x-dashboard.status-badge :status="$record->status"/>
+                                            @else
+                                                <span style="color:var(--text-faint);">—</span>
+                                            @endif
+                                        </td>
+                                        <td style="color:var(--text-faint); white-space:nowrap; font-size:.8rem;">
+                                            {{ $record->updated_at->diffForHumans() }}
+                                        </td>
+                                        <td>
+                                            @if($entry['route_name'])
+                                                <a href="{{ route($entry['route_name'], $record) }}"
+                                                   class="btn btn-outline btn-sm" style="font-size:.75rem;">View</a>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </x-dashboard.table-wrapper>
+                    @else
+                        <p style="color:#888; font-size:.875rem; padding:1rem 1.25rem; margin:0;">
+                            <span class="badge {{ $entry['badge_class'] }}" style="margin-right:.5rem;">{{ $entry['type'] }}</span>
+                            @if($entry['type'] === 'Worksheet')
+                                Coming in Phase 4.
+                            @else
+                                No records yet.
+                            @endif
+                        </p>
+                        @if($entry['empty_action_label'])
+                            @if($entry['type'] === 'O&M')
+                                <form method="POST" action="{{ $entry['empty_action_route'] }}" style="margin:.5rem 1.25rem 1rem;">
+                                    @csrf
+                                    <button type="submit" class="btn btn-outline btn-sm">{{ $entry['empty_action_label'] }}</button>
+                                </form>
+                            @else
+                                <a href="{{ $entry['empty_action_route'] }}"
+                                   class="btn btn-outline btn-sm" style="margin:.5rem 1.25rem 1rem; display:inline-block;">{{ $entry['empty_action_label'] }}</a>
+                            @endif
+                        @endif
+                    @endif
+                </div>
+            @endforeach
         </div>
 
         {{-- ── RAMS Documents ──────────────────────────────────────────────── --}}
@@ -757,12 +838,12 @@
                         {{ $project->status_label }}
                     </span>
                 </dd>
-                <dt style="color:#888; font-weight:600;">Ref</dt>
-                <dd>{{ $project->ref ?? '—' }}</dd>
                 <dt style="color:#888; font-weight:600;">Client</dt>
                 <dd>{{ $project->client_name }}</dd>
                 <dt style="color:#888; font-weight:600;">Site</dt>
                 <dd>{{ $project->site_address }}</dd>
+                <dt style="color:#888; font-weight:600;">Quote ref</dt>
+                <dd>{{ $project->quote_reference ?? $project->ref ?? '—' }}</dd>
                 @if ($project->works_description)
                 <dt style="color:#888; font-weight:600;">Scope</dt>
                 <dd>{{ $project->works_description }}</dd>
@@ -773,6 +854,8 @@
                 @endif
                 <dt style="color:#888; font-weight:600;">Created</dt>
                 <dd>{{ $project->created_at->format('d M Y') }}</dd>
+                <dt style="color:#888; font-weight:600;">Updated</dt>
+                <dd style="color:var(--text-faint);">{{ $project->updated_at->diffForHumans() }}</dd>
                 @if ($project->reopened_at)
                 <dt style="color:#888; font-weight:600;">Reopened</dt>
                 <dd>{{ $project->reopened_at->format('d M Y') }}<br>
@@ -847,5 +930,11 @@
     </div>
 
 </div>{{-- /grid --}}
+
+<style>
+@media (max-width: 900px) {
+    .proj-show-grid { grid-template-columns: 1fr; }
+}
+</style>
 
 @endsection
