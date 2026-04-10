@@ -215,6 +215,28 @@
             @endif
         </div>
 
+        {{-- ── Tab Strip: Overview / Project Data (D-25) ─────────────────── --}}
+        <div x-data="{ activeTab: 'overview' }">
+
+            {{-- Tab buttons --}}
+            <div style="display:flex; border-bottom:1px solid var(--border); margin-bottom:1rem;">
+                <button @click="activeTab='overview'"
+                        style="padding:.75rem 1rem; border:none; background:none; cursor:pointer; font-size:.9375rem; font-weight:600; border-bottom:2px solid transparent;"
+                        :style="activeTab==='overview' ? 'border-bottom-color:var(--teal); color:var(--teal)' : 'color:var(--text-muted)'"
+                        role="tab" :aria-selected="activeTab==='overview'">
+                    Overview
+                </button>
+                <button @click="activeTab='data'"
+                        style="padding:.75rem 1rem; border:none; background:none; cursor:pointer; font-size:.9375rem; border-bottom:2px solid transparent;"
+                        :style="activeTab==='data' ? 'border-bottom-color:var(--teal); color:var(--teal)' : 'color:var(--text-muted)'"
+                        role="tab" :aria-selected="activeTab==='data'">
+                    Project Data
+                </button>
+            </div>
+
+            {{-- Overview tab: Linked Records --}}
+            <div x-show="activeTab==='overview'" role="tabpanel">
+
         {{-- ── Linked Records ──────────────────────────────────────────────── --}}
         <div class="card card-sm" style="margin-bottom:1.25rem; padding:0; overflow:hidden;">
             <div style="padding:1rem 1.25rem; border-bottom:1px solid var(--border);">
@@ -289,6 +311,70 @@
                 </div>
             @endforeach
         </div>
+
+            </div>{{-- end Overview tab panel --}}
+
+            {{-- Project Data tab: read-only canonical dataset (D-25) --}}
+            <div x-show="activeTab==='data'" role="tabpanel">
+                <div class="card card-sm" style="margin-bottom:1.25rem; padding:1.25rem;">
+                    <h2 class="section-heading" style="font-size:.9rem; margin:0 0 .75rem;">Canonical Dataset</h2>
+                    <p style="font-size:.8125rem; color:var(--text-muted); margin-bottom:1rem;">
+                        Read-only view of the merged project data.
+                        @if(!empty($canonicalData['meta']))
+                            Source: <strong>{{ $canonicalData['meta']['data_source'] ?? 'unknown' }}</strong>.
+                            Overall confidence: {{ number_format(($canonicalData['meta']['confidence'] ?? 0) * 100, 0) }}%.
+                        @endif
+                    </p>
+
+                    {{-- Equipment --}}
+                    @if(!empty($canonicalData['equipment']))
+                        <h3 style="font-size:.8125rem; font-weight:600; margin:1rem 0 .5rem;">Equipment ({{ count($canonicalData['equipment']) }})</h3>
+                        <table class="data-table" style="font-size:.8125rem; margin-bottom:1.25rem;">
+                            <thead><tr><th>Name</th><th>Qty</th><th>Area</th><th>Source</th><th>Confidence</th></tr></thead>
+                            <tbody>
+                            @foreach($canonicalData['equipment'] as $item)
+                                <tr>
+                                    <td>{{ $item['name'] ?? '—' }}</td>
+                                    <td>{{ $item['quantity'] ?? '—' }}</td>
+                                    <td>{{ $item['area'] ?? '—' }}</td>
+                                    <td title="Source: {{ ucfirst(str_replace('_', ' ', $item['data_source'] ?? '')) }}">{{ $item['data_source'] ?? '—' }}</td>
+                                    <td @if(($item['confidence'] ?? 1) < 0.7) style="color:var(--danger); font-weight:600;" @endif>
+                                        {{ number_format(($item['confidence'] ?? 1) * 100, 0) }}%
+                                    </td>
+                                </tr>
+                            @endforeach
+                            </tbody>
+                        </table>
+                    @else
+                        <p style="color:var(--text-muted); font-size:.8125rem;">No equipment data available.</p>
+                    @endif
+
+                    {{-- Rooms --}}
+                    @if(!empty($canonicalData['rooms']))
+                        <h3 style="font-size:.8125rem; font-weight:600; margin:1rem 0 .5rem;">Rooms ({{ count($canonicalData['rooms']) }})</h3>
+                        <table class="data-table" style="font-size:.8125rem; margin-bottom:1.25rem;">
+                            <thead><tr><th>Name</th><th>Source</th><th>Confidence</th></tr></thead>
+                            <tbody>
+                            @foreach($canonicalData['rooms'] as $room)
+                                <tr>
+                                    <td>{{ $room['name'] ?? '—' }}</td>
+                                    <td title="Source: {{ ucfirst(str_replace('_', ' ', $room['data_source'] ?? '')) }}">{{ $room['data_source'] ?? '—' }}</td>
+                                    <td @if(($room['confidence'] ?? 1) < 0.7) style="color:var(--danger); font-weight:600;" @endif>
+                                        {{ number_format(($room['confidence'] ?? 1) * 100, 0) }}%
+                                    </td>
+                                </tr>
+                            @endforeach
+                            </tbody>
+                        </table>
+                    @endif
+
+                    <p style="font-size:.75rem; color:var(--text-faint);">
+                        Low confidence threshold: &lt;70%. Fields highlighted in red need review.
+                    </p>
+                </div>
+            </div>{{-- end Project Data tab panel --}}
+
+        </div>{{-- end x-data tab wrapper --}}
 
         {{-- ── RAMS Documents ──────────────────────────────────────────────── --}}
         <div class="card card-sm" style="margin-bottom:1.25rem; padding:0; overflow:hidden;">

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Core\Modules\Projects\ProjectDataService;
 use App\Core\Modules\Projects\ProjectService;
 use App\Models\Project;
 use Illuminate\Http\RedirectResponse;
@@ -11,7 +12,10 @@ use Illuminate\View\View;
 
 class ProjectController extends Controller
 {
-    public function __construct(private readonly ProjectService $service) {}
+    public function __construct(
+        private readonly ProjectService     $service,
+        private readonly ProjectDataService $projectDataService,
+    ) {}
 
     // ── index ─────────────────────────────────────────────────────────────────
 
@@ -157,7 +161,9 @@ class ProjectController extends Controller
             ],
         ];
 
-        return view('projects.show', compact('project', 'nextStatus', 'linkedRecords'));
+        $canonicalData = $this->projectDataService->resolve($project);
+
+        return view('projects.show', compact('project', 'nextStatus', 'linkedRecords', 'canonicalData'));
     }
 
     // ── edit / update ─────────────────────────────────────────────────────────
