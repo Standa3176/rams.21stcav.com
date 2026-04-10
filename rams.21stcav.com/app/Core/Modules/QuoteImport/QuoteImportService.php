@@ -84,6 +84,19 @@ class QuoteImportService
 
             // 3. Persist everything in a transaction
             return DB::transaction(function () use ($user, $file, $storagePath, $extracted, $project, $createProject) {
+                // ── Auto-create: find or create project for this client+site (D-02) ──
+                if ($project === null) {
+                    $clientName  = $extracted['client_name']  ?? null;
+                    $siteAddress = $extracted['site_address'] ?? null;
+
+                    if ($clientName && $siteAddress) {
+                        $project = Project::whereRaw('LOWER(client_name) = ?', [strtolower($clientName)])
+                            ->whereRaw('LOWER(site_address) = ?', [strtolower($siteAddress)])
+                            ->whereNull('deleted_at')
+                            ->first();
+                    }
+                }
+
                 // Optionally create a Project from extracted data
                 if ($project === null && $createProject) {
                     $project = $this->projectService->create($user, [
@@ -215,7 +228,7 @@ class QuoteImportService
         ProjectPackage $package,
         array          $overrides = [],
     ): ProjectPackage {
-        return DB::transaction(function () use ($user, $package, $overrides) {
+        $confirmed = DB::transaction(function () use ($user, $package, $overrides) {
             $package->update(['status' => ProjectPackage::STATUS_REVIEWED]);
 
             // Propagate any user-corrected fields back to the project
@@ -235,6 +248,27 @@ class QuoteImportService
 
             return $package->fresh();
         });
+
+        // ── Auto-advance: quote confirmed → survey_pending (D-18, Hook 1) ──
+        $linkedProject = $confirmed->project;
+        if ($linkedProject?->canTransitionTo(Project::STATUS_SURVEY_PENDING)) {
+            try {
+                $this->projectService->transition(
+                    $linkedProject,
+                    Project::STATUS_SURVEY_PENDING,
+                    $user
+                );
+            } catch (\InvalidArgumentException) {
+                Log::warning('QuoteImportService: auto-advance to survey_pending skipped', [
+                    'project_id'  => $linkedProject->id,
+                    'from_status' => $linkedProject->status,
+                ]);
+            }
+        }
+
+        // ── Hook 3 (all docs → handover) deferred to Phase 4 ──
+
+        return $confirmed;
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

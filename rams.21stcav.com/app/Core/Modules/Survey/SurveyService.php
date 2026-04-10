@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\ProjectContextResolver;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -204,6 +205,23 @@ class SurveyService
             $project = Project::find($survey->project_id);
             if ($project) {
                 $this->projects->logDocument($project, $user, 'site-survey', $survey->id, 'completed');
+
+                // ── Auto-advance: survey submitted → engineering (D-18, Hook 2) ──
+                if ($project->canTransitionTo(Project::STATUS_ENGINEERING)) {
+                    try {
+                        $this->projects->transition(
+                            $project,
+                            Project::STATUS_ENGINEERING,
+                            $user
+                        );
+                    } catch (\InvalidArgumentException) {
+                        Log::warning('SurveyService: auto-advance to engineering skipped', [
+                            'project_id'  => $project->id,
+                            'survey_id'   => $survey->id,
+                            'from_status' => $project->status,
+                        ]);
+                    }
+                }
             }
         }
 
@@ -283,6 +301,23 @@ class SurveyService
                         'description' => "Site survey #{$survey->id} submitted by engineer via public link.",
                         'metadata'    => ['survey_id' => $survey->id],
                     ]);
+
+                    // ── Auto-advance: survey submitted → engineering (D-18, Hook 2) ──
+                    if ($project->canTransitionTo(Project::STATUS_ENGINEERING)) {
+                        try {
+                            $this->projects->transition(
+                                $project,
+                                Project::STATUS_ENGINEERING,
+                                auth()->user() ?? User::find($project->user_id)
+                            );
+                        } catch (\InvalidArgumentException) {
+                            Log::warning('SurveyService: auto-advance to engineering skipped (public submit)', [
+                                'project_id'  => $project->id,
+                                'survey_id'   => $survey->id,
+                                'from_status' => $project->status,
+                            ]);
+                        }
+                    }
                 }
             }
 
