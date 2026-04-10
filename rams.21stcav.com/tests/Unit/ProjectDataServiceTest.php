@@ -6,9 +6,7 @@ namespace Tests\Unit;
 
 use App\Core\Modules\Projects\ProjectDataService;
 use App\Models\Project;
-use App\Models\SiteSurvey;
 use Illuminate\Support\Facades\DB;
-use Mockery;
 use Tests\TestCase;
 
 /**
@@ -16,6 +14,8 @@ use Tests\TestCase;
  *
  * Covers the full merge priority chain (DATA-05), per-field annotation (DATA-04),
  * read-only guarantee (T-03-04), and graceful degradation when data is absent.
+ *
+ * Uses anonymous class stubs for Project to avoid Eloquent model attribute machinery.
  *
  * @see DATA-01, DATA-02, DATA-04, DATA-05
  */
@@ -29,12 +29,6 @@ class ProjectDataServiceTest extends TestCase
         $this->service = new ProjectDataService();
     }
 
-    protected function tearDown(): void
-    {
-        Mockery::close();
-        parent::tearDown();
-    }
-
     // ─────────────────────────────────────────────────────────────────────────
     // 1. Canonical key shape
     // ─────────────────────────────────────────────────────────────────────────
@@ -45,19 +39,7 @@ class ProjectDataServiceTest extends TestCase
      */
     public function test_resolve_returns_canonical_keys(): void
     {
-        $project = Mockery::mock(Project::class);
-        $project->shouldReceive('relationLoaded')->with('latestPackage')->andReturn(true);
-        $project->latestPackage = null;
-        $project->shouldReceive('relationLoaded')->with('siteSurveys')->andReturn(true);
-        $project->siteSurveys = collect([]);
-        $project->shouldReceive('getAttribute')->with('id')->andReturn(1);
-        $project->shouldReceive('getAttribute')->with('name')->andReturn('Test Project');
-        $project->shouldReceive('getAttribute')->with('client_name')->andReturn('Test Client');
-        $project->shouldReceive('getAttribute')->with('site_address')->andReturn('123 Test St');
-        $project->shouldReceive('getAttribute')->with('quote_reference')->andReturn(null);
-        $project->shouldReceive('getAttribute')->with('ref')->andReturn('QW-001');
-        $project->shouldReceive('getAttribute')->with('status')->andReturn('quote_imported');
-        $project->shouldReceive('getAttribute')->with('created_at')->andReturn(null);
+        $project = $this->makeProjectStub(latestPackage: null, surveys: []);
 
         $result = $this->service->resolve($project);
 
@@ -94,8 +76,8 @@ class ProjectDataServiceTest extends TestCase
      */
     public function test_resolve_uses_reviewed_data_over_extracted(): void
     {
-        $package = new \stdClass();
-        $package->reviewed_data = [
+        $package                 = new \stdClass();
+        $package->reviewed_data  = [
             'equipment' => [
                 ['name' => 'Sony Display', 'quantity' => 2, 'area' => 'Boardroom'],
             ],
@@ -106,7 +88,7 @@ class ProjectDataServiceTest extends TestCase
             ],
         ];
 
-        $project = $this->makeProjectMockWithPackage($package);
+        $project = $this->makeProjectStub(latestPackage: $package, surveys: []);
 
         $result = $this->service->resolve($project);
 
@@ -128,7 +110,7 @@ class ProjectDataServiceTest extends TestCase
      */
     public function test_resolve_falls_back_to_extracted_data(): void
     {
-        $package = new \stdClass();
+        $package                 = new \stdClass();
         $package->reviewed_data  = null;
         $package->extracted_data = [
             'equipment' => [
@@ -136,7 +118,7 @@ class ProjectDataServiceTest extends TestCase
             ],
         ];
 
-        $project = $this->makeProjectMockWithPackage($package);
+        $project = $this->makeProjectStub(latestPackage: $package, surveys: []);
 
         $result = $this->service->resolve($project);
 
@@ -155,7 +137,7 @@ class ProjectDataServiceTest extends TestCase
      */
     public function test_resolve_equipment_items_have_annotation(): void
     {
-        $package = new \stdClass();
+        $package                 = new \stdClass();
         $package->reviewed_data  = null;
         $package->extracted_data = [
             'equipment' => [
@@ -164,7 +146,7 @@ class ProjectDataServiceTest extends TestCase
             ],
         ];
 
-        $project = $this->makeProjectMockWithPackage($package);
+        $project = $this->makeProjectStub(latestPackage: $package, surveys: []);
 
         $result = $this->service->resolve($project);
 
@@ -183,24 +165,11 @@ class ProjectDataServiceTest extends TestCase
      */
     public function test_resolve_never_throws_without_package(): void
     {
-        $project = Mockery::mock(Project::class);
-        $project->shouldReceive('relationLoaded')->with('latestPackage')->andReturn(true);
-        $project->latestPackage = null;
-        $project->shouldReceive('relationLoaded')->with('siteSurveys')->andReturn(true);
-        $project->siteSurveys = collect([]);
-        $project->shouldReceive('getAttribute')->with('id')->andReturn(99);
-        $project->shouldReceive('getAttribute')->with('name')->andReturn('No Package Project');
-        $project->shouldReceive('getAttribute')->with('client_name')->andReturn('');
-        $project->shouldReceive('getAttribute')->with('site_address')->andReturn('');
-        $project->shouldReceive('getAttribute')->with('quote_reference')->andReturn(null);
-        $project->shouldReceive('getAttribute')->with('ref')->andReturn(null);
-        $project->shouldReceive('getAttribute')->with('status')->andReturn('quote_imported');
-        $project->shouldReceive('getAttribute')->with('created_at')->andReturn(null);
+        $project = $this->makeProjectStub(latestPackage: null, surveys: []);
 
-        // Must not throw
-        $this->expectNotToPerformAssertions();
         try {
-            $this->service->resolve($project);
+            $result = $this->service->resolve($project);
+            $this->assertIsArray($result);
         } catch (\Throwable $e) {
             $this->fail('resolve() threw an exception when no package present: ' . $e->getMessage());
         }
@@ -216,11 +185,11 @@ class ProjectDataServiceTest extends TestCase
      */
     public function test_resolve_never_writes_to_database(): void
     {
-        $package = new \stdClass();
+        $package                 = new \stdClass();
         $package->reviewed_data  = null;
         $package->extracted_data = ['equipment' => []];
 
-        $project = $this->makeProjectMockWithPackage($package);
+        $project = $this->makeProjectStub(latestPackage: $package, surveys: []);
 
         DB::flushQueryLog();
         DB::enableQueryLog();
@@ -250,10 +219,10 @@ class ProjectDataServiceTest extends TestCase
      */
     public function test_is_low_confidence_threshold(): void
     {
-        $this->assertTrue($this->service->isLowConfidence(0.69), '0.69 should be low confidence');
-        $this->assertFalse($this->service->isLowConfidence(0.70), '0.70 should NOT be low confidence');
-        $this->assertTrue($this->service->isLowConfidence(0.0),  '0.0 should be low confidence');
-        $this->assertFalse($this->service->isLowConfidence(1.0),  '1.0 should NOT be low confidence');
+        $this->assertTrue($this->service->isLowConfidence(0.69),  '0.69 should be low confidence');
+        $this->assertFalse($this->service->isLowConfidence(0.70),  '0.70 should NOT be low confidence');
+        $this->assertTrue($this->service->isLowConfidence(0.0),   '0.0 should be low confidence');
+        $this->assertFalse($this->service->isLowConfidence(1.0),   '1.0 should NOT be low confidence');
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -266,30 +235,17 @@ class ProjectDataServiceTest extends TestCase
      */
     public function test_resolve_meta_has_survey_flag(): void
     {
-        $package = new \stdClass();
+        $package                 = new \stdClass();
         $package->reviewed_data  = null;
         $package->extracted_data = [];
 
-        $survey           = new \stdClass();
-        $survey->status   = 'completed';
-        $survey->room_data = [];
+        $survey              = new \stdClass();
+        $survey->status      = 'completed';
+        $survey->room_data   = [];
         $survey->completed_at = null;
         $survey->updated_at   = null;
 
-        $project = Mockery::mock(Project::class);
-        $project->shouldReceive('relationLoaded')->with('latestPackage')->andReturn(true);
-        $project->latestPackage = $package;
-        $project->shouldReceive('relationLoaded')->with('siteSurveys')->andReturn(true);
-        // Return a collection with one completed survey
-        $project->siteSurveys = collect([$survey]);
-        $project->shouldReceive('getAttribute')->with('id')->andReturn(5);
-        $project->shouldReceive('getAttribute')->with('name')->andReturn('Survey Project');
-        $project->shouldReceive('getAttribute')->with('client_name')->andReturn('Client');
-        $project->shouldReceive('getAttribute')->with('site_address')->andReturn('Site');
-        $project->shouldReceive('getAttribute')->with('quote_reference')->andReturn(null);
-        $project->shouldReceive('getAttribute')->with('ref')->andReturn('QW-005');
-        $project->shouldReceive('getAttribute')->with('status')->andReturn('engineering');
-        $project->shouldReceive('getAttribute')->with('created_at')->andReturn(null);
+        $project = $this->makeProjectStub(latestPackage: $package, surveys: [$survey]);
 
         $result = $this->service->resolve($project);
 
@@ -302,24 +258,46 @@ class ProjectDataServiceTest extends TestCase
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * Create a Project mock pre-configured with a given package and no survey.
+     * Build a Project stub that pre-loads its latestPackage and siteSurveys
+     * relations in-memory, so ProjectDataService never hits the DB.
+     *
+     * Returns an anonymous class that extends Project but overrides
+     * relationLoaded() and the relevant relation properties.
+     *
+     * @param  object|null $latestPackage  Package stub (stdClass) or null.
+     * @param  array       $surveys        Array of survey stubs (stdClass).
      */
-    private function makeProjectMockWithPackage(object $package): object
+    private function makeProjectStub(?object $latestPackage, array $surveys): Project
     {
-        $project = Mockery::mock(Project::class);
-        $project->shouldReceive('relationLoaded')->with('latestPackage')->andReturn(true);
-        $project->latestPackage = $package;
-        $project->shouldReceive('relationLoaded')->with('siteSurveys')->andReturn(true);
-        $project->siteSurveys = collect([]);
-        $project->shouldReceive('getAttribute')->with('id')->andReturn(1);
-        $project->shouldReceive('getAttribute')->with('name')->andReturn('Test Project');
-        $project->shouldReceive('getAttribute')->with('client_name')->andReturn('Test Client');
-        $project->shouldReceive('getAttribute')->with('site_address')->andReturn('123 Test St');
-        $project->shouldReceive('getAttribute')->with('quote_reference')->andReturn(null);
-        $project->shouldReceive('getAttribute')->with('ref')->andReturn('QW-001');
-        $project->shouldReceive('getAttribute')->with('status')->andReturn('quote_imported');
-        $project->shouldReceive('getAttribute')->with('created_at')->andReturn(null);
+        return new class($latestPackage, $surveys) extends Project {
+            public function __construct(
+                private readonly ?object $packageStub,
+                private readonly array $surveyStubs,
+            ) {
+                // Skip Eloquent parent constructor to avoid DB/config dependency.
+            }
 
-        return $project;
+            public function relationLoaded($relation): bool
+            {
+                return in_array($relation, ['latestPackage', 'siteSurveys'], true);
+            }
+
+            public function __get($key)
+            {
+                return match ($key) {
+                    'latestPackage' => $this->packageStub,
+                    'siteSurveys'   => collect($this->surveyStubs),
+                    'id'            => 1,
+                    'name'          => 'Test Project',
+                    'client_name'   => 'Test Client',
+                    'site_address'  => '123 Test St',
+                    'quote_reference' => null,
+                    'ref'           => 'QW-001',
+                    'status'        => 'quote_imported',
+                    'created_at'    => null,
+                    default         => null,
+                };
+            }
+        };
     }
 }

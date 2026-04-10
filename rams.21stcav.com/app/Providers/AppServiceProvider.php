@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Core\Modules\Projects\ProjectDataService;
 use App\Models\OmManual;
 use App\Models\RamsDocument;
 use App\Policies\OmManualPolicy;
@@ -30,6 +31,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(PdfTextExtractorService::class, function () {
             return new PdfTextExtractorService(app(Parser::class), new PdfOcrExtractorService());
         });
+
+        $this->app->singleton(ProjectDataService::class);
     }
 
     /**
