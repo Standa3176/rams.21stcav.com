@@ -52,7 +52,7 @@ Plans:
 **Plans**: 3 plans
 Plans:
 - [x] 02-01-PLAN.md — Named DB connection config, .env.example, quotewerks:ping and quotewerks:schema commands
-- [ ] 02-02-PLAN.md — QuoteWerksRepository (TDD) + QuoteWerksImportService (TDD): SQL query layer and extracted_data mapping
+- [x] 02-02-PLAN.md — QuoteWerksRepository (TDD) + QuoteWerksImportService (TDD): SQL query layer and extracted_data mapping
 - [ ] 02-03-PLAN.md — QuoteWerksImportController, QuoteWerksLookupRequest, dual-tab import UI
 
 ### Phase 3: Survey Data Integration
