@@ -48,6 +48,20 @@ class Project extends Model
         self::STATUS_ARCHIVED       => [], // reopen handled separately
     ];
 
+    /**
+     * Valid backward transitions from each status (per D-20).
+     * Any authenticated user may revert a project to a previous lifecycle stage.
+     * Archiving is handled separately via archive()/reopen() methods.
+     */
+    const TRANSITIONS_BACKWARD = [
+        self::STATUS_SURVEY_PENDING => [self::STATUS_QUOTE_IMPORTED],
+        self::STATUS_ENGINEERING    => [self::STATUS_SURVEY_PENDING],
+        self::STATUS_INSTALLING     => [self::STATUS_ENGINEERING],
+        self::STATUS_COMMISSIONING  => [self::STATUS_INSTALLING],
+        self::STATUS_HANDOVER       => [self::STATUS_COMMISSIONING],
+        self::STATUS_COMPLETED      => [self::STATUS_HANDOVER],
+    ];
+
     // ── Display labels & colours ──────────────────────────────────────────────
 
     const STATUS_LABELS = [
@@ -78,6 +92,7 @@ class Project extends Model
         'user_id',
         'name',
         'ref',
+        'quote_reference',
         'client_name',
         'site_address',
         'works_description',
@@ -180,6 +195,15 @@ class Project extends Model
         ]);
     }
 
+    /**
+     * Exclude archived projects from the query (default scope for index views).
+     * Archived projects are only visible via explicit ?status=archived filter.
+     */
+    public function scopeNotArchived($query)
+    {
+        return $query->where('status', '!=', self::STATUS_ARCHIVED);
+    }
+
     public function scopeForUser($query, int $userId)
     {
         return $query->where('user_id', $userId);
@@ -194,11 +218,23 @@ class Project extends Model
 
     public function canTransitionTo(string $status): bool
     {
+        // Archiving is always available from any non-archived status.
         if ($status === self::STATUS_ARCHIVED) {
             return $this->status !== self::STATUS_ARCHIVED;
         }
 
-        return in_array($status, self::TRANSITIONS[$this->status] ?? []);
+        // Archived projects cannot transition anywhere (use reopen() instead).
+        if ($this->status === self::STATUS_ARCHIVED) {
+            return false;
+        }
+
+        // Check forward transitions.
+        if (in_array($status, self::TRANSITIONS[$this->status] ?? [])) {
+            return true;
+        }
+
+        // Check backward transitions (per D-20 — any user may revert lifecycle stage).
+        return in_array($status, self::TRANSITIONS_BACKWARD[$this->status] ?? []);
     }
 
     public function nextStatus(): ?string
