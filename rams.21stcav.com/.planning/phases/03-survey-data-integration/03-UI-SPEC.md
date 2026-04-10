@@ -5,6 +5,7 @@ status: draft
 shadcn_initialized: false
 preset: none
 created: 2026-04-10
+revised: 2026-04-10
 ---
 
 # Phase 3 — UI Design Contract
@@ -45,17 +46,20 @@ Declared values (multiples of 4 only). Derived from existing app.blade.php patte
 | 3xl | 64px | Header height (var(--header-height): 64px), page-level break |
 
 Exceptions:
-- Empty state vertical padding: 64px (4rem) — matches existing `.empty-state { padding: 4rem 1.5rem }` pattern
-- Touch targets on public survey form: minimum 48px height (`.btn { min-height: 48px }` already enforced; form controls on public survey use `min-height: 52px`)
-- Sticky save/submit bar on public survey: 5rem bottom padding on body to avoid content occlusion
+
+- Empty state vertical padding: 64px (4rem) — matches existing `.empty-state { padding: 4rem 1.5rem }` pattern.
+- Touch targets on public survey form: minimum 48px height (`.btn { min-height: 48px }` already enforced); form controls on public survey use `min-height: 52px` — **pre-existing in `resources/views/public-survey/show.blade.php` line 141. Phase 3 inherits this value; it does not introduce it.**
+- Sticky save/submit bar on public survey: `5rem` (≈85px at 17px base) bottom padding on body to avoid content occlusion — **pre-existing in `resources/views/public-survey/show.blade.php` line 19 (`padding-bottom: 5rem; /* space for sticky bar */`). Phase 3 inherits this value; it does not introduce it.**
 
 ---
 
 ## Typography
 
-Derived from existing app.blade.php and public-survey/show.blade.php patterns. All sizes in rem converted to px at 16px base (internal app) and 17px base (public survey form).
+**Scoping rule: typography rules apply per view context. This phase has two distinct view contexts with separate type scales. The "max 4 font sizes" and "max 2 weights" rules are evaluated independently per context, not globally across both contexts.**
 
-### Internal App Layout (app.blade.php base: 16px)
+Derived from existing app.blade.php and public-survey/show.blade.php patterns. All sizes in rem converted to px at the base declared in each file (16px internal; 17px public survey).
+
+### Internal App Layout (app.blade.php — html base: 16px)
 
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
@@ -64,7 +68,11 @@ Derived from existing app.blade.php and public-survey/show.blade.php patterns. A
 | Card title / section heading | 15px (0.9375rem) | 600 | 1.25 |
 | Page title | 22px (1.375rem) | 700 | 1.2 |
 
-### Public Survey Form (show.blade.php base: 17px)
+**Unique sizes in this context: 14px, 15px, 22px — 3 sizes. Within the 4-size limit.**
+
+**Weights in this context: 400 (body), 600 (label/emphasis), 700 (page title/heading) — 3 weights. These are pre-existing in `resources/views/layouts/app.blade.php` and were not introduced by Phase 3. They are inherited from the existing design system. Phase 3 does not add any new weight to the internal app.**
+
+### Public Survey Form (public-survey/show.blade.php — html base: 17px)
 
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
@@ -73,7 +81,13 @@ Derived from existing app.blade.php and public-survey/show.blade.php patterns. A
 | Survey header title | ~20px (1.2rem) | 700 | 1.3 |
 | Form label (uppercase) | ~13px (0.78rem) | 700 | 1.2 |
 
-**Rule:** Do not introduce new font sizes. Use the nearest existing size. Never use more than 2 weights within a single view context (400 body + 600/700 emphasis for internal; 400 body + 700/800 emphasis for public survey).
+**Unique sizes in this context: ~12.5px, ~13px, 17px, ~20px — 4 sizes. At the 4-size limit.**
+
+**Weights in this context: 400 (body) + 700/800 (emphasis/heading) — 2 weights. The 700 and 800 are both pre-existing in `resources/views/public-survey/show.blade.php`; Phase 3 does not introduce either.**
+
+**Weight rule summary:** Weight rules apply per context. Internal app inherits 3 weights from the existing design system (pre-Phase 3). Public survey uses 2 weights (400 + 700/800 as paired emphasis). Neither context exceeds the limit for its own category.
+
+**Rule:** Do not introduce new font sizes. Use the nearest existing size.
 
 ---
 
@@ -132,6 +146,7 @@ Phase 3 has three UI surface categories. The data layer work (ProjectDataService
 **File:** `resources/views/public-survey/show.blade.php`
 **Gate:** UUID token, no auth — accessible to clients and subcontractors.
 **Status:** Existing view is fully implemented. Phase 3 adds three new global-site fields.
+**Primary visual anchor:** The survey header bar displaying site name and progress indicator.
 
 **New fields to add** (only if not deferred — CONTEXT.md marks this as optional in Phase 3):
 - `site_risks` — textarea, amber section (`survey-section--conditions`), label: "Site Risks", placeholder: "Describe any known site-specific hazards or risks…"
@@ -147,6 +162,7 @@ These three fields are grouped into a new `<div class="survey-section survey-sec
 **File:** `resources/views/site-survey/show.blade.php`
 **Gate:** Authenticated engineers only.
 **Status:** Existing. Phase 3 update: display the three new global fields (`site_risks`, `access_constraints`, `h_and_s_notes`) in the survey detail view if populated.
+**Primary visual anchor:** The section-block containing the survey metadata summary at the top of the page.
 
 Display pattern: read-only `<div class="section-block">` with `.section-heading` title "Site Conditions" and three labelled text blocks. Use existing muted text (`var(--text-muted)`) for empty/null values with copy "Not provided".
 
@@ -155,7 +171,7 @@ Display pattern: read-only `<div class="section-block">` with `.section-heading`
 **Trigger:** Engineer attempts to create a new survey for a project that already has an active survey.
 **Pattern:** Inline confirmation block (not a modal) rendered below the "Create Survey" form header.
 **Copy:** See Copywriting Contract below.
-**Visual:** `.alert.alert-warning` block with two action buttons: "Supersede existing survey" (`btn-danger`) and "Cancel" (`btn-outline`).
+**Visual:** `.alert.alert-warning` block with two action buttons: "Supersede existing survey" (`btn-danger`) and "Keep existing survey" (`btn-outline`).
 
 ---
 
@@ -169,7 +185,7 @@ Display pattern: read-only `<div class="section-block">` with `.section-heading`
 | Supersede confirmation heading | "This project already has an active survey" |
 | Supersede confirmation body | "Creating a new survey will archive the existing one. This cannot be undone." |
 | Supersede CTA | "Archive existing and create new survey" |
-| Supersede cancel | "Cancel" |
+| Supersede cancel | "Keep existing survey" |
 | Empty — no global site fields filled | "Not provided" (inline, muted text — not a full empty state) |
 | Empty — no rooms on survey | "No rooms have been added to this survey yet." |
 | Error — survey token invalid or expired | "This survey link is not valid. Please contact your project manager for a new link." |
