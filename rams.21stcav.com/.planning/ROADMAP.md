@@ -49,7 +49,11 @@ Plans:
   2. User can look up a quote by reference number and import it — the resulting `extracted_data` structure is byte-for-byte compatible with a PDF import of the same quote
   3. User can choose between PDF upload and SQL quote reference lookup on the import screen — both paths land in the same review workflow
   4. QuoteWerks SQL credentials are never exposed in the frontend or application logs
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 02-01-PLAN.md — Named DB connection config, .env.example, quotewerks:ping and quotewerks:schema commands
+- [ ] 02-02-PLAN.md — QuoteWerksRepository (TDD) + QuoteWerksImportService (TDD): SQL query layer and extracted_data mapping
+- [ ] 02-03-PLAN.md — QuoteWerksImportController, QuoteWerksLookupRequest, dual-tab import UI
 
 ### Phase 3: Survey Data Integration
 **Goal**: Survey data captured by engineers, clients, or subcontractors is fully wired into `ProjectDataService` and available to all document generators without any generator needing to query the survey tables directly
@@ -95,8 +99,8 @@ Note: Phase 2 (QuoteWerks SQL) has no dependency on Phase 3 (Survey Integration)
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Project Layer & Data Foundation | 4/6 | Executing (gap closure) | - |
-| 2. QuoteWerks SQL Import | 0/TBD | Not started | - |
+| 1. Project Layer & Data Foundation | 6/6 | Complete | 2026-04-10 |
+| 2. QuoteWerks SQL Import | 0/3 | Not started | - |
 | 3. Survey Data Integration | 0/TBD | Not started | - |
 | 4. New Document Generators | 0/TBD | Not started | - |
 | 5. RAMS Pipeline Migration | 0/TBD | Not started | - |
