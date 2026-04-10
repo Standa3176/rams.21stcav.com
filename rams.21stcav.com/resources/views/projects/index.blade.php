@@ -56,11 +56,21 @@
         @endforeach
     </div>
 
-    {{-- Search --}}
+    {{-- Search + client filter --}}
     <form method="GET" action="{{ route('projects.index') }}" class="proj-search-form">
         @if($status)
             <input type="hidden" name="status" value="{{ $status }}">
         @endif
+        <select name="client"
+                aria-label="Filter by client"
+                class="form-control"
+                style="width:200px; font-size:.875rem;"
+                onchange="this.form.submit()">
+            <option value="">All clients</option>
+            @foreach($clients as $name)
+                <option value="{{ $name }}" {{ $client === $name ? 'selected' : '' }}>{{ $name }}</option>
+            @endforeach
+        </select>
         <div class="proj-search-input-wrap">
             <svg class="proj-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
                  stroke="currentColor" stroke-width="2" stroke-linecap="round"
@@ -74,7 +84,7 @@
                    class="proj-search-input">
         </div>
         <button type="submit" class="btn btn-outline btn-sm">Search</button>
-        @if($search)
+        @if($search || $client)
             <a href="{{ route('projects.index', $status ? ['status' => $status] : []) }}"
                class="btn btn-ghost btn-sm">Clear</a>
         @endif

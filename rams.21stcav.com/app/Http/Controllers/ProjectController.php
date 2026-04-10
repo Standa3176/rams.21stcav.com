@@ -21,11 +21,13 @@ class ProjectController extends Controller
         $showDeleted = $isAdmin && $request->boolean('show_deleted');
         $status      = $request->query('status');
         $search      = $request->query('search');
+        $client      = $request->input('client');
 
         if ($showDeleted) {
             $projects     = Project::onlyTrashed()->with(['user'])->latest('deleted_at')->paginate(20)->withQueryString();
             $statusCounts = collect();
-            return view('projects.index', compact('projects', 'statusCounts', 'status', 'search', 'isAdmin', 'showDeleted'));
+            $clients      = collect();
+            return view('projects.index', compact('projects', 'statusCounts', 'status', 'search', 'isAdmin', 'showDeleted', 'clients', 'client'));
         }
 
         $query = Project::with('latestPackage')
@@ -35,6 +37,8 @@ class ProjectController extends Controller
         if ($status) {
             $query->byStatus($status);
         }
+
+        $query->when($client, fn ($q) => $q->where('client_name', $client));
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -51,7 +55,14 @@ class ProjectController extends Controller
             ->groupBy('status')
             ->pluck('total', 'status');
 
-        return view('projects.index', compact('projects', 'statusCounts', 'status', 'search', 'isAdmin', 'showDeleted'));
+        $clients = Project::query()
+            ->whereNull('deleted_at')
+            ->distinct()
+            ->orderBy('client_name')
+            ->pluck('client_name')
+            ->filter();
+
+        return view('projects.index', compact('projects', 'statusCounts', 'status', 'search', 'isAdmin', 'showDeleted', 'clients', 'client'));
     }
 
     // ── create / store ────────────────────────────────────────────────────────
@@ -91,18 +102,62 @@ class ProjectController extends Controller
 
         // Eager-load all related data to prevent N+1 queries on the show page.
         $project->load([
-            'projectQuotes.uploadedBy',   // quote history panel
-            'ramsDocuments',              // RAMS documents panel
+            'projectQuotes.uploadedBy',                          // quote history panel
+            'ramsDocuments'  => fn ($q) => $q->latest()->limit(5),
             'latestPackage',
             'activityLog.user',
-            'omManuals',
-            'siteSurveys',
-            'cableSchedules',
+            'omManuals'      => fn ($q) => $q->latest()->limit(5),
+            'siteSurveys'    => fn ($q) => $q->latest()->limit(5),
+            'cableSchedules' => fn ($q) => $q->latest()->limit(5),
         ]);
 
         $nextStatus = $project->nextStatus();
 
-        return view('projects.show', compact('project', 'nextStatus'));
+        // Build linked records summary for the Linked Records card.
+        $linkedRecords = [
+            [
+                'type'               => 'RAMS',
+                'badge_class'        => 'badge-teal',
+                'records'            => $project->ramsDocuments,
+                'route_name'         => 'rams.review',
+                'empty_action_label' => 'Upload Quote for RAMS',
+                'empty_action_route' => route('rams.upload.create', ['project_id' => $project->id]),
+            ],
+            [
+                'type'               => 'Survey',
+                'badge_class'        => 'badge-grey',
+                'records'            => $project->siteSurveys,
+                'route_name'         => 'site-surveys.show',
+                'empty_action_label' => 'Start Survey',
+                'empty_action_route' => route('site-surveys.from-project', $project),
+            ],
+            [
+                'type'               => 'Worksheet',
+                'badge_class'        => 'badge-grey',
+                'records'            => collect(),   // Phase 4 — placeholder
+                'route_name'         => null,
+                'empty_action_label' => null,        // No action until Phase 4
+                'empty_action_route' => null,
+            ],
+            [
+                'type'               => 'O&M',
+                'badge_class'        => 'badge-green',
+                'records'            => $project->omManuals,
+                'route_name'         => 'om-manuals.edit',
+                'empty_action_label' => 'Generate O&M',
+                'empty_action_route' => route('om-manuals.generate-from-project', $project),
+            ],
+            [
+                'type'               => 'Cable Schedule',
+                'badge_class'        => 'badge-grey',
+                'records'            => $project->cableSchedules,
+                'route_name'         => 'cable-schedules.edit',
+                'empty_action_label' => 'Create Cable Schedule',
+                'empty_action_route' => route('cable-schedules.create', ['project_id' => $project->id]),
+            ],
+        ];
+
+        return view('projects.show', compact('project', 'nextStatus', 'linkedRecords'));
     }
 
     // ── edit / update ─────────────────────────────────────────────────────────
