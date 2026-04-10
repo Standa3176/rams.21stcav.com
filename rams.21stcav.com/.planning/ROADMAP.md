@@ -23,7 +23,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 ### Phase 1: Project Layer & Data Foundation
 **Goal**: Engineers can create and manage projects as top-level entities, and `ProjectDataService` exists with a defined canonical contract ready for all generators to consume
 **Depends on**: Nothing (first phase)
-**Requirements**: PROJ-01, PROJ-02, PROJ-03, PROJ-04, PROJ-05, DATA-01, DATA-02, DATA-03, DATA-04, DATA-05
+**Requirements**: PROJ-01, PROJ-02, PROJ-03, PROJ-04, PROJ-05, DATA-01, DATA-02, DATA-04, DATA-05
 **Success Criteria** (what must be TRUE):
   1. User can create a project with name, client, site address, and quote reference (with version suffix support)
   2. User can view a project dashboard that lists all linked records (RAMS, surveys, worksheets, O&M, cable schedules) with their status
@@ -64,7 +64,7 @@ Plans:
 ### Phase 4: New Document Generators
 **Goal**: Engineers can generate Worksheets, O&M Manuals, and Cable Schedules from a project — all derived exclusively from structured project and survey data, with no AI-invented content
 **Depends on**: Phase 3
-**Requirements**: WORK-01, WORK-02, WORK-03, WORK-04, OM-01, OM-02, OM-03, OM-04, CABLE-01, CABLE-02, CABLE-03, CABLE-04
+**Requirements**: DATA-03, WORK-01, WORK-02, WORK-03, WORK-04, OM-01, OM-02, OM-03, OM-04, CABLE-01, CABLE-02, CABLE-03, CABLE-04
 **Success Criteria** (what must be TRUE):
   1. User can trigger Worksheet generation and download a DOCX file containing room-by-room install steps, equipment lists, cable routes, and constraints — all traceable to project or survey data
   2. User can trigger O&M Manual generation and download a DOCX file containing equipment schedules, system descriptions, maintenance guidance, and an asset register — only installed systems appear, no generic filler

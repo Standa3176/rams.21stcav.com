@@ -121,7 +121,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PROJ-05 | Phase 1 | Pending |
 | DATA-01 | Phase 1 | Pending |
 | DATA-02 | Phase 1 | Pending |
-| DATA-03 | Phase 1 | Pending |
+| DATA-03 | Phase 4 | Pending |
 | DATA-04 | Phase 1 | Pending |
 | DATA-05 | Phase 1 | Pending |
 | QWSQL-01 | Phase 2 | Pending |

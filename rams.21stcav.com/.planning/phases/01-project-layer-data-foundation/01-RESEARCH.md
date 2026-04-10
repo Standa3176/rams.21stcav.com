@@ -574,21 +574,16 @@ if ($search) {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does `ProjectPackage` have a `reviewed_data` column?**
-   - What we know: `extracted_data`, `equipment_list`, `cable_list` columns confirmed in fillable. `reviewed_data` is referenced heavily on `RamsDocument` model, not on `ProjectPackage`.
-   - What's unclear: Is `reviewed_data` on `ProjectPackage` a separate column, or is the "review" stored on `RamsDocument`? The architecture docs say ProjectDataService reads `package.reviewed_data` but this may not exist yet.
-   - Recommendation: Read the `project_packages` migration file fully before implementing ProjectDataService. If no `reviewed_data` column exists on `project_packages`, the merge priority for package data is simply `extracted_data` (since human review edits go to `RamsDocument.reviewed_data`, not back to the package).
+   - **RESOLVED:** No. The `project_packages` migration (`2026_03_14_000002`) creates: `extracted_data` (json), `equipment_list` (json), `cable_list` (json), `works_description` (text), `notes` (text). No `reviewed_data` column exists. Human review edits are stored on `RamsDocument.reviewed_data`, not on the package. ProjectDataService merge priority for package data is simply `extracted_data`. The `reviewed_data` tier in the merge chain applies only when resolving from `RamsDocument` records, not from `ProjectPackage`.
 
 2. **How does D-25 "Project Data tab" surface on show.blade.php?**
-   - What we know: UI-SPEC says ProjectDataService has no dedicated UI surface for Phase 1 (Surface 4 says "no UI surface" for DATA-01 through DATA-05).
-   - What's unclear: D-25 says merged data visible in a "Project Data" tab on the project page — but UI-SPEC Surface 3 describes only a "Linked Records" card, not a tabs component.
-   - Recommendation: Treat D-25's "Project Data tab" as out of scope for Phase 1 UI — the service exists but the read-only view tab is deferred until generators are wired (Phase 4). The CONTEXT.md UI-SPEC takes precedence over D-25 for Phase 1 UI scope.
+   - **RESOLVED:** Plan 01-04 implements the Project Data tab as an Alpine.js tab strip on show.blade.php. The "Linked Records" card (built in Plan 01-02) is wrapped inside an "Overview" tab, and a "Project Data" tab shows the read-only canonical dataset. This resolves the D-25 vs UI-SPEC tension — both are delivered.
 
 3. **What columns does `project_packages` migration actually create?**
-   - Migration file `2026_03_14_000002_create_project_packages_table.php` was not read.
-   - Recommendation: Executor reads this migration before writing ProjectDataService to confirm whether `reviewed_data` exists as a column.
+   - **RESOLVED:** Confirmed columns: `id`, `user_id`, `project_id`, `ref`, `extracted_data` (json), `equipment_list` (json), `cable_list` (json), `works_description` (text), `notes` (text), `status`, timestamps. No `reviewed_data` column.
 
 ---
 
