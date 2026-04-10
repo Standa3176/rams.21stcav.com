@@ -5,13 +5,38 @@
 @section('content')
 
 <div class="page-header">
-    <h1 class="page-title">Import QuoteWerks PDF</h1>
+    <h1 class="page-title">Import Quote</h1>
     <a href="{{ route('projects.index') }}" class="btn btn-outline btn-sm">← Projects</a>
 </div>
 
 @if (session('error'))
     <div class="alert alert-error">{{ session('error') }}</div>
 @endif
+@if (session('warning'))
+    <div class="alert alert-warning">{{ session('warning') }}</div>
+@endif
+
+{{-- ── Dual-tab: Upload PDF | QuoteWerks Lookup (D-10) ────────────────── --}}
+<div x-data="{ importTab: 'pdf' }" style="max-width:680px;">
+
+    {{-- Tab strip --}}
+    <div style="display:flex; border-bottom:1px solid var(--border); margin-bottom:1.25rem;">
+        <button @click="importTab='pdf'"
+                style="padding:.75rem 1.25rem; border:none; background:none; cursor:pointer; font-size:.9375rem; font-weight:600; border-bottom:2px solid transparent;"
+                :style="importTab==='pdf' ? 'border-bottom-color:var(--teal); color:var(--teal)' : 'color:var(--text-muted)'"
+                role="tab" :aria-selected="importTab==='pdf'">
+            Upload PDF
+        </button>
+        <button @click="importTab='quotewerks'"
+                style="padding:.75rem 1.25rem; border:none; background:none; cursor:pointer; font-size:.9375rem; font-weight:600; border-bottom:2px solid transparent;"
+                :style="importTab==='quotewerks' ? 'border-bottom-color:var(--teal); color:var(--teal)' : 'color:var(--text-muted)'"
+                role="tab" :aria-selected="importTab==='quotewerks'">
+            QuoteWerks Lookup
+        </button>
+    </div>
+
+    {{-- ── PDF Upload Tab ─────────────────────────────────────────────── --}}
+    <div x-show="importTab==='pdf'" role="tabpanel">
 
 <div class="card" style="max-width:680px;">
     <form method="POST" action="{{ route('quote-import.store') }}" enctype="multipart/form-data" id="importForm">
@@ -159,5 +184,87 @@
     });
 })();
 </script>
+
+    </div>{{-- end PDF Upload tab panel --}}
+
+    {{-- ── QuoteWerks Lookup Tab (D-10, D-11) ────────────────────────── --}}
+    <div x-show="importTab==='quotewerks'" role="tabpanel">
+        <div class="card">
+
+            {{-- Quick lookup by reference --}}
+            <h2 class="section-heading" style="font-size:.9rem; margin:0 0 1rem;">Lookup by Reference</h2>
+            <form method="POST" action="{{ route('quotewerks.lookup') }}" id="qwLookupForm">
+                @csrf
+                <div class="form-group">
+                    <label class="form-label" for="qw_reference">QuoteWerks Reference <span class="req">*</span></label>
+                    <div style="display:flex; gap:.75rem; align-items:flex-start;">
+                        <input type="text" name="reference" id="qw_reference" class="form-control"
+                               placeholder="e.g. 21CQ12345" value="{{ old('reference') }}"
+                               style="max-width:300px;">
+                        <button type="submit" class="btn btn-teal">Import</button>
+                    </div>
+                    @error('reference')
+                        <div class="invalid-feedback" style="display:block; margin-top:.25rem;">{{ $message }}</div>
+                    @enderror
+                    <p class="form-help">Enter the QuoteWerks document number to import directly from the database.</p>
+                </div>
+            </form>
+
+            {{-- Search by client --}}
+            <hr style="margin:1.5rem 0; border-color:var(--border);">
+            <h2 class="section-heading" style="font-size:.9rem; margin:0 0 1rem;">Search by Client</h2>
+            <form method="GET" action="{{ route('quotewerks.search') }}" id="qwSearchForm">
+                <div style="display:flex; gap:.75rem; flex-wrap:wrap; align-items:flex-end;">
+                    <div class="form-group" style="flex:1; min-width:200px; margin:0;">
+                        <label class="form-label" for="qw_client">Client Name</label>
+                        <input type="text" name="client" id="qw_client" class="form-control"
+                               placeholder="Search client name..." value="{{ request('client') }}">
+                    </div>
+                    <div class="form-group" style="min-width:160px; margin:0;">
+                        <label class="form-label" for="qw_date_from">From Date</label>
+                        <input type="date" name="date_from" id="qw_date_from" class="form-control"
+                               value="{{ request('date_from') }}">
+                    </div>
+                    <button type="submit" class="btn btn-outline" style="margin-bottom:0;">Search</button>
+                </div>
+            </form>
+
+            {{-- Search results --}}
+            @if(isset($searchResults) && count($searchResults) > 0)
+                <table class="data-table" style="margin-top:1rem; font-size:.84rem;">
+                    <thead>
+                        <tr>
+                            <th>Reference</th>
+                            <th>Client</th>
+                            <th>Date</th>
+                            <th>Subject</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($searchResults as $result)
+                        <tr>
+                            <td style="font-weight:600;">{{ $result['doc_no'] }}</td>
+                            <td>{{ $result['client_name'] }}</td>
+                            <td style="white-space:nowrap; color:var(--text-faint); font-size:.8rem;">{{ $result['doc_date'] ?? '—' }}</td>
+                            <td>{{ \Illuminate\Support\Str::limit($result['subject'] ?? '', 40) }}</td>
+                            <td>
+                                <form method="POST" action="{{ route('quotewerks.lookup') }}" style="margin:0;">
+                                    @csrf
+                                    <input type="hidden" name="reference" value="{{ $result['doc_no'] }}">
+                                    <button type="submit" class="btn btn-outline btn-sm" style="font-size:.75rem;">Import</button>
+                                </form>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @elseif(isset($searchResults))
+                <p style="color:var(--text-muted); font-size:.875rem; margin-top:1rem;">No quotes found matching your search.</p>
+            @endif
+        </div>
+    </div>{{-- end QuoteWerks Lookup tab panel --}}
+
+</div>{{-- end x-data dual-tab wrapper --}}
 
 @endsection
