@@ -53,7 +53,7 @@ Plans:
 Plans:
 - [x] 02-01-PLAN.md — Named DB connection config, .env.example, quotewerks:ping and quotewerks:schema commands
 - [x] 02-02-PLAN.md — QuoteWerksRepository (TDD) + QuoteWerksImportService (TDD): SQL query layer and extracted_data mapping
-- [ ] 02-03-PLAN.md — QuoteWerksImportController, QuoteWerksLookupRequest, dual-tab import UI
+- [x] 02-03-PLAN.md — QuoteWerksImportController, QuoteWerksLookupRequest, dual-tab import UI
 
 ### Phase 3: Survey Data Integration
 **Goal**: Survey data captured by engineers, clients, or subcontractors is fully wired into `ProjectDataService` and available to all document generators without any generator needing to query the survey tables directly
