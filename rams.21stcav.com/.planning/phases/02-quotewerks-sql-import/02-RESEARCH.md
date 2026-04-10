@@ -578,27 +578,19 @@ DB::connection('quotewerks')->getPdo();
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Exact QuoteWerks column names**
-   - What we know: Tables are DocumentHeaders, DocumentItems, DocumentItemGroups (D-06). Column names include reserved words (D-15). Common columns likely follow QuoteWerks API naming (DocNo, SoldToCompanyName, etc.).
-   - What's unclear: Exact column names cannot be confirmed without a live connection. The research assumes standard QuoteWerks schema names.
-   - Recommendation: Wave 0 of planning must include `quotewerks:schema` command. Run it against real QuoteWerks DB before implementing the repository. All column name assumptions are tagged `[ASSUMED]`.
+   - **Resolution:** Resolved at execution time via `quotewerks:schema` command (Plan 02-01 Wave 1). Executor runs schema introspection before writing repository (Plan 02-02 Wave 2). All column name assumptions tagged `[ASSUMED]` in plans.
 
 2. **QuoteWerks reference number format**
-   - What we know: 21st Century AV quotes begin `21CQ` followed by digits (confirmed in `QuoteParserService` REF_PATTERNS). Full pattern: `21CQ[0-9]{2,15}(?:-[A-Z0-9]{1,10})*`.
-   - What's unclear: Whether the `DocNo` column in QuoteWerks stores the full reference or a numeric ID only.
-   - Recommendation: Validate input against the `21CQ` regex before querying. If DocNo is numeric only, the lookup requires a separate mapping step.
+   - **Resolution:** Input validated against `21CQ` regex pattern (from QuoteParserService REF_PATTERNS). Plan 02-02 includes fallback if DocNo is numeric-only.
 
 3. **DocumentItemGroups table structure**
-   - What we know: D-06 lists this table; D-07 confirms groups = rooms/zones.
-   - What's unclear: Whether group membership is via a foreign key, a `GroupName` text column on DocumentItems, or a separate join table.
-   - Recommendation: `quotewerks:schema` command must output column names and sample rows for all three tables before repository implementation.
+   - **Resolution:** Resolved at execution time via `quotewerks:schema` output. Plan 02-02 executor instructed to check schema output before implementing group join logic.
 
 4. **Production PHP version and web server**
-   - What we know: `composer.json` requires PHP ^8.2. pdo_sqlsrv 5.13 supports PHP 8.2–8.5.
-   - What's unclear: Whether the production server runs PHP-FPM (requires php-fpm ini changes) or CLI only.
-   - Recommendation: When running PECL install, verify both CLI and FPM php.ini directories have the extension enabled.
+   - **Resolution:** .env.example in Plan 02-01 includes install instructions for both CLI and PHP-FPM paths. Executor verifies `php -m | grep sqlsrv` covers both.
 
 ---
 
