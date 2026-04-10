@@ -6,7 +6,7 @@
 
 <div class="page-header">
     <h1 class="page-title">New Project</h1>
-    <a href="{{ route('projects.index') }}" class="btn btn-outline btn-sm">← Back</a>
+    <a href="{{ route('projects.index') }}" class="btn btn-outline btn-sm">← Back to Projects</a>
 </div>
 
 <div class="card" style="max-width:720px;">
@@ -23,15 +23,6 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label" for="ref">Project Ref</label>
-                <input id="ref" name="ref" type="text"
-                       class="form-control"
-                       value="{{ old('ref') }}"
-                       placeholder="e.g. 21C-2026-001">
-                <p class="form-help">Leave blank to assign later.</p>
-            </div>
-
-            <div class="form-group">
                 <label class="form-label" for="client_name">Client <span class="req">*</span></label>
                 <input id="client_name" name="client_name" type="text"
                        class="form-control @error('client_name') is-invalid @enderror"
@@ -45,6 +36,17 @@
                        class="form-control @error('site_address') is-invalid @enderror"
                        value="{{ old('site_address') }}" required>
                 @error('site_address')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="quote_reference">Quote Reference <span class="req">*</span></label>
+                <input id="quote_reference" name="quote_reference" type="text"
+                       class="form-control @error('quote_reference') is-invalid @enderror"
+                       value="{{ old('quote_reference') }}"
+                       placeholder="e.g. ABC123-01"
+                       required>
+                @error('quote_reference')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                <p class="form-help">Leave blank to assign later. Version suffix (-01, -02) is tracked automatically when quotes are uploaded.</p>
             </div>
 
             <div class="form-group" style="grid-column:span 2;">
@@ -64,7 +66,7 @@
 
         <div style="display:flex; gap:.75rem; margin-top:.5rem;">
             <button type="submit" class="btn btn-teal">Create Project</button>
-            <a href="{{ route('projects.index') }}" class="btn btn-outline">Cancel</a>
+            <a href="{{ route('projects.index') }}" class="btn btn-outline">Back to Projects</a>
         </div>
     </form>
 </div>
