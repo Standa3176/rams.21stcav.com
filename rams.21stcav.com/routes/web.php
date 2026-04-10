@@ -10,6 +10,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\QuoteImportController;
 use App\Http\Controllers\QuoteUploadController;
+use App\Http\Controllers\QuoteWerksImportController;
 use App\Http\Controllers\RamsController;
 use App\Http\Controllers\RamsReviewController;
 use App\Http\Controllers\ProjectPackageReviewController;
@@ -81,6 +82,11 @@ Route::middleware('auth')->group(function () {
     // ── Quote Import (enterprise PDF → ProjectPackage pipeline) ───────────
     Route::get('/quote-import',                                [QuoteImportController::class, 'create'])   ->name('quote-import.create');
     Route::post('/quote-import',                               [QuoteImportController::class, 'store'])    ->name('quote-import.store')->middleware('throttle:10,1');
+
+    // ── QuoteWerks SQL Import — must be before {package} wildcard routes ───
+    Route::post('/quote-import/quotewerks/lookup', [QuoteWerksImportController::class, 'lookup'])->name('quotewerks.lookup')->middleware('throttle:20,1');
+    Route::post('/quote-import/quotewerks/search', [QuoteWerksImportController::class, 'search'])->name('quotewerks.search')->middleware('throttle:30,1');
+
     Route::get('/quote-import/{package}/review',               [QuoteImportController::class, 'review'])   ->name('quote-import.review');
     Route::post('/quote-import/{package}/confirm',             [QuoteImportController::class, 'confirm'])  ->name('quote-import.confirm');
 
