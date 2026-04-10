@@ -36,7 +36,7 @@ Plans:
 - [x] 01-02-PLAN.md — Project dashboard UI: Linked Records card, client filter on listing
 - [x] 01-03-PLAN.md — ProjectDataService (TDD): canonical data merge with per-field annotation
 - [x] 01-04-PLAN.md — Auto-advance lifecycle hooks and Project Data tab
-- [ ] 01-05-PLAN.md — GAP: Controller shared visibility, authorization relaxation, quote_reference form + validation, similar-project warning, search fix
+- [x] 01-05-PLAN.md — GAP: Controller shared visibility, authorization relaxation, quote_reference form + validation, similar-project warning, search fix
 - [ ] 01-06-PLAN.md — GAP: importFromData() convenience method on QuoteImportService; all 6 feature tests passing
 **UI hint**: yes
 
