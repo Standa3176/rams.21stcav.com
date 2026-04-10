@@ -47,8 +47,15 @@ class ProjectDataService
             : $project->latestPackage()->first();
 
         $survey = $project->relationLoaded('siteSurveys')
-            ? $project->siteSurveys->where('status', 'completed')->first()
-            : $project->siteSurveys()->where('status', 'completed')->latest()->first();
+            ? $project->siteSurveys
+                  ->where('status', 'completed')
+                  ->whereNull('superseded_at')
+                  ->first()
+            : $project->siteSurveys()
+                  ->where('status', 'completed')
+                  ->whereNull('superseded_at')
+                  ->latest()
+                  ->first();
 
         [$source, $dataSource, $confidence] = $this->resolveSourceTier($package);
 
@@ -200,9 +207,13 @@ class ProjectDataService
         }
 
         return [
-            'has_survey'   => true,
-            'submitted_at' => $submittedAt,
-            'rooms'        => $survey->room_data ?? [],
+            'has_survey'         => true,
+            'submitted_at'       => $submittedAt,
+            'site_risks'         => $survey->site_risks,
+            'access_constraints' => $survey->access_constraints,
+            'h_and_s_notes'      => $survey->h_and_s_notes,
+            'general_notes'      => $survey->general_notes,
+            'rooms'              => $this->normalizeRooms($survey->rooms),
         ];
     }
 
@@ -244,37 +255,153 @@ class ProjectDataService
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Survey merge (Phase 1 stub — full fuzzy merge in Phase 3)
+    // Survey merge — relational fuzzy matching (Phase 3)
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * Merge survey room data into the quote-derived rooms array.
+     * Merge SiteSurveyRoom records into the quote-derived rooms array.
      *
-     * Phase 1 stub: exact name match only. Phase 3 will implement fuzzy matching (D-26).
-     * Survey data has higher confidence than package data for physical room details.
+     * Loads rooms from the SiteSurveyRoom Eloquent relation (never from room_data JSON).
+     * Uses fuzzy name matching via similar_text() at a 0.70 threshold.
+     * Matched survey rooms override quote room physical details at confidence 0.95.
+     * Unmatched survey rooms are appended as orphan entries with quote_room_matched: false.
+     *
+     * @param  array   $quoteRooms  Quote-derived room entries (each is an array).
+     * @param  object  $survey      SiteSurvey model (or compatible stub).
+     * @return array                Merged rooms array with survey enrichment and orphan appends.
      */
     private function mergeSurveyRooms(array $quoteRooms, object $survey): array
     {
-        $roomData = is_array($survey->room_data ?? null)
-            ? $survey->room_data
-            : [];
+        $survey->loadMissing('rooms');
 
-        $surveyRooms = collect($roomData)
-            ->keyBy(fn($r) => strtolower(trim(is_array($r) ? ($r['name'] ?? '') : ($r->name ?? ''))));
+        $normalizedSurveyRooms = $this->normalizeRooms($survey->rooms);
 
-        return array_map(function (array $room) use ($surveyRooms) {
-            $key        = strtolower(trim($room['name'] ?? ''));
-            $surveyRoom = $surveyRooms->get($key);
+        $matchedSurveyIndexes = [];
 
-            if ($surveyRoom) {
-                // Survey enriches with physical details at higher confidence
-                return array_merge($room, (array) $surveyRoom, [
+        $result = array_map(function (array $quoteRoom) use ($normalizedSurveyRooms, &$matchedSurveyIndexes) {
+            $quoteName  = (string) ($quoteRoom['room_name'] ?? $quoteRoom['name'] ?? '');
+            $bestScore  = 0.0;
+            $bestIndex  = -1;
+
+            foreach ($normalizedSurveyRooms as $idx => $surveyRoom) {
+                $surveyName = (string) ($surveyRoom['room_name'] ?? '');
+                $score      = $this->roomSimilarity($quoteName, $surveyName);
+
+                if ($score > $bestScore) {
+                    $bestScore = $score;
+                    $bestIndex = $idx;
+                }
+            }
+
+            if ($bestScore >= 0.70 && $bestIndex !== -1) {
+                $matchedSurveyIndexes[$bestIndex] = true;
+
+                // Survey fields win for physical details; re-apply survey annotation
+                return array_merge($quoteRoom, $normalizedSurveyRooms[$bestIndex], [
                     'data_source' => 'survey',
                     'confidence'  => 0.95,
                 ]);
             }
 
-            return $room;
+            return $quoteRoom;
         }, $quoteRooms);
+
+        // Append unmatched survey rooms as orphan entries
+        foreach ($normalizedSurveyRooms as $idx => $surveyRoom) {
+            if (! isset($matchedSurveyIndexes[$idx])) {
+                $result[] = array_merge($surveyRoom, [
+                    'quote_room_matched' => false,
+                    'data_source'        => 'survey',
+                    'confidence'         => 0.95,
+                ]);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Normalise an iterable of SiteSurveyRoom records into the D-10 canonical field list.
+     *
+     * Extracts generator-relevant fields only; excludes items_to_remove, items_to_retain,
+     * and existing_condition (strip-out info, not generator inputs).
+     * All entries carry data_source: 'survey' and confidence: 0.95 (D-11).
+     *
+     * @param  iterable $surveyRooms  Collection or array of SiteSurveyRoom records / stubs.
+     * @return array
+     */
+    private function normalizeRooms(iterable $surveyRooms): array
+    {
+        $result = [];
+
+        foreach ($surveyRooms as $room) {
+            $result[] = [
+                // Identity
+                'room_name'                 => $room->room_name,
+                'room_ref'                  => $room->room_ref,
+                'floor'                     => $room->floor,
+                'area_type'                 => $room->area_type,
+                'space_type'                => $room->space_type,
+                // Dimensions
+                'room_width_m'              => $room->room_width_m,
+                'room_depth_m'              => $room->room_depth_m,
+                'room_height_m'             => $room->room_height_m,
+                'ceiling_type'              => $room->ceiling_type,
+                'ceiling_height_m'          => $room->ceiling_height_m,
+                'wall_material'             => $room->wall_material,
+                'floor_type'                => $room->floor_type,
+                // AV scope
+                'av_requirements'           => $room->av_requirements,
+                'av_equipment_list'         => $room->av_equipment_list,
+                // Services
+                'has_power'                 => $room->has_power,
+                'has_network'               => $room->has_network,
+                'power_outlet_count'        => $room->power_outlet_count,
+                'network_port_count'        => $room->network_port_count,
+                'requires_additional_power' => $room->requires_additional_power,
+                'existing_cabling'          => $room->existing_cabling,
+                // Infrastructure
+                'rack_unit_space'           => $room->rack_unit_space,
+                'cable_route_desc'          => $room->cable_route_desc,
+                // Audio
+                'speaker_count'             => $room->speaker_count,
+                'speaker_type'              => $room->speaker_type,
+                'speaker_mounting'          => $room->speaker_mounting,
+                'bg_noise_db'               => $room->bg_noise_db,
+                // Displays
+                'display_size_in'           => $room->display_size_in,
+                'display_orient'            => $room->display_orient,
+                'display_mounting'          => $room->display_mounting,
+                // Access / notes
+                'access_notes'              => $room->access_notes,
+                'notes'                     => $room->notes,
+                // Completion
+                'is_completed'              => $room->is_completed,
+                'completed_at'              => $room->completed_at instanceof \DateTimeInterface
+                    ? $room->completed_at->format(\DateTime::ATOM)
+                    : $room->completed_at,
+                // Annotation (D-11)
+                'data_source'               => 'survey',
+                'confidence'                => 0.95,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Compute name similarity between two room name strings using similar_text().
+     *
+     * Returns a 0.0–1.0 float (0 = no similarity, 1.0 = identical).
+     *
+     * @param  string $a  First room name.
+     * @param  string $b  Second room name.
+     * @return float
+     */
+    private function roomSimilarity(string $a, string $b): float
+    {
+        similar_text(strtolower(trim($a)), strtolower(trim($b)), $pct);
+
+        return $pct / 100.0;
     }
 }
