@@ -64,7 +64,12 @@ Plans:
   2. Per-room survey captures displays, audio systems, cable routes, power/network details, mounting constraints, and access limitations
   3. Global survey section captures site risks, H&S notes, and site-wide constraints
   4. `ProjectDataService::resolve(project)` includes submitted survey data merged at the correct priority tier (above quotewerks_sql, below reviewed_data)
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 03-01-PLAN.md — Schema migration: site_risks, access_constraints, h_and_s_notes, superseded_at columns; SiteSurvey model update
+- [ ] 03-02-PLAN.md — ProjectDataService stub replacement: relational room load, fuzzy matching, 6-key survey_meta; test extension (13 tests)
+- [ ] 03-03-PLAN.md — One-survey enforcement: SurveyService supersede logic, controller detection, supersede confirmation UI
+- [ ] 03-04-PLAN.md — Public survey global fields: form textareas, syncHeaderFields JS, confirmation page, internal show view update
 **UI hint**: yes
 
 ### Phase 4: New Document Generators
@@ -101,6 +106,6 @@ Note: Phase 2 (QuoteWerks SQL) has no dependency on Phase 3 (Survey Integration)
 |-------|----------------|--------|-----------|
 | 1. Project Layer & Data Foundation | 6/6 | Complete | 2026-04-10 |
 | 2. QuoteWerks SQL Import | 1/3 | In Progress|  |
-| 3. Survey Data Integration | 0/TBD | Not started | - |
+| 3. Survey Data Integration | 0/4 | Not started | - |
 | 4. New Document Generators | 0/TBD | Not started | - |
 | 5. RAMS Pipeline Migration | 0/TBD | Not started | - |
