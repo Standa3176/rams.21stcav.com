@@ -218,6 +218,68 @@ class QuoteImportService
         });
     }
 
+    // ── Array-based import (test / SQL-import helper) ─────────────────────────
+
+    /**
+     * Import a quote from a pre-extracted data array (no PDF required).
+     *
+     * Intended for testing and for SQL-based import paths where text extraction
+     * is already done upstream. Accepts the same extracted data shape that
+     * import() would produce after AI extraction, and applies the same
+     * project auto-create and package linking logic.
+     *
+     * @param  User   $user  The authenticated user performing the import.
+     * @param  array  $data  Pre-extracted data: must include client_name, site_address.
+     *                       Optional keys: ref, name, works_description, equipment_list, cable_list, extracted_data.
+     * @return ProjectPackage The saved package linked to an auto-created or matched project.
+     */
+    public function importFromData(User $user, array $data): ProjectPackage
+    {
+        return DB::transaction(function () use ($user, $data) {
+            // ── Resolve or auto-create project by client+site (D-02) ──
+            $clientName  = $data['client_name'] ?? '';
+            $siteAddress = $data['site_address'] ?? '';
+
+            $project = Project::where('client_name', $clientName)
+                ->where('site_address', $siteAddress)
+                ->whereNull('deleted_at')
+                ->first();
+
+            if ($project === null) {
+                $project = $this->projectService->create($user, [
+                    'name'              => $data['name'] ?? ($clientName . ' — ' . $siteAddress),
+                    'ref'               => $data['ref'] ?? null,
+                    'client_name'       => $clientName,
+                    'site_address'      => $siteAddress,
+                    'works_description' => $data['works_description'] ?? null,
+                ]);
+            }
+
+            // ── Create a minimal ProjectPackage from the supplied data ──
+            $nextRevision = ProjectPackage::where('project_id', $project->id)->max('revision') ?? 0;
+
+            $package = ProjectPackage::create([
+                'project_id'     => $project->id,
+                'user_id'        => $user->id,
+                'quote_filename' => 'array-import.json',
+                'quote_path'     => 'quote-imports/array-import.json',
+                'extracted_data' => $data['extracted_data'] ?? [],
+                'equipment_list' => $data['equipment_list'] ?? [],
+                'cable_list'     => $data['cable_list'] ?? [],
+                'revision'       => $nextRevision + 1,
+                'status'         => ProjectPackage::STATUS_EXTRACTED,
+            ]);
+
+            Log::info('QuoteImportService: importFromData completed', [
+                'project_id' => $project->id,
+                'package_id' => $package->id,
+                'user_id'    => $user->id,
+            ]);
+
+            return $package;
+        });
+    }
+
     // ── Confirm / review ──────────────────────────────────────────────────────
 
     /**
