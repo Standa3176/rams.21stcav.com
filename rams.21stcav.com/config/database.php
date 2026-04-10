@@ -113,6 +113,26 @@ return [
             // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
         ],
 
+        // ── QuoteWerks SQL Server (read-only, named connection) ───────────────
+        // Never set as default. No Eloquent models bound to this connection.
+        // Requires: Microsoft ODBC Driver 17 + pdo_sqlsrv PECL extension on the server.
+        // Verify driver: php -m | grep sqlsrv
+        // Run health check: php artisan quotewerks:ping
+        'quotewerks' => [
+            'driver'                   => 'sqlsrv',
+            'host'                     => env('QW_DB_HOST', 'localhost'),
+            'port'                     => env('QW_DB_PORT', '1433'),
+            'database'                 => env('QW_DB_DATABASE', 'QuoteWerks'),
+            'username'                 => env('QW_DB_USERNAME'),
+            'password'                 => env('QW_DB_PASSWORD'),
+            'charset'                  => 'utf8',
+            'prefix'                   => '',
+            'prefix_indexes'           => true,
+            'encrypt'                  => env('QW_DB_ENCRYPT', 'yes'),
+            'trust_server_certificate' => env('QW_DB_TRUST_CERT', 'true'),
+            'login_timeout'            => (int) env('QW_DB_TIMEOUT', 5),
+        ],
+
     ],
 
     /*
