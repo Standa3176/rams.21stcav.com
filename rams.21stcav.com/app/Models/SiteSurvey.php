@@ -22,6 +22,10 @@ class SiteSurvey extends Model
         'survey_date',
         'surveyor_name',
         'general_notes',
+        'site_risks',
+        'access_constraints',
+        'h_and_s_notes',
+        'superseded_at',
         'status',
         'filename',
         'access_token',
@@ -34,6 +38,7 @@ class SiteSurvey extends Model
         'survey_date'  => 'date',
         'expires_at'   => 'datetime',
         'submitted_at' => 'datetime',
+        'superseded_at' => 'datetime',
     ];
 
     // ─── Boot: auto-generate access token on creation ────────────────────────
