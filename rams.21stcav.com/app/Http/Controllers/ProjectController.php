@@ -35,7 +35,6 @@ class ProjectController extends Controller
         }
 
         $query = Project::with('latestPackage')
-            ->forUser(auth()->id())
             ->orderByDesc('updated_at');
 
         if ($status) {
@@ -48,13 +47,15 @@ class ProjectController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('client_name', 'like', "%{$search}%")
+                  ->orWhere('site_address', 'like', "%{$search}%")
                   ->orWhere('ref', 'like', "%{$search}%");
             });
         }
 
         $projects = $query->paginate(20)->withQueryString();
 
-        $statusCounts = Project::forUser(auth()->id())
+        $statusCounts = Project::query()
+            ->whereNull('deleted_at')
             ->selectRaw('status, count(*) as total')
             ->groupBy('status')
             ->pluck('total', 'status');
@@ -80,29 +81,38 @@ class ProjectController extends Controller
     {
         $validated = $request->validate([
             'name'              => ['required', 'string', 'max:200'],
-            'ref'               => ['nullable', 'string', 'max:50'],
+            'quote_reference'   => ['required', 'string', 'max:50'],
             'client_name'       => ['required', 'string', 'max:150'],
             'site_address'      => ['required', 'string', 'max:500'],
             'works_description' => ['nullable', 'string'],
             'notes'             => ['nullable', 'string'],
         ]);
 
+        // D-14: Warn (but allow) when a project with matching client+site already exists.
+        $similarExists = Project::whereRaw('LOWER(client_name) = ?', [strtolower($validated['client_name'])])
+            ->whereRaw('LOWER(site_address) = ?', [strtolower($validated['site_address'])])
+            ->whereNull('deleted_at')
+            ->exists();
+
         $project = $this->service->create(auth()->user(), $validated);
 
-        return redirect()
-            ->route('projects.show', $project)
-            ->with('success', "Project \"{$project->name}\" created.");
+        $redirect = redirect()->route('projects.show', $project);
+
+        if ($similarExists) {
+            $redirect = $redirect->with('warning', 'A project with the same client and site address already exists. Please confirm this is a separate project.');
+        } else {
+            $redirect = $redirect->with('success', "Project \"{$project->name}\" created.");
+        }
+
+        return $redirect;
     }
 
     // ── show ──────────────────────────────────────────────────────────────────
 
     public function show(Project $project): View
     {
-        // Security: only the project owner (or an admin) may view the project.
-        abort_if(
-            $project->user_id !== auth()->id() && auth()->user()?->role !== 'admin',
-            403
-        );
+        // D-15: Projects are shared across all authenticated users.
+        abort_unless(auth()->check(), 403);
 
         // Eager-load all related data to prevent N+1 queries on the show page.
         $project->load([
@@ -199,7 +209,8 @@ class ProjectController extends Controller
 
     public function transition(Request $request, Project $project): RedirectResponse
     {
-        $this->authorizeProject($project);
+        // D-19: Any authenticated user can trigger lifecycle transitions.
+        abort_unless(auth()->check(), 403);
 
         $validated = $request->validate([
             'to_status' => ['required', 'string'],
