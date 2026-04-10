@@ -30,12 +30,14 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Project lifecycle state transitions correctly (quote_imported → survey_pending → engineering → ... → archived) and the current state is visible
   4. `ProjectDataService::resolve(project)` returns a canonical dataset structured as `{ project, equipment, rooms, activities, risks, survey_data }` with merge priority enforced (reviewed_data wins)
   5. Every field in the merged dataset carries a `data_source` annotation (pdf | quotewerks | manual) and a `confidence` score
-**Plans**: 4 plans
+**Plans**: 6 plans
 Plans:
-- [ ] 01-01-PLAN.md — Schema migrations, model update, controller sharing, project creation form
-- [ ] 01-02-PLAN.md — Project dashboard UI: Linked Records card, client filter on listing
-- [ ] 01-03-PLAN.md — ProjectDataService (TDD): canonical data merge with per-field annotation
-- [ ] 01-04-PLAN.md — Auto-advance lifecycle hooks and Project Data tab
+- [x] 01-01-PLAN.md — Schema migrations, model update, controller sharing, project creation form
+- [x] 01-02-PLAN.md — Project dashboard UI: Linked Records card, client filter on listing
+- [x] 01-03-PLAN.md — ProjectDataService (TDD): canonical data merge with per-field annotation
+- [x] 01-04-PLAN.md — Auto-advance lifecycle hooks and Project Data tab
+- [ ] 01-05-PLAN.md — GAP: Controller shared visibility, authorization relaxation, quote_reference form + validation, similar-project warning, search fix
+- [ ] 01-06-PLAN.md — GAP: importFromData() convenience method on QuoteImportService; all 6 feature tests passing
 **UI hint**: yes
 
 ### Phase 2: QuoteWerks SQL Import
@@ -93,7 +95,7 @@ Note: Phase 2 (QuoteWerks SQL) has no dependency on Phase 3 (Survey Integration)
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Project Layer & Data Foundation | 0/4 | Not started | - |
+| 1. Project Layer & Data Foundation | 4/6 | Executing (gap closure) | - |
 | 2. QuoteWerks SQL Import | 0/TBD | Not started | - |
 | 3. Survey Data Integration | 0/TBD | Not started | - |
 | 4. New Document Generators | 0/TBD | Not started | - |
