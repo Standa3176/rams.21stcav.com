@@ -25,13 +25,13 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### QuoteWerks SQL Import
 
-- [ ] **QWSQL-01**: MS SQL driver verified and configured on production server (hard blocker)
+- [x] **QWSQL-01**: MS SQL driver verified and configured on production server (hard blocker)
 - [ ] **QWSQL-02**: QuoteWerksImportService connects to remote MS SQL via read-only direct connection
 - [ ] **QWSQL-03**: SQL import pulls header data, line items, and room/group structure from QuoteWerks database
 - [ ] **QWSQL-04**: SQL import produces identical extracted_data structure as PDF import
 - [ ] **QWSQL-05**: Dual input system — user can import via PDF upload or SQL quote reference lookup
-- [ ] **QWSQL-06**: SQL connection configured via .env with no frontend exposure of credentials
-- [ ] **QWSQL-07**: Health check artisan command (quotewerks:ping) verifies connectivity
+- [x] **QWSQL-06**: SQL connection configured via .env with no frontend exposure of credentials
+- [x] **QWSQL-07**: Health check artisan command (quotewerks:ping) verifies connectivity
 
 ### Survey Integration
 
@@ -124,13 +124,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DATA-03 | Phase 4 | Pending |
 | DATA-04 | Phase 1 | Pending |
 | DATA-05 | Phase 1 | Pending |
-| QWSQL-01 | Phase 2 | Pending |
+| QWSQL-01 | Phase 2 | Complete |
 | QWSQL-02 | Phase 2 | Pending |
 | QWSQL-03 | Phase 2 | Pending |
 | QWSQL-04 | Phase 2 | Pending |
 | QWSQL-05 | Phase 2 | Pending |
-| QWSQL-06 | Phase 2 | Pending |
-| QWSQL-07 | Phase 2 | Pending |
+| QWSQL-06 | Phase 2 | Complete |
+| QWSQL-07 | Phase 2 | Complete |
 | SURV-01 | Phase 3 | Pending |
 | SURV-02 | Phase 3 | Pending |
 | SURV-03 | Phase 3 | Pending |

@@ -51,7 +51,7 @@ Plans:
   4. QuoteWerks SQL credentials are never exposed in the frontend or application logs
 **Plans**: 3 plans
 Plans:
-- [ ] 02-01-PLAN.md — Named DB connection config, .env.example, quotewerks:ping and quotewerks:schema commands
+- [x] 02-01-PLAN.md — Named DB connection config, .env.example, quotewerks:ping and quotewerks:schema commands
 - [ ] 02-02-PLAN.md — QuoteWerksRepository (TDD) + QuoteWerksImportService (TDD): SQL query layer and extracted_data mapping
 - [ ] 02-03-PLAN.md — QuoteWerksImportController, QuoteWerksLookupRequest, dual-tab import UI
 
@@ -100,7 +100,7 @@ Note: Phase 2 (QuoteWerks SQL) has no dependency on Phase 3 (Survey Integration)
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Project Layer & Data Foundation | 6/6 | Complete | 2026-04-10 |
-| 2. QuoteWerks SQL Import | 0/3 | Not started | - |
+| 2. QuoteWerks SQL Import | 1/3 | In Progress|  |
 | 3. Survey Data Integration | 0/TBD | Not started | - |
 | 4. New Document Generators | 0/TBD | Not started | - |
 | 5. RAMS Pipeline Migration | 0/TBD | Not started | - |
