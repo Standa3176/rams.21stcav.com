@@ -34,7 +34,8 @@ class RoomOverviewSummaryService
 
         if (empty($roomsForAi)) {
             return array_map(function ($r) {
-                $r['summary'] = '';
+                $r['summary']     = '';
+                $r['description'] = '';
                 return $r;
             }, $roomOverviews);
         }
@@ -47,18 +48,26 @@ class RoomOverviewSummaryService
             $summaries = [];
             foreach (($decoded['summaries'] ?? []) as $item) {
                 $room = trim((string) ($item['room'] ?? ''));
-                $summary = trim((string) ($item['summary'] ?? ''));
-                if ($room !== '' && $summary !== '') {
-                    $summaries[$room] = $summary;
+                if ($room !== '') {
+                    $summaries[$room] = [
+                        'summary'     => trim((string) ($item['summary'] ?? '')),
+                        'description' => trim((string) ($item['description'] ?? '')),
+                    ];
                 }
             }
 
             return array_map(function ($r) use ($summaries) {
-                $room = (string) ($r['room'] ?? '');
+                $room     = (string) ($r['room'] ?? '');
                 $overview = (string) ($r['overview'] ?? '');
-                $r['summary'] = $room !== '' && isset($summaries[$room])
-                    ? $summaries[$room]
-                    : $this->fallbackSummary($overview);
+                if ($room !== '' && isset($summaries[$room])) {
+                    $r['summary']     = $summaries[$room]['summary'] !== ''
+                        ? $summaries[$room]['summary']
+                        : $this->fallbackSummary($overview);
+                    $r['description'] = $summaries[$room]['description'];
+                } else {
+                    $r['summary']     = $this->fallbackSummary($overview);
+                    $r['description'] = '';
+                }
                 return $r;
             }, $roomOverviews);
         } catch (AIGenerationException $e) {
@@ -68,7 +77,8 @@ class RoomOverviewSummaryService
         }
 
         return array_map(function ($r) {
-            $r['summary'] = $this->fallbackSummary((string) ($r['overview'] ?? ''));
+            $r['summary']     = $this->fallbackSummary((string) ($r['overview'] ?? ''));
+            $r['description'] = '';
             return $r;
         }, $roomOverviews);
     }
