@@ -137,14 +137,6 @@ class QuoteParserService
     public function parse(string $rawText): array
     {
         $hasTagsDiag = $this->hasStructuredTags($rawText);
-        \Illuminate\Support\Facades\Log::debug('QuoteParserService::parse', [
-            'raw_length'       => strlen($rawText),
-            'has_structured'   => $hasTagsDiag,
-            'has_partstart'    => str_contains($rawText, 'PARTSTART'),
-            'has_partdescstart'=> str_contains($rawText, 'PARTDESCSTART'),
-            'has_qtystart'     => str_contains($rawText, 'QTYSTART'),
-            'first_300'        => substr(preg_replace('/\s+/', ' ', $rawText), 0, 300),
-        ]);
 
         // Structured RAMS PDF tags are present — use the reliable tag-based parser.
         // Falls back to the heuristic path below for untagged legacy PDFs.
@@ -179,6 +171,12 @@ class QuoteParserService
             'client'        => $client,
             'site'          => $site,
             'ref'           => $ref,
+            // Aliases consumed by QuoteImportService
+            'client_name'      => $client,
+            'site_address'     => $site,
+            'qw_number'        => $ref,
+            'quote_reference'  => $ref,
+            'equipment_list'   => $equipment,
             'overview'      => $overview,
             'overview_sections' => [],
             'equipment'     => $equipment,
@@ -412,7 +410,7 @@ class QuoteParserService
                 //    part numbers, including mixed-case (YealinkVC840).
                 //    Also fires on two-line rows that were pre-merged by
                 //    mergePartNumberLines() into a single "PARTNUM Desc" line.
-                if (preg_match('/^[A-Za-z][A-Za-z0-9\-\.]{3,29}\s+\S.+\s[\d,]+\.\d{2}/', $trimmed)) {
+                if (preg_match('/^[A-Za-z][A-Za-z0-9\-\.#]{3,29}\s+\S.+\s[\d,]+\.\d{2}/', $trimmed)) {
                     return $this->buildRange($startIdx, $i, $inlineText);
                 }
 
@@ -421,7 +419,7 @@ class QuoteParserService
                 //    Only trigger after we are ≥5 lines past the heading to avoid
                 //    matching header contact lines (e.g. "Tel: 01234-5678").
                 if ($i >= $startIdx + 5) {
-                    if (preg_match('/^[A-Za-z]{2,}[A-Za-z0-9]{0,}\-[A-Za-z0-9\-\.]{2,28}\s+[A-Z][a-z].{3,}$/', $trimmed)) {
+                    if (preg_match('/^[A-Za-z]{2,}[A-Za-z0-9]{0,}\-[A-Za-z0-9\-\.#]{2,28}\s+[A-Z][a-z].{3,}$/', $trimmed)) {
                         return $this->buildRange($startIdx, $i, $inlineText);
                     }
                 }
@@ -485,7 +483,7 @@ class QuoteParserService
             }
 
             // d) First pricing row with trailing price
-            if (preg_match('/^[A-Za-z][A-Za-z0-9\-\.]{3,29}\s+\S.+\s[\d,]+\.\d{2}/', $t)) {
+            if (preg_match('/^[A-Za-z][A-Za-z0-9\-\.#]{3,29}\s+\S.+\s[\d,]+\.\d{2}/', $t)) {
                 $boundary = $i;
                 break;
             }
@@ -494,7 +492,7 @@ class QuoteParserService
             //    Only checked after at least 5 lines to avoid firing on header
             //    contact/telephone lines (e.g. "Tel: 01234-567890").
             if ($i >= 5 && preg_match(
-                '/^[A-Za-z][A-Za-z0-9\-\.]{3,29}\s+[A-Za-z].{3,}$/',
+                '/^[A-Za-z][A-Za-z0-9\-\.#]{3,29}\s+[A-Za-z].{3,}$/',
                 $t,
             )) {
                 $pn = strtok($t, ' ');
@@ -634,7 +632,7 @@ class QuoteParserService
                 // Strip trailing price
                 $tmpDesc = trim(preg_replace('/\s+[\d,]+\.\d{2}\s*$/', '', $tmpDesc));
 
-                if (preg_match('/^([A-Za-z][A-Za-z0-9\-\.]{3,29})\s+(.{4,})$/', $tmpDesc, $pm)) {
+                if (preg_match('/^([A-Za-z][A-Za-z0-9\-\.#]{3,29})\s+(.{4,})$/', $tmpDesc, $pm)) {
                     $pn = $pm[1];
                     $pr = trim($pm[2]);
                     $hasH = str_contains($pn, '-');
@@ -723,7 +721,7 @@ class QuoteParserService
 
             if (! $hasEgInDesc) {
                 // Strategy 1 — Prefix: "PARTNUM Description text"
-                if (preg_match('/^([A-Za-z][A-Za-z0-9\-\.]{3,29})\s+(.{4,})$/', $desc, $pm)) {
+                if (preg_match('/^([A-Za-z][A-Za-z0-9\-\.#]{3,29})\s+(.{4,})$/', $desc, $pm)) {
                     $partNum  = $pm[1];
                     $partDesc = trim($pm[2]);
 
@@ -744,7 +742,7 @@ class QuoteParserService
                 // Strategy 2 — Trailing parenthetical: "Description text (PARTNUM)"
                 // e.g. "Yealink Ceiling Mic's (CM20)" → part_number=CM20
                 if ($partNumber === '') {
-                    if (preg_match('/^(.{3,}?)\s*\(([A-Za-z][A-Za-z0-9\-\.]{2,29})\)\s*$/', $desc, $pm)) {
+                    if (preg_match('/^(.{3,}?)\s*\(([A-Za-z][A-Za-z0-9\-\.#]{2,29})\)\s*$/', $desc, $pm)) {
                         $candidate     = $pm[2];
                         $remainingDesc = trim($pm[1]);
 
@@ -767,7 +765,7 @@ class QuoteParserService
                 // e.g. "Yealink Ceiling Mic CM20" → part_number=CM20
                 // Only fires when strategies 1 & 2 produced nothing.
                 if ($partNumber === '') {
-                    if (preg_match('/^(.{5,})\s+([A-Za-z][A-Za-z0-9\-\.]{2,29})$/', $desc, $pm)) {
+                    if (preg_match('/^(.{5,})\s+([A-Za-z][A-Za-z0-9\-\.#]{2,29})$/', $desc, $pm)) {
                         $candidate     = $pm[2];
                         $remainingDesc = trim($pm[1]);
 
@@ -1287,7 +1285,7 @@ class QuoteParserService
     {
         $trimmed = trim($line);
 
-        if (! preg_match('/^([A-Za-z][A-Za-z0-9\-\.]{3,29})$/', $trimmed, $m)) {
+        if (! preg_match('/^([A-Za-z][A-Za-z0-9\-\.#]{3,29})$/', $trimmed, $m)) {
             return false;
         }
 
@@ -1466,9 +1464,11 @@ class QuoteParserService
      */
     private function hasStructuredTags(string $rawText): bool
     {
-        return str_contains($rawText, 'PARTSTART')
-            && str_contains($rawText, 'PARTDESCSTART')
-            && str_contains($rawText, 'QTYSTART');
+        $lower = strtolower($rawText);
+
+        return stripos($lower, 'partstart')    !== false
+            && stripos($lower, 'partdescstart') !== false
+            && stripos($lower, 'qtystart')      !== false;
     }
 
     /**
@@ -1721,14 +1721,6 @@ class QuoteParserService
             PREG_OFFSET_CAPTURE
         );
 
-        \Illuminate\Support\Facades\Log::debug('QuoteParserService::parseTagBased regex', [
-            'tuple_count'    => count($tuples[0]),
-            'first_tuple_g1' => $tuples[1][0][0] ?? '(none)',
-            'first_tuple_g2' => substr($tuples[2][0][0] ?? '(none)', 0, 80),
-            'first_tuple_g3' => $tuples[3][0][0] ?? '(none)',
-            'first_tuple_g4' => $tuples[4][0][0] ?? '(none)',
-            'raw_sample'     => substr(preg_replace('/\s+/', ' ', $rawText), 0, 500),
-        ]);
 
         $equipment = [];
         $seen      = [];
@@ -1784,7 +1776,7 @@ class QuoteParserService
                     } elseif (isset($descLines[1])) {
                         // Part number is on the second line: "2.00\nLH65QETELGCXEN"
                         $secondLine = trim($descLines[1]);
-                        if ($secondLine !== '' && preg_match('/^[A-Za-z0-9][A-Za-z0-9\-\.\/=]{1,49}$/', $secondLine)) {
+                        if ($secondLine !== '' && preg_match('/^[A-Za-z0-9][A-Za-z0-9\-\.\/=#]{1,49}$/', $secondLine)) {
                             $rawPartNum = $secondLine;
                         }
                     }
@@ -1924,6 +1916,12 @@ class QuoteParserService
             'client'        => $client,
             'site'          => $site,
             'ref'           => $ref,
+            // Aliases consumed by QuoteImportService
+            'client_name'      => $client,
+            'site_address'     => $site,
+            'qw_number'        => $ref,
+            'quote_reference'  => $ref,
+            'equipment_list'   => $equipment,
             'overview'      => $overview,
             'overview_sections' => $overviewSections,
             'equipment'     => $equipment,
@@ -2108,7 +2106,7 @@ class QuoteParserService
 
             // Skip standalone part-number tokens (the part number line that
             // immediately precedes PARTSTART — not prose description text).
-            if (preg_match('/^[A-Za-z][A-Za-z0-9\-\.\/]{2,49}$/', $clean)) {
+            if (preg_match('/^[A-Za-z][A-Za-z0-9\-\.\/\#]{2,49}$/', $clean)) {
                 $hasH = str_contains($clean, '-');
                 $hasD = (bool) preg_match('/\d/', $clean);
                 $hasA = (bool) preg_match('/[a-zA-Z]{2,}/', $clean);
@@ -2154,7 +2152,7 @@ class QuoteParserService
             // Must be a single token with no whitespace.
             // Allow digit-leading tokens (e.g. 991-000389) and slash-separated
             // tokens (e.g. XRWALLA/B) which are valid QuoteWerks part numbers.
-            if (! preg_match('/^([A-Za-z0-9][A-Za-z0-9\-\.\/]{2,49})$/', $line, $m)) {
+            if (! preg_match('/^([A-Za-z0-9][A-Za-z0-9\-\.\/\#]{2,49})$/', $line, $m)) {
                 break; // Not a part-number line — stop immediately.
             }
 
@@ -2197,7 +2195,7 @@ class QuoteParserService
 
         // Basic shape: alphanumeric + hyphens/dots/slashes.
         // Allow digit-leading tokens (e.g. 991-000389) and slash tokens (e.g. XRWALLA/B).
-        if (! preg_match('/^[A-Za-z0-9][A-Za-z0-9\-\.\/]{2,49}$/', $raw)) {
+        if (! preg_match('/^[A-Za-z0-9][A-Za-z0-9\-\.\/\#]{2,49}$/', $raw)) {
             return '';
         }
 
@@ -2383,12 +2381,12 @@ class QuoteParserService
         }
 
         // Strategy A: trailing parenthetical "(PARTNUM)"
-        if (preg_match('/^(.{3,}?)\s*\(([A-Za-z][A-Za-z0-9\-\.]{2,29})\)\s*$/', $desc, $m)) {
+        if (preg_match('/^(.{3,}?)\s*\(([A-Za-z][A-Za-z0-9\-\.#]{2,29})\)\s*$/', $desc, $m)) {
             return $this->normaliseTaggedPartNumber($m[2]);
         }
 
         // Strategy B: trailing token "Description text PARTNUM"
-        if (preg_match('/^(.{5,})\s+([A-Za-z][A-Za-z0-9\-\.]{2,29})$/', $desc, $m)) {
+        if (preg_match('/^(.{5,})\s+([A-Za-z][A-Za-z0-9\-\.#]{2,29})$/', $desc, $m)) {
             return $this->normaliseTaggedPartNumber($m[2]);
         }
 

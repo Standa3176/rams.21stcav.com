@@ -193,13 +193,15 @@ class QuoteImportService
 
             if ($existing->project_id) {
                 $project = $existing->project;
-                $this->projectService->log(
-                    project:     $project,
-                    user:        $user,
-                    action:      ProjectActivityLog::ACTION_PACKAGE_IMPORTED,
-                    description: "{$user->name} re-extracted quote (revision {$package->revision}).",
-                    metadata:    ['package_id' => $package->id, 'previous_id' => $existing->id],
-                );
+                if ($project !== null) {
+                    $this->projectService->log(
+                        project:     $project,
+                        user:        $user,
+                        action:      ProjectActivityLog::ACTION_PACKAGE_IMPORTED,
+                        description: "{$user->name} re-extracted quote (revision {$package->revision}).",
+                        metadata:    ['package_id' => $package->id, 'previous_id' => $existing->id],
+                    );
+                }
             }
 
             return $package;
@@ -228,8 +230,8 @@ class QuoteImportService
             $clientName  = $data['client_name'] ?? '';
             $siteAddress = $data['site_address'] ?? '';
 
-            $project = Project::where('client_name', $clientName)
-                ->where('site_address', $siteAddress)
+            $project = Project::whereRaw('LOWER(client_name) = ?', [strtolower($clientName)])
+                ->whereRaw('LOWER(site_address) = ?', [strtolower($siteAddress)])
                 ->whereNull('deleted_at')
                 ->first();
 

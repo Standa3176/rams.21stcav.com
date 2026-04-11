@@ -123,27 +123,36 @@ class QuoteImportController extends Controller
             'works_description' => $validated['works_description'] ?? null,
         ], fn($v) => $v !== null);
 
-        // If still no project, create one now
-        if ($package->project_id === null) {
-            $service = app(\App\Core\Modules\Projects\ProjectService::class);
-            $project = $service->create(auth()->user(), [
-                'name'              => $validated['name'],
-                'ref'               => $validated['ref'] ?? null,
-                'client_name'       => $validated['client_name'],
-                'site_address'      => $validated['site_address'],
-                'works_description' => $validated['works_description'] ?? null,
-            ]);
-            $package->update(['project_id' => $project->id]);
-            $package->refresh();
-            // Overrides already applied via create — no need to call confirm's update
-            $overrides = [];
-        }
+        try {
+            // If still no project, create one now
+            if ($package->project_id === null) {
+                $service = app(\App\Core\Modules\Projects\ProjectService::class);
+                $project = $service->create(auth()->user(), [
+                    'name'              => $validated['name'],
+                    'ref'               => $validated['ref'] ?? null,
+                    'client_name'       => $validated['client_name'],
+                    'site_address'      => $validated['site_address'],
+                    'works_description' => $validated['works_description'] ?? null,
+                ]);
+                $package->update(['project_id' => $project->id]);
+                $package->refresh();
+                // Overrides already applied via create — no need to call confirm's update
+                $overrides = [];
+            }
 
-        $this->service->confirm(
-            user:      auth()->user(),
-            package:   $package,
-            overrides: $overrides,
-        );
+            $this->service->confirm(
+                user:      auth()->user(),
+                package:   $package,
+                overrides: $overrides,
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('QuoteImportController: confirm failed', [
+                'package_id' => $package->id,
+                'error'      => $e->getMessage(),
+            ]);
+
+            return back()->with('error', 'Failed to confirm import: ' . $e->getMessage());
+        }
 
         $project = $package->fresh()->project;
 
