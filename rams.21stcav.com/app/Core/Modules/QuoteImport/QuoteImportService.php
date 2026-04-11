@@ -312,8 +312,14 @@ class QuoteImportService
         });
 
         // ── Auto-advance: quote confirmed → survey_pending (D-18, Hook 1) ──
+        // Guard: only fire when project is in quote_imported — canTransitionTo() also
+        // returns true for backward transitions (engineering → survey_pending), which
+        // must NOT be triggered automatically on quote confirm.
         $linkedProject = $confirmed->project;
-        if ($linkedProject?->canTransitionTo(Project::STATUS_SURVEY_PENDING)) {
+        if (
+            $linkedProject?->status === Project::STATUS_QUOTE_IMPORTED &&
+            $linkedProject->canTransitionTo(Project::STATUS_SURVEY_PENDING)
+        ) {
             try {
                 $this->projectService->transition(
                     $linkedProject,
