@@ -221,6 +221,8 @@ Route::middleware('auth')->group(function () {
     Route::get('site-surveys/blank-form',                                       [SiteSurveyController::class, 'downloadBlankForm'])->name('site-surveys.blank-form');
 
     // ── O&M Manuals ───────────────────────────────────────────────────────
+    // Status polling route MUST be before the resource wildcard to prevent {omManual} swallowing 'status'
+    Route::get('om-manuals/{omManual}/status', [\App\Http\Controllers\OmManualController::class, 'status'])->name('om-manuals.status');
     Route::resource('om-manuals', OmManualController::class)
         ->only(['index', 'create', 'store', 'destroy']);
     Route::post('om-manuals/from-project/{project}', [OmManualController::class, 'storeFromProject'])

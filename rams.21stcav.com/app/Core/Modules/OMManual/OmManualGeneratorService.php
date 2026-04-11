@@ -5,6 +5,7 @@ namespace App\Core\Modules\OMManual;
 use App\Core\AI\AIManager;
 use App\Core\AI\Prompts\OmManualPrompt;
 use App\Core\AI\Prompts\QuoteExtractionPrompt;
+use App\Core\Modules\Projects\ProjectDataService;
 use App\Core\Modules\Projects\ProjectService;
 use App\Exceptions\AIGenerationException;
 use App\Models\OmManual;
@@ -48,6 +49,7 @@ class OmManualGeneratorService
 {
     public function __construct(
         private readonly ProjectService             $projectService,
+        private readonly ProjectDataService         $projectDataService,
         private readonly PdfTextExtractorService    $pdfExtractor,
         private readonly QuoteLineExtractorService  $lineExtractor,
         private readonly EquipmentNormalizerService $normalizer,
@@ -184,6 +186,51 @@ class OmManualGeneratorService
         });
     }
 
+    // ── Pass 1: ProjectDataService feed (replaces PDF extraction for project-linked O&Ms) ──
+
+    /**
+     * Build the extracted_data context array from ProjectDataService output.
+     * Produces the exact shape that buildContentContext() and OmManualPrompt::forContent() expect.
+     *
+     * Called by OmManualController::generateFromProject() as the new Pass 1 replacement (D-07, D-08).
+     * No PDF extraction, no review step — ProjectDataService data is already reviewed.
+     *
+     * @param  Project $project  The project to read canonical data from.
+     * @return array             extracted_data array with keys: project_name, project_ref, client_name, site_address, notes, rooms[].
+     */
+    public function buildContextFromProjectData(Project $project): array
+    {
+        $data = $this->projectDataService->resolve($project);
+
+        $rooms = array_map(function (array $room) {
+            $filteredEquipment = $this->filterHardwareItems($room['equipment'] ?? []);
+
+            return [
+                'name'        => $room['name'] ?? $room['room_name'] ?? 'Unknown Room',
+                'floor'       => $room['floor'] ?? null,
+                'drawing_ref' => $room['drawing_ref'] ?? $room['room_ref'] ?? '',
+                'equipment'   => array_map(fn ($eq) => [
+                    'qty'          => (int) ($eq['quantity'] ?? $eq['qty'] ?? 1),
+                    'name'         => $eq['name'] ?? $eq['description'] ?? '',
+                    'description'  => $eq['description'] ?? $eq['name'] ?? '',
+                    'model'        => $eq['model'] ?? '',
+                    'manufacturer' => $eq['manufacturer'] ?? '',
+                    'part_no'      => $eq['part_no'] ?? '',
+                    'category'     => $eq['category'] ?? 'Other',
+                ], $filteredEquipment),
+            ];
+        }, $data['rooms'] ?? []);
+
+        return [
+            'project_name' => $data['project']['name'] ?? '',
+            'project_ref'  => $data['project']['quote_reference'] ?? '',
+            'client_name'  => $data['project']['client_name'] ?? '',
+            'site_address' => $data['project']['site_address'] ?? '',
+            'notes'        => $data['survey']['h_and_s_notes'] ?? '',
+            'rooms'        => $rooms,
+        ];
+    }
+
     // ── Pass 2: Full content generation ──────────────────────────────────────
 
     /**
@@ -305,13 +352,34 @@ class OmManualGeneratorService
     /**
      * Build the context array for OmManualPrompt::forContent().
      *
-     * The extracted_data from Pass 1 now holds a flat equipment list
-     * (shape: {equipment:[{quantity, name}]}). This method converts it into
-     * the single-room structure expected by OmManualPrompt::forContent().
+     * Supports two extracted_data shapes for backward compatibility:
+     *
+     *   New shape (project-linked O&Ms via buildContextFromProjectData):
+     *     { project_name, project_ref, client_name, site_address, notes, rooms: [{name, floor, drawing_ref, equipment: [...]}] }
+     *     Detected by the presence of a 'rooms' key → used directly.
+     *
+     *   Legacy shape (PDF-uploaded O&Ms via extractFromPdf / extractFromProjectPackage):
+     *     { equipment: [{quantity, name}] }
+     *     Detected by the presence of an 'equipment' key → wrapped in a single 'General' room.
      */
     private function buildContentContext(OmManual $manual): array
     {
-        $equipment = $manual->extracted_data['equipment'] ?? [];
+        $extractedData = $manual->extracted_data ?? [];
+
+        // ── New shape: rooms key present (project-linked O&Ms via ProjectDataService) ──
+        if (isset($extractedData['rooms']) && is_array($extractedData['rooms'])) {
+            return [
+                'project_name' => $extractedData['project_name'] ?? $manual->project_name ?? 'AV Installation',
+                'project_ref'  => $extractedData['project_ref']  ?? $manual->project_ref  ?? '',
+                'client_name'  => $extractedData['client_name']  ?? $manual->client_name  ?? '',
+                'site_address' => $extractedData['site_address'] ?? $manual->site_address ?? '',
+                'notes'        => $extractedData['notes']        ?? '',
+                'rooms'        => $extractedData['rooms'],
+            ];
+        }
+
+        // ── Legacy shape: flat equipment list (PDF-uploaded O&Ms — backward compatibility) ──
+        $equipment = $extractedData['equipment'] ?? [];
         $equipment = array_values(array_filter($equipment, function ($item) {
             if (! is_array($item)) {
                 return true;

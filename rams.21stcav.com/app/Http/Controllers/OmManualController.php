@@ -11,8 +11,10 @@ use App\Models\ProjectPackage;
 use App\Services\OmManualDocxService;
 use App\Services\PdfService;
 use App\Services\WorkerMonitorService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -151,33 +153,60 @@ class OmManualController extends Controller
     {
         abort_if($project->user_id !== auth()->id() && auth()->user()?->role !== 'admin', 403);
 
-        $package = $project->latestPackage;
-
-        if (! $package || $package->status !== ProjectPackage::STATUS_REVIEWED) {
-            return back()->with('error', 'No reviewed quote data found for this project. Please review the quote first.');
-        }
-
-        // Pass 1: extract equipment data from the package — fast, no AI, runs synchronously
-        // so the record exists in the DB before we return. The heavy Pass 2 (AI + DOCX)
-        // is dispatched as a queued job so the user gets instant feedback.
+        // Pass 1 replacement (D-07, D-08): Build extracted_data from ProjectDataService.
+        // ProjectDataService::resolve() returns reviewed, merged canonical data.
+        // No PDF upload, no AI extraction, no user review step required.
         try {
-            $manual = $this->generator->extractFromProjectPackage(
-                user:    auth()->user(),
-                package: $package,
-            );
+            $context = $this->generator->buildContextFromProjectData($project);
         } catch (\Throwable $e) {
-            return back()->with('error', 'Could not create O&M manual from project data: ' . $e->getMessage());
+            Log::error('OmManualController: buildContextFromProjectData failed', [
+                'project_id' => $project->id,
+                'error'      => $e->getMessage(),
+            ]);
+            return back()->with('error', 'Could not read project data: ' . $e->getMessage());
         }
 
-        $manual->update([
-            'status'        => OmManual::STATUS_GENERATING,
-            'error_message' => null,
+        // Create the OmManual record with pre-built extracted_data.
+        // Status starts as 'generating' — BuildOmManualJob will advance to 'draft' on success.
+        $manual = OmManual::create([
+            'user_id'        => auth()->id(),
+            'project_id'     => $project->id,
+            'project_name'   => $context['project_name'],
+            'project_ref'    => $context['project_ref'],
+            'client_name'    => $context['client_name'],
+            'site_address'   => $context['site_address'],
+            'extracted_data' => $context,
+            'status'         => OmManual::STATUS_GENERATING,
+            'error_message'  => null,
+        ]);
+
+        Log::info('OmManualController: generateFromProject queued', [
+            'project_id'   => $project->id,
+            'om_manual_id' => $manual->id,
         ]);
 
         app(WorkerMonitorService::class)->ensureRunning();
         BuildOmManualJob::dispatch($manual->id);
 
         return back()->with('success', 'O&M generation queued — the document will be ready to download shortly.');
+    }
+
+    // ── status (JSON polling endpoint for Alpine.js — D-17) ──────────────────
+
+    public function status(OmManual $omManual): JsonResponse
+    {
+        abort_if($omManual->user_id !== auth()->id() && auth()->user()?->role !== 'admin', 403);
+
+        $downloadUrl = in_array($omManual->status, [OmManual::STATUS_DRAFT, OmManual::STATUS_FINAL])
+            ? route('om-manuals.download', $omManual)
+            : null;
+
+        return response()->json([
+            'status'       => $omManual->status,
+            'label'        => $omManual->statusLabel(),
+            'download_url' => $downloadUrl,
+            'error'        => $omManual->error_message,
+        ]);
     }
 
     /**
