@@ -476,22 +476,16 @@ $item->notes            // nullable — from survey cable_route_desc
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should OmManualGeneratorService be modified or should a new service be created?**
-   - What we know: D-07 says replace Pass 1, D-08 says new service or modified existing. Modifying `generateFromProject()` in the controller is the minimal change.
-   - What's unclear: Whether the existing `extractFromProjectPackage()` method is used elsewhere (it's called only from `storeFromProject()` and `generateFromProject()` in OmManualController).
-   - Recommendation: Create a dedicated private method in OmManualController's `generateFromProject()` that calls ProjectDataService directly and stores the result in `extracted_data`. No new class needed unless complexity grows.
+   - RESOLVED: No new class. A private `buildContextFromProjectData()` method is added to `OmManualGeneratorService`. `generateFromProject()` in `OmManualController` calls ProjectDataService directly and stores the result in `extracted_data`. Minimal change — no new class needed.
 
 2. **Does `BuildCableScheduleJob` need to be async, or can cable generation be synchronous?**
-   - What we know: CABLE-04 requires queue-based async. Cable item creation is fast (no AI call, just DB inserts). But D-17 specifies the spinner UX pattern.
-   - What's unclear: Whether a synchronous generate + redirect would be acceptable for cable schedules given the absence of AI calls.
-   - Recommendation: Implement as queued job (matches CABLE-04 and consistency with other generators) even if generation is fast. The spinner UX is already the project standard.
+   - RESOLVED: Async queued job (`BuildCableScheduleJob`). Matches CABLE-04 and D-17 spinner UX pattern. Consistency with all other generators takes priority over the speed advantage of synchronous execution.
 
 3. **Where does the Worksheet download route redirect after generation?**
-   - What we know: O&M redirects to `om-manuals.edit` after queuing. Cable redirects to `cable-schedules.edit`.
-   - What's unclear: Worksheet has no edit view (no review step). Download is the terminal action.
-   - Recommendation: Redirect to `projects.show` with success flash. Add a Download button to the Worksheet entry in `$linkedRecords` when status is `draft` or `final`.
+   - RESOLVED: `WorksheetController::generateFromProject()` redirects to `projects.show` with a success flash. The project show page `$linkedRecords` card shows a Download button when `status = draft|final` (wired in Plan 04-04).
 
 ---
 
