@@ -47,6 +47,12 @@ class PdfTextExtractorService
     {
         // Stage 1: Smalot
         $smalot = $this->cleanText($this->parseText($path));
+        Log::debug('PdfTextExtractorService: smalot extracted', [
+            'path'        => basename($path),
+            'length'      => strlen($smalot),
+            'has_markers' => $this->hasQuoteWerksMarkers($smalot),
+            'preview'     => mb_substr($smalot, 0, 400),
+        ]);
         if ($this->isUsableText($smalot)) {
             Log::debug('PdfTextExtractorService: using Smalot output', [
                 'path'   => basename($path),

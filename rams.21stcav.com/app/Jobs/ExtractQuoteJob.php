@@ -64,6 +64,18 @@ class ExtractQuoteJob implements ShouldQueue
         // ── Stage 2: parallel local parsing ──────────────────────────────────
         $parsed = $quoteParser->parse($text);
 
+        Log::debug('ExtractQuoteJob: parser result', [
+            'package_id'    => $this->package->id,
+            'confidence'    => $parsed['confidence'] ?? null,
+            'client'        => $parsed['client'] ?? '',
+            'site'          => $parsed['site'] ?? '',
+            'ref'           => $parsed['ref'] ?? '',
+            'equipment_count' => count($parsed['equipment'] ?? []),
+            'has_markers'   => str_contains($text, 'PARTSTART'),
+            'text_length'   => strlen($text),
+            'text_preview'  => mb_substr($text, 0, 300),
+        ]);
+
         // ── Stages 3-5: filter → normalise → parse equipment lines ───────────
         $lines = $lineExtractor->extractEquipmentLines($text);
         $lines = $normalizer->normalize($lines);
