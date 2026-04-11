@@ -235,15 +235,19 @@ class ExtractQuoteJob implements ShouldQueue
                     return null;
                 }
 
+                $partNo   = trim((string) ($row['part_number'] ?? ''));
+                $itemType = $this->classifyItemType($partNo, $name);
+
                 return [
                     'quantity'    => max(1, (int) ($row['qty'] ?? 1)),
                     'qty'         => max(1, (int) ($row['qty'] ?? 1)),
-                    'part_number' => trim((string) ($row['part_number'] ?? '')),
-                    'part_no'     => trim((string) ($row['part_number'] ?? '')),
+                    'part_number' => $partNo,
+                    'part_no'     => $partNo,
                     'name'        => $name,
                     'description' => $name,
                     'area'        => trim((string) ($row['area'] ?? '')),
                     'location'    => trim((string) ($row['location'] ?? '')),
+                    'item_type'   => $itemType,
                 ];
             },
             (array) ($parsed['equipment'] ?? [])
@@ -253,15 +257,92 @@ class ExtractQuoteJob implements ShouldQueue
             $ai['equipment']      = $parserEquipment;
             $ai['equipment_list'] = $parserEquipment;
             $ai['line_items']     = $parserEquipment;
+
+            // hardware_list — physical items only; used by RAMS and O&M generators.
+            $ai['hardware_list'] = array_values(
+                array_filter($parserEquipment, fn (array $i) => $i['item_type'] === 'hardware')
+            );
+
+            // worksheet_items — hardware + delivery; excludes professional services and consumables.
+            // Worksheets track what is physically installed on site.
+            $ai['worksheet_items'] = array_values(
+                array_filter($parserEquipment, fn (array $i) => $i['item_type'] === 'hardware')
+            );
         }
 
         $ai['cable_hints'] = [];
 
         $ai['meta'] = array_merge((array) ($ai['meta'] ?? []), [
-            'parser_confidence' => $parsed['confidence'] ?? null,
-            'source'            => 'extracted',
+            'parser_confidence'       => $parsed['confidence'] ?? null,
+            'source'                  => 'extracted',
+            'total_items'             => count($parserEquipment),
+            'hardware_count'          => count($ai['hardware_list'] ?? []),
+            'service_count'           => count(array_filter($parserEquipment, fn ($i) => $i['item_type'] === 'professional_service')),
+            'consumable_count'        => count(array_filter($parserEquipment, fn ($i) => $i['item_type'] === 'consumable')),
         ]);
 
         return $ai;
+    }
+
+    /**
+     * Classify a quote line item as hardware, consumable, or professional_service.
+     *
+     * Rules (applied in order):
+     *   1. Known consumable part-number prefixes/codes → consumable
+     *   2. Known professional-service prefixes/codes   → professional_service
+     *   3. Everything else                             → hardware
+     *
+     * Used to split equipment_list into hardware_list (RAMS/O&M) and
+     * worksheet_items (everything a physical crew would install/connect).
+     */
+    private function classifyItemType(string $partNo, string $description): string
+    {
+        $upper = strtoupper($partNo);
+        $desc  = strtolower($description);
+
+        // ── Consumables ───────────────────────────────────────────────────────
+        // Bulk line items — not individually identifiable hardware pieces.
+        $consumablePrefixes = [
+            'CONSUMABLE', 'DELIVERY', 'CABLES', 'CABLE', 'MISC', 'PACKING', 'WASTE',
+            'SUNDRY', 'SUNDRIES', 'MATERIALS',
+        ];
+        foreach ($consumablePrefixes as $prefix) {
+            if (str_starts_with($upper, $prefix)) {
+                return 'consumable';
+            }
+        }
+
+        // ── Professional services ─────────────────────────────────────────────
+        // Labour, documentation, travel, surveys — not physically installed items.
+        $servicePrefixes = [
+            'INSTALL', 'FIRSTFIX', 'SECONDFIX', 'THIRDFIX', 'COMMISSION',
+            'RAMS', 'SSV', 'PM', 'PROJMAN', 'PROJECTMAN', 'TRAINING',
+            'TRAVEL', 'TRAV', 'MILEAGE',
+            'OMANUAL', 'CABLESCH', 'PROSER', 'PROGRAM', 'CONSULT',
+            'DRAWING', 'SNAG', 'CALLOUT', 'SUPPORT', 'CONFIG', 'HANDOVER',
+            'DERIG', 'DECOMM', 'SURVEY', 'ATTEND', 'VISIT', 'RACK',
+            'PROJ', 'MANAGE',
+        ];
+        foreach ($servicePrefixes as $prefix) {
+            if (str_starts_with($upper, $prefix)) {
+                return 'professional_service';
+            }
+        }
+
+        // Empty part number — classify by description keywords.
+        if ($partNo === '') {
+            $serviceDescKeywords = [
+                'site survey', 'install', 'commissioning', 'labour', 'travel',
+                'training', 'project management', 'risk assessment', 'method statement',
+                'call out', 'callout', 'support', 'consultation', 'engineer',
+            ];
+            foreach ($serviceDescKeywords as $kw) {
+                if (str_contains($desc, $kw)) {
+                    return 'professional_service';
+                }
+            }
+        }
+
+        return 'hardware';
     }
 }

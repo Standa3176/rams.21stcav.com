@@ -142,7 +142,22 @@ class ProjectDataService
 
     private function resolveEquipment(array $source, string $dataSource, float $confidence): array
     {
-        $items = $source['equipment'] ?? $source['equipment_list'] ?? [];
+        // Prefer hardware_list (pre-classified by ExtractQuoteJob) so RAMS, O&M,
+        // and worksheets only receive physical hardware — no services or consumables.
+        // Fall back to equipment_list with item_type filtering for older packages.
+        if (! empty($source['hardware_list'])) {
+            $items = $source['hardware_list'];
+        } else {
+            $all   = $source['equipment'] ?? $source['equipment_list'] ?? [];
+            $items = array_values(array_filter((array) $all, function (array $item): bool {
+                $type = $item['item_type'] ?? '';
+                if ($type === 'consumable' || $type === 'professional_service') {
+                    return false;
+                }
+                return true;
+            }));
+        }
+
         if (empty($items)) {
             return [];
         }

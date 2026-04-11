@@ -143,8 +143,12 @@ class OmManualGeneratorService
             throw new RuntimeException('This package is not linked to a project.');
         }
 
-        $equipment = $package->equipment_list ?? ($package->extracted_data['equipment_list'] ?? []);
-        $equipment = $this->filterHardwareItems($equipment);
+        // Prefer hardware_list (pre-classified by ExtractQuoteJob); fall back to
+        // equipment_list filtered through the keyword heuristic for older packages.
+        $extracted = $package->extracted_data ?? [];
+        $equipment = ! empty($extracted['hardware_list'])
+            ? $extracted['hardware_list']
+            : $this->filterHardwareItems($package->equipment_list ?? ($extracted['equipment_list'] ?? []));
 
         $rooms = $this->buildRoomsFromEquipment($equipment);
 
@@ -432,6 +436,18 @@ class OmManualGeneratorService
             if (! is_array($item)) {
                 continue;
             }
+
+            // item_type is set by ExtractQuoteJob::classifyItemType() on new imports.
+            $itemType = $item['item_type'] ?? '';
+            if ($itemType === 'consumable' || $itemType === 'professional_service') {
+                continue;
+            }
+            if ($itemType === 'hardware') {
+                $filtered[] = $item;
+                continue;
+            }
+
+            // Legacy fallback: category/keyword heuristic for packages without item_type.
             $category = strtolower((string) ($item['category'] ?? ''));
             $desc = strtolower((string) ($item['model'] ?? '') . ' ' . (string) ($item['description'] ?? '') . ' ' . (string) ($item['name'] ?? ''));
 
@@ -439,7 +455,6 @@ class OmManualGeneratorService
                 continue;
             }
 
-            // Keyword fallback for uncategorised items
             if ($category === '') {
                 if ($this->containsAny($desc, ['optional', 'option'])) {
                     continue;
