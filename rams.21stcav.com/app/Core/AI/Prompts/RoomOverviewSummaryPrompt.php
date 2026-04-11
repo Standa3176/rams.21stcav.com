@@ -12,10 +12,20 @@ namespace App\Core\AI\Prompts;
  *   ]
  *
  * Expected output JSON:
- *   { "summaries": [ { "room": "Boardroom", "summary": "Room Type: ...\nDisplay: ..." }, ... ] }
+ *   {
+ *     "summaries": [
+ *       {
+ *         "room": "Boardroom",
+ *         "summary": "Room Type: ...\nDisplay: ...",
+ *         "description": "2–4 sentence prose paragraph describing room type, AV solution, and any notable infrastructure detail."
+ *       },
+ *       ...
+ *     ]
+ *   }
  *
  * The summary for each room is a structured, labelled key-value block — one
  * field per line — suitable for inclusion in RAMS, O&M and worksheet documents.
+ * The description is a plain prose paragraph for cover pages and document headers.
  */
 class RoomOverviewSummaryPrompt extends BasePrompt
 {
@@ -45,12 +55,18 @@ class RoomOverviewSummaryPrompt extends BasePrompt
             '- Keep each field value concise (one line, under 80 characters).',
             '- Do NOT add introductory sentences, bullet characters, or numbering.',
             '- Output valid JSON only.',
+            '',
+            'For EACH room also produce a `description` field:',
+            '- 2–4 sentence prose paragraph. Plain British English. No bullet points, no field labels, no markdown.',
+            '- Describe: (1) the room type / purpose, (2) the main AV solution being installed, (3) any notable infrastructure detail (power, data, cabling, mounting, or access constraints).',
+            '- If the overview contains insufficient detail, write only what can be stated confidently — do not invent.',
+            '- CRITICAL JSON RULE: `description` must be a single-line JSON string. Use \\n to represent line breaks if needed, but prefer continuous prose without line breaks.',
         ]);
     }
 
     public function maxTokens(): int
     {
-        return 1200;
+        return 2000;
     }
 
     public function temperature(): float
@@ -89,7 +105,8 @@ class RoomOverviewSummaryPrompt extends BasePrompt
             ? "\nWhere a solution_type is provided, use it to inform the Room Type label and ensure relevant\nfield labels are included (e.g. for PA System include Audio/Speaker fields; for LED Video Wall\ninclude Pixel Pitch, Cabinet Size etc). Where solution_method is provided, you may reference\nthe typical process steps to infer Control, Infrastructure and Connectivity details.\n"
             : '';
 
-        $exampleSummary = 'Room Type: Small Meeting Room (4-6 Persons)\\nDisplay: 65" Samsung Interactive (Wall Mounted)\\nVC System: ClickShare Bar PRO (Under Display)\\nConnectivity: Wireless (USB-C Buttons) + Optional USB\\nPower: 2x Socket\\nData: 2x Cat6\\nAccessories: ClickShare Tray';
+        $exampleSummary     = 'Room Type: Small Meeting Room (4-6 Persons)\\nDisplay: 65" Samsung Interactive (Wall Mounted)\\nVC System: ClickShare Bar PRO (Under Display)\\nConnectivity: Wireless (USB-C Buttons) + Optional USB\\nPower: 2x Socket\\nData: 2x Cat6\\nAccessories: ClickShare Tray';
+        $exampleDescription = 'This small meeting room receives a 65-inch Samsung interactive display wall-mounted above the presentation wall, together with a ClickShare Bar PRO for wireless video conferencing. Signal distribution is via USB-C buttons supplemented by an optional USB connection. New power and data points are required at the display and rack locations.';
 
         return <<<PROMPT
 Generate a structured AV works summary for each room below.
@@ -104,11 +121,16 @@ Use the two-character escape sequence \\n (backslash followed by n) to represent
 line breaks between fields. Do NOT insert actual line breaks / newlines inside
 a JSON string value — this produces invalid JSON that cannot be parsed.
 
+CRITICAL JSON RULE: The "description" field must also be a single-line JSON string.
+Prefer continuous prose without line breaks. Do NOT insert actual newlines inside
+the description string value.
+
 {
   "summaries": [
     {
       "room": "Room Name",
-      "summary": "Room Type: ...\\nDisplay: ...\\nVC System: ..."
+      "summary": "Room Type: ...\\nDisplay: ...\\nVC System: ...",
+      "description": "2–4 sentence prose paragraph describing room type, AV solution, and any notable infrastructure detail."
     }
   ]
 }
@@ -118,7 +140,8 @@ Example of a correctly formatted single-room response:
   "summaries": [
     {
       "room": "Small Meeting Room",
-      "summary": "{$exampleSummary}"
+      "summary": "{$exampleSummary}",
+      "description": "{$exampleDescription}"
     }
   ]
 }
