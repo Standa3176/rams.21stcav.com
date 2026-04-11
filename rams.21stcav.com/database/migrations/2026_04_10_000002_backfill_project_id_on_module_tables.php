@@ -53,7 +53,7 @@ return new class extends Migration
             // If the user has exactly one project, assign it. This is safe and unambiguous.
             $backfilled = DB::table($table)
                 ->whereNull('project_id')
-                ->whereExists(function ($sub) {
+                ->whereExists(function ($sub) use ($table) {
                     $sub->select(DB::raw(1))
                         ->from('projects')
                         ->whereColumn('projects.user_id', $table . '.user_id')
