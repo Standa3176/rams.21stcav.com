@@ -1737,22 +1737,42 @@ class QuoteParserService
         // ── 6. Tasks ────────────────────────────────────────────────────────
         $tasks = $this->extractTasks($this->toLines($overview));
 
-        // ── 7. Confidence ────────────────────────────────────────────────────
+        // ── 7. Room overviews — map parsed sections to review-form structure ─
+        // Each OVERVIEWTITLE section becomes one room_overviews entry so the
+        // review form pre-populates with extracted narrative text.
+        $roomOverviews = [];
+        foreach ($sections as $section) {
+            $rTitle = trim((string) ($section['title'] ?? ''));
+            $rText  = trim((string) ($section['text'] ?? ''));
+            if ($rTitle === '' && $rText === '') {
+                continue;
+            }
+            $roomOverviews[] = [
+                'room'             => $rTitle,
+                'overview'         => $rText,
+                'works_summary'    => '',
+                'solution_type_id' => '',
+                'summary'          => '',
+            ];
+        }
+
+        // ── 8. Confidence ────────────────────────────────────────────────────
         $confidence = $this->calculateConfidence($client, $site, $ref, $equipment);
 
         return [
-            'client'        => $client,
-            'site_name'     => $siteName,
-            'site'          => $site,
-            'ref'           => $ref,
-            'overview'      => $overview,
-            'equipment'     => $equipment,
-            'prepared_by'   => $preparedBy,
-            'tasks'         => $tasks,
-            'rooms'         => $rooms,
-            'project_name'  => '',
-            'works_summary' => '',
-            'confidence'    => $confidence,
+            'client'         => $client,
+            'site_name'      => $siteName,
+            'site'           => $site,
+            'ref'            => $ref,
+            'overview'       => $overview,
+            'equipment'      => $equipment,
+            'prepared_by'    => $preparedBy,
+            'tasks'          => $tasks,
+            'rooms'          => $rooms,
+            'room_overviews' => $roomOverviews,
+            'project_name'   => '',
+            'works_summary'  => '',
+            'confidence'     => $confidence,
         ];
     }
 
@@ -2377,12 +2397,31 @@ class QuoteParserService
 
     /**
      * Extract site name from SITENAME tag pair or from the line before SITENAMESTART.
+     *
+     * pdftotext -raw reads QuoteWerks two-column header rows left-to-right, so the
+     * SITENAMESTART/SITENAMEEND block often contains other column markers such as
+     * "SHIPCONTSTART SHIPCONTEND" instead of the actual site name.  Strip all known
+     * QuoteWerks marker tokens from the extracted value; if nothing real remains,
+     * fall back to the SHIPCOMP (company) tag then the line before SITENAMESTART.
      */
     private function extractTaggedSiteName(string $rawText): string
     {
         $value = ltrim($this->extractTagContent($rawText, 'SITENAMESTART', 'SITENAMEEND'), " \t~");
+
         if ($value !== '') {
-            return rtrim($this->normalise($value, 80), ' -–—');
+            // Remove any QuoteWerks marker tokens (e.g. SHIPCONTSTART, SHIPCONTEND, QUOTENUMSTART …)
+            $stripped = (string) preg_replace('/\b[A-Z]{3,}(?:START|END)\b/i', '', $value);
+            $stripped = trim((string) preg_replace('/\s{2,}/', ' ', $stripped));
+
+            if ($stripped !== '') {
+                return rtrim($this->normalise($stripped, 80), ' -–—');
+            }
+        }
+
+        // Tag content was empty or contained only marker tokens — try company name tag.
+        $company = $this->extractTaggedCompanyName($rawText);
+        if ($company !== '') {
+            return $company;
         }
 
         $before = $this->extractLineBeforeTag($rawText, 'SITENAMESTART');
