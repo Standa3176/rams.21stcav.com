@@ -2350,9 +2350,14 @@ class QuoteParserService
                 continue;
             }
 
-            // Skip the quote reference number line (e.g. 21CQ28863-05-OPS or 21CQ28915-06-OPS).
-            // Handles both letter-leading (QW12345) and digit-leading (21CQ...) ref formats.
+            // Skip lines that ARE entirely a quote reference number.
+            // Also strip a leading ref prefix when the ref is concatenated with the first
+            // address line (Layout B PDFs): "21CQ30036-01-OPS Queens Road" → "Queens Road".
             if (preg_match('/^(?:\d{1,3})?[A-Z]{1,4}\d{3,}[A-Z0-9\-]*$/i', $line)) {
+                continue;
+            }
+            $line = (string) preg_replace('/^(?:\d{1,3})?[A-Z]{1,4}\d{3,}[A-Z0-9\-]*\s+/i', '', $line);
+            if ($line === '') {
                 continue;
             }
 
@@ -2423,23 +2428,20 @@ class QuoteParserService
                 return rtrim($this->normalise($stripped, 80), ' -–—');
             }
 
-            // Tag had content but it was all markers → try the line before the tag first.
-            // The QuoteWerks header line has the format "SiteName - CompanyName ContactName";
-            // extracting the part before " - " gives the actual site/building name.
+            // Tag had content but it was all markers → try the line before the tag, but
+            // ONLY when it contains a " - " separator.  The QuoteWerks header line has the
+            // format "SiteName - CompanyName ContactName"; the part before " - " is the site.
+            // Without " - " the line is "SiteName ContactName" with no safe split boundary,
+            // so fall straight through to the company name fallback.
             $before = $this->extractLineBeforeTag($rawText, 'SITENAMESTART');
             if ($before !== '') {
                 $cleaned = (string) preg_replace('/\b[A-Z]{3,}(?:START|END)\b/i', '', $before);
                 $cleaned = trim((string) preg_replace('/\s{2,}/', ' ', $cleaned));
-                // Header format: "SiteName - CompanyName ContactName" — take only the site part.
                 if (str_contains($cleaned, ' - ')) {
                     $sitePart = rtrim(trim((string) strstr($cleaned, ' - ', true)), ' -–—');
                     if ($sitePart !== '') {
                         return $this->normalise($sitePart, 80);
                     }
-                }
-                $cleaned = rtrim($cleaned, ' -–—');
-                if ($cleaned !== '') {
-                    return $this->normalise($cleaned, 80);
                 }
             }
 
