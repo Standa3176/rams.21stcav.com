@@ -466,7 +466,8 @@ class ProjectPackageReviewController extends Controller
                 'room_lines'   => $roomBlock,
             ]);
             $result = \App\Core\AI\AIManager::run($prompt, []);
-            $text   = trim((string) ($result['scope_of_works'] ?? ''));
+            $text          = trim((string) ($result['scope_of_works'] ?? ''));
+            $worksOverview = trim((string) ($result['works_overview'] ?? ''));
         } catch (\Throwable $e) {
             return response()->json(['error' => 'AI generation failed. Please try again.'], 500);
         }
@@ -475,7 +476,10 @@ class ProjectPackageReviewController extends Controller
             return response()->json(['error' => 'AI returned an empty response. Please try again.'], 500);
         }
 
-        return response()->json(['scope_of_works' => $text]);
+        return response()->json([
+            'scope_of_works' => $text,
+            'works_overview' => $worksOverview,
+        ]);
     }
 
     /**
@@ -516,11 +520,15 @@ class ProjectPackageReviewController extends Controller
                 ],
             ]);
             $worksSummary = $results[0]['summary'] ?? '';
+            $description  = trim((string) ($results[0]['description'] ?? ''));
         } catch (\Throwable $e) {
             return response()->json(['error' => 'AI generation failed. Please try again.'], 500);
         }
 
-        return response()->json(['works_summary' => $worksSummary]);
+        return response()->json([
+            'works_summary' => $worksSummary,
+            'description'   => $description,
+        ]);
     }
 
     /**
