@@ -69,6 +69,8 @@ class RamsReviewValidatorService
             'room_overviews.*.room'          => ['required', 'string', 'max:255'],
             'room_overviews.*.overview'      => ['nullable', 'string', 'max:10000'],
             'room_overviews.*.summary'       => ['nullable', 'string', 'max:10000'],
+            'room_overviews.*.description'   => ['nullable', 'string', 'max:10000'],
+            'works_overview'                 => ['nullable', 'string', 'max:2000'],
         ], [
             'project.project_name.required'  => 'Project name is required.',
             'equipment.required'             => 'At least one equipment item is required.',

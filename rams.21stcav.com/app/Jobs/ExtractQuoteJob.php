@@ -162,11 +162,82 @@ class ExtractQuoteJob implements ShouldQueue
             }
         });
 
+        $this->generateContentPack($extracted);
+
         Log::info('ExtractQuoteJob: extraction complete', [
             'package_id' => $this->package->id,
             'user_id'    => $this->user->id,
             'confidence' => $extracted['meta']['parser_confidence'] ?? null,
         ]);
+    }
+
+    /**
+     * Best-effort content pack generation.
+     * Generates room descriptions (summary + description) and scope fields,
+     * then merges them into extracted_data.
+     * Wrapped in try/catch — AI failure must NOT propagate to the extraction job.
+     */
+    private function generateContentPack(array $extracted): void
+    {
+        try {
+            $roomOverviews = (array) ($extracted['room_overviews'] ?? []);
+
+            // ── 1. Generate room summaries + descriptions ─────────────────────
+            $summaryService = app(\App\Services\RoomOverviewSummaryService::class);
+            $roomOverviews  = $summaryService->summarize($roomOverviews);
+
+            // ── 2. Generate scope_of_works + works_overview ───────────────────
+            $roomLines = [];
+            foreach ($roomOverviews as $ro) {
+                $room = trim((string) ($ro['room'] ?? ''));
+                $desc = trim((string) ($ro['works_summary'] ?? $ro['overview'] ?? ''));
+                if ($room !== '' && $desc !== '') {
+                    $roomLines[] = "- {$room}: {$desc}";
+                }
+            }
+
+            $projectName = $extracted['project']['project_name'] ?? $extracted['project_name'] ?? 'this project';
+            $clientName  = $extracted['project']['client_name']  ?? $extracted['client_name']  ?? '';
+            $siteAddress = $extracted['project']['site_address'] ?? $extracted['site_address']  ?? '';
+
+            $worksOverview = '';
+            $scopeOfWorks  = '';
+
+            if (! empty($roomLines)) {
+                $prompt = (new \App\Core\AI\Prompts\ScopeOfWorksPrompt())->withContext([
+                    'project_name' => $projectName,
+                    'client_name'  => $clientName,
+                    'site_address' => $siteAddress,
+                    'room_lines'   => implode("\n", $roomLines),
+                ]);
+                $scopeResult   = AIManager::run($prompt, []);
+                $scopeOfWorks  = trim((string) ($scopeResult['scope_of_works'] ?? ''));
+                $worksOverview = trim((string) ($scopeResult['works_overview']  ?? ''));
+            }
+
+            // ── 3. Merge into extracted_data and persist ──────────────────────
+            $fresh = $this->package->fresh()->extracted_data ?? [];
+            $fresh['room_overviews'] = $roomOverviews;
+            if ($scopeOfWorks !== '') {
+                $fresh['scope_of_works'] = $scopeOfWorks;
+            }
+            if ($worksOverview !== '') {
+                $fresh['works_overview'] = $worksOverview;
+            }
+            $this->package->update(['extracted_data' => $fresh]);
+
+            Log::info('ExtractQuoteJob: content pack generated', [
+                'package_id'    => $this->package->id,
+                'rooms_updated' => count($roomOverviews),
+                'has_scope'     => $scopeOfWorks !== '',
+                'has_overview'  => $worksOverview !== '',
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('ExtractQuoteJob: content pack generation failed (best-effort, extraction still succeeds)', [
+                'package_id' => $this->package->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
     }
 
     public function failed(\Throwable $e): void
