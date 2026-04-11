@@ -2350,8 +2350,9 @@ class QuoteParserService
                 continue;
             }
 
-            // Skip the quote reference number line (e.g. 21CQ28863-05-OPS).
-            if (preg_match('/^[A-Z][A-Z0-9]{1,4}\d{3,}(?:[A-Z0-9\-]*)$/i', $line)) {
+            // Skip the quote reference number line (e.g. 21CQ28863-05-OPS or 21CQ28915-06-OPS).
+            // Handles both letter-leading (QW12345) and digit-leading (21CQ...) ref formats.
+            if (preg_match('/^(?:\d{1,3})?[A-Z]{1,4}\d{3,}[A-Z0-9\-]*$/i', $line)) {
                 continue;
             }
 
