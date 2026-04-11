@@ -532,11 +532,13 @@
             @enderror
             @php
                 $categoryOptions = [
-                    'hardware'    => 'Hardware',
-                    'cables'      => 'Cables',
-                    'consumables' => 'Consumables',
-                    'services'    => 'Services / Professional',
-                    'option'      => 'Option (Optional Items)',
+                    'hardware'          => 'Hardware',
+                    'cables'            => 'Cables',
+                    'consumables'       => 'Consumables',
+                    'services'          => 'Services / Professional',
+                    'service_contracts' => 'Service Contracts',
+                    'customer_supplied' => 'Customer Supplied',
+                    'option'            => 'Option (Optional Items)',
                 ];
                 $rawEquipment = session()->hasOldInput()
                     ? (old('equipment', []) ?? [])
@@ -551,11 +553,13 @@
                 }
 
                 $equipmentByCategory = [
-                    'hardware'    => [],
-                    'cables'      => [],
-                    'consumables' => [],
-                    'services'    => [],
-                    'option'      => [],
+                    'hardware'          => [],
+                    'cables'            => [],
+                    'consumables'       => [],
+                    'services'          => [],
+                    'service_contracts' => [],
+                    'customer_supplied' => [],
+                    'option'            => [],
                 ];
 
                 foreach ($equipmentRows as $row) {
@@ -1259,6 +1263,8 @@ function equipmentRowTemplate(idx, category) {
                 <option value="cables" ${category === 'cables' ? 'selected' : ''}>Cables</option>
                 <option value="consumables" ${category === 'consumables' ? 'selected' : ''}>Consumables</option>
                 <option value="services" ${category === 'services' ? 'selected' : ''}>Services / Professional</option>
+                <option value="service_contracts" ${category === 'service_contracts' ? 'selected' : ''}>Service Contracts</option>
+                <option value="customer_supplied" ${category === 'customer_supplied' ? 'selected' : ''}>Customer Supplied</option>
                 <option value="option" ${category === 'option' ? 'selected' : ''}>Option (Optional Items)</option>
             </select>
         </td>
@@ -1406,9 +1412,6 @@ document.addEventListener('change', function (e) {
     }
 
     ensureEquipmentEmptyState(tbody);
-
-    // Scroll the moved row into view so the user sees where it landed.
-    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
 });
 
 // ─── Empty state handling for equipment categories ───────────────────────────

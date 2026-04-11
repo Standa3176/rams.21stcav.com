@@ -11,6 +11,7 @@
 
 <x-dashboard.page-header title="AI Usage" breadcrumb="Admin">
     <x-slot name="actions">
+        <a href="{{ route('admin.worker.index') }}" class="btn btn-outline btn-sm">⚙ Queue Worker</a>
         <a href="{{ route('admin.ai-usage.index') }}" class="btn btn-outline btn-sm">↻ Refresh</a>
     </x-slot>
 </x-dashboard.page-header>

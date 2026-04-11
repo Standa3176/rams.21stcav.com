@@ -144,12 +144,20 @@ class WorkerMonitorService
 
     /**
      * Called before dispatching a queue job.
-     * Logs a warning if the worker does not appear to be running.
-     * Does NOT attempt to start the worker (exec() hangs on this server).
+     * If the worker is not running and WORKER_EXEC_ENABLED=true, spawns one automatically.
+     * Otherwise logs a warning for the admin to act on.
      */
     public function ensureRunning(): void
     {
-        if (! $this->isRunning()) {
+        if ($this->isRunning()) {
+            return;
+        }
+
+        if ($this->canExec()) {
+            Log::info('WorkerMonitorService: worker not running — auto-spawning before job dispatch.');
+            $lines = $this->spawnWorker();
+            Log::info('WorkerMonitorService: spawn result', ['output' => $lines]);
+        } else {
             Log::warning(
                 'WorkerMonitorService: worker does not appear to be running. ' .
                 'Start it via SSH or a cron job — see Admin › Worker Monitor.'
@@ -209,6 +217,119 @@ class WorkerMonitorService
     public function clearHeartbeat(): void
     {
         @unlink($this->heartbeatFile());
+    }
+
+    // ── Exec-based kill / spawn (opt-in via WORKER_EXEC_ENABLED=true) ─────────
+
+    /**
+     * Returns true when exec()-based restart is enabled and exec() is callable.
+     * Off by default to protect production servers where exec() hangs.
+     * Set WORKER_EXEC_ENABLED=true in .env to enable on dev / self-managed hosts.
+     */
+    public function canExec(): bool
+    {
+        if (! function_exists('exec')) {
+            return false;
+        }
+
+        return (bool) env('WORKER_EXEC_ENABLED', false);
+    }
+
+    /**
+     * Force-kill any running queue:work processes.
+     * Returns an array of human-readable log lines for display.
+     */
+    public function killProcesses(): array
+    {
+        $lines = [];
+
+        if (PHP_OS_FAMILY === 'Windows') {
+            exec(
+                'wmic process where "name=\'php.exe\' and CommandLine like \'%queue:work%\'" get ProcessId /FORMAT:VALUE 2>&1',
+                $wmicOut,
+                $wmicExit,
+            );
+
+            $killed = 0;
+            foreach ($wmicOut as $line) {
+                if (preg_match('/ProcessId=(\d+)/i', trim($line), $m) && ($pid = (int) $m[1]) > 0) {
+                    exec("taskkill /F /PID {$pid} 2>&1", $kOut, $kExit);
+                    $icon    = $kExit === 0 ? '✓' : '✗';
+                    $lines[] = "{$icon} taskkill /PID {$pid}: " . trim(implode(' ', $kOut));
+                    $killed++;
+                }
+            }
+
+            if ($killed === 0) {
+                $lines[] = 'No queue:work PHP processes found on Windows.';
+            }
+        } else {
+            exec('pkill -f "artisan queue:work" 2>&1', $pkillOut, $pkillExit);
+
+            if ($pkillExit === 0) {
+                $lines[] = '✓ pkill: process(es) killed.';
+            } elseif ($pkillExit === 1) {
+                $lines[] = 'No matching processes found (worker may already be stopped).';
+            } else {
+                $lines[] = "✗ pkill failed (exit {$pkillExit}): " . implode(' ', $pkillOut);
+            }
+        }
+
+        $this->clearHeartbeat();
+        $lines[] = '✓ Heartbeat file cleared.';
+
+        return $lines;
+    }
+
+    /**
+     * Spawn a new queue worker in the background.
+     * Returns an array of human-readable log lines for display.
+     * Writes a preliminary heartbeat so the status badge flips to Running immediately.
+     */
+    public function spawnWorker(): array
+    {
+        $lines   = [];
+        $php     = $this->phpBinary();
+        $artisan = base_path('artisan');
+        $log     = $this->workerLogFile();
+
+        if (PHP_OS_FAMILY === 'Windows') {
+            // cmd /c start /B fully detaches the process from the PHP-FPM worker.
+            $cmd = 'cmd /c start /B ""'
+                . ' "' . $php . '"'
+                . ' "' . $artisan . '"'
+                . ' queue:work --tries=2 --timeout=300 --sleep=3 --memory=256'
+                . ' >> "' . $log . '" 2>&1';
+        } else {
+            $cmd = 'nohup '
+                . escapeshellarg($php) . ' '
+                . escapeshellarg($artisan) . ' '
+                . 'queue:work --tries=2 --timeout=300 --sleep=3 --memory=256'
+                . ' >> ' . escapeshellarg($log) . ' 2>&1 &';
+        }
+
+        $lines[] = '$ ' . $cmd;
+
+        exec($cmd, $execOut, $exitCode);
+
+        if ($exitCode !== 0) {
+            $lines[] = '✗ Spawn failed (exit ' . $exitCode . ')' . (empty($execOut) ? '.' : ': ' . implode(' ', $execOut));
+        } else {
+            $lines[] = '✓ Worker process spawned (exit 0).';
+
+            if (! empty($execOut)) {
+                foreach ($execOut as $line) {
+                    $lines[] = '  ' . $line;
+                }
+            }
+
+            // Write preliminary heartbeat so the status badge shows Running
+            // immediately. The WorkerHeartbeatJob will refresh it on the next job cycle.
+            $this->writeHeartbeat();
+            $lines[] = '✓ Heartbeat written — status will show Running.';
+        }
+
+        return $lines;
     }
 
     // ── SSH command helpers ───────────────────────────────────────────────────

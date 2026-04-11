@@ -101,9 +101,21 @@
 
 @if (session('action') === 'restart')
 <div class="worker-card" style="border-color:#a5b4fc;background:#eef2ff;">
-    <p style="font-weight:600;color:#3730a3;margin:0 0 .4rem;">↺ Stop signal sent. Once the worker stops, run this to restart it:</p>
-    <div class="cmd-block" id="restartCmd">{{ $startCommand }}</div>
-    <button class="copy-btn" onclick="copyCmd('restartCmd')">📋 Copy</button>
+    <p style="font-weight:600;color:#3730a3;margin:0 0 .6rem;">↺ Restart initiated</p>
+    @if (session('exec_output'))
+        <div class="section-title" style="color:#4338ca;">Output</div>
+        <div class="log-block" style="color:#c7d2fe;background:#1e1b4b;">{{ session('exec_output') }}</div>
+        <p style="margin:.5rem 0 0;font-size:.78rem;color:#4338ca;">
+            Status badge will update within ~90 s if the worker is running.
+            If you see ✗ errors above, check the logs or run the start command below manually.
+        </p>
+    @else
+        <p style="margin:0 0 .4rem;color:#4338ca;font-size:.85rem;">
+            Stop signal sent. Run the start command below to complete the restart.
+        </p>
+        <div class="cmd-block" id="restartCmd">{{ $startCommand }}</div>
+        <button class="copy-btn" onclick="copyCmd('restartCmd')">📋 Copy</button>
+    @endif
 </div>
 @endif
 
@@ -122,19 +134,14 @@
         </div>
 
         <div class="btn-group">
-            @if (! $isRunning)
-                <form method="POST" action="{{ route('admin.worker.start') }}">
-                    @csrf
-                    <button class="btn btn-primary btn-sm">▶ Show Start Command</button>
-                </form>
-            @else
-                <form method="POST" action="{{ route('admin.worker.restart') }}">
-                    @csrf
-                    <button class="btn btn-outline btn-sm"
-                            onclick="return confirm('Send stop signal and show restart command?')">
-                        ↺ Restart
-                    </button>
-                </form>
+            <form method="POST" action="{{ route('admin.worker.restart') }}">
+                @csrf
+                <button class="btn btn-outline btn-sm"
+                        onclick="return confirm('Send queue restart signal? The worker will reload its code on the next job cycle.')">
+                    ↺ Restart Worker
+                </button>
+            </form>
+            @if ($isRunning)
                 <form method="POST" action="{{ route('admin.worker.stop') }}">
                     @csrf
                     <button class="btn btn-danger-outline btn-sm"
@@ -219,20 +226,34 @@
 <script>
 function copyCmd(id) {
     const text = document.getElementById(id).innerText.trim();
-    if (navigator.clipboard) {
+    if (navigator.clipboard && window.isSecureContext) {
         navigator.clipboard.writeText(text).then(() => {
             alert('Copied to clipboard.');
-        }).catch(() => selectText(id));
+        }).catch(() => fallbackCopy(id, text));
     } else {
-        selectText(id);
+        fallbackCopy(id, text);
     }
 }
-function selectText(id) {
-    const el = document.getElementById(id);
-    const range = document.createRange();
-    range.selectNode(el);
-    window.getSelection().removeAllRanges();
-    window.getSelection().addRange(range);
+function fallbackCopy(id, text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+        document.execCommand('copy');
+        alert('Copied to clipboard.');
+    } catch (e) {
+        // Last resort: highlight the element so the user can Ctrl+C manually
+        const el = document.getElementById(id);
+        const range = document.createRange();
+        range.selectNode(el);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+        alert('Select + Ctrl+C to copy (clipboard API not available on HTTP).');
+    }
+    document.body.removeChild(ta);
 }
 </script>
 

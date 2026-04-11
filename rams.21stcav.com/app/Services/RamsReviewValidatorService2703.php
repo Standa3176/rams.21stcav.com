@@ -66,8 +66,8 @@ class RamsReviewValidatorService
             'method_statement_notes'         => ['nullable', 'string', 'max:5000'],
             'room_overviews'                 => ['present', 'array'],
             'room_overviews.*.room'          => ['required', 'string', 'max:255'],
-            'room_overviews.*.overview'      => ['nullable', 'string', 'max:2000'],
-            'room_overviews.*.summary'       => ['nullable', 'string', 'max:2000'],
+            'room_overviews.*.overview'      => ['nullable', 'string', 'max:10000'],
+            'room_overviews.*.summary'       => ['nullable', 'string', 'max:10000'],
         ], [
             'project.project_name.required'  => 'Project name is required.',
             'equipment.required'             => 'At least one equipment item is required.',

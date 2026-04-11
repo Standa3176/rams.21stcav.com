@@ -70,23 +70,41 @@ class WorkerMonitorController extends Controller
     }
 
     /**
-     * "Restart" — sends the queue:restart cache signal (stops the running
-     * worker gracefully) then redirects with the SSH start command shown.
+     * "Restart" — sends the queue:restart cache signal, then either:
+     *   - exec-mode (WORKER_EXEC_ENABLED=true): force-kills existing processes
+     *     and spawns a fresh worker, capturing output for display.
+     *   - signal-only mode: clears the heartbeat and shows the SSH start command.
      */
     public function restart(): RedirectResponse
     {
         abort_unless(auth()->user()?->isAdmin(), 403);
 
+        $lines = [];
+
+        // Always send the graceful restart signal first.
         try {
             \Illuminate\Support\Facades\Cache::forever('illuminate:queue:restart', microtime(true));
-        } catch (\Throwable) {
-            // Ignore — same as stop().
+            $lines[] = '✓ Queue restart cache signal sent.';
+        } catch (\Throwable $e) {
+            $lines[] = '✗ Cache signal failed: ' . $e->getMessage();
         }
 
-        $this->monitor->clearHeartbeat();
+        if ($this->monitor->canExec()) {
+            $lines[] = '';
+            $lines[] = '— Killing existing processes —';
+            array_push($lines, ...$this->monitor->killProcesses());
+
+            $lines[] = '';
+            $lines[] = '— Starting new worker —';
+            array_push($lines, ...$this->monitor->spawnWorker());
+        } else {
+            $this->monitor->clearHeartbeat();
+            $lines[] = 'WORKER_EXEC_ENABLED is not set — run the start command below manually.';
+        }
 
         return redirect()
             ->route('admin.worker.index')
-            ->with('action', 'restart');
+            ->with('action', 'restart')
+            ->with('exec_output', implode("\n", $lines));
     }
 }

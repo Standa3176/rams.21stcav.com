@@ -41,13 +41,16 @@
 <script>
 (function () {
     const statusUrl = '{{ route('quote-import.extract-status', $package) }}';
-    let attempts = 0;
+    const startedAt = Date.now();
+
+    function elapsed() {
+        return Math.round((Date.now() - startedAt) / 1000);
+    }
 
     function poll() {
         fetch(statusUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
             .then(r => r.json())
             .then(data => {
-                attempts++;
                 if (data.terminal) {
                     if (data.redirect) {
                         document.getElementById('status-label').textContent = 'Done! Redirecting…';
@@ -58,14 +61,19 @@
                     }
                 } else {
                     document.getElementById('status-label').textContent =
-                        'Extracting… (' + attempts + 's)';
-                    setTimeout(poll, 4000);
+                        'Extracting… (' + elapsed() + 's)';
+                    setTimeout(poll, 2000);
                 }
             })
-            .catch(() => setTimeout(poll, 6000));
+            .catch(() => {
+                document.getElementById('status-label').textContent =
+                    'Extracting… (' + elapsed() + 's)';
+                setTimeout(poll, 4000);
+            });
     }
 
-    setTimeout(poll, 4000);
+    // First poll after 2 s; timer ticks every 2 s thereafter.
+    setTimeout(poll, 2000);
 })();
 </script>
 @endsection
