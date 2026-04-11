@@ -1363,16 +1363,52 @@ document.getElementById('btn-save-review').addEventListener('click', function ()
 // ─── Move row when category changes ──────────────────────────────────────────
 document.addEventListener('change', function (e) {
     if (!e.target.matches('select[data-equip-category]')) return;
-    const select = e.target;
-    const row = select.closest('tr');
+    const select   = e.target;
+    const row      = select.closest('tr');
     const category = select.value || 'hardware';
-    const tbody = document.getElementById('equipment-tbody-' + category);
+    const tbody    = document.getElementById('equipment-tbody-' + category);
     const prevTbody = row ? row.closest('tbody') : null;
-    if (row && tbody) {
-        tbody.appendChild(row);
-        if (prevTbody) ensureEquipmentEmptyState(prevTbody);
-        ensureEquipmentEmptyState(tbody);
+
+    if (!row || !tbody) return;
+
+    // Find or create a "General" room-header row in the destination tbody.
+    // Equipment rows are always grouped under a room header — we need one
+    // in the target section or the row will appear without a section label.
+    let destRoomRow = tbody.querySelector('tr[data-room-row]');
+    if (!destRoomRow) {
+        destRoomRow = document.createElement('tr');
+        destRoomRow.setAttribute('data-room-row', '1');
+        destRoomRow.style.background = 'var(--bg)';
+        destRoomRow.innerHTML = `<td colspan="6" style="font-weight:600;color:#0f5460;padding:.4rem .75rem;border-bottom:1px solid var(--border);">
+            <span class="eq-area-label">General</span>
+        </td>`;
+        tbody.appendChild(destRoomRow);
     }
+
+    // Move the equipment row after the last equip-row in the destination
+    // (or append to end of tbody if none yet).
+    tbody.appendChild(row);
+
+    // Clean up orphaned room-header rows in the source tbody (headers that
+    // have no following equip-row sibling belong to sections now empty).
+    if (prevTbody && prevTbody !== tbody) {
+        prevTbody.querySelectorAll('tr[data-room-row]').forEach(function (headerRow) {
+            // Walk siblings after this header — if none are equip-rows, remove header.
+            let sibling = headerRow.nextElementSibling;
+            let hasEquip = false;
+            while (sibling && !sibling.matches('tr[data-room-row]')) {
+                if (sibling.matches('tr[data-equip-row]')) { hasEquip = true; break; }
+                sibling = sibling.nextElementSibling;
+            }
+            if (!hasEquip) headerRow.remove();
+        });
+        ensureEquipmentEmptyState(prevTbody);
+    }
+
+    ensureEquipmentEmptyState(tbody);
+
+    // Scroll the moved row into view so the user sees where it landed.
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
 });
 
 // ─── Empty state handling for equipment categories ───────────────────────────

@@ -238,6 +238,14 @@ class ExtractQuoteJob implements ShouldQueue
                 $partNo   = trim((string) ($row['part_number'] ?? ''));
                 $itemType = $this->classifyItemType($partNo, $name);
 
+                // Map item_type → category so the review form (which reads 'category')
+                // renders items in the correct section immediately after import.
+                $category = match ($itemType) {
+                    'consumable'           => 'consumables',
+                    'professional_service' => 'services',
+                    default                => 'hardware',
+                };
+
                 return [
                     'quantity'    => max(1, (int) ($row['qty'] ?? 1)),
                     'qty'         => max(1, (int) ($row['qty'] ?? 1)),
@@ -248,6 +256,7 @@ class ExtractQuoteJob implements ShouldQueue
                     'area'        => trim((string) ($row['area'] ?? '')),
                     'location'    => trim((string) ($row['location'] ?? '')),
                     'item_type'   => $itemType,
+                    'category'    => $category,
                 ];
             },
             (array) ($parsed['equipment'] ?? [])
