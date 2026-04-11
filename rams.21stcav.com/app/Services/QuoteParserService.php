@@ -1854,6 +1854,29 @@ class QuoteParserService
 
             $inlineTitle = trim((string) ($titles[1][$i][0] ?? ''));
             $title       = $this->cleanSectionTitle($inlineTitle);
+
+            if ($title === '') {
+                // OPSrams / Layout-B PDFs: OVERVIEWTITLESTART OVERVIEWTITLEEND is empty
+                // and the room title appears on the line immediately following the tag.
+                // Check that line first before falling back to the backwards preceding-text scan
+                // (which can pick up address noise like "London" instead of the real title).
+                $afterSnippet = substr($rawText, $afterOffset, 200);
+                if (preg_match('/\r?\n\s*([^\r\n]{3,80})/', $afterSnippet, $am)) {
+                    $candidate = $this->cleanSectionTitle(trim((string) ($am[1] ?? '')));
+                    if ($this->isPlausibleSectionTitle($candidate)
+                        && ! preg_match(
+                            '/\b(?:PARTSTART|PARTEND|PARTDESCSTART|PARTDESCEND|QTYSTART|QTYEND|'
+                            . 'OVERVIEWTXTSTART|OVERVIEWTXTEND|SITENAMESTART|SITENAMEEND|'
+                            . 'SHIPCONTSTART|SHIPCONTEND|SHIPCOMPSTART|SHIPCOMPEND|'
+                            . 'QUOTENUMSTART|QUOTENUMEND|PREPAREDBYSTART|PREPAREDBYEND)\b/i',
+                            $am[1]
+                        )
+                    ) {
+                        $title = $candidate;
+                    }
+                }
+            }
+
             if ($title === '') {
                 $title = $this->cleanSectionTitle(
                     $this->extractTitleFromPreceding(substr($rawText, 0, $startOffset))
@@ -2733,6 +2756,14 @@ class QuoteParserService
         $chunk = substr($rawText, $fromOffset, max(0, $end - $fromOffset));
         if ($chunk === false || trim($chunk) === '') {
             return '';
+        }
+
+        // Truncate at the first page-break line ("1 of 5", "2 of 5", etc.).
+        // Description text never spans a page boundary; everything after the
+        // page-number line is repeated page-header content (contact, address, etc.)
+        // and must not bleed into the item description.
+        if (preg_match('/\r?\n[^\r\n]*\b\d+\s+of\s+\d+\b[^\r\n]*/i', $chunk, $pm, PREG_OFFSET_CAPTURE)) {
+            $chunk = substr($chunk, 0, (int) $pm[0][1]);
         }
 
         // Strip tag tokens and header noise.
