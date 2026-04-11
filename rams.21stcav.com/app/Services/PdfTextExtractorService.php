@@ -210,7 +210,7 @@ class PdfTextExtractorService
         }
 
         $escaped = escapeshellarg($path);
-        $cmd     = escapeshellarg($binary) . " -raw {$escaped} -";
+        $cmd     = escapeshellarg($binary) . " -raw -enc UTF-8 {$escaped} -";
 
         $output = shell_exec($cmd);
 
