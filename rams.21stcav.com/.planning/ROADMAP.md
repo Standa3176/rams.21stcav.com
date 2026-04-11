@@ -47,7 +47,7 @@ Plans:
 **Plans:** 1/4 plans executed
 
 Plans:
-- [ ] 04-01-PLAN.md � Worksheet generator (model, migration, AI prompt, DOCX service, job, controller, views)
+- [x] 04-01-PLAN.md � Worksheet generator (model, migration, AI prompt, DOCX service, job, controller, views)
 - [x] 04-02-PLAN.md � O&M Manual refactor (replace Pass 1 with ProjectDataService feed)
 - [ ] 04-03-PLAN.md � Cable Schedule refactor (fix model fillable, CableScheduleGeneratorService, BuildCableScheduleJob)
 - [ ] 04-04-PLAN.md � Project show page � wire all three generate buttons, status polling, remove Phase 4 guard

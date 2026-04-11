@@ -49,10 +49,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Worksheet Generator
 
-- [ ] **WORK-01**: User can generate a worksheet document (DOCX) from project data
-- [ ] **WORK-02**: Worksheet contains room-by-room install steps, equipment lists, cable routes, and key constraints
-- [ ] **WORK-03**: Worksheet content is derived entirely from structured project + survey data (no AI guessing)
-- [ ] **WORK-04**: Worksheet generation uses queue-based async processing with status tracking
+- [x] **WORK-01**: User can generate a worksheet document (DOCX) from project data
+- [x] **WORK-02**: Worksheet contains room-by-room install steps, equipment lists, cable routes, and key constraints
+- [x] **WORK-03**: Worksheet content is derived entirely from structured project + survey data (no AI guessing)
+- [x] **WORK-04**: Worksheet generation uses queue-based async processing with status tracking
 
 ### O&M Manual Generator
 
@@ -136,10 +136,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SURV-03 | Phase 3 | Pending |
 | SURV-04 | Phase 3 | Pending |
 | SURV-05 | Phase 3 | Pending |
-| WORK-01 | Phase 4 | Pending |
-| WORK-02 | Phase 4 | Pending |
-| WORK-03 | Phase 4 | Pending |
-| WORK-04 | Phase 4 | Pending |
+| WORK-01 | Phase 4 | Complete |
+| WORK-02 | Phase 4 | Complete |
+| WORK-03 | Phase 4 | Complete |
+| WORK-04 | Phase 4 | Complete |
 | OM-01 | Phase 4 | Complete |
 | OM-02 | Phase 4 | Complete |
 | OM-03 | Phase 4 | Complete |
