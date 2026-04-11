@@ -4,7 +4,9 @@
 
 ## Current Phase
 
-Phase 4: Document Generators — planning in progress
+Phase 4: Document Generators — 04-03 complete (cable schedule generator pipeline)
+
+**Last session:** Completed 04-03-PLAN.md — CableSchedule model fix, CableScheduleGeneratorService, BuildCableScheduleJob, generateFromProject/status/download controller methods, 3 new routes.
 
 ## Completed Phases
 
@@ -36,3 +38,6 @@ Phase 4: Document Generators — planning in progress
 - Merge priority: reviewed_data > survey_data > quotewerks_sql > extracted_data > defaults
 - One survey per project (enforced via superseded_at)
 - ProjectDataService is the single canonical data source for all generators
+- Cable type inference is deterministic keyword matching — no AI (04-03)
+- CableScheduleXlsxService::build() updates filename but not status — BuildCableScheduleJob sets STATUS_DRAFT explicitly after build() (04-03)
+- Route ordering: literal segments (generate-from-project) registered before Route::resource wildcard to prevent capture (04-03)
