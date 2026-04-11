@@ -308,6 +308,13 @@ class PdfTextExtractorService
             return false;
         }
 
+        // QuoteWerks structured PDFs embed tag markers in the text stream.
+        // The readability heuristic rejects them (many short alpha runs from
+        // part numbers and tag names). Accept immediately when markers present.
+        if ($this->hasQuoteWerksMarkers($trimmed)) {
+            return true;
+        }
+
         if (! preg_match('/[A-Za-z]{4,}/', $trimmed)) {
             return false;
         }
@@ -317,6 +324,14 @@ class PdfTextExtractorService
         }
 
         return true;
+    }
+
+    /**
+     * True when text contains QuoteWerks structured tag markers.
+     */
+    private function hasQuoteWerksMarkers(string $text): bool
+    {
+        return (bool) preg_match('/(?:PARTSTART|OVERVIEWTITLESTART|SHIPCONTSTART|QUOTENUMSTART)/i', $text);
     }
 
     /**
