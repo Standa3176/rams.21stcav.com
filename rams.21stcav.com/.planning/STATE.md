@@ -4,9 +4,7 @@
 
 ## Current Phase
 
-Phase 4: Document Generators — 04-04 complete (project show page generate buttons)
-
-**Last session:** Completed 04-04-PLAN.md — Project::worksheets() relationship, worksheets eager-load, three-state generate buttons (Worksheet/O&M/Cable Schedule) with Alpine.js polling, removed "Coming in Phase 4." placeholder.
+No active phase — all roadmap phases complete.
 
 ## Completed Phases
 
@@ -15,6 +13,7 @@ Phase 4: Document Generators — 04-04 complete (project show page generate butt
 | 01 | Project Layer & Data Foundation | Complete (gaps resolved 2026-04-11) |
 | 02 | QuoteWerks SQL Import | Complete |
 | 03 | Survey Data Integration | Complete |
+| 04 | Document Generators | Complete 2026-04-11 |
 
 ## Quick Tasks Completed
 
