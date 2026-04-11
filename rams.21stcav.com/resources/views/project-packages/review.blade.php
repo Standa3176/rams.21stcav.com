@@ -388,6 +388,28 @@
                           maxlength="5000"
                           placeholder="Click ✨ Generate to auto-create a professional scope paragraph from your room overviews, or type it manually here.">{{ old('scope_of_works', $reviewPayload['scope_of_works'] ?? '') }}</textarea>
             </div>
+            {{-- Works Overview (D-04, D-18) --}}
+            <div class="form-group" style="margin-top:1rem;margin-bottom:0;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
+                    <label class="form-label" for="works-overview-field" style="margin:0;">
+                        Works Overview
+                        <span style="color:var(--text-muted);font-weight:400;font-size:.8em;">(2–3 sentence executive summary — worksheet covers &amp; O&amp;M header)</span>
+                    </label>
+                    <button type="button"
+                            id="btn-gen-overview"
+                            class="btn btn-outline btn-sm"
+                            onclick="generateWorksOverviewFromScope()"
+                            title="Generate from room overviews (uses same AI call as Scope of Works)">
+                        ✨ Generate
+                    </button>
+                </div>
+                <textarea id="works-overview-field"
+                          name="works_overview"
+                          class="form-control"
+                          rows="3"
+                          maxlength="2000"
+                          placeholder="Click ✨ Generate or type a short executive summary here.">{{ old('works_overview', $reviewPayload['works_overview'] ?? '') }}</textarea>
+            </div>
         </div>
     </div>
 
@@ -472,6 +494,13 @@
                                     style="margin-top:.4rem;font-size:.75rem;">
                                 ✨ Generate
                             </button>
+                            {{-- Room Description — O&M prose paragraph (D-01, D-17) --}}
+                            <label style="font-size:.75rem;color:var(--text-muted);margin-top:.6rem;display:block;">Room Description <span style="font-weight:400;">(O&amp;M prose paragraph)</span></label>
+                            <textarea name="room_overviews[{{ $ri }}][description]"
+                                      rows="3"
+                                      class="form-control av-room-description-textarea"
+                                      style="margin-top:.25rem;"
+                                      placeholder="2–4 sentence prose paragraph for O&amp;M room narrative. Click ✨ Generate on this row to populate.">{{ old("room_overviews.{$ri}.description", $ro['description'] ?? '') }}</textarea>
                         </td>
                     </tr>
                     @empty
@@ -1544,6 +1573,16 @@ function generateRoomSummary(btn) {
         } else if (data.error) {
             alert(data.error);
         }
+        // Also populate description textarea if returned (D-12, D-17)
+        if (data.description !== undefined) {
+            const row = btn.closest('tr') || btn.closest('.room-overview-row');
+            if (row) {
+                const descTextarea = row.querySelector('textarea.av-room-description-textarea');
+                if (descTextarea) {
+                    descTextarea.value = data.description;
+                }
+            }
+        }
     })
     .catch(() => alert('Generation failed. Please try again.'))
     .finally(() => {
@@ -1576,11 +1615,52 @@ function generateScopeOfWorks() {
         } else if (data.error) {
             alert(data.error);
         }
+        // Also populate works_overview if returned (D-11, D-18)
+        if (data.works_overview) {
+            const overviewField = document.getElementById('works-overview-field');
+            if (overviewField) {
+                overviewField.value = data.works_overview;
+            }
+        }
     })
     .catch(() => alert('Generation failed. Please try again.'))
     .finally(() => {
         btn.disabled    = false;
         btn.textContent = '✨ Generate';
+    });
+}
+
+// ─── AI generate Works Overview only (reuses scope-of-works endpoint) ─────────
+function generateWorksOverviewFromScope() {
+    const btn   = document.getElementById('btn-gen-overview');
+    const field = document.getElementById('works-overview-field');
+    if (!btn || !field) return;
+
+    const originalText = btn.innerHTML;
+    btn.disabled  = true;
+    btn.innerHTML = 'Generating&hellip;';
+
+    fetch('{{ route("project-packages.scope-of-works", $package) }}', {
+        method:  'POST',
+        headers: {
+            'Content-Type':  'application/json',
+            'X-CSRF-TOKEN':  '{{ csrf_token() }}',
+            'Accept':        'application/json',
+        },
+        body: JSON.stringify({}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.works_overview) {
+            field.value = data.works_overview;
+        } else if (data.error) {
+            alert('Could not generate works overview: ' + data.error);
+        }
+    })
+    .catch(() => alert('Request failed. Please try again.'))
+    .finally(() => {
+        btn.disabled  = false;
+        btn.innerHTML = originalText;
     });
 }
 
