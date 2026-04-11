@@ -128,6 +128,11 @@ class QuoteExtractorService
         $raw = $response->json('content.0.text', '');
         $raw = $this->stripMarkdownFences($raw);
 
+        // Remove control characters that are invalid inside JSON strings
+        // (literal newlines/tabs in values cause JSON_ERROR_CTRL_CHAR).
+        // Keep: 0x09 tab, 0x0A newline, 0x0D carriage return — JSON structural chars.
+        $raw = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $raw);
+
         $decoded = json_decode($raw, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
