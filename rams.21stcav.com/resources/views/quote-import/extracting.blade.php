@@ -6,7 +6,7 @@
 <div class="page-header">
     <div class="page-header__body">
         <h1 class="page-title">Extracting Quote Data</h1>
-        <p class="page-subtitle">Claude is reading your PDF. This takes 30–60 seconds.</p>
+        <p class="page-subtitle">Parsing your PDF locally. This usually takes a few seconds.</p>
     </div>
 </div>
 
@@ -30,7 +30,7 @@
         {{ $package->quote_filename }}
     </p>
     <p id="status-label" style="font-size:.875rem;color:var(--text-muted,#6b7280);">
-        Sending to Claude for extraction…
+        Parsing quote data…
     </p>
 </div>
 
