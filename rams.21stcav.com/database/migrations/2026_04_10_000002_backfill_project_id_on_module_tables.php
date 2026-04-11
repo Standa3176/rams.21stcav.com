@@ -58,8 +58,8 @@ return new class extends Migration
                         ->from('projects')
                         ->whereColumn('projects.user_id', $table . '.user_id')
                         ->whereNull('projects.deleted_at')
-                        ->havingRaw('COUNT(*) = 1')
-                        ->groupBy($table . '.user_id');
+                        ->groupBy('projects.user_id')
+                        ->havingRaw('COUNT(*) = 1');
                 })
                 ->get()
                 ->each(function ($row) use ($table, &$backfilled) {
