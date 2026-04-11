@@ -72,9 +72,9 @@ class ProjectController extends Controller
 
     // ── create / store ────────────────────────────────────────────────────────
 
-    public function create(): View
+    public function create(): RedirectResponse
     {
-        return view('projects.create');
+        return redirect()->route('quote-import.create');
     }
 
     public function store(Request $request): RedirectResponse
