@@ -6,8 +6,9 @@ use App\Models\ProjectPackage;
 use App\Models\Project;
 use App\Models\ProjectActivityLog;
 use App\Models\User;
-use App\Services\QuoteExtractorService;
+use App\Services\PdfTextExtractorService;
 use App\Services\ProjectQuoteVersionService;
+use App\Services\QuoteParserService;
 use App\Core\Modules\Projects\ProjectService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -23,7 +24,7 @@ class ExtractQuoteJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries   = 2;
-    public int $timeout = 180;
+    public int $timeout = 60;
 
     public function __construct(
         private readonly ProjectPackage $package,
@@ -32,17 +33,14 @@ class ExtractQuoteJob implements ShouldQueue
     ) {}
 
     public function handle(
-        QuoteExtractorService      $extractor,
+        PdfTextExtractorService    $pdfExtractor,
+        QuoteParserService         $quoteParser,
         ProjectService             $projectService,
         ProjectQuoteVersionService $quoteVersioner,
     ): void {
         $absolutePath = Storage::disk('local')->path($this->package->quote_path);
-        $extracted    = $extractor->extractFromPath($absolutePath);
-
-        // Map output → import pipeline shape
-        $extracted['equipment_list']  = $extracted['line_items'] ?? [];
-        $extracted['cable_hints']     = [];
-        $extracted['quote_reference'] = $extracted['qw_number'] ?? '';
+        $text         = $pdfExtractor->extract($absolutePath);
+        $extracted    = $quoteParser->parse($text);
 
         DB::transaction(function () use ($extracted, $projectService, $quoteVersioner) {
             // Auto-match project by client+site
@@ -58,8 +56,9 @@ class ExtractQuoteJob implements ShouldQueue
             }
 
             if ($project === null && $this->createProject) {
+                $projectName = trim(($clientName ?? 'AV Installation') . ($siteAddress ? ' — ' . $siteAddress : ''));
                 $project = $projectService->create($this->user, [
-                    'name'              => $extracted['project_name']     ?? 'AV Installation',
+                    'name'              => $projectName,
                     'ref'               => $extracted['qw_number']        ?? null,
                     'client_name'       => $clientName ?? 'Client',
                     'site_address'      => $siteAddress ?? '',
@@ -98,7 +97,7 @@ class ExtractQuoteJob implements ShouldQueue
                     metadata:    [
                         'package_id'      => $this->package->id,
                         'qw_number'       => $extracted['qw_number'] ?? null,
-                        'line_item_count' => count($extracted['line_items'] ?? []),
+                        'line_item_count' => count($extracted['equipment_list'] ?? []),
                     ],
                 );
             }
