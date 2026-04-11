@@ -10,17 +10,26 @@ use Smalot\PdfParser\Parser;
  *
  * Order:
  *   1) Smalot parser
- *   2) Raw literal-string extraction from PDF streams
- *   3) OCR (Tesseract)
+ *   2) FlateDecode decompressed stream text (PHP gzinflate — no binary deps)
+ *   3) Raw literal-string extraction from PDF streams (uncompressed only)
+ *   4) OCR (Tesseract)
+ *
+ * Stage 2 is the key addition for QuoteWerks PDFs on Windows: the marker
+ * text (PARTSTART, OVERVIEWTITLESTART, etc.) lives inside FlateDecode-
+ * compressed content streams that smalot can decode but misreads due to
+ * custom font encoding. Decompressing with gzinflate() gives us the raw
+ * PDF operator stream, from which we can extract all parenthesis-delimited
+ * literal strings — including the QuoteWerks markers — without needing
+ * any external binary.
  *
  * Every stage is cleaned and quality-scored before it is accepted.
  */
 class PdfTextExtractorService
 {
-    /** Below this length after Smalot, force raw-stream fallback. */
+    /** Below this length after Smalot, force decompressed-stream fallback. */
     private const RAW_FALLBACK_THRESHOLD = 50;
 
-    /** Below this length after raw fallback, force OCR fallback. */
+    /** Below this length after decompressed fallback, force OCR fallback. */
     private const OCR_FALLBACK_THRESHOLD = 200;
 
     /** Minimum trimmed length for a candidate to be considered usable. */
@@ -47,21 +56,39 @@ class PdfTextExtractorService
     {
         // Stage 1: Smalot
         $smalot = $this->cleanText($this->parseText($path));
-        Log::debug('PdfTextExtractorService: smalot extracted', [
+        Log::info('PdfTextExtractorService: smalot extracted', [
             'path'        => basename($path),
             'length'      => strlen($smalot),
             'has_markers' => $this->hasQuoteWerksMarkers($smalot),
-            'preview'     => mb_substr($smalot, 0, 400),
+            'preview'     => mb_substr($smalot, 0, 300),
         ]);
         if ($this->isUsableText($smalot)) {
-            Log::debug('PdfTextExtractorService: using Smalot output', [
+            Log::info('PdfTextExtractorService: using Smalot output', [
                 'path'   => basename($path),
                 'length' => strlen($smalot),
             ]);
             return $smalot;
         }
 
-        // Stage 2: Raw stream fallback
+        // Stage 2: FlateDecode decompressed streams (primary fix for QuoteWerks on Windows)
+        // Decompresses FlateDecode content streams with gzinflate() and extracts
+        // all literal strings — the QuoteWerks markers live here even when smalot
+        // cannot read them due to custom font encoding.
+        $decompressed = $this->cleanText($this->decompressedStreamText($path));
+        Log::info('PdfTextExtractorService: decompressed stream extracted', [
+            'path'        => basename($path),
+            'length'      => strlen($decompressed),
+            'has_markers' => $this->hasQuoteWerksMarkers($decompressed),
+        ]);
+        if ($this->isUsableText($decompressed)) {
+            Log::info('PdfTextExtractorService: using decompressed-stream output', [
+                'path'   => basename($path),
+                'length' => strlen($decompressed),
+            ]);
+            return $decompressed;
+        }
+
+        // Stage 3: Raw literal-string fallback (uncompressed streams only)
         $raw = '';
         if (
             mb_strlen(trim($smalot)) < self::RAW_FALLBACK_THRESHOLD
@@ -69,7 +96,7 @@ class PdfTextExtractorService
         ) {
             $raw = $this->cleanText($this->rawStreamText($path));
             if ($this->isUsableText($raw)) {
-                Log::debug('PdfTextExtractorService: using raw-stream fallback output', [
+                Log::info('PdfTextExtractorService: using raw-stream fallback output', [
                     'path'   => basename($path),
                     'length' => strlen($raw),
                 ]);
@@ -77,8 +104,8 @@ class PdfTextExtractorService
             }
         }
 
-        // Stage 3: OCR fallback
-        $bestSoFar = $raw !== '' ? $raw : $smalot;
+        // Stage 4: OCR fallback
+        $bestSoFar = $decompressed !== '' ? $decompressed : ($raw !== '' ? $raw : $smalot);
         $shouldTryOcr =
             mb_strlen(trim($bestSoFar)) < self::OCR_FALLBACK_THRESHOLD
             || ! $this->looksHumanReadable($bestSoFar);
@@ -87,7 +114,7 @@ class PdfTextExtractorService
             try {
                 $ocr = $this->cleanText($this->ocr->extract($path));
                 if ($this->isUsableText($ocr)) {
-                    Log::debug('PdfTextExtractorService: using OCR fallback output', [
+                    Log::info('PdfTextExtractorService: using OCR fallback output', [
                         'path'   => basename($path),
                         'length' => strlen($ocr),
                     ]);
@@ -146,7 +173,91 @@ class PdfTextExtractorService
     }
 
     /**
-     * Raw-stream fallback over PDF literal strings.
+     * Decompress all FlateDecode content streams in the PDF and extract
+     * literal strings from them using gzinflate() (no external binaries).
+     *
+     * QuoteWerks PDFs encode the marker text (PARTSTART, PARTDESCSTART, etc.)
+     * inside FlateDecode-compressed content streams. Smalot reads these streams
+     * but can misrender the text due to custom font encoding. This method
+     * bypasses font encoding entirely by working with the raw decompressed
+     * operator bytes and extracting every parenthesis-delimited string — the
+     * same approach as rawStreamText() but applied to decompressed content.
+     */
+    private function decompressedStreamText(string $path): string
+    {
+        $raw = (string) file_get_contents($path);
+        $allDecompressed = '';
+
+        // Match stream dictionaries that declare FlateDecode (with or without array brackets).
+        // Capture the stream body between "stream\r?\n" and "endstream".
+        preg_match_all(
+            '/<<[^>]*(?:\/Filter\s*(?:\/FlateDecode|\[\s*\/FlateDecode\s*\])|\/FlateDecode)[^>]*>>'
+            . '[\r\n\s]*stream\r?\n(.*?)endstream/s',
+            $raw,
+            $matches
+        );
+
+        foreach ($matches[1] as $compressed) {
+            // PDF FlateDecode uses raw deflate — gzinflate() handles this.
+            $content = @gzinflate($compressed);
+
+            // If raw deflate fails, try with zlib header (some generators add it).
+            if ($content === false) {
+                $content = @gzuncompress($compressed);
+            }
+
+            if ($content === false || $content === '') {
+                continue;
+            }
+
+            $allDecompressed .= $content . "\n";
+        }
+
+        if ($allDecompressed === '') {
+            return '';
+        }
+
+        // Extract all parenthesis-delimited literal strings from the decompressed
+        // operator stream. This is identical to extractPdfLiteralStrings() but
+        // applied to the decompressed bytes rather than the raw PDF file.
+        $strings = $this->extractPdfLiteralStrings($allDecompressed);
+        $usable  = [];
+
+        foreach ($strings as $s) {
+            // Strip non-printable bytes introduced by font encoding.
+            $clean = preg_replace('/[^\x09\x0A\x0D\x20-\x7E]/', '', $s);
+            $clean = trim($clean);
+
+            if (strlen($clean) < 2) {
+                continue;
+            }
+
+            // Keep QuoteWerks markers even if they contain no regular words.
+            if ($this->hasQuoteWerksMarkers($clean)) {
+                $usable[] = $clean;
+                continue;
+            }
+
+            if (! preg_match('/[a-zA-Z]{2,}/', $clean)) {
+                continue;
+            }
+
+            // Reject date stamps and pure-numeric strings.
+            if (preg_match('/^D:\d/', $clean)) {
+                continue;
+            }
+            if (preg_match('/^[\d\s\.\-\+\,\/\:\(\)]+$/', $clean)) {
+                continue;
+            }
+
+            $usable[] = $clean;
+        }
+
+        return empty($usable) ? '' : implode("\n", $usable);
+    }
+
+    /**
+     * Raw-stream fallback over PDF literal strings (uncompressed streams only).
      */
     private function rawStreamText(string $path): string
     {
