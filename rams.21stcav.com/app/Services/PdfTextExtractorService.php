@@ -188,14 +188,12 @@ class PdfTextExtractorService
         $raw = (string) file_get_contents($path);
         $allDecompressed = '';
 
-        // Match stream dictionaries that declare FlateDecode (with or without array brackets).
-        // Capture the stream body between "stream\r?\n" and "endstream".
-        preg_match_all(
-            '/<<[^>]*(?:\/Filter\s*(?:\/FlateDecode|\[\s*\/FlateDecode\s*\])|\/FlateDecode)[^>]*>>'
-            . '[\r\n\s]*stream\r?\n(.*?)endstream/s',
-            $raw,
-            $matches
-        );
+        // Find every stream...endstream block in the raw PDF bytes.
+        // We try gzinflate() on each — FlateDecode streams will decompress
+        // successfully; non-FlateDecode streams will return false and be skipped.
+        // This avoids parsing the stream dictionary (which can span multiple lines
+        // and contain nested angle brackets that break simple regex).
+        preg_match_all('/stream\r?\n(.*?)endstream/s', $raw, $matches);
 
         foreach ($matches[1] as $compressed) {
             // PDF FlateDecode uses raw deflate — gzinflate() handles this.
