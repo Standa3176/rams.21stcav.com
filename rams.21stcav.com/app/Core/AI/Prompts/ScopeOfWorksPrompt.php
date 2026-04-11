@@ -12,7 +12,7 @@ namespace App\Core\AI\Prompts;
  *   room_lines    string   — bullet-point room/solution summary
  *
  * Expected AI response JSON:
- *   { "scope_of_works": "Plain-text paragraph describing the full scope..." }
+ *   { "scope_of_works": "Plain-text paragraph describing the full scope...", "works_overview": "2–3 sentence executive summary..." }
  */
 class ScopeOfWorksPrompt extends BasePrompt
 {
@@ -24,12 +24,15 @@ class ScopeOfWorksPrompt extends BasePrompt
             'Do not use bullet points, headings, or markdown.',
             'Do NOT invent equipment or details not provided.',
             'Output valid JSON only.',
+            'Also produce a `works_overview` field: a 2–3 sentence executive summary of the overall project.',
+            'The works_overview is shorter than scope_of_works — suitable for a cover page or document header.',
+            'No bullet points, no markdown. Plain British English prose.',
         ]);
     }
 
     public function maxTokens(): int
     {
-        return 600;
+        return 900;
     }
 
     public function temperature(): float
@@ -57,13 +60,14 @@ Room / solution breakdown:
 {$roomLines}
 
 Return ONLY the following JSON structure:
-{"scope_of_works": "...single professional paragraph here..."}
+{"scope_of_works": "...single professional paragraph here...", "works_overview": "...2-3 sentence executive summary here..."}
 
 Requirements:
 - 4 to 7 sentences covering the overall works across all rooms listed above.
 - Be specific to the solutions and rooms listed — do not use vague filler.
 - Plain British English prose, no bullet points, no markdown, no headings.
 - Do not invent equipment or details not present in the room breakdown above.
+- works_overview: 2–3 sentences maximum. Shorter and higher-level than scope_of_works. Suitable for a cover page. No bullet points.
 PROMPT;
     }
 }
