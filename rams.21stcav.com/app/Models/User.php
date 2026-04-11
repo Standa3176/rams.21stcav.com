@@ -60,4 +60,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(OmManual::class);
     }
+
+    public function worksheets(): HasMany
+    {
+        return $this->hasMany(Worksheet::class);
+    }
 }
