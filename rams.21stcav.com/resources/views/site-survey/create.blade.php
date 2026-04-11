@@ -95,7 +95,49 @@
                 <input type="date" id="survey_date" name="survey_date" class="form-control"
                        value="{{ old('survey_date', date('Y-m-d')) }}">
             </div>
+            <div class="form-group">
+                <label class="form-label" for="visit_time">Visit Time</label>
+                <input type="text" id="visit_time" name="visit_time" class="form-control"
+                       value="{{ old('visit_time') }}" placeholder="e.g. 9:00 AM – 12:00 PM" maxlength="100">
+            </div>
         </div>
+
+        {{-- Site Contact --}}
+        <div class="form-grid-2">
+            <div class="form-group">
+                <label class="form-label" for="site_contact_name">Site Contact Name</label>
+                <input type="text" id="site_contact_name" name="site_contact_name" class="form-control"
+                       value="{{ old('site_contact_name') }}" placeholder="e.g. Jane Smith" maxlength="150">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="site_contact_phone">Site Contact Phone</label>
+                <input type="text" id="site_contact_phone" name="site_contact_phone" class="form-control"
+                       value="{{ old('site_contact_phone') }}" placeholder="e.g. 07700 123456" maxlength="50">
+            </div>
+        </div>
+
+        {{-- Project Manager --}}
+        <fieldset style="border:1px solid var(--border,#e5e7eb);border-radius:6px;padding:1rem 1.25rem;margin-bottom:1rem;">
+            <legend style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#178A95;padding:0 .5rem;">Project Manager</legend>
+            <div class="form-grid-2">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label" for="pm_name">Name</label>
+                    <input type="text" id="pm_name" name="pm_name" class="form-control"
+                           value="{{ old('pm_name') }}" placeholder="e.g. John Doe" maxlength="150">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label" for="pm_phone">Phone</label>
+                    <input type="text" id="pm_phone" name="pm_phone" class="form-control"
+                           value="{{ old('pm_phone') }}" placeholder="e.g. 07700 654321" maxlength="50">
+                </div>
+                <div class="form-group" style="margin-bottom:0;grid-column:1/-1;">
+                    <label class="form-label" for="pm_email">Email</label>
+                    <input type="email" id="pm_email" name="pm_email" class="form-control"
+                           value="{{ old('pm_email') }}" placeholder="e.g. pm@company.com" maxlength="150">
+                </div>
+            </div>
+        </fieldset>
+
         <div class="form-group">
             <label class="form-label" for="site_address">Site Address</label>
             <textarea id="site_address" name="site_address" class="form-control" rows="2" maxlength="500">{{ old('site_address') }}</textarea>

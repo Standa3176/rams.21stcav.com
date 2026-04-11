@@ -375,6 +375,12 @@ class SiteSurveyController extends Controller
             'site_address'                          => ['nullable', 'string', 'max:500'],
             'survey_date'                           => ['nullable', 'date'],
             'surveyor_name'                         => ['nullable', 'string', 'max:100'],
+            'site_contact_name'                     => ['nullable', 'string', 'max:150'],
+            'site_contact_phone'                    => ['nullable', 'string', 'max:50'],
+            'visit_time'                            => ['nullable', 'string', 'max:100'],
+            'pm_name'                               => ['nullable', 'string', 'max:150'],
+            'pm_phone'                              => ['nullable', 'string', 'max:50'],
+            'pm_email'                              => ['nullable', 'email', 'max:150'],
             'general_notes'                         => ['nullable', 'string', 'max:3000'],
             'survey_type'                           => ['nullable', 'string', 'in:general,pa_system,infrastructure,signage,upgrade,mixed'],
             // Rooms
