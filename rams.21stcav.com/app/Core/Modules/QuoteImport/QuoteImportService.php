@@ -2,20 +2,14 @@
 
 namespace App\Core\Modules\QuoteImport;
 
-use App\Core\AI\AIManager;
-use App\Core\AI\Prompts\QuoteExtractionPrompt;
 use App\Core\Modules\Projects\ProjectService;
-use App\Exceptions\AIGenerationException;
 use App\Models\Project;
 use App\Models\ProjectActivityLog;
 use App\Models\ProjectPackage;
 use App\Models\User;
-use App\Services\EquipmentLineParserService;
-use App\Services\EquipmentNormalizerService;
 use App\Services\PdfTextExtractorService;
 use App\Services\ProjectQuoteVersionService;
 use App\Services\QuoteParserService;
-use App\Services\QuoteLineExtractorService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -28,11 +22,9 @@ use RuntimeException;
  * Flow:
  *   1. Store the uploaded PDF to persistent storage.
  *   2. Extract plain text locally (PdfTextExtractorService).
- *   3. Filter to equipment lines only (QuoteLineExtractorService).
- *   4. Send filtered lines to AIManager via QuoteExtractionPrompt.
- *   5. Normalise the extracted JSON into a ProjectPackage record.
- *   6. Optionally create (or link) a Project from the extracted data.
- *   7. Log the import event to the project activity log.
+ *   3. Parse structured data from text via QuoteParserService (deterministic, no AI).
+ *   4. Persist everything in a transaction: ProjectPackage + optional Project.
+ *   5. Log the import event to the project activity log.
  *
  * Usage:
  *   $package = app(QuoteImportService::class)->import($user, $file);
@@ -46,9 +38,6 @@ class QuoteImportService
     public function __construct(
         private readonly ProjectService             $projectService,
         private readonly PdfTextExtractorService    $pdfExtractor,
-        private readonly QuoteLineExtractorService  $lineExtractor,
-        private readonly EquipmentNormalizerService $normalizer,
-        private readonly EquipmentLineParserService $lineParser,
         private readonly QuoteParserService         $quoteParser,
         private readonly ProjectQuoteVersionService $quoteVersioner,
     ) {}
@@ -62,11 +51,10 @@ class QuoteImportService
      * @param  UploadedFile   $file           The uploaded PDF file.
      * @param  Project|null   $project        Existing project to attach to (null = standalone or auto-create).
      * @param  bool           $createProject  When true and $project is null, create a Project from extracted data.
-     * @param  string|null    $provider       Override AI provider ('claude'|'openai'|null = default).
+     * @param  string|null    $provider       Unused — retained for call-site compatibility.
      * @return ProjectPackage                 The saved package (with extracted_data, equipment_list, cable_list).
      *
-     * @throws AIGenerationException  If AI extraction fails after retries.
-     * @throws RuntimeException       On file storage or DB failure.
+     * @throws RuntimeException  On file storage or DB failure.
      */
     public function import(
         User         $user,
@@ -79,7 +67,7 @@ class QuoteImportService
         $storagePath = $this->storePdf($file);
 
         try {
-            // 2. Extract structured data via AI
+            // 2. Extract structured data (deterministic parser — no AI)
             $extracted = $this->extract($storagePath, $provider);
 
             // 3. Persist everything in a transaction
@@ -371,155 +359,19 @@ class QuoteImportService
     }
 
     /**
-     * Local extraction pipeline, then AI structured extraction.
+     * Extract structured quote data from a stored PDF using the deterministic parser.
      *
      * Pipeline:
-     *   PDF file
-     *     → PdfTextExtractorService    (local text extraction)      [Stage 1]
-     *     → QuoteLineExtractorService  (filter to quantity-prefixed lines)
-     *     → EquipmentNormalizerService (canonical brand + title-case)
-     *     → EquipmentLineParserService (split qty/name into structs)
-     *     → QuoteExtractionPrompt      (structured JSON prompt)     [Stage 2]
-     *     → AIManager                  (AI model — standardize only)
+     *   PDF file → PdfTextExtractorService (local text extraction)
+     *            → QuoteParserService::parse() (fully local PHP — no AI)
      *
-     * No raw PDF binary or full document text is ever sent to the AI model.
-     *
-     * @throws AIGenerationException
+     * Returns the structured array produced by QuoteParserService::parse().
      */
     private function extract(string $storagePath, ?string $provider): array
     {
         $absolutePath = Storage::disk('local')->path($storagePath);
+        $text         = $this->pdfExtractor->extract($absolutePath);
 
-        $text  = $this->pdfExtractor->extract($absolutePath);
-        $parsed = $this->quoteParser->parse($text);
-        $lines = $this->lineExtractor->extractEquipmentLines($text);
-        $lines = $this->normalizer->normalize($lines);
-        $items = $this->lineParser->parse($lines);
-
-        $ai = AIManager::run(
-            new QuoteExtractionPrompt($items),
-            [],
-            $provider,
-        );
-
-        return $this->mergeParsedQuoteData($ai, $parsed);
-    }
-
-    /**
-     * Merge parser-derived data into AI output to harden mapping reliability.
-     *
-     * QuoteWerks OCR exports often carry richer structured tags than the
-     * quantity-line extractor can preserve. When parser equipment exists, it
-     * becomes the canonical source for project mapping and equipment rows.
-     */
-    private function mergeParsedQuoteData(array $ai, array $parsed): array
-    {
-        $ref = (string) ($parsed['ref'] ?? '');
-        if (($ai['qw_number'] ?? '') === '' || strtoupper((string) $ai['qw_number']) === 'RAMS-001') {
-            if ($ref !== '' && strtoupper($ref) !== 'RAMS-001') {
-                $ai['qw_number'] = $ref;
-            }
-        }
-
-        if (($ai['client_name'] ?? '') === '' && ($parsed['client'] ?? '') !== '') {
-            $ai['client_name'] = (string) $parsed['client'];
-        }
-        if (($ai['site_name'] ?? '') === '' && ($parsed['site_name'] ?? '') !== '') {
-            $ai['site_name'] = (string) $parsed['site_name'];
-        }
-        if (($ai['site_address'] ?? '') === '' && ($parsed['site'] ?? '') !== '') {
-            $ai['site_address'] = (string) $parsed['site'];
-        }
-        if (($ai['prepared_by'] ?? '') === '' && ($parsed['prepared_by'] ?? '') !== '') {
-            $ai['prepared_by'] = (string) $parsed['prepared_by'];
-        }
-        if (($ai['overview'] ?? '') === '' && ($parsed['overview'] ?? '') !== '') {
-            $ai['overview'] = (string) $parsed['overview'];
-        }
-        if (empty($ai['rooms']) && ! empty($parsed['rooms'])) {
-            $ai['rooms'] = array_values((array) $parsed['rooms']);
-        }
-        // Carry forward per-room overview texts extracted from OVERVIEWTITLE/TXT tags.
-        // The AI does not produce these; only the structured parser does.
-        if (empty($ai['room_overviews']) && ! empty($parsed['room_overviews'])) {
-            $ai['room_overviews'] = array_values((array) $parsed['room_overviews']);
-        }
-
-        if (($ai['project_name'] ?? '') === '') {
-            $client = trim((string) ($ai['client_name'] ?? ''));
-            $qref   = trim((string) ($ai['qw_number'] ?? ''));
-            $site   = trim((string) ($ai['site_name'] ?? ''));
-
-            if ($qref !== '' && strtoupper($qref) !== 'RAMS-001' && $client !== '') {
-                $ai['project_name'] = "{$qref} - {$client}";
-            } elseif ($site !== '') {
-                $ai['project_name'] = $site;
-            } elseif ($client !== '') {
-                $ai['project_name'] = $client;
-            }
-        }
-
-        $parserEquipment = array_values(array_filter(array_map(
-            function (array $row): ?array {
-                $name = trim((string) ($row['description'] ?? ''));
-                if ($name === '') {
-                    return null;
-                }
-
-                return [
-                    'quantity'    => max(1, (int) ($row['qty'] ?? 1)),
-                    'qty'         => max(1, (int) ($row['qty'] ?? 1)),
-                    'part_number' => trim((string) ($row['part_number'] ?? '')),
-                    'part_no'     => trim((string) ($row['part_number'] ?? '')),
-                    'name'        => $name,
-                    'description' => $name,
-                    'area'        => trim((string) ($row['area'] ?? '')),
-                    'location'    => trim((string) ($row['location'] ?? '')),
-                    'category'    => self::classifyDescription($name),
-                ];
-            },
-            (array) ($parsed['equipment'] ?? [])
-        )));
-
-        if (! empty($parserEquipment)) {
-            $ai['equipment']      = $parserEquipment;
-            $ai['equipment_list'] = $parserEquipment;
-            $ai['line_items']     = $parserEquipment;
-        }
-
-        $ai['meta'] = array_merge((array) ($ai['meta'] ?? []), [
-            'parser_confidence' => $parsed['confidence'] ?? null,
-            'source'            => 'extracted',
-        ]);
-
-        return $ai;
-    }
-
-    private static function classifyDescription(string $desc): string
-    {
-        $d = strtolower($desc);
-
-        $serviceKw = [
-            'install', 'installation', 'commission', 'programming', 'configuration', 'setup',
-            'survey', 'site survey', 'project management', 'engineering', 'labour', 'training',
-            'handover', 'design', 'draw', 'tech check', 'testing', 'travel', 'accommodation',
-            'logistics', 'delivery cost', 'delivery', 'pallet delivery', 'rams', 'risk assessment',
-            'method statement', 'first fix', 'snagging', 'commissioning',
-        ];
-        $cableKw = [
-            'cat5', 'cat5e', 'cat6', 'cat6a', 'cat7', 'cat8', 'cable', 'patch lead',
-            'hdmi', 'displayport', 'usb', 'ethernet', 'network cable', 'coupler', 'plug',
-            'connector', 'socket',
-        ];
-        $consumableKw = [
-            'consumable', 'consumables', 'sundry', 'sundries', 'fixing', 'fixings',
-            'screws', 'anchors', 'bolt', 'cable tie', 'velcro', 'tape', 'label', 'grommet',
-        ];
-
-        foreach ($serviceKw   as $kw) { if (str_contains($d, $kw)) return 'services'; }
-        foreach ($cableKw     as $kw) { if (str_contains($d, $kw)) return 'cables'; }
-        foreach ($consumableKw as $kw) { if (str_contains($d, $kw)) return 'consumables'; }
-
-        return 'hardware';
+        return $this->quoteParser->parse($text);
     }
 }

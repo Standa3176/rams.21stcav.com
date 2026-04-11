@@ -33,7 +33,7 @@ namespace App\Services;
  * Defensive design: all methods return empty strings / empty arrays rather than
  * throwing when content cannot be reliably identified.
  */
-class QuoteParserService
+class QuoteParserServiceHybrid
 {
     // ── QuoteWerks field label patterns ──────────────────────────────────────
 
@@ -52,8 +52,9 @@ class QuoteParserService
         '/(?:quote\s+(?:no|number|ref|reference)|q(?:uote)?\s*[#\-]?\s*no\.?)\s*[:\-]?\s*([A-Z0-9\-\/]{3,30})/i',
         '/(?:order\s+(?:no|number)|po\s+(?:no|number))\s*[:\-]?\s*([A-Z0-9\-\/]{3,30})/i',
         // Priority 2: bare 21CQ reference anywhere in the text.
-        // All 21st Century AV quote numbers begin "21CQ" followed by digits.
-        '/\b(21CQ[0-9]{2,15})\b/',
+        // All 21st Century AV quote numbers begin "21CQ" followed by digits and optional
+        // hyphen-separated revision / type suffixes (e.g. 21CQ28849-04-OPS).
+        '/\b(21CQ[0-9]{2,15}(?:-[A-Z0-9]{1,10})*)\b/i',
     ];
 
     // ── Installation task verb patterns ──────────────────────────────────────
@@ -96,13 +97,13 @@ class QuoteParserService
     private const PREPARED_BY_PATTERNS = [
         // "Prepared by: Jordan Phillips" / "Prepared By Jordan Phillips"
         // [\s\r\n]* allows OCR line-breaks between label and name
-        '/(?:prepared\s+by|\bauthor\b|consultant)\s*[:\-]?\s*[\r\n]*\s*([A-Za-z][a-zA-Z\'\-]+(?:\s+[A-Za-z][a-zA-Z\'\-]+){1,2})/i',
+        '/(?:prepared\s+by|\bauthor\b|consultant)\s*[:\-]?\s*[\r\n]*\s*([A-Za-z][a-zA-Z\'\-]+(?:\s+[A-Za-z][a-zA-Z\'\-]+){0,3})/i',
         // "Sales Person: Jordan Phillips" / "Sales Rep: ..."
-        '/(?:sales\s+(?:person|rep(?:resentative)?|exec(?:utive)?))\s*[:\-]\s*[\r\n]*\s*([A-Za-z][a-zA-Z\'\-]+(?:\s+[A-Za-z][a-zA-Z\'\-]+){1,2})/i',
+        '/(?:sales\s+(?:person|rep(?:resentative)?|exec(?:utive)?))\s*[:\-]\s*[\r\n]*\s*([A-Za-z][a-zA-Z\'\-]+(?:\s+[A-Za-z][a-zA-Z\'\-]+){0,3})/i',
         // "Account Manager: Jordan Phillips"
-        '/(?:account\s+manager|account\s+exec(?:utive)?)\s*[:\-]\s*[\r\n]*\s*([A-Za-z][a-zA-Z\'\-]+(?:\s+[A-Za-z][a-zA-Z\'\-]+){1,2})/i',
+        '/(?:account\s+manager|account\s+exec(?:utive)?)\s*[:\-]\s*[\r\n]*\s*([A-Za-z][a-zA-Z\'\-]+(?:\s+[A-Za-z][a-zA-Z\'\-]+){0,3})/i',
         // "Contact: Jordan Phillips" as last-resort fallback for prepared-by
-        '/(?:your\s+(?:contact|account\s+manager)|contact\s+name)\s*[:\-]\s*[\r\n]*\s*([A-Za-z][a-zA-Z\'\-]+(?:\s+[A-Za-z][a-zA-Z\'\-]+){1,2})/i',
+        '/(?:your\s+(?:contact|account\s+manager)|contact\s+name)\s*[:\-]\s*[\r\n]*\s*([A-Za-z][a-zA-Z\'\-]+(?:\s+[A-Za-z][a-zA-Z\'\-]+){0,3})/i',
     ];
 
     private const GENERIC_EMAIL_DOMAINS = [
@@ -136,19 +137,9 @@ class QuoteParserService
      */
     public function parse(string $rawText): array
     {
-        $hasTagsDiag = $this->hasStructuredTags($rawText);
-        \Illuminate\Support\Facades\Log::debug('QuoteParserService::parse', [
-            'raw_length'       => strlen($rawText),
-            'has_structured'   => $hasTagsDiag,
-            'has_partstart'    => str_contains($rawText, 'PARTSTART'),
-            'has_partdescstart'=> str_contains($rawText, 'PARTDESCSTART'),
-            'has_qtystart'     => str_contains($rawText, 'QTYSTART'),
-            'first_300'        => substr(preg_replace('/\s+/', ' ', $rawText), 0, 300),
-        ]);
-
         // Structured RAMS PDF tags are present — use the reliable tag-based parser.
         // Falls back to the heuristic path below for untagged legacy PDFs.
-        if ($hasTagsDiag) {
+        if ($this->hasStructuredTags($rawText)) {
             return $this->parseTagBased($rawText);
         }
 
@@ -177,10 +168,10 @@ class QuoteParserService
 
         return [
             'client'        => $client,
+            'site_name'     => '',
             'site'          => $site,
             'ref'           => $ref,
             'overview'      => $overview,
-            'overview_sections' => [],
             'equipment'     => $equipment,
             'prepared_by'   => $preparedBy,
             'tasks'         => $this->extractTasks($lines),
@@ -634,15 +625,19 @@ class QuoteParserService
                 // Strip trailing price
                 $tmpDesc = trim(preg_replace('/\s+[\d,]+\.\d{2}\s*$/', '', $tmpDesc));
 
-                if (preg_match('/^([A-Za-z][A-Za-z0-9\-\.]{3,29})\s+(.{4,})$/', $tmpDesc, $pm)) {
+                if (preg_match('/^([A-Za-z0-9][A-Za-z0-9\-\.\/]{3,29})\s+(.{4,})$/', $tmpDesc, $pm)) {
                     $pn = $pm[1];
                     $pr = trim($pm[2]);
-                    $hasH = str_contains($pn, '-');
+                    $hasH = str_contains($pn, '-') || str_contains($pn, '/');
                     $hasD = (bool) preg_match('/\d/', $pn);
-                    $hasA = (bool) preg_match('/[a-zA-Z]{2,}/', $pn);
+                    $hasA = (bool) preg_match('/[a-zA-Z]/', $pn);
+
+                    // Digit-first (e.g. 3000c, 993-001903): only require alpha present.
+                    // Alpha-first: original hyphen-or-digit+alpha condition.
+                    $validPn = (bool) preg_match('/^\d/', $pn) ? $hasA : ($hasH || ($hasD && $hasA));
 
                     if (
-                        ($hasH || ($hasD && $hasA))
+                        $validPn
                         && preg_match('/[a-zA-Z]{2,}/', $pr)
                         && ! preg_match('/^\d+[\.,]\d{2}/', $pr)
                     ) {
@@ -723,16 +718,21 @@ class QuoteParserService
 
             if (! $hasEgInDesc) {
                 // Strategy 1 — Prefix: "PARTNUM Description text"
-                if (preg_match('/^([A-Za-z][A-Za-z0-9\-\.]{3,29})\s+(.{4,})$/', $desc, $pm)) {
+                if (preg_match('/^([A-Za-z0-9][A-Za-z0-9\-\.\/]{3,29})\s+(.{4,})$/', $desc, $pm)) {
                     $partNum  = $pm[1];
                     $partDesc = trim($pm[2]);
 
-                    $hasHyphen     = str_contains($partNum, '-');
+                    $hasHyphen     = str_contains($partNum, '-') || str_contains($partNum, '/');
                     $hasDigit      = (bool) preg_match('/\d/', $partNum);
-                    $hasAlphaChars = (bool) preg_match('/[a-zA-Z]{2,}/', $partNum);
+                    $hasAlphaChars = (bool) preg_match('/[a-zA-Z]/', $partNum);
+
+                    // Digit-first: only require alpha present; alpha-first: original logic.
+                    $validPn = (bool) preg_match('/^\d/', $partNum)
+                        ? $hasAlphaChars
+                        : ($hasHyphen || ($hasDigit && $hasAlphaChars));
 
                     if (
-                        ($hasHyphen || ($hasDigit && $hasAlphaChars))
+                        $validPn
                         && preg_match('/[a-zA-Z]{2,}/', $partDesc)
                         && ! preg_match('/^\d+[\.,]\d{2}/', $partDesc)
                     ) {
@@ -744,16 +744,20 @@ class QuoteParserService
                 // Strategy 2 — Trailing parenthetical: "Description text (PARTNUM)"
                 // e.g. "Yealink Ceiling Mic's (CM20)" → part_number=CM20
                 if ($partNumber === '') {
-                    if (preg_match('/^(.{3,}?)\s*\(([A-Za-z][A-Za-z0-9\-\.]{2,29})\)\s*$/', $desc, $pm)) {
+                    if (preg_match('/^(.{3,}?)\s*\(([A-Za-z0-9][A-Za-z0-9\-\.\/]{2,29})\)\s*$/', $desc, $pm)) {
                         $candidate     = $pm[2];
                         $remainingDesc = trim($pm[1]);
 
-                        $hasHyphen = str_contains($candidate, '-');
+                        $hasHyphen = str_contains($candidate, '-') || str_contains($candidate, '/');
                         $hasDigit  = (bool) preg_match('/\d/', $candidate);
-                        $hasAlpha  = (bool) preg_match('/[a-zA-Z]{2,}/', $candidate);
+                        $hasAlpha  = (bool) preg_match('/[a-zA-Z]/', $candidate);
+
+                        $validPn = (bool) preg_match('/^\d/', $candidate)
+                            ? $hasAlpha
+                            : ($hasHyphen || ($hasDigit && $hasAlpha));
 
                         if (
-                            ($hasHyphen || ($hasDigit && $hasAlpha))
+                            $validPn
                             && strlen($remainingDesc) >= 3
                             && preg_match('/[a-zA-Z]{2,}/', $remainingDesc)
                         ) {
@@ -767,16 +771,20 @@ class QuoteParserService
                 // e.g. "Yealink Ceiling Mic CM20" → part_number=CM20
                 // Only fires when strategies 1 & 2 produced nothing.
                 if ($partNumber === '') {
-                    if (preg_match('/^(.{5,})\s+([A-Za-z][A-Za-z0-9\-\.]{2,29})$/', $desc, $pm)) {
+                    if (preg_match('/^(.{5,})\s+([A-Za-z0-9][A-Za-z0-9\-\.\/]{2,29})$/', $desc, $pm)) {
                         $candidate     = $pm[2];
                         $remainingDesc = trim($pm[1]);
 
-                        $hasHyphen = str_contains($candidate, '-');
+                        $hasHyphen = str_contains($candidate, '-') || str_contains($candidate, '/');
                         $hasDigit  = (bool) preg_match('/\d/', $candidate);
-                        $hasAlpha  = (bool) preg_match('/[a-zA-Z]{2,}/', $candidate);
+                        $hasAlpha  = (bool) preg_match('/[a-zA-Z]/', $candidate);
+
+                        $validPn = (bool) preg_match('/^\d/', $candidate)
+                            ? $hasAlpha
+                            : ($hasHyphen || ($hasDigit && $hasAlpha));
 
                         if (
-                            ($hasHyphen || ($hasDigit && $hasAlpha))
+                            $validPn
                             && strlen($remainingDesc) >= 4
                             && preg_match('/[a-zA-Z]{2,}/', $remainingDesc)
                         ) {
@@ -984,9 +992,9 @@ class QuoteParserService
                 continue;
             }
 
-            // Must be 2–3 space-separated words.
+            // Must be 1–4 space-separated words (allow single-word names from QuoteWerks).
             $words = array_filter(explode(' ', $name), fn ($w) => $w !== '');
-            if (count($words) < 2 || count($words) > 3) {
+            if (count($words) < 1 || count($words) > 4) {
                 continue;
             }
 
@@ -1287,16 +1295,22 @@ class QuoteParserService
     {
         $trimmed = trim($line);
 
-        if (! preg_match('/^([A-Za-z][A-Za-z0-9\-\.]{3,29})$/', $trimmed, $m)) {
+        if (! preg_match('/^([A-Za-z0-9][A-Za-z0-9\-\.\/]{3,29})$/', $trimmed, $m)) {
             return false;
         }
 
         $token         = $m[1];
-        $hasHyphen     = str_contains($token, '-');
+        $hasHyphen     = str_contains($token, '-') || str_contains($token, '/');
         $hasDigit      = (bool) preg_match('/\d/', $token);
-        $hasAlphaChars = (bool) preg_match('/[a-zA-Z]{2,}/', $token);
+        $hasAlphaChars = (bool) preg_match('/[a-zA-Z]/', $token);
 
-        if (! ($hasHyphen || ($hasDigit && $hasAlphaChars))) {
+        // Digit-first (e.g. 3000c, 993-001903): require at least one alpha char.
+        // Alpha-first: original hyphen-or-(digit+alpha) condition.
+        if (preg_match('/^\d/', $token)) {
+            if (! $hasAlphaChars) {
+                return false;
+            }
+        } elseif (! ($hasHyphen || ($hasDigit && $hasAlphaChars))) {
             return false;
         }
 
@@ -1466,9 +1480,9 @@ class QuoteParserService
      */
     private function hasStructuredTags(string $rawText): bool
     {
-        return str_contains($rawText, 'PARTSTART')
-            && str_contains($rawText, 'PARTDESCSTART')
-            && str_contains($rawText, 'QTYSTART');
+        return stripos($rawText, 'PARTSTART') !== false
+            && stripos($rawText, 'PARTDESCSTART') !== false
+            && stripos($rawText, 'QTYSTART') !== false;
     }
 
     /**
@@ -1506,50 +1520,8 @@ class QuoteParserService
         // site    → physical address from SHIPADDSTART / SHIPADDEND (cleaned)
         // Both fall back to heuristic extractors when their tags are empty.
 
-        // SITENAMESTART…SITENAMEEND spans the entire page header in column-layout
-        // PDFs, so we take only the FIRST non-empty, non-tag line after the opening
-        // tag rather than collapsing all content between the tags.
-        //
-        // Primary source: In QuoteWerks pdftotext column-layout output, the company/
-        // organisation name appears between OVERVIEWTXTSTART and SHIPCONTSTART in
-        // the first section block. This is more reliable than SITENAMESTART which
-        // contains ship-to contact names (people) rather than the organisation.
-        $client = '';
-        if (preg_match('/OVERVIEWTXTSTART\s*(.*?)\s*SHIPCONTSTART/s', $rawText, $otm)) {
-            $otTagRe = '/\b(?:SHIPCONTSTART|SHIPCONTEND|SHIPPHONESTART|SHIPPHONEEND|'
-                . 'SHIPEMAILSTART|SHIPEMAILEND|SHIPCOMPSTART|SHIPCOMPEND|'
-                . 'SHIPADDSTART|SHIPADDEND|SITENAMESTART|SITENAMEEND|'
-                . 'OVERVIEWTITLESTART|OVERVIEWTITLEEND|OVERVIEWTXTSTART|OVERVIEWTXTEND|'
-                . 'PREPAREDBYSTART|PREPAREDBYEND|QUOTENUMSTART|QUOTENUMEND)\b/';
-            foreach (preg_split('/\r?\n/', $otm[1]) as $otLine) {
-                $otLine = trim(preg_replace('/\s+/', ' ', $otLine));
-                if ($otLine === '') continue;
-                if (preg_match($otTagRe, $otLine)) continue;
-                // Skip lines that look like description sentences (start with article/verb)
-                if (preg_match('/^(?:A |An |The |Each |This |There |All |One )/i', $otLine)) continue;
-                $client = $this->normalise($otLine, 100);
-                break;
-            }
-        }
-
-        // Fallback: SITENAMESTART tag content.
-        if ($client === '') {
-            if (preg_match('/SITENAMESTART\s*(.*?)\s*SITENAMEEND/s', $rawText, $snm)) {
-                $allTagRe = '/\b(?:PREPAREDBYSTART|PREPAREDBYEND|QUOTENUMSTART|QUOTENUMEND|'
-                    . 'SHIPCONTSTART|SHIPCONTEND|SHIPPHONESTART|SHIPPHONEEND|'
-                    . 'SHIPEMAILSTART|SHIPEMAILEND|SHIPCOMPSTART|SHIPCOMPEND|'
-                    . 'SHIPADDSTART|SHIPADDEND|SITENAMESTART|SITENAMEEND)\b/';
-                foreach (preg_split('/\r?\n/', $snm[1]) as $snLine) {
-                    $snLine = trim(preg_replace('/\s+/', ' ', $snLine));
-                    if ($snLine === '' || preg_match($allTagRe, $snLine)) {
-                        continue;
-                    }
-                    $client = rtrim($this->normalise($snLine, 80), ' -–—');
-                    break;
-                }
-            }
-        }
-
+        $siteName = $this->extractTaggedSiteName($rawText);
+        $client   = $this->extractTaggedCompanyName($rawText);
         $site = $this->extractTaggedSiteAddress($rawText);
 
         if ($client === '') {
@@ -1582,7 +1554,7 @@ class QuoteParserService
                     if ($pbLine === '') continue;
                     if (preg_match($pbTagRe,   $pbLine)) continue; // skip tag tokens
                     if (preg_match($pbNoiseRe, $pbLine)) continue; // skip column headers
-                    if (preg_match('/^[A-Z0-9][A-Z0-9\-\/]{3,}$/i', $pbLine)) continue; // skip ref numbers
+                    if (preg_match('/^[A-Z0-9][A-Z0-9\-\/]{3,}$/i', $pbLine) && preg_match('/\d/', $pbLine)) continue; // skip ref numbers (must contain a digit)
                     if (! preg_match('/[a-zA-Z]{2,}/', $pbLine)) continue; // skip digits/phone
                     if (str_contains($pbLine, '@')) continue;              // skip emails
                     $preparedBy = $this->normalise($pbLine, 80);
@@ -1590,117 +1562,34 @@ class QuoteParserService
                 }
             }
         }
-
+        // Fallback: heuristic extraction from raw text.
+        if ($preparedBy === '') {
+            $preparedBy = $this->extractPreparedBy($rawText);
+        }
         $ref = $this->extractTaggedRef($rawText);
 
         // ── 2. Pre-compute all PARTSTART offsets ────────────────────────────
         // Section description text ends at the first PARTSTART within each
         // section — not at the next OVERVIEWTITLESTART — because part tuples
         // and their overflow lines appear after the prose description.
-        preg_match_all('/PARTSTART/', $rawText, $psm, PREG_OFFSET_CAPTURE);
+        preg_match_all('/PARTSTART/i', $rawText, $psm, PREG_OFFSET_CAPTURE);
         $allPartStartOffsets = array_column($psm[0], 1);  // already ascending
 
-        // ── 3. Collect section titles with positions ─────────────────────────
-        // In column-layout PDFs the section title text (e.g. "Reception") appears
-        // on the line BEFORE OVERVIEWTITLESTART, not between the tags.  The content
-        // between OVERVIEWTITLESTART…OVERVIEWTITLEEND is page-header garbage from
-        // the adjacent column.  We therefore:
-        //   a) locate each OVERVIEWTITLESTART/OVERVIEWTITLEEND pair by offset,
-        //   b) pull the title from the text immediately preceding OVERVIEWTITLESTART,
-        //   c) start the prose-description block at OVERVIEWTITLEEND.
-
-        preg_match_all('/OVERVIEWTITLESTART/', $rawText, $tsm, PREG_OFFSET_CAPTURE);
-        preg_match_all('/OVERVIEWTITLEEND/',   $rawText, $tem, PREG_OFFSET_CAPTURE);
-
-        $titleStartOffsets = array_column($tsm[0], 1);
-        $titleEndOffsets   = array_column($tem[0], 1);
-        $titleCount        = count($titleStartOffsets);
-        $sections          = [];
-
-        for ($i = 0; $i < $titleCount; $i++) {
-            $tsPos = $titleStartOffsets[$i];
-            // Position just after OVERVIEWTITLEEND (start of prose block).
-            $tePos = isset($titleEndOffsets[$i])
-                ? $titleEndOffsets[$i] + strlen('OVERVIEWTITLEEND')
-                : $tsPos + strlen('OVERVIEWTITLESTART');
-
-            // Full section span: this OVERVIEWTITLESTART → next (or end of doc).
-            $sectionEnd = strlen($rawText);
-            if ($i + 1 < $titleCount) {
-                $sectionEnd = $titleStartOffsets[$i + 1];
-            }
-
-            // Primary: title lives in the text immediately before OVERVIEWTITLESTART.
-            // This is the column-layout format used by older QuoteWerks templates.
-            $title = $this->extractTitleFromPreceding(substr($rawText, 0, $tsPos));
-
-            // Fallback 1: title is between OVERVIEWTITLESTART…OVERVIEWTITLEEND.
-            // Used when the preceding-text lookup is empty or returns a long address
-            // string (> 80 chars) that is clearly not a room/area name.
-            if (($title === '' || strlen($title) > 80) && isset($titleEndOffsets[$i])) {
-                $between = substr(
-                    $rawText,
-                    $tsPos + strlen('OVERVIEWTITLESTART'),
-                    $titleEndOffsets[$i] - $tsPos - strlen('OVERVIEWTITLESTART')
-                );
-                $betweenClean = trim(preg_replace('/\s+/', ' ', $between));
-                if ($betweenClean !== '' && strlen($betweenClean) >= 3
-                    && strlen($betweenClean) <= 120
-                    && preg_match('/[a-zA-Z]{2,}/', $betweenClean)) {
-                    $title = $betweenClean;
-                }
-            }
-
-            // Fallback 2: pdftotext -raw mode — title is the first non-empty line
-            // AFTER OVERVIEWTITLEEND and BEFORE OVERVIEWTXTSTART.
-            // Also runs when the preceding-text lookup returned a known address-noise
-            // term (e.g. "United Kingdom") rather than a real room/area label.
-            $titleIsNoise = ($title !== '' && preg_match(
-                '/^(?:United Kingdom|England|Scotland|Wales|UK|United States|USA|Canada|Australia)$/i',
-                trim($title)
-            ));
-            if (($title === '' || $titleIsNoise) && isset($titleEndOffsets[$i])) {
-                $afterTePos = $titleEndOffsets[$i] + strlen('OVERVIEWTITLEEND');
-                $nextOvTxt  = strpos($rawText, 'OVERVIEWTXTSTART', $afterTePos);
-                if ($nextOvTxt !== false) {
-                    foreach (preg_split('/\r?\n/', substr($rawText, $afterTePos, $nextOvTxt - $afterTePos)) as $tl) {
-                        $tl = trim($tl);
-                        if ($tl !== '' && strlen($tl) >= 3 && preg_match('/[a-zA-Z]{2,}/', $tl)) {
-                            $title = $tl;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // Prose description: from OVERVIEWTITLEEND → first PARTSTART in section.
-            $textEnd = $sectionEnd;
-            foreach ($allPartStartOffsets as $pos) {
-                if ($pos > $tePos && $pos < $sectionEnd) {
-                    $textEnd = $pos;
-                    break;
-                }
-            }
-
-            $sectionRaw  = substr($rawText, $tePos, $textEnd - $tePos);
-            $sectionText = $this->extractSectionText($sectionRaw);
-
-            $sections[] = [
-                'title' => $title,
-                'text'  => $sectionText,
-                'start' => $tsPos,   // used for area-matching: tupleOffset >= start
-                'end'   => $sectionEnd,
-            ];
-        }
+        // ── 3. Collect overview sections + room titles ──────────────────────
+        // QuoteWerks tagged OCR can place title text AFTER OVERVIEWTITLEEND and
+        // before OVERVIEWTXTSTART/END. Use a dedicated parser that supports both
+        // inline-title and post-end-title layouts.
+        $sections = $this->parseTaggedSections($rawText, $allPartStartOffsets);
 
         // ── 4. Build overview text ───────────────────────────────────────────
-        // ALL section titles + descriptions are concatenated into overview.
-        // We never try to find a single "master Overview" heading — the entire
-        // section narrative IS the overview for multi-room quotes.
         $overviewParts = [];
         foreach ($sections as $section) {
-            if ($section['text'] !== '') {
-                $overviewParts[] = $section['title'] . "\n" . $section['text'];
+            $title = trim((string) ($section['title'] ?? ''));
+            $text  = trim((string) ($section['text'] ?? ''));
+            if ($title !== '' && $text !== '') {
+                $overviewParts[] = $title . "\n" . $text;
+            } elseif ($text !== '') {
+                $overviewParts[] = $text;
             }
         }
         $overview = implode("\n\n", $overviewParts);
@@ -1708,30 +1597,14 @@ class QuoteParserService
         // ── 5. Extract equipment from PART tuples ────────────────────────────
         // Regex matches the complete tuple on one logical row:
         //   PARTSTART … PARTEND … PARTDESCSTART … PARTDESCEND … QTYSTART … QTYEND
-        //
-        // Group 3 (QTYSTART content) is optional ([\d.]*) because the new
-        // column-layout PDF format leaves QTYSTART/QTYEND empty and embeds the
-        // qty (and part number) at the start of PARTDESCSTART instead.
-        // Group 4 captures any text on the same line immediately after QTYEND
-        // — the new format puts the description there.
         preg_match_all(
-            '/PARTSTART\s*(.*?)\s*PARTEND\s*PARTDESCSTART\s*(.*?)\s*PARTDESCEND\s*QTYSTART\s*([\d.]*)\s*QTYEND([ \t]*[^\r\n]*)/s',
+            '/PARTSTART\s*(.*?)\s*PARTEND[\s~]*PARTDESCSTART\s*(.*?)\s*p.?ARTDESCEND[\s~]*QTYSTART\s*(.*?)\s*(?:QTYEND|QTVEND)/is',
             $rawText,
             $tuples,
             PREG_OFFSET_CAPTURE
         );
 
-        \Illuminate\Support\Facades\Log::debug('QuoteParserService::parseTagBased regex', [
-            'tuple_count'    => count($tuples[0]),
-            'first_tuple_g1' => $tuples[1][0][0] ?? '(none)',
-            'first_tuple_g2' => substr($tuples[2][0][0] ?? '(none)', 0, 80),
-            'first_tuple_g3' => $tuples[3][0][0] ?? '(none)',
-            'first_tuple_g4' => $tuples[4][0][0] ?? '(none)',
-            'raw_sample'     => substr(preg_replace('/\s+/', ' ', $rawText), 0, 500),
-        ]);
-
         $equipment = [];
-        $seen      = [];
         $rooms     = [];
         $seenRooms = [];
 
@@ -1739,102 +1612,52 @@ class QuoteParserService
         // descriptions in case a tag bleeds into the PARTDESCSTART content.
         $allTagsPattern =
             '/\b(?:OVERVIEWTXTSTART|OVERVIEWTXTEND|OVERVIEWTITLESTART|OVERVIEWTITLEEND|'
-            . 'PARTSTART|PARTEND|PARTDESCSTART|PARTDESCEND|QTYSTART|QTYEND|'
+            . 'PARTSTART|PARTEND|PARTDESCSTART|PARTDESCEND|paARTDESCEND|QTYSTART|QTYEND|QTVEND|'
             . 'SITENAMESTART|SITENAMEEND|PREPAREDBYSTART|PREPAREDBYEND|'
             . 'QUOTENUMSTART|QUOTENUMEND|SHIPCONTSTART|SHIPCONTEND|'
             . 'SHIPPHONESTART|SHIPPHONEEND|SHIPEMAILSTART|SHIPEMAILEND|'
-            . 'SHIPCOMPSTART|SHIPCOMPEND|SHIPADDSTART|SHIPADDEND)\b/';
+            . 'SHIPCOMPSTART|SHIPCOMPEND|SHIPADDSTART|SHIPADDEND)\b/i';
 
         foreach ($tuples[0] as $idx => $tupleMatch) {
-            $tupleOffset    = $tupleMatch[1];
-            $rawPartNum     = trim($tuples[1][$idx][0]);
-            $rawDescContent = trim($tuples[2][$idx][0]);
-            $qtyStr         = trim($tuples[3][$idx][0]);
-            $trailingText   = trim($tuples[4][$idx][0]);
+            $tupleOffset = $tupleMatch[1];
+            $rawPartNum  = trim($tuples[1][$idx][0]);
 
-            if ($qtyStr !== '') {
-                // ── Old format: QTYSTART has qty, PARTDESCSTART has description ──
-                $qty     = (float) $qtyStr;
-                $rawDesc = preg_replace($allTagsPattern, '', $rawDescContent);
-                $rawDesc = $this->cleanPartDescLines($rawDesc);
-                $rawDesc = trim(preg_replace('/\s+/', ' ', $rawDesc));
+            // Raw PARTDESC block can contain qty + part number in column-layout OCR.
+            // Parse that first before line-cleaning (which may intentionally strip
+            // numeric-only lines).
+            $rawDescBlock = preg_replace($allTagsPattern, '', $tuples[2][$idx][0]);
+            [$qtyFromDescBlock, $partFromDescBlock, $descFromDescBlock] = $this->parsePartDescComposite($rawDescBlock);
 
-                // Fallback: description may be on the same line after QTYEND.
-                if (strlen($rawDesc) < 3 && $trailingText !== '') {
-                    $rawDesc = trim(preg_replace($allTagsPattern, '', $trailingText));
-                }
-            } else {
-                // ── New column-layout format: qty (and optionally part number) are
-                //    embedded at the start of PARTDESCSTART content; the description
-                //    follows QTYEND on the same line or the next non-empty line.
-                //
-                // PARTDESCSTART content examples:
-                //   "2.00\nLH65QETELGCXEN"  → qty=2, partNum=LH65QETELGCXEN
-                //   "2.00 CH-MTM1U"          → qty=2, partNum=CH-MTM1U
-                //   "1.00"                   → qty=1, partNum=""
-                $descLines = preg_split('/\r?\n/', $rawDescContent);
-                $firstLine = trim($descLines[0] ?? '');
-                $tokens    = preg_split('/\s+/', $firstLine, 2);
-                $qty       = (float) ($tokens[0] ?? 0);
+            // Then clean for normal description processing.
+            $rawDesc = $this->cleanPartDescLines((string) $rawDescBlock);
+            $rawDesc = trim((string) preg_replace('/\s+/', ' ', $rawDesc));
 
-                if ($rawPartNum === '') {
-                    if (isset($tokens[1]) && trim($tokens[1]) !== '') {
-                        // Qty and part number are on the same first line: "2.00 CH-MTM1U"
-                        $rawPartNum = trim($tokens[1]);
-                    } elseif (isset($descLines[1])) {
-                        // Part number is on the second line: "2.00\nLH65QETELGCXEN"
-                        $secondLine = trim($descLines[1]);
-                        if ($secondLine !== '' && preg_match('/^[A-Za-z0-9][A-Za-z0-9\-\.\/=]{1,49}$/', $secondLine)) {
-                            $rawPartNum = $secondLine;
-                        }
-                    }
-                }
-
-                // Description: same-line trailing text after QTYEND takes priority,
-                // otherwise look at the first non-empty non-tag line after the match.
-                if ($trailingText !== '') {
-                    $rawDesc = trim(preg_replace($allTagsPattern, '', $trailingText));
-                } else {
-                    $afterOffset = $tupleMatch[1] + strlen($tupleMatch[0]);
-                    $afterText   = substr($rawText, $afterOffset);
-                    $rawDesc     = '';
-                    foreach (preg_split('/\r?\n/', $afterText) as $line) {
-                        $line = trim($line);
-                        if ($line === '') {
-                            continue;
-                        }
-                        // Stop at the next structural tag boundary.
-                        if (preg_match('/^(?:PARTSTART|OVERVIEWTITLE|OVERVIEWTXT|SITENAME|PREPAREDBY|QUOTENUM)/i', $line)) {
-                            break;
-                        }
-                        $rawDesc = trim(preg_replace($allTagsPattern, '', $line));
-                        break;
-                    }
-                }
-            }
+            $rawQtyBlock = (string) $tuples[3][$idx][0];
+            $qty = $this->extractFirstNumericValue($rawQtyBlock);
 
             // Skip optional items (qty ≤ 0) and empty / nonsense descriptions.
-            if ($qty <= 0.0) {
-                continue;
-            }
-            if (strlen($rawDesc) < 3 || ! preg_match('/[a-zA-Z]{2,}/', $rawDesc)) {
-                continue;
-            }
-
-            // Skip table-header rows that leaked through.
-            if (preg_match('/^(?:part\s*(?:no|number)|description|qty\.?|unit\s+price|total)\s*$/i', $rawDesc)) {
-                continue;
-            }
-
-            // Skip page-number fragments that appear in pdftotext -raw output:
-            // e.g. "1 of 6", "of 6", "Page 2 of 6".
-            if (preg_match('/^(?:page\s+)?\d*\s*of\s+\d+\s*$/i', $rawDesc)) {
-                continue;
-            }
-
             // ── Part number resolution — three strategies ──────────────────
             // Strategy 1: content between PARTSTART … PARTEND tags.
             $partNum = $this->normaliseTaggedPartNumber($rawPartNum);
+
+            if ($qty <= 0.0 && $qtyFromDescBlock > 0.0) {
+                $qty = $qtyFromDescBlock;
+            }
+            if ($partNum === '' && $partFromDescBlock !== '') {
+                $partNum = $partFromDescBlock;
+            }
+
+            // Strategy 1.5: some PDF generators (e.g. new QuoteWerks template) place
+            // the part number inside the QTYSTART…QTYEND block alongside the qty value,
+            // rather than between PARTSTART…PARTEND.  After stripping the leading
+            // numeric qty, whatever remains is the part number candidate.
+            if ($partNum === '') {
+                $qtyBlockRemainder = trim((string) preg_replace('/^\s*\d+(?:\.\d+)?\s*/', '', $rawQtyBlock));
+                $qtyBlockRemainder = trim($qtyBlockRemainder, " \t\r\n~");
+                if ($qtyBlockRemainder !== '') {
+                    $partNum = $this->normaliseTaggedPartNumber($qtyBlockRemainder);
+                }
+            }
 
             // Strategy 2: standalone token on the line immediately above PARTSTART.
             if ($partNum === '') {
@@ -1849,37 +1672,70 @@ class QuoteParserService
             if ($partNum === '') {
                 $partNum = $this->extractPartNumFromDescription($rawDesc);
             }
+            if (preg_match('/^\d{1,3}(?:st|nd|rd|th)$/i', $partNum)) {
+                $partNum = '';
+            }
 
-            // Skip address-fragment descriptions that leak through in
-            // pdftotext -raw mode.  In -raw output the page-header delivery
-            // address (e.g. "255 High Street, Guildford") gets interleaved
-            // with PART tags: "255" is parsed as qty and "High Street, …"
-            // becomes the description.  Real equipment descriptions never
-            // contain a bare UK/common street-type keyword at a word boundary.
-            if ($partNum === '' && preg_match(
-                '/\b(?:street|road|avenue|lane|close|way|drive|place|court|'
-                . 'terrace|gardens?|green|hill|park|square|row|walk|crescent|'
-                . 'grove|mews|boulevard)\b/i',
-                $rawDesc
-            )) {
+            $descCandidate = $descFromDescBlock !== '' ? $descFromDescBlock : $rawDesc;
+            if ($this->looksLikePartAndQtyOnly($descCandidate)) {
+                $descCandidate = '';
+            }
+
+            if ($descCandidate === '') {
+                $descCandidate = $this->extractDescriptionAfterTuple(
+                    $rawText,
+                    $tupleOffset + strlen($tupleMatch[0]),
+                    $allPartStartOffsets
+                );
+            }
+
+            $rawDesc = trim($descCandidate, " \t\r\n~");
+            $rawDesc = preg_replace('/(?:paARTDESCEND|PARTDESCEND|PARTDESCSTART|QTYSTART|QTYEND|QTVEND|PARTSTART|PARTEND)/i', ' ', $rawDesc);
+            $rawDesc = trim((string) preg_replace('/\s+/', ' ', (string) $rawDesc));
+            $rawDesc = preg_replace('/\s+[£$€]?\d{1,4}(?:,\d{3})*(?:\.\d{2})\s*$/', '', $rawDesc);
+            $rawDesc = trim((string) preg_replace('/\s+/', ' ', (string) $rawDesc));
+
+            if ($qty <= 0.0) {
+                continue;
+            }
+            if (strlen($rawDesc) < 3 || ! preg_match('/[a-zA-Z]{2,}/', $rawDesc)) {
+                continue;
+            }
+
+            // Clamp only when qty looks like OCR price contamination — a large
+            // value (>=9999) that leaked from an adjacent price column into a
+            // no-part-number row.  Lower values (e.g. 100 engineering hours,
+            // 200 consumable units) are legitimate service quantities and must
+            // not be clamped.
+            if ($qty >= 9999.0 && ($partNum === '' || preg_match('/^\d{1,3}(?:st|nd|rd|th)$/i', $partNum))) {
+                $qty = 1.0;
+            }
+
+            // Skip table-header rows that leaked through.
+            if (preg_match('/^(?:part\s*(?:no|number)|description|qty\.?|unit\s+price|total)\s*$/i', $rawDesc)) {
                 continue;
             }
 
             // ── Area: most recent OVERVIEWTITLE before this tuple ─────────
             $area = '';
             foreach (array_reverse($sections) as $section) {
+                if (! empty($section['is_overview'])) {
+                    continue;
+                }
+                if (trim((string) ($section['title'] ?? '')) === '') {
+                    continue;
+                }
                 if ($tupleOffset >= $section['start']) {
                     $area = $section['title'];
                     break;
                 }
             }
-
-            // Dedup on description.
-            $key = strtolower($rawDesc);
-            if (isset($seen[$key])) {
-                continue;
+            if ($area === '' && count($sections) === 1 && ! empty($sections[0]['title'])) {
+                $area = (string) $sections[0]['title'];
             }
-            $seen[$key] = true;
+            if ($area === '') {
+                $area = $this->detectRoom($rawDesc);
+            }
 
             $equipment[] = [
                 'qty'         => max(1, (int) round($qty)),
@@ -1899,87 +1755,52 @@ class QuoteParserService
             }
         }
 
+        $equipment = $this->dedupeTaggedEquipment($equipment);
+
         // ── 6. Tasks ────────────────────────────────────────────────────────
         $tasks = $this->extractTasks($this->toLines($overview));
 
-        // ── 7. Confidence ────────────────────────────────────────────────────
-        $confidence = $this->calculateConfidence($client, $site, $ref, $equipment);
-
-        $overviewSections = array_values(array_filter(
-            array_map(
-                static fn ($s) => [
-                    'title' => trim((string) ($s['title'] ?? '')),
-                    'text'  => trim((string) ($s['text']  ?? '')),
-                ],
-                $sections
-            ),
-            static fn ($s): bool => $s['title'] !== '' || $s['text'] !== '',
-        ));
-
-        if (empty($overviewSections) && str_contains($rawText, 'OVERVIEWTITLESTART')) {
-            $overviewSections = $this->parseOverviewSectionsFromTags($rawText);
+        // ── 7. Build per-room overviews from non-master sections ─────────────
+        // Each non-overview section in the QuoteWerks PDF has a title (room name)
+        // and a description text (the phrased overview written in the quote).
+        // Carry these forward so the review UI can pre-populate the overview
+        // column without requiring the user to re-type them.
+        $roomOverviews = [];
+        foreach ($sections as $section) {
+            if (! empty($section['is_overview'])) {
+                continue; // master overview — not a room entry
+            }
+            $sTitle = trim((string) ($section['title'] ?? ''));
+            $sText  = trim((string) ($section['text']  ?? ''));
+            if ($sTitle === '') {
+                continue;
+            }
+            $roomOverviews[] = [
+                'room'          => $sTitle,
+                'overview'      => $sText,
+                'works_summary' => '',
+                'summary'       => '',
+            ];
         }
+
+        // ── 8. Confidence ────────────────────────────────────────────────────
+        $confidence = $this->calculateConfidence($client, $site, $ref, $equipment);
 
         return [
             'client'        => $client,
+            'site_name'     => $siteName,
             'site'          => $site,
             'ref'           => $ref,
             'overview'      => $overview,
-            'overview_sections' => $overviewSections,
             'equipment'     => $equipment,
             'prepared_by'   => $preparedBy,
             'tasks'         => $tasks,
             'rooms'         => $rooms,
+            'room_overviews' => $roomOverviews,
             'project_name'  => '',
             'works_summary' => '',
             'confidence'    => $confidence,
         ];
-    }
-
-    private function parseOverviewSectionsFromTags(string $rawText): array
-    {
-        $blocks = preg_split('/OVERVIEWTITLESTART/', $rawText);
-        array_shift($blocks);
-
-        $sections = [];
-
-        foreach ($blocks as $block) {
-            $block = 'OVERVIEWTITLESTART' . $block;
-
-            $title = '';
-            $text  = '';
-
-            if (preg_match('/OVERVIEWTITLESTART\s*(.*?)\s*OVERVIEWTITLEEND/s', $block, $tm)) {
-                $title = trim(preg_replace('/\s+/', ' ', $tm[1]));
-            }
-
-            if ($title === '' && preg_match('/OVERVIEWTITLEEND\s*(.*?)\s*OVERVIEWTXTSTART/s', $block, $bm)) {
-                foreach (preg_split('/\r?\n/', $bm[1]) as $line) {
-                    $line = trim($line);
-                    if ($line !== '' && preg_match('/[a-zA-Z]{2,}/', $line)) {
-                        $title = $line;
-                        break;
-                    }
-                }
-            }
-
-            if (preg_match('/OVERVIEWTXTSTART\s*(.*?)\s*OVERVIEWTXTEND/s', $block, $xm)) {
-                $text = trim($this->cleanOverviewText($xm[1]));
-            }
-
-            if ($title !== '' || $text !== '') {
-                $sections[] = ['title' => $title, 'text' => $text];
-            }
-        }
-
-        return $sections;
-    }
-
-    private function cleanOverviewText(string $text): string
-    {
-        $text = preg_replace('/\b(?:OVERVIEWTITLESTART|OVERVIEWTITLEEND|OVERVIEWTXTSTART|OVERVIEWTXTEND)\b/', '', $text);
-        $text = preg_replace('/\s+/', ' ', $text);
-        return trim($text ?? '');
     }
 
     /**
@@ -1989,7 +1810,7 @@ class QuoteParserService
      */
     private function extractTagContent(string $rawText, string $openTag, string $closeTag): string
     {
-        $pattern = '/' . preg_quote($openTag, '/') . '\s*(.*?)\s*' . preg_quote($closeTag, '/') . '/s';
+        $pattern = '/' . preg_quote($openTag, '/') . '\s*(.*?)\s*' . preg_quote($closeTag, '/') . '/is';
         if (preg_match($pattern, $rawText, $m)) {
             return trim(preg_replace('/\s+/', ' ', $m[1]));
         }
@@ -2009,17 +1830,22 @@ class QuoteParserService
     {
         // Layout A: alphanumeric token immediately before QUOTENUMEND.
         // Must contain at least one digit — pure words like "London" are rejected.
-        if (preg_match('/([A-Z][A-Z0-9\-\/]{4,25})\s*QUOTENUMEND/i', $rawText, $m)) {
+        // Use \b so the token is matched from its actual start (not mid-token), and
+        // allow digit-leading refs like "21CQ30069-02-OPS" by using [A-Z0-9] not [A-Z].
+        if (preg_match('/\b([A-Z0-9][A-Z0-9\-\/]{4,25})\s*QUOTENUMEND/i', $rawText, $m)) {
             $candidate = trim($m[1]);
             if (preg_match('/\d/', $candidate)
-                && preg_match('/^[A-Z0-9][A-Z0-9\-\/]{2,25}$/i', $candidate)) {
+                && preg_match('/^[A-Z0-9][A-Z0-9\-\/]{2,25}$/i', $candidate)
+                && stripos($candidate, 'QUOTENUMSTART') === false) {
                 return strtoupper($candidate);
             }
         }
 
         // Layout B: alphanumeric token on the line immediately before QUOTENUMSTART.
         // Must contain at least one digit — tag names like "PREPAREDBYSTART" are rejected.
-        if (preg_match('/([A-Z][A-Z0-9\-\/]{4,25})[ \t]*\r?\n[ \t]*QUOTENUMSTART/i', $rawText, $m)) {
+        // Use /m so ^ anchors to line start — prevents matching a sub-token like "CQ28849"
+        // from within "21CQ28849" when the line starts with a digit.
+        if (preg_match('/^([A-Z0-9][A-Z0-9\-\/]{4,25})[ \t]*\r?\n[ \t]*QUOTENUMSTART/im', $rawText, $m)) {
             $candidate = trim($m[1]);
             if (preg_match('/\d/', $candidate)
                 && preg_match('/^[A-Z0-9][A-Z0-9\-\/]{2,25}$/i', $candidate)) {
@@ -2029,6 +1855,89 @@ class QuoteParserService
 
         // Fallback: existing regex patterns (handles 21CQ… anywhere in text)
         return $this->extractRef($rawText);
+    }
+
+    /**
+     * Parse OVERVIEWTITLE/OVERVIEWTXT sections with OCR/column-layout tolerance.
+     *
+     * Returns sections sorted by source offset.
+     *
+     * @return array<int, array{title:string,text:string,start:int,is_overview:bool}>
+     */
+    private function parseTaggedSections(string $rawText, array $allPartStartOffsets): array
+    {
+        preg_match_all('/OVERVIEWTITLESTART\s*(.*?)\s*OVERVIEWTITLEEND/is', $rawText, $titles, PREG_OFFSET_CAPTURE);
+        if (empty($titles[0])) {
+            return [];
+        }
+
+        $sections = [];
+        $count    = count($titles[0]);
+
+        for ($i = 0; $i < $count; $i++) {
+            $fullMatch   = (string) ($titles[0][$i][0] ?? '');
+            $startOffset = (int) ($titles[0][$i][1] ?? 0);
+            $afterOffset = $startOffset + strlen($fullMatch);
+
+            $inlineTitle = trim((string) ($titles[1][$i][0] ?? ''));
+            $title       = $this->cleanSectionTitle($inlineTitle);
+            if ($title === '') {
+                $title = $this->cleanSectionTitle(
+                    $this->extractTitleFromPreceding(substr($rawText, 0, $startOffset))
+                );
+            }
+            if (! $this->isPlausibleSectionTitle($title)) {
+                $title = '';
+            }
+
+            $nextTitleStart = $i + 1 < $count
+                ? (int) ($titles[0][$i + 1][1] ?? strlen($rawText))
+                : strlen($rawText);
+
+            $sectionEnd = $nextTitleStart;
+            foreach ($allPartStartOffsets as $partOffset) {
+                if ($partOffset > $afterOffset) {
+                    $sectionEnd = min($sectionEnd, $partOffset);
+                    break;
+                }
+            }
+
+            $sectionRaw = substr($rawText, $afterOffset, max(0, $sectionEnd - $afterOffset));
+            if (! is_string($sectionRaw)) {
+                $sectionRaw = '';
+            }
+
+            $textParts = [];
+            if (preg_match_all('/OVERVIEWTXTSTART\s*(.*?)\s*OVERVIEWTXTEND/is', $sectionRaw, $txtMatches)) {
+                foreach ((array) ($txtMatches[1] ?? []) as $txt) {
+                    $clean = $this->extractSectionText((string) $txt);
+                    if ($clean !== '') {
+                        $textParts[] = $clean;
+                    }
+                }
+            }
+
+            $fallbackText = $this->extractSectionText($sectionRaw);
+            if ($fallbackText !== '') {
+                $textParts[] = $fallbackText;
+            }
+
+            $text = $this->normaliseSectionText($textParts);
+            if ($title === '' && $text === '') {
+                continue;
+            }
+
+            $sections[] = [
+                'title'       => $title,
+                'text'        => $text,
+                'start'       => $startOffset,
+                'is_overview' => $title !== '' && preg_match('/\boverview\b/i', $title) === 1,
+            ];
+        }
+
+        usort($sections, fn (array $a, array $b): int => $a['start'] <=> $b['start']);
+
+        return $sections;
     }
 
     /**
@@ -2064,7 +1973,7 @@ class QuoteParserService
             'OVERVIEWTITLESTART', 'OVERVIEWTITLEEND',
             'PARTSTART', 'PARTEND',
             'PARTDESCSTART', 'PARTDESCEND',
-            'QTYSTART', 'QTYEND',
+            'QTYSTART', 'QTYEND', 'QTVEND',
             'SITENAMESTART', 'SITENAMEEND',
             'PREPAREDBYSTART', 'PREPAREDBYEND',
             'QUOTENUMSTART', 'QUOTENUMEND',
@@ -2074,7 +1983,7 @@ class QuoteParserService
             'SHIPCOMPSTART', 'SHIPCOMPEND',
             'SHIPADDSTART', 'SHIPADDEND',
         ];
-        $skipPattern = '/\b(?:' . implode('|', $skipTokens) . ')\b/';
+        $skipPattern = '/\b(?:' . implode('|', $skipTokens) . ')\b/i';
 
         foreach ($lines as $line) {
             // Normalise Unicode whitespace.
@@ -2151,20 +2060,22 @@ class QuoteParserService
                 continue;
             }
 
-            // Must be a single token with no whitespace.
-            // Allow digit-leading tokens (e.g. 991-000389) and slash-separated
-            // tokens (e.g. XRWALLA/B) which are valid QuoteWerks part numbers.
-            if (! preg_match('/^([A-Za-z0-9][A-Za-z0-9\-\.\/]{2,49})$/', $line, $m)) {
+            // Must be a single token (no spaces).
+            // Allow digit-leading tokens, slash-separated, ampersand-joined etc.
+            if (! preg_match('/^([A-Za-z0-9][A-Za-z0-9\-\.\/&]{2,49})$/', $line, $m)) {
                 break; // Not a part-number line — stop immediately.
             }
 
-            $token = $m[1];
-            $hasH  = str_contains($token, '-') || str_contains($token, '/');
-            $hasD  = (bool) preg_match('/\d/', $token);
-            $hasA  = (bool) preg_match('/[a-zA-Z]{2,}/', $token);
-
-            if ($hasH || ($hasD && $hasA)) {
-                return $token;
+            // Delegate all validation to normaliseTaggedPartNumber which correctly
+            // handles every valid part-number shape:
+            //   - hyphenated codes (BT8431/B, YAM-RM-CR)
+            //   - mixed alpha+digit (CS32880, Travel1)
+            //   - all-uppercase alpha service codes (DELIVERY, RAMS, FIRSTFIX)
+            //   - all-digit SKUs ≥ 4 chars (60005923, 37871)
+            //   - ampersand codes (O&M, 0&M)
+            $pn = $this->normaliseTaggedPartNumber($m[1]);
+            if ($pn !== '') {
+                return $pn;
             }
 
             break;
@@ -2185,8 +2096,46 @@ class QuoteParserService
     private function normaliseTaggedPartNumber(string $raw): string
     {
         $raw = trim(preg_replace('/\s+/', '', $raw));
+        // OCR commonly prefixes/suffixes part numbers with punctuation noise.
+        // Keep only valid token boundaries before shape validation.
+        $raw = trim($raw, " \t\n\r\0\x0B~`!@#$%^&*()_+=[]{}|\\:;\"'<>,?");
+
+        // Strip any leading non-ASCII characters introduced by PDF font encoding.
+        // QuoteWerks templates using certain fonts can emit a © glyph (0xC2 0xA9 in
+        // UTF-8) as a prefix before the first character of a part number, which causes
+        // every downstream regex to reject the value.  Strip any run of non-printable-
+        // ASCII bytes at the very start before the shape checks below.
+        $raw = (string) preg_replace('/^[^\x20-\x7E]+/', '', $raw);
+        $raw = trim($raw);
 
         if ($raw === '') {
+            return '';
+        }
+
+        // Time/schedule and short unit tokens are never valid part numbers.
+        // Case-sensitive: "9am" / "12:30pm" are rejected as time strings,
+        // but uppercase codes like "9AM" are kept as QuoteWerks service codes.
+        if (preg_match('/^\d{1,2}(?::\d{2})?(?:am|pm)$/', $raw)) {
+            return '';
+        }
+        if (preg_match('/^\d{1,3}[A-Za-z]$/', $raw)) {
+            return '';
+        }
+        if (preg_match('/^(?:mon|tue|wed|thu|fri|sat|sun)(?:day)?$/i', $raw)) {
+            return '';
+        }
+        if (preg_match('/^\d{1,3}(?:st|nd|rd|th)$/i', $raw)) {
+            return '';
+        }
+        if (preg_match('/^(?:am|pm)$/i', $raw)) {
+            return '';
+        }
+
+        // Reject page-number bleed artifacts that smalot emits when the PDF
+        // page-number footer overlaps with the QTYEND tag in the text stream.
+        // Examples: "2bt4" = "2 of 4", "3of4" = "3 of 4", "bt4" = "of 4".
+        // Pattern: optional leading digits, then "bt" or "of", then trailing digits.
+        if (preg_match('/^\d*(?:bt|nof|of)\d+$/i', $raw)) {
             return '';
         }
 
@@ -2195,32 +2144,123 @@ class QuoteParserService
             return '';
         }
 
-        // Basic shape: alphanumeric + hyphens/dots/slashes.
-        // Allow digit-leading tokens (e.g. 991-000389) and slash tokens (e.g. XRWALLA/B).
-        if (! preg_match('/^[A-Za-z0-9][A-Za-z0-9\-\.\/]{2,49}$/', $raw)) {
+        // Reject QuoteWerks structural tag tokens that may appear as the line
+        // preceding PARTSTART (e.g. when the address block ends just before the
+        // item table, "SHIPADDEND" becomes the last non-empty line and Strategy 2
+        // would otherwise promote it to a part number).
+        static $tagTokenPattern = '/^(?:PARTSTART|PARTEND|PARTDESCSTART|PARTDESCEND|'
+            . 'QTYSTART|QTYEND|QTVEND|QUOTENUMSTART|QUOTENUMEND|'
+            . 'SHIPCOMPSTART|SHIPCOMPEND|SHIPADDSTART|SHIPADDEND|'
+            . 'SITENAMESTART|SITENAMEEND|PREPAREDBYSTART|PREPAREDBYEND|'
+            . 'SHIPCONTSTART|SHIPCONTEND|SHIPPHONESTART|SHIPPHONEEND|'
+            . 'SHIPEMAILSTART|SHIPEMAILEND|OVERVIEWTITLESTART|OVERVIEWTITLEEND|'
+            . 'OVERVIEWTXTSTART|OVERVIEWTXTEND)$/i';
+        if (preg_match($tagTokenPattern, $raw)) {
+            return '';
+        }
+
+        // Basic shape: alphanumeric + hyphens/dots/slashes/spaces/ampersands.
+        // Spaces and & are valid in QuoteWerks part codes (e.g. "FIRST FIX", "O&M").
+        if (! preg_match('/^[A-Za-z0-9][A-Za-z0-9\-\.\/& ]{1,30}$/', $raw)) {
             return '';
         }
 
         $hasH = str_contains($raw, '-') || str_contains($raw, '/');
         $hasD = (bool) preg_match('/\d/', $raw);
-        $hasA = (bool) preg_match('/[a-zA-Z]{2,}/', $raw);
+        $hasA = (bool) preg_match('/[a-zA-Z]/', $raw);
+
+        // Biamp-style dot-separated numeric codes: e.g. 910.1995.900, 913.0091.900.
+        // These have digits and dots only, with 2+ dots acting as separators (not
+        // decimal points).  They must not be confused with single-decimal values.
+        if (preg_match('/^\d+(\.\d+){2,}$/', $raw)) {
+            return $raw;
+        }
 
         // Also allow: all-digit codes ≥ 4 chars (e.g. 37871, 45353 — numeric SKUs)
-        // and all-alpha codes ≥ 5 chars (e.g. "cables" — QuoteWerks category SKUs),
-        // but block obvious noise words that would never be product codes.
+        // and all-uppercase alpha tokens (e.g. DELIVERY, RAMS, FIRST FIX, O&M).
         $allDigit = ctype_digit($raw);
-        $allAlpha = ctype_alpha($raw);
-        $isNoise  = $allAlpha && preg_match(
-            '/^(?:labour|supply|goods|install|fitting|sundry|provision|misc|included)/i',
-            $raw
-        );
+        // Allow ALL-CAPS service codes (e.g. DELIVERY, RAMS, FIRSTFIX, WALLMOUNT.PTC,
+        // FIRST FIX, O&M, YAM-RM-CR).  Lowercase letters are explicitly excluded so
+        // that normal English words like "Year", "Service", "Contract" — which
+        // Strategy B of extractPartFromDescription may extract from a description
+        // trailing token — are rejected.  Genuine QuoteWerks service codes are always
+        // fully uppercase.
+        $allUpperAlpha = (bool) preg_match('/^[A-Z][A-Z0-9\-\.\/& ]{1,30}$/', $raw);
+
+        // No-digit values must be all-caps to avoid false positives from
+        // mixed-case description phrases leaking into part-number extraction.
+        if (! $hasD && ! $allUpperAlpha) {
+            return '';
+        }
 
         return (
             $hasH
             || ($hasD && $hasA)
             || ($allDigit && strlen($raw) >= 4)
-            || ($allAlpha && strlen($raw) >= 5 && ! $isNoise)
+            || $allUpperAlpha
         ) ? $raw : '';
+    }
+
+    private function cleanSectionTitle(string $title): string
+    {
+        $title = trim((string) preg_replace('/\s+/', ' ', $title));
+        $title = trim($title, " \t\n\r\0\x0B-–—:;,.()[]{}");
+
+        return $title === '' ? '' : $this->normalise($title, 80);
+    }
+
+    private function isPlausibleSectionTitle(string $title): bool
+    {
+        if ($title === '') {
+            return false;
+        }
+        if (! preg_match('/[a-zA-Z]{2,}/', $title)) {
+            return false;
+        }
+        if (strlen($title) < 3 || strlen($title) > 80) {
+            return false;
+        }
+        if (preg_match('/\b(?:ship\s+to|internal\s+rams|quote|prepared\s+by|part\s*number|'
+            . 'description|qty|buy|sell|total|united\s+kingdom|england|scotland|wales)\b/i', $title)) {
+            return false;
+        }
+        if (preg_match('/\+?\d[\d\-\s()]{7,}\d/', $title)) {
+            return false;
+        }
+        if (preg_match('/\b[A-Z]{1,2}\d{1,2}[A-Z]?\s+\d[A-Z]{2}\b/i', $title)) {
+            return false;
+        }
+        if (preg_match('/^[A-Z0-9\-\/]{6,}$/', $title) && preg_match('/\d/', $title)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Merge and de-duplicate section text chunks while preserving line order.
+     */
+    private function normaliseSectionText(array $chunks): string
+    {
+        $lines = [];
+        $seen  = [];
+
+        foreach ($chunks as $chunk) {
+            foreach (preg_split('/\r?\n/', (string) $chunk) as $line) {
+                $line = trim((string) preg_replace('/\s+/', ' ', $line));
+                if ($line === '') {
+                    continue;
+                }
+                $key = strtolower($line);
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+                $lines[]    = $line;
+            }
+        }
+
+        return implode("\n", $lines);
     }
 
     /**
@@ -2241,13 +2281,13 @@ class QuoteParserService
         if ($skipPattern === null) {
             $tokens = [
                 'OVERVIEWTXTSTART', 'OVERVIEWTXTEND', 'OVERVIEWTITLESTART', 'OVERVIEWTITLEEND',
-                'PARTSTART', 'PARTEND', 'PARTDESCSTART', 'PARTDESCEND', 'QTYSTART', 'QTYEND',
+                'PARTSTART', 'PARTEND', 'PARTDESCSTART', 'PARTDESCEND', 'QTYSTART', 'QTYEND', 'QTVEND',
                 'SITENAMESTART', 'SITENAMEEND', 'PREPAREDBYSTART', 'PREPAREDBYEND',
                 'QUOTENUMSTART', 'QUOTENUMEND', 'SHIPCONTSTART', 'SHIPCONTEND',
                 'SHIPPHONESTART', 'SHIPPHONEEND', 'SHIPEMAILSTART', 'SHIPEMAILEND',
                 'SHIPCOMPSTART', 'SHIPCOMPEND', 'SHIPADDSTART', 'SHIPADDEND',
             ];
-            $skipPattern = '/\b(?:' . implode('|', $tokens) . ')\b/';
+            $skipPattern = '/\b(?:' . implode('|', $tokens) . ')\b/i';
         }
 
         // Column-header and noise lines that should never be mistaken for a title.
@@ -2269,6 +2309,20 @@ class QuoteParserService
             }
             // Must contain at least two consecutive alphabetic characters.
             if (! preg_match('/[a-zA-Z]{2,}/', $line)) {
+                continue;
+            }
+            // Reject obvious address/contact lines that can appear before
+            // OVERVIEWTITLESTART in column-layout OCR output.
+            if (preg_match('/\b(?:united\s+kingdom|england|scotland|wales)\b/i', $line)) {
+                continue;
+            }
+            if (preg_match('/\b[A-Z]{1,2}\d{1,2}[A-Z]?\s+\d[A-Z]{2}\b/i', $line)) {
+                continue;
+            }
+            if (preg_match('/\+?\d[\d\-\s()]{7,}\d/', $line)) {
+                continue;
+            }
+            if (preg_match('/\b(?:retford|nottinghamshire)\b/i', $line)) {
                 continue;
             }
             return $line;
@@ -2306,7 +2360,7 @@ class QuoteParserService
             . 'PREPAREDBYSTART|PREPAREDBYEND|SHIPCONTSTART|SHIPCONTEND|SHIPPHONESTART|SHIPPHONEEND|'
             . 'SHIPEMAILSTART|SHIPEMAILEND|SHIPCOMPSTART|SHIPCOMPEND|SHIPADDSTART|SHIPADDEND|'
             . 'OVERVIEWTITLESTART|OVERVIEWTITLEEND|OVERVIEWTXTSTART|OVERVIEWTXTEND|'
-            . 'PARTSTART|PARTEND|PARTDESCSTART|PARTDESCEND|QTYSTART|QTYEND)\b/';
+            . 'PARTSTART|PARTEND|PARTDESCSTART|PARTDESCEND|QTYSTART|QTYEND|QTVEND)\b/i';
 
         // Column-header and price labels that appear in the PDF table header.
         static $addrNoisePattern = '/^(?:INTERNAL\s+RAMS|SUPPLIER|QTY|DESCRIPTION|PART\s*NUMBER|'
@@ -2339,6 +2393,18 @@ class QuoteParserService
                 continue;
             }
 
+            // Skip contact lines inside the ship-address block:
+            // "Rich -0771 8386409 (Site)" / "Tel: ..." / "Mob: ..."
+            if (preg_match('/\(\s*site\s*\)/i', $line)) {
+                continue;
+            }
+            if (preg_match('/\b(?:tel|phone|mobile|mob)\b/i', $line)) {
+                continue;
+            }
+            if (preg_match('/\+?\d[\d\-\s()]{7,}\d/', $line)) {
+                continue;
+            }
+
             // Must contain at least two consecutive alphabetic characters.
             if (! preg_match('/[a-zA-Z]{2,}/', $line)) {
                 continue;
@@ -2360,6 +2426,303 @@ class QuoteParserService
 
         $address = $this->normalise(implode(', ', $parts), 250);
         return strlen($address) >= 5 ? $address : '';
+    }
+
+    /**
+     * Extract site name from SITENAME tag pair or from the line before SITENAMESTART.
+     */
+    private function extractTaggedSiteName(string $rawText): string
+    {
+        $value = ltrim($this->extractTagContent($rawText, 'SITENAMESTART', 'SITENAMEEND'), " \t~");
+        if ($value !== '') {
+            return rtrim($this->normalise($value, 80), ' -–—');
+        }
+
+        $before = $this->extractLineBeforeTag($rawText, 'SITENAMESTART');
+        if ($before !== '') {
+            return rtrim($this->normalise($before, 80), ' -–—');
+        }
+
+        return '';
+    }
+
+    /**
+     * Extract client/company from SHIPCOMP tag pair or line before SHIPCOMPSTART.
+     *
+     * Some QuoteWerks fonts garble SHIPCOMPEND to "sypcompEND" (S→s, HI→y, etc.).
+     * We try both the exact tag and a fuzzy-end-tag pattern to stay robust.
+     */
+    private function extractTaggedCompanyName(string $rawText): string
+    {
+        $value = $this->extractTagContent($rawText, 'SHIPCOMPSTART', 'SHIPCOMPEND');
+        // Strip leading tilde — the V1 QuoteWerks template uses "~" as a column
+        // separator and it can bleed into the SHIPCOMPSTART content block.
+        $value = ltrim($value, " \t~");
+        if ($value !== '' && $this->isPlausibleName($value)) {
+            return $this->normalise($value, 80);
+        }
+
+        // Fuzzy fallback: the SHIPCOMPEND tag can be garbled by font-encoding
+        // to variants such as "sypcompEND", "sHIPCOMPEND", etc.
+        // Match from SHIPCOMPSTART up to any token that ends in "compEND" (case-insensitive).
+        if (preg_match('/SHIPCOMPSTART\s*(.*?)\s*\w*compEND\b/is', $rawText, $fm)) {
+            $candidate = ltrim(trim((string) ($fm[1] ?? '')), " \t~");
+            if ($candidate !== '' && $this->isPlausibleName($candidate)) {
+                return $this->normalise($candidate, 80);
+            }
+        }
+
+        $before = $this->extractLineBeforeTag($rawText, 'SHIPCOMPSTART');
+        if ($before !== '' && $this->isPlausibleName($before)) {
+            return $this->normalise($before, 80);
+        }
+
+        return '';
+    }
+
+    /**
+     * Use the ship-email local part as prepared-by fallback, e.g. "jane.doe".
+     */
+    private function extractPreparedByFromShipEmail(string $rawText): string
+    {
+        if (! preg_match('/SHIPEMAILSTART\s*([A-Z0-9._%+\-]+)@/i', $rawText, $m)) {
+            return '';
+        }
+
+        $local = strtolower(trim((string) ($m[1] ?? '')));
+        if ($local === '') {
+            return '';
+        }
+
+        $skip = ['info', 'sales', 'support', 'accounts', 'noreply', 'admin'];
+        if (in_array($local, $skip, true)) {
+            return '';
+        }
+
+        $parts = array_values(array_filter(
+            preg_split('/[._\-]+/', $local) ?: [],
+            fn (string $p): bool => strlen($p) >= 2 && preg_match('/[a-z]/', $p)
+        ));
+
+        if (count($parts) === 1) {
+            $single = $parts[0];
+            $commonFirstNames = [
+                'michael', 'stephen', 'andrew', 'daniel', 'thomas', 'martin', 'robert',
+                'jordan', 'james', 'david', 'sarah', 'shaun', 'harish', 'cassie',
+                'john', 'paul', 'mark', 'rich', 'emma', 'anna', 'alex', 'chris',
+            ];
+
+            foreach ($commonFirstNames as $first) {
+                if (str_starts_with($single, $first) && strlen($single) > strlen($first) + 2) {
+                    $parts = [$first, substr($single, strlen($first))];
+                    break;
+                }
+            }
+        }
+
+        if (count($parts) === 0 || count($parts) > 4) {
+            return '';
+        }
+
+        $name = implode(' ', array_map(
+            fn (string $p): string => ucfirst($p),
+            $parts
+        ));
+
+        return $this->isPlausibleName($name) ? $this->normalise($name, 80) : '';
+    }
+
+    /**
+     * Return first meaningful line immediately before a tag (e.g. SHIPCOMPSTART).
+     */
+    private function extractLineBeforeTag(string $rawText, string $tag): string
+    {
+        $pattern = '/(?:^|\r?\n)\s*([^\r\n]{2,200})\s*\r?\n\s*' . preg_quote($tag, '/') . '\b/i';
+        if (! preg_match($pattern, $rawText, $m)) {
+            return '';
+        }
+
+        $candidate = trim((string) $m[1]);
+        if ($candidate === '') {
+            return '';
+        }
+
+        if (preg_match('/\b(?:PARTSTART|PARTEND|PARTDESCSTART|PARTDESCEND|QTYSTART|QTYEND|OVERVIEW)/i', $candidate)) {
+            return '';
+        }
+
+        return $candidate;
+    }
+
+    private function extractFirstNumericValue(string $raw): float
+    {
+        if (! preg_match('/(\d+(?:\.\d+)?)/', $raw, $m)) {
+            return 0.0;
+        }
+
+        $numStr = $m[1];
+
+        // Smalot sometimes drops the decimal point when extracting from certain
+        // PDF fonts, turning "1.00" into "100", "26.00" into "2600", etc.
+        // If the extracted string has no decimal point and ends in "00", recover
+        // the original value by dividing by 100.
+        if (! str_contains($numStr, '.') && preg_match('/^(\d+?)00$/', $numStr, $dm) && $dm[1] !== '') {
+            return (float) $dm[1];
+        }
+
+        return (float) $numStr;
+    }
+
+    /**
+     * Parse OCR-mixed PARTDESC block that may contain qty + part and little/no description.
+     *
+     * @return array{0:float,1:string,2:string} [qty, partNumber, description]
+     */
+    private function parsePartDescComposite(string $raw): array
+    {
+        if ($raw === '') {
+            return [0.0, '', ''];
+        }
+
+        $raw = (string) preg_replace(
+            '/\b(?:PARTDESCEND|PARTDESCSTART|QTYSTART|QTYEND|QTVEND|PARTSTART|PARTEND)\b/i',
+            ' ',
+            $raw
+        );
+
+        $qty = 0.0;
+        $part = '';
+        $descParts = [];
+
+        $lines = preg_split('/\r?\n/', (string) $raw);
+        if (! is_array($lines)) {
+            $lines = [$raw];
+        }
+
+        foreach ($lines as $line) {
+            $line = trim((string) $line);
+            if ($line === '') {
+                continue;
+            }
+
+            if ($qty <= 0.0 && preg_match('/^\d+(?:\.\d+)?$/', $line)) {
+                $qty = (float) $line;
+                continue;
+            }
+
+            // OCR can emit qty + part (+ optional description) on the same line.
+            if (preg_match('/^(\d+(?:\.\d+)?)\s+([A-Za-z0-9][A-Za-z0-9\-\.\/]{2,49})(?:\s+(.+))?$/', $line, $m)) {
+                if ($qty <= 0.0) {
+                    $qty = (float) $m[1];
+                }
+                if ($part === '') {
+                    $pn = $this->normaliseTaggedPartNumber($m[2]);
+                    if ($pn !== '') {
+                        $part = $pn;
+                    }
+                }
+                $tail = trim((string) ($m[3] ?? ''));
+                if ($tail !== '') {
+                    $descParts[] = $tail;
+                }
+                continue;
+            }
+
+            // Only test single-token lines as part numbers — multi-word lines
+            // (e.g. "O&M Manual", "25m x 25mm sock") are always descriptions.
+            // Without this guard, normaliseTaggedPartNumber strips spaces first,
+            // turning "O&M Manual" → "O&MManual" which wrongly passes validation.
+            if ($part === '' && ! preg_match('/\s/', $line)) {
+                $pn = $this->normaliseTaggedPartNumber($line);
+                if ($pn !== '') {
+                    $part = $pn;
+                    continue;
+                }
+            }
+
+            $descParts[] = $line;
+        }
+
+        // If qty is still unset, check whether the last description line ends with
+        // a standalone numeric value — e.g. "Biamp PoE AVB/USB expander 1.00".
+        // This happens in QuoteWerks PDFs where the PDF extractor collapses the
+        // quantity column into the end of the description text instead of putting
+        // it inside the QTYSTART…QTYEND block.
+        if ($qty <= 0.0 && ! empty($descParts)) {
+            $lastIdx  = count($descParts) - 1;
+            $lastLine = $descParts[$lastIdx];
+            if (preg_match('/^(.+?)\s+(\d+(?:\.\d+)?)\s*$/', $lastLine, $qm)) {
+                $candidate = (float) $qm[2];
+                if ($candidate > 0.0) {
+                    $qty                  = $candidate;
+                    $descParts[$lastIdx]  = trim($qm[1]);
+                    if ($descParts[$lastIdx] === '') {
+                        array_splice($descParts, $lastIdx, 1);
+                    }
+                }
+            }
+        }
+
+        $desc = trim(preg_replace('/\s+/', ' ', implode(' ', $descParts)));
+
+        return [$qty, $part, $desc];
+    }
+
+    private function looksLikePartAndQtyOnly(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return true;
+        }
+
+        if (preg_match('/^\d+(?:\.\d+)?\s+[A-Za-z0-9][A-Za-z0-9\-\.\/]{2,49}$/', $value)) {
+            return true;
+        }
+
+        if ($this->normaliseTaggedPartNumber($value) !== '' && ! preg_match('/\s/', $value)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * In some QuoteWerks OCR layouts the description appears after QTYEND.
+     */
+    private function extractDescriptionAfterTuple(string $rawText, int $fromOffset, array $allPartStartOffsets): string
+    {
+        $end = strlen($rawText);
+
+        foreach ($allPartStartOffsets as $pos) {
+            if ($pos > $fromOffset) {
+                $end = min($end, $pos);
+                break;
+            }
+        }
+
+        if (preg_match('/OVERVIEWTITLESTART/i', $rawText, $m, PREG_OFFSET_CAPTURE, $fromOffset)) {
+            $end = min($end, $m[0][1]);
+        }
+
+        $chunk = substr($rawText, $fromOffset, max(0, $end - $fromOffset));
+        if ($chunk === false || trim($chunk) === '') {
+            return '';
+        }
+
+        // Strip tag tokens and header noise.
+        $chunk = preg_replace('/\b(?:OVERVIEWTXTSTART|OVERVIEWTXTEND|OVERVIEWTITLESTART|OVERVIEWTITLEEND|'
+            . 'PARTSTART|PARTEND|PARTDESCSTART|PARTDESCEND|paARTDESCEND|QTYSTART|QTYEND|QTVEND|'
+            . 'SITENAMESTART|SITENAMEEND|PREPAREDBYSTART|PREPAREDBYEND|'
+            . 'QUOTENUMSTART|QUOTENUMEND|SHIPCONTSTART|SHIPCONTEND|'
+            . 'SHIPPHONESTART|SHIPPHONEEND|SHIPEMAILSTART|SHIPEMAILEND|'
+            . 'SHIPCOMPSTART|SHIPCOMPEND|SHIPADDSTART|SHIPADDEND)\b/i', ' ', $chunk);
+
+        $chunk = preg_replace('/\b(?:INTERNAL\s+RAMS|PART\s*NUMBER|SUPPLIER|BUY|SELL|TOTAL|'
+            . '\d+\s+of\s+\d+)\b/i', ' ', $chunk);
+
+        $chunk = trim((string) preg_replace('/\s+/', ' ', $chunk));
+
+        return $chunk;
     }
 
     /**
@@ -2392,7 +2755,120 @@ class QuoteParserService
             return $this->normaliseTaggedPartNumber($m[2]);
         }
 
+        $tokens = preg_split('/[\s,\[\]()]+/', $desc) ?: [];
+        for ($i = count($tokens) - 1; $i >= 0; $i--) {
+            $token = trim((string) ($tokens[$i] ?? ''), "-–—:;,.!?");
+            if ($token === '') {
+                continue;
+            }
+            $pn = $this->normaliseTaggedPartNumber($token);
+            if ($pn !== '') {
+                return $pn;
+            }
+        }
+
         return '';
+    }
+
+    /**
+     * De-duplicate tagged equipment rows produced by OCR column bleed.
+     *
+     * Priority:
+     * - For same area+part number, keep a single row (lower qty preferred).
+     * - For rows without part numbers, de-dupe by area+normalised description.
+     */
+    private function dedupeTaggedEquipment(array $equipment): array
+    {
+        $deduped = [];
+        $order   = [];
+
+        foreach ($equipment as $item) {
+            $area = strtolower(trim((string) ($item['area'] ?? '')));
+            $part = strtolower(trim((string) ($item['part_number'] ?? '')));
+            $desc = strtolower(trim((string) preg_replace('/\s+/', ' ', (string) ($item['description'] ?? ''))));
+
+            $descKey = preg_replace('/[^a-z0-9]+/', ' ', $desc);
+            $descKey = trim((string) preg_replace('/\s+/', ' ', (string) $descKey));
+
+            $key = $part !== ''
+                ? "p|{$area}|{$part}"
+                : "d|{$area}|{$descKey}";
+
+            if (! isset($deduped[$key])) {
+                $deduped[$key] = $item;
+                $order[]       = $key;
+                continue;
+            }
+
+            $existingQty = (int) ($deduped[$key]['qty'] ?? 1);
+            $newQty      = (int) ($item['qty'] ?? 1);
+            if ($newQty > 0) {
+                $deduped[$key]['qty'] = $existingQty + $newQty;
+            }
+
+            $existingDesc = (string) ($deduped[$key]['description'] ?? '');
+            $newDesc      = (string) ($item['description'] ?? '');
+            if (strlen($newDesc) > strlen($existingDesc) && ! preg_match('/(?:PARTDESCEND|QTYEND|QTVEND)/i', $newDesc)) {
+                $deduped[$key]['description'] = $newDesc;
+            }
+
+            if (($deduped[$key]['location'] ?? '') === '' && ($item['location'] ?? '') !== '') {
+                $deduped[$key]['location'] = $item['location'];
+            }
+        }
+
+        $out = [];
+        foreach ($order as $key) {
+            $out[] = $deduped[$key];
+        }
+        // Second pass: drop no-part rows that are OCR duplicates of a row with
+        // a valid part number in the same area.
+        $withPartByArea = [];
+        foreach ($out as $row) {
+            $areaKey = strtolower(trim((string) ($row['area'] ?? '')));
+            $partKey = trim((string) ($row['part_number'] ?? ''));
+            if ($partKey === '') {
+                continue;
+            }
+            $descKey = strtolower((string) ($row['description'] ?? ''));
+            $descKey = preg_replace('/[^a-z0-9]+/', ' ', $descKey);
+            $descKey = trim((string) preg_replace('/\s+/', ' ', (string) $descKey));
+            if ($descKey === '') {
+                continue;
+            }
+            $withPartByArea[$areaKey][] = $descKey;
+        }
+
+        $filtered = [];
+        foreach ($out as $row) {
+            $areaKey = strtolower(trim((string) ($row['area'] ?? '')));
+            $partKey = trim((string) ($row['part_number'] ?? ''));
+            if ($partKey !== '') {
+                $filtered[] = $row;
+                continue;
+            }
+
+            $descKey = strtolower((string) ($row['description'] ?? ''));
+            $descKey = preg_replace('/[^a-z0-9]+/', ' ', $descKey);
+            $descKey = trim((string) preg_replace('/\s+/', ' ', (string) $descKey));
+
+            $drop = false;
+            foreach ((array) ($withPartByArea[$areaKey] ?? []) as $partDescKey) {
+                if ($descKey === '' || $partDescKey === '') {
+                    continue;
+                }
+                if (str_contains($descKey, $partDescKey) || str_contains($partDescKey, $descKey)) {
+                    $drop = true;
+                    break;
+                }
+            }
+
+            if (! $drop) {
+                $filtered[] = $row;
+            }
+        }
+
+        return $filtered;
     }
 
     /**
@@ -2419,15 +2895,15 @@ class QuoteParserService
         $result = [];
 
         foreach ($lines as $line) {
-            $line = trim($line);
+            $line = trim($line, " \t\r\n~");
             if ($line === '') {
                 continue;
             }
             // A bare decimal (e.g. "1.00", "2.50") is the price/qty column
             // value that bleeds in when a PARTDESC tuple spans a page break.
-            // Skip it — don't break, as more real content may follow.
+            // Stop collecting here — everything after is page-header noise.
             if (preg_match('/^\d+\.\d+$/', $line)) {
-                continue;
+                break;
             }
             if (preg_match($skipPattern, $line)) {
                 continue;
