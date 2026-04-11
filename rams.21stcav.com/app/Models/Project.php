@@ -169,6 +169,11 @@ class Project extends Model
         return $this->hasMany(CableSchedule::class);
     }
 
+    public function worksheets(): HasMany
+    {
+        return $this->hasMany(Worksheet::class);
+    }
+
     /**
      * All uploaded quote versions for this project, oldest first.
      */
