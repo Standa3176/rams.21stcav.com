@@ -167,12 +167,29 @@ class PdfTextExtractorService
      */
     private function extractWithPdfToText(string $path): string
     {
-        // Detect binary: try `where` (Windows) then `which` (Unix)
-        $binary = '';
+        // Hardcoded known Windows path (Git for Windows ships pdftotext.exe here).
+        // Also try PATH-based detection as fallback.
+        $candidates = [
+            'C:\\Program Files\\Git\\mingw64\\bin\\pdftotext.exe',
+            'C:\\Program Files (x86)\\Git\\mingw64\\bin\\pdftotext.exe',
+            'C:\\poppler\\bin\\pdftotext.exe',
+            'C:\\Program Files\\poppler\\bin\\pdftotext.exe',
+        ];
 
-        $whereOutput = shell_exec('where pdftotext 2>NUL');
-        if (is_string($whereOutput) && trim($whereOutput) !== '') {
-            $binary = trim(explode("\n", $whereOutput)[0]);
+        $binary = '';
+        foreach ($candidates as $candidate) {
+            if (file_exists($candidate)) {
+                $binary = $candidate;
+                break;
+            }
+        }
+
+        // PATH-based fallback: `where` on Windows, `which` on Unix
+        if ($binary === '') {
+            $whereOutput = shell_exec('where pdftotext 2>NUL');
+            if (is_string($whereOutput) && trim($whereOutput) !== '') {
+                $binary = trim(explode("\n", $whereOutput)[0]);
+            }
         }
 
         if ($binary === '') {
@@ -182,13 +199,27 @@ class PdfTextExtractorService
             }
         }
 
+        Log::info('PdfTextExtractorService: pdftotext detection', [
+            'binary'     => $binary ?: 'NOT FOUND',
+            'os_family'  => PHP_OS_FAMILY,
+            'path'       => basename($path),
+        ]);
+
         if ($binary === '') {
             return '';
         }
 
-        $escaped  = escapeshellarg($path);
-        $nullDev  = PHP_OS_FAMILY === 'Windows' ? '2>NUL' : '2>/dev/null';
-        $output   = shell_exec(escapeshellarg($binary) . " -raw {$escaped} - {$nullDev}");
+        $escaped = escapeshellarg($path);
+        $cmd     = escapeshellarg($binary) . " -raw {$escaped} -";
+
+        $output = shell_exec($cmd);
+
+        Log::info('PdfTextExtractorService: pdftotext output', [
+            'cmd'         => $cmd,
+            'output_len'  => is_string($output) ? strlen($output) : 'null',
+            'has_markers' => is_string($output) ? $this->hasQuoteWerksMarkers($output) : false,
+            'preview'     => is_string($output) ? mb_substr($output, 0, 300) : 'null',
+        ]);
 
         if (! is_string($output) || trim($output) === '') {
             return '';
