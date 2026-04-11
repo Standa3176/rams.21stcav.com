@@ -197,6 +197,12 @@ Route::middleware('auth')->group(function () {
     Route::delete('/hazard-templates/{hazardTemplate}',     [HazardTemplateController::class, 'destroy']) ->name('hazard-templates.destroy');
 
     // ── Cable Schedules ───────────────────────────────────────────────────
+    // Literal-segment routes MUST be before Route::resource('cable-schedules', ...)
+    // so that the {cableSchedule} wildcard does not swallow literal segments.
+    Route::post('cable-schedules/generate-from-project/{project}', [CableScheduleController::class, 'generateFromProject'])->name('cable-schedules.generate-from-project');
+    Route::get('cable-schedules/{cableSchedule}/status',           [CableScheduleController::class, 'status'])             ->name('cable-schedules.status');
+    Route::get('cable-schedules/{cableSchedule}/download',         [CableScheduleController::class, 'download'])           ->name('cable-schedules.download');
+
     Route::resource('cable-schedules', CableScheduleController::class)
         ->only(['index', 'create', 'store', 'destroy']);
     Route::get('cable-schedules/{cableSchedule}/edit',      [CableScheduleController::class, 'edit'])        ->name('cable-schedules.edit');

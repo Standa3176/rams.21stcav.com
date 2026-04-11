@@ -5,21 +5,28 @@ namespace App\Http\Controllers;
 use App\Core\AI\AIManager;
 use App\Core\AI\Prompts\CableSchedulePrompt;
 use App\Exceptions\AIGenerationException;
+use App\Jobs\BuildCableScheduleJob;
 use App\Models\CableSchedule;
 use App\Models\CableScheduleItem;
+use App\Models\Project;
 use App\Services\PdfTextExtractorService;
 use App\Services\QuoteLineExtractorService;
+use App\Services\WorkerMonitorService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class CableScheduleController extends Controller
 {
     public function __construct(
         private readonly PdfTextExtractorService   $pdfExtractor,
         private readonly QuoteLineExtractorService $lineExtractor,
+        private readonly WorkerMonitorService      $workerMonitor,
     ) {}
 
     public function index(Request $request): View
@@ -180,5 +187,89 @@ class CableScheduleController extends Controller
         Log::info('CableScheduleController: permanently deleted', ['id' => $id, 'admin_id' => auth()->id()]);
 
         return back()->with('success', 'Cable schedule permanently deleted.');
+    }
+
+    // ── generateFromProject ───────────────────────────────────────────────────
+
+    /**
+     * Create a CableSchedule for the given project and queue generation.
+     *
+     * @param  Project $project
+     * @return RedirectResponse
+     */
+    public function generateFromProject(Project $project): RedirectResponse
+    {
+        abort_if($project->user_id !== auth()->id() && ! auth()->user()?->isAdmin(), 403);
+
+        $schedule = CableSchedule::create([
+            'user_id'      => auth()->id(),
+            'project_id'   => $project->id,
+            'project_name' => $project->name,
+            'project_ref'  => $project->quote_reference ?? $project->ref ?? null,
+            'client_name'  => $project->client_name,
+            'status'       => CableSchedule::STATUS_GENERATING,
+        ]);
+
+        Log::info('CableScheduleController: generateFromProject queued', [
+            'project_id'        => $project->id,
+            'cable_schedule_id' => $schedule->id,
+        ]);
+
+        $this->workerMonitor->ensureRunning();
+        BuildCableScheduleJob::dispatch($schedule->id);
+
+        return back()->with('success', 'Cable schedule generation queued — edit items when ready.');
+    }
+
+    // ── status (JSON polling endpoint) ────────────────────────────────────────
+
+    /**
+     * Return the current status of a cable schedule as JSON for polling.
+     *
+     * @param  CableSchedule $cableSchedule
+     * @return JsonResponse
+     */
+    public function status(CableSchedule $cableSchedule): JsonResponse
+    {
+        abort_if($cableSchedule->user_id !== auth()->id() && ! auth()->user()?->isAdmin(), 403);
+
+        $downloadUrl = in_array($cableSchedule->status, [CableSchedule::STATUS_DRAFT, CableSchedule::STATUS_FINAL])
+            ? route('cable-schedules.download', $cableSchedule)
+            : null;
+
+        return response()->json([
+            'status'       => $cableSchedule->status,
+            'download_url' => $downloadUrl,
+            'error'        => $cableSchedule->error_message,
+        ]);
+    }
+
+    // ── download ──────────────────────────────────────────────────────────────
+
+    /**
+     * Stream the generated XLSX file to the browser.
+     *
+     * @param  CableSchedule $cableSchedule
+     * @return BinaryFileResponse|RedirectResponse
+     */
+    public function download(CableSchedule $cableSchedule): BinaryFileResponse|RedirectResponse
+    {
+        abort_if($cableSchedule->user_id !== auth()->id() && ! auth()->user()?->isAdmin(), 403);
+
+        if (! $cableSchedule->filename) {
+            return back()->with('error', 'No file available yet. Please generate the schedule first.');
+        }
+
+        $diskPath = 'cable-schedules/' . $cableSchedule->filename;
+
+        if (! Storage::disk('local')->exists($diskPath)) {
+            return back()->with('error', 'Document file not found on disk.');
+        }
+
+        return Storage::disk('local')->download(
+            $diskPath,
+            $cableSchedule->filename,
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        );
     }
 }
