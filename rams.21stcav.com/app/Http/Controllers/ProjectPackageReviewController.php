@@ -238,6 +238,7 @@ class ProjectPackageReviewController extends Controller
                 'overview'         => (string) ($saved['overview']         ?? ''),
                 'works_summary'    => (string) ($saved['works_summary']    ?? ''),
                 'summary'          => (string) ($saved['summary']          ?? ''),
+                'description'      => (string) ($saved['description']      ?? ''),
                 'solution_type_id' => (int)    ($saved['solution_type_id'] ?? 0) ?: null,
             ];
         }, $allRoomNames);
@@ -539,6 +540,7 @@ class ProjectPackageReviewController extends Controller
             // Current form values sent by JS so we don't need a prior save:
             'current_overview'      => ['nullable', 'string'],
             'current_works_summary' => ['nullable', 'string'],
+            'current_description'   => ['nullable', 'string'],
             'current_solution_type_id' => ['nullable', 'integer'],
         ]);
 
@@ -573,6 +575,7 @@ class ProjectPackageReviewController extends Controller
         // FALLBACK: look up from extracted_data for exact/prefix match.
         $sourceOverview     = trim((string) ($data['current_overview']      ?? ''));
         $sourceWorksSummary = trim((string) ($data['current_works_summary'] ?? ''));
+        $sourceDescription  = trim((string) ($data['current_description']   ?? ''));
         $sourceSolutionId   = (int) ($data['current_solution_type_id'] ?? 0) ?: null;
 
         if ($sourceOverview === '' || $sourceSolutionId === null) {
@@ -585,6 +588,9 @@ class ProjectPackageReviewController extends Controller
                     }
                     if ($sourceWorksSummary === '') {
                         $sourceWorksSummary = trim((string) ($ro['works_summary'] ?? ''));
+                    }
+                    if ($sourceDescription === '') {
+                        $sourceDescription = trim((string) ($ro['description'] ?? ''));
                     }
                     if ($sourceSolutionId === null) {
                         $sourceSolutionId = (int) ($ro['solution_type_id'] ?? 0) ?: null;
@@ -619,10 +625,11 @@ class ProjectPackageReviewController extends Controller
         ));
         for ($i = 1; $i <= $qty; $i++) {
             $roomOverviews[] = [
-                'room'          => $qty === 1 ? $area : "{$area} {$i}",
+                'room'             => $qty === 1 ? $area : "{$area} {$i}",
                 'overview'         => $sourceOverview,
                 'works_summary'    => $sourceWorksSummary,
                 'summary'          => '',
+                'description'      => $sourceDescription,
                 'solution_type_id' => $sourceSolutionId,
             ];
         }
@@ -798,6 +805,7 @@ class ProjectPackageReviewController extends Controller
 
         $raw['method_statement_notes'] = trim((string) ($raw['method_statement_notes'] ?? ''));
         $raw['scope_of_works']         = trim((string) ($raw['scope_of_works']         ?? ''));
+        $raw['works_overview']         = trim((string) ($raw['works_overview']         ?? ''));
 
         // ── Programme & Personnel ─────────────────────────────────────────────────
         $prog = $raw['programme'] ?? [];
@@ -857,6 +865,7 @@ class ProjectPackageReviewController extends Controller
                 'overview'         => trim((string) ($ro['overview']      ?? '')),
                 'works_summary'    => trim((string) ($ro['works_summary'] ?? '')),
                 'summary'          => trim((string) ($ro['summary']       ?? '')),
+                'description'      => trim((string) ($ro['description']   ?? '')),
                 'solution_type_id' => $solutionTypeId,
             ];
         }
