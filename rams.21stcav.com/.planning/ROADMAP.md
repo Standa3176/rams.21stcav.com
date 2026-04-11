@@ -51,3 +51,16 @@ Plans:
 - [x] 04-02-PLAN.md — O&M Manual refactor (replace Pass 1 with ProjectDataService feed)
 - [x] 04-03-PLAN.md — Cable Schedule refactor (fix model fillable, CableScheduleGeneratorService, BuildCableScheduleJob)
 - [x] 04-04-PLAN.md — Project show page — wire all three generate buttons, status polling, remove Phase 4 guard
+
+### Phase 5: Project Content Pack
+
+**Goal:** A single AI call at review time generates scope of works, works overview, and per-room prose descriptions — all stored in extracted_data so RAMS, O&M, and Worksheets read from the same pre-generated content instead of making separate AI calls with thin context
+**Requirements**: CONTENT-01, CONTENT-02, CONTENT-03, CONTENT-04, CONTENT-05, CONTENT-06, CONTENT-07
+**Depends on:** Phase 4
+**Plans:** 4 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Prompt + service layer (extend RoomOverviewSummaryPrompt, ScopeOfWorksPrompt, RoomOverviewSummaryService)
+- [ ] 05-02-PLAN.md — Data persistence (normalisation, validation, controller show/save, generateSurveyRooms, ExtractQuoteJob auto-generation)
+- [ ] 05-03-PLAN.md — AJAX endpoints + review form UI (works_overview and description textareas, JS wiring)
+- [ ] 05-04-PLAN.md — Document consumer wiring (MethodStatementService scope preference, O&M enrichment)
