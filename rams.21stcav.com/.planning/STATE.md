@@ -23,6 +23,7 @@ No active phase — all roadmap phases complete.
 | 260411-en6 | Remove manual project creation — redirect to quote import | 2026-04-11 |
 | 260411-f5v | Restore original quote parser (2903) — remove hybrid AI extraction pipeline | 2026-04-11 |
 | 260411-fct | Fix quote pipeline review issues (H-02,H-03,H-04,L-02,M-01,M-04) + part numbers with # and . | 2026-04-11 |
+| 260411-g5w | Wire QuoteExtractorService as primary PDF extraction path — replace local parser with Claude document vision | 2026-04-11 |
 
 ## Accumulated Context
 
