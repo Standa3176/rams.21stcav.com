@@ -294,6 +294,9 @@
 .kit-ref td { padding:.15rem .4rem; vertical-align:top; }
 .kit-ref .kqty  { font-weight:700; color:#178A95; width:2rem; text-align:right; }
 .kit-ref .kpart { font-family:monospace; background:#d9f2f5; border-radius:3px; padding:.05rem .3rem; font-size:.75rem; }
+
+/* ── Utility ──────────────────────────────────────── */
+.text-muted { color:var(--text-muted); font-style:italic; }
 </style>
 @endpush
 
@@ -422,6 +425,33 @@
     </div>
     @endif
 </div>
+
+{{-- Site Conditions --}}
+@if($survey->site_risks || $survey->access_constraints || $survey->h_and_s_notes)
+<div class="section-block" style="margin-bottom:1.25rem;">
+    <h2 class="section-heading">Site Conditions</h2>
+    <div class="form-grid-2">
+        <div>
+            <div class="meta-label">Site Risks</div>
+            <div class="meta-value">
+                {!! $survey->site_risks ? e($survey->site_risks) : '<span class="text-muted">Not provided</span>' !!}
+            </div>
+        </div>
+        <div>
+            <div class="meta-label">Access Constraints</div>
+            <div class="meta-value">
+                {!! $survey->access_constraints ? e($survey->access_constraints) : '<span class="text-muted">Not provided</span>' !!}
+            </div>
+        </div>
+        <div>
+            <div class="meta-label">Health &amp; Safety Notes</div>
+            <div class="meta-value">
+                {!! $survey->h_and_s_notes ? e($survey->h_and_s_notes) : '<span class="text-muted">Not provided</span>' !!}
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 
 {{-- Rooms --}}
 @if($rooms->isEmpty())
