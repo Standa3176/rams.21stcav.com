@@ -9,13 +9,17 @@ use App\Http\Requests\QuoteImportRequest;
 use App\Jobs\ExtractQuoteJob;
 use App\Models\Project;
 use App\Models\ProjectPackage;
+use App\Services\WorkerMonitorService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class QuoteImportController extends Controller
 {
-    public function __construct(private readonly QuoteImportService $service) {}
+    public function __construct(
+        private readonly QuoteImportService    $service,
+        private readonly WorkerMonitorService  $workerMonitor,
+    ) {}
 
     // ── Step 1: Upload form ───────────────────────────────────────────────────
 
@@ -38,15 +42,17 @@ class QuoteImportController extends Controller
     {
         $file          = $request->file('quote_pdf');
         $createProject = (bool) $request->input('create_project', true);
+        $projectId     = $request->integer('project_id') ?: null;
 
         try {
-            $package = $this->service->importPending(auth()->user(), $file);
+            $package = $this->service->importPending(auth()->user(), $file, $projectId);
         } catch (\Throwable $e) {
             return back()
                 ->withInput()
                 ->with('error', 'Failed to store quote PDF: ' . $e->getMessage());
         }
 
+        $this->workerMonitor->ensureRunning();
         ExtractQuoteJob::dispatch($package, auth()->user(), $createProject);
 
         return redirect()->route('quote-import.extracting', $package)

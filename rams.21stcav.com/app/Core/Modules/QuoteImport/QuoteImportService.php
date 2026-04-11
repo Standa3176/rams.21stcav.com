@@ -161,15 +161,18 @@ class QuoteImportService
      * Store the PDF and create a package with STATUS_EXTRACTING — extraction
      * is handled asynchronously by ExtractQuoteJob.
      *
+     * @param  int|null  $projectId  Pre-assign to an existing project (e.g. "Upload New Quote"
+     *                               from the project page). When set, ExtractQuoteJob skips
+     *                               the client+site auto-match and attaches directly.
      * @return ProjectPackage  Package with status='extracting' (no extracted_data yet).
      */
-    public function importPending(User $user, UploadedFile $file): ProjectPackage
+    public function importPending(User $user, UploadedFile $file, ?int $projectId = null): ProjectPackage
     {
         $storagePath = $this->storePdf($file);
 
         try {
             return ProjectPackage::create([
-                'project_id'        => null,
+                'project_id'        => $projectId,
                 'user_id'           => $user->id,
                 'quote_filename'    => $file->getClientOriginalName(),
                 'quote_path'        => $storagePath,

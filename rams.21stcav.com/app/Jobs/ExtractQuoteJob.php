@@ -100,9 +100,14 @@ class ExtractQuoteJob implements ShouldQueue
             $clientName  = $extracted['client_name']  ?? null;
             $siteAddress = $extracted['site_address']  ?? null;
 
-            // Auto-match existing project by client+site
+            // Use pre-assigned project (e.g. "Upload New Quote" from project page).
             $project = null;
-            if ($clientName && $siteAddress) {
+            if ($this->package->project_id !== null) {
+                $project = Project::whereNull('deleted_at')->find($this->package->project_id);
+            }
+
+            // Auto-match existing project by client+site when no project pre-assigned.
+            if ($project === null && $clientName && $siteAddress) {
                 $project = Project::whereRaw('LOWER(client_name) = ?', [strtolower($clientName)])
                     ->whereRaw('LOWER(site_address) = ?', [strtolower($siteAddress)])
                     ->whereNull('deleted_at')
