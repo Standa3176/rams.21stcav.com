@@ -172,10 +172,11 @@ class ProjectDataService
     {
         $quoteRooms = $source['rooms'] ?? $source['groups'] ?? [];
 
+        // Guard against string entries — the parser can return site names as plain strings.
         $rooms = array_map(fn(array $room) => array_merge($room, [
             'data_source' => $dataSource,
             'confidence'  => $confidence,
-        ]), array_values((array) $quoteRooms));
+        ]), array_values(array_filter((array) $quoteRooms, fn ($r) => is_array($r))));
 
         // Survey enriches rooms with physical details (above all package tiers for room data).
         // Phase 3 will implement full fuzzy merge; Phase 1 provides the hook.
