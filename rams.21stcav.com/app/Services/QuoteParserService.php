@@ -49,7 +49,10 @@ class QuoteParserService
 
     private const REF_PATTERNS = [
         // Priority 1: labelled patterns — capture whatever follows the label.
-        '/(?:quote\s+(?:no|number|ref|reference)|q(?:uote)?\s*[#\-]?\s*no\.?)\s*[:\-]?\s*([A-Z0-9\-\/]{3,30})/i',
+        // NOTE: "reference" must appear before "ref" in the alternation so that
+        // "quote reference" is consumed in full and does not match "quote ref"
+        // and then capture "erence" from the remainder of the word.
+        '/(?:quote\s+(?:no|number|reference|ref)|q(?:uote)?\s*[#\-]?\s*no\.?)\s*[:\-]?\s*([A-Z0-9\-\/]{3,30})/i',
         '/(?:order\s+(?:no|number)|po\s+(?:no|number))\s*[:\-]?\s*([A-Z0-9\-\/]{3,30})/i',
         // Priority 2: bare 21CQ reference anywhere in the text.
         // All 21st Century AV quote numbers begin "21CQ" followed by digits and optional
@@ -1541,6 +1544,24 @@ class QuoteParserService
         }
         // Fallback: heuristic extraction from raw text.
         if ($preparedBy === '') {
+            // Layout C: PREPAREDBYSTART PREPAREDBYEND tag is empty; name is on the
+            // line immediately before the tag (same pattern as SITENAMESTART).
+            $before = $this->extractLineBeforeTag($rawText, 'PREPAREDBYSTART');
+            if ($before !== '') {
+                $cleaned = trim((string) preg_replace('/\b[A-Z]{3,}(?:START|END)\b/i', '', $before));
+                $cleaned = trim((string) preg_replace('/\s{2,}/', ' ', $cleaned));
+                // Must look like a person name: 1–3 words, no digits, not all-caps.
+                $words = array_filter(explode(' ', $cleaned), fn ($w) => $w !== '');
+                if (count($words) >= 1 && count($words) <= 3
+                    && ! preg_match('/\d/', $cleaned)
+                    && ! preg_match('/\b(?:ltd|plc|limited|inc|corp)\b/i', $cleaned)
+                    && $cleaned !== strtoupper($cleaned)
+                ) {
+                    $preparedBy = $this->normalise($cleaned, 80);
+                }
+            }
+        }
+        if ($preparedBy === '') {
             $preparedBy = $this->extractPreparedBy($rawText);
         }
         $ref = $this->extractTaggedRef($rawText);
@@ -1822,6 +1843,18 @@ class QuoteParserService
             $candidate = trim($m[1]);
             if (preg_match('/\d/', $candidate)
                 && preg_match('/^[A-Z0-9][A-Z0-9\-\/]{2,25}$/i', $candidate)) {
+                return strtoupper($candidate);
+            }
+        }
+
+        // Layout C: QUOTENUMSTART QUOTENUMEND is empty; ref appears as the first
+        // token on the first line of the SHIPADDSTART block (e.g. "21CQ30058-01-OPS Turbinia Works").
+        // Extract that token directly — it is more reliable than the heuristic extractRef()
+        // which may match a ref mentioned in body text (e.g. a cross-reference to another quote).
+        if (preg_match('/SHIPADDSTART\s*\r?\n?([A-Z0-9][A-Z0-9\-\/]{4,25})\s/i', $rawText, $m)) {
+            $candidate = trim($m[1]);
+            if (preg_match('/\d/', $candidate)
+                && preg_match('/^[A-Z0-9][A-Z0-9\-\/]{4,25}$/i', $candidate)) {
                 return strtoupper($candidate);
             }
         }
@@ -2451,20 +2484,13 @@ class QuoteParserService
                 return rtrim($this->normalise($stripped, 80), ' -–—');
             }
 
-            // Tag had content but it was all markers → try the line before the tag, but
-            // ONLY when it contains a " - " separator.  The QuoteWerks header line has the
-            // format "SiteName - CompanyName ContactName"; the part before " - " is the site.
-            // Without " - " the line is "SiteName ContactName" with no safe split boundary,
-            // so fall straight through to the company name fallback.
+            // Tag had content but it was all markers → try the line before the tag.
             $before = $this->extractLineBeforeTag($rawText, 'SITENAMESTART');
             if ($before !== '') {
                 $cleaned = (string) preg_replace('/\b[A-Z]{3,}(?:START|END)\b/i', '', $before);
                 $cleaned = trim((string) preg_replace('/\s{2,}/', ' ', $cleaned));
-                if (str_contains($cleaned, ' - ')) {
-                    $sitePart = rtrim(trim((string) strstr($cleaned, ' - ', true)), ' -–—');
-                    if ($sitePart !== '') {
-                        return $this->normalise($sitePart, 80);
-                    }
+                if (($site = $this->splitSiteNameLine($cleaned)) !== '') {
+                    return $site;
                 }
             }
 
@@ -2473,24 +2499,13 @@ class QuoteParserService
                 return $company;
             }
         } else {
-            // Layout B: tag was truly empty — content precedes the tag in this PDF.
-            // Try the line before SITENAMESTART before falling back to company name,
-            // because the line-before holds the actual site/management company name
-            // while SHIPCOMP holds the tenant/client company (a different value).
+            // Layout B/C: tag was truly empty — content precedes the tag in this PDF.
             $before = $this->extractLineBeforeTag($rawText, 'SITENAMESTART');
             if ($before !== '') {
                 $cleaned = (string) preg_replace('/\b[A-Z]{3,}(?:START|END)\b/i', '', $before);
                 $cleaned = trim((string) preg_replace('/\s{2,}/', ' ', $cleaned));
-                // Header format: "SiteName - CompanyName ContactName" — take only the site part.
-                if (str_contains($cleaned, ' - ')) {
-                    $sitePart = rtrim(trim((string) strstr($cleaned, ' - ', true)), ' -–—');
-                    if ($sitePart !== '') {
-                        return $this->normalise($sitePart, 80);
-                    }
-                }
-                $cleaned = rtrim($cleaned, ' -–—');
-                if ($cleaned !== '') {
-                    return $this->normalise($cleaned, 80);
+                if (($site = $this->splitSiteNameLine($cleaned)) !== '') {
+                    return $site;
                 }
             }
 
@@ -2507,6 +2522,49 @@ class QuoteParserService
         }
 
         return '';
+    }
+
+    /**
+     * Given a cleaned line from before SITENAMESTART, return the site name portion.
+     *
+     * QuoteWerks header lines have two formats:
+     *   A) "SiteName - ContactFirstName ContactSurname"
+     *      → split on " - "; keep left part (site name).
+     *      → Only split when the right part is 1–2 words with no digits and no
+     *        location/venue keywords — indicating a person name, not a place suffix.
+     *   B) "CompanyName Location" or full site name with no " - "
+     *      → return the whole cleaned line.
+     *
+     * Returns '' when the line is empty or unusable.
+     */
+    private function splitSiteNameLine(string $cleaned): string
+    {
+        $cleaned = rtrim($cleaned, ' -–—');
+        if ($cleaned === '') {
+            return '';
+        }
+
+        if (str_contains($cleaned, ' - ')) {
+            $left  = rtrim(trim((string) strstr($cleaned, ' - ', true)), ' -–—');
+            $right = ltrim(trim((string) substr($cleaned, strpos($cleaned, ' - ') + 3)), ' -–—');
+
+            // Right part looks like a person name when: 1–2 words, no digits,
+            // no venue/location keywords.
+            $rightWords = array_filter(explode(' ', $right), fn ($w) => $w !== '');
+            $rightIsPersonName = count($rightWords) >= 1
+                && count($rightWords) <= 2
+                && ! preg_match('/\d/', $right)
+                && ! preg_match('/\b(?:room|office|floor|building|house|suite|centre|center|meeting|reception|hall|unit|block)\b/i', $right);
+
+            if ($rightIsPersonName && $left !== '') {
+                return $this->normalise($left, 80);
+            }
+
+            // Right part is not a person name — treat the whole line as the site name.
+            return $this->normalise($cleaned, 80);
+        }
+
+        return $this->normalise($cleaned, 80);
     }
 
     /**
