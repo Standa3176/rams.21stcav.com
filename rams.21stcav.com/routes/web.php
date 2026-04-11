@@ -237,6 +237,16 @@ Route::middleware('auth')->group(function () {
     Route::get('om-manuals/{omManual}/download-pdf',     [OmManualController::class, 'downloadPdf'])     ->name('om-manuals.download-pdf');
     Route::post('om-manuals/{id}/restore',           [OmManualController::class, 'restore'])     ->name('om-manuals.restore');
     Route::delete('om-manuals/{id}/force-destroy',   [OmManualController::class, 'forceDestroy'])->name('om-manuals.force-destroy');
+
+    // ── Worksheets ────────────────────────────────────────────────────────
+    // The generate-from-project literal-segment route MUST be registered BEFORE
+    // any {worksheet} wildcard routes to prevent route model binding conflicts.
+    Route::post('worksheets/generate-from-project/{project}', [\App\Http\Controllers\WorksheetController::class, 'generateFromProject'])->name('worksheets.generate-from-project');
+    Route::get('worksheets/{worksheet}/status',   [\App\Http\Controllers\WorksheetController::class, 'status'])  ->name('worksheets.status');
+    Route::get('worksheets/{worksheet}/download', [\App\Http\Controllers\WorksheetController::class, 'download'])->name('worksheets.download');
+    Route::delete('worksheets/{worksheet}',       [\App\Http\Controllers\WorksheetController::class, 'destroy']) ->name('worksheets.destroy');
+    Route::get('worksheets/{worksheet}',          [\App\Http\Controllers\WorksheetController::class, 'show'])    ->name('worksheets.show');
+    Route::get('worksheets',                      [\App\Http\Controllers\WorksheetController::class, 'index'])   ->name('worksheets.index');
 });
 
 require __DIR__.'/auth.php';

@@ -1,0 +1,85 @@
+@extends('layouts.app')
+
+@section('title', 'Worksheets')
+
+@section('content')
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Worksheets</h1>
+    </div>
+</div>
+
+@if(session('success'))
+    <div class="alert alert-success">{{ session('success') }}</div>
+@endif
+
+@if($worksheets->isEmpty())
+
+    <x-dashboard.empty-state
+        heading="No worksheets yet"
+        body="Worksheets are generated from a project. Open a project and click Generate Worksheet."
+    />
+
+@else
+
+    <div class="card" style="padding:0;overflow:hidden;">
+        <x-dashboard.table-wrapper>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Project</th>
+                        <th>Client</th>
+                        <th>Status</th>
+                        <th>Generated</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($worksheets as $w)
+                        <tr>
+                            <td>
+                                @if($w->project)
+                                    <a href="{{ route('projects.show', $w->project) }}" style="color:var(--teal);text-decoration:none;">
+                                        {{ $w->project->name }}
+                                    </a>
+                                    @if($w->project_ref)
+                                        <br><small style="color:var(--text-faint);">{{ $w->project_ref }}</small>
+                                    @endif
+                                @else
+                                    <span style="color:var(--text-muted);">{{ $w->project_name }}</span>
+                                    @if($w->project_ref)
+                                        <br><small style="color:var(--text-faint);">{{ $w->project_ref }}</small>
+                                    @endif
+                                @endif
+                            </td>
+                            <td>{{ $w->client_name ?? '—' }}</td>
+                            <td>
+                                <x-dashboard.status-badge :status="$w->status" />
+                            </td>
+                            <td style="color:var(--text-faint);font-size:.875rem;">
+                                {{ $w->updated_at->diffForHumans() }}
+                            </td>
+                            <td class="actions">
+                                <a href="{{ route('worksheets.show', $w) }}" class="btn-outline btn-sm">View</a>
+                                @if(in_array($w->status, ['draft', 'final']))
+                                    <a href="{{ route('worksheets.download', $w) }}"
+                                       class="btn-teal btn-sm"
+                                       target="_blank"
+                                       aria-label="Download Worksheet DOCX">↓ Download</a>
+                                @endif
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </x-dashboard.table-wrapper>
+    </div>
+
+    <div style="margin-top:1.25rem;">
+        {{ $worksheets->links() }}
+    </div>
+
+@endif
+
+@endsection
