@@ -9,18 +9,16 @@ use Smalot\PdfParser\Parser;
  * Extracts plain text from a PDF using layered local fallbacks.
  *
  * Order:
+ *   0) pdftotext (Poppler) — primary for QuoteWerks PDFs with custom font encoding
  *   1) Smalot parser
  *   2) FlateDecode decompressed stream text (PHP gzinflate — no binary deps)
  *   3) Raw literal-string extraction from PDF streams (uncompressed only)
  *   4) OCR (Tesseract)
  *
- * Stage 2 is the key addition for QuoteWerks PDFs on Windows: the marker
- * text (PARTSTART, OVERVIEWTITLESTART, etc.) lives inside FlateDecode-
- * compressed content streams that smalot can decode but misreads due to
- * custom font encoding. Decompressing with gzinflate() gives us the raw
- * PDF operator stream, from which we can extract all parenthesis-delimited
- * literal strings — including the QuoteWerks markers — without needing
- * any external binary.
+ * Stage 0 is the primary fix for QuoteWerks PDFs: pdftotext resolves the
+ * ToUnicode CMap tables that QuoteWerks uses for custom font encoding,
+ * producing plain ASCII marker text (PARTSTART, PARTEND, etc.) that the
+ * QuoteParserService can parse for 100% confidence extraction.
  *
  * Every stage is cleaned and quality-scored before it is accepted.
  */
@@ -54,6 +52,17 @@ class PdfTextExtractorService
      */
     public function extract(string $path): string
     {
+        // Stage 0: pdftotext (Poppler) — primary for QuoteWerks custom-font PDFs
+        $poppler = $this->extractWithPdfToText($path);
+        if ($poppler !== '') {
+            Log::info('PdfTextExtractorService: using pdftotext output', [
+                'path'        => basename($path),
+                'length'      => strlen($poppler),
+                'has_markers' => $this->hasQuoteWerksMarkers($poppler),
+            ]);
+            return $poppler;
+        }
+
         // Stage 1: Smalot
         $smalot = $this->cleanText($this->parseText($path));
         Log::info('PdfTextExtractorService: smalot extracted', [
@@ -144,6 +153,54 @@ class PdfTextExtractorService
     }
 
     // ── Private — extraction ──────────────────────────────────────────────────
+
+    /**
+     * Run pdftotext (Poppler) and return its stdout as plain text.
+     *
+     * This is the primary extractor for QuoteWerks PDFs because it resolves
+     * the ToUnicode CMap tables that QuoteWerks uses for custom font encoding,
+     * producing plain ASCII marker text (PARTSTART, PARTEND, etc.) that PHP
+     * alone cannot decode from compressed stream bytes.
+     *
+     * Detects the binary cross-platform: `where` on Windows, `which` on Unix.
+     * Returns an empty string when pdftotext is unavailable or produces nothing.
+     */
+    private function extractWithPdfToText(string $path): string
+    {
+        // Detect binary: try `where` (Windows) then `which` (Unix)
+        $binary = '';
+
+        $whereOutput = shell_exec('where pdftotext 2>NUL');
+        if (is_string($whereOutput) && trim($whereOutput) !== '') {
+            $binary = trim(explode("\n", $whereOutput)[0]);
+        }
+
+        if ($binary === '') {
+            $whichOutput = shell_exec('which pdftotext 2>/dev/null');
+            if (is_string($whichOutput) && trim($whichOutput) !== '') {
+                $binary = trim($whichOutput);
+            }
+        }
+
+        if ($binary === '') {
+            return '';
+        }
+
+        $escaped  = escapeshellarg($path);
+        $nullDev  = PHP_OS_FAMILY === 'Windows' ? '2>NUL' : '2>/dev/null';
+        $output   = shell_exec(escapeshellarg($binary) . " -raw {$escaped} - {$nullDev}");
+
+        if (! is_string($output) || trim($output) === '') {
+            return '';
+        }
+
+        // pdftotext output is already clean ASCII — just normalise line endings.
+        // Do NOT run cleanText() here: it would strip single-digit quantity lines
+        // (e.g. "1" between QTYSTART/QTYEND) that QuoteParserService needs.
+        $text = str_replace(["\r\n", "\r"], "\n", $output);
+
+        return (string) preg_replace('/\n{3,}/', "\n\n", $text);
+    }
 
     /**
      * Parse selectable text from the PDF using smalot/pdfparser.
