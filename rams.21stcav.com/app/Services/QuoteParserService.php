@@ -2396,34 +2396,58 @@ class QuoteParserService
     }
 
     /**
-     * Extract site name from SITENAME tag pair or from the line before SITENAMESTART.
+     * Extract site name from SITENAME tag pair or surrounding lines.
      *
-     * pdftotext -raw reads QuoteWerks two-column header rows left-to-right, so the
-     * SITENAMESTART/SITENAMEEND block often contains other column markers such as
-     * "SHIPCONTSTART SHIPCONTEND" instead of the actual site name.  Strip all known
-     * QuoteWerks marker tokens from the extracted value; if nothing real remains,
-     * fall back to the SHIPCOMP (company) tag then the line before SITENAMESTART.
+     * Two pdftotext layout variants exist for the same QuoteWerks template:
+     *
+     *   Layout A (e.g. Volkswagen): tag content = other markers ("SHIPCONTSTART SHIPCONTEND")
+     *     → Strip markers from content; if nothing real remains, use SHIPCOMP company tag.
+     *
+     *   Layout B (e.g. Marubeni): tag content is empty — content appears on the line
+     *     BEFORE the tag markers in the pdftotext output.
+     *     → Use extractLineBeforeTag('SITENAMESTART'); if that is also empty, fall back
+     *       to SHIPCOMP company tag.
      */
     private function extractTaggedSiteName(string $rawText): string
     {
         $value = ltrim($this->extractTagContent($rawText, 'SITENAMESTART', 'SITENAMEEND'), " \t~");
 
         if ($value !== '') {
-            // Remove any QuoteWerks marker tokens (e.g. SHIPCONTSTART, SHIPCONTEND, QUOTENUMSTART …)
+            // Layout A: tag had content — strip other markers that bled in from adjacent
+            // columns.  If anything real survives use it; otherwise fall through to company.
             $stripped = (string) preg_replace('/\b[A-Z]{3,}(?:START|END)\b/i', '', $value);
             $stripped = trim((string) preg_replace('/\s{2,}/', ' ', $stripped));
 
             if ($stripped !== '') {
                 return rtrim($this->normalise($stripped, 80), ' -–—');
             }
+
+            // Tag had content but it was all markers → company name is more reliable.
+            $company = $this->extractTaggedCompanyName($rawText);
+            if ($company !== '') {
+                return $company;
+            }
+        } else {
+            // Layout B: tag was truly empty — content precedes the tag in this PDF.
+            // Try the line before SITENAMESTART before falling back to company name,
+            // because the line-before holds the actual site/management company name
+            // while SHIPCOMP holds the tenant/client company (a different value).
+            $before = $this->extractLineBeforeTag($rawText, 'SITENAMESTART');
+            if ($before !== '') {
+                $cleaned = (string) preg_replace('/\b[A-Z]{3,}(?:START|END)\b/i', '', $before);
+                $cleaned = rtrim(trim((string) preg_replace('/\s{2,}/', ' ', $cleaned)), ' -–—');
+                if ($cleaned !== '') {
+                    return $this->normalise($cleaned, 80);
+                }
+            }
+
+            $company = $this->extractTaggedCompanyName($rawText);
+            if ($company !== '') {
+                return $company;
+            }
         }
 
-        // Tag content was empty or contained only marker tokens — try company name tag.
-        $company = $this->extractTaggedCompanyName($rawText);
-        if ($company !== '') {
-            return $company;
-        }
-
+        // Final fallback: line before tag (catches any remaining layout variants).
         $before = $this->extractLineBeforeTag($rawText, 'SITENAMESTART');
         if ($before !== '') {
             return rtrim($this->normalise($before, 80), ' -–—');
@@ -2459,8 +2483,14 @@ class QuoteParserService
         }
 
         $before = $this->extractLineBeforeTag($rawText, 'SHIPCOMPSTART');
-        if ($before !== '' && $this->isPlausibleName($before)) {
-            return $this->normalise($before, 80);
+        if ($before !== '') {
+            // Strip any QuoteWerks marker tokens that bled in from the adjacent column
+            // (e.g. "PREPAREDBYSTART PREPAREDBYEND Marubeni Europe Plc" → "Marubeni Europe Plc")
+            $cleanedBefore = (string) preg_replace('/\b[A-Z]{3,}(?:START|END)\b/i', '', $before);
+            $cleanedBefore = trim((string) preg_replace('/\s{2,}/', ' ', $cleanedBefore));
+            if ($cleanedBefore !== '' && $this->isPlausibleName($cleanedBefore)) {
+                return $this->normalise($cleanedBefore, 80);
+            }
         }
 
         return '';
