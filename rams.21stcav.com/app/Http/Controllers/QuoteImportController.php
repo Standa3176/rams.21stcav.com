@@ -6,6 +6,7 @@ use App\Core\AI\AIManager;
 use App\Core\Modules\QuoteImport\QuoteImportService;
 use App\Exceptions\AIGenerationException;
 use App\Http\Requests\QuoteImportRequest;
+use App\Jobs\ExtractQuoteJob;
 use App\Models\Project;
 use App\Models\ProjectPackage;
 use Illuminate\Http\RedirectResponse;
@@ -31,40 +32,60 @@ class QuoteImportController extends Controller
         return view('quote-import.create', compact('projects', 'defaultProvider', 'selectedProjectId'));
     }
 
-    // ── Step 2: Process upload + AI extraction ────────────────────────────────
+    // ── Step 2: Process upload + dispatch async extraction ───────────────────
 
     public function store(QuoteImportRequest $request): RedirectResponse
     {
         $file          = $request->file('quote_pdf');
-        $provider      = $request->input('ai_provider');
-        $projectId     = $request->input('project_id');
-        $createProject = (bool) $request->input('create_project', false);
-
-        $project = $projectId
-            ? Project::where('id', $projectId)->where('user_id', auth()->id())->firstOrFail()
-            : null;
+        $createProject = (bool) $request->input('create_project', true);
 
         try {
-            $package = $this->service->import(
-                user:          auth()->user(),
-                file:          $file,
-                project:       $project,
-                createProject: $createProject,
-                provider:      $provider,
-            );
-        } catch (AIGenerationException $e) {
-            return back()
-                ->withInput()
-                ->with('error', 'AI extraction failed: ' . $e->getMessage());
+            $package = $this->service->importPending(auth()->user(), $file);
         } catch (\Throwable $e) {
             return back()
                 ->withInput()
-                ->with('error', 'Import failed: ' . $e->getMessage());
+                ->with('error', 'Failed to store quote PDF: ' . $e->getMessage());
         }
 
-        return redirect()
-            ->route('project-packages.review.show', $package)
-            ->with('success', 'Quote extracted successfully. Please review and confirm the data below.');
+        ExtractQuoteJob::dispatch($package, auth()->user(), $createProject);
+
+        return redirect()->route('quote-import.extracting', $package)
+            ->with('info', 'Quote upload received — extracting data in the background.');
+    }
+
+    // ── Extraction progress page ──────────────────────────────────────────────
+
+    public function extracting(ProjectPackage $package): View|RedirectResponse
+    {
+        $this->authorizePackage($package);
+
+        if ($package->status === ProjectPackage::STATUS_EXTRACTED) {
+            return redirect()->route('project-packages.review.show', $package)
+                ->with('success', 'Quote extracted successfully. Please review and confirm the data below.');
+        }
+
+        if ($package->status === ProjectPackage::STATUS_FAILED) {
+            return redirect()->route('quote-import.create')
+                ->with('error', 'Quote extraction failed. Please try again or contact support.');
+        }
+
+        return view('quote-import.extracting', compact('package'));
+    }
+
+    public function extractStatus(ProjectPackage $package): \Illuminate\Http\JsonResponse
+    {
+        $this->authorizePackage($package);
+
+        return response()->json([
+            'status'   => $package->status,
+            'terminal' => in_array($package->status, [
+                ProjectPackage::STATUS_EXTRACTED,
+                ProjectPackage::STATUS_FAILED,
+            ]),
+            'redirect' => $package->status === ProjectPackage::STATUS_EXTRACTED
+                ? route('project-packages.review.show', $package)
+                : null,
+        ]);
     }
 
     // ── Step 3: Review extracted data ─────────────────────────────────────────

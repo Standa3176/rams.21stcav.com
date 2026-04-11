@@ -155,6 +155,37 @@ class QuoteImportService
         }
     }
 
+    // ── Async import (store only — job handles extraction) ───────────────────
+
+    /**
+     * Store the PDF and create a package with STATUS_EXTRACTING — extraction
+     * is handled asynchronously by ExtractQuoteJob.
+     *
+     * @return ProjectPackage  Package with status='extracting' (no extracted_data yet).
+     */
+    public function importPending(User $user, UploadedFile $file): ProjectPackage
+    {
+        $storagePath = $this->storePdf($file);
+
+        try {
+            return ProjectPackage::create([
+                'project_id'        => null,
+                'user_id'           => $user->id,
+                'quote_filename'    => $file->getClientOriginalName(),
+                'quote_path'        => $storagePath,
+                'extracted_data'    => [],
+                'equipment_list'    => [],
+                'cable_list'        => [],
+                'works_description' => null,
+                'revision'          => 1,
+                'status'            => ProjectPackage::STATUS_EXTRACTING,
+            ]);
+        } catch (\Throwable $e) {
+            $this->deletePdf($storagePath);
+            throw $e;
+        }
+    }
+
     // ── Re-extract (revision bump) ────────────────────────────────────────────
 
     /**

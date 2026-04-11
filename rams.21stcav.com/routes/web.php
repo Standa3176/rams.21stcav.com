@@ -88,6 +88,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/quote-import/quotewerks/lookup', [QuoteWerksImportController::class, 'lookup'])->name('quotewerks.lookup')->middleware('throttle:20,1');
     Route::post('/quote-import/quotewerks/search', [QuoteWerksImportController::class, 'search'])->name('quotewerks.search')->middleware('throttle:30,1');
 
+    Route::get('/quote-import/{package}/extracting',            [QuoteImportController::class, 'extracting'])   ->name('quote-import.extracting');
+    Route::get('/quote-import/{package}/extract-status',       [QuoteImportController::class, 'extractStatus'])->name('quote-import.extract-status');
     Route::get('/quote-import/{package}/review',               [QuoteImportController::class, 'review'])   ->name('quote-import.review');
     Route::post('/quote-import/{package}/confirm',             [QuoteImportController::class, 'confirm'])  ->name('quote-import.confirm');
 

@@ -7,9 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProjectPackage extends Model
 {
-    const STATUS_PENDING   = 'pending';
-    const STATUS_EXTRACTED = 'extracted';
-    const STATUS_REVIEWED  = 'reviewed';
+    const STATUS_PENDING    = 'pending';
+    const STATUS_EXTRACTING = 'extracting';
+    const STATUS_EXTRACTED  = 'extracted';
+    const STATUS_REVIEWED   = 'reviewed';
+    const STATUS_FAILED     = 'failed';
 
     protected $fillable = [
         'project_id',
