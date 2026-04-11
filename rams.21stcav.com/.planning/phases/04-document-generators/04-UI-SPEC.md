@@ -57,15 +57,15 @@ Derived from `app.blade.php` base styles. Exactly 4 sizes, 2 weights in use for 
 |------|------|--------|-------------|
 | Body | 15px (0.9375rem) | 400 regular | 1.5 |
 | Label / table cell | 14px (0.875rem) | 400 regular | 1.5 |
-| Small / badge / helper | 11px (0.6875rem) | 600 semibold | 1 |
+| Small / badge / helper | 11px (0.6875rem) | 400 regular | 1 |
 | Section heading | 15px (0.9375rem) | 700 bold | 1.25 |
 
 Rules:
 - Section headings use `.section-heading` class: `0.9375rem`, weight 700, `var(--text)` color, 2px bottom border in `var(--teal)`.
-- Room sub-headings inside accordion body use `.room-section-hdr` pattern: `0.7rem`, weight 800, uppercase, `var(--teal)` color.
-- Table headers use `.data-table th` pattern: `0.75rem`, weight 600, uppercase, white text on `var(--teal)` background.
-- Status badges use `0.6875rem`, weight 600, uppercase — `.badge` class or `.dash-status-badge` component.
-- No bold weights other than 600 and 700. No sizes outside this list.
+- Room sub-headings inside accordion body use `.room-section-hdr` pattern: `0.6875rem`, weight 700, uppercase, `var(--teal)` color.
+- Table headers use `.data-table th` pattern: `0.6875rem`, weight 700, uppercase, white text on `var(--teal)` background.
+- Status badges use `0.6875rem`, uppercase — `.badge` class or `.dash-status-badge` component.
+- Declared weights are 400 (regular) and 700 (bold) only. No other weights are introduced in Phase 4 views.
 
 ---
 
