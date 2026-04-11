@@ -44,10 +44,10 @@ Plans:
 **Goal:** Users can generate Worksheets (DOCX), O&M Manuals (DOCX), and Cable Schedules (XLSX) from ProjectDataService canonical data, with queue-based async processing and status tracking
 **Requirements**: WORK-01, WORK-02, WORK-03, WORK-04, OM-01, OM-02, OM-03, OM-04, CABLE-01, CABLE-02, CABLE-03, CABLE-04
 **Depends on:** Phase 1, Phase 3
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 
 Plans:
-- [ ] 04-01-PLAN.md — Worksheet generator (model, migration, AI prompt, DOCX service, job, controller, views)
-- [ ] 04-02-PLAN.md — O&M Manual refactor (replace Pass 1 with ProjectDataService feed)
-- [ ] 04-03-PLAN.md — Cable Schedule refactor (fix model fillable, CableScheduleGeneratorService, BuildCableScheduleJob)
-- [ ] 04-04-PLAN.md — Project show page — wire all three generate buttons, status polling, remove Phase 4 guard
+- [ ] 04-01-PLAN.md ï¿½ Worksheet generator (model, migration, AI prompt, DOCX service, job, controller, views)
+- [x] 04-02-PLAN.md ï¿½ O&M Manual refactor (replace Pass 1 with ProjectDataService feed)
+- [ ] 04-03-PLAN.md ï¿½ Cable Schedule refactor (fix model fillable, CableScheduleGeneratorService, BuildCableScheduleJob)
+- [ ] 04-04-PLAN.md ï¿½ Project show page ï¿½ wire all three generate buttons, status polling, remove Phase 4 guard

@@ -19,7 +19,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [ ] **DATA-01**: ProjectDataService merges extracted_data, reviewed_data, and survey_data into a single canonical dataset
 - [ ] **DATA-02**: Canonical data structure follows the contract: { project, equipment, rooms, activities, risks, survey_data }
-- [ ] **DATA-03**: All document generators consume exclusively from ProjectDataService — no direct data access
+- [x] **DATA-03**: All document generators consume exclusively from ProjectDataService — no direct data access
 - [ ] **DATA-04**: Every data field carries source annotation (data_source: pdf | quotewerks | manual, confidence: 0.0-1.0)
 - [ ] **DATA-05**: Merge priority is enforced: reviewed_data > survey_data > quotewerks_sql > extracted_data > defaults
 
@@ -56,10 +56,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### O&M Manual Generator
 
-- [ ] **OM-01**: User can generate an O&M manual (DOCX) from project data
-- [ ] **OM-02**: O&M contains equipment schedules, system descriptions, maintenance guidance, and asset register
-- [ ] **OM-03**: O&M content is equipment-driven — no generic filler text, only installed systems included
-- [ ] **OM-04**: O&M generation uses queue-based async processing with status tracking
+- [x] **OM-01**: User can generate an O&M manual (DOCX) from project data
+- [x] **OM-02**: O&M contains equipment schedules, system descriptions, maintenance guidance, and asset register
+- [x] **OM-03**: O&M content is equipment-driven — no generic filler text, only installed systems included
+- [x] **OM-04**: O&M generation uses queue-based async processing with status tracking
 
 ### Cable Schedule Generator
 
@@ -121,7 +121,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PROJ-05 | Phase 1 | Pending |
 | DATA-01 | Phase 1 | Pending |
 | DATA-02 | Phase 1 | Pending |
-| DATA-03 | Phase 4 | Pending |
+| DATA-03 | Phase 4 | Complete |
 | DATA-04 | Phase 1 | Pending |
 | DATA-05 | Phase 1 | Pending |
 | QWSQL-01 | Phase 2 | Complete |
@@ -140,10 +140,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | WORK-02 | Phase 4 | Pending |
 | WORK-03 | Phase 4 | Pending |
 | WORK-04 | Phase 4 | Pending |
-| OM-01 | Phase 4 | Pending |
-| OM-02 | Phase 4 | Pending |
-| OM-03 | Phase 4 | Pending |
-| OM-04 | Phase 4 | Pending |
+| OM-01 | Phase 4 | Complete |
+| OM-02 | Phase 4 | Complete |
+| OM-03 | Phase 4 | Complete |
+| OM-04 | Phase 4 | Complete |
 | CABLE-01 | Phase 4 | Pending |
 | CABLE-02 | Phase 4 | Pending |
 | CABLE-03 | Phase 4 | Pending |
