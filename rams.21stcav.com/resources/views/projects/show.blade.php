@@ -281,6 +281,11 @@
                                                 <a href="{{ route($entry['route_name'], $record) }}"
                                                    class="btn btn-outline btn-sm" style="font-size:.75rem;">View</a>
                                             @endif
+                                            @if(!empty($entry['download_route_name']) && $record->filename)
+                                                <a href="{{ route($entry['download_route_name'], $record) }}"
+                                                   class="btn btn-teal btn-sm" style="font-size:.75rem; margin-left:.25rem;"
+                                                   target="_blank" aria-label="Download {{ $entry['type'] }}">↓ Download</a>
+                                            @endif
                                         </td>
                                     </tr>
                                     @endforeach
@@ -288,25 +293,98 @@
                             </table>
                         </x-dashboard.table-wrapper>
                     @else
-                        <p style="color:#888; font-size:.875rem; padding:1rem 1.25rem; margin:0;">
-                            <span class="badge {{ $entry['badge_class'] }}" style="margin-right:.5rem;">{{ $entry['type'] }}</span>
-                            @if($entry['type'] === 'Worksheet')
-                                Coming in Phase 4.
-                            @else
-                                No records yet.
+                        {{-- Empty state row --}}
+                        <div style="padding:1rem 1.25rem; display:flex; align-items:center; gap:.75rem;">
+                            <span class="badge {{ $entry['badge_class'] }}">{{ $entry['type'] }}</span>
+                            <span style="color:#888; font-size:.875rem; flex:1;">No records yet.</span>
+
+                            @if(!empty($entry['generate_route']))
+                                @php
+                                    $latestRecord = $entry['records']->first();
+                                    $generatingStatuses = ['pending', 'generating'];
+                                    $doneStatuses = ['draft', 'final'];
+                                @endphp
+
+                                @if(!$latestRecord || $latestRecord->status === 'failed')
+                                    {{-- State 1: Generate button --}}
+                                    <form method="POST" action="{{ $entry['generate_route'] }}">
+                                        @csrf
+                                        <button type="submit" class="btn btn-teal btn-sm"
+                                                aria-label="Generate {{ $entry['type'] }}">
+                                            {{ $entry['generate_label'] }}
+                                        </button>
+                                    </form>
+
+                                @elseif(in_array($latestRecord->status, $generatingStatuses))
+                                    {{-- State 2: Spinner with Alpine.js polling --}}
+                                    @if(!empty($entry['status_route_name']))
+                                    <div x-data="{
+                                            pollInterval: null,
+                                            startPolling() {
+                                                this.pollInterval = setInterval(() => {
+                                                    fetch('{{ route($entry['status_route_name'], $latestRecord) }}')
+                                                        .then(r => r.json())
+                                                        .then(data => {
+                                                            if (['draft','final','failed'].includes(data.status)) {
+                                                                clearInterval(this.pollInterval);
+                                                                window.location.reload();
+                                                            }
+                                                        })
+                                                        .catch(() => clearInterval(this.pollInterval));
+                                                }, 4000);
+                                            }
+                                        }"
+                                        x-init="startPolling()">
+                                        <button type="button" class="btn btn-outline btn-sm"
+                                                disabled aria-disabled="true"
+                                                aria-label="Generating {{ $entry['type'] }}, please wait">
+                                            <svg style="display:inline-block;width:14px;height:14px;vertical-align:middle;margin-right:.25rem;animation:spin 1s linear infinite;"
+                                                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <path d="M21 12a9 9 0 11-6.219-8.56"/>
+                                            </svg>
+                                            Generating…
+                                        </button>
+                                    </div>
+                                    @else
+                                    {{--
+                                        Static fallback — only reached if a generate-capable type
+                                        has no status_route_name. After Task 1, all three types
+                                        (Worksheet, O&M, Cable Schedule) have status_route_name set,
+                                        so this branch is a defensive fallback only.
+                                    --}}
+                                    <button type="button" class="btn btn-outline btn-sm" disabled aria-disabled="true">
+                                        Generating…
+                                    </button>
+                                    @endif
+
+                                @elseif(in_array($latestRecord->status, $doneStatuses))
+                                    {{-- State 3: Download + View --}}
+                                    @if(!empty($entry['download_route_name']))
+                                        <a href="{{ route($entry['download_route_name'], $latestRecord) }}"
+                                           class="btn btn-teal btn-sm"
+                                           target="_blank"
+                                           aria-label="Download {{ $entry['type'] }} DOCX">↓ Download</a>
+                                    @endif
+                                    @if(!empty($entry['route_name']))
+                                        <a href="{{ route($entry['route_name'], $latestRecord) }}"
+                                           class="btn btn-outline btn-sm">View</a>
+                                    @endif
+                                @endif
+
+                            @elseif(!empty($entry['empty_action_route']) && !empty($entry['empty_action_label']))
+                                {{--
+                                    Legacy GET-link fallback for types without generate_route.
+                                    RAMS uses empty_action_route → links to rams.upload.create (GET).
+                                    Survey uses empty_action_route → links to site-surveys.from-project (GET).
+                                    These types use existing page links, not POST generation forms.
+                                    Worksheet, O&M, and Cable Schedule all have generate_route set
+                                    after Task 1, so they never reach this branch.
+                                --}}
+                                <a href="{{ $entry['empty_action_route'] }}" class="btn btn-outline btn-sm">
+                                    {{ $entry['empty_action_label'] }}
+                                </a>
                             @endif
-                        </p>
-                        @if($entry['empty_action_label'])
-                            @if($entry['type'] === 'O&M')
-                                <form method="POST" action="{{ $entry['empty_action_route'] }}" style="margin:.5rem 1.25rem 1rem;">
-                                    @csrf
-                                    <button type="submit" class="btn btn-outline btn-sm">{{ $entry['empty_action_label'] }}</button>
-                                </form>
-                            @else
-                                <a href="{{ $entry['empty_action_route'] }}"
-                                   class="btn btn-outline btn-sm" style="margin:.5rem 1.25rem 1rem; display:inline-block;">{{ $entry['empty_action_label'] }}</a>
-                            @endif
-                        @endif
+                        </div>
                     @endif
                 </div>
             @endforeach
@@ -1021,6 +1099,7 @@
 @media (max-width: 900px) {
     .proj-show-grid { grid-template-columns: 1fr; }
 }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
 
 @endsection
