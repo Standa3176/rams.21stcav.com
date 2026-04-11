@@ -761,6 +761,64 @@
         @endif
     </div>
 
+    {{-- Site Conditions — global amber section (site_risks, access_constraints, h_and_s_notes) --}}
+    <div class="survey-section survey-section--conditions" style="border-radius:10px; border-width:1px; border-style:solid; margin-bottom:1rem; overflow:hidden;">
+        <div class="survey-section__hdr" style="padding:.55rem 1rem; font-size:.78rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; border-bottom-width:1px; border-bottom-style:solid;">
+            SITE CONDITIONS
+        </div>
+        <div class="survey-section__body" style="padding:1rem;">
+            @if($readonly)
+                @if($survey->site_risks || $survey->access_constraints || $survey->h_and_s_notes)
+                    @if($survey->site_risks)
+                        <div style="margin-bottom:.85rem;">
+                            <div class="form-label">Site Risks</div>
+                            <div style="white-space:pre-wrap; color:#374151; font-size:.9rem; margin-top:.25rem;">{{ $survey->site_risks }}</div>
+                        </div>
+                    @endif
+                    @if($survey->access_constraints)
+                        <div style="margin-bottom:.85rem;">
+                            <div class="form-label">Access Constraints</div>
+                            <div style="white-space:pre-wrap; color:#374151; font-size:.9rem; margin-top:.25rem;">{{ $survey->access_constraints }}</div>
+                        </div>
+                    @endif
+                    @if($survey->h_and_s_notes)
+                        <div>
+                            <div class="form-label">Health &amp; Safety Notes</div>
+                            <div style="white-space:pre-wrap; color:#374151; font-size:.9rem; margin-top:.25rem;">{{ $survey->h_and_s_notes }}</div>
+                        </div>
+                    @endif
+                @else
+                    <div style="font-size:.875rem; color:#6B7280; font-style:italic;">No site conditions recorded.</div>
+                @endif
+            @else
+                <div class="form-group">
+                    <label class="form-label" for="site_risks">Site Risks</label>
+                    <textarea id="site_risks" name="site_risks"
+                              class="form-control @error('site_risks') is-invalid @enderror"
+                              rows="3" maxlength="3000"
+                              placeholder="Describe any known site-specific hazards or risks…">{{ old('site_risks', $survey->site_risks) }}</textarea>
+                    @error('site_risks') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                </div>
+                <div class="form-group" style="margin-top:.75rem;">
+                    <label class="form-label" for="access_constraints">Access Constraints</label>
+                    <textarea id="access_constraints" name="access_constraints"
+                              class="form-control @error('access_constraints') is-invalid @enderror"
+                              rows="3" maxlength="3000"
+                              placeholder="Describe access restrictions, working hours, parking, permits…">{{ old('access_constraints', $survey->access_constraints) }}</textarea>
+                    @error('access_constraints') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                </div>
+                <div class="form-group" style="margin-top:.75rem;">
+                    <label class="form-label" for="h_and_s_notes">Health &amp; Safety Notes</label>
+                    <textarea id="h_and_s_notes" name="h_and_s_notes"
+                              class="form-control @error('h_and_s_notes') is-invalid @enderror"
+                              rows="3" maxlength="3000"
+                              placeholder="PPE requirements, induction details, site supervisor contact…">{{ old('h_and_s_notes', $survey->h_and_s_notes) }}</textarea>
+                    @error('h_and_s_notes') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                </div>
+            @endif
+        </div>
+    </div>
+
     {{-- Rooms --}}
     @if($rooms->isEmpty())
         <div class="card" style="text-align:center; color:#6B7280; padding:2.5rem 1.5rem;">
@@ -776,9 +834,12 @@
 
             {{-- Mirror header form fields via JS before submit --}}
             @if(!$readonly)
-                <input type="hidden" name="survey_date"   id="hf_survey_date">
-                <input type="hidden" name="surveyor_name" id="hf_surveyor_name">
-                <input type="hidden" name="general_notes" id="hf_general_notes">
+                <input type="hidden" name="survey_date"        id="hf_survey_date">
+                <input type="hidden" name="surveyor_name"      id="hf_surveyor_name">
+                <input type="hidden" name="general_notes"      id="hf_general_notes">
+                <input type="hidden" name="site_risks"         id="hf_site_risks">
+                <input type="hidden" name="access_constraints" id="hf_access_constraints">
+                <input type="hidden" name="h_and_s_notes"      id="hf_h_and_s_notes">
             @endif
 
             <p class="section-label">{{ $areasHeadingPh }} ({{ $rooms->count() }})</p>
@@ -1399,7 +1460,7 @@
         });
 
         // Also copy the survey header fields
-        ['survey_date','surveyor_name','general_notes'].forEach(f => {
+        ['survey_date','surveyor_name','general_notes','site_risks','access_constraints','h_and_s_notes'].forEach(f => {
             const el = document.getElementById(f) || document.getElementById('hf_' + f);
             if (el) formData.append(f, el.value);
         });
@@ -1491,12 +1552,11 @@
 
     // ── Copy header fields into main form before submit ────────────────────
     function syncHeaderFields() {
-        document.getElementById('hf_survey_date').value
-            = document.getElementById('survey_date')?.value ?? '';
-        document.getElementById('hf_surveyor_name').value
-            = document.getElementById('surveyor_name')?.value ?? '';
-        document.getElementById('hf_general_notes').value
-            = document.getElementById('general_notes')?.value ?? '';
+        ['survey_date','surveyor_name','general_notes','site_risks','access_constraints','h_and_s_notes'].forEach(f => {
+            const src  = document.getElementById(f);
+            const dest = document.getElementById('hf_' + f);
+            if (src && dest) dest.value = src.value;
+        });
     }
 
     // ── Submit main form (save draft) ──────────────────────────────────────

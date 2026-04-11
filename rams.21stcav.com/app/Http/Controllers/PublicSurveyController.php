@@ -138,9 +138,23 @@ class PublicSurveyController extends Controller
 
         $this->service->submitPublic($survey, $data);
 
-        return redirect()
-            ->route('survey.show', ['token' => $token])
-            ->with('success', 'Survey submitted successfully. Thank you — the project team has been notified.');
+        return redirect()->route('survey.confirmation', ['token' => $token]);
+    }
+
+    // ─── Confirmation page ───────────────────────────────────────────────────
+
+    /**
+     * GET /survey/{token}/confirmation
+     *
+     * Static thank-you page shown after successful survey submission.
+     * Verifies the token is valid but does not require the survey to be completed
+     * (in case engineer navigates back via browser history).
+     */
+    public function confirmation(string $token): View
+    {
+        $survey = $this->resolveSurvey($token);
+
+        return view('public-survey.confirmation', ['survey' => $survey, 'token' => $token]);
     }
 
     // ─── Room completion ─────────────────────────────────────────────────────
@@ -347,6 +361,9 @@ class PublicSurveyController extends Controller
                                                         ? ['required', 'string', 'max:100']
                                                         : ['nullable', 'string', 'max:100'],
             'general_notes'                         => ['nullable', 'string', 'max:3000'],
+            'site_risks'                            => ['nullable', 'string', 'max:3000'],
+            'access_constraints'                    => ['nullable', 'string', 'max:3000'],
+            'h_and_s_notes'                         => ['nullable', 'string', 'max:3000'],
             // Rooms
             'rooms'                                 => ['nullable', 'array'],
             'rooms.*.id'                            => ['required', 'integer', 'exists:site_survey_rooms,id'],

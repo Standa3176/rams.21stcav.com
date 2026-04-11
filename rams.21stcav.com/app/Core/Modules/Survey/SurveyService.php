@@ -288,9 +288,12 @@ class SurveyService
     {
         return DB::transaction(function () use ($survey, $data) {
             $survey->update([
-                'survey_date'   => $data['survey_date']   ?? $survey->survey_date,
-                'surveyor_name' => $data['surveyor_name'] ?? $survey->surveyor_name,
-                'general_notes' => $data['general_notes'] ?? $survey->general_notes,
+                'survey_date'        => $data['survey_date']        ?? $survey->survey_date,
+                'surveyor_name'      => $data['surveyor_name']      ?? $survey->surveyor_name,
+                'general_notes'      => $data['general_notes']      ?? $survey->general_notes,
+                'site_risks'         => $data['site_risks']         ?? $survey->site_risks,
+                'access_constraints' => $data['access_constraints'] ?? $survey->access_constraints,
+                'h_and_s_notes'      => $data['h_and_s_notes']      ?? $survey->h_and_s_notes,
             ]);
 
             foreach ($data['rooms'] ?? [] as $roomData) {
@@ -320,11 +323,14 @@ class SurveyService
     {
         return DB::transaction(function () use ($survey, $data) {
             $survey->update([
-                'survey_date'   => $data['survey_date']   ?? $survey->survey_date,
-                'surveyor_name' => $data['surveyor_name'] ?? $survey->surveyor_name,
-                'general_notes' => $data['general_notes'] ?? $survey->general_notes,
-                'status'        => 'completed',
-                'submitted_at'  => now(),
+                'survey_date'        => $data['survey_date']        ?? $survey->survey_date,
+                'surveyor_name'      => $data['surveyor_name']      ?? $survey->surveyor_name,
+                'general_notes'      => $data['general_notes']      ?? $survey->general_notes,
+                'site_risks'         => $data['site_risks']         ?? $survey->site_risks,
+                'access_constraints' => $data['access_constraints'] ?? $survey->access_constraints,
+                'h_and_s_notes'      => $data['h_and_s_notes']      ?? $survey->h_and_s_notes,
+                'status'             => 'completed',
+                'submitted_at'       => now(),
             ]);
 
             foreach ($data['rooms'] ?? [] as $roomData) {

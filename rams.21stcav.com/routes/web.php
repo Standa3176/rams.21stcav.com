@@ -45,6 +45,7 @@ Route::post('/logout', function () {
 |--------------------------------------------------------------------------
 */
 
+Route::get('survey/{token}/confirmation',               [PublicSurveyController::class, 'confirmation']) ->name('survey.confirmation');
 Route::get('survey/{token}',                           [PublicSurveyController::class, 'show'])        ->name('survey.show');
 Route::post('survey/{token}/save',                     [PublicSurveyController::class, 'save'])        ->name('survey.save')         ->middleware('throttle:30,1');
 Route::post('survey/{token}/submit',                   [PublicSurveyController::class, 'submit'])      ->name('survey.submit')       ->middleware('throttle:10,1');
