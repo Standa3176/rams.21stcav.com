@@ -2423,7 +2423,26 @@ class QuoteParserService
                 return rtrim($this->normalise($stripped, 80), ' -–—');
             }
 
-            // Tag had content but it was all markers → company name is more reliable.
+            // Tag had content but it was all markers → try the line before the tag first.
+            // The QuoteWerks header line has the format "SiteName - CompanyName ContactName";
+            // extracting the part before " - " gives the actual site/building name.
+            $before = $this->extractLineBeforeTag($rawText, 'SITENAMESTART');
+            if ($before !== '') {
+                $cleaned = (string) preg_replace('/\b[A-Z]{3,}(?:START|END)\b/i', '', $before);
+                $cleaned = trim((string) preg_replace('/\s{2,}/', ' ', $cleaned));
+                // Header format: "SiteName - CompanyName ContactName" — take only the site part.
+                if (str_contains($cleaned, ' - ')) {
+                    $sitePart = rtrim(trim((string) strstr($cleaned, ' - ', true)), ' -–—');
+                    if ($sitePart !== '') {
+                        return $this->normalise($sitePart, 80);
+                    }
+                }
+                $cleaned = rtrim($cleaned, ' -–—');
+                if ($cleaned !== '') {
+                    return $this->normalise($cleaned, 80);
+                }
+            }
+
             $company = $this->extractTaggedCompanyName($rawText);
             if ($company !== '') {
                 return $company;
@@ -2436,7 +2455,15 @@ class QuoteParserService
             $before = $this->extractLineBeforeTag($rawText, 'SITENAMESTART');
             if ($before !== '') {
                 $cleaned = (string) preg_replace('/\b[A-Z]{3,}(?:START|END)\b/i', '', $before);
-                $cleaned = rtrim(trim((string) preg_replace('/\s{2,}/', ' ', $cleaned)), ' -–—');
+                $cleaned = trim((string) preg_replace('/\s{2,}/', ' ', $cleaned));
+                // Header format: "SiteName - CompanyName ContactName" — take only the site part.
+                if (str_contains($cleaned, ' - ')) {
+                    $sitePart = rtrim(trim((string) strstr($cleaned, ' - ', true)), ' -–—');
+                    if ($sitePart !== '') {
+                        return $this->normalise($sitePart, 80);
+                    }
+                }
+                $cleaned = rtrim($cleaned, ' -–—');
                 if ($cleaned !== '') {
                     return $this->normalise($cleaned, 80);
                 }
