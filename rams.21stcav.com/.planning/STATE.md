@@ -4,9 +4,9 @@
 
 ## Current Phase
 
-Phase 4: Document Generators — 04-03 complete (cable schedule generator pipeline)
+Phase 4: Document Generators — 04-04 complete (project show page generate buttons)
 
-**Last session:** Completed 04-03-PLAN.md — CableSchedule model fix, CableScheduleGeneratorService, BuildCableScheduleJob, generateFromProject/status/download controller methods, 3 new routes.
+**Last session:** Completed 04-04-PLAN.md — Project::worksheets() relationship, worksheets eager-load, three-state generate buttons (Worksheet/O&M/Cable Schedule) with Alpine.js polling, removed "Coming in Phase 4." placeholder.
 
 ## Completed Phases
 
@@ -41,3 +41,4 @@ Phase 4: Document Generators — 04-03 complete (cable schedule generator pipeli
 - Cable type inference is deterministic keyword matching — no AI (04-03)
 - CableScheduleXlsxService::build() updates filename but not status — BuildCableScheduleJob sets STATUS_DRAFT explicitly after build() (04-03)
 - Route ordering: literal segments (generate-from-project) registered before Route::resource wildcard to prevent capture (04-03)
+- Three-state generate button (Generate → Generating spinner → Download) driven by $entry['generate_route'] presence; legacy GET-link branch retained for RAMS and Survey (04-04)
