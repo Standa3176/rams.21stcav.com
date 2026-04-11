@@ -20,6 +20,7 @@ No active phase — all roadmap phases complete.
 | ID | Description | Date |
 |----|-------------|------|
 | 260411-9ov | Fix Phase 1 gaps — confirm all 7 gaps resolved, fix auto-advance backward regression | 2026-04-11 |
+| 260411-en6 | Remove manual project creation — redirect to quote import | 2026-04-11 |
 
 ## Accumulated Context
 
