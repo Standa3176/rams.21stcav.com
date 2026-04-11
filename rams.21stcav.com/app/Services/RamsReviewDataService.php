@@ -56,6 +56,9 @@ class RamsReviewDataService
                         if (trim((string) ($row['summary'] ?? '')) === '') {
                             $row['summary'] = (string) ($ex['summary'] ?? '');
                         }
+                        if (trim((string) ($row['description'] ?? '')) === '') {
+                            $row['description'] = (string) ($ex['description'] ?? '');
+                        }
                     }
                     return $row;
                 }, $normalised['room_overviews']);
@@ -79,7 +82,8 @@ class RamsReviewDataService
             'ppe'                    => $this->normaliseStringArray($data['ppe'] ?? []),
             'access'                 => $this->normaliseAccess($data['access'] ?? []),
             'method_statement_notes' => (string) ($data['method_statement_notes'] ?? ''),
-            'scope_of_works'         => (string) ($data['scope_of_works'] ?? ''),
+            'scope_of_works'         => (string) ($data['scope_of_works']  ?? ''),
+            'works_overview'         => (string) ($data['works_overview']  ?? ''),
             'room_overviews'         => $this->normaliseRoomOverviews($data['room_overviews'] ?? []),
             'meta'                   => $this->normaliseMeta($data['meta'] ?? []),
             'programme'              => $this->normaliseProgramme($data['programme'] ?? []),
@@ -186,6 +190,7 @@ class RamsReviewDataService
                 'overview'         => (string) ($r['overview']         ?? ''),
                 'works_summary'    => (string) ($r['works_summary']    ?? ''),
                 'summary'          => (string) ($r['summary']          ?? ''),
+                'description'      => (string) ($r['description']      ?? ''),
                 'solution_type_id' => (int)    ($r['solution_type_id'] ?? 0) ?: null,
             ],
             $raw,
