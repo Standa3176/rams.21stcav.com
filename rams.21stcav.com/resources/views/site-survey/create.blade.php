@@ -26,6 +26,21 @@
 <form method="POST" action="{{ route('site-surveys.store') }}" id="survey-form">
     @csrf
 
+    @isset($existingSurvey)
+    <div class="alert alert-warning" role="alert">
+        <strong>This project already has an active survey</strong>
+        <p>Creating a new survey will archive the existing one. This cannot be undone.</p>
+        <div class="btn-group" style="gap: 0.5rem; margin-top: 0.75rem;">
+            <button type="submit" name="supersede" value="1" class="btn btn-danger">
+                Archive existing and create new survey
+            </button>
+            <a href="{{ route('projects.show', $existingSurvey->project_id) }}" class="btn btn-outline">
+                Keep existing survey
+            </a>
+        </div>
+    </div>
+    @endisset
+
     {{-- Project Details --}}
     <div class="section-block">
         <h2 class="section-heading">Project Details</h2>

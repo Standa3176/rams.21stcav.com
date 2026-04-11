@@ -61,35 +61,80 @@ class SiteSurveyController extends Controller
 
         $selectedProjectId = $request->query('project_id');
 
-        return view('site-survey.create', compact('projects', 'selectedProjectId'));
+        $existingSurvey = null;
+        if ($selectedProjectId) {
+            $existingSurvey = SiteSurvey::where('project_id', $selectedProjectId)
+                ->whereNull('superseded_at')
+                ->whereIn('status', ['draft', 'completed'])
+                ->first();
+        }
+
+        return view('site-survey.create', compact('projects', 'selectedProjectId', 'existingSurvey'));
     }
 
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validateSurvey($request);
 
+        // ── Ownership check when a project_id is present ────────────────────
+        if (! empty($data['project_id'])) {
+            $project = Project::find($data['project_id']);
+            abort_if(
+                $project && $project->user_id !== auth()->id() && ! auth()->user()?->isAdmin(),
+                403
+            );
+        }
+
+        // Extract supersede flag from the form submission.
+        $data['supersede'] = $request->boolean('supersede');
+
         /** @var \App\Models\User $user */
         $user   = auth()->user();
         $survey = $this->service->create($user, $data);
 
+        $successMessage = $data['supersede']
+            ? 'Previous survey archived. New survey created.'
+            : 'Site survey created. Add photos to each room below.';
+
         return redirect()->route('site-surveys.show', $survey)
-            ->with('success', 'Site survey created. Add photos to each room below.');
+            ->with('success', $successMessage);
     }
 
     /**
      * GET /site-surveys/from-project/{project}
      *
-     * Pre-create a survey seeded from the project's reviewed package data,
-     * then redirect the authenticated user straight to the edit page so they
-     * can review the pre-filled rooms before sharing the engineer link.
+     * Pre-create a survey seeded from the project's reviewed package data.
+     * If the project already has an active survey, returns the create view with
+     * $existingSurvey set so the supersede confirmation block is rendered.
+     * If no existing survey: creates directly and redirects to edit page.
      */
-    public function createFromProject(Project $project): RedirectResponse
+    public function createFromProject(Project $project): \Illuminate\Http\Response|RedirectResponse
     {
         // Only the project owner or an admin may create a survey for this project.
         abort_if(
             $project->user_id !== auth()->id() && ! auth()->user()?->isAdmin(),
             403
         );
+
+        // Check for an existing active survey.
+        $existingSurvey = SiteSurvey::where('project_id', $project->id)
+            ->whereNull('superseded_at')
+            ->whereIn('status', ['draft', 'completed'])
+            ->first();
+
+        if ($existingSurvey) {
+            // Render the create form with the supersede confirmation block.
+            $projects = Project::where('user_id', auth()->id())
+                ->orderBy('name')
+                ->get(['id', 'name']);
+
+            return response(view('site-survey.create', [
+                'projects'          => $projects,
+                'selectedProjectId' => $project->id,
+                'existingSurvey'    => $existingSurvey,
+                'fromProject'       => $project,
+            ]));
+        }
 
         /** @var \App\Models\User $user */
         $user   = auth()->user();
