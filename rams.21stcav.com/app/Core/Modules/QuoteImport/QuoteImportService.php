@@ -7,9 +7,8 @@ use App\Models\Project;
 use App\Models\ProjectActivityLog;
 use App\Models\ProjectPackage;
 use App\Models\User;
-use App\Services\PdfTextExtractorService;
 use App\Services\ProjectQuoteVersionService;
-use App\Services\QuoteParserService;
+use App\Services\QuoteExtractorService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -21,10 +20,9 @@ use RuntimeException;
  *
  * Flow:
  *   1. Store the uploaded PDF to persistent storage.
- *   2. Extract plain text locally (PdfTextExtractorService).
- *   3. Parse structured data from text via QuoteParserService (deterministic, no AI).
- *   4. Persist everything in a transaction: ProjectPackage + optional Project.
- *   5. Log the import event to the project activity log.
+ *   2. Extract structured data via QuoteExtractorService (Claude document-vision API).
+ *   3. Persist everything in a transaction: ProjectPackage + optional Project.
+ *   4. Log the import event to the project activity log.
  *
  * Usage:
  *   $package = app(QuoteImportService::class)->import($user, $file);
@@ -37,8 +35,7 @@ class QuoteImportService
 {
     public function __construct(
         private readonly ProjectService             $projectService,
-        private readonly PdfTextExtractorService    $pdfExtractor,
-        private readonly QuoteParserService         $quoteParser,
+        private readonly QuoteExtractorService      $quoteExtractor,
         private readonly ProjectQuoteVersionService $quoteVersioner,
     ) {}
 
@@ -67,7 +64,7 @@ class QuoteImportService
         $storagePath = $this->storePdf($file);
 
         try {
-            // 2. Extract structured data (deterministic parser — no AI)
+            // 2. Extract structured data (Claude document-vision API)
             $extracted = $this->extract($storagePath, $provider);
 
             // 3. Persist everything in a transaction
@@ -361,19 +358,26 @@ class QuoteImportService
     }
 
     /**
-     * Extract structured quote data from a stored PDF using the deterministic parser.
+     * Extract structured quote data from a stored PDF via Claude document-vision.
      *
      * Pipeline:
-     *   PDF file → PdfTextExtractorService (local text extraction)
-     *            → QuoteParserService::parse() (fully local PHP — no AI)
+     *   PDF file → QuoteExtractorService::extractFromPath() (Claude document-vision API)
      *
-     * Returns the structured array produced by QuoteParserService::parse().
+     * Adds convenience keys expected by the import transaction:
+     *   equipment_list  ← line_items
+     *   cable_hints     ← [] (Claude does not extract cable runs from quotes)
+     *   quote_reference ← qw_number
      */
     private function extract(string $storagePath, ?string $provider): array
     {
         $absolutePath = Storage::disk('local')->path($storagePath);
-        $text         = $this->pdfExtractor->extract($absolutePath);
+        $extracted    = $this->quoteExtractor->extractFromPath($absolutePath);
 
-        return $this->quoteParser->parse($text);
+        // Map QuoteExtractorService output → import pipeline expectations
+        $extracted['equipment_list']  = $extracted['line_items'] ?? [];
+        $extracted['cable_hints']     = [];
+        $extracted['quote_reference'] = $extracted['qw_number'] ?? '';
+
+        return $extracted;
     }
 }

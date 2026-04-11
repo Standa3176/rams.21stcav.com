@@ -55,11 +55,40 @@ class QuoteExtractorService
         $localPath  = Storage::disk('local')->path($storedPath);
 
         try {
-            $pdfBase64 = base64_encode(file_get_contents($localPath));
+            return $this->extractFromPath($localPath);
         } finally {
             Storage::disk('local')->delete($storedPath);
         }
+    }
 
+    /**
+     * Extract structured QuoteWerks data from a PDF at the given absolute file-system path.
+     *
+     * Useful when the file is already on disk (e.g. retrieved from Storage) and
+     * an UploadedFile instance is not available.
+     *
+     * @param  string  $absolutePath  Absolute path to the PDF file.
+     * @return array                  Same shape as extract().
+     *
+     * @throws RuntimeException  On API failure or invalid JSON response.
+     */
+    public function extractFromPath(string $absolutePath): array
+    {
+        $pdfBase64 = base64_encode(file_get_contents($absolutePath));
+
+        return $this->callClaude($pdfBase64);
+    }
+
+    /**
+     * Send a base64-encoded PDF to the Claude document-vision API and return the decoded JSON.
+     *
+     * @param  string  $pdfBase64  Base64-encoded PDF bytes.
+     * @return array               Decoded JSON from Claude.
+     *
+     * @throws RuntimeException  On HTTP failure or invalid JSON in the response.
+     */
+    private function callClaude(string $pdfBase64): array
+    {
         // Claude supports PDF documents as 'document' content blocks.
         // The model reads the full document layout, tables, and text natively.
         $response = Http::withHeaders([
