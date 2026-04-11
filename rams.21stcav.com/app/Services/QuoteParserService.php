@@ -2014,8 +2014,8 @@ class QuoteParserService
             }
 
             // Must be a single token (no spaces).
-            // Allow digit-leading tokens, slash-separated, ampersand-joined etc.
-            if (! preg_match('/^([A-Za-z0-9][A-Za-z0-9\-\.\/&]{2,49})$/', $line, $m)) {
+            // Allow digit-leading tokens, slash-separated, ampersand-joined, hash-separated etc.
+            if (! preg_match('/^([A-Za-z0-9][A-Za-z0-9\-\.\/&#]{2,49})$/', $line, $m)) {
                 break; // Not a part-number line — stop immediately.
             }
 
@@ -2112,13 +2112,14 @@ class QuoteParserService
             return '';
         }
 
-        // Basic shape: alphanumeric + hyphens/dots/slashes/spaces/ampersands.
+        // Basic shape: alphanumeric + hyphens/dots/slashes/spaces/ampersands/hashes.
         // Spaces and & are valid in QuoteWerks part codes (e.g. "FIRST FIX", "O&M").
-        if (! preg_match('/^[A-Za-z0-9][A-Za-z0-9\-\.\/& ]{1,30}$/', $raw)) {
+        // # is valid mid-token in some supplier part codes (e.g. "BT8431#B").
+        if (! preg_match('/^[A-Za-z0-9][A-Za-z0-9\-\.\/&# ]{1,30}$/', $raw)) {
             return '';
         }
 
-        $hasH = str_contains($raw, '-') || str_contains($raw, '/');
+        $hasH = str_contains($raw, '-') || str_contains($raw, '/') || str_contains($raw, '#');
         $hasD = (bool) preg_match('/\d/', $raw);
         $hasA = (bool) preg_match('/[a-zA-Z]/', $raw);
 
@@ -2131,7 +2132,7 @@ class QuoteParserService
         // Strategy B of extractPartFromDescription may extract from a description
         // trailing token — are rejected.  Genuine QuoteWerks service codes are always
         // fully uppercase.
-        $allUpperAlpha = (bool) preg_match('/^[A-Z][A-Z0-9\-\.\/& ]{1,30}$/', $raw);
+        $allUpperAlpha = (bool) preg_match('/^[A-Z][A-Z0-9\-\.\/&# ]{1,30}$/', $raw);
 
         // No-digit values must be all-caps to avoid false positives from
         // mixed-case description phrases leaking into part-number extraction.
