@@ -1632,8 +1632,36 @@
         btn.textContent = 'Saving…';
 
         fetch(url, { method: 'POST', body: formData })
-        .then(r => r.ok ? r.json() : Promise.reject(r))
-        .then(() => {
+        .then(response => response.json().then(data => ({ status: response.status, data })))
+        .then(({ status, data }) => {
+            // Re-enable the button regardless of outcome
+            btn.disabled    = false;
+            btn.textContent = wasAlreadyDone ? '💾 Update Room Data' : '✓ Mark Room Complete';
+
+            if (status === 422 && data.blocked) {
+                // Show amber blocked message above the Mark Complete button
+                const areaEl = document.getElementById('complete-area-' + roomId);
+                if (areaEl) {
+                    let msgEl = areaEl.querySelector('.complete-blocked-msg');
+                    if (!msgEl) {
+                        msgEl = document.createElement('div');
+                        msgEl.className = 'complete-blocked-msg';
+                        msgEl.setAttribute('role', 'alert');
+                        msgEl.style.cssText = 'background:#FFFBEB;border:1.5px solid #FCD34D;color:#92400E;border-radius:8px;padding:.9rem 1.1rem;font-size:.9rem;margin-bottom:.5rem;';
+                        areaEl.insertBefore(msgEl, areaEl.firstChild);
+                    }
+                    msgEl.textContent = data.message;
+                }
+                return; // Do not proceed with room collapse / completion UI
+            }
+
+            // Clear any previous blocked message on success
+            const areaEl = document.getElementById('complete-area-' + roomId);
+            if (areaEl) {
+                const prevMsg = areaEl.querySelector('.complete-blocked-msg');
+                if (prevMsg) prevMsg.remove();
+            }
+
             // Update header to green
             const hdr   = document.getElementById('room-hdr-' + roomId);
             const badge = document.getElementById('room-badge-' + roomId);
