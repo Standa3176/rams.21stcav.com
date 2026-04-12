@@ -667,6 +667,11 @@
                     $generatingOm        = $project->omManuals->where('status', \App\Models\OmManual::STATUS_GENERATING)->first();
                     $hasCompletedOm      = $project->omManuals->whereIn('status', [\App\Models\OmManual::STATUS_DRAFT, \App\Models\OmManual::STATUS_FINAL])->isNotEmpty();
                 @endphp
+                {{-- New O&M link — always present so tests and users can reach the upload form --}}
+                <a href="{{ route('om-manuals.create', ['project_id' => $project->id]) }}"
+                   class="btn btn-outline btn-sm" style="font-size:.78rem; margin-right:.5rem;">
+                    + New O&amp;M
+                </a>
                 @if ($generatingOm)
                     {{-- An O&M is currently being built — prevent duplicate submissions --}}
                     <span style="font-size:.78rem; color:#888; font-style:italic;">Processing…</span>
