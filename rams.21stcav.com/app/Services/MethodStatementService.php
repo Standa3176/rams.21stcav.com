@@ -43,13 +43,15 @@ class MethodStatementService
         $roomSummary      = $this->buildRoomOverviewSummary($parsedQuote);
 
         $context = [
-            'site_address'  => $parsedQuote['site']      ?? 'the site',
-            'scope_summary' => $this->buildScope($parsedQuote, $classified),
-            'activities'    => $classified['activities'] ?? [],
-            'rooms'         => $this->buildRoomList($parsedQuote),
-            'equipment_summary' => $equipmentSummary,
-            'hazard_summary'    => $hazardSummary,
+            'site_address'            => $parsedQuote['site']      ?? 'the site',
+            'scope_summary'           => $this->buildScope($parsedQuote, $classified),
+            'activities'              => $classified['activities'] ?? [],
+            'rooms'                   => $this->buildRoomList($parsedQuote),
+            'equipment_summary'       => $equipmentSummary,
+            'hazard_summary'          => $hazardSummary,
             'room_overview_summaries' => $roomSummary,
+            'works_overview'          => trim((string) ($parsedQuote['works_overview'] ?? '')),
+            'room_descriptions'       => $this->buildRoomDescriptions($parsedQuote),
         ];
 
         $prompt = (new MethodStatementPrompt())->withContext($context);
@@ -242,6 +244,31 @@ class MethodStatementService
             }
 
             $parts[] = "{$label}: {$summary}{$methodNote}";
+        }
+
+        return $parts ? implode("\n", $parts) : '';
+    }
+
+    /**
+     * Build a newline-delimited "Room: prose" block from room_overviews[].description.
+     * Omits entries with blank room name or blank description.
+     */
+    private function buildRoomDescriptions(array $parsed): string
+    {
+        $rows = array_filter(
+            (array) ($parsed['room_overviews'] ?? []),
+            static fn ($r): bool => is_array($r)
+                && trim((string) ($r['room']        ?? '')) !== ''
+                && trim((string) ($r['description'] ?? '')) !== ''
+        );
+
+        $parts = [];
+        foreach ($rows as $row) {
+            $room        = trim((string) ($row['room']        ?? ''));
+            $description = trim((string) ($row['description'] ?? ''));
+            if ($room !== '' && $description !== '') {
+                $parts[] = "{$room}: {$description}";
+            }
         }
 
         return $parts ? implode("\n", $parts) : '';
