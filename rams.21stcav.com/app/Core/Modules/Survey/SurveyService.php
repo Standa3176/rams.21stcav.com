@@ -3,6 +3,7 @@
 namespace App\Core\Modules\Survey;
 
 use App\Core\Modules\Projects\ProjectService;
+use App\Jobs\GenerateSurveyQuestionsJob;
 use App\Models\Project;
 use App\Models\ProjectActivityLog;
 use App\Models\SiteSurvey;
@@ -156,13 +157,28 @@ class SurveyService
                     }
                 }
 
-                $survey->rooms()->create($this->roomAttributes([
+                $room = $survey->rooms()->create($this->roomAttributes([
                     'room_name'       => $roomName,
                     'av_requirements' => $avRequirements ?: null,
                     'space_type'      => $solutionTypeId
                         ? (\App\Models\SolutionType::find($solutionTypeId)?->slug ?? 'general')
                         : 'general',
                 ], $i));
+
+                // Dispatch question generation job for rooms with a known solution type (D-10).
+                // The database queue driver defers actual dispatch until after the outer transaction
+                // commits, so the room record is guaranteed to exist when the job runs.
+                if ($solutionTypeId) {
+                    try {
+                        GenerateSurveyQuestionsJob::dispatch($room->id);
+                    } catch (\Throwable $e) {
+                        // Job dispatch failure must not abort the survey creation transaction.
+                        Log::warning('SurveyService: could not dispatch GenerateSurveyQuestionsJob', [
+                            'room_id' => $room->id,
+                            'error'   => $e->getMessage(),
+                        ]);
+                    }
+                }
             }
 
             // If no rooms were extracted, leave the survey with zero rooms —
