@@ -1564,6 +1564,9 @@ class QuoteParserService
         if ($preparedBy === '') {
             $preparedBy = $this->extractPreparedBy($rawText);
         }
+        if ($preparedBy === '') {
+            $preparedBy = $this->extractPreparedByFromShipEmail($rawText);
+        }
         $ref = $this->extractTaggedRef($rawText);
 
         // ── 2. Pre-compute all PARTSTART offsets ────────────────────────────
@@ -1636,6 +1639,9 @@ class QuoteParserService
             // Skip optional items (qty ≤ 0) and empty / nonsense descriptions.
             // ── Part number resolution — three strategies ──────────────────
             // Strategy 1: content between PARTSTART … PARTEND tags.
+            // Track whether an explicit token was provided — if so, fallback
+            // strategies are skipped: a rejected token means no part number.
+            $hadExplicitPartToken = $rawPartNum !== '';
             $partNum = $this->normaliseTaggedPartNumber($rawPartNum);
 
             if ($qty <= 0.0 && $qtyFromDescBlock > 0.0) {
@@ -1659,7 +1665,7 @@ class QuoteParserService
                 }
             }
 
-            if ($partNum === '' && $partFromDescBlock !== '') {
+            if ($partNum === '' && ! $hadExplicitPartToken && $partFromDescBlock !== '') {
                 $partNum = $partFromDescBlock;
             }
 
@@ -1667,7 +1673,7 @@ class QuoteParserService
             // the part number inside the QTYSTART…QTYEND block alongside the qty value,
             // rather than between PARTSTART…PARTEND.  After stripping the leading
             // numeric qty, whatever remains is the part number candidate.
-            if ($partNum === '') {
+            if ($partNum === '' && ! $hadExplicitPartToken) {
                 $qtyBlockRemainder = trim((string) preg_replace('/^\s*\d+(?:\.\d+)?\s*/', '', $rawQtyBlock));
                 $qtyBlockRemainder = trim($qtyBlockRemainder, " \t\r\n~");
                 if ($qtyBlockRemainder !== '') {
@@ -1676,7 +1682,7 @@ class QuoteParserService
             }
 
             // Strategy 2: standalone token on the line immediately above PARTSTART.
-            if ($partNum === '') {
+            if ($partNum === '' && ! $hadExplicitPartToken) {
                 $above = $this->findPrecedingPartNumber(substr($rawText, 0, $tupleOffset));
                 if ($above !== null) {
                     $partNum = $above;
@@ -1685,7 +1691,7 @@ class QuoteParserService
 
             // Strategy 3: part number embedded inside the description text
             // (trailing parenthetical or trailing token).
-            if ($partNum === '') {
+            if ($partNum === '' && ! $hadExplicitPartToken) {
                 $partNum = $this->extractPartNumFromDescription($rawDesc);
             }
             if (preg_match('/^\d{1,3}(?:st|nd|rd|th)$/i', $partNum)) {

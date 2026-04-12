@@ -714,8 +714,10 @@ class QuoteProjectResolutionTest extends TestCase
         $response->assertSee('Show RAMS Project');
     }
 
-    public function test_project_show_page_is_forbidden_for_another_user(): void
+    public function test_project_show_page_is_visible_to_any_authenticated_user(): void
     {
+        // D-15: Projects are shared across all authenticated users — any logged-in
+        // user may view any project. The controller enforces auth()->check() only.
         $owner = User::factory()->create();
         $other = User::factory()->create();
 
@@ -723,7 +725,7 @@ class QuoteProjectResolutionTest extends TestCase
 
         $response = $this->actingAs($other)->get(route('projects.show', $project));
 
-        $response->assertForbidden();
+        $response->assertOk();
     }
 
     // ═════════════════════════════════════════════════════════════════════════
