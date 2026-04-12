@@ -19,8 +19,7 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
-        <env name="APP_BASE_PATH" value="C:/Users/sonny.tanda/Documents/1 - Claude Projects/Rams2/.claude/worktrees/agent-a7818720/rams.21stcav.com"/>
-        <env name="APP_MAINTENANCE_DRIVER" value="file"/>
+<env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
