@@ -295,7 +295,11 @@ p { margin: 3pt 0; }
 {{-- ═══ 1. SCOPE OF WORKS ═══════════════════════════════════════════════════ --}}
 <div class="sec-heading">1. Scope of Works</div>
 <p style="margin-bottom:8px;">
-    {{ $scopeOfWorks ?: ($project['works_description'] ?? $formData['works_description'] ?? 'AV installation works as per quotation.') }}
+    @if($scopeOfWorks)
+        {{ $scopeOfWorks }}
+    @else
+        <span style="color:#CC0000; font-style:italic;">Scope of works not generated — return to the review form and click Generate.</span>
+    @endif
 </p>
 <p class="note-text">
     Works will be carried out by {{ $company }} qualified AV Engineers during standard working hours:
