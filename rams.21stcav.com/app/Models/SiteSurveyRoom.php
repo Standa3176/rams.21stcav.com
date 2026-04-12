@@ -86,4 +86,9 @@ class SiteSurveyRoom extends Model
     {
         return $this->hasMany(SiteSurveyPhoto::class)->orderBy('sort_order');
     }
+
+    public function questions(): HasMany
+    {
+        return $this->hasMany(SiteSurveyRoomQuestion::class, 'site_survey_room_id')->orderBy('sort_order');
+    }
 }
