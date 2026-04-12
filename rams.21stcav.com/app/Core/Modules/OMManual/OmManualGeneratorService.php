@@ -225,13 +225,46 @@ class OmManualGeneratorService
             ];
         }, $data['rooms'] ?? []);
 
+        // ── Enrich rooms with content pack descriptions ───────────────────────
+        // Load per-room prose descriptions from the most recent ProjectPackage
+        // linked to this project (extracted/reviewed by the PM via review form).
+        $descriptionsByRoom = [];
+        $linkedPackage = $project->packages()
+            ->whereNotNull('project_id')
+            ->latest()
+            ->first();
+
+        if ($linkedPackage !== null) {
+            foreach ((array) ($linkedPackage->extracted_data['room_overviews'] ?? []) as $ro) {
+                $roomName = trim((string) ($ro['room'] ?? ''));
+                $desc     = trim((string) ($ro['description'] ?? ''));
+                if ($roomName !== '' && $desc !== '') {
+                    $descriptionsByRoom[$roomName] = $desc;
+                }
+            }
+        }
+
+        // Merge descriptions into each room entry.
+        $rooms = array_map(function (array $room) use ($descriptionsByRoom): array {
+            $name = $room['name'] ?? '';
+            $room['description'] = $descriptionsByRoom[$name] ?? '';
+            return $room;
+        }, $rooms);
+
+        // Load scope_of_works from the package if available.
+        $scopeOfWorks = '';
+        if ($linkedPackage !== null) {
+            $scopeOfWorks = trim((string) ($linkedPackage->extracted_data['scope_of_works'] ?? ''));
+        }
+
         return [
-            'project_name' => $data['project']['name'] ?? '',
-            'project_ref'  => $data['project']['quote_reference'] ?? '',
-            'client_name'  => $data['project']['client_name'] ?? '',
-            'site_address' => $data['project']['site_address'] ?? '',
-            'notes'        => $data['survey']['h_and_s_notes'] ?? '',
-            'rooms'        => $rooms,
+            'project_name'   => $data['project']['name'] ?? '',
+            'project_ref'    => $data['project']['quote_reference'] ?? '',
+            'client_name'    => $data['project']['client_name'] ?? '',
+            'site_address'   => $data['project']['site_address'] ?? '',
+            'notes'          => $data['survey']['h_and_s_notes'] ?? '',
+            'scope_of_works' => $scopeOfWorks,
+            'rooms'          => $rooms,
         ];
     }
 
@@ -373,12 +406,13 @@ class OmManualGeneratorService
         // ── New shape: rooms key present (project-linked O&Ms via ProjectDataService) ──
         if (isset($extractedData['rooms']) && is_array($extractedData['rooms'])) {
             return [
-                'project_name' => $extractedData['project_name'] ?? $manual->project_name ?? 'AV Installation',
-                'project_ref'  => $extractedData['project_ref']  ?? $manual->project_ref  ?? '',
-                'client_name'  => $extractedData['client_name']  ?? $manual->client_name  ?? '',
-                'site_address' => $extractedData['site_address'] ?? $manual->site_address ?? '',
-                'notes'        => $extractedData['notes']        ?? '',
-                'rooms'        => $extractedData['rooms'],
+                'project_name'   => $extractedData['project_name'] ?? $manual->project_name ?? 'AV Installation',
+                'project_ref'    => $extractedData['project_ref']  ?? $manual->project_ref  ?? '',
+                'client_name'    => $extractedData['client_name']  ?? $manual->client_name  ?? '',
+                'site_address'   => $extractedData['site_address'] ?? $manual->site_address ?? '',
+                'notes'          => $extractedData['notes']        ?? '',
+                'scope_of_works' => trim((string) ($extractedData['scope_of_works'] ?? '')),  // NEW
+                'rooms'          => $extractedData['rooms'],
             ];
         }
 
