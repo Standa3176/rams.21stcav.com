@@ -53,10 +53,9 @@ class QuoteUploadRamsCreationTest extends TestCase
             'site_address' => '1 Smoke Test Street',
         ]);
 
-        // Upload resolves/creates a project and redirects there.
-        $project = Project::where('ref', 'SMOKE-001')->firstOrFail();
-        $response->assertRedirect(route('projects.show', $project));
-        $response->assertSessionHas('success');
+        // Upload creates a RamsDocument and redirects to the processing page.
+        $rams = RamsDocument::where('project_ref', 'SMOKE-001')->firstOrFail();
+        $response->assertRedirect(route('rams.processing', $rams));
         $response->assertSessionHasNoErrors();
 
         $this->assertDatabaseCount('rams_documents', 1);

@@ -105,10 +105,9 @@ class QuoteProjectResolutionTest extends TestCase
             'site_address' => '1 Test Street, London',
         ]);
 
-        $project = Project::where('ref', 'REDIRECT-001')->firstOrFail();
+        $rams = RamsDocument::where('project_ref', 'REDIRECT-001')->firstOrFail();
 
-        $response->assertRedirect(route('projects.show', $project));
-        $response->assertSessionHas('success');
+        $response->assertRedirect(route('rams.processing', $rams));
     }
 
     public function test_new_project_receives_status_quote_imported(): void
