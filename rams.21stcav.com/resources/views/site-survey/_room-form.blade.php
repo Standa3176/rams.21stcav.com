@@ -93,6 +93,67 @@
         </div>
         @endif
 
+        {{-- ── PRE-INSTALL CHECKS PANEL (Alpine.js collapsible) ──────────── --}}
+        @if($isModel && $room->relationLoaded('questions') && $room->questions->isNotEmpty())
+        @php
+            $totalChecks07    = $room->questions->count();
+            $answeredChecks07 = $room->questions->whereNotNull('answer')->count();
+            $internalAnswerBase = route('site-survey.question.answer', [
+                'siteSurvey' => $room->site_survey_id,
+                'room'       => $room->id,
+                'question'   => '__QID__',
+            ]);
+        @endphp
+        <div x-data="{ checksOpen: false }"
+             style="background:#FFFBEB;border:1.5px solid #FCD34D;border-radius:6px;margin-bottom:1rem;">
+            <button type="button"
+                    @click="checksOpen = !checksOpen"
+                    :aria-expanded="checksOpen.toString()"
+                    style="display:flex;align-items:center;gap:.5rem;width:100%;background:none;border:none;padding:.6rem .85rem;color:#92400E;font-size:.82rem;font-weight:700;cursor:pointer;text-align:left;border-radius:6px;min-height:48px;">
+                <span style="background:#0B3C45;color:#fff;border-radius:4px;padding:.1rem .45rem;font-size:.7rem;font-weight:700;letter-spacing:.04em;flex-shrink:0;">PRE-INSTALL</span>
+                <span style="flex:1;">Pre-Install Checks &mdash; {{ $totalChecks07 }} {{ Str::plural('question', $totalChecks07) }}</span>
+                <span style="display:inline-block;transition:transform 200ms;color:#92400E;" :style="checksOpen ? 'transform:rotate(180deg)' : ''">&#9660;</span>
+            </button>
+            <div x-show="checksOpen"
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0"
+                 x-transition:enter-end="opacity-100"
+                 style="border-top:1.5px solid #FCD34D;padding:.5rem .85rem .75rem;">
+                @foreach($room->questions as $qi07 => $question07)
+                <div style="padding:.6rem 0;border-bottom:{{ !$loop->last ? '1px solid #FDE68A' : 'none' }};"
+                     id="check-internal-{{ $question07->id }}"
+                     data-answer-url="{{ str_replace('__QID__', $question07->id, $internalAnswerBase) }}">
+                    <p style="font-size:.875rem;color:#1F2937;line-height:1.5;margin:0 0 .5rem;">
+                        <strong>{{ $qi07 + 1 }}.</strong> {{ $question07->question }}
+                    </p>
+                    <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.25rem;">
+                        @foreach(['yes' => ['#D1FAE5','#059669','#065F46'], 'no' => ['#FEE2E2','#FCA5A5','#991B1B'], 'other' => ['#FEF3C7','#FCD34D','#92400E']] as $ans => [$bg, $border, $fg])
+                        <button type="button"
+                                data-answer="{{ $ans }}"
+                                aria-label="Answer {{ ucfirst($ans) }} to question {{ $qi07 + 1 }}"
+                                onclick="answerCheckInternal({{ $question07->id }}, '{{ $ans }}')"
+                                style="min-height:44px;padding:.45rem 1rem;border-radius:6px;font-size:.82rem;font-weight:700;cursor:pointer;border:1.5px solid {{ $question07->answer === $ans ? $border : '#D1D5DB' }};background:{{ $question07->answer === $ans ? $bg : '#ffffff' }};color:{{ $question07->answer === $ans ? $fg : '#374151' }};">
+                            {{ ucfirst($ans) }}
+                        </button>
+                        @endforeach
+                    </div>
+                    <div style="display:{{ $question07->answer === 'other' ? 'block' : 'none' }};" id="other-wrap-{{ $question07->id }}">
+                        <label for="other-int-{{ $question07->id }}" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Explanation for "Other"</label>
+                        <textarea id="other-int-{{ $question07->id }}"
+                                  rows="2"
+                                  placeholder="Please explain…"
+                                  onblur="saveOtherTextInternal({{ $question07->id }}, this)"
+                                  style="width:100%;border:1.5px solid #D1D5DB;border-radius:7px;padding:.72rem .8rem;font-size:.875rem;color:#1F2937;resize:vertical;font-family:inherit;box-sizing:border-box;">{{ $question07->other_text }}</textarea>
+                    </div>
+                </div>
+                @endforeach
+                @if($answeredChecks07 < $totalChecks07)
+                <p style="font-size:.82rem;color:#6B7280;text-align:right;padding-top:.4rem;margin:0;">{{ $answeredChecks07 }} of {{ $totalChecks07 }} answered</p>
+                @endif
+            </div>
+        </div>
+        @endif
+
         {{-- ── Per-space type selector + qty (new rooms only) ─────────────── --}}
         <div class="form-grid-2" style="margin-bottom:.75rem;">
             <div class="form-group" style="margin-bottom:0;">

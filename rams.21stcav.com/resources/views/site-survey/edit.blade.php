@@ -258,6 +258,62 @@ function toggleKit(btn) {
     chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
 }
 
+// ── Pre-Install Checks (internal admin form) ──────────────────────────────────
+function answerCheckInternal(questionId, answer) {
+    const itemEl = document.getElementById('check-internal-' + questionId);
+    if (!itemEl) return;
+    const btns = itemEl.querySelectorAll('[data-answer]');
+    btns.forEach(b => { b.style.opacity = '0.6'; b.disabled = true; });
+
+    fetch(itemEl.dataset.answerUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+        },
+        body: JSON.stringify({ answer: answer }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        btns.forEach(b => { b.style.opacity = '1'; b.disabled = false; });
+        const colorMap = {
+            yes:   { bg:'#D1FAE5', border:'#059669', fg:'#065F46' },
+            no:    { bg:'#FEE2E2', border:'#FCA5A5', fg:'#991B1B' },
+            other: { bg:'#FEF3C7', border:'#FCD34D', fg:'#92400E' },
+        };
+        btns.forEach(b => {
+            const ans = b.dataset.answer;
+            if (ans === answer) {
+                b.style.background  = colorMap[ans].bg;
+                b.style.borderColor = colorMap[ans].border;
+                b.style.color       = colorMap[ans].fg;
+            } else {
+                b.style.background  = '#ffffff';
+                b.style.borderColor = '#D1D5DB';
+                b.style.color       = '#374151';
+            }
+        });
+        const wrapEl = document.getElementById('other-wrap-' + questionId);
+        if (wrapEl) wrapEl.style.display = answer === 'other' ? 'block' : 'none';
+    })
+    .catch(() => {
+        btns.forEach(b => { b.style.opacity = '1'; b.disabled = false; });
+    });
+}
+
+function saveOtherTextInternal(questionId, textarea) {
+    const itemEl = document.getElementById('check-internal-' + questionId);
+    if (!itemEl) return;
+    fetch(itemEl.dataset.answerUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+        },
+        body: JSON.stringify({ other_text: textarea.value }),
+    }).catch(() => { /* silent */ });
+}
+
 // ── Build new room card HTML (new rooms start expanded) ───────────────────────
 function roomCardHtml(i, type) {
     type = type || 'general';

@@ -45,7 +45,7 @@ class PublicSurveyController extends Controller
     public function show(string $token): View
     {
         $survey = $this->resolveSurvey($token);
-        $survey->load('rooms.photos');
+        $survey->load('rooms.photos', 'rooms.questions');
 
         // Build kit-by-area lookup from the linked project's latest package so
         // each room card on the public form can show the quote kit list.

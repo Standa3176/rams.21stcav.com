@@ -565,6 +565,31 @@
         .kit-part { font-family: monospace; background: #c7e8ec; padding: .05rem .3rem; border-radius: 3px; font-size: .76rem; color: #0B3C45; margin-right: .3rem; }
         .kit-drawer-inner { padding: .15rem .85rem .6rem; border-top: 1.5px solid #94C4C9; }
 
+        /* ── Pre-Install Checks panel ─────────────────────────────────── */
+        .checks-block { background:#FFFBEB; border:1.5px solid #FCD34D; border-radius:6px; margin-bottom:12px; }
+        .checks-toggle { display:flex; align-items:center; gap:.5rem; width:100%; background:none; border:none;
+            padding:.6rem .85rem; color:#92400E; font-size:.82rem; font-weight:700; cursor:pointer;
+            text-align:left; border-radius:6px; min-height:48px; }
+        .checks-drawer { overflow:hidden; max-height:0; transition:max-height 350ms ease; }
+        .checks-drawer-inner { padding:.5rem .85rem .75rem; border-top:1.5px solid #FCD34D; }
+        .check-item { padding:.6rem 0; border-bottom:1px solid #FDE68A; }
+        .check-item:last-child { border-bottom:none; }
+        .check-question { font-size:.875rem; color:#1F2937; line-height:1.5; margin-bottom:.5rem; }
+        .check-answers { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:.25rem; }
+        .check-btn { min-height:44px; padding:.45rem 1rem; border-radius:6px; font-size:.82rem; font-weight:700;
+            cursor:pointer; border:1.5px solid #D1D5DB; background:#ffffff; color:#374151; transition:opacity .15s; }
+        .check-btn.is-yes  { background:#D1FAE5; border-color:#059669; color:#065F46; }
+        .check-btn.is-no   { background:#FEE2E2; border-color:#FCA5A5; color:#991B1B; }
+        .check-btn.is-other { background:#FEF3C7; border-color:#FCD34D; color:#92400E; }
+        .check-btn.loading { opacity:.6; cursor:not-allowed; }
+        .check-other-text { display:none; margin-top:.5rem; }
+        .check-other-textarea { width:100%; border:1.5px solid #D1D5DB; border-radius:7px;
+            padding:.72rem .8rem; font-size:.875rem; color:#1F2937; resize:vertical; font-family:inherit; }
+        .check-other-textarea:focus { outline:none; border-color:#178A95; box-shadow:0 0 0 3px rgba(23,138,149,.15); }
+        .check-progress { font-size:.82rem; color:#6B7280; text-align:right; padding-top:.4rem; }
+        .checks-chevron { display:inline-block; transition:transform 200ms; color:#92400E; }
+        .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+
         /* ── Action bar ───────────────────────────────────────────────── */
         .action-bar {
             position: fixed;
@@ -905,6 +930,59 @@
                                         </span>
                                     </div>
                                     @endforeach
+                                </div>
+                            </div>
+                        </div>
+                        @endif
+
+                        {{-- ── PRE-INSTALL CHECKS PANEL ──────────────────────────────────── --}}
+                        @if($room->questions->isNotEmpty())
+                        @php
+                            $totalChecks    = $room->questions->count();
+                            $answeredChecks = $room->questions->whereNotNull('answer')->count();
+                        @endphp
+                        <div class="checks-block">
+                            <button type="button" class="checks-toggle" onclick="toggleChecks(this)"
+                                    aria-expanded="false">
+                                <span style="background:#0B3C45;color:#fff;border-radius:4px;padding:.1rem .45rem;font-size:.7rem;font-weight:700;letter-spacing:.04em;flex-shrink:0;">PRE-INSTALL</span>
+                                <span style="flex:1;">Pre-Install Checks &mdash; {{ $totalChecks }} {{ Str::plural('question', $totalChecks) }}</span>
+                                <span class="checks-chevron">&#9660;</span>
+                            </button>
+                            <div class="checks-drawer">
+                                <div class="checks-drawer-inner">
+                                    @foreach($room->questions as $qi => $question)
+                                    <div class="check-item" id="check-{{ $question->id }}"
+                                         data-answer-url="{{ route('survey.question.answer', ['token' => $token, 'room' => $room->id, 'question' => $question->id]) }}">
+                                        <p class="check-question"><strong>{{ $qi + 1 }}.</strong> {{ $question->question }}</p>
+                                        <div class="check-answers">
+                                            <button type="button" class="check-btn{{ $question->answer === 'yes' ? ' is-yes' : '' }}"
+                                                    data-answer="yes"
+                                                    aria-label="Answer Yes to question {{ $qi + 1 }}"
+                                                    onclick="answerCheck({{ $question->id }}, 'yes', {{ $room->id }}, '{{ $token }}')">Yes</button>
+                                            <button type="button" class="check-btn{{ $question->answer === 'no' ? ' is-no' : '' }}"
+                                                    data-answer="no"
+                                                    aria-label="Answer No to question {{ $qi + 1 }}"
+                                                    onclick="answerCheck({{ $question->id }}, 'no', {{ $room->id }}, '{{ $token }}')">No</button>
+                                            <button type="button" class="check-btn{{ $question->answer === 'other' ? ' is-other' : '' }}"
+                                                    data-answer="other"
+                                                    aria-label="Answer Other to question {{ $qi + 1 }}"
+                                                    onclick="answerCheck({{ $question->id }}, 'other', {{ $room->id }}, '{{ $token }}')">Other</button>
+                                        </div>
+                                        <div class="check-other-text" style="display:{{ $question->answer === 'other' ? 'block' : 'none' }};">
+                                            <label for="other-{{ $question->id }}" class="sr-only">Explanation for "Other"</label>
+                                            <textarea id="other-{{ $question->id }}"
+                                                      class="check-other-textarea"
+                                                      rows="2"
+                                                      maxlength="2000"
+                                                      placeholder="Please explain&hellip;"
+                                                      onblur="saveOtherText({{ $question->id }}, this)">{{ $question->other_text }}</textarea>
+                                        </div>
+                                        <div class="check-error" style="display:none;color:#991B1B;font-size:.82rem;margin-top:.25rem;"></div>
+                                    </div>
+                                    @endforeach
+                                    @if($answeredChecks < $totalChecks)
+                                    <p class="check-progress">{{ $answeredChecks }} of {{ $totalChecks }} answered</p>
+                                    @endif
                                 </div>
                             </div>
                         </div>
@@ -1439,6 +1517,91 @@
         const isOpen  = drawer.style.maxHeight && drawer.style.maxHeight !== '0px';
         drawer.style.maxHeight  = isOpen ? '0' : '600px';
         chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+    }
+
+    // ── Pre-Install Checks drawer ─────────────────────────────────────────
+    function toggleChecks(btn) {
+        const drawer  = btn.nextElementSibling;
+        const chevron = btn.querySelector('.checks-chevron');
+        const isOpen  = drawer.style.maxHeight && drawer.style.maxHeight !== '0px';
+        drawer.style.maxHeight  = isOpen ? '0' : '800px';
+        chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+        btn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+    }
+
+    function answerCheck(questionId, answer, roomId, token) {
+        const itemEl   = document.getElementById('check-' + questionId);
+        if (!itemEl) return;
+        const btns     = itemEl.querySelectorAll('.check-btn');
+        const otherDiv = itemEl.querySelector('.check-other-text');
+
+        // Loading state
+        btns.forEach(b => b.classList.add('loading'));
+        btns.forEach(b => b.disabled = true);
+
+        fetch(itemEl.dataset.answerUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+            },
+            body: JSON.stringify({ answer: answer }),
+        })
+        .then(r => r.json())
+        .then(data => {
+            btns.forEach(b => {
+                b.classList.remove('loading', 'is-yes', 'is-no', 'is-other');
+                b.disabled = false;
+            });
+            const selectedBtn = itemEl.querySelector('[data-answer="' + answer + '"]');
+            if (selectedBtn) selectedBtn.classList.add('is-' + answer);
+            if (answer === 'other') {
+                if (otherDiv) otherDiv.style.display = 'block';
+            } else {
+                if (otherDiv) otherDiv.style.display = 'none';
+            }
+            updateCheckProgress(itemEl.closest('.checks-drawer-inner'));
+        })
+        .catch(() => {
+            btns.forEach(b => { b.classList.remove('loading'); b.disabled = false; });
+            const errEl = itemEl.querySelector('.check-error');
+            if (errEl) {
+                errEl.textContent = 'Could not save your answer. Please check your connection and try again.';
+                errEl.style.display = 'block';
+            }
+        });
+    }
+
+    function saveOtherText(questionId, textarea) {
+        const itemEl = document.getElementById('check-' + questionId);
+        if (!itemEl) return;
+        fetch(itemEl.dataset.answerUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+            },
+            body: JSON.stringify({ other_text: textarea.value }),
+        }).catch(() => { /* silent failure per UI-SPEC */ });
+    }
+
+    function updateCheckProgress(drawerInner) {
+        if (!drawerInner) return;
+        const items = drawerInner.querySelectorAll('.check-item');
+        let answeredItems = 0;
+        items.forEach(item => {
+            if (item.querySelector('.check-btn.is-yes, .check-btn.is-no, .check-btn.is-other')) {
+                answeredItems++;
+            }
+        });
+        const progEl = drawerInner.querySelector('.check-progress');
+        if (!progEl) return;
+        if (answeredItems >= items.length) {
+            progEl.style.display = 'none';
+        } else {
+            progEl.textContent  = answeredItems + ' of ' + items.length + ' answered';
+            progEl.style.display = 'block';
+        }
     }
 
     // ── Mark room complete (AJAX, saves data + marks complete) ────────────
