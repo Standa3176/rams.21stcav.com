@@ -106,16 +106,32 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no expla
 PROMPT;
     }
 
+    /**
+     * Build the Pass 2 content generation prompt.
+     *
+     * Context keys used:
+     *   - project_name, client_name, site_address, project_ref, notes (strings)
+     *   - scope_of_works (optional string) — rendered as PROJECT SCOPE block when non-empty
+     *   - rooms (array) — each room may include a 'description' field with the reviewed
+     *     AV solution narrative for that space; used to ground system description and
+     *     operating procedures per room
+     *   - is_retry (bool) — appends retry suffix when true
+     */
     private function buildContentPrompt(array $context): string
     {
-        $projectName = $context['project_name']  ?? 'AV Installation Project';
-        $client      = $context['client_name']   ?? 'Client';
-        $site        = $context['site_address']  ?? 'Site Address';
-        $ref         = $context['project_ref']   ?? '';
-        $rooms       = json_encode($context['rooms'] ?? [], JSON_PRETTY_PRINT);
-        $notes       = $context['notes']         ?? '';
-        $isRetry     = (bool) ($context['is_retry'] ?? false);
-        $retrySuffix = $isRetry ? $this->retrySuffix() : '';
+        $projectName  = $context['project_name']  ?? 'AV Installation Project';
+        $client       = $context['client_name']   ?? 'Client';
+        $site         = $context['site_address']  ?? 'Site Address';
+        $ref          = $context['project_ref']   ?? '';
+        $rooms        = json_encode($context['rooms'] ?? [], JSON_PRETTY_PRINT);
+        $notes        = $context['notes']         ?? '';
+        $isRetry      = (bool) ($context['is_retry'] ?? false);
+        $retrySuffix  = $isRetry ? $this->retrySuffix() : '';
+        $scopeOfWorks = trim((string) ($context['scope_of_works'] ?? ''));
+
+        $scopeBlock = $scopeOfWorks !== ''
+            ? "\nPROJECT SCOPE\n-------------\n{$scopeOfWorks}\n"
+            : '';
 
         return <<<PROMPT
 You are generating a complete O&M (Operations & Maintenance) Manual for a UK AV installation.
@@ -127,7 +143,7 @@ Project Ref:  {$ref}
 Client:       {$client}
 Site Address: {$site}
 Notes:        {$notes}
-
+{$scopeBlock}
 INSTALLED EQUIPMENT (by room)
 -----------------------------
 {$rooms}
@@ -137,8 +153,11 @@ INSTRUCTIONS
 1. Return ONLY valid JSON — no markdown fences, no preamble.
 2. For every equipment item provide: description, key specs, installation notes,
    operational guide, maintenance schedule, troubleshooting, and manufacturer contacts.
-3. Include a system overview and general maintenance schedule.
-4. All content must be professional, accurate, and appropriate for UK commercial AV.
+3. Where a room `description` field is provided in the equipment data, use it to ground the
+   system description and operating procedure for that room — this is the reviewed AV solution
+   narrative for that space.
+4. Include a system overview and general maintenance schedule.
+5. All content must be professional, accurate, and appropriate for UK commercial AV.
 
 REQUIRED JSON SCHEMA
 --------------------
