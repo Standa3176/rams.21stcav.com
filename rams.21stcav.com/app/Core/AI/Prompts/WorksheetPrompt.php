@@ -11,6 +11,10 @@ namespace App\Core\AI\Prompts;
  * Expected JSON response shape:
  *   { "install_steps": "1. Mount display...\n2. Run HDMI cable..." }
  *
+ * The $room array may also contain two optional content pack context fields:
+ *   description    string — prose paragraph from content pack (optional; use for context only)
+ *   works_overview string — project-level executive summary (optional; use for context only)
+ *
  * Usage:
  *   $prompt = WorksheetPrompt::forRoom($room, $projectMeta);
  *   $result = AIManager::run($prompt, [], 'claude');
@@ -128,6 +132,17 @@ class WorksheetPrompt extends BasePrompt
             ? implode("\n", $surveyLines)
             : '  (No survey data available for this room)';
 
+        // ── Content pack context (framing only — AI must not invent from these) ──
+        $roomDescription = trim((string) ($room['description']    ?? ''));
+        $worksOverview   = trim((string) ($room['works_overview'] ?? ''));
+
+        $descriptionBlock = $roomDescription
+            ? "\nROOM DESCRIPTION (use for context only):\n  {$roomDescription}"
+            : '';
+        $overviewBlock = $worksOverview
+            ? "\nPROJECT OVERVIEW (use for context only):\n  {$worksOverview}"
+            : '';
+
         // ── Assemble prompt ───────────────────────────────────────────────────
         return <<<PROMPT
 You are an AV installation engineer preparing a job card for site.
@@ -140,7 +155,7 @@ EQUIPMENT TO INSTALL IN THIS ROOM:
 {$equipmentBlock}
 
 SITE SURVEY DATA FOR THIS ROOM:
-{$surveyBlock}
+{$surveyBlock}{$descriptionBlock}{$overviewBlock}
 
 INSTRUCTIONS:
 - List the install steps for this room as a numbered sequence (3–5 steps maximum).

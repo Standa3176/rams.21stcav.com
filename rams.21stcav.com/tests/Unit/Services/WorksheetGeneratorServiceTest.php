@@ -46,6 +46,9 @@ class WorksheetGeneratorServiceTest extends TestCase
         $mock = Mockery::mock(Project::class);
         $mock->shouldReceive('getAttribute')->with('latestPackage')->andReturn($package)->byDefault();
         $mock->shouldReceive('getAttribute')->with('id')->andReturn(1)->byDefault();
+        // Eloquent __isset triggers offsetExists when using ?? null — allow it.
+        $mock->shouldReceive('offsetExists')->andReturnUsing(fn ($k) => $k === 'latestPackage' ? ($package !== null) : false)->byDefault();
+        $mock->shouldReceive('offsetGet')->with('latestPackage')->andReturn($package)->byDefault();
         return $mock;
     }
 
@@ -53,6 +56,9 @@ class WorksheetGeneratorServiceTest extends TestCase
     {
         $mock = Mockery::mock(ProjectPackage::class);
         $mock->shouldReceive('getAttribute')->with('reviewed_data')->andReturn($reviewedData)->byDefault();
+        // Eloquent __isset triggers offsetExists when using ?? on a property.
+        $mock->shouldReceive('offsetExists')->andReturnUsing(fn ($k) => $k === 'reviewed_data')->byDefault();
+        $mock->shouldReceive('offsetGet')->with('reviewed_data')->andReturn($reviewedData)->byDefault();
         return $mock;
     }
 

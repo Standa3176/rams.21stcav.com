@@ -80,7 +80,30 @@ class WorksheetGeneratorService
         }
 
         $data    = $this->projectDataService->resolve($project);
-        $rooms   = $this->buildRooms($data['rooms'], $data['project']);
+
+        // ── Retrieve content pack context from the package's reviewed_data ────────
+        // description lives in reviewed_data['room_overviews'][].description (Phase 5).
+        // works_overview lives in reviewed_data['works_overview'] (Phase 5).
+        // Keys are normalised to lowercase-trimmed for case-insensitive lookup.
+        $roomDescriptions = [];
+        $worksOverview    = '';
+        $package = $project->latestPackage ?? null;
+        if ($package !== null) {
+            $overviews = (array) ($package->reviewed_data['room_overviews'] ?? []);
+            foreach ($overviews as $ov) {
+                if (! is_array($ov)) {
+                    continue;
+                }
+                $name = strtolower(trim((string) ($ov['room']        ?? '')));
+                $desc = trim((string) ($ov['description'] ?? ''));
+                if ($name !== '' && $desc !== '') {
+                    $roomDescriptions[$name] = $desc;
+                }
+            }
+            $worksOverview = trim((string) ($package->reviewed_data['works_overview'] ?? ''));
+        }
+
+        $rooms    = $this->buildRooms($data['rooms'], $data['project'], $roomDescriptions, $worksOverview);
         $provider = config('ai.default', 'claude');
 
         return [
@@ -102,8 +125,12 @@ class WorksheetGeneratorService
      * @param  array $projectMeta Project fields from ProjectDataService
      * @return array
      */
-    private function buildRooms(array $quoteRooms, array $projectMeta): array
-    {
+    private function buildRooms(
+        array $quoteRooms,
+        array $projectMeta,
+        array $roomDescriptions = [],
+        string $worksOverview = '',
+    ): array {
         $rooms = [];
 
         foreach ($quoteRooms as $room) {
@@ -114,8 +141,11 @@ class WorksheetGeneratorService
             // ── AI install steps ──────────────────────────────────────────────
             $installSteps = null;
             try {
-                $roomForPrompt            = $room;
+                $roomForPrompt              = $room;
                 $roomForPrompt['equipment'] = $equipment;
+                // ── Content pack context (may be empty for rooms with no description) ──
+                $roomForPrompt['description']    = $roomDescriptions[strtolower(trim($roomName))] ?? '';
+                $roomForPrompt['works_overview'] = $worksOverview;
 
                 $prompt  = WorksheetPrompt::forRoom($roomForPrompt, $projectMeta);
                 $result  = AIManager::run($prompt, [], config('ai.default', 'claude'));
