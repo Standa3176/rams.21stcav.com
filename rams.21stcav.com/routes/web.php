@@ -52,6 +52,9 @@ Route::post('survey/{token}/submit',                   [PublicSurveyController::
 Route::post('survey/{token}/rooms/{room}/photos',      [PublicSurveyController::class, 'uploadPhoto'])    ->name('survey.photos.upload')   ->middleware('throttle:30,1');
 Route::post('survey/{token}/rooms/{room}/complete',    [PublicSurveyController::class, 'completeRoom'])   ->name('survey.room.complete')   ->middleware('throttle:60,1');
 Route::post('survey/{token}/rooms/{room}/uncomplete',  [PublicSurveyController::class, 'uncompleteRoom']) ->name('survey.room.uncomplete') ->middleware('throttle:60,1');
+Route::post('survey/{token}/rooms/{room}/questions/{question}', [PublicSurveyController::class, 'answerQuestion'])
+    ->name('survey.question.answer')
+    ->middleware('throttle:120,1');
 Route::get('survey/{token}/photos/{photo}',            [PublicSurveyController::class, 'servePhoto'])     ->name('survey.photos.serve');
 
 /*
@@ -220,6 +223,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('site-surveys', SiteSurveyController::class)
         ->only(['index', 'create', 'store', 'show', 'edit', 'update', 'destroy']);
     Route::post('site-surveys/{siteSurvey}/complete',                           [SiteSurveyController::class, 'complete'])          ->name('site-surveys.complete');
+    Route::post('site-surveys/{siteSurvey}/rooms/{room}/questions/{question}',  [SiteSurveyController::class, 'answerQuestion'])     ->name('site-survey.question.answer');
     Route::post('site-surveys/{id}/restore',                                    [SiteSurveyController::class, 'restore'])            ->name('site-surveys.restore');
     Route::delete('site-surveys/{id}/force-destroy',                            [SiteSurveyController::class, 'forceDestroy'])       ->name('site-surveys.force-destroy');
     Route::post('site-surveys/{siteSurvey}/rooms/{room}/photos',                [SiteSurveyController::class, 'uploadPhoto'])    ->name('site-surveys.photos.upload')->middleware('throttle:30,1');

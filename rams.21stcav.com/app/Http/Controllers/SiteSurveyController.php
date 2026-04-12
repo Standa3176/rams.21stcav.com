@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\SiteSurvey;
 use App\Models\SiteSurveyPhoto;
 use App\Models\SiteSurveyRoom;
+use App\Models\SiteSurveyRoomQuestion;
 use App\Services\SurveyPdfService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -236,6 +237,58 @@ class SiteSurveyController extends Controller
 
         return redirect()->route('site-surveys.show', $siteSurvey)
             ->with('success', 'Survey marked as completed.');
+    }
+
+    // ─── Question answer persistence (internal form) ──────────────────────────
+
+    /**
+     * POST /site-surveys/{siteSurvey}/rooms/{room}/questions/{question}
+     *
+     * Save or update the answer for a pre-install check question from the
+     * internal admin survey form. Auth-gated (session auth, not token).
+     *
+     * Identical business logic to PublicSurveyController::answerQuestion() —
+     * same validation, same security scope, same JSON response shape.
+     */
+    public function answerQuestion(Request $request, SiteSurvey $siteSurvey, SiteSurveyRoom $room, int $question): JsonResponse
+    {
+        abort_unless($room->site_survey_id === $siteSurvey->id, 403);
+
+        // Scope question to room — prevents guessing other rooms' question IDs.
+        // Returns 403 (not 404) so the ID existence is not leaked.
+        $questionRecord = SiteSurveyRoomQuestion::where('id', $question)
+            ->where('site_survey_room_id', $room->id)
+            ->first();
+
+        abort_if($questionRecord === null, 403);
+
+        $validated = $request->validate([
+            'answer'     => ['nullable', 'in:yes,no,other'],
+            'other_text' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $update = [];
+        if (array_key_exists('answer', $validated) && $validated['answer'] !== null) {
+            $update['answer'] = $validated['answer'];
+            if ($validated['answer'] !== 'other') {
+                $update['other_text'] = null;
+            }
+        }
+        if (array_key_exists('other_text', $validated)) {
+            $update['other_text'] = $validated['other_text'];
+        }
+
+        if (! empty($update)) {
+            $questionRecord->update($update);
+        }
+
+        $fresh = $questionRecord->fresh();
+
+        return response()->json([
+            'answered'   => $fresh->answer !== null,
+            'answer'     => $fresh->answer,
+            'other_text' => $fresh->other_text,
+        ]);
     }
 
     // ─── Destroy ─────────────────────────────────────────────────────────────

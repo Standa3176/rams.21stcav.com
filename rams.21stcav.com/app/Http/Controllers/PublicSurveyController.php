@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\SiteSurvey;
 use App\Models\SiteSurveyPhoto;
 use App\Models\SiteSurveyRoom;
+use App\Models\SiteSurveyRoomQuestion;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -212,6 +213,69 @@ class PublicSurveyController extends Controller
         $room->update(['is_completed' => false, 'completed_at' => null]);
 
         return response()->json(['completed' => false]);
+    }
+
+    // ─── Question answer persistence ─────────────────────────────────────────
+
+    /**
+     * POST /survey/{token}/rooms/{room}/questions/{question}
+     *
+     * Save or update the answer for a single pre-install check question.
+     * Called via AJAX from the Pre-Install Checks panel on the public survey form.
+     *
+     * Accepts:
+     *   answer     — one of: yes, no, other (required unless saving only other_text)
+     *   other_text — free-text explanation (required when answer=other is being saved; optional on blur)
+     *
+     * Security:
+     *   - Token gates the survey (resolveSurvey)
+     *   - Room must belong to the survey (abort_unless)
+     *   - Question must belong to the room (scoped query with firstOrFail)
+     */
+    public function answerQuestion(Request $request, string $token, SiteSurveyRoom $room, int $question): JsonResponse
+    {
+        $survey = $this->resolveSurvey($token);
+
+        abort_unless($room->site_survey_id === $survey->id, 403);
+        abort_if($survey->isSubmitted(), 403, 'This survey has already been submitted.');
+
+        // Scope question to room — prevents engineers guessing other rooms' question IDs.
+        // Returns 403 (not 404) so the ID existence is not leaked.
+        $questionRecord = SiteSurveyRoomQuestion::where('id', $question)
+            ->where('site_survey_room_id', $room->id)
+            ->first();
+
+        abort_if($questionRecord === null, 403);
+
+        $validated = $request->validate([
+            'answer'     => ['nullable', 'in:yes,no,other'],
+            'other_text' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        // Build update payload: only update fields that are present in the request.
+        $update = [];
+        if (array_key_exists('answer', $validated) && $validated['answer'] !== null) {
+            $update['answer'] = $validated['answer'];
+            // Clear other_text if switching away from 'other'.
+            if ($validated['answer'] !== 'other') {
+                $update['other_text'] = null;
+            }
+        }
+        if (array_key_exists('other_text', $validated)) {
+            $update['other_text'] = $validated['other_text'];
+        }
+
+        if (! empty($update)) {
+            $questionRecord->update($update);
+        }
+
+        $fresh = $questionRecord->fresh();
+
+        return response()->json([
+            'answered'   => $fresh->answer !== null,
+            'answer'     => $fresh->answer,
+            'other_text' => $fresh->other_text,
+        ]);
     }
 
     // ─── Photo upload ────────────────────────────────────────────────────────
