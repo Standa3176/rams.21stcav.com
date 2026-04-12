@@ -64,3 +64,13 @@ Plans:
 - [x] 05-02-PLAN.md — Data persistence (normalisation, validation, controller show/save, generateSurveyRooms, ExtractQuoteJob auto-generation)
 - [x] 05-03-PLAN.md — AJAX endpoints + review form UI (works_overview and description textareas, JS wiring)
 - [x] 05-04-PLAN.md — Document consumer wiring (MethodStatementService scope preference, O&M enrichment)
+
+### Phase 6: RAMS & Document Quality — use content pack to make RAMS scope sections, method statements, and O&M operating procedures fully project-specific
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 5
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 6 to break down)

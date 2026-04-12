@@ -35,6 +35,7 @@ None — all phases complete. Ready for Phase 6 planning.
 - Phase 3 added: Survey Data Integration
 - Phase 4 added: Document generators — Worksheet, O&M Manual, and Cable Schedule generated from ProjectDataService canonical data
 - Phase 5 added: Project Content Pack — single AI call generates scope of works, works overview, and per-room prose descriptions stored in extracted_data for all documents to consume
+- Phase 6 added: RAMS & Document Quality — use content pack to make RAMS scope sections, method statements, and O&M operating procedures fully project-specific
 
 ### Key Decisions (Cross-Phase)
 
