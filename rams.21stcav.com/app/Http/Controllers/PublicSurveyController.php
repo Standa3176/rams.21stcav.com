@@ -173,6 +173,21 @@ class PublicSurveyController extends Controller
         abort_unless($room->site_survey_id === $survey->id, 403);
         abort_if($survey->isSubmitted(), 403, 'This survey has already been submitted.');
 
+        // ── Pre-install check gate (D-05) ─────────────────────────────────────
+        // Block completion if any generated questions are unanswered.
+        // Rooms with no questions are unaffected (D-06: count = 0, guard skipped).
+        $unanswered = $room->questions()->whereNull('answer')->count();
+        if ($unanswered > 0) {
+            $noun = $unanswered === 1
+                ? 'pre-install check question'
+                : 'pre-install check questions';
+            return response()->json([
+                'completed' => false,
+                'blocked'   => true,
+                'message'   => "Please answer all {$unanswered} {$noun} before marking this room complete.",
+            ], 422);
+        }
+
         // Validate and save the room data first (same rules as the save endpoint).
         $data = $this->validatePublicSurvey($request);
 
