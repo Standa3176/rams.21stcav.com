@@ -60,7 +60,7 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Prompt + service layer (extend RoomOverviewSummaryPrompt, ScopeOfWorksPrompt, RoomOverviewSummaryService)
-- [ ] 05-02-PLAN.md — Data persistence (normalisation, validation, controller show/save, generateSurveyRooms, ExtractQuoteJob auto-generation)
-- [ ] 05-03-PLAN.md — AJAX endpoints + review form UI (works_overview and description textareas, JS wiring)
-- [ ] 05-04-PLAN.md — Document consumer wiring (MethodStatementService scope preference, O&M enrichment)
+- [x] 05-01-PLAN.md — Prompt + service layer (extend RoomOverviewSummaryPrompt, ScopeOfWorksPrompt, RoomOverviewSummaryService)
+- [x] 05-02-PLAN.md — Data persistence (normalisation, validation, controller show/save, generateSurveyRooms, ExtractQuoteJob auto-generation)
+- [x] 05-03-PLAN.md — AJAX endpoints + review form UI (works_overview and description textareas, JS wiring)
+- [x] 05-04-PLAN.md — Document consumer wiring (MethodStatementService scope preference, O&M enrichment)

@@ -1,10 +1,10 @@
 # Project State
 
-**Last updated:** 2026-04-11
+**Last updated:** 2026-04-12
 
 ## Current Phase
 
-No active phase — all roadmap phases complete.
+None — all phases complete. Ready for Phase 6 planning.
 
 ## Completed Phases
 
@@ -14,6 +14,7 @@ No active phase — all roadmap phases complete.
 | 02 | QuoteWerks SQL Import | Complete |
 | 03 | Survey Data Integration | Complete |
 | 04 | Document Generators | Complete 2026-04-11 |
+| 05 | Project Content Pack | Complete 2026-04-12 |
 
 ## Quick Tasks Completed
 
@@ -33,6 +34,7 @@ No active phase — all roadmap phases complete.
 - Phase 2 added: QuoteWerks SQL Import
 - Phase 3 added: Survey Data Integration
 - Phase 4 added: Document generators — Worksheet, O&M Manual, and Cable Schedule generated from ProjectDataService canonical data
+- Phase 5 added: Project Content Pack — single AI call generates scope of works, works overview, and per-room prose descriptions stored in extracted_data for all documents to consume
 
 ### Key Decisions (Cross-Phase)
 
@@ -45,3 +47,6 @@ No active phase — all roadmap phases complete.
 - CableScheduleXlsxService::build() updates filename but not status — BuildCableScheduleJob sets STATUS_DRAFT explicitly after build() (04-03)
 - Route ordering: literal segments (generate-from-project) registered before Route::resource wildcard to prevent capture (04-03)
 - Three-state generate button (Generate → Generating spinner → Download) driven by $entry['generate_route'] presence; legacy GET-link branch retained for RAMS and Survey (04-04)
+- Content pack auto-generates at ExtractQuoteJob completion (best-effort try/catch): room description + summary from RoomOverviewSummaryPrompt, works_overview + scope_of_works from ScopeOfWorksPrompt (05)
+- MethodStatementService::buildScope() prefers scope_of_works from reviewed_data before falling back to tasks/classifier/equipment chain (05-04)
+- All AI prompts enforce British English spelling (05-03)
