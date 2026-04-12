@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /**
- * Verifies MethodStatementService returns the static 5-phase fallback when
+ * Verifies MethodStatementService returns the static 6-phase fallback when
  * the AI provider is unavailable (HTTP 500) or returns undecodable JSON.
  */
 class MethodStatementFallbackTest extends TestCase
@@ -45,17 +45,17 @@ class MethodStatementFallbackTest extends TestCase
 
     // ── Tests ─────────────────────────────────────────────────────────────────
 
-    public function test_returns_five_phases_when_ai_returns_http_500(): void
+    public function test_returns_six_phases_when_ai_returns_http_500(): void
     {
         Http::fake(['*' => Http::response('Internal Server Error', 500)]);
 
         $result = $this->service->generate($this->minimalParsedQuote(), $this->minimalClassified());
 
         $this->assertArrayHasKey('phases', $result);
-        $this->assertCount(5, $result['phases']);
+        $this->assertCount(6, $result['phases']);
     }
 
-    public function test_returns_five_phases_when_ai_returns_invalid_json(): void
+    public function test_returns_six_phases_when_ai_returns_invalid_json(): void
     {
         Http::fake(['*' => Http::response([
             'content'     => [['type' => 'text', 'text' => 'not-valid-json{{{']],
@@ -65,10 +65,10 @@ class MethodStatementFallbackTest extends TestCase
         $result = $this->service->generate($this->minimalParsedQuote(), $this->minimalClassified());
 
         $this->assertArrayHasKey('phases', $result);
-        $this->assertCount(5, $result['phases']);
+        $this->assertCount(6, $result['phases']);
     }
 
-    public function test_returns_five_phases_when_ai_returns_empty_phases_array(): void
+    public function test_returns_six_phases_when_ai_returns_empty_phases_array(): void
     {
         Http::fake(['*' => Http::response([
             'content'     => [['type' => 'text', 'text' => json_encode(['phases' => []])]],
@@ -78,7 +78,7 @@ class MethodStatementFallbackTest extends TestCase
         $result = $this->service->generate($this->minimalParsedQuote(), $this->minimalClassified());
 
         $this->assertArrayHasKey('phases', $result);
-        $this->assertCount(5, $result['phases']);
+        $this->assertCount(6, $result['phases']);
     }
 
     public function test_each_fallback_phase_has_a_title_and_steps(): void
@@ -102,10 +102,21 @@ class MethodStatementFallbackTest extends TestCase
             ['title' => 'Phase 2: Installation', 'steps' => ['Mount bracket', 'Hang screen', 'Route cable']],
         ];
 
-        Http::fake(['*' => Http::response([
-            'content'     => [['type' => 'text', 'text' => json_encode(['phases' => $aiPhases])]],
-            'stop_reason' => 'end_turn',
-        ], 200)]);
+        // Mock the ClaudeProvider in the container so AIManager::make() returns it.
+        // This bypasses the AI cache and the live HTTP call entirely.
+        $mockProvider = $this->createMock(\App\Core\AI\Contracts\AIProviderContract::class);
+        $mockProvider->method('execute')->willReturn(['phases' => $aiPhases]);
+        $mockProvider->method('completeJson')->willReturn(['phases' => $aiPhases]);
+        $mockProvider->method('getProviderKey')->willReturn('claude');
+
+        $this->app->bind(\App\Core\AI\Providers\ClaudeProvider::class, fn () => $mockProvider);
+
+        // Also return null from cache so the live call is always attempted.
+        $mockCache = $this->createMock(\App\Services\AICacheService::class);
+        $mockCache->method('hash')->willReturn('test-hash');
+        $mockCache->method('get')->willReturn(null);
+        $mockCache->method('store'); // void return — no willReturn needed
+        $this->app->instance(\App\Services\AICacheService::class, $mockCache);
 
         $result = $this->service->generate($this->minimalParsedQuote(), $this->minimalClassified());
 
