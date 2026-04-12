@@ -130,22 +130,40 @@ class RamsBuilderService
         $risk        = $this->reviewedToRisk($reviewedData, $record->user_id);
         $mergedForm  = $this->mergeReviewedIntoFormData($reviewedData, $formData);
 
-        // Generate fresh AI summaries for each room overview at generation time.
+        // Generate fresh AI summaries only when some room overviews lack a saved summary.
         if (! empty($reviewedData['room_overviews'])) {
-            $reviewedData['room_overviews'] = $this->roomOverviewSummary->summarize(
-                (array) $reviewedData['room_overviews']
+            // Treat non-array entries as "empty summary" so they trigger summarize().
+            $allSummariesPopulated = ! in_array(
+                true,
+                array_map(
+                    fn ($r) => ! is_array($r) || trim((string) ($r['summary'] ?? '')) === '',
+                    $reviewedData['room_overviews']
+                ),
+                true,
             );
 
-            // Persist updated summaries so the review UI shows the latest output.
-            $record->update([
-                'reviewed_data' => array_merge($record->reviewed_data ?? [], [
-                    'room_overviews' => $reviewedData['room_overviews'],
-                ]),
-            ]);
+            if ($allSummariesPopulated) {
+                Log::info('RamsBuilderService::buildFromReview: all room summaries populated, skipping summarize()', [
+                    'record_id' => $record->id,
+                ]);
+            } else {
+                Log::info('RamsBuilderService::buildFromReview: regenerating room summaries (some empty)', [
+                    'record_id' => $record->id,
+                ]);
+                $reviewedData['room_overviews'] = $this->roomOverviewSummary->summarize(
+                    (array) $reviewedData['room_overviews']
+                );
+                // Persist updated summaries so the review UI shows the latest output.
+                $record->update([
+                    'reviewed_data' => array_merge($record->reviewed_data ?? [], [
+                        'room_overviews' => $reviewedData['room_overviews'],
+                    ]),
+                ]);
+            }
 
             $parsedQuote['room_overviews'] = $reviewedData['room_overviews'];
             $parsedQuote['rooms'] = array_values(array_map(
-                fn ($r) => (string) ($r['room'] ?? ''),
+                fn ($r) => is_array($r) ? (string) ($r['room'] ?? '') : '',
                 $reviewedData['room_overviews'],
             ));
         }
@@ -248,16 +266,18 @@ class RamsBuilderService
         ));
 
         return [
-            'client'        => (string) ($rd['project']['client_name']  ?? ''),
-            'site'          => (string) ($rd['project']['site_address']  ?? ''),
-            'ref'           => (string) ($rd['project']['quote_ref']     ?? ''),
-            'project_name'  => (string) ($rd['project']['project_name']  ?? ''),
-            'works_summary' => $notes,
-            'equipment'     => $equipment,
-            'tasks'         => $notes !== '' ? [$notes] : [],
-            'rooms'         => $rooms,
-            'room_overviews'=> $roomOverviews,
-            'confidence'    => 1.0,
+            'client'         => (string) ($rd['project']['client_name']  ?? ''),
+            'site'           => (string) ($rd['project']['site_address']  ?? ''),
+            'ref'            => (string) ($rd['project']['quote_ref']     ?? ''),
+            'project_name'   => (string) ($rd['project']['project_name']  ?? ''),
+            'works_summary'  => $notes,
+            'equipment'      => $equipment,
+            'tasks'          => $notes !== '' ? [$notes] : [],
+            'rooms'          => $rooms,
+            'room_overviews' => $roomOverviews,
+            'confidence'     => 1.0,
+            'scope_of_works' => trim((string) ($rd['scope_of_works'] ?? '')),
+            'works_overview' => trim((string) ($rd['works_overview']  ?? '')),
         ];
     }
 
