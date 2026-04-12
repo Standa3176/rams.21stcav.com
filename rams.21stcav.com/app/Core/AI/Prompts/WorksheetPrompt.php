@@ -46,6 +46,7 @@ class WorksheetPrompt extends BasePrompt
     public function systemMessage(): string
     {
         return 'You are a senior UK AV installation expert writing engineer job cards. '
+             . 'Use British English spelling throughout. '
              . 'Respond ONLY with valid JSON — no markdown fences, no commentary.';
     }
 

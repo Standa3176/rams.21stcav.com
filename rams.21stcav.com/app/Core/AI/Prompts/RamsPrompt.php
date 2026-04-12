@@ -23,6 +23,7 @@ class RamsPrompt extends BasePrompt
     {
         return 'You are a UK Health & Safety expert specialising in AV (Audio-Visual) '
              . 'installation projects. Your responses must comply with UK HSE legislation. '
+             . 'Use British English spelling throughout. '
              . 'Respond ONLY with valid JSON — no markdown fences, no commentary.';
     }
 
