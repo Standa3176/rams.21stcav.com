@@ -223,6 +223,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('site-surveys', SiteSurveyController::class)
         ->only(['index', 'create', 'store', 'show', 'edit', 'update', 'destroy']);
     Route::post('site-surveys/{siteSurvey}/complete',                           [SiteSurveyController::class, 'complete'])          ->name('site-surveys.complete');
+    Route::post('site-surveys/{siteSurvey}/rooms/{room}/questions/{question}',  [SiteSurveyController::class, 'answerQuestion'])     ->name('site-survey.question.answer');
     Route::post('site-surveys/{id}/restore',                                    [SiteSurveyController::class, 'restore'])            ->name('site-surveys.restore');
     Route::delete('site-surveys/{id}/force-destroy',                            [SiteSurveyController::class, 'forceDestroy'])       ->name('site-surveys.force-destroy');
     Route::post('site-surveys/{siteSurvey}/rooms/{room}/photos',                [SiteSurveyController::class, 'uploadPhoto'])    ->name('site-surveys.photos.upload')->middleware('throttle:30,1');
