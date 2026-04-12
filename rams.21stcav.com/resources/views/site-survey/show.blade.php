@@ -580,7 +580,7 @@
             @if($room->ceiling_type)
             <tr>
                 <td>Ceiling</td>
-                <td>{{ ucfirst($room->ceiling_type) }}@if($room->ceiling_height_m) — {{ $room->ceiling_height_m }}m@endif</td>
+                <td>{{ ucfirst($room->ceiling_type) }}{{ $room->ceiling_height_m ? ' — ' . $room->ceiling_height_m . 'm' : '' }}</td>
             </tr>
             @endif
             @if($room->wall_material)

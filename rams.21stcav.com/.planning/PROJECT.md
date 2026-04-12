@@ -2,7 +2,7 @@
 
 ## What This Is
 
-An internal operations platform for 21st Century AV Ltd that manages the full lifecycle of AV installation projects. Starting from a quoted job, it flows through site survey, engineering review, and generates all compliance and technical documents (RAMS, Worksheets, O&M Manuals, Cable Schedules) from a single unified dataset. No duplicated data, no AI guessing — every output is driven by structured project data.
+An internal operations platform for 21st Century AV Ltd that manages the full lifecycle of AV installation projects. Starting from a quoted job (PDF or QuoteWerks SQL), it flows through site survey, AI-assisted engineering review, and generates all compliance and technical documents (RAMS, Worksheets, O&M Manuals, Cable Schedules) from a single unified dataset. No duplicated data, no AI guessing — every output is driven by structured project data.
 
 ## Core Value
 
@@ -10,7 +10,7 @@ One dataset powers every document. Engineers capture real-world data, quotes pro
 
 ## Requirements
 
-### Validated
+### Validated (v1.0)
 
 - ✓ QuoteWerks PDF upload, text extraction, and structured parsing — existing
 - ✓ Two-phase extraction pipeline (extracted_data → reviewed_data) — existing
@@ -22,62 +22,65 @@ One dataset powers every document. Engineers capture real-world data, quotes pro
 - ✓ Equipment classification and hazard template resolution — existing
 - ✓ AI response caching and usage tracking — existing
 - ✓ Role-based access (admin/user) with policy-based authorization — existing
+- ✓ **PROJ-01–05**: `projects` table as top-level entity with lifecycle state machine, quote reference versioning, client/site linking — v1.0
+- ✓ **DATA-01–03, DATA-05**: `ProjectDataService` 4-tier canonical merge (reviewed_data > survey_data > quotewerks_sql > extracted_data) powering all generators — v1.0
+- ✓ **QWSQL-01–07**: QuoteWerks SQL import pipeline — named DB connection, QuoteWerksRepository, import service, health check command — v1.0
+- ✓ **SURV-01–05**: Survey data integrated into ProjectDataService, global site data captured, submission timestamps, external token access — v1.0
+- ✓ **WORK-01–04**: Worksheet DOCX generator, room-by-room install steps, queue-based — v1.0
+- ✓ **OM-01–04**: O&M Manual DOCX generator, equipment-driven, queue-based — v1.0
+- ✓ **CABLE-01–04**: Cable Schedule XLSX generator, queue-based — v1.0
+- ✓ **RAMS-01–03**: RAMS generator consuming ProjectDataService via content pack, AI for method statements only — v1.0
+- ✓ AI content pack — single Claude call generates room scope narratives for RAMS enrichment — v1.0
+- ✓ Dynamic AI-generated pre-install check questions per survey room (Phase 07) — v1.0
 
 ### Active
 
-#### Project Layer
-- [ ] **PROJ-01**: New `projects` table as single source of truth (name, client, site address, quote reference with versioning)
-- [ ] **PROJ-02**: All systems linked via `project_id` (RAMS, surveys, worksheets, O&M, cable schedules)
-- [ ] **PROJ-03**: Project dashboard showing all related records and lifecycle state
-- [ ] **PROJ-04**: Project lifecycle state machine (quote_imported → survey_pending → engineering → installing → commissioning → handover → completed → archived)
+#### Enterprise Dashboard
+- [ ] **DASH-01**: Real-time project status dashboard with health indicators across all active projects
+- [ ] **DASH-02**: Overdue survey, generation pending, and blocked project alerts
+- [ ] **DASH-03**: Admin view of AI usage, token consumption, and generation costs
 
-#### Unified Data Model
-- [ ] **DATA-01**: `ProjectDataService` that merges extracted_data, reviewed_data, and survey_data into a normalized dataset
-- [ ] **DATA-02**: Canonical data structure: `{ project, equipment, rooms, activities, risks, survey_data }`
-- [ ] **DATA-03**: All generators consume from `ProjectDataService` — no direct data access
-- [ ] **DATA-04**: Data confidence tracking per record (`data_source: pdf|quotewerks`, `confidence: 0.0-1.0`)
+#### Document Quality & Notifications
+- [ ] **NOTF-01**: Email notification when document generation completes
+- [ ] **NOTF-02**: Email notification when external survey is submitted
+- [ ] **QUAL-01**: RAMS document quality score shown to engineer before download
+- [ ] **QUAL-02**: Data confidence indicators per room/equipment (surface DATA-04 partial implementation)
 
-#### QuoteWerks SQL Import
-- [ ] **QWSQL-01**: `QuoteWerksImportService` connecting to remote MS SQL (read-only, direct connection via VPN)
-- [ ] **QWSQL-02**: Pull header data, line items, and room/group structure from QuoteWerks database
-- [ ] **QWSQL-03**: Map SQL data into identical `extracted_data` structure as PDF import
-- [ ] **QWSQL-04**: Dual input system — both PDF and SQL imports produce identical output format
-- [ ] **QWSQL-05**: SQL connection configured via `.env` with no frontend exposure
+#### Worksheet Generator Enhancements
+- [ ] **WORK-05**: Worksheet includes pre-install check question answers per room
+- [ ] **WORK-06**: Worksheet generation triggered from project dashboard (not just manual API)
 
-#### Site Survey Enhancements
-- [ ] **SURV-01**: External users (clients/subcontractors) can fill surveys via token link
-- [ ] **SURV-02**: Per-room data capture: displays, audio systems, cable routes, power/network, mounting constraints, access limitations
-- [ ] **SURV-03**: Global survey data: site risks, H&S notes, constraints
-- [ ] **SURV-04**: Draft save and submission with timestamps
-- [ ] **SURV-05**: Survey data feeds into `ProjectDataService` for all generators
+#### Installation & Programme
+- [ ] **PROG-01**: Installation task list generated from project data (room-by-room, equipment-driven)
+- [ ] **PROG-01**: Programme of works view showing install sequence
 
-#### Document Generators
-- [ ] **RAMS-01**: Refine existing RAMS generator to consume from `ProjectDataService` (survey data + structured equipment/activities)
-- [ ] **WORK-01**: Worksheet generator — room-by-room install steps, equipment lists, cable routes, constraints (DOCX format)
-- [ ] **WORK-02**: Worksheets derived entirely from structured project + survey data (no AI guessing)
-- [ ] **OM-01**: O&M Manual generator — equipment schedules, system descriptions, maintenance guidance, asset register (DOCX format)
-- [ ] **OM-02**: O&M content is equipment-driven, no generic filler, only installed systems
-- [ ] **CABLE-01**: Cable Schedule generator — cable type, from/to, length, route notes (XLSX format)
-- [ ] **CABLE-02**: Cable data derived from equipment relationships and survey inputs
+#### Bitrix24 Integration
+- [ ] **BIT-01**: OAuth 2.0 connection to Bitrix24 workspace
+- [ ] **BIT-02**: Project creation in Bitrix24 on RAMS project creation
+- [ ] **BIT-03**: Document links pushed to Bitrix24 deal/task on generation
+- [ ] **BIT-04**: Survey submission triggers Bitrix24 task update
 
 ### Out of Scope
 
-- Mobile native app — web-based mobile survey is sufficient for now
-- Real-time collaboration — single-user editing per survey/review session
-- Client portal — external users only access surveys via token links
-- Automated quote generation — system consumes quotes, doesn't create them
-- Integration with project management tools (MS Project, etc.) — not needed yet
-- Multi-tenancy — single-company system for 21st Century AV
+- Mobile native app — responsive web sufficient for survey forms on tablets
+- Real-time collaboration — single-user editing per session matches workflow
+- Client portal — external users access surveys via token links only
+- AI-invented scope/equipment/design — regulatory and liability risk; AI formats only
+- In-app DOCX/XLSX editor — generate, download, edit locally; re-generate if source changes
+- Bi-directional QuoteWerks sync — read-only SQL, never write back
+- Multi-tenancy — single-company platform for 21st Century AV
+- Project scheduling (Gantt) — lifecycle state machine is sufficient
+- Full-text search across documents — project name/client/ref search is sufficient at current scale
 
 ## Context
 
-- **Existing codebase**: Laravel 12, PHP 8.2+, MySQL, Blade/Tailwind/Alpine.js
-- **AI stack**: Claude (default) + OpenAI via AIManager abstraction, structured JSON only
-- **Document generation**: PHPWord (DOCX), DomPDF/mPDF (PDF), needs PhpSpreadsheet for XLSX
-- **Current state**: RAMS pipeline fully functional, site survey system has significant infrastructure, O&M and cable schedule services partially scaffolded
-- **Key model**: `ProjectPackage` currently serves as the parsed quote container — will work alongside new `Project` model
-- **QuoteWerks SQL**: Remote MS SQL database accessible via VPN/direct connection, read-only access
-- **External survey users**: Clients and subcontractors receive UUID token links, no authentication required
+- **Shipped v1.0:** 7 phases, 29 plans — full RAMS pipeline from quote import through document generation
+- **Codebase:** Laravel 12, PHP 8.2+, MySQL, Blade/Tailwind/Alpine.js, ~212 commits
+- **AI stack:** Claude (default) + OpenAI via AIManager abstraction — structured JSON only, cached
+- **Document generation:** PHPWord (DOCX worksheets/RAMS/O&M), PhpSpreadsheet (XLSX cable schedules), DomPDF/mPDF (PDF)
+- **Current state post-v1.0:** All core document generators shipped, site survey system fully operational with AI pre-install questions, QuoteWerks SQL import working, content pack enriching RAMS quality
+- **Tech debt:** DATA-04 confidence scoring (per-field source annotation) partially implemented — designed in ProjectDataService but no UI surface yet; Phase 07 RED test stubs not greened
+- **Next milestone focus:** Enterprise-grade dashboard, notifications, Bitrix24 integration, installation programme
 
 ## Constraints
 
@@ -92,11 +95,15 @@ One dataset powers every document. Engineers capture real-world data, quotes pro
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| New `projects` table separate from `project_packages` | Projects are the top-level entity; packages are one input source | — Pending |
-| Direct SQL connection to QuoteWerks (not API) | VPN available, simpler than building intermediary service | — Pending |
-| Token-only access for external survey users | Simplicity; no account management overhead for one-off surveys | — Pending |
-| Cable schedules as XLSX, everything else DOCX | Engineers need cable data in spreadsheet format for field use | — Pending |
-| ProjectDataService as single data merge point | Prevents each generator from independently resolving data, ensures consistency | — Pending |
+| `projects` table separate from `project_packages` | Projects are top-level entity; packages are one input source | ✓ Good — clean separation in use |
+| ProjectDataService 4-tier merge (reviewed > survey > sql > extracted > defaults) | Single canonical data point prevents each generator resolving independently | ✓ Good — all generators use it |
+| Direct SQL connection to QuoteWerks (not API) | VPN available, simpler than building intermediary service | ✓ Good — working pipeline |
+| Token-only access for external survey users | Simplicity; no account management overhead for one-off surveys | ✓ Good — UUID tokens working |
+| Cable schedules as XLSX, everything else DOCX | Engineers need cable data in spreadsheet format for field use | ✓ Good |
+| AI content pack via single Claude call per project | Avoids per-room AI calls; generates all room narratives in one structured response | ✓ Good — fast and cost-efficient |
+| AI questions dispatched async via Job on survey create | Non-blocking; survey creation succeeds even if AI call fails | ✓ Good — silent failure pattern working |
+| SurveyQuestionsPrompt temperature 0.2 | Consistent, practical questions — not creative responses | ✓ Good |
+| Bitrix24 integration | CRM/task management link for project delivery visibility | — Planned for v1.1 |
 
 ## Evolution
 
@@ -116,4 +123,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-09 after initialization*
+*Last updated: 2026-04-12 after v1.0 milestone*
