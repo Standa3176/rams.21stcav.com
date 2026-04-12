@@ -106,8 +106,10 @@ class ReviewWorkflowTest extends TestCase
         $record = $this->makeRecord($user);
 
         // Create a fake PDF file so the job's file-exists guard passes.
+        // Use the relative path — the job calls Storage::disk('local')->path($filename)
+        // to resolve it, so storing an absolute path would cause double-resolution.
         Storage::disk('local')->put('rams/uploads/test.pdf', '%PDF-1.4 fake content');
-        $fakePath = Storage::disk('local')->path('rams/uploads/test.pdf');
+        $fakePath = 'rams/uploads/test.pdf';  // relative key, not absolute path
 
         $record->update([
             'filename'  => $fakePath,
@@ -259,7 +261,7 @@ class ReviewWorkflowTest extends TestCase
         $this->assertEquals(RamsDocument::STATUS_AWAITING_REVIEW, $record->status);
     }
 
-    public function test_review_update_blocked_when_already_completed(): void
+    public function test_review_update_resets_completed_record_to_awaiting_review(): void
     {
         $user   = $this->makeUser();
         $record = $this->makeRecord($user, [
@@ -271,8 +273,12 @@ class ReviewWorkflowTest extends TestCase
             $this->buildFormPost($this->validReviewPayload()),
         );
 
-        $response->assertRedirect();
-        $response->assertSessionHas('error');
+        // Completed records are allowed to be re-edited; the controller resets
+        // status to awaiting_review rather than blocking the update.
+        $response->assertRedirect(route('rams.quote-review.show', $record));
+
+        $record->refresh();
+        $this->assertEquals(RamsDocument::STATUS_AWAITING_REVIEW, $record->status);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -340,13 +346,12 @@ class ReviewWorkflowTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 5. Approve sets approved_at, approved_by, status, dispatches job
+    // 5. Approve sets approved_at, approved_by, status
+    //    (Generation is dispatched separately via the "Generate" button)
     // ─────────────────────────────────────────────────────────────────────────
 
-    public function test_approve_sets_approved_metadata_and_dispatches_generation_job(): void
+    public function test_approve_sets_approved_metadata(): void
     {
-        Bus::fake();
-
         $user   = $this->makeUser();
         $record = $this->makeRecord($user, [
             'status' => RamsDocument::STATUS_AWAITING_REVIEW,
@@ -357,20 +362,17 @@ class ReviewWorkflowTest extends TestCase
             $this->buildFormPost($this->validReviewPayload()),
         );
 
+        // Record has no project_id, so controller redirects to rams.index.
         $response->assertRedirect(route('rams.index'));
         $response->assertSessionHas('success');
 
         $record->refresh();
 
-        $this->assertEquals(RamsDocument::STATUS_APPROVED_FOR_GENERATION, $record->status);
+        $this->assertEquals(RamsDocument::STATUS_APPROVED, $record->status);
         $this->assertNotNull($record->approved_at);
         $this->assertEquals($user->id, $record->approved_by);
         $this->assertNotNull($record->reviewed_data);
         $this->assertEquals('reviewed', $record->reviewed_data['meta']['source']);
-
-        Bus::assertDispatched(BuildRamsDocumentJob::class, function ($job) use ($record) {
-            return $job->ramsDocumentId === $record->id;
-        });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
