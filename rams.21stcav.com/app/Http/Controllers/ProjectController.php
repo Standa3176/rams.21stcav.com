@@ -28,7 +28,7 @@ class ProjectController extends Controller
         $client      = $request->input('client');
 
         if ($showDeleted) {
-            $projects     = Project::onlyTrashed()->with(['user'])->latest('deleted_at')->paginate(20)->withQueryString();
+            $projects     = Project::onlyTrashed()->with(['owner'])->latest('deleted_at')->paginate(20)->withQueryString();
             $statusCounts = collect();
             $clients      = collect();
             return view('projects.index', compact('projects', 'statusCounts', 'status', 'search', 'isAdmin', 'showDeleted', 'clients', 'client'));
