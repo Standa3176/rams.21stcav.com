@@ -61,14 +61,31 @@ class ExtractRamsDraftJob implements ShouldQueue
             return;
         }
 
-        // ── Resolve PDF path from the record's filename column ────────────────
+        // ── Guard 1: filename must be set ─────────────────────────────────────
+        if (! $record->filename) {
+            $errorMessage = 'No stored PDF path on record — cannot extract.';
+
+            Log::error('ExtractRamsDraftJob: filename is null', [
+                'record_id' => $this->ramsDocumentId,
+            ]);
+
+            $record->update([
+                'status'        => RamsDocument::STATUS_FAILED,
+                'error_message' => $errorMessage,
+            ]);
+
+            $this->fail(new \RuntimeException($errorMessage));
+
+            return;
+        }
+
+        // ── Guard 2: resolve path and check existence ─────────────────────────
         // QuoteUploadController stores the relative path in filename.
         // Storage::path() resolves it to the absolute filesystem path.
         // form_data is never used for the file path.
         $filePath = Storage::disk('local')->path($record->filename);
 
-        // ── File path guard ───────────────────────────────────────────────────
-        if (! $record->filename || ! file_exists($filePath)) {
+        if (! file_exists($filePath)) {
             $errorMessage = "Stored PDF not found or unreadable: {$filePath}";
 
             Log::error('ExtractRamsDraftJob: stored PDF not found', [

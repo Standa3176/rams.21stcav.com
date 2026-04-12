@@ -4,6 +4,9 @@ namespace App\Core\Modules\QuoteImport;
 
 use Illuminate\Support\Facades\DB;
 
+// Note: DB facade is retained for DB::connection() — DB::raw() has been removed from
+// all query methods so that unit-test mocks do not need to stub raw().
+
 /**
  * QuoteWerksRepository — read-only SQL Server queries against the QuoteWerks database.
  *
@@ -36,12 +39,12 @@ class QuoteWerksRepository
     {
         $row = DB::connection($this->connection)
             ->table('DocumentHeaders')
-            ->select(DB::raw(
-                '[DocNo], [SoldToCompanyName], [SoldToAddress1], [SoldToAddress2], '
-                . '[SoldToCity], [SoldToState], [SoldToPostalCode], [DocDate], '
-                . '[Subject], [TotalSalePrice]'
-            ))
-            ->whereRaw('[DocNo] = ?', [$reference])
+            ->select([
+                '[DocNo]', '[SoldToCompanyName]', '[SoldToAddress1]', '[SoldToAddress2]',
+                '[SoldToCity]', '[SoldToState]', '[SoldToPostalCode]', '[DocDate]',
+                '[Subject]', '[TotalSalePrice]',
+            ])
+            ->where('[DocNo]', $reference)
             ->first();
 
         if ($row === null) {
@@ -60,11 +63,11 @@ class QuoteWerksRepository
     {
         $rows = DB::connection($this->connection)
             ->table('DocumentItems')
-            ->select(DB::raw(
-                '[DocNo], [ItemType], [ManufacturerPartNumber], [Description], '
-                . '[Quantity], [UnitPrice], [TotalPrice], [GroupName]'
-            ))
-            ->whereRaw('[DocNo] = ?', [$docNo])
+            ->select([
+                '[DocNo]', '[ItemType]', '[ManufacturerPartNumber]', '[Description]',
+                '[Quantity]', '[UnitPrice]', '[TotalPrice]', '[GroupName]',
+            ])
+            ->where('[DocNo]', $docNo)
             ->get()
             ->toArray();
 
@@ -80,18 +83,18 @@ class QuoteWerksRepository
     {
         $query = DB::connection($this->connection)
             ->table('DocumentHeaders')
-            ->select(DB::raw(
-                '[DocNo], [SoldToCompanyName], [SoldToAddress1], [SoldToCity], '
-                . '[DocDate], [Subject], [TotalSalePrice]'
-            ))
-            ->whereRaw('[SoldToCompanyName] LIKE ?', ["%{$clientName}%"]);
+            ->select([
+                '[DocNo]', '[SoldToCompanyName]', '[SoldToAddress1]', '[SoldToCity]',
+                '[DocDate]', '[Subject]', '[TotalSalePrice]',
+            ])
+            ->where('[SoldToCompanyName]', 'LIKE', "%{$clientName}%");
 
         if ($dateFrom !== null) {
-            $query->whereRaw('[DocDate] >= ?', [$dateFrom]);
+            $query->where('[DocDate]', '>=', $dateFrom);
         }
 
         $rows = $query
-            ->orderByRaw('[DocDate] DESC')
+            ->orderByDesc('[DocDate]')
             ->limit(20)
             ->get()
             ->toArray();
@@ -112,15 +115,17 @@ class QuoteWerksRepository
             'doc_no'       => $this->str($row['DocNo'] ?? ''),
             'client_name'  => $this->str($row['SoldToCompanyName'] ?? ''),
             'site_address' => trim(implode(', ', array_filter([
-                $this->str($row['SoldToAddress1'] ?? ''),
-                $this->str($row['SoldToAddress2'] ?? ''),
-                $this->str($row['SoldToCity'] ?? ''),
-                $this->str($row['SoldToState'] ?? ''),
-                $this->str($row['SoldToPostalCode'] ?? ''),
+                $this->str($row['SoldToAddress1'] ?? $row['ShipToAddress1'] ?? ''),
+                $this->str($row['SoldToAddress2'] ?? $row['ShipToAddress2'] ?? ''),
+                $this->str($row['SoldToCity'] ?? $row['ShipToCity'] ?? ''),
+                $this->str($row['SoldToState'] ?? $row['ShipToState'] ?? ''),
+                $this->str($row['SoldToPostalCode'] ?? $row['ShipToPostalCode'] ?? ''),
             ]))),
             'doc_date'     => $row['DocDate'] ?? null,
             'subject'      => $this->str($row['Subject'] ?? ''),
             'total_price'  => (float) ($row['TotalSalePrice'] ?? 0),
+            'sales_person' => $this->str($row['SalesPerson'] ?? ''),
+            'notes'        => $this->str($row['Notes'] ?? ''),
         ];
     }
 
@@ -138,6 +143,7 @@ class QuoteWerksRepository
             'unit_price'  => (float) ($row['UnitPrice'] ?? 0),
             'total_price' => (float) ($row['TotalPrice'] ?? 0),
             'group_name'  => $this->str($row['GroupName'] ?? ''),
+            'sort_order'  => (int) ($row['SortOrder'] ?? 0),
         ];
     }
 

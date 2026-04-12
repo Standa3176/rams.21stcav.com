@@ -57,15 +57,17 @@ class QuoteWerksImportService
             'item_count' => count($items),
         ]);
 
+        $subject = $header['subject'] ?? '';
+
         return $this->importService->importFromData($user, [
-            'client_name'     => $header['client_name'],
-            'site_address'    => $header['site_address'],
-            'ref'             => $header['doc_no'],
-            'name'            => $header['subject'] ?: ($header['doc_no'] . ' — ' . $header['client_name']),
-            'works_description' => $header['subject'],
-            'equipment_list'  => $extractedData['equipment_list'],
-            'cable_list'      => [],
-            'extracted_data'  => $extractedData,
+            'client_name'       => $header['client_name']  ?? '',
+            'site_address'      => $header['site_address'] ?? '',
+            'ref'               => $header['doc_no']       ?? '',
+            'name'              => $subject ?: (($header['doc_no'] ?? '') . ' — ' . ($header['client_name'] ?? '')),
+            'works_description' => $subject,
+            'equipment_list'    => $extractedData['equipment_list'],
+            'cable_list'        => [],
+            'extracted_data'    => $extractedData,
         ]);
     }
 
@@ -114,8 +116,8 @@ class QuoteWerksImportService
                 'area'        => $item['group_name'],
                 'location'    => $item['group_name'],
                 'category'    => $this->classifyDescription($item['description']),
-                'unit_price'  => $item['unit_price'],
-                'total_price' => $item['total_price'],
+                'unit_price'  => $item['unit_price']  ?? 0.0,
+                'total_price' => $item['total_price'] ?? 0.0,
                 'data_source' => 'quotewerks',
                 'confidence'  => 0.95,
             ];
@@ -127,14 +129,14 @@ class QuoteWerksImportService
         )));
 
         return [
-            'qw_number'         => $header['doc_no'],
-            'quote_ref'         => $header['doc_no'],
-            'client_name'       => $header['client_name'],
-            'site_address'      => $header['site_address'],
-            'project_name'      => $header['subject'] ?: $header['doc_no'],
-            'works_description' => $header['subject'],
-            'doc_date'          => $header['doc_date'],
-            'total_price'       => $header['total_price'],
+            'qw_number'         => $header['doc_no']       ?? '',
+            'quote_ref'         => $header['doc_no']       ?? '',
+            'client_name'       => $header['client_name']  ?? '',
+            'site_address'      => $header['site_address'] ?? '',
+            'project_name'      => ($header['subject'] ?? '') ?: ($header['doc_no'] ?? ''),
+            'works_description' => $header['subject']      ?? '',
+            'doc_date'          => $header['doc_date']     ?? null,
+            'total_price'       => $header['total_price']  ?? 0.0,
             'equipment'         => $equipment,
             'equipment_list'    => $equipment,
             'line_items'        => $equipment,
