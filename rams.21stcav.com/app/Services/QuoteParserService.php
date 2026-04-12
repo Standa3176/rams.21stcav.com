@@ -1641,6 +1641,24 @@ class QuoteParserService
             if ($qty <= 0.0 && $qtyFromDescBlock > 0.0) {
                 $qty = $qtyFromDescBlock;
             }
+
+            // Trailing-qty fallback: when QTYSTART block is empty, try extracting
+            // a trailing decimal number from the PARTDESC cleaned text.
+            // e.g. "Logitech Rally Conference Camera 1.00" → qty=1, strip "1.00"
+            if ($qty <= 0.0 && preg_match('/^(.*?)\s+(\d+(?:\.\d+)?)\s*$/s', $rawDesc, $tqm)) {
+                $trailingQty = (float) $tqm[2];
+                if ($trailingQty > 0.0) {
+                    $qty     = $trailingQty;
+                    $rawDesc = trim($tqm[1]);
+                    // Also update descFromDescBlock so the cleaned description is used downstream.
+                    if ($descFromDescBlock !== '') {
+                        if (preg_match('/^(.*?)\s+(\d+(?:\.\d+)?)\s*$/s', $descFromDescBlock, $dfm)) {
+                            $descFromDescBlock = trim($dfm[1]);
+                        }
+                    }
+                }
+            }
+
             if ($partNum === '' && $partFromDescBlock !== '') {
                 $partNum = $partFromDescBlock;
             }
@@ -2216,11 +2234,19 @@ class QuoteParserService
             return '';
         }
 
+        // Dot-separated numeric part numbers (e.g. 910.1995.900) — has dots and
+        // digits but no alpha chars. Accept when the value contains at least one
+        // dot and at least one digit and is not purely integer (which is covered
+        // by $allDigit above).
+        $hasDot       = str_contains($raw, '.');
+        $dotNumeric   = $hasDot && $hasD && ! $hasA && ! $allDigit;
+
         return (
             $hasH
             || ($hasD && $hasA)
             || ($allDigit && strlen($raw) >= 4)
             || $allUpperAlpha
+            || $dotNumeric
         ) ? $raw : '';
     }
 
@@ -2915,11 +2941,9 @@ class QuoteParserService
                 continue;
             }
 
-            $existingQty = (int) ($deduped[$key]['qty'] ?? 1);
-            $newQty      = (int) ($item['qty'] ?? 1);
-            if ($newQty > 0) {
-                $deduped[$key]['qty'] = $existingQty + $newQty;
-            }
+            // Duplicate row — keep the first occurrence's qty (do not sum).
+            // Same part number in the same area means the duplicate is an OCR
+            // or PDF-layout artifact, not a genuinely additional quantity.
 
             $existingDesc = (string) ($deduped[$key]['description'] ?? '');
             $newDesc      = (string) ($item['description'] ?? '');
