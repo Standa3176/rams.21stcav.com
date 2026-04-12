@@ -67,10 +67,11 @@ Plans:
 
 ### Phase 6: RAMS & Document Quality — use content pack to make RAMS scope sections, method statements, and O&M operating procedures fully project-specific
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** RAMS PDFs, method statements, and worksheets are fully project-specific — using pre-generated scope_of_works, works_overview, and per-room description from the content pack, with redundant AI summarize() calls eliminated
+**Requirements**: QUAL-01, QUAL-02, QUAL-03, QUAL-04
 **Depends on:** Phase 5
-**Plans:** 0 plans
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 6 to break down)
+- [ ] 06-01-PLAN.md — Service + prompt enrichment (RamsBuilderService skip guard, MethodStatementService/Prompt, WorksheetGeneratorService/Prompt)
+- [ ] 06-02-PLAN.md — RAMS PDF scope conditional (rams.blade.php — scope_of_works exclusive display, empty notice)
