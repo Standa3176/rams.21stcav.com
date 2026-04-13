@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Installation Programme & Field Management
-status: defining requirements
+status: requirements defined — ready to plan phases
 last_updated: "2026-04-13"
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,10 +21,10 @@ See: .planning/PROJECT.md (updated 2026-04-13)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Not started (planning Phase 12 next)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-04-13 — Milestone v1.2 started
+Status: Requirements defined — ready to plan phases
+Last activity: 2026-04-13 — v1.2 requirements written, ROADMAP.md updated, research synthesised
 
 ## Milestone v1.0 Complete
 
