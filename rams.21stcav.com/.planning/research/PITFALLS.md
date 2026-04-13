@@ -1,155 +1,151 @@
-# Domain Pitfalls
+# Domain Pitfalls — v1.2 Installation Programme & Field Management
 
-**Domain:** AV Operations Platform — MS SQL Integration, Unified Data Model, Multi-Format Document Generation
-**Researched:** 2026-04-09
-**Confidence:** HIGH (derived from codebase analysis + established Laravel/SQL Server patterns)
+**Project:** RAMS Platform — 21st Century AV
+**Researched:** 2026-04-13
+**Scope:** Adding task management, mobile field features, and time tracking to existing Laravel 12 / Blade / Alpine.js platform
+**Confidence:** HIGH for iOS/timezone/canvas issues (documented library bugs); MEDIUM for task-generation and scheduling patterns (field service community evidence)
 
 ---
 
 ## Critical Pitfalls
 
-Mistakes in this category cause rewrites, data loss, or silent corruption of existing documents.
+Mistakes that cause rewrites, data corruption, or client-facing failures.
 
 ---
 
-### Pitfall C1: MS SQL Driver Mismatch Between Dev and Production
+### Pitfall C1: Task Generation From Wrong Data Tier
 
-**What goes wrong:** The `sqlsrv` PHP extension (Windows-native) and `pdo_dblib` (Linux/FreeBSD via unixODBC) are entirely different drivers. Code that works on a Windows dev machine using `sqlsrv` will silently fail to connect on a Linux production server that lacks the Microsoft ODBC Driver for SQL Server. The default Laravel `sqlsrv` connection stanza in `config/database.php` assumes the Windows driver. The production environment is unverified.
+**What goes wrong:** Auto-generated install tasks are derived from `extracted_data` (AI-parsed PDF output) or the raw `equipment_list` column rather than from `reviewed_data` (post-engineering-review). The quote data reflects what was commercially offered — not what will be physically installed. Substitutions, provisional items, and speculative quantities all live in `extracted_data`.
 
-**Why it happens:** The QuoteWerks SQL server is Windows-based (QuoteWerks is a Windows application). Developers test on Windows. The production server may be Linux (common for Laravel deployments). The two environments require completely different PHP extensions, and the failure mode at connection time is a generic PDO exception — not a driver-specific error message.
+**Why it happens:** `extracted_data` is the most accessible field on `ProjectPackage` and is tempting to use directly. The `ProjectDataService` 4-tier merge exists precisely to handle this, but developers unfamiliar with the system bypass it for simplicity.
 
-**Consequences:** All `QuoteWerksImportService` calls fail in production. Worse, if the connection is wrapped in a try/catch that returns empty data, the failure silently degrades to the PDF fallback with no alert to operators.
-
-**Warning signs:**
-- `could not find driver` or `SQLSTATE[HY000]` errors in production logs while dev works fine
-- PHP info page shows `sqlsrv` loaded on Windows but no `pdo_odbc` or `pdo_dblib` on Linux
-- CI/CD pipeline has no ODBC driver installation step
+**Consequences:** Engineers arrive on site with tasks for items that won't be installed, or missing tasks for site-added items. Commissioning checklists are built against the wrong equipment list. Client sign-off is obtained against incorrect scope. This directly contradicts the platform's core value: "no AI guessing — every output is driven by structured project data."
 
 **Prevention:**
-- Before writing `QuoteWerksImportService`, verify the production PHP environment: run `php -m | grep -i sql` on the production server.
-- If Linux: install `msodbcsql18` + `php8.2-sqlsrv` (Microsoft's official Linux ODBC driver). Document this as a server prerequisite.
-- If using `pdo_dblib` (older approach via FreeTDS): note that it does not support Windows Authentication and has known charset issues with QuoteWerks data (often Windows-1252 encoded).
-- Add a `QUOTEWERKS_DB_DRIVER` env var and validate it on first connection attempt with a meaningful error message, not a generic PDO exception.
-- Add a health-check artisan command (`php artisan quotewerks:ping`) that tests the connection independently of document generation.
+- Generate tasks only via `ProjectDataService` (which enforces `reviewed_data > survey_data > quotewerks_sql > extracted_data` priority) — never directly from raw package fields
+- Add a human "confirm task list" gate before tasks become active — analogous to the existing RAMS review gate (`STATUS_AWAITING_REVIEW` pattern on `RamsDocument`)
+- Lock task generation to projects in `STATUS_INSTALLING` or later — engineering review must have completed first
+- Allow engineers to mark tasks "not applicable" with a required reason, which creates an audit record on the project
 
-**Phase:** QWSQL-01 — must be resolved before any other QuoteWerks SQL work begins.
+**Detection:** Task count diverges from `SiteSurveyRoom` equipment counts. Engineers frequently flag tasks as N/A on first site visit. Commissioning completion rate falls below 80% on first pass.
+
+**Phase risk:** INST-01 (task generation). This is the highest-risk design decision of the entire milestone.
 
 ---
 
-### Pitfall C2: Trust Server Certificate Not Set — Encrypted Connection Rejected
+### Pitfall C2: iOS HEIC Photo Uploads Stored But Unrenderable
 
-**What goes wrong:** Modern SQL Server instances (2016+) default to requiring encrypted connections. PHP's `sqlsrv` driver also defaults to requesting encryption. When the QuoteWerks SQL Server uses a self-signed certificate (common for internal company servers), the connection is refused with a certificate verification error unless `TrustServerCertificate=true` is set.
+**What goes wrong:** iPhones default to HEIC format. When an engineer uploads a photo from the mobile field view, the file may arrive as `image/heic` or `image/heif`. PHP's GD driver (the default) cannot process HEIC. The upload succeeds — the file is stored — but any subsequent thumbnail generation, display, or PDF embedding silently fails.
 
-**Why it happens:** The `config/database.php` `sqlsrv` stanza in this codebase has `encrypt` and `trust_server_certificate` commented out. If the QuoteWerks SQL Server uses a self-signed cert (very likely for an internal Windows Server install), every connection will fail.
+**Why it happens:** iOS Safari will respect `accept="image/*"` and still upload HEIC files. The MIME type reported in the Content-Type header is unreliable — iOS sometimes reports `image/jpeg` even when the file is HEIC. Server-side validation that trusts the Content-Type header will pass HEIC files through.
 
-**Consequences:** Connection always fails in production. The error message (`SSL: Fatal error`) is obscure enough that developers spend hours debugging network/VPN issues before realising it is a certificate trust issue.
+Safari *will* convert to JPEG when `accept="image/jpeg"` is specified explicitly, but only for camera-captured photos — not for files selected from the photo library. This distinction is critical for a field app where engineers may select from gallery.
 
-**Warning signs:**
-- Connection works with SQL Server Management Studio (SSMS) — which defaults to trusting certs — but fails from PHP
-- Error message contains `SSL` or `certificate` or `Encryption` in PDO exception text
+**Consequences:** Evidence photo exists on disk. The commissioning sign-off page shows a broken image. PDF evidence pack fails to embed the photo. The failure is silent — engineers don't know the photo is unusable until a manager reviews it later.
 
 **Prevention:**
-- Set these in the `sqlsrv` connection config (driven by env vars):
-  ```php
-  'encrypt' => env('QUOTEWERKS_DB_ENCRYPT', 'true'),
-  'trust_server_certificate' => env('QUOTEWERKS_DB_TRUST_CERT', 'false'),
+- Set `accept="image/jpeg,image/png,image/webp"` on all file inputs (not `image/*`) — this forces iOS camera captures to convert, and warns users selecting HEIC from gallery
+- Add server-side MIME detection using PHP `finfo_file()` (not the Content-Type header) in the upload controller
+- Reject HEIC at the controller with a clear error message: "Please upload a JPEG or PNG photo"
+- Do not use Intervention/Image v2 for any photo processing in this milestone — it does not support HEIC and will throw on any processing attempt. If image resizing is needed, use the programmatic GD functions directly or upgrade to Intervention/Image v3 with Imagick driver
+
+**Detection:** File extension `.heic` or `.HEIC` in storage. `finfo_file()` returns `image/heic`. GD processing throws `RuntimeException`.
+
+**Phase risk:** INST-03 (mobile field view). Must be addressed in the upload handler before any beta testing on iOS.
+
+---
+
+### Pitfall C3: Unclosed Clock-In Sessions After Browser Closure
+
+**What goes wrong:** Engineer clocks in on mobile. Browser tab is closed, phone screen locks, or network drops. The `time_entries` record has `clocked_in_at` but no `clocked_out_at`. The session is permanently open. The next clock-in creates a duplicate open session. Budget vs actual calculations become wildly inaccurate. Engineers are blocked from clocking in again.
+
+**Why it happens:** `beforeunload` and `pagehide` browser events are unreliable on iOS Safari — they do not fire reliably when a tab is backgrounded or the browser crashes. Relying on client-side signals to close sessions is fundamentally fragile in a mobile field context where signal is intermittent and screen locks are frequent.
+
+**Consequences:** Inflated actual hours. Engineers unable to clock in. Managers see meaningless time data. Budget vs actual comparison produces misleading reports.
+
+**Prevention:**
+- Never rely on `beforeunload` for session close
+- Implement a `last_heartbeat_at` timestamp column on `time_entries`, updated every 2 minutes via a lightweight Alpine.js `setInterval` AJAX ping
+- A scheduled artisan command (via `php artisan schedule:run`) auto-closes sessions where `last_heartbeat_at` is more than 30 minutes stale, flagging them as `auto_closed = true` with `close_reason = 'inactivity'`
+- Display auto-closed sessions prominently in the engineer's time log with a "Was this correct?" prompt
+- Enforce one open session per engineer per project — on second clock-in: "You have an open session from [time]. Clock out first, or discard it."
+
+**Detection:** Query `WHERE clocked_out_at IS NULL AND clocked_in_at < NOW() - INTERVAL 1 DAY`. Run weekly.
+
+**Phase risk:** INST-04 (time tracking). Must be designed into the schema from day one — retrofitting heartbeat columns is disruptive.
+
+---
+
+### Pitfall C4: Timezone Corruption in Time Entry Records
+
+**What goes wrong:** Engineer clocks in at 08:30 BST (UTC+1). Alpine.js sends a local time string to the server. Laravel stores 08:30 as UTC, which is 09:30 BST actual time. All time entries are off by one hour during British Summer Time. In winter (GMT = UTC) it works correctly and looks fine in development.
+
+**Why it happens:** JavaScript's `new Date()` is timezone-aware but `.toLocaleString()` or `.toISOString().slice(0,19)` truncations lose the offset. If the resulting string is sent without timezone context and stored as a raw string, the database absorbs the local time as if it were UTC. This is a seasonal bug invisible until the clocks change.
+
+A separate Laravel framework issue (GitHub #58478, #33592) means that datetime strings *containing* timezone offset data can also be stored incorrectly depending on `APP_TIMEZONE` configuration.
+
+**Consequences:** All summer time entries are wrong by one hour. Pay calculations, budget vs actual, and shift reports are incorrect for half the year. The bug is seasonal and hard to reproduce in development environments set to UTC.
+
+**Prevention:**
+- Always transmit timestamps from the browser as UTC ISO 8601: `new Date().toISOString()` — this is always UTC regardless of local timezone
+- Always use `DATETIME` columns (not `TIMESTAMP`) in MySQL for time tracking — MySQL `TIMESTAMP` applies implicit timezone conversion that can interact badly with Laravel's timezone config
+- Set `APP_TIMEZONE=UTC` in `.env` explicitly and document that this is intentional
+- Never send bare time strings like `08:30:00` from the browser — always UTC ISO
+- Display stored UTC times through a single server-side formatter that applies the company's local timezone for output only
+
+**Detection:** Compare stored `clocked_in_at` values against known clock-in times during BST. A systematic 1-hour offset in summer confirms this bug.
+
+**Phase risk:** INST-04 (time tracking). Schema and transmission design must handle this before the first time entry is stored.
+
+---
+
+### Pitfall C5: Signature Canvas DPI / Pixel Ratio Corruption
+
+**What goes wrong:** Engineer captures client signature on a Retina or high-DPI mobile screen (iPhone, modern Android). The canvas is rendered at CSS size (e.g., 400×200px) but the physical pixel buffer is 800×400 (`devicePixelRatio = 2`). The signature looks correct visually but when saved as a PNG data URL, it is half the expected resolution. When embedded in a commissioning PDF, it appears blurry, pixelated, or incorrectly sized.
+
+This is a documented, persistent bug in the `szimek/signature_pad` library (npm package — the standard JS library for this use case): GitHub issues #71, #153, #200, #362. The `fromDataURL()` method behaves incorrectly on devices with `devicePixelRatio !== 1`.
+
+**Why it happens:** The `<canvas>` element's `width` and `height` attributes control the pixel buffer; CSS `width`/`height` control display size. Most implementations set one and not the other. Without explicit DPI scaling, the buffer is under-sampled on retina screens.
+
+**Consequences:** Signatures look correct to the engineer in the browser. When the commissioning PDF is generated (via DomPDF or mPDF), the signature is blurry. Clients may question the validity of the sign-off. A reprint requires the client to be on-site again.
+
+**Prevention:**
+- Implement canvas DPI scaling on every signature pad init (and on `resize`/`orientationchange`):
+  ```javascript
+  const ratio = Math.max(window.devicePixelRatio || 1, 1);
+  canvas.width = canvas.offsetWidth * ratio;
+  canvas.height = canvas.offsetHeight * ratio;
+  canvas.getContext('2d').scale(ratio, ratio);
+  signaturePad = new SignaturePad(canvas);
   ```
-- For internal VPN-only connections, `trust_server_certificate=true` is acceptable. Document this explicitly — it is intentional, not a security oversight.
-- Use a named connection (`quotewerks`) rather than the default `sqlsrv` connection so these settings never bleed into the primary MySQL connection.
+- On `resize` or `orientationchange`: clear the canvas and re-prompt for signature — do not attempt to rescale existing signature data
+- Store the raw vector path data from `signaturePad.toData()` alongside the PNG data URL — this allows server-side regeneration at correct resolution if needed
+- Test on a physical iPhone and Android device before launch — device emulators do not accurately replicate `devicePixelRatio`
 
-**Phase:** QWSQL-01.
+**Detection:** Save a test signature on an iPhone. Download the stored PNG. If PNG width equals CSS canvas width (without DPI multiplication), scaling is missing.
 
----
-
-### Pitfall C3: QuoteWerks Column Names Break Laravel Query Builder Assumptions
-
-**What goes wrong:** QuoteWerks uses a legacy MS SQL schema with column names that are reserved words in SQL Server (e.g., `Date`, `Name`, `Type`, `Group`), contain spaces, or use inconsistent casing. Laravel's query builder does not quote identifiers by default for `sqlsrv`. Raw column names in `->select()` or `->where()` clauses fail with syntax errors or return wrong results.
-
-**Why it happens:** QuoteWerks was not designed for external query access. Its schema reflects 1990s-era naming conventions. The `sqlsrv` driver is case-insensitive for identifiers but SQL Server reserved words still require bracket-quoting: `[Date]`, `[Name]`, `[Type]`.
-
-**Consequences:** `->where('Type', 'HW')` fails silently or returns empty. `->select(['Date', 'Name'])` fails with a syntax error. These bugs are not caught by unit tests because tests mock the connection.
-
-**Warning signs:**
-- Queries against QuoteWerks tables return empty collections or syntax errors
-- Column names in query results are all lowercase when the schema uses PascalCase
-
-**Prevention:**
-- Always use bracket-quoted identifiers when querying the QuoteWerks database: `->select(['[DocNo]', '[DocDate]', '[ItemType]'])`.
-- Wrap all QuoteWerks queries in a dedicated `QuoteWerksRepository` class. Never put raw QuoteWerks column names outside that class. This isolates the quoting concern.
-- Test against the actual QuoteWerks schema — do not assume column names match the documented QuoteWerks API fields.
-- Map all column names to internal canonical names immediately in the repository, so `QuoteWerksImportService` never sees a QuoteWerks column name.
-
-**Phase:** QWSQL-02, QWSQL-03.
+**Phase risk:** INST-05 (commissioning sign-off). Must be implemented correctly from the start — retrofitting after client sign-offs have been collected creates a re-signing requirement.
 
 ---
 
-### Pitfall C4: ProjectDataService Becomes a Second God Class
+### Pitfall C6: Commissioning Progress Lost on Network Dropout Mid-Completion
 
-**What goes wrong:** `ProjectDataService` (DATA-01) is designed as the single merge point for all data sources. Without strict discipline, every generator starts adding special-case logic to it: "the worksheet needs this extra field", "the O&M generator needs this restructured". The service grows to 2,000+ lines and develops the same pathologies as the existing `QuoteParserService` (2,938 lines) and `RamsController` (746 lines).
+**What goes wrong:** Engineer is on site in a basement plant room or server rack room (common AV install environments with poor signal). They complete 8 of 12 checklist items, upload 3 evidence photos, the client has signed. Network drops. They hit "Submit" — POST fails. On page reload, all state is gone because the form lived in browser memory only.
 
-**Why it happens:** It is the easiest place to add data. Controllers and jobs already reference it. There is no mechanical barrier to adding generator-specific logic there.
+**Why it happens:** A standard Blade form submit sends everything in one POST. If it fails, there is no partial save. Alpine.js component state is lost on page reload. This is a traditional server-rendered form pattern applied to a scenario that requires resilience to connectivity loss.
 
-**Consequences:** Data mutations intended for one generator corrupt the data for another. The canonical data structure (DATA-02) drifts from what generators actually receive. The existing `RamsDataBuilderService` — which already does typed normalisation — becomes redundant or conflicts with `ProjectDataService` if responsibilities are not clearly separated.
-
-**Warning signs:**
-- `ProjectDataService` has an `if ($generator === 'worksheet')` branch
-- Any generator imports `ProjectDataService` AND also accesses `$ramsDocument->reviewed_data` directly
-- The return type of `ProjectDataService::build()` changes between calls without versioning
+**Consequences:** Engineer must redo the entire checklist. Client must re-sign. Photos must be re-uploaded. On a multi-hour commissioning session, this is a serious delay and severely damages trust in the tool.
 
 **Prevention:**
-- `ProjectDataService` returns one canonical structure and NOTHING ELSE. It never knows which generator is calling it.
-- Generators are allowed to have their own adapter/transformer that receives the canonical structure and reshapes it for their specific template needs. These adapters live in the generator's namespace, not in `ProjectDataService`.
-- Write the canonical data structure (DATA-02) as a PHP DTO or a typed array with documented keys BEFORE implementing `ProjectDataService`. The structure is the contract.
-- `RamsDataBuilderService` already does typed normalisation. Decide explicitly: does `ProjectDataService` replace it, wrap it, or feed into it? This decision must be made at the start of the DATA-01 phase. Leaving it ambiguous guarantees conflicts.
+- Save each checklist item completion individually via AJAX immediately when ticked: `PATCH /commissioning/{id}/items/{item}` — do not batch
+- Photo uploads are standalone AJAX calls — each returns a stored file path with a success confirmation before the next step is enabled
+- Signature capture is a standalone AJAX call with its own success confirmation
+- Final "Submit" is a gate check only: are all items complete? Is signature present? If yes, flip `status` — no data is transmitted at this point
+- Add a connectivity indicator in Alpine.js watching `navigator.onLine` — display a warning when offline: "No network — your progress has been saved"
 
-**Phase:** DATA-01, DATA-02 — design decision must precede implementation.
+**Detection:** Test on throttled connection (Chrome DevTools: "Slow 3G"). Kill connection mid-checklist and reload. If any completed items are missing on reload, the per-item save is not working.
 
----
-
-### Pitfall C5: Data Merge Priority Is Undefined — Silent Overwrite Wins
-
-**What goes wrong:** When merging `extracted_data` (PDF parse), `reviewed_data` (human-reviewed), `quotewerks_data` (SQL import), and `survey_data` (site survey), there are fields that exist in multiple sources with different values. If the merge priority is not explicitly defined and enforced, the last writer wins — silently discarding human corrections.
-
-**Concrete example in this codebase:** `RamsDataBuilderService::resolveProjectFields()` already implements form-data-overrides-parsed priority. If `ProjectDataService` re-merges these same fields from SQL import data without respecting that existing priority, a SQL import can overwrite a human-corrected project name.
-
-**Why it happens:** Each integration phase adds a new data source without re-specifying the full priority chain for all fields.
-
-**Consequences:** Human-reviewed data is silently overwritten by imported data. Document generation produces documents with wrong project details. The bug only appears on regeneration, not on first generation.
-
-**Warning signs:**
-- Project name or client name in generated DOCX does not match what the reviewer entered
-- Re-generating a document after a QuoteWerks sync changes previously correct values
-
-**Prevention:**
-- Define and document the merge priority chain at the start of DATA-01:
-  `reviewed_data (human) > survey_data (human) > quotewerks_sql > extracted_data (PDF) > defaults`
-- `ProjectDataService` must honour `reviewed_data` as the highest-priority source for every field it appears in.
-- Add a `data_source` and `data_locked` flag per field where human review has explicitly set a value. A locked field is never overwritten by automated sources.
-- The existing `data_confidence` tracking (DATA-04) is a good mechanism for this — use it.
-
-**Phase:** DATA-01, DATA-03.
-
----
-
-### Pitfall C6: Migrations That Add Non-Nullable Columns to Tables With Data
-
-**What goes wrong:** This codebase already has 46 migrations and a live RAMS pipeline. Adding a non-nullable column without a default (or adding a foreign key without handling orphans) fails on the live database. This is the most common cause of "migration worked in dev, broke in production" failures.
-
-**Existing evidence:** The migration history shows at least two attempts at the same table (`2026_03_09_000002` and `2026_03_09_000003` both named `create_cable_schedules_table`, `create_site_surveys_table`). This pattern of duplicate migration timestamps indicates migrations have been rolled back and re-created rather than added additively — a risky practice on a live system.
-
-**Consequences:** A failed migration in production leaves the schema in a partial state. The `migrations` table records which migrations ran, but if a migration partially executes before failure, the schema is inconsistent. `php artisan migrate` will refuse to run until the partial migration is cleaned up manually.
-
-**Warning signs:**
-- Any new migration that uses `->notNull()` without `->default(...)` on a table that already has rows
-- Migrations that use `Schema::table()` to add a foreign key without first verifying all existing rows have a valid parent
-
-**Prevention:**
-- All new columns on existing tables: use `->nullable()` or `->default(value)` in the migration. Handle the null case in the application layer.
-- New `project_id` foreign key on existing tables (PROJ-02): add as `->nullable()` first. Backfill in a separate migration or seeder. Then add the constraint. Never in one step.
-- Never reuse migration timestamps. Each migration file gets a unique timestamp. If a migration was wrong, write a NEW migration that corrects it — do not delete and recreate.
-- Test migrations against a copy of the production database schema (with `--pretend` first, then on a staging database) before deploying.
-
-**Phase:** PROJ-01, PROJ-02 — these create the `projects` table and re-link all existing tables.
+**Phase risk:** INST-05 (commissioning). Architecture must use per-item saves from day one — retrofitting requires a full form refactor.
 
 ---
 
@@ -157,78 +153,88 @@ Mistakes in this category cause rewrites, data loss, or silent corruption of exi
 
 ---
 
-### Pitfall M1: Named Connection Not Used — QuoteWerks Queries Hit Primary Database
+### Pitfall M1: Equipment-to-Task Mapping Producing Unreadable Task Names
 
-**What goes wrong:** Laravel's `DB::table()` and Eloquent models use the default connection unless explicitly overridden. If `QuoteWerksImportService` uses `DB::table('DocumentItems')` without `->connection('quotewerks')`, it queries the primary MySQL database (which has no such table) and throws a confusing "table not found" error — or worse, silently returns empty if exception handling is overly broad.
+**What goes wrong:** The task generator creates names like "Install QW-ITEM-0042" or "Install Samsung The Frame 55 QN55LS03BAFXZA" (raw QuoteWerks description). Engineers on site don't recognise model codes. Commissioning checklists become reference documents rather than actionable lists.
 
 **Prevention:**
-- All QuoteWerks queries must use `DB::connection('quotewerks')->table(...)`. No exceptions.
-- Create a `QuoteWerksRepository` class that injects the named connection and is the ONLY place where QuoteWerks queries are written.
-- Add a test that asserts `QuoteWerksRepository` uses the `quotewerks` connection, not the default.
+- Route all equipment names through the existing `EquipmentNormalizerService` before building task names — this already normalises QuoteWerks descriptions to human-readable categories
+- Task name template: "[Action] [NormalisedName] in [RoomName]" — e.g., "Mount display in Boardroom", "Commission AV matrix in Server Room"
+- Expose the generated task list in a pre-site-visit review screen so engineers can edit task names before going on site
+- Store both the normalised task name and the original equipment reference (QuoteWerks item code) — the reference is for audit, the name is for the engineer
 
-**Phase:** QWSQL-01, QWSQL-02.
+**Phase risk:** INST-01. A bad naming scheme baked into the data model is hard to rename retroactively without migrating existing records.
 
 ---
 
-### Pitfall M2: VPN Dependency Makes Queued Jobs Silently Fail
+### Pitfall M2: Migrations Breaking Existing Queries During Deployment
 
-**What goes wrong:** QuoteWerks SQL is only accessible via VPN. Queued jobs (dispatched via `BuildRamsDocumentJob` pattern) run asynchronously. If the VPN connection drops between job dispatch and execution, the job fails with a connection timeout — but the failure may not surface clearly to the user because the job system (currently database-backed with single `queue:listen`) may re-attempt the job without re-establishing context.
-
-**Why it matters here:** The existing queue has `--tries=1 --timeout=0` in dev (composer.json). Production queue configuration is not visible in the codebase. `BuildRamsDocumentJob` has `$tries = 2` and `$timeout = 180`. If the VPN drops, two retries × 180 seconds = 6 minutes of worker blocking before the job is marked failed.
+**What goes wrong:** A new column is added to `projects` or `project_packages`. The migration runs in production. A service class (e.g., `ProjectDataService`) that uses `SELECT *` or accesses specific columns returns unexpected results until PHP-FPM is restarted. On a live system with active queue workers, jobs dispatched before the migration reference models that now have a different column set.
 
 **Prevention:**
-- Test the QuoteWerks SQL connection at the start of any job that needs it, before doing any other work. Fail fast with a clear error: "QuoteWerks database unreachable — check VPN".
-- Keep QuoteWerks import as a synchronous, user-triggered action (controller method with a spinner) rather than a background job wherever possible. Background jobs are appropriate for document generation, not for read-only data fetching where immediate feedback matters.
-- Set a short connection timeout on the `quotewerks` connection config: `'login_timeout' => 5` (seconds). Do not let the default 30-second timeout block the queue worker.
+- All new columns on existing tables must be `nullable()` or have a `default()` — no exceptions
+- New feature tables (`install_tasks`, `time_entries`, `commissioning_items`, `commissioning_signatures`) carry zero migration risk to existing tables — prefer new tables over new columns on `projects`
+- Never modify the JSON structure of `extracted_data`, `reviewed_data`, or `equipment_list` columns via migration — add a new column if structural change is needed
+- Run `php artisan queue:clear` after any schema migration affecting models used by queued jobs (`projects`, `project_packages`, `rams_documents`)
+- Follow the two-phase pattern already established in the codebase: add column nullable first, deploy code, then add constraints if needed
 
-**Phase:** QWSQL-01, QWSQL-04.
+**Phase risk:** All INST phases that add columns. Particularly INST-01 if task counts are stored on `projects` rather than in a child table.
 
 ---
 
-### Pitfall M3: DOCX Template Processor Conflict When Multiple Generators Share Templates
+### Pitfall M3: Project Lifecycle State Machine Polluted With Ad-Hoc Booleans
 
-**What goes wrong:** PHPWord's `TemplateProcessor` modifies a copy of a `.docx` template file. The existing `DocxBuilderService` (948 lines) already uses `DocumentTemplateService` to resolve template paths. If Worksheet and O&M generators reuse the same template infrastructure without their own template slots, one generator's `setValue('project_name', ...)` will break another generator's template if the placeholder names collide.
+**What goes wrong:** The `Project` model has a clean linear lifecycle: `quote_imported → survey_pending → engineering → installing → commissioning → handover → completed → archived`. v1.2 features need to express whether tasks have been generated, whether a field session is active, whether commissioning is complete. Without a deliberate decision, developers add boolean columns: `tasks_generated`, `commissioning_started`, `field_active`. The state machine becomes a hybrid of status + booleans with no clear authority.
 
 **Prevention:**
-- Each generator (RAMS, Worksheet, O&M, Cable Schedule) must have its own dedicated template file with non-overlapping placeholder names, OR use the programmatic PHPWord API (not `TemplateProcessor`) for sections that are entirely generated.
-- The existing `DocxBuilderService` mixes both approaches (template for cover page, programmatic for body). This pattern is correct — follow it for new generators. Do not expand `TemplateProcessor` usage into body content.
-- PHPWord `TemplateProcessor::cloneBlock()` for repeating sections (rooms, equipment rows) is unreliable with complex nested tables. Use programmatic section building for any repeating content.
+- Audit the existing `LIFECYCLE` and `TRANSITIONS` constants before adding any new Project-level state
+- Prefer status fields on child models (`install_tasks.status`, `commissioning_checklists.status`) rather than booleans on `projects`
+- The project's `STATUS_INSTALLING` and `STATUS_COMMISSIONING` states are sufficient — sub-state (e.g., "tasks generated") is tracked by the presence of `install_tasks` records, not by a column on `projects`
+- If a new top-level status genuinely needs to be added (e.g., a "field_ready" gate), add it to the `LIFECYCLE` and `TRANSITIONS` constants formally — not as a boolean
 
-**Phase:** WORK-01, OM-01.
+**Phase risk:** INST-01, INST-04. The temptation to add quick booleans is highest when building the task generation and time tracking features.
 
 ---
 
-### Pitfall M4: PhpSpreadsheet Added Without Removing mpdf or Rationalising PDF Libraries
+### Pitfall M4: Over-Engineering Engineer Scheduling Before Validating Adoption
 
-**What goes wrong:** The codebase already has three PDF libraries (CONCERNS.md flags this). Adding `phpoffice/phpspreadsheet` for XLSX output (CABLE-01) without cleaning up the existing PDF library situation further increases dependency bloat. More critically, if `phpspreadsheet` is not in `composer.json` when CABLE-01 is implemented, the cable schedule generator will fail in production if it was forgotten.
+**What goes wrong:** The specification mentions "calendar view and Gantt timeline." A developer implements drag-and-drop Gantt, conflict detection, skill-matching, and availability calendars. Engineers use a WhatsApp group to coordinate. The feature is never adopted. Weeks of development are wasted, and the complex UI becomes maintenance burden.
 
 **Prevention:**
-- Add `phpoffice/phpspreadsheet` to `composer.json` at the start of the CABLE-01 phase — not halfway through implementation.
-- Use the same phase to remove `mpdf/mpdf` if O&M PDF export can be handled by DomPDF (verify this before removing). The CONCERNS.md note says mpdf handles complex CSS for O&M — verify before touching it.
-- Do not use `phpspreadsheet` for anything other than XLSX output. The RAMS/Worksheet/O&M generators stay on PHPWord.
+- Phase 1 of INST-02 should deliver exactly: a dropdown on the task record to assign an engineer + a date field. Nothing more.
+- A calendar view is a read-only display of assigned tasks grouped by date — not a scheduling engine
+- Gantt, route optimisation, and conflict detection are explicitly deferred until field adoption of the simple assignment is validated on at least 2 real projects
+- The spec phrase "calendar view" should be interpreted as "a list grouped by date" for v1.2
 
-**Phase:** CABLE-01.
+**Phase risk:** INST-02. This is the most likely feature to be over-engineered in this milestone.
 
 ---
 
-### Pitfall M5: Breaking the Existing RAMS Pipeline by Refactoring Its Inputs
+### Pitfall M5: Multiple File Inputs Failing on iOS Safari
 
-**What goes wrong:** RAMS-01 requires refactoring the existing RAMS generator to consume from `ProjectDataService` instead of directly from `reviewed_data`. The existing pipeline is: `ExtractRamsDraftJob` → `reviewed_data` → `BuildRamsDocumentJob` → `RamsBuilderService` → `RamsDataBuilderService`. If `RamsDataBuilderService` is modified or removed as part of the `ProjectDataService` introduction, and the job system still dispatches the old job class, existing queued jobs will fail.
-
-**Existing risk factor:** There are already backup job files (`BuildRamsDocumentJob2903.php`, `ExtractRamsDraftJob203.php`). The fact that these exist indicates this pipeline has been broken and recovered from before.
-
-**Warning signs:**
-- Any change to `RamsDataBuilderService::assemble()` method signature
-- Any change to the keys in `reviewed_data` (the `BuildRamsDocumentJob` reads `activities`, `equipment`, `hazards` directly)
-- Adding `project_id` as a required field in a job that was dispatched before `project_id` existed
+**What goes wrong:** The mobile field view uses `<input type="file" multiple>` for uploading multiple evidence photos at once. On iOS, multiple file selection from the file system (not photo library) is not supported. Engineers attempt to select multiple files and only one uploads. They assume the rest uploaded and move on.
 
 **Prevention:**
-- Treat `BuildRamsDocumentJob` and `RamsBuilderService` as read-only during the DATA-01 and PROJ-01 phases. Introduce `ProjectDataService` AROUND the existing pipeline, not instead of it.
-- The migration path for RAMS-01 is: `ProjectDataService` is introduced and new generators use it exclusively. Only after Worksheet, O&M, and Cable Schedule generators are working should the existing RAMS generator be migrated to use `ProjectDataService` as a data source.
-- When making any change to `RamsDataBuilderService`, run the existing 928-line test suite (`tests/Unit/Rams/QuoteParserServiceTest.php`) and relevant builder tests before and after. Do not deploy without green tests.
-- Queued jobs serialize model IDs, not full model state. If a `RamsDocument` schema changes (new non-nullable column added), jobs dispatched before the migration will fail when they reload the model. Run `php artisan queue:clear` after any schema migration affecting `rams_documents`.
+- Use single-file inputs with an "Add another photo" button pattern — each button creates a new `<input type="file">` element
+- Or maintain a JavaScript queue with individual file inputs that accumulate before a single upload action
+- Never rely on the `multiple` attribute for critical evidence collection on iOS
+- Each uploaded photo should show a success confirmation (filename + thumbnail) before the engineer proceeds
 
-**Phase:** RAMS-01 — must be the LAST generator refactored, not the first.
+**Phase risk:** INST-03, INST-05. Both mobile field view and commissioning evidence capture are affected.
+
+---
+
+### Pitfall M6: Commissioning Sign-Off Has No Per-Item Audit Trail
+
+**What goes wrong:** A commissioning checklist is completed and signed. Three weeks later, a client disputes whether a specific configuration item was verified. The only record is `completed_at` and a PNG of the overall signature. There is no record of who checked each item, what was observed, or when each item was signed off.
+
+**Prevention:**
+- Each checklist item completion must record: `completed_by` (user_id FK), `completed_at` (datetime UTC), `observed_value` (nullable text for readings/serial numbers), `notes` (nullable text)
+- The client signature record must store: `signed_by_name` (free text — the client's name, not a user account), `signed_at` (datetime UTC), `ip_address`, `device_user_agent`
+- These records are immutable once written — no soft delete, no update. If a correction is needed, add a new record with a `supersedes_id` reference.
+- This audit trail costs nothing extra at schema design time and is extremely expensive to retrofit after sign-offs have been collected
+
+**Phase risk:** INST-05. Must be designed into the commissioning schema before the first record is written.
 
 ---
 
@@ -236,76 +242,97 @@ Mistakes in this category cause rewrites, data loss, or silent corruption of exi
 
 ---
 
-### Pitfall Mi1: Charset/Collation Mismatch Between QuoteWerks SQL and MySQL
+### Pitfall Mi1: Upload Size Limits Rejecting Field Photos
 
-**What goes wrong:** QuoteWerks data may contain Windows-1252 encoded characters (smart quotes, em-dashes, degree symbols) common in AV equipment descriptions. These translate correctly in SQL Server but corrupt when stored in MySQL `utf8mb4` columns without explicit conversion.
+**What goes wrong:** Modern iPhone photos are 4–12MB. PHP's `upload_max_filesize` defaults to 2MB. Nginx's `client_max_body_size` defaults to 1MB. Engineers upload site photos and receive a silent failure or generic 413/500 error with no explanation.
 
 **Prevention:**
-- Use `mb_convert_encoding($value, 'UTF-8', 'Windows-1252')` on all string fields pulled from QuoteWerks before storing or processing them.
-- Test with real QuoteWerks data that includes product descriptions from manufacturers (these frequently contain trademark symbols and special characters).
+- Set `upload_max_filesize = 20M` and `post_max_size = 25M` in `php.ini`
+- Set `client_max_body_size 25M` in Nginx config
+- Add client-side file size check in Alpine.js before the upload begins: warn if file > 15MB, hard reject with user message if > 20MB
+- Return a JSON error with a `message` field from the upload controller if the server limit is hit
 
-**Phase:** QWSQL-03.
+**Phase risk:** INST-03, INST-05.
 
 ---
 
-### Pitfall Mi2: Duplicate Migration Timestamp Conflicts
+### Pitfall Mi2: Alpine.js State Lost on Blade Partial Reload
 
-**What goes wrong:** The migration history already contains two separate files with timestamps `2026_03_09_000002` and `2026_03_09_000003` creating different tables (cable_schedules and site_surveys used the same timestamp slots). If a new developer or CI environment runs `php artisan migrate:fresh`, the order of execution may differ from what the current production schema represents.
+**What goes wrong:** The checklist form uses Alpine.js for interactive state (ticked items, photo previews). Any full or partial page reload (navigation back, browser refresh after disconnect) destroys the Alpine component. Without server-backed state, the engineer's progress appears lost even though items may be individually saved.
 
 **Prevention:**
-- All new migrations use timestamps derived from the actual creation time. Never manually set a timestamp to an earlier date.
-- Run `php artisan migrate:status` on a fresh database before merging any migration PR. Verify the sequence is unambiguous.
+- Back all checklist state with the per-item AJAX save pattern (Pitfall C6) — server is the source of truth, Alpine.js reflects server state on load
+- On component init, fetch current item states from the server and populate Alpine data accordingly
+- Do not use `x-data` for anything that needs to survive a page navigation; server state is the only reliable store in a field context
 
-**Phase:** PROJ-01 — this creates the foundational `projects` table and must have a clean timestamp.
+**Phase risk:** INST-03, INST-05.
 
 ---
 
-### Pitfall Mi3: Temp File Accumulation in New Document Generators
+### Pitfall Mi3: Displaying Budget vs Actual Before Sufficient Data Exists
 
-**What goes wrong:** `DocxBuilderService` and `OmManualDocxService` both use `tempnam()`/`sys_get_temp_dir()` for DOCX construction. CONCERNS.md notes that only some services use `finally` blocks for cleanup. New generators (Worksheet, O&M, Cable Schedule) will repeat this pattern. Without `finally` blocks, any exception during generation leaves orphaned temp files.
+**What goes wrong:** The budget vs actual time comparison widget appears on the project dashboard from day one. Budget hours are 0 (not yet entered). Actual hours are 0. Percentages and progress bars divide by zero or display 0/0%. Engineers ask "is this broken?" Trust in the tool is undermined before any data exists.
 
 **Prevention:**
-- Every new generator that creates temp files must use a `try/finally` block with `@unlink($tempPath)` in the `finally`. This is not optional.
-- Consider a `TempFileManager` utility class that registers temp paths and cleans up in its destructor.
+- The budget vs actual component must only render when: (a) at least one budget figure has been entered AND (b) at least one closed time entry exists for the project
+- Default state: a neutral prompt — "Add time budgets to start tracking"
+- Never display percentage ratios, progress bars, or efficiency scores with a zero denominator
 
-**Phase:** WORK-01, OM-01, CABLE-01.
+**Phase risk:** INST-04.
 
 ---
 
-### Pitfall Mi4: AI Rate Limiting on Newly Exposed Routes
+### Pitfall Mi4: Task Names Not Updateable After Engineering Sign-Off
 
-**What goes wrong:** CONCERNS.md flags that `rams.regenerate` and `rams.retry-generation` routes have no throttle middleware. When new document generators are added (Worksheet, O&M), if they also trigger AI calls (even via the existing `MethodStatementGeneratorService`), those routes will have the same gap.
+**What goes wrong:** Tasks are generated and locked at engineering sign-off. On site, the engineer discovers the scope has changed (a room is split, a display size is upgraded). The task name references the original equipment but the engineer must install different kit. There is no mechanism to amend the task without admin access.
 
 **Prevention:**
-- When wiring new generator routes, add throttle middleware immediately: `->middleware('throttle:5,1')` (5 requests per minute per user) on any route that dispatches an AI job.
-- Do not add routes first and throttle later — the throttle must be in the initial PR.
+- Task names should be editable by engineers up to the point of individual task completion — not locked at generation
+- Task completion creates an immutable record; the task itself remains editable while pending
+- Site-added tasks (equipment not in the original scope) must be createable by engineers in the field, with a `source = 'field_addition'` flag and a required note
 
-**Phase:** WORK-01, OM-01.
+**Phase risk:** INST-01, INST-03.
 
 ---
 
-## Phase-Specific Warnings
+## Phase-Specific Warnings Summary
 
-| Phase | Likely Pitfall | Mitigation |
-|-------|---------------|------------|
-| QWSQL-01 (driver setup) | C1: Driver mismatch, C2: TLS cert rejection | Verify production PHP extensions before writing service code |
-| QWSQL-02 (schema queries) | C3: Reserved column names, M1: Wrong connection used | Use named `quotewerks` connection; bracket-quote all identifiers |
-| QWSQL-03 (data mapping) | Mi1: Charset corruption | Run charset conversion on all string fields before use |
-| QWSQL-04 (dual import) | M2: VPN failure in queued context | Keep import synchronous; short connection timeout |
-| DATA-01 (ProjectDataService) | C4: God class growth, C5: Merge priority undefined | Define canonical structure as DTO first; document priority chain |
-| DATA-02 (canonical structure) | C5: Priority gaps between sources | Write the merge priority spec before writing any code |
-| PROJ-01/02 (projects table + re-linking) | C6: Non-nullable columns on live tables | Use nullable columns + backfill pattern; never add constraint in one step |
-| RAMS-01 (migrate RAMS to ProjectDataService) | M5: Breaking existing pipeline | Migrate last; keep `BuildRamsDocumentJob` intact until all other generators are working |
-| WORK-01, OM-01 (new generators) | M3: Template placeholder collision, Mi3: Temp file leaks | Separate templates per generator; always use try/finally |
-| CABLE-01 (XLSX output) | M4: Missing phpspreadsheet dependency | Add to composer.json on day one of the phase |
+| Phase | Pitfall | Mitigation |
+|---|---|---|
+| INST-01 (task generation) | Tasks generated from extracted_data not reviewed_data | Lock to ProjectDataService; require human confirm gate |
+| INST-01 (task generation) | Unreadable task names from raw QuoteWerks descriptions | Route through EquipmentNormalizerService; pre-site review screen |
+| INST-01 (task generation) | Ad-hoc booleans on projects table | Use child-model status; protect LIFECYCLE constants |
+| INST-02 (engineer assignment) | Over-engineered scheduling UI | Dropdown + date only for v1.2; defer Gantt |
+| INST-03 (mobile field view) | HEIC uploads stored but unrenderable | accept="image/jpeg,image/png"; finfo server-side validation |
+| INST-03 (mobile field view) | Multiple file input fails on iOS | Single-file inputs with "Add another" pattern |
+| INST-03 (mobile field view) | 413 errors from large photos | Set PHP + Nginx limits; client-side size validation |
+| INST-03 (mobile field view) | Alpine.js state lost on reload | Server-backed state; fetch on component init |
+| INST-04 (time tracking) | Unclosed sessions from browser closure | Heartbeat ping + scheduled auto-close job |
+| INST-04 (time tracking) | Timezone corruption BST vs UTC | Always transmit UTC ISO from browser; use DATETIME not TIMESTAMP |
+| INST-04 (time tracking) | Zero-denominator budget display | Conditional render; require budget + entry before showing widget |
+| INST-05 (commissioning) | Lost progress on network dropout | Per-item AJAX save; signature as standalone call; Submit = gate only |
+| INST-05 (commissioning) | Signature blurry on Retina screens | Canvas DPI scaling; store vector path data |
+| INST-05 (commissioning) | No per-item audit trail | completed_by + completed_at + observed_value per item at schema time |
+| INST-05 (commissioning) | Multiple file input fails on iOS | Single-file with confirmation pattern |
+| All phases (migrations) | Breaking existing tables and queued jobs | Nullable-only additions to existing tables; new tables for new features |
 
 ---
 
 ## Sources
 
-- Codebase analysis: `app/Services/RamsDataBuilderService.php`, `app/Services/DocxBuilderService.php`, `app/Jobs/BuildRamsDocumentJob.php`
-- Codebase analysis: `config/database.php` (sqlsrv stanza with commented-out TLS options)
-- Codebase analysis: `.planning/codebase/CONCERNS.md` (tech debt, fragile areas, test coverage gaps)
-- Migration history: `database/migrations/` (46 files, duplicate timestamp pattern observed)
-- Composer dependencies: `composer.json` (no sqlsrv extension, no phpspreadsheet)
-- Confidence: HIGH for pitfalls derived directly from codebase evidence; MEDIUM for general Laravel/SQL Server patterns applied to this specific stack
+- [HEIC handling in Laravel — Mastering Laravel](https://masteringlaravel.io/daily/2023-10-27-how-to-get-rid-of-heic-files-in-your-app)
+- [Rendering HEIC on the Web — Upside Lab](https://upsidelab.io/blog/handling-heic-on-the-web)
+- [iOS file input accept attribute not working — Apple Developer Forums](https://developer.apple.com/forums/thread/685295)
+- [iOS multiple file input limitation — Apple Developer Forums](https://developer.apple.com/forums/thread/129845)
+- [Laravel double timezone conversion bug — GitHub #58478](https://github.com/laravel/framework/issues/58478)
+- [Datetime timezone storage incorrect — GitHub #33592](https://github.com/laravel/framework/issues/33592)
+- [Handle date/time correctly to avoid timezone bugs — DEV Community](https://dev.to/kcsujeet/how-to-handle-date-and-time-correctly-to-avoid-timezone-bugs-4o03)
+- [signature_pad DPI issue on high-DPI screens — GitHub #153](https://github.com/szimek/signature_pad/issues/153)
+- [signature_pad fromDataURL half-size on Android — GitHub #200](https://github.com/szimek/signature_pad/issues/200)
+- [signature_pad resize ratio not kept — GitHub #362](https://github.com/szimek/signature_pad/issues/362)
+- [Creating a functioning signature widget — Ekreative](https://ekreative.com/blog/creating-a-functioning-signature-widget-problems-and-solutions/)
+- [Laravel migration disasters — Medium](https://medium.com/@prevailexcellent/database-migration-disasters-how-not-to-ruin-your-laravel-app-ac6ff1d8920c)
+- [Laravel migrations without downtime — DZone](https://dzone.com/articles/laravel-database-migrations-without-downtime)
+- [Field Service Management challenges 2025 — NetSuite](https://www.netsuite.com/portal/resource/articles/erp/field-services-management-challenges.shtml)
+- [Field Service Scheduling mistakes — myCloudDash](https://www.myclouddash.com/field-service-scheduling-software-7-mistakes-youre-making/)
+- Codebase analysis: `app/Models/Project.php` (LIFECYCLE, TRANSITIONS constants), `app/Services/ProjectDataService` pattern, `EquipmentNormalizerService`

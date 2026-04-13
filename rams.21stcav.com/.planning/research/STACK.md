@@ -1,232 +1,207 @@
-# Technology Stack — Milestone Additions
+# Technology Stack — v1.2 Installation Programme & Field Management
 
 **Project:** RAMS Platform (rams.21stcav.com)
-**Scope:** Additions only — MS SQL connectivity, XLSX generation, DOCX document generators
-**Researched:** 2026-04-09
-**Base platform:** Laravel 12 / PHP 8.2+ / MySQL (existing, unchanged)
+**Researched:** 2026-04-13
+**Scope:** Additions ONLY for v1.2. Existing stack (Laravel 12, PHP 8.2+, MySQL, Alpine.js, Tailwind,
+PHPWord, DomPDF, mPDF, PhpSpreadsheet) is validated and must not be re-researched or changed.
 
 ---
 
-## What This Covers
+## What the Existing Stack Already Covers (Reuse Without Change)
 
-This milestone adds three capabilities to the existing platform:
-
-1. Read-only connection to the QuoteWerks MS SQL database
-2. XLSX generation for cable schedules
-3. Structured DOCX generation for worksheets and O&M manuals (builds on existing PHPWord)
-
-No changes to the existing stack are required for DOCX — PHPWord 1.4.0 is already installed and
-used in `DocxBuilderService`. This file documents what needs to be added and why.
+| v1.2 Capability | Existing Mechanism — Reuse As-Is |
+|---|---|
+| Photo capture from mobile browser | `<input type="file" accept="image/*" capture="environment">` on HTML file input — triggers device camera natively on iOS Safari and Android Chrome. Already proven in site survey photo upload. No new library needed. |
+| File storage for commissioning photos | `storage/app/private/` + `Storage::disk('local')->put()` — identical to survey photo pattern already shipped. |
+| Auth and engineer identity | Laravel Breeze users table. Engineers are already users. Task assignment = foreign key to `users.id`. No auth changes. |
+| Queue-based job dispatch | Database queue driver, `GenerateInstallTasksJob` follows `BuildRamsDocumentJob` pattern exactly. |
+| DOCX for programme documents | `phpoffice/phpword ^1.4` — already installed. Any generated install programme report reuses `DocxBuilderService`. |
+| PDF for sign-off sheets | `barryvdh/laravel-dompdf ^3.1` — already installed. Embeds base64 PNG signature via `<img src="data:image/png;base64,...">` — DomPDF supports inline data URIs. |
+| Project data as task input | `ProjectDataService` 4-tier canonical merge — `InstallTaskGeneratorService` reads rooms × equipment exactly as `WorksheetBuilderService` does. |
+| Budget vs actual time | Plain SQL `SUM()` aggregate over a `time_entries` table — no package. |
+| Calendar/schedule UI (simple) | Blade + Alpine.js for basic date display. Gantt view requires one new JS library (see below). |
 
 ---
 
-## 1. MS SQL Connectivity (QuoteWerks SQL Import)
+## New Additions Required
 
-### Recommendation: PHP `sqlsrv` / `pdo_sqlsrv` PECL extensions + Laravel named connection
+### JS Dependencies
 
-**Confidence: HIGH** (verified against Microsoft official docs, February 2026)
+| Library | Version | Install | Purpose | Why This One |
+|---|---|---|---|---|
+| `signature_pad` | `^5.1.3` | `npm install signature_pad` | HTML5 canvas signature capture for commissioning sign-off (INST-05) | Zero external dependencies. Works on iOS Safari and Android Chrome touch and stylus input. Outputs base64 PNG or SVG. Actively maintained — v5.1.3 published December 2025. No Composer counterpart needed: store the base64 string in a MySQL TEXT column, embed in DomPDF as a data URI. |
+| `frappe-gantt` | `^1.2.2` | `npm install frappe-gantt` | Gantt/calendar timeline for task scheduling (INST-02) | MIT licence (DHTMLX Gantt GPL is incompatible with commercial internal use). Vanilla JS, zero dependencies, ~50 kB minified. Works directly in a Blade partial via an Alpine.js `x-init` wrapper — no React or Vue required. v1.0 released after a year of stabilisation; v1.2.2 is the current stable release (March 2026). Use for read + drag-to-reschedule only. |
+| `dexie` | `^4.4.2` | `npm install dexie` | IndexedDB wrapper for offline checklist state (INST-03) | The standard IndexedDB abstraction in 2026 — 100k+ dependent projects on npm, v4.4.2 published April 2026. Provides a clean async/Promise API over raw IndexedDB. Needed so engineers can tick checklist items offline (no mobile data). Dexie persists state to IndexedDB; Alpine.js `$store` reads from it for reactive display. On reconnect, Alpine detects `navigator.onLine` and Axios POSTs the pending queue to a `/field/sync` endpoint. |
+| `vite-plugin-pwa` | `^1.1.0` | `npm install -D vite-plugin-pwa` | Service worker + web manifest for offline-capable field view (INST-03) | Zero-config Workbox-backed PWA for Vite. Required for the field view to load at all when an engineer has no mobile data — without a registered service worker, the HTML, CSS, and JS bundle will not be available offline. Plugs into `vite.config.js` alongside the existing `laravel-vite-plugin`. v1.1.0 is the current release (2025). Scope the service worker to `/field/*` routes only — do not make the entire RAMS platform offline-capable. |
 
-### Driver Layer
-
-| Component | Version | Purpose |
-|-----------|---------|---------|
-| `ext-pdo_sqlsrv` (PECL) | 5.13 | PDO driver for SQL Server — what Laravel's Eloquent uses |
-| `ext-sqlsrv` (PECL) | 5.13 | Low-level SQL Server extension (required by pdo_sqlsrv) |
-| Microsoft ODBC Driver for SQL Server | 17 or 18 | Required system dependency; both work with driver 5.13 |
-
-**Why this, not an alternative:**
-
-- Laravel's built-in `sqlsrv` database driver (present in `Illuminate\Database`) requires `pdo_sqlsrv` — no Composer package needed
-- `doctrine/dbal` 4.4.3 (already installed) explicitly supports `sqlsrv` connections, so schema introspection and Eloquent will work without additional packages
-- ODBC 17 is the safer choice for Windows Server targets running older SQL Server (QuoteWerks typically uses SQL Server 2016/2019); ODBC 18 adds TLS 1.2 enforcement by default which can cause issues with internal/self-signed certs
-- Driver 5.13 supports PHP 8.2, 8.3, 8.4, and 8.5 — fully compatible with this project's PHP ^8.2 requirement
-
-**What NOT to use:**
-
-- Do not use `yajra/laravel-datatables` or any ORM abstraction over the QuoteWerks connection — this is read-only, raw PDO queries via `DB::connection('quotewerks')` are the right approach
-- Do not attempt FreeTDS on Linux as a workaround — the server-side SQL Server instance is Windows, and the Laravel app server should have the Microsoft ODBC driver installed; FreeTDS has encoding and type-mapping edge cases with QuoteWerks data
-
-### Laravel Configuration
-
-`config/database.php` already includes a `sqlsrv` connection block (lines 101–114). The QuoteWerks connection should be added as a second named connection — do not modify the default `sqlsrv` block.
-
-Add to `config/database.php`:
-
-```php
-'quotewerks' => [
-    'driver'   => 'sqlsrv',
-    'host'     => env('QW_DB_HOST', 'localhost'),
-    'port'     => env('QW_DB_PORT', '1433'),
-    'database' => env('QW_DB_DATABASE', 'QuoteWerks'),
-    'username' => env('QW_DB_USERNAME'),
-    'password' => env('QW_DB_PASSWORD'),
-    'charset'  => 'utf8',
-    'prefix'   => '',
-    'prefix_indexes' => true,
-    // Uncomment if QuoteWerks SQL Server uses self-signed cert:
-    // 'trust_server_certificate' => env('QW_DB_TRUST_CERT', 'false'),
-    // 'encrypt' => env('QW_DB_ENCRYPT', 'yes'),
-],
-```
-
-Usage in `QuoteWerksImportService`:
-
-```php
-$rows = DB::connection('quotewerks')
-    ->table('Quote')
-    ->where('PKQuoteHeaderID', $quoteId)
-    ->get();
-```
-
-### Installation (server-level, not Composer)
-
-On the Laravel app server (Windows or Linux):
-
-**Windows:**
-```
-# Install ODBC Driver 17 from Microsoft
-# Then install PHP extensions via PECL or pre-built .dll from github.com/Microsoft/msphpsql/releases
-# Add to php.ini:
-extension=pdo_sqlsrv
-extension=sqlsrv
-```
-
-**Linux (Ubuntu/Debian):**
+**Full install command:**
 ```bash
-# Microsoft ODBC Driver 17
-curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
-curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list > /etc/apt/sources.list.d/mssql-release.list
-apt-get update && ACCEPT_EULA=Y apt-get install -y msodbcsql17 unixodbc-dev
-
-# PHP extensions via PECL
-pecl install sqlsrv pdo_sqlsrv
-# Add to php.ini: extension=sqlsrv.so and extension=pdo_sqlsrv.so
+npm install signature_pad frappe-gantt dexie
+npm install -D vite-plugin-pwa
 ```
 
-**No Composer install required** — this is a PHP extension, not a package.
+### Composer Dependencies
+
+**No new Composer packages are needed for v1.2.**
+
+| v1.2 Feature | Backend Implementation | Package Needed? |
+|---|---|---|
+| Task list generation (INST-01) | `InstallTaskGeneratorService` reads `ProjectDataService` output, writes to `install_tasks` table | None — plain Eloquent |
+| Engineer assignment (INST-02) | Foreign key `install_tasks.assigned_user_id -> users.id` | None — existing users |
+| Clock in/out time tracking (INST-04) | `time_entries` table (`project_id`, `user_id`, `clocked_in_at`, `clocked_out_at`, `category`) with `TimeTrackingService` | None — plain timestamps |
+| Budget vs actual (INST-04) | `TimeTrackingService::getBudgetComparison()` — SQL `SUM(TIMESTAMPDIFF(...))` grouped by category | None |
+| Commissioning sign-off storage (INST-05) | `commissioning_sign_offs` table with `signature_data TEXT` column | None |
+| Sign-off PDF generation (INST-05) | `barryvdh/laravel-dompdf` already installed — embed base64 PNG as data URI | None — already installed |
+| Offline sync endpoint (INST-03) | Standard Laravel controller + JSON batch — no real-time infrastructure | None |
+| Worksheet pre-install answers (WORK-05) | Extend existing `WorksheetBuilderService` to read `survey_rooms.pre_install_answers` | None |
+
+### Server-Level Requirements
+
+| Requirement | Status | Notes |
+|---|---|---|
+| HTTPS | Required — not new | Service workers are blocked by browsers on HTTP. The production server must already serve over HTTPS for auth to be secure. No new infrastructure. |
+| `storage/app/private/` writable | Already met | Commissioning photos use the same private storage path as survey photos. No new disk config. |
+| Queue worker | Already running | Task generation job reuses the existing `database` queue driver and worker process. No new queue infrastructure. |
+| No new PHP extensions | Confirmed | No OCR, no binary conversion, no new system packages required for v1.2. |
 
 ---
 
-## 2. XLSX Generation (Cable Schedules)
+## Architecture Integration Points
 
-### Recommendation: `phpoffice/phpspreadsheet` ^2.x
+### Offline field view — scope boundary (critical)
 
-**Confidence: MEDIUM** — package identity is authoritative; version constraint should be verified at install time (`composer require phpoffice/phpspreadsheet`)
+The offline capability applies to ONE route prefix only: `/field/{project}/*` (the engineer mobile checklist view). It does NOT make the entire RAMS admin platform offline-capable.
 
-| Package | Target Version | PHP Requirement | Purpose |
-|---------|---------------|-----------------|---------|
-| `phpoffice/phpspreadsheet` | ^2.0 (verify latest at install) | ^8.1 | Write .xlsx cable schedule files |
+`vite.config.js` configuration:
 
-**Why PhpSpreadsheet, not an alternative:**
-
-- It is the direct successor to and replacement for the abandoned PHPExcel library
-- `phpoffice/phpword` (already in the project) is a sibling library from the same PHPOffice organisation — same conventions, same autoload patterns, same OSS license (LGPL-3.0)
-- No wrapper package (e.g. Maatwebsite/Laravel-Excel) is needed for this use case. Laravel-Excel adds an Eloquent-export API that is valuable when you're dumping database queries to spreadsheets, but the cable schedule generator needs to write cells with specific column headers, merged cells, and conditional formatting — raw PhpSpreadsheet is more appropriate and avoids a heavy dependency
-- Wire generation from structured data (not from database rows) means the generator service calls `$sheet->setCellValue()` and `$spreadsheet->createSheet()` directly — the PhpSpreadsheet API for this is well-documented and stable
-
-**What NOT to use:**
-
-- Do not use `maatwebsite/excel` (Laravel-Excel) — it optimises for query-to-export patterns, not for programmatically building structured documents. It wraps PhpSpreadsheet, so you'd add indirection without benefit
-- Do not use `box/spout` (now `openspout/openspout`) — it is optimised for large-dataset streaming and has a minimal API. Cable schedules require cell styling and column control that Spout intentionally omits
-
-**Installation:**
-
-```bash
-composer require phpoffice/phpspreadsheet
+```js
+VitePWA({
+    strategies: 'generateSW',
+    registerType: 'autoUpdate',
+    workbox: {
+        navigateFallback: '/field/offline',
+        navigateFallbackAllowlist: [/^\/field/],  // scope to /field/* only
+        runtimeCaching: [
+            {
+                urlPattern: /^\/field\/.*\/sync/,
+                handler: 'NetworkOnly',  // sync endpoint must never be cached
+            },
+        ],
+    },
+    manifest: {
+        name: '21CAV Field View',
+        short_name: 'Field',
+        start_url: '/field',
+        display: 'standalone',
+    },
+})
 ```
 
-Required PHP extensions (all standard, typically already enabled):
-- `ext-zip`, `ext-xml`, `ext-gd`, `ext-mbstring`
+Failing to scope the service worker to `/field/*` would cause stale-cache issues for the admin dashboard and document generation pipeline.
 
-**Usage pattern in `CableScheduleGeneratorService`:**
+### Offline write-back pattern
 
-```php
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-
-$spreadsheet = new Spreadsheet();
-$sheet = $spreadsheet->getActiveSheet();
-$sheet->setCellValue('A1', 'Cable Ref');
-// ... populate from ProjectDataService ...
-
-$writer = new Xlsx($spreadsheet);
-$writer->save(storage_path('app/private/' . $filename));
+```
+Engineer opens /field/{project}/tasks
+  → app shell and task data cached by service worker
+  → Engineer ticks items while offline
+  → Dexie writes ticked state to IndexedDB (key: task ID)
+  → Alpine.js watches navigator.onLine
+  → On reconnect: reads pending Dexie queue, POSTs to /field/{project}/sync via Axios
+  → Laravel controller processes batch, updates install_task_progress table
+  → Dexie clears pending queue
 ```
 
----
+This avoids a full sync framework (no RxDB, no Laravel Echo, no Livewire, no broadcast channels — none are warranted at this scale and internal-tooling context).
 
-## 3. DOCX Generation (Worksheets and O&M Manuals)
+### Signature capture flow
 
-### Recommendation: Use existing `phpoffice/phpword` 1.4.0 — no new package needed
+1. Commissioning Blade page loads, Alpine.js mounts `signature_pad` on a `<canvas>` element via `x-init`.
+2. On form submit, Alpine serialises canvas to base64 PNG: `pad.toDataURL('image/png')`.
+3. Hidden input carries the base64 string in a standard form POST.
+4. Laravel controller validates (non-empty string, starts with `data:image/png;base64,`) and stores in `commissioning_sign_offs.signature_data TEXT`.
+5. A queued job generates the sign-off PDF via DomPDF, embedding the data URI: `<img src="{{ $signatureData }}" style="max-width: 300px;">` — DomPDF supports inline data URIs without additional packages.
 
-**Confidence: HIGH** — PHPWord 1.4.0 is already installed, already used in `DocxBuilderService`, already producing RAMS documents
+### Gantt chart integration
 
-| Package | Version | Status |
-|---------|---------|--------|
-| `phpoffice/phpword` | 1.4.0 (locked) | Already installed — extend, do not replace |
+Frappe Gantt is a vanilla JS library with no build-time requirements beyond a standard `npm install`. Import as an ES module via Vite. Task data is injected server-side as a JSON Blade variable to avoid a separate API call on page load:
 
-**Why no new package:**
+```blade
+<div x-data="ganttView()" x-init="init()">
+    <div id="gantt-container"></div>
+</div>
+<script>
+    const rawTasks = @json($tasks);  // server-rendered
+    function ganttView() {
+        return {
+            init() {
+                const gantt = new Gantt('#gantt-container', rawTasks, {
+                    on_date_change: (task, start, end) => {
+                        axios.patch(`/install-tasks/${task.id}`, { start, end });
+                    },
+                    view_mode: 'Week',
+                });
+            }
+        }
+    }
+</script>
+```
 
-- Worksheet and O&M generators follow the same pattern as the existing RAMS DOCX generator (`DocxBuilderService.php`)
-- PHPWord 1.4.0 supports sections, tables, headers/footers, styles, and template loading — all features required for worksheets and O&M manuals
-- The existing `DocxBuilderService` already abstracts PHPWord into reusable primitives; worksheet and O&M generators should extend or compose from it, not introduce a parallel library
+Date changes on drag emit an Axios PATCH to the task resource endpoint.
 
-**What the generators need from PHPWord that the existing code already exercises:**
+### Task generation (INST-01) — no new package
 
-- `PhpOffice\PhpWord\PhpWord` — root document object
-- `$section->addTable()` with row/cell API — for room-by-room equipment lists and cable route tables
-- `$section->addText()` and `$section->addTitle()` — for narrative content
-- `IOFactory::createWriter($doc, 'Word2007')` — for writing `.docx` output
+`InstallTaskGeneratorService::generateForProject(Project $project): void`
 
-**No API changes in PHPWord 1.4.0 that affect existing patterns.** The locked version is recent (released 2025-05-29 per composer.lock timestamp) and PHP 8.2-compatible.
-
----
-
-## 4. Laravel Database Multiple Connections Pattern
-
-**Confidence: HIGH** — this is a documented Laravel feature, unchanged in Laravel 12
-
-The QuoteWerks SQL connection must be isolated from the primary MySQL connection. Laravel's multiple connections feature handles this with no additional packages:
-
-- Named connection in `config/database.php` (see section 1 above)
-- Env vars prefixed `QW_DB_*` to prevent collision with primary DB vars
-- `DB::connection('quotewerks')->...` in `QuoteWerksImportService` only
-- No Eloquent models bound to `quotewerks` connection — raw query builder only (read-only, no ORM overhead, no accidental writes)
-- Connection is never set as `default` — the primary MySQL connection remains the default for all application models
-
----
-
-## Summary: What to Add
-
-| Item | Action | Type |
-|------|--------|------|
-| `pdo_sqlsrv` + `sqlsrv` PHP extensions | Install on server via PECL | System extension |
-| Microsoft ODBC Driver 17 | Install on server | System binary |
-| `quotewerks` named connection in `config/database.php` | Add config block | Config change |
-| `QW_DB_*` env vars | Add to `.env` + `.env.example` | Config change |
-| `phpoffice/phpspreadsheet` | `composer require phpoffice/phpspreadsheet` | Composer package |
-| PHPWord for DOCX | Already installed — no action | — |
-
-**No new Composer packages for MS SQL.** One new Composer package for XLSX. Zero changes to existing packages.
+1. Calls `ProjectDataService::getCanonicalData($project)` — existing 4-tier merge.
+2. Iterates rooms × equipment items.
+3. Inserts into `install_tasks` table (project_id, room, equipment_item, category, status, estimated_minutes).
+4. Dispatched as `GenerateInstallTasksJob` from the project dashboard controller — same pattern as `BuildRamsDocumentJob`.
 
 ---
 
-## Alternatives Considered
+## What NOT to Add
 
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| MS SQL connectivity | `pdo_sqlsrv` PECL extension | FreeTDS / ODBC via PDO generic | Encoding/collation issues with QuoteWerks data; Microsoft driver is the supported path |
-| XLSX generation | `phpoffice/phpspreadsheet` | `maatwebsite/excel` | Adds unnecessary abstraction layer; cable schedule needs direct cell control |
-| XLSX generation | `phpoffice/phpspreadsheet` | `openspout/openspout` | Missing cell styling API; optimised for streaming large datasets, not structured document authoring |
-| DOCX (worksheets/O&M) | Extend existing PHPWord | Add `phpoffice/phppresentation` or similar | Wrong format; existing PHPWord is sufficient |
+| Rejected Option | Reason |
+|---|---|
+| Livewire | Adds a second reactive framework alongside Alpine.js. Unjustified complexity for forms and checklists that Alpine already handles well. |
+| Laravel Echo / Pusher / Reverb | Real-time multi-user is explicitly out of scope (PROJECT.md). No websocket infrastructure needed. |
+| Full-app PWA (all routes) | Only `/field/*` needs offline capability. Service worker scoped globally would cache stale AI-generated data and admin views unintentionally. |
+| NativePHP or Capacitor | Native mobile app is explicitly out of scope (PROJECT.md). Mobile browser is the target. |
+| DHTMLX Gantt | GPL licence — incompatible with commercial internal tooling without a paid licence. Frappe Gantt is MIT. |
+| React or Vue | No SPA framework warranted. Existing Blade + Alpine.js is sufficient. Adding a second reactive framework fragments the codebase. |
+| `creagia/laravel-sign-pad` (Composer) | Wraps `signature_pad` with Blade components and optional OpenSSL PDF certification. The overhead is not justified — the raw `signature_pad` npm package wires cleanly with Alpine.js and DomPDF handles PDF embedding already. |
+| `maatwebsite/excel` | Not needed — time tracking aggregates and task exports are simple enough for direct Eloquent queries + PhpSpreadsheet (already installed). |
+| Any real-time broadcast / WebSockets | Explicitly out of scope. Clock in/out and task updates are sequential single-user actions — a standard HTTP POST per event is correct. |
+| Laravel Sanctum or Passport tokens for mobile | Engineers authenticate via the existing session-based Breeze auth — the mobile field view is a server-rendered Blade page, not a separate mobile API client. No token-based auth needed. |
+
+---
+
+## Confidence Assessment
+
+| Area | Level | Basis |
+|---|---|---|
+| `signature_pad` | HIGH | npm v5.1.3 confirmed, published December 2025. GitHub active. Mobile touch compatibility documented. Canvas → base64 → DomPDF data URI path is a proven integration pattern. |
+| `frappe-gantt` | HIGH | npm v1.2.2, published March 2026. MIT licence confirmed on GitHub. Vanilla JS confirmed — no framework dependency. v1.0 stability milestone reached. |
+| `dexie` | HIGH | npm v4.4.2, published April 2026. 100k+ dependent projects. IndexedDB + Alpine.js integration documented with community examples. |
+| `vite-plugin-pwa` | HIGH | npm v1.1.0 confirmed. Compatible with `laravel-vite-plugin` — community-confirmed pattern on Laracasts. Workbox integration documented. |
+| No new Composer packages | HIGH | All v1.2 backend features map to existing Laravel patterns + already-installed packages. Verified by mapping each feature to existing code. |
+| Mobile photo capture without new library | HIGH | HTML `capture="environment"` is a W3C standard. Proven by existing survey photo upload in this codebase. No new code needed. |
+| Offline scope boundary configuration | MEDIUM | `vite-plugin-pwa` with `navigateFallbackAllowlist` for route scoping is documented but requires careful configuration. Needs implementation attention — incorrectly scoped service workers cause hard-to-debug caching bugs. |
 
 ---
 
 ## Sources
 
-- Microsoft PHP Drivers for SQL Server — System Requirements (official docs, fetched 2026-04-09):
-  https://learn.microsoft.com/en-us/sql/connect/php/system-requirements-for-the-php-sql-driver
-- Laravel `config/database.php` — existing `sqlsrv` connection block confirmed present (lines 101–114)
-- `composer.lock` — PHPWord 1.4.0 confirmed installed (2025-05-29), PhpSpreadsheet absent
-- `doctrine/dbal` 4.4.3 keywords — `sqlsrv` listed as supported dialect (confirmed from composer.lock)
-- PHPOffice/PhpSpreadsheet — version constraint MEDIUM confidence; verify with `composer require phpoffice/phpspreadsheet` at implementation time
+- signature_pad npm: https://www.npmjs.com/package/signature_pad
+- signature_pad GitHub: https://github.com/szimek/signature_pad
+- frappe-gantt npm: https://www.npmjs.com/package/frappe-gantt
+- frappe-gantt v1 release: https://frappe.io/blog/product-updates/gantt-v1-is-out
+- Best JS Gantt libraries 2026: https://dhtmlx.com/blog/top-8-javascript-gantt-chart-libraries-2026/
+- dexie npm: https://www.npmjs.com/package/dexie
+- dexie GitHub: https://github.com/dexie/Dexie.js
+- IndexedDB with Alpine.js (community example): https://www.raymondcamden.com/2023/11/26/using-indexeddb-with-alpinejs
+- Offline-first frontend 2025: https://blog.logrocket.com/offline-first-frontend-apps-2025-indexeddb-sqlite/
+- vite-plugin-pwa npm: https://www.npmjs.com/package/vite-plugin-pwa
+- vite-plugin-pwa docs: https://vite-pwa-org.netlify.app/
+- HTML capture attribute: https://www.amitmerchant.com/capturing-images-and-videos-from-the-camera-of-mobile-devices-using-html/

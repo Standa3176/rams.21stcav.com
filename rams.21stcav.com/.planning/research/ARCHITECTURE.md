@@ -1,377 +1,425 @@
-# Architecture Patterns
+# Architecture Patterns — v1.2 Installation Programme & Field Management
 
-**Domain:** AV Operations Platform — unified data layer + multi-format document generation
-**Researched:** 2026-04-09
-**Confidence:** HIGH (derived from direct codebase inspection, not speculation)
-
----
-
-## Context: What Exists and What Is Being Added
-
-The existing system has a well-structured service layer built around a **single-document pipeline**: one PDF upload produces one RAMS document. Data flows linearly — extract, review, generate, render. Each output type (RAMS, O&M, Cable Schedule) currently has its own isolated pipeline that resolves project data independently.
-
-The milestone being designed adds three things that change this topology:
-
-1. **A second import path** (QuoteWerks SQL alongside the existing PDF import)
-2. **A unified data merge point** (ProjectDataService) that all generators consume
-3. **Two new generators** (Worksheets, plus hardened O&M and Cable Schedule) that must share the same data source as RAMS
-
-This requires one architectural addition — the `ProjectDataService` layer — and a refactor of existing generators to consume from it rather than directly from their own data sources.
+**Domain:** Field installation task management integrated into existing Laravel 12 AV operations platform
+**Researched:** 2026-04-13
+**Milestone:** v1.2 — INST-01 through INST-05, WORK-05, WORK-06
 
 ---
 
-## Recommended Architecture
+## How v1.2 Sits in the Existing Architecture
 
-### Layer Map (complete picture)
+The platform already has a clean read-only canonical data layer:
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│  HTTP LAYER                                                             │
-│  Controllers (thin) — delegate immediately to services                  │
-└───────────────────────────────────┬─────────────────────────────────────┘
-                                    │
-┌───────────────────────────────────▼─────────────────────────────────────┐
-│  IMPORT LAYER (two parallel paths, identical output contract)           │
-│                                                                         │
-│  QuoteImportService (PDF)          QuoteWerksImportService (SQL)        │
-│    └─ existing pipeline              └─ NEW: reads remote MS SQL        │
-│    └─ produces: ProjectPackage       └─ produces: ProjectPackage        │
-│         └─ extracted_data                 └─ extracted_data (same keys) │
-└───────────────────────────────────┬─────────────────────────────────────┘
-                                    │
-                     ProjectPackage.extracted_data
-                     (canonical quote data store)
-                                    │
-┌───────────────────────────────────▼─────────────────────────────────────┐
-│  REVIEW LAYER (existing, unchanged)                                     │
-│                                                                         │
-│  Human review UI                                                        │
-│    └─ extracted_data → reviewed (edits) → ProjectPackage.reviewed_data  │
-└───────────────────────────────────┬─────────────────────────────────────┘
-                                    │
-┌───────────────────────────────────▼─────────────────────────────────────┐
-│  SURVEY LAYER (existing infrastructure, enhanced data capture)          │
-│                                                                         │
-│  SiteSurvey + SiteSurveyRoom models                                    │
-│    └─ per-room: displays, audio, cable routes, constraints, photos      │
-│    └─ global: site risks, H&S notes, access restrictions                │
-└───────────────────────────────────┬─────────────────────────────────────┘
-                                    │
-┌───────────────────────────────────▼─────────────────────────────────────┐
-│  UNIFIED DATA LAYER  ◄── THE ARCHITECTURAL ADDITION                     │
-│                                                                         │
-│  ProjectDataService                                                     │
-│    └─ Input:  Project model + latestPackage + latestSurvey              │
-│    └─ Merge:  reviewed_data → survey rooms → site risks                 │
-│    └─ Output: canonical ProjectDataset (typed array, see below)         │
-│    └─ Rule:   READ ONLY — never persists anything                       │
-│    └─ Extends: existing ProjectContextResolver (promote to Core)        │
-└─┬─────────────────────┬─────────────────────┬───────────────────────────┘
-  │                     │                     │
-  ▼                     ▼                     ▼
-┌────────────┐  ┌──────────────┐  ┌──────────────────────┐
-│  RAMS      │  │  Worksheets  │  │  O&M + Cable Sched.  │
-│  Generator │  │  Generator   │  │  Generators          │
-│  (refine)  │  │  (NEW)       │  │  (NEW / harden)      │
-└────────────┘  └──────────────┘  └──────────────────────┘
-      │                │                     │
-      ▼                ▼                     ▼
-   DOCX            DOCX                DOCX / XLSX
+ProjectDataService.resolve(Project) → array
+  reviewed_data > quotewerks_sql > extracted_data > defaults
+  survey data enriches 'rooms' key only
 ```
+
+Every v1.0 generator (Worksheet, O&M, RAMS, Cable Schedule) reads from this service and never touches raw package data directly. v1.2 follows the same contract exactly: `InstallTaskGeneratorService` and `CommissioningService` are the two new consumers of `ProjectDataService`.
+
+The v1.2 data is **persistent field state**, not generated documents. This is the key architectural distinction from v1.0:
+
+| v1.0 Pattern | v1.2 Pattern |
+|--------------|--------------|
+| Generate a DOCX snapshot once | Persist live task state updated by engineers in the field |
+| Status on the document model (pending to generating to draft to final) | Status on individual task records (pending to in_progress to complete to signed_off) |
+| Read-only output; regenerate if data changes | Mutable state; engineers write to task/time/commissioning records |
+| Queue job writes generated_data JSON | No queue job; task generation is synchronous (fast, no AI call) |
+
+---
+
+## New Data Models
+
+### `install_programmes` (one per project)
+
+Top-level container for a project's install plan. Analogous to the `Worksheet` model — one record per project, tracks generation status.
+
+```
+id
+project_id          FK → projects
+generated_by        FK → users (who triggered generation)
+status              enum: draft | active | completed | archived
+generated_at        timestamp
+activated_at        timestamp (when moved from draft to active — tasks become editable)
+completed_at        timestamp nullable
+notes               text nullable
+timestamps
+softDeletes
+```
+
+Why a container model: allows regeneration (draft a new programme without losing active task state), gives a clear anchor for relationships, and mirrors the Worksheet/OmManual/RamsDocument pattern already in place.
+
+### `install_tasks` (many per programme, organised by room then equipment)
+
+The core task unit. Generated from `ProjectDataService.resolve()` rooms and equipment, one task per equipment item per room, plus configurable additional tasks (e.g. "Cable route installation", "Rack build").
+
+```
+id
+install_programme_id   FK → install_programmes
+room_name              string (denormalised from package data — no FK to survey room)
+room_ref               string nullable
+equipment_name         string
+equipment_category     string (hardware, infrastructure, etc.)
+task_type              enum: install | configure | cable | test | commission
+title                  string (human-readable, auto-generated)
+description            text nullable (from room overview / works_summary in reviewed_data)
+sort_order             integer (room order x 100 + item order)
+status                 enum: pending | assigned | in_progress | complete | blocked | skipped
+blocked_reason         text nullable
+assigned_to            FK → users nullable
+assigned_at            timestamp nullable
+started_at             timestamp nullable
+completed_at           timestamp nullable
+sign_off_required      boolean default true
+timestamps
+softDeletes
+```
+
+**Why denormalise room_name instead of FK to SiteSurveyRoom:** The task list is generated from ProjectDataService which resolves rooms from reviewed_data (package), not from the SiteSurveyRoom table. The room in reviewed_data may not perfectly match the SiteSurveyRoom.room_name. A string copy is the same pattern used throughout the existing generators (WorksheetGeneratorService copies room name as a string). If the survey room needs linking later, it can be added as a nullable `site_survey_room_id` FK in a later migration.
+
+### `install_task_assignments` (optional pivot — defer unless multi-engineer needed)
+
+For simple single-engineer assignment the `assigned_to` FK on `install_tasks` is sufficient. Add this pivot table only if multiple engineers per task is required. Evaluate during INST-02 (calendar view phase).
+
+```
+id
+install_task_id   FK → install_tasks
+user_id           FK → users
+role              string nullable (lead | support)
+assigned_at       timestamp
+timestamps
+```
+
+### `time_entries` (many per project, per user)
+
+Clock in/out records. Linked at project level with optional task FK for finer granularity. This matches the real-world pattern where engineers clock in to the project, not to a specific equipment task.
+
+```
+id
+project_id         FK → projects
+user_id            FK → users
+install_task_id    FK → install_tasks nullable (optional finer tracking)
+category           enum: travel | installation | cabling | commissioning | survey | management | other
+clocked_in_at      timestamp
+clocked_out_at     timestamp nullable (null = currently clocked in)
+duration_minutes   integer nullable (computed on clock-out, stored for query efficiency)
+notes              text nullable
+timestamps
+softDeletes
+```
+
+**Clock-out computation:** Compute `duration_minutes = TIMESTAMPDIFF(MINUTE, clocked_in_at, clocked_out_at)` and store on clock-out. Storing avoids recalculation on every budget-vs-actual query.
+
+**Single active clock-in guard:** Enforce at service level — `TimeTrackingService::clockIn()` checks for any open entry (clocked_out_at IS NULL) for the user before creating a new one.
+
+### `commissioning_records` (one per install_task where sign_off_required)
+
+Per-equipment sign-off record. Attached to the task on completion.
+
+```
+id
+install_task_id       FK → install_tasks (unique index — one record per task)
+completed_by          FK → users
+completed_at          timestamp
+photo_paths           json nullable (array of storage paths, same pattern as SiteSurveyPhoto)
+notes                 text nullable
+client_name           string nullable
+client_signature_path string nullable (PNG stored in storage/app/private/commissioning/)
+client_signed_at      timestamp nullable
+timestamps
+```
+
+**Photo storage:** Use `storage/app/private/commissioning/{project_id}/{task_id}/` following the existing `storage/app/private/` convention. No public disk exposure — download routes serve via signed URLs or streamed file responses.
+
+---
+
+## Integration with ProjectDataService and reviewed_data
+
+### Task Generation Flow
+
+`InstallTaskGeneratorService` is a direct consumer of `ProjectDataService`, following the same pattern as `WorksheetGeneratorService`:
+
+```php
+// InstallTaskGeneratorService::generate(InstallProgramme): void
+$data  = $this->projectDataService->resolve($programme->project);
+$rooms = $data['rooms'];
+
+foreach ($rooms as $sortIndex => $room) {
+    $equipment = $this->filterHardware($room['equipment'] ?? []);
+    foreach ($equipment as $itemIndex => $item) {
+        InstallTask::create([
+            'install_programme_id' => $programme->id,
+            'room_name'            => $room['room_name'] ?? $room['name'],
+            'equipment_name'       => $item['name'],
+            'equipment_category'   => $item['category'] ?? 'hardware',
+            'task_type'            => 'install',
+            'title'                => 'Install ' . $item['name'],
+            'description'          => $room['works_summary'] ?? $room['overview'] ?? null,
+            'sort_order'           => ($sortIndex * 100) + $itemIndex,
+            'status'               => InstallTask::STATUS_PENDING,
+        ]);
+    }
+    // Cable task per room if cable_route_desc is set
+    // Test task per room (always)
+}
+```
+
+`reviewed_data['room_overviews'][].works_summary` flows through `ProjectDataService → rooms[].works_summary` already (confirmed in `ProjectContextResolver::resolveRooms()`). The task generator reads it from there, not directly from the package — this preserves the single canonical read path.
+
+### Fields from ProjectDataService Used by Task Generation
+
+| Field in resolved data | Used for |
+|-----------------------------|---------|
+| `rooms[].room_name` | `install_tasks.room_name` |
+| `rooms[].equipment[]` (hardware only) | One task per item |
+| `rooms[].equipment[].name` | `install_tasks.equipment_name` |
+| `rooms[].equipment[].category` | `install_tasks.equipment_category` |
+| `rooms[].works_summary` | `install_tasks.description` (pre-fill) |
+| `rooms[].cable_route_desc` | Triggers cable-run task creation per room |
+| `project.name`, `project.ref` | Programme header data |
+
+No new fields are needed in `ProjectDataService` for v1.2. The existing resolved data is sufficient.
+
+### reviewed_data is Not Modified
+
+v1.2 does not write to `project_packages.reviewed_data`. Tasks are derived from it at generation time, then live independently in `install_tasks`. If the package data is updated and a new programme is generated, old task records are preserved (programme status → archived) and new ones are created under a new programme. This matches the existing worksheet regeneration model.
+
+---
+
+## Service Layer Design
+
+### New Services
+
+**`InstallTaskGeneratorService`** — generates tasks from ProjectDataService data
+- `generate(InstallProgramme): void` — creates all task records in one DB transaction
+- `filterHardware(array): array` — same exclusion logic as WorksheetGeneratorService (cables, consumables, services, options excluded)
+- Called synchronously from controller — no queue needed (no AI call, fast DB inserts)
+
+**`TimeTrackingService`** — clock in/out business logic
+- `clockIn(User, Project, string $category, ?int $taskId): TimeEntry`
+- `clockOut(User): TimeEntry`
+- `activeEntry(User): ?TimeEntry` — returns open entry for clock-out UI state
+- `budgetVsActual(Project): array` — aggregates `duration_minutes` by category
+
+**`CommissioningService`** — task completion and sign-off
+- `completeTask(InstallTask, User, array $photoFiles, string $notes): CommissioningRecord`
+- `attachClientSignature(CommissioningRecord, string $signatureDataUri): void` — converts canvas data URI to PNG, stores to private disk
+- `programmeProgress(InstallProgramme): array` — stats (total, complete, blocked, pending counts)
+
+**`InstallProgrammeService`** — high-level orchestration (analogous to OmManualService)
+- `createForProject(Project, User): InstallProgramme` — creates programme record, calls generator
+- `activate(InstallProgramme): void` — transitions draft to active
+- `checkCompletion(InstallProgramme): void` — transitions to completed when all tasks signed off, then advances project lifecycle
+
+### Modified Components (Minimal)
+
+**`Project` model** — add two new relationships:
+```php
+public function installProgrammes(): HasMany
+{
+    return $this->hasMany(InstallProgramme::class);
+}
+
+public function activeInstallProgramme()
+{
+    return $this->hasOne(InstallProgramme::class)
+        ->where('status', InstallProgramme::STATUS_ACTIVE)
+        ->latestOfMany();
+}
+```
+
+No other existing services or models are modified. `ProjectDataService` remains read-only and unchanged.
+
+---
+
+## Controller and Route Pattern
+
+Follow existing thin-controller convention:
+
+```
+InstallProgrammeController   — programme CRUD, generate action, field view
+InstallTaskController        — task list, status updates, assignment
+TimeEntryController          — clock in/out, time log view, budget summary
+CommissioningController      — task completion, photo upload, signature capture
+```
+
+All routes under `auth` middleware. No public (token-only) routes needed for v1.2 — engineers use standard authenticated sessions on mobile browsers.
+
+Route structure:
+```
+GET|POST  /projects/{project}/install-programme          → programme view and generate
+GET       /projects/{project}/install-programme/field    → mobile field view
+POST      /projects/{project}/time/clock-in              → TimeEntryController
+POST      /projects/{project}/time/clock-out             → TimeEntryController
+GET       /projects/{project}/time                       → time log and budget view
+GET|POST  /tasks/{task}/commissioning                    → sign-off form
+POST      /commissioning/{record}/signature              → client signature capture
+```
+
+---
+
+## Mobile Field View Architecture
+
+No native app. Responsive Blade + Tailwind + Alpine.js, matching the existing public survey pattern (`PublicSurveyController`, `survey.blade.php`).
+
+**Key mobile UX patterns from existing survey code:**
+- Full-width forms, large tap targets using Tailwind responsive classes
+- Photo upload via `<input type="file" accept="image/*" capture="environment">` — triggers camera directly on mobile browsers
+- Form state managed with Alpine.js `x-data`, same as existing survey room forms
+
+**Signature capture:** Use `<canvas>` with Alpine.js `x-ref` to bind a signature pad. Canvas strokes convert to data URI on submit, POSTed as a hidden field, stored as PNG by `CommissioningService::attachClientSignature()`. This is a confirmed working pattern in the Laravel/Alpine.js ecosystem.
+
+**Clock in/out UI:** Single sticky button at top of field view. Alpine.js tracks active state via a Blade variable seeded from `TimeTrackingService::activeEntry()`. Axios POST on tap, response updates button label and class without page reload. Same pattern as existing Axios usage in `resources/js/bootstrap.js`.
+
+**Progressive enhancement:** The field view must function without JavaScript for core task checklist reading (accessibility and connectivity edge cases). Axios/Alpine.js enhance clock-in and photo preview only.
 
 ---
 
 ## Component Boundaries
 
-### 1. Import Layer — Two Paths, One Contract
-
-| Component | Responsibility | Location |
-|-----------|---------------|----------|
-| `QuoteImportService` | Existing PDF → ProjectPackage pipeline | `app/Core/Modules/QuoteImport/` |
-| `QuoteWerksImportService` | NEW: SQL → ProjectPackage pipeline | `app/Core/Modules/QuoteImport/` |
-| `ProjectPackage` model | Quote data store (extracted + reviewed) | `app/Models/ProjectPackage.php` |
-
-**Design rule:** `QuoteWerksImportService::import()` must produce a `ProjectPackage` with `extracted_data` structured identically to what `QuoteImportService` produces. The downstream review UI and all generators must be completely unaware of which import path was used. This is enforced by defining a single `ExtractedDataContract` — a typed array shape documented in a class constant — that both services fill.
-
-The SQL service reads from QuoteWerks database tables (header + line items + room/group structure), maps them to the same keys the PDF parser produces (`equipment`, `room_overviews`, `activities`, `cable_list`, etc.), and then the standard review workflow takes over. No special-casing downstream.
-
-### 2. Unified Data Layer — ProjectDataService
-
-**Location:** `app/Core/Modules/Projects/ProjectDataService.php`
-
-This is the central architectural addition. It replaces the ad-hoc pattern where each generator independently digs through `reviewed_data` or `extracted_data` with its own logic.
-
-**Existing foundation to build on:** `ProjectContextResolver` (in `app/Services/`) already does this job for the subset of data needed by surveys — it resolves `project`, `equipment`, `activities`, and `rooms` from the latest package. `ProjectDataService` extends this concept to include survey data and replaces `ProjectContextResolver` as the single resolve point.
-
-**What it merges:**
-
 ```
-Source 1: Project model columns
-  → project.name, ref, client_name, site_address
-  → Authority: always the Project model (not quote snapshot)
+Project (existing)
+  └─ InstallProgramme  (new — active/draft/archived per project)
+       └─ InstallTask[]  (new — many per programme, grouped by room)
+            └─ CommissioningRecord  (new — one per task)
 
-Source 2: ProjectPackage.reviewed_data (preferred) or extracted_data
-  → equipment list (hardware items only for RAMS/Worksheets/O&M)
-  → room_overviews (area → overview text + summary)
-  → activities (installation task keys)
-  → scope_of_works, site_logistics, programme/personnel
-  → cable_list (raw cable entries for Cable Schedule seeding)
-  → data_source tag: 'pdf' | 'quotewerks_sql'
-
-Source 3: SiteSurvey + SiteSurveyRoom (latest completed survey)
-  → per-room: displays, audio systems, cable routes, power/network
-  → per-room: mounting constraints, access limitations, photos
-  → global: site_risks, hs_notes, site_constraints
+User (existing)
+  ├─ TimeEntry[]  (new — many per user, linked to project + optionally task)
+  └─ InstallTask.assigned_to  (new nullable FK)
 ```
 
-**Canonical output shape** (`ProjectDataset`):
-
-```php
-[
-    'project'    => [
-        'id', 'name', 'ref', 'client_name', 'site_address',
-        'lifecycle_status',
-    ],
-    'equipment'  => [
-        // Per item: name, quantity, area, category, data_source, confidence
-    ],
-    'rooms'      => [
-        // Per area: room, overview, summary, works_summary, solution_type_id
-        // MERGED with survey room data when survey exists:
-        // + displays, audio, cable_routes, power_network, constraints, photos
-    ],
-    'activities' => [
-        // Per activity: key, label
-    ],
-    'risks'      => [
-        // Per hazard: hazard, risk_level, control_measures
-        // Source: reviewed_data hazards + survey site_risks merged
-    ],
-    'survey'     => [
-        // survey_id, status, submitted_at
-        // global: site_risks, hs_notes, site_constraints
-    ],
-    'programme'  => [
-        // project_manager_name, lead_engineer_name, planned_start_date, etc.
-    ],
-    'cables'     => [
-        // Per cable: cable_type, from_location, to_location, cores, notes
-    ],
-    'meta'       => [
-        'data_source'     => 'pdf' | 'quotewerks_sql' | 'manual',
-        'has_survey'      => bool,
-        'survey_complete' => bool,
-        'confidence'      => float,  // lowest confidence across sources
-    ],
-]
-```
-
-**Key rules:**
-- `ProjectDataService` is NEVER injected into queued Jobs directly. Jobs receive the `ProjectDataset` array (already resolved and passed as job payload), or resolve it at the start of `handle()` before any long-running work.
-- The service NEVER persists. Mutation of project data goes through dedicated services (`ProjectService`, review controllers, `SurveyService`).
-- All four generators call `ProjectDataService::resolve(Project $project): array` — no other data fetching.
-- Merge priority for conflicting fields: survey data > reviewed_data > extracted_data > project model defaults.
-
-### 3. Generator Interface Pattern
-
-All document generators follow a single interface. This prevents drift as new generators are added and makes the data contract explicit.
-
-**Interface:** `app/Contracts/DocumentGeneratorContract.php`
-
-```php
-interface DocumentGeneratorContract
-{
-    /**
-     * Generate a document from the canonical project dataset.
-     *
-     * @param  array  $dataset   Output of ProjectDataService::resolve()
-     * @param  Model  $record    The persisted document record (RamsDocument, Worksheet, OmManual, CableSchedule)
-     * @return string            Absolute path to the generated file
-     */
-    public function generate(array $dataset, Model $record): string;
-}
-```
-
-**Existing generators to update:**
-
-| Generator | Current pattern | Change needed |
-|-----------|----------------|---------------|
-| `RamsBuilderService` | Takes `reviewedData + formData + record` | Add `generateFromDataset(array $dataset, RamsDocument $record)` entry point; keep `buildFromReview()` for backward compat |
-| `OmManualGeneratorService` | Extracts from PDF internally | Pass 2 (`generateContent()`) switches to accept `$dataset` from `ProjectDataService` |
-| `CableScheduleXlsxService` | Takes `CableSchedule` model, reads `$schedule->items` | Add dataset seeding step: `ProjectDataService` pre-populates `cable_schedule_items` from `cables` array before generation |
-
-**New generators:**
-
-| Generator | Location | Output |
-|-----------|----------|--------|
-| `WorksheetGeneratorService` | `app/Core/Modules/Worksheet/` | DOCX via `DocxBuilderService` or dedicated renderer |
-| (Refined) `OmManualGeneratorService` | `app/Core/Modules/OMManual/` | DOCX via existing `OmManualDocxService` |
-
-All new generators are queued via new Job classes following the same pattern as `BuildRamsDocumentJob`.
-
-### 4. Queue Job Pattern (unchanged structure, new instances)
-
-Each new document type gets its own Job following the established pattern:
-
-```
-BuildWorksheetJob     → WorksheetGeneratorService::generate($dataset, $record)
-BuildOmManualJobV2    → OmManualGeneratorService::generateFromDataset($dataset, $record)
-RebuildCableScheduleJob → seeds items from dataset, then CableScheduleXlsxService::build($record)
-```
-
-Jobs:
-- Resolve `ProjectDataService` at the start of `handle()`, before dispatch queuing overhead
-- Set model `status = 'generating'` before work, `status = 'completed'` or `status = 'failed'` after
-- Have a `failed()` hook that sets `status = 'failed'` and logs `error_message`
-- Use 2 retries maximum, consistent with existing jobs
+`Project` has many `InstallProgramme` records (one active, others archived). `InstallProgramme` has many `InstallTask` records. `InstallTask` has one `CommissioningRecord`. `TimeEntry` belongs to `User` and `Project`, optionally to `InstallTask`.
 
 ---
 
-## Data Flow: Import to Generation
+## End-to-End Data Flow
 
 ```
-IMPORT (either path)
-  PDF upload → QuoteImportService::import()         }
-  SQL pull   → QuoteWerksImportService::import()    }  → ProjectPackage (extracted_data)
-                                                              │
-                                                    REVIEW
-                                                    Human reviews extracted_data
-                                                    Edits + approves
-                                                              │
-                                                    ProjectPackage (reviewed_data set)
-                                                              │
-SURVEY (runs in parallel with review, not blocking)
-  SiteSurveyController::createFromProject()
-  Field engineer fills rooms + global data
-  Submitted → SiteSurvey.status = 'completed'
-                                                              │
-                                                    RESOLVE (on demand)
-                                                    ProjectDataService::resolve($project)
-                                                    Merges all three sources → ProjectDataset
-                                                              │
-                                         ┌────────────────────┼────────────────────┐
-                                         ▼                    ▼                    ▼
-                              BuildRamsDocumentJob  BuildWorksheetJob   BuildOmManualJobV2
-                              (dispatch on approve) (dispatch on demand) (dispatch on demand)
-                                         │                    │                    │
-                                         ▼                    ▼                    ▼
-                                     DOCX file           DOCX file           DOCX / XLSX file
-                                     stored in           stored in           stored in
-                                     storage/app/rams/   storage/app/        storage/app/
-                                                         worksheets/         om-manuals/ or
-                                                                             cable-schedules/
+1. PM triggers "Generate Install Programme" on project dashboard
+   InstallProgrammeController::generate()
+   InstallProgrammeService::createForProject()   → creates InstallProgramme (status=draft)
+   InstallTaskGeneratorService::generate()
+     ProjectDataService::resolve($project)        [READ ONLY — no write]
+     Creates InstallTask records per room/equipment in one transaction
+   Programme status → active
+   Redirect to task list
+
+2. Engineer opens field view on mobile (authenticated browser session)
+   InstallProgrammeController::fieldView()        loads tasks grouped by room
+   Blade renders checklist, clock in/out button seeded from TimeTrackingService::activeEntry()
+
+3. Engineer clocks in
+   POST /projects/{id}/time/clock-in
+   TimeTrackingService::clockIn()                 validates no open entry, creates TimeEntry
+
+4. Engineer completes task, captures photos
+   POST /tasks/{id}/commissioning
+   CommissioningService::completeTask()           stores photos, creates CommissioningRecord
+   InstallTask.status → complete
+   InstallProgrammeService::checkCompletion()     checks if all tasks done
+
+5. Client signature
+   POST /commissioning/{record}/signature
+   CommissioningService::attachClientSignature()  stores PNG from canvas data URI
+   CommissioningRecord.client_signed_at = now()
+
+6. Engineer clocks out
+   POST /projects/{id}/time/clock-out
+   TimeTrackingService::clockOut()                sets clocked_out_at, computes duration_minutes
+
+7. PM views time budget
+   TimeEntryController::summary()
+   TimeTrackingService::budgetVsActual($project)  aggregates duration_minutes by category
 ```
-
-**Key data flow rules:**
-
-1. No generator reads from `ProjectPackage` or `SiteSurvey` directly. They only consume the resolved `ProjectDataset` array.
-2. `ProjectDataService::resolve()` is always called fresh at generation time — no stale cached dataset stored in the database.
-3. Survey data is optional. Generators receive a `meta.has_survey = false` flag and degrade gracefully (omit survey-specific sections, leave cable routes blank, etc.).
-4. The `cables` array in the dataset feeds `CableScheduleItem` seeding — the existing `CableScheduleXlsxService` is not modified; it still reads from the model's `items` relationship. The seeding step (create or refresh `CableScheduleItem` rows from `$dataset['cables']`) happens in the job before calling the XLSX service.
 
 ---
 
-## How to Evolve Existing Services Without Breaking RAMS
+## Suggested Build Order
 
-The RAMS pipeline must not be touched until `ProjectDataService` is stable and tested. The evolution path is additive, not replacement:
+**Phase 12 — Programme and Task Model Foundation**
+Everything in v1.2 depends on these models.
+- Migrations: `install_programmes`, `install_tasks`
+- `InstallProgramme` model, `InstallTask` model with status constants (follow Worksheet model pattern exactly)
+- `Project` model additions: `installProgrammes()`, `activeInstallProgramme()`
+- `InstallTaskGeneratorService` reading from `ProjectDataService`
+- `InstallProgrammeService::createForProject()` and `activate()`
+- `InstallProgrammeController` — generate, index, show (admin table view, desktop)
+- Unit tests: task generation from mocked ProjectDataService output
 
-### Phase order rationale
+**Phase 13 — Task Assignment and Calendar View**
+Depends on Phase 12.
+- Assignment UI: dropdown per task linked to users table
+- `assigned_to` FK already in `install_tasks` from Phase 12
+- Calendar/week view: Tailwind grid table, no JS calendar library needed at MVP
+- `InstallTaskController::assign()` endpoint
 
-**Phase A — Build the foundation first (ProjectDataService + QuoteWerks SQL import)**
+**Phase 14 — Mobile Field View and Task Completion**
+Depends on Phase 12. Can parallel-track with Phase 13.
+- Migration: `commissioning_records`
+- `CommissioningRecord` model
+- `CommissioningService::completeTask()` with photo storage
+- Responsive field view Blade template (mobile-first Tailwind)
+- Photo upload: `<input capture="environment">` + server-side storage
+- Task status updates (complete, blocked) via Axios
+- `CommissioningController`
 
-These two are prerequisites for everything else. `ProjectDataService` with no generators consuming it is safe — it's purely read-only. Deploy it, verify it resolves correctly for existing projects, then wire generators to it one at a time.
+**Phase 15 — Time Tracking**
+Depends on Phase 12 (project FK). Largely independent of Phases 13/14.
+- Migration: `time_entries`
+- `TimeEntry` model
+- `TimeTrackingService` — clock in/out with open-entry guard
+- `TimeEntryController` — clock in/out endpoints, time log view, budget summary
+- Mobile clock in/out button added to Phase 14 field view
 
-**Phase B — Wire RAMS to ProjectDataService (additive entry point, not replacement)**
-
-Add `RamsBuilderService::generateFromDataset(array $dataset, RamsDocument $record)` as a new entry point. The existing `buildFromReview()` stays intact and continues to be called by `BuildRamsDocumentJob`. The new entry point is only activated by a feature flag or separate action. RAMS pipeline cannot break because the old path is untouched.
-
-**Phase C — New generators (Worksheets, O&M hardening, Cable Schedule seeding)**
-
-These are net-new. No risk to existing pipeline. They consume `ProjectDataService` from day one.
-
-**Phase D — Retire direct data access in old generators**
-
-Once new generators are stable and `ProjectDataService` is proven, old entry points (`buildFromReview`, direct `OmManualGeneratorService` PDF extraction) can be deprecated. This is optional — they can coexist indefinitely.
-
-### Concrete preservation rules
-
-- `BuildRamsDocumentJob` calls `RamsBuilderService::buildFromReview()` — this method signature does not change.
-- `ProjectPackage.reviewed_data` remains the authoritative store for quote-sourced data. `ProjectDataService` reads from it; it never writes to it.
-- `RamsDocument.reviewed_data` (separate from package) remains the RAMS-specific review store. The RAMS pipeline reads from this, not from `ProjectDataService`. Only the new generators use `ProjectDataService` as their source.
-- `ProjectContextResolver` is not deleted. It can be deprecated gradually as `ProjectDataService` is adopted, or kept as a thin wrapper that delegates to `ProjectDataService`.
-
----
-
-## Anti-Patterns to Avoid
-
-### Anti-Pattern 1: Each Generator Resolving Its Own Data
-
-**What goes wrong:** `WorksheetGeneratorService` does its own `$project->latestPackage->reviewed_data` query. `OmManualGeneratorService` does the same. Survey data is merged differently in each. A field name change in `ProjectPackage` breaks three places.
-
-**Why it happens:** It's the path of least resistance — copy the pattern from `RamsBuilderService::reviewedToParsed()` and adapt it.
-
-**Instead:** Every generator calls `ProjectDataService::resolve()`. The merge logic lives in exactly one place.
-
-### Anti-Pattern 2: Storing the Merged Dataset in the Database
-
-**What goes wrong:** A `projects.canonical_data` JSON column is saved after merge. It goes stale when reviewed_data or survey is updated. Generators consume stale data.
-
-**Why it happens:** Seems like a performance optimisation.
-
-**Instead:** Resolve fresh at generation time. The query cost is trivial (3 eager-loaded relationships). If performance becomes a concern, cache with a cache key that invalidates on `ProjectPackage::updated` and `SiteSurvey::updated`.
-
-### Anti-Pattern 3: Fat Jobs
-
-**What goes wrong:** `BuildWorksheetJob::handle()` contains data resolution, normalisation, business logic, and rendering all inline. Cannot be unit-tested, impossible to reason about failure.
-
-**Instead:** Jobs are orchestrators only — resolve dataset, call service, handle status. All logic lives in injectable services.
-
-### Anti-Pattern 4: Treating QuoteWerks SQL as a Live Data Source
-
-**What goes wrong:** `CableScheduleXlsxService` queries QuoteWerks SQL at render time to get the latest cable data. VPN drops, SQL is offline, render fails.
-
-**Instead:** `QuoteWerksImportService::import()` pulls all data at import time and stores it in `ProjectPackage.extracted_data`. SQL is only accessed during import, never during generation.
+**Phase 16 — Client Signature and Programme Completion**
+Depends on Phase 14 (CommissioningRecord model).
+- Canvas signature pad (Alpine.js x-ref, data URI submit)
+- `CommissioningService::attachClientSignature()`
+- `InstallProgrammeService::checkCompletion()` → project lifecycle transition to STATUS_COMMISSIONING
+- Commissioning completion view (summary of all sign-offs, client name, timestamps)
 
 ---
 
-## Scalability Considerations (within scope of single-company system)
+## Integration Risks and Pitfalls
 
-| Concern | Current approach | With new generators |
-|---------|-----------------|---------------------|
-| Queue throughput | 3 job types, 2 retries each | Add 3 more job types — no bottleneck, same queue |
-| SQL connection to QuoteWerks | Not applicable yet | Read-only, single connection at import time only, .env configured |
-| Storage | Per-type directories under `storage/app/` | Add `storage/app/worksheets/` — same pattern |
-| `ProjectDataService` query cost | N/A | 3 eager-loaded relationships on one project — negligible |
+**Room name matching between tasks and survey rooms:** Task generator uses room names from `ProjectDataService` (reviewed_data). Survey rooms are stored with their own `room_name` in `site_survey_rooms`. These may not match exactly. Do not attempt a FK join at generation time. If a link is needed later for displaying survey photos next to a task, add a nullable `site_survey_room_id` in a later migration and match by fuzzy string at that point.
+
+**Regenerating tasks when project data changes:** If reviewed_data is updated after a programme is active, tasks are stale. Show a visual warning ("Package data has changed since programme was generated — regenerate?") rather than auto-regenerating, which would destroy assigned/in-progress task state.
+
+**Orphaned clock-in entries:** If an engineer forgets to clock out, the open entry blocks future clock-ins. Add a scheduled Artisan command that auto-closes entries older than 24 hours with a `notes = 'auto-closed by system'` flag. `TimeTrackingService::clockIn()` should surface a clear error message if an open entry exists rather than silently failing.
+
+**Photo storage path collisions:** Use `{project_id}/{task_id}/{uuid}.jpg` as path structure. Never use user-supplied filenames. Follow the existing pattern from `SiteSurveyPhoto` where photos are stored to private disk with UUID names.
+
+**Mobile session persistence:** Engineers on mobile may lose session mid-task if the device sleeps. The clock-in state is a DB query (`TimeTrackingService::activeEntry()`), not session state — this is correct by design. The field view re-reads active entry state on each page load. No localStorage dependency.
+
+**Project lifecycle transition on programme completion:** When all tasks are signed off, `InstallProgrammeService::checkCompletion()` must call `$project->canTransitionTo(Project::STATUS_COMMISSIONING)` before transitioning. The existing state machine on `Project::canTransitionTo()` must be respected — do not bypass it.
+
+**Hardware filter duplication:** `WorksheetGeneratorService` and `InstallTaskGeneratorService` both need the same hardware exclusion logic (cables, consumables, services, options). In Phase 12 this can be duplicated deliberately. After both services exist, extract to a shared trait or static helper class in Phase 16 or as part of a cleanup pass — do not create a shared dependency upfront that couples the two services.
 
 ---
 
-## Build Order Implications
+## Confidence Assessment
 
-For roadmap phasing, this architecture implies the following dependency chain:
-
-```
-1. ProjectDataService  →  (prerequisite for all generators)
-2. QuoteWerksImportService  →  (independent of ProjectDataService, can be parallel)
-3. Survey enhancements (room data capture)  →  (required for Worksheets and O&M to be useful)
-4. RAMS wiring to ProjectDataService  →  (validates the data service before new generators use it)
-5. WorksheetGeneratorService  →  (depends on ProjectDataService + survey room data)
-6. OmManualGeneratorService hardening  →  (depends on ProjectDataService)
-7. CableSchedule seeding from dataset  →  (depends on ProjectDataService + cable data in package)
-```
-
-Items 1 and 2 can be developed in parallel. Items 3 and 4 can overlap. Items 5, 6, 7 should not begin until item 1 is deployed and smoke-tested against real projects.
+| Area | Confidence | Basis |
+|------|------------|-------|
+| Integration with ProjectDataService | HIGH | Read service code directly; rooms and equipment shape confirmed |
+| Model structure and relationships | HIGH | Follows confirmed Worksheet, SiteSurveyRoom, SiteSurveyPhoto patterns |
+| Task generation flow | HIGH | Direct analogue to WorksheetGeneratorService — same read path, no AI call |
+| Mobile field view (Blade + Alpine.js) | HIGH | Existing public survey view confirms approach; signature pad pattern confirmed |
+| Time tracking schema | MEDIUM | Standard pattern; clock-in guard logic is application-level, not framework |
+| Gantt/calendar view (Phase 13) | MEDIUM | Simple Tailwind table is safe at MVP; interactive drag-drop Gantt needs JS library decision deferred |
+| Client signature PNG from data URI | MEDIUM | Canvas data URI is confirmed; PHP GD base64_decode + imagecreatefromstring is standard |
 
 ---
 
 ## Sources
 
-- Direct inspection of existing codebase (2026-04-09):
-  - `app/Services/ProjectContextResolver.php` — existing merge pattern to extend
-  - `app/Services/RamsBuilderService.php` — established pipeline pattern to follow
-  - `app/Core/Modules/Projects/ProjectService.php` — lifecycle management pattern
-  - `app/Services/CableScheduleXlsxService.php` — XLSX generator interface
-  - `app/Services/OmManualDocxService.php` — DOCX generator interface
-  - `app/Core/Modules/OMManual/OmManualGeneratorService.php` — two-pass orchestration pattern
-  - `app/Models/ProjectPackage.php`, `SiteSurvey.php`, `Project.php` — data model topology
-- `.planning/PROJECT.md` — requirements and constraints
-- `.planning/codebase/ARCHITECTURE.md` — existing architecture map
+- Codebase: `app/Core/Modules/Projects/ProjectDataService.php` — 4-tier merge and rooms output shape confirmed
+- Codebase: `app/Services/WorksheetGeneratorService.php` — task-generation analogue pattern confirmed
+- Codebase: `app/Services/ProjectContextResolver.php` — room_overviews and works_summary shape confirmed
+- Codebase: `app/Models/Project.php` — lifecycle state machine and transition guards confirmed
+- Codebase: `app/Models/Worksheet.php`, `app/Models/SiteSurveyRoom.php` — model conventions confirmed
+- [Signature Pad with Alpine.js — Salfade](https://salfade.com/tutorials/signature-pad-with-alpinejs)
+- [Laravel Signature Pad Example — ItSolutionstuff](https://www.itsolutionstuff.com/post/laravel-signature-pad-example-tutorialexample.html)
+- [Time Tracking Table Design Discussion — Laracasts](https://laracasts.com/discuss/channels/laravel/time-tracking-table-design)
