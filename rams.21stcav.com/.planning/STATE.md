@@ -1,15 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Installation Programme & Field Management
-status: requirements defined — ready to plan phases
-last_updated: "2026-04-13"
+milestone: v1.1
+milestone_name: Operations Dashboard & Notifications
+status: executing
+last_updated: "2026-04-13T15:05:34.926Z"
+last_activity: 2026-04-13 -- Phase 12 execution started
 progress:
-  total_phases: 5
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 1
+  completed_phases: 1
+  total_plans: 3
+  completed_plans: 3
+  percent: 100
 ---
 
 ## Project Reference
@@ -17,14 +18,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-13)
 
 **Core value:** One dataset powers every document.
-**Current focus:** v1.2 Installation Programme & Field Management — defining requirements
+**Current focus:** Phase 12 — Install Task Generation
 
 ## Current Position
 
-Phase: Not started (planning Phase 12 next)
-Plan: —
-Status: Requirements defined — ready to plan phases
-Last activity: 2026-04-13 — v1.2 requirements written, ROADMAP.md updated, research synthesised
+Phase: 12 (Install Task Generation) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 12
+Last activity: 2026-04-13 -- Phase 12 execution started
 
 ## Milestone v1.0 Complete
 

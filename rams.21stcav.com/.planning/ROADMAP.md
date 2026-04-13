@@ -38,7 +38,7 @@ Full archive: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 ### v1.2 Installation Programme & Field Management
 *"Quote to field in one platform"*
 
-- [ ] Phase 12: Install Task Generation — Auto-generate task list (room × equipment) from ProjectDataService; install_programmes + install_tasks models; WORK-05/06 worksheet enhancements
+- [x] Phase 12: Install Task Generation — Auto-generate task list (room × equipment) from ProjectDataService; install_programmes + install_tasks models; WORK-05/06 worksheet enhancements (completed 2026-04-13)
 - [ ] Phase 13: Task Assignment & Scheduling — Engineer assignment, planned dates, week-view calendar; conditional Gantt (frappe-gantt) only when project duration > 4 days
 - [ ] Phase 14: Mobile Field View — Responsive task checklist, status toggle, per-task photo capture (HEIC protection), clock in/out; online-only
 - [ ] Phase 15: Time Tracking — Actual labour hours per project/category; heartbeat-guarded sessions; UTC storage; actuals-only (no budget comparison in v1.2)
@@ -60,9 +60,9 @@ Full archive: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 **Plans**: 3 plans
 
 Plans:
-- [ ] 12-01-PLAN.md — Migrations (install_programmes, install_tasks) + InstallProgramme/InstallTask models + Project relationships
-- [ ] 12-02-PLAN.md — InstallTaskGeneratorService + InstallProgrammeService + Controller + Routes + Review UI
-- [ ] 12-03-PLAN.md — WorksheetDocxService section E (WORK-05: pre-install answers) + WORK-06 verification
+- [x] 12-01-PLAN.md — Migrations (install_programmes, install_tasks) + InstallProgramme/InstallTask models + Project relationships
+- [x] 12-02-PLAN.md — InstallTaskGeneratorService + InstallProgrammeService + Controller + Routes + Review UI
+- [x] 12-03-PLAN.md — WorksheetDocxService section E (WORK-05: pre-install answers) + WORK-06 verification
 
 ### Phase 13: Task Assignment & Scheduling
 **Goal**: Engineers can be assigned to tasks and dates set; programme is viewable as a week-grouped table. For projects spanning > 4 days, an interactive Gantt timeline (frappe-gantt) is shown.
@@ -164,7 +164,7 @@ Plans:
 | 09. Email Notifications | v1.1 | — | Planned | — |
 | 10. Document Quality Scores | v1.1 | — | Planned | — |
 | 11. Bitrix24 Integration | v1.1 | — | Planned | — |
-| 12. Install Task Generation + Worksheet Enhancements | v1.2 | 3 plans | Planned | — |
+| 12. Install Task Generation + Worksheet Enhancements | v1.2 | 3/3 | Complete   | 2026-04-13 |
 | 13. Task Assignment & Scheduling | v1.2 | — | Planned | — |
 | 14. Mobile Field View & Time Tracking | v1.2 | — | Planned | — |
 | 15. Time Tracking | v1.2 | — | Planned | — |
