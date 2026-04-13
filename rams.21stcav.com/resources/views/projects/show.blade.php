@@ -500,7 +500,8 @@
                         <a href="{{ route('project-packages.review.show', $latestPackage) }}"
                            class="btn btn-teal btn-sm" style="font-size:.78rem;">✎ Edit Project Data</a>
                     @else
-                        <span style="font-size:.78rem; color:#888;">Upload quote in Quote History</span>
+                        <a href="{{ route('rams.create', ['project_id' => $project->id]) }}"
+                           class="btn btn-teal btn-sm" style="font-size:.78rem;">+ Create RAMS</a>
                     @endif
                 </div>
             </div>
@@ -519,7 +520,8 @@
                     @elseif ($latestPackage)
                         <a href="{{ route('project-packages.review.show', $latestPackage) }}" style="color:var(--teal);">Review quote data</a> to enable RAMS generation.
                     @else
-                        Upload a quote in Quote History to enable RAMS generation.
+                        <a href="{{ route('rams.create', ['project_id' => $project->id]) }}"
+                           style="color:var(--teal);">Create a RAMS manually</a> using the project details.
                     @endif
                 </p>
             @else
