@@ -116,14 +116,15 @@ class ProjectController extends Controller
 
         // Eager-load all related data to prevent N+1 queries on the show page.
         $project->load([
-            'projectQuotes.uploadedBy',                          // quote history panel
-            'ramsDocuments'  => fn ($q) => $q->latest()->limit(5),
+            'projectQuotes.uploadedBy',                              // quote history panel
+            'ramsDocuments'      => fn ($q) => $q->latest()->limit(5),
             'latestPackage',
             'activityLog.user',
-            'omManuals'      => fn ($q) => $q->latest()->limit(5),
-            'siteSurveys'    => fn ($q) => $q->latest()->limit(5),
-            'cableSchedules' => fn ($q) => $q->latest()->limit(5),
-            'worksheets'     => fn ($q) => $q->latest()->limit(5),
+            'omManuals'          => fn ($q) => $q->latest()->limit(5),
+            'siteSurveys'        => fn ($q) => $q->latest()->limit(5),
+            'cableSchedules'     => fn ($q) => $q->latest()->limit(5),
+            'worksheets'         => fn ($q) => $q->latest()->limit(5),
+            'installProgrammes'  => fn ($q) => $q->latest()->limit(5),
         ]);
 
         $nextStatus = $project->nextStatus();
@@ -181,6 +182,16 @@ class ProjectController extends Controller
                 'generate_label'      => 'Generate Cable Schedule',
                 'empty_action_label'  => null,
                 'empty_action_route'  => null,
+            ],
+            [
+                'type'               => 'Install Programme',
+                'badge_class'        => 'badge-blue',
+                'records'            => $project->installProgrammes,
+                'route_name'         => null,
+                'generate_route'     => route('install-programmes.generate', $project),
+                'generate_label'     => 'Generate Install Programme',
+                'empty_action_label' => null,
+                'empty_action_route' => null,
             ],
         ];
 

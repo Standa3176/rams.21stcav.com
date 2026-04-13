@@ -259,6 +259,23 @@ Route::middleware('auth')->group(function () {
     Route::delete('worksheets/{worksheet}',       [\App\Http\Controllers\WorksheetController::class, 'destroy']) ->name('worksheets.destroy');
     Route::get('worksheets/{worksheet}',          [\App\Http\Controllers\WorksheetController::class, 'show'])    ->name('worksheets.show');
     Route::get('worksheets',                      [\App\Http\Controllers\WorksheetController::class, 'index'])   ->name('worksheets.index');
+
+    // ── Install Programmes ────────────────────────────────────────────────────
+    Route::post('projects/{project}/install-programme/generate',
+        [\App\Http\Controllers\InstallProgrammeController::class, 'generate'])
+        ->name('install-programmes.generate');
+
+    Route::get('install-programmes/{programme}/review',
+        [\App\Http\Controllers\InstallProgrammeController::class, 'review'])
+        ->name('install-programmes.review');
+
+    Route::post('install-programmes/{programme}/activate',
+        [\App\Http\Controllers\InstallProgrammeController::class, 'activate'])
+        ->name('install-programmes.activate');
+
+    Route::delete('install-tasks/{task}',
+        [\App\Http\Controllers\InstallProgrammeController::class, 'destroyTask'])
+        ->name('install-tasks.destroy');
 });
 
 require __DIR__.'/auth.php';
