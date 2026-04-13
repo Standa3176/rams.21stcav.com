@@ -11,6 +11,24 @@ use PhpOffice\PhpWord\Element\Section;
 use PhpOffice\PhpWord\Element\Table;
 use PhpOffice\PhpWord\TemplateProcessor;
 
+/**
+ * Builds the RAMS DOCX document from the assembled data array.
+ *
+ * Produces a 9-section document matching the reference PDF format (21CQ30017-02-OPS):
+ *
+ *   Cover Page   — Two-table cover with CLIENT, SITE, PROJECT REFERENCE, ROOMS, DATE
+ *                  plus PREPARED BY, TELEPHONE, CLIENT CONTACT, REVISION, STATUS
+ *   1. Document Control — Revision history table
+ *   2. Company Information — Contact details table
+ *   3. Health & Safety Policy Statement — Boilerplate paragraphs
+ *   4. Scope of Works — Equipment schedule table grouped by DECOMMISSION / RETAINED / NEW INSTALLATION
+ *   5. Risk Assessment — Landscape hazard register with Ref (RA01…), L×S=R notation
+ *   6. Method Statement — Team requirements, tools, client responsibilities, numbered steps
+ *   7. Emergency Procedures — Contact table, accident/fire boilerplate
+ *   8. Document Sign-Off — Two-column 21CAV | Client sign-off table
+ *
+ * All content must trace to data[] or config('rams.*'). No invented values.
+ */
 class DocxBuilderService
 {
     public function __construct(
@@ -38,12 +56,13 @@ class DocxBuilderService
     private const W_LAND  = 15138;
 
     // ─── Landscape hazard-table column widths (sum = 15138) ──────────────────
-    private const COL_HAZARD   = 2650;
-    private const COL_CONSEQ   = 2920;
-    private const COL_P        = 665;
-    private const COL_S        = 665;
-    private const COL_RISK     = 800;
-    private const COL_CONTROLS = 5308;   // remainder after all other cols
+    private const COL_REF     = 600;
+    private const COL_HAZARD  = 2650;
+    private const COL_CONSEQ  = 2920;
+    private const COL_P       = 665;
+    private const COL_S       = 665;
+    private const COL_RISK    = 800;
+    private const COL_CONTROLS = 4708;  // reduced by 600 to accommodate COL_REF
 
     // =========================================================================
     // PUBLIC ENTRY POINT
@@ -57,54 +76,21 @@ class DocxBuilderService
         }
 
         $formData = $record->form_data ?? [];
-        $project  = $data['project'] ?? [];
 
-        if ($this->templates->exists('rams')) {
-            // ── Template path: load branded cover, append programmatic sections ──
-            $phpWord = $this->loadTemplate('rams', [
-                'project_ref'          => $project['ref']               ?? ($formData['project_ref']          ?? '—'),
-                'project_name'         => $project['name']              ?? ($formData['project_name']         ?? '—'),
-                'client_name'          => $project['client']            ?? ($formData['client_name']          ?? '—'),
-                'site_address'         => $project['site_address']      ?? ($formData['site_address']         ?? '—'),
-                'contractor'           => config('rams.company_name'),
-                'works_description'    => $project['works_description'] ?? ($formData['works_description']    ?? '—'),
-                'start_date'           => $formData['start_date']          ?? 'TBC',
-                'expected_duration'    => $formData['expected_duration']   ?? 'TBC',
-                'document_status'      => 'For Review',
-                'date'                 => now()->format('F Y'),
-                'doc_author'           => $formData['doc_author']          ?? '',
-                // Personnel — populated from reviewed_data['programme'] via mergeReviewedIntoFormData()
-                'project_manager'      => $formData['project_manager']     ?? '',
-                'lead_engineer'        => $formData['lead_engineer']       ?? '',
-                'additional_engineers' => $formData['additional_engineers']?? '',
-                'programmer'           => $formData['programmer']          ?? '',
-                'site_contact'         => $formData['site_contact']        ?? '',
-            ]);
+        $phpWord = new PhpWord();
+        $phpWord->setDefaultFontName('Arial');
+        $phpWord->setDefaultFontSize(10);
 
-            // Append dynamic tables to the last section of the loaded template
-            $sections = $phpWord->getSections();
-            $section  = end($sections);
-
-            if (! empty($data['quote'])) {
-                $this->buildQuoteSummary($section, $data['quote']);
-                $section->addTextBreak(1);
-            }
-
-            $this->addTeamTable($section, $data['team'] ?? []);
-            $this->addEmergencyTable($section, $formData);
-            $this->addPpeTable($section, $data['ppe'] ?? []);
-            $this->addPersonsTable($section, $data['persons_at_risk'] ?? []);
-        } else {
-            // ── Fallback: fully programmatic ─────────────────────────────────────
-            $phpWord = new PhpWord();
-            $phpWord->setDefaultFontName('Arial');
-            $phpWord->setDefaultFontSize(10);
-            $this->buildSection1($phpWord, $data, $formData, $record);
-        }
-
-        $this->buildSection2($phpWord, $data);
+        // Build all 9 sections in order
+        $this->buildCoverPage($phpWord, $data, $formData);
+        $this->buildDocumentControl($phpWord, $data);
+        $this->buildCompanyInformation($phpWord, $data);
+        $this->buildHealthSafetyPolicy($phpWord, $data);
+        $this->buildScopeOfWorks($phpWord, $data, $formData);
+        $this->buildRiskAssessment($phpWord, $data);
         $this->buildMethodStatement($phpWord, $data);
-        $this->buildSection3($phpWord);
+        $this->buildEmergencyProcedures($phpWord, $data, $formData);
+        $this->buildDocumentSignOff($phpWord, $data);
 
         // Write file
         $filename = 'rams_' . $record->id . '_' . now()->format('Ymd_His') . '.docx';
@@ -120,7 +106,697 @@ class DocxBuilderService
     }
 
     // =========================================================================
-    // TEMPLATE LOADER
+    // COVER PAGE — Portrait, two info tables
+    // =========================================================================
+
+    private function buildCoverPage(PhpWord $phpWord, array $data, array $formData): void
+    {
+        $section = $phpWord->addSection($this->portraitStyle());
+        $this->attachFooter($section);
+
+        $project = $data['project'] ?? [];
+
+        // ── Company name + RAMS title ─────────────────────────────────────────
+        $section->addText(
+            config('rams.company_name'),
+            $this->font(24, bold: true, colour: self::TEAL),
+            ['alignment' => Jc::LEFT],
+        );
+        $section->addText(
+            'RISK ASSESSMENT & METHOD STATEMENT',
+            $this->font(17, bold: true, colour: self::DARK_GREY),
+            [
+                'alignment'         => Jc::LEFT,
+                'borderBottomSize'  => 12,
+                'borderBottomColor' => self::TEAL,
+                'borderBottomSpace' => 4,
+                'spacing'           => ['after' => 200],
+            ],
+        );
+
+        $tealCell  = ['bgColor' => self::TEAL];
+        $whiteCell = ['bgColor' => self::WHITE];
+        $labelFont = $this->font(10, bold: true, colour: self::WHITE);
+        $valueFont = $this->font(10);
+        $colW      = (int) (self::W_PORT / 2); // 4933
+
+        // ── First table: CLIENT, SITE, PROJECT REFERENCE, ROOMS, DATE ─────────
+        $table = $section->addTable($this->tableStyle());
+        $rows1 = [
+            ['CLIENT',            $project['client']       ?? ''],
+            ['SITE',              $project['site_address'] ?? ''],
+            ['PROJECT REFERENCE', $project['ref']          ?? ''],
+            ['ROOMS',             $project['rooms_text']   ?? ''],
+            ['DATE',              $project['date']         ?? now()->format('F Y')],
+        ];
+        foreach ($rows1 as [$label, $value]) {
+            $row = $table->addRow(420);
+            $row->addCell($colW, $tealCell) ->addText($label,              $labelFont);
+            $row->addCell($colW, $whiteCell)->addText($this->t($value),    $valueFont);
+        }
+
+        $section->addTextBreak(1);
+
+        // ── Second table: PREPARED BY, TELEPHONE, CLIENT CONTACT, REVISION, STATUS
+        $table2 = $section->addTable($this->tableStyle());
+
+        $clientContact = trim(
+            ($project['client_contact_name'] ?? '') .
+            (($project['client_contact_email'] ?? '') !== '' ? "\n" . $project['client_contact_email'] : '')
+        );
+
+        $rows2 = [
+            ['PREPARED BY',    $project['doc_author']      ?? ''],
+            ['TELEPHONE',      config('rams.company_phone')],
+            ['CLIENT CONTACT', $clientContact],
+            ['REVISION',       $project['revision']        ?? 'Rev 1.0'],
+            ['STATUS',         $project['document_status'] ?? 'For Issue'],
+        ];
+        foreach ($rows2 as [$label, $value]) {
+            $row = $table2->addRow(420);
+            $row->addCell($colW, $tealCell) ->addText($label,           $labelFont);
+            $row->addCell($colW, $whiteCell)->addText($this->t($value), $valueFont);
+        }
+    }
+
+    // =========================================================================
+    // SECTION 1 — Document Control
+    // =========================================================================
+
+    private function buildDocumentControl(PhpWord $phpWord, array $data): void
+    {
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+
+        $project = $data['project'] ?? [];
+
+        $this->sectionHeading($section, '1. Document Control');
+
+        $table = $section->addTable($this->tableStyle());
+        $this->tealHeader($table, ['Rev', 'Date', 'Author', 'Description', 'Status'], [800, 1800, 2500, 3500, 1266]);
+
+        $altCell   = ['bgColor' => self::ROW_ALT];
+        $whiteCell = ['bgColor' => self::WHITE];
+        $vf        = $this->font(9);
+
+        // Pre-filled row
+        $row = $table->addRow(400);
+        $row->addCell(800,  $altCell)  ->addText($this->t($project['revision']        ?? 'Rev 1.0'),     $vf);
+        $row->addCell(1800, $whiteCell)->addText($this->t($project['date']             ?? now()->format('F Y')), $vf);
+        $row->addCell(2500, $whiteCell)->addText($this->t($project['doc_author']       ?? ''),           $vf);
+        $row->addCell(3500, $whiteCell)->addText('Initial Issue',                                        $vf);
+        $row->addCell(1266, $whiteCell)->addText($this->t($project['document_status']  ?? 'For Issue'),  $vf);
+
+        // Three blank rows for future revisions
+        for ($i = 0; $i < 3; $i++) {
+            $row = $table->addRow(400);
+            $row->addCell(800,  $whiteCell)->addText('', $vf);
+            $row->addCell(1800, $whiteCell)->addText('', $vf);
+            $row->addCell(2500, $whiteCell)->addText('', $vf);
+            $row->addCell(3500, $whiteCell)->addText('', $vf);
+            $row->addCell(1266, $whiteCell)->addText('', $vf);
+        }
+    }
+
+    // =========================================================================
+    // SECTION 2 — Company Information
+    // =========================================================================
+
+    private function buildCompanyInformation(PhpWord $phpWord, array $data): void
+    {
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+
+        $project = $data['project'] ?? [];
+
+        $this->sectionHeading($section, '2. Company Information');
+
+        $table    = $section->addTable($this->tableStyle());
+        $altCell  = ['bgColor' => self::ROW_ALT];
+        $valCell  = ['bgColor' => self::WHITE];
+        $labelFont = $this->font(9, bold: true);
+        $valueFont = $this->font(9);
+
+        $infoRows = [
+            ['Company Name', config('rams.company_name')],
+            ['Address',      config('rams.company_address')],
+            ['Telephone',    config('rams.company_phone')],
+            ['Website',      config('rams.company_website')],
+            ['Email',        config('rams.company_email')],
+            ['Prepared by',  $project['doc_author'] ?? ''],
+        ];
+
+        foreach ($infoRows as $i => [$label, $value]) {
+            $bg  = ($i % 2 === 0) ? $altCell : $valCell;
+            $row = $table->addRow(400);
+            $row->addCell(2800, $bg)->addText($label,              $labelFont);
+            $row->addCell(7066, $bg)->addText($this->t($value),    $valueFont);
+        }
+    }
+
+    // =========================================================================
+    // SECTION 3 — Health & Safety Policy Statement
+    // =========================================================================
+
+    private function buildHealthSafetyPolicy(PhpWord $phpWord, array $data): void
+    {
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+
+        $this->sectionHeading($section, '3. Health & Safety Policy Statement');
+
+        $bodyFont  = $this->font(9, colour: self::DARK_GREY);
+        $paraStyle = ['spacing' => ['before' => 60, 'after' => 120], 'alignment' => Jc::BOTH];
+
+        $section->addText(
+            '21st Century AV Ltd is committed to ensuring the health, safety and welfare of all its employees, '
+            . 'subcontractors, clients and members of the public who may be affected by our activities. We comply '
+            . 'fully with the Health and Safety at Work etc. Act 1974 and all relevant statutory provisions, '
+            . 'including the Management of Health and Safety at Work Regulations 1999, the Provision and Use of '
+            . 'Work Equipment Regulations 1998 (PUWER), the Manual Handling Operations Regulations 1992, and the '
+            . 'Electricity at Work Regulations 1989.',
+            $bodyFont,
+            $paraStyle,
+        );
+
+        $section->addText(
+            'All engineers operating on behalf of 21st Century AV Ltd are briefed on site-specific risks prior to '
+            . 'commencement of works and are required to adhere to this Risk Assessment and Method Statement at all '
+            . 'times. Engineers will not commence work until they are satisfied that it is safe to do so. Any near '
+            . 'misses, accidents, or unsafe conditions must be reported to the site manager and to the 21st Century '
+            . 'AV operations team immediately. This document must be read, understood, and complied with by all '
+            . 'persons carrying out the works described herein. It should be retained on site for the duration of '
+            . 'the works.',
+            $bodyFont,
+            $paraStyle,
+        );
+    }
+
+    // =========================================================================
+    // SECTION 4 — Scope of Works
+    // =========================================================================
+
+    private function buildScopeOfWorks(PhpWord $phpWord, array $data, array $formData): void
+    {
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+
+        $project = $data['project'] ?? [];
+
+        $this->sectionHeading($section, '4. Scope of Works');
+
+        // ── Summary header block ──────────────────────────────────────────────
+        $table    = $section->addTable($this->tableStyle());
+        $altCell  = ['bgColor' => self::ROW_ALT];
+        $valCell  = ['bgColor' => self::WHITE];
+        $lf       = $this->font(9, bold: true);
+        $vf       = $this->font(9);
+
+        $headerRows = [
+            ['Client',        $project['client']        ?? ''],
+            ['Site',          $project['site_address']  ?? ''],
+            ['Rooms',         $project['rooms_text']    ?? ''],
+            ['Working Hours', $project['working_hours'] ?? 'Monday–Friday, 09:00–17:30'],
+        ];
+        foreach ($headerRows as $i => [$label, $value]) {
+            $bg  = ($i % 2 === 0) ? $altCell : $valCell;
+            $row = $table->addRow(400);
+            $row->addCell(2800, $bg)->addText($label,           $lf);
+            $row->addCell(7066, $bg)->addText($this->t($value), $vf);
+        }
+
+        $section->addTextBreak(1);
+
+        // ── Equipment schedule table ──────────────────────────────────────────
+        // Columns: Activity | Item | Qty per Room | Notes  (total = W_PORT = 9866)
+        $wAct  = 2600;
+        $wItem = 4200;
+        $wQty  = 800;
+        $wNote = 9866 - $wAct - $wItem - $wQty; // 1266
+
+        $scopeItems = $data['scope_items'] ?? [];
+        $hasDecomm  = ! empty($scopeItems['decommission'] ?? []);
+        $hasRetain  = ! empty($scopeItems['retained']     ?? []);
+        $hasNew     = ! empty($scopeItems['new_install']  ?? []);
+
+        // Fall back to quote line items when scope_items is entirely empty
+        $hasAnyScopeItems = $hasDecomm || $hasRetain || $hasNew;
+
+        $eqTable  = $section->addTable($this->tableStyle());
+        $tealCell = ['bgColor' => self::TEAL];
+        $darkCell = ['bgColor' => self::DARK_GREY];
+        $wf       = $this->font(10, bold: true, colour: self::WHITE);
+        $hf       = $this->font(9,  bold: true, colour: self::WHITE);
+        $bf       = $this->font(9);
+
+        // Spanning header: "Equipment Schedule"
+        $hRow  = $eqTable->addRow(420);
+        $hCell = $hRow->addCell(self::W_PORT, array_merge($tealCell, ['gridSpan' => 4]));
+        $hCell->addText('Equipment Schedule', $this->font(10, bold: true, colour: self::WHITE), ['alignment' => Jc::CENTER]);
+
+        // Column sub-headers
+        $shRow = $eqTable->addRow(360);
+        $shRow->addCell($wAct,  $darkCell)->addText('Activity',     $hf);
+        $shRow->addCell($wItem, $darkCell)->addText('Item',         $hf);
+        $shRow->addCell($wQty,  $darkCell)->addText('Qty / Room',   $hf, ['alignment' => Jc::CENTER]);
+        $shRow->addCell($wNote, $darkCell)->addText('Notes',        $hf);
+
+        if ($hasAnyScopeItems) {
+            $rowIdx = 0;
+
+            // ── DECOMMISSION & HANDBACK ───────────────────────────────────────
+            if ($hasDecomm) {
+                $subRow  = $eqTable->addRow(380);
+                $subCell = $subRow->addCell(self::W_PORT, array_merge($darkCell, ['gridSpan' => 4]));
+                $subCell->addText('DECOMMISSION & HANDBACK', $this->font(9, bold: true, colour: self::WHITE));
+
+                foreach ($scopeItems['decommission'] as $item) {
+                    $bg  = ($rowIdx % 2 === 0) ? ['bgColor' => self::WHITE] : ['bgColor' => self::ROW_ALT];
+                    $dr  = $eqTable->addRow(380);
+                    $dr->addCell($wAct,  $bg)->addText('Decommission',                            $bf);
+                    $dr->addCell($wItem, $bg)->addText($this->t((string)($item['item_name'] ?? '')), $bf);
+                    $dr->addCell($wQty,  $bg)->addText($this->t((string)($item['qty']       ?? '')), $bf, ['alignment' => Jc::CENTER]);
+                    $dr->addCell($wNote, $bg)->addText($this->t((string)($item['notes']     ?? '')), $bf);
+                    $rowIdx++;
+                }
+            }
+
+            // ── EXISTING — RETAINED ───────────────────────────────────────────
+            if ($hasRetain) {
+                $subRow  = $eqTable->addRow(380);
+                $subCell = $subRow->addCell(self::W_PORT, array_merge($darkCell, ['gridSpan' => 4]));
+                $subCell->addText('EXISTING — RETAINED', $this->font(9, bold: true, colour: self::WHITE));
+
+                foreach ($scopeItems['retained'] as $item) {
+                    $bg  = ($rowIdx % 2 === 0) ? ['bgColor' => self::WHITE] : ['bgColor' => self::ROW_ALT];
+                    $dr  = $eqTable->addRow(380);
+                    $dr->addCell($wAct,  $bg)->addText('Retained',                                $bf);
+                    $dr->addCell($wItem, $bg)->addText($this->t((string)($item['item_name'] ?? '')), $bf);
+                    $dr->addCell($wQty,  $bg)->addText($this->t((string)($item['qty']       ?? '')), $bf, ['alignment' => Jc::CENTER]);
+                    $dr->addCell($wNote, $bg)->addText($this->t((string)($item['notes']     ?? '')), $bf);
+                    $rowIdx++;
+                }
+            }
+
+            // ── NEW INSTALLATION ──────────────────────────────────────────────
+            if ($hasNew) {
+                $subRow  = $eqTable->addRow(380);
+                $subCell = $subRow->addCell(self::W_PORT, array_merge($darkCell, ['gridSpan' => 4]));
+                $subCell->addText('NEW INSTALLATION', $this->font(9, bold: true, colour: self::WHITE));
+
+                foreach ($scopeItems['new_install'] as $item) {
+                    $bg  = ($rowIdx % 2 === 0) ? ['bgColor' => self::WHITE] : ['bgColor' => self::ROW_ALT];
+                    $dr  = $eqTable->addRow(380);
+                    $dr->addCell($wAct,  $bg)->addText('New Installation',                        $bf);
+                    $dr->addCell($wItem, $bg)->addText($this->t((string)($item['item_name'] ?? '')), $bf);
+                    $dr->addCell($wQty,  $bg)->addText($this->t((string)($item['qty']       ?? '')), $bf, ['alignment' => Jc::CENTER]);
+                    $dr->addCell($wNote, $bg)->addText($this->t((string)($item['notes']     ?? '')), $bf);
+                    $rowIdx++;
+                }
+            }
+        } else {
+            // ── Backward compat: fall back to quote line items ────────────────
+            $lineItems = $data['quote']['line_items'] ?? [];
+            if (! empty($lineItems)) {
+                $subRow  = $eqTable->addRow(380);
+                $subCell = $subRow->addCell(self::W_PORT, array_merge($darkCell, ['gridSpan' => 4]));
+                $subCell->addText('NEW INSTALLATION', $this->font(9, bold: true, colour: self::WHITE));
+
+                foreach ($lineItems as $i => $item) {
+                    $bg = ($i % 2 === 0) ? ['bgColor' => self::WHITE] : ['bgColor' => self::ROW_ALT];
+                    $dr = $eqTable->addRow(380);
+                    $dr->addCell($wAct,  $bg)->addText('New Installation',                              $bf);
+                    $dr->addCell($wItem, $bg)->addText($this->t((string)($item['description'] ?? '')),  $bf);
+                    $dr->addCell($wQty,  $bg)->addText($this->t((string)($item['qty']         ?? '')),  $bf, ['alignment' => Jc::CENTER]);
+                    $dr->addCell($wNote, $bg)->addText($this->t((string)($item['room']        ?? '')),  $bf);
+                }
+            } else {
+                // Empty placeholder row
+                $dr = $eqTable->addRow(380);
+                $dr->addCell($wAct,  ['bgColor' => self::WHITE])->addText('', $bf);
+                $dr->addCell($wItem, ['bgColor' => self::WHITE])->addText('No items listed', $bf);
+                $dr->addCell($wQty,  ['bgColor' => self::WHITE])->addText('', $bf);
+                $dr->addCell($wNote, ['bgColor' => self::WHITE])->addText('', $bf);
+            }
+        }
+    }
+
+    // =========================================================================
+    // SECTION 5 — Risk Assessment (Landscape)
+    // =========================================================================
+
+    private function buildRiskAssessment(PhpWord $phpWord, array $data): void
+    {
+        $section = $phpWord->addSection($this->landscapeStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+
+        // Page header
+        $projectName = $data['project']['name'] ?? 'RAMS Document';
+        $hdr         = $section->addHeader();
+        $hdr->addText(
+            'RISK ASSESSMENT  |  ' . strtoupper($projectName),
+            $this->font(11, bold: true, colour: self::TEAL),
+            [
+                'alignment'         => Jc::LEFT,
+                'borderBottomSize'  => 8,
+                'borderBottomColor' => self::TEAL,
+                'borderBottomSpace' => 3,
+            ],
+        );
+
+        // Column widths (sum = W_LAND = 15138)
+        $wRef = self::COL_REF;      // 600
+        $wH   = self::COL_HAZARD;   // 2650
+        $wC   = self::COL_CONSEQ;   // 2920
+        $wP   = self::COL_P;        // 665
+        $wS   = self::COL_S;        // 665
+        $wR   = self::COL_RISK;     // 800
+        $wCt  = self::COL_CONTROLS; // 4708
+
+        $teal      = ['bgColor' => self::TEAL];
+        $whiteFont = $this->font(9, bold: true, colour: self::WHITE);
+        $bodyFont  = $this->font(8);
+        $boldFont  = $this->font(8, bold: true);
+        $centred   = ['alignment' => Jc::CENTER];
+
+        $table = $section->addTable($this->tableStyle());
+
+        // ── Single header row ─────────────────────────────────────────────────
+        $hRow = $table->addRow(420);
+        $hRow->addCell($wRef, $teal)->addText('Ref',             $whiteFont, $centred);
+        $hRow->addCell($wH,   $teal)->addText('Hazard',          $whiteFont);
+        $hRow->addCell($wC,   $teal)->addText('Persons at Risk', $whiteFont);
+        $hRow->addCell($wP,   $teal)->addText('L',               $whiteFont, $centred);
+        $hRow->addCell($wS,   $teal)->addText('S',               $whiteFont, $centred);
+        $hRow->addCell($wR,   $teal)->addText('Risk',            $whiteFont, $centred);
+        $hRow->addCell($wCt,  $teal)->addText('Control Measures',$whiteFont);
+        $hRow->addCell($wP,   $teal)->addText('L',               $whiteFont, $centred);
+        $hRow->addCell($wS,   $teal)->addText('S',               $whiteFont, $centred);
+        $hRow->addCell($wR,   $teal)->addText('Risk',            $whiteFont, $centred);
+
+        // ── Data rows — one per hazard ────────────────────────────────────────
+        foreach ($data['hazards'] ?? [] as $idx => $hazard) {
+            $rowBg     = ($idx % 2 === 0) ? self::WHITE : self::ROW_ALT;
+            $preL      = (int)($hazard['pre_likelihood']  ?? 1);
+            $preS      = (int)($hazard['pre_severity']    ?? 1);
+            $postL     = (int)($hazard['post_likelihood'] ?? 1);
+            $postS     = (int)($hazard['post_severity']   ?? 1);
+            $preScore  = $preL  * $preS;
+            $postScore = $postL * $postS;
+            $refLabel  = 'RA' . str_pad((string)($idx + 1), 2, '0', STR_PAD_LEFT);
+
+            $dr = $table->addRow(0);  // auto height
+
+            // Ref
+            $dr->addCell($wRef, ['bgColor' => $rowBg, 'valign' => 'top'])
+               ->addText($refLabel, $boldFont, $centred);
+
+            // Hazard name
+            $dr->addCell($wH, ['bgColor' => $rowBg, 'valign' => 'top'])
+               ->addText($this->t((string)($hazard['hazard'] ?? '')), $boldFont);
+
+            // Persons at risk
+            $personsCell = $dr->addCell($wC, ['bgColor' => $rowBg, 'valign' => 'top']);
+            $persons = $hazard['persons_at_risk'] ?? [];
+            if (is_array($persons) && ! empty($persons)) {
+                foreach ($persons as $person) {
+                    $personsCell->addText('•  ' . (string)$person, $bodyFont);
+                }
+            } else {
+                $personsCell->addText('', $bodyFont);
+            }
+
+            // Pre L / S / Risk (L×S=R format with badge)
+            $dr->addCell($wP, ['bgColor' => $rowBg, 'valign' => 'top'])
+               ->addText((string)$preL, $bodyFont, $centred);
+            $dr->addCell($wS, ['bgColor' => $rowBg, 'valign' => 'top'])
+               ->addText((string)$preS, $bodyFont, $centred);
+            $preRiskCell = $dr->addCell($wR, ['bgColor' => $this->riskColour($preScore), 'valign' => 'top']);
+            $preRiskCell->addText("{$preL}×{$preS}={$preScore}", $boldFont, $centred);
+            $preRiskCell->addText($this->riskBadge($preScore), $this->font(7, bold: true, colour: self::DARK_GREY), $centred);
+
+            // Control measures
+            $ctrlCell = $dr->addCell($wCt, ['bgColor' => $rowBg, 'valign' => 'top']);
+            foreach ($hazard['controls'] ?? [] as $j => $ctrl) {
+                $ctrlCell->addText(($j + 1) . '.  ' . $this->t((string)$ctrl), $bodyFont);
+            }
+
+            // Post L / S / Risk
+            $dr->addCell($wP, ['bgColor' => $rowBg, 'valign' => 'top'])
+               ->addText((string)$postL, $bodyFont, $centred);
+            $dr->addCell($wS, ['bgColor' => $rowBg, 'valign' => 'top'])
+               ->addText((string)$postS, $bodyFont, $centred);
+            $postRiskCell = $dr->addCell($wR, ['bgColor' => $this->riskColour($postScore), 'valign' => 'top']);
+            $postRiskCell->addText("{$postL}×{$postS}={$postScore}", $boldFont, $centred);
+            $postRiskCell->addText($this->riskBadge($postScore), $this->font(7, bold: true, colour: self::DARK_GREY), $centred);
+        }
+    }
+
+    // =========================================================================
+    // SECTION 6 — Method Statement
+    // =========================================================================
+
+    private function buildMethodStatement(PhpWord $phpWord, array $data): void
+    {
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+
+        $projectName = $data['project']['name'] ?? 'RAMS Document';
+        $hdr = $section->addHeader();
+        $hdr->addText(
+            'METHOD STATEMENT  |  ' . strtoupper($projectName),
+            $this->font(11, bold: true, colour: self::TEAL),
+            [
+                'alignment'         => Jc::LEFT,
+                'borderBottomSize'  => 8,
+                'borderBottomColor' => self::TEAL,
+                'borderBottomSpace' => 3,
+            ],
+        );
+
+        $this->sectionHeading($section, '6. Method Statement');
+
+        $vf       = $this->font(9);
+        $bf       = $this->font(9, bold: true);
+        $vcWhite  = ['bgColor' => self::WHITE];
+        $vcAlt    = ['bgColor' => self::ROW_ALT];
+
+        // ── 6.1 Team Requirements ─────────────────────────────────────────────
+        $section->addText('6.1 Team Requirements', $this->font(10, bold: true, colour: self::TEAL), ['spacing' => ['before' => 80, 'after' => 60]]);
+
+        $teamTable = $section->addTable($this->tableStyle());
+        $this->tealHeader($teamTable, ['Role', 'Qty', 'Requirements'], [2600, 800, 6466]);
+
+        $team = $data['team'] ?? [];
+        if (! empty($team)) {
+            $reqMap = [
+                'lead engineer'    => 'CSCS Card, IPAF (if applicable), relevant AV experience',
+                'project manager'  => 'SMSTS or equivalent',
+            ];
+            // Aggregate by role
+            $roleGroups = [];
+            foreach ($team as $member) {
+                $role = (string)($member['role'] ?? 'Engineer');
+                $roleGroups[$role] = ($roleGroups[$role] ?? 0) + 1;
+            }
+            $i = 0;
+            foreach ($roleGroups as $role => $qty) {
+                $bg  = ($i % 2 === 0) ? $vcWhite : $vcAlt;
+                $req = $reqMap[strtolower($role)] ?? 'CSCS Card, AV installation experience';
+                $row = $teamTable->addRow(400);
+                $row->addCell(2600, $bg)->addText($this->t($role), $vf);
+                $row->addCell(800,  $bg)->addText((string)$qty,    $vf, ['alignment' => Jc::CENTER]);
+                $row->addCell(6466, $bg)->addText($req,            $vf);
+                $i++;
+            }
+        } else {
+            $row = $teamTable->addRow(400);
+            $row->addCell(2600, $vcWhite)->addText('Lead Engineer',                         $vf);
+            $row->addCell(800,  $vcWhite)->addText('1',                                     $vf, ['alignment' => Jc::CENTER]);
+            $row->addCell(6466, $vcWhite)->addText('CSCS Card, AV installation experience', $vf);
+        }
+
+        $section->addTextBreak(1);
+
+        // ── 6.2 Tools & Equipment ─────────────────────────────────────────────
+        $section->addText('6.2 Tools & Equipment', $this->font(10, bold: true, colour: self::TEAL), ['spacing' => ['before' => 80, 'after' => 60]]);
+
+        $tools = $data['tools_and_equipment'] ?? [];
+        foreach ($tools as $tool) {
+            $section->addText(
+                '•  ' . $this->t((string)$tool),
+                $vf,
+                ['spacing' => ['before' => 40, 'after' => 40]],
+            );
+        }
+
+        $section->addTextBreak(1);
+
+        // ── 6.3 Pre-Installation Requirements / Client Responsibilities ───────
+        $section->addText('6.3 Pre-Installation Requirements / Client Responsibilities', $this->font(10, bold: true, colour: self::TEAL), ['spacing' => ['before' => 80, 'after' => 60]]);
+
+        $resp = $data['client_responsibilities'] ?? [];
+        foreach ($resp as $item) {
+            $section->addText(
+                '•  ' . $this->t((string)$item),
+                $vf,
+                ['spacing' => ['before' => 40, 'after' => 40]],
+            );
+        }
+
+        $section->addTextBreak(1);
+
+        // ── 6.4 Method of Works ───────────────────────────────────────────────
+        $section->addText('6.4 Method of Works', $this->font(10, bold: true, colour: self::TEAL), ['spacing' => ['before' => 80, 'after' => 60]]);
+
+        $phases = $data['method_statement']['phases'] ?? [];
+        foreach ($phases as $i => $phase) {
+            $rawTitle = trim((string)($phase['title'] ?? ''));
+
+            // Strip any leading "N. " or "N — " prefix the AI may have added, then
+            // rebuild as "Step N — Title" so format is always consistent.
+            $cleanTitle = preg_replace('/^\d+[\.\-–—\s]+/', '', $rawTitle);
+            $stepTitle  = 'Step ' . ($i + 1) . ' — ' . $cleanTitle;
+
+            $section->addText(
+                $this->t($stepTitle),
+                $this->font(10, bold: true, colour: self::TEAL),
+                ['spacing' => ['before' => 100, 'after' => 60]],
+            );
+
+            foreach (($phase['steps'] ?? []) as $step) {
+                $section->addText(
+                    '    •  ' . $this->t((string)$step),
+                    $vf,
+                    ['spacing' => ['before' => 40, 'after' => 40]],
+                );
+            }
+        }
+    }
+
+    // =========================================================================
+    // SECTION 7 — Emergency Procedures
+    // =========================================================================
+
+    private function buildEmergencyProcedures(PhpWord $phpWord, array $data, array $formData): void
+    {
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+
+        $project   = $data['project'] ?? [];
+        $compShort = config('rams.company_short', '21CAV');
+        $compPhone = config('rams.company_phone', '');
+
+        $this->sectionHeading($section, '7. Emergency Procedures');
+
+        $vf      = $this->font(9);
+        $bf      = $this->font(9, bold: true);
+        $bfWhite = $this->font(9, bold: true, colour: self::WHITE);
+        $teal    = ['bgColor' => self::TEAL];
+        $white   = ['bgColor' => self::WHITE];
+        $alt     = ['bgColor' => self::ROW_ALT];
+        $colW    = (int)(self::W_PORT / 2); // 4933
+
+        // ── 7.1 Emergency Contact Numbers ────────────────────────────────────
+        $section->addText('7.1 Emergency Contact Numbers', $this->font(10, bold: true, colour: self::TEAL), ['spacing' => ['before' => 80, 'after' => 60]]);
+
+        $contactTable = $section->addTable($this->tableStyle());
+        // Header row
+        $hRow = $contactTable->addRow(380);
+        $hRow->addCell($colW, $teal)->addText('Contact',      $bfWhite);
+        $hRow->addCell($colW, $teal)->addText('Number',       $bfWhite);
+
+        $siteContact = $project['site_contact'] ?? $formData['site_contact'] ?? '';
+
+        $contactRows = [
+            ['Emergency Services (Fire, Police, Ambulance)', '999'],
+            ['Non-Emergency Police',                          '101'],
+            ['Site Contact',                                  $siteContact],
+            [$compShort . ' Operations',                      $compPhone],
+        ];
+        foreach ($contactRows as $i => [$contact, $number]) {
+            $bg  = ($i % 2 === 0) ? $white : $alt;
+            $row = $contactTable->addRow(400);
+            $row->addCell($colW, $bg)->addText($this->t($contact), $vf);
+            $row->addCell($colW, $bg)->addText($this->t($number),  $vf);
+        }
+
+        $section->addTextBreak(1);
+
+        // ── 7.2 Accident / Injury ─────────────────────────────────────────────
+        $section->addText('7.2 Accident / Injury', $this->font(10, bold: true, colour: self::TEAL), ['spacing' => ['before' => 80, 'after' => 60]]);
+
+        $accidentBullets = [
+            'Stop all work. Call 999 if life-threatening.',
+            'Administer first aid if qualified.',
+            'Do not move person with suspected spinal injury.',
+            'Contact ' . $compShort . ' operations.',
+            'Preserve the scene.',
+            'Complete incident report within 24 hours.',
+            'Report to client site manager.',
+            'RIDDOR reportable incidents must be reported within required timescales.',
+        ];
+        foreach ($accidentBullets as $bullet) {
+            $section->addText('•  ' . $bullet, $vf, ['spacing' => ['before' => 40, 'after' => 40]]);
+        }
+
+        $section->addTextBreak(1);
+
+        // ── 7.3 Fire Procedure ────────────────────────────────────────────────
+        $section->addText('7.3 Fire Procedure', $this->font(10, bold: true, colour: self::TEAL), ['spacing' => ['before' => 80, 'after' => 60]]);
+
+        $fireBullets = [
+            'Raise the alarm using nearest fire alarm call point.',
+            'Evacuate by nearest fire exit, do not use lifts.',
+            'Proceed to designated assembly point.',
+            'Do not re-enter until instructed.',
+            'Inform site manager that ' . $compShort . ' engineers are on-site.',
+        ];
+        foreach ($fireBullets as $bullet) {
+            $section->addText('•  ' . $bullet, $vf, ['spacing' => ['before' => 40, 'after' => 40]]);
+        }
+    }
+
+    // =========================================================================
+    // SECTION 8 — Document Sign-Off
+    // =========================================================================
+
+    private function buildDocumentSignOff(PhpWord $phpWord, array $data): void
+    {
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+
+        $this->sectionHeading($section, '8. Document Sign-Off');
+
+        $companyName = config('rams.company_name', '21st Century AV Ltd');
+        $colW        = (int)(self::W_PORT / 2); // 4933
+
+        $table   = $section->addTable($this->tableStyle());
+        $teal    = ['bgColor' => self::TEAL];
+        $alt     = ['bgColor' => self::ROW_ALT];
+        $white   = ['bgColor' => self::WHITE];
+        $bfWhite = $this->font(10, bold: true, colour: self::WHITE);
+        $labelF  = $this->font(9, bold: true);
+        $vf      = $this->font(9);
+
+        // Header row
+        $hRow = $table->addRow(420);
+        $hRow->addCell($colW, $teal)->addText($companyName,       $bfWhite, ['alignment' => Jc::CENTER]);
+        $hRow->addCell($colW, $teal)->addText('Client Acceptance', $bfWhite, ['alignment' => Jc::CENTER]);
+
+        // Data rows: Name, Position, Date, Signature
+        $signOffRows = ['Name', 'Position', 'Date', 'Signature'];
+        foreach ($signOffRows as $i => $label) {
+            $height = $label === 'Signature' ? 900 : 500;
+            $bg     = ($i % 2 === 0) ? $alt : $white;
+            $row    = $table->addRow($height);
+            $row->addCell($colW, $bg)->addText($label, $labelF);
+            $row->addCell($colW, $white)->addText('', $vf);
+        }
+    }
+
+    // =========================================================================
+    // TEMPLATE LOADER (kept for potential future use)
     // =========================================================================
 
     /**
@@ -147,682 +823,6 @@ class DocxBuilderService
     }
 
     // =========================================================================
-    // SECTION 1 — Portrait cover / project info
-    // =========================================================================
-
-    private function buildSection1(
-        PhpWord      $phpWord,
-        array        $data,
-        array        $formData,
-        RamsDocument $record,
-    ): void {
-        $section = $phpWord->addSection($this->portraitStyle());
-        $this->attachFooter($section);
-
-        $project   = $data['project'] ?? [];
-        $labelFont = $this->font(9, bold: true);
-        $valueFont = $this->font(9);
-        $labelCell = ['bgColor' => self::ROW_ALT];
-        $valueCell = ['bgColor' => self::WHITE];
-
-        // ── Title block (matching Southwark sample) ───────────────────────────
-        $section->addText(
-            config('rams.company_name'),
-            $this->font(24, bold: true, colour: self::TEAL),
-            ['alignment' => Jc::LEFT],
-        );
-        $section->addText(
-            'RISK ASSESSMENT & METHOD STATEMENT',
-            $this->font(17, bold: true, colour: self::DARK_GREY),
-            [
-                'alignment'         => Jc::LEFT,
-                'borderBottomSize'  => 12,
-                'borderBottomColor' => self::TEAL,
-                'borderBottomSpace' => 4,
-            ],
-        );
-        // Project subtitle line (name | client | scope)
-        $subtitleParts = array_filter([
-            $project['name']   ?? ($formData['project_name'] ?? null),
-            $project['client'] ?? ($formData['client_name']  ?? null),
-        ]);
-        $section->addText(
-            implode('  |  ', $subtitleParts),
-            $this->font(11, colour: self::MID_GREY),
-            ['alignment' => Jc::LEFT, 'spacing' => ['before' => 60, 'after' => 200]],
-        );
-
-        // ── Project details (2-col label / value) ─────────────────────────────
-        $this->sectionHeading($section, 'Project Details');
-        $table = $section->addTable($this->tableStyle());
-
-        $detailRows = [
-            ['Project Reference', $project['ref']               ?? ($formData['project_ref']       ?? '—')],
-            ['Project Name',      $project['name']              ?? ($formData['project_name']      ?? '—')],
-            ['Client',            $project['client']            ?? ($formData['client_name']       ?? '—')],
-            ['Site Address',      $project['site_address']      ?? ($formData['site_address']      ?? '—')],
-            ['Contractor',        config('rams.company_name')],
-            ['Works Description', $project['works_description'] ?? ($formData['works_description'] ?? '—')],
-            ['Start Date',        $formData['start_date']       ?? 'TBC'],
-            ['Expected Duration', $formData['expected_duration']?? 'TBC'],
-            ['Document Status',   'For Review'],
-            ['Date',              now()->format('F Y')],
-        ];
-
-        foreach ($detailRows as [$label, $value]) {
-            $row = $table->addRow(400);
-            $row->addCell(2800, $labelCell)->addText($label,         $labelFont);
-            $row->addCell(7066, $valueCell)->addText((string)$value, $valueFont);
-        }
-
-        $section->addTextBreak(1);
-
-        // ── Quoted works summary (quote-upload sourced RAMS only) ─────────────
-        if (! empty($data['quote'])) {
-            $this->buildQuoteSummary($section, $data['quote']);
-            $section->addTextBreak(1);
-        }
-
-        // ── Document authorisation table ──────────────────────────────────────
-        $this->sectionHeading($section, 'Document Authorisation');
-        $table = $section->addTable($this->tableStyle());
-        $this->tealHeader($table, ['Role', 'Name', 'Title', 'Signature', 'Date'], [2100, 2100, 1800, 2200, 1666]);
-
-        foreach (['Document Author', 'Authorised By', 'Authorised By (Client)'] as $role) {
-            $row = $table->addRow(500);
-            $row->addCell(2100, $valueCell)->addText($role, $valueFont);
-            $row->addCell(2100, $valueCell)->addText(
-                $role === 'Document Author' ? ($formData['doc_author'] ?? '') : '',
-                $valueFont
-            );
-            $row->addCell(1800, $valueCell)->addText('', $valueFont);
-            $row->addCell(2200, $valueCell)->addText('', $valueFont);
-            $row->addCell(1666, $valueCell)->addText('', $valueFont);
-        }
-
-        $section->addTextBreak(1);
-
-        // ── Engineering team table (only if team members provided) ────────────
-        $team = $data['team'] ?? [];
-        if (! empty($team)) {
-            $this->sectionHeading($section, 'Engineering Team');
-            $table = $section->addTable($this->tableStyle());
-            $this->tealHeader($table, ['Role', 'Name', 'Mobile'], [3000, 3500, 3366]);
-
-            foreach ($team as $member) {
-                $row = $table->addRow(400);
-                $row->addCell(3000, $valueCell)->addText((string)($member['role']   ?? ''), $valueFont);
-                $row->addCell(3500, $valueCell)->addText((string)($member['name']   ?? ''), $valueFont);
-                $row->addCell(3366, $valueCell)->addText((string)($member['mobile'] ?? ''), $valueFont);
-            }
-
-            $section->addTextBreak(1);
-        }
-
-        // ── Emergency contacts table ──────────────────────────────────────────
-        $this->sectionHeading($section, 'Emergency Contacts');
-        $table = $section->addTable($this->tableStyle());
-        $this->tealHeader($table, ['Contact', 'Tel', 'Mobile', 'Role'], [2466, 2400, 2400, 2600]);
-
-        $row = $table->addRow(500);
-        $row->addCell(2466, $valueCell)->addText($formData['emergency_contact'] ?? '', $valueFont);
-        $row->addCell(2400, $valueCell)->addText($formData['emergency_tel']     ?? '', $valueFont);
-        $row->addCell(2400, $valueCell)->addText('', $valueFont);
-        $row->addCell(2600, $valueCell)->addText('', $valueFont);
-
-        $row = $table->addRow(500);
-        $row->addCell(2466, $valueCell)->addText('', $valueFont);
-        $row->addCell(2400, $valueCell)->addText('', $valueFont);
-        $row->addCell(2400, $valueCell)->addText('', $valueFont);
-        $row->addCell(2600, $valueCell)->addText('', $valueFont);
-
-        $section->addTextBreak(1);
-
-        // ── UK Legislation table (2-column grid) ──────────────────────────────
-        $this->sectionHeading($section, 'Applicable UK Legislation & Regulations');
-        $legislation = [
-            ['Health & Safety at Work Act 1974',     'Management of H&S at Work Regs 1999'],
-            ['Manual Handling Operations Regs 1992', 'Work at Height Regulations 2005'],
-            ['PUWER 1998',                           'COSHH 2002'],
-            ['Control of Noise at Work Regs 2005',   'PPE at Work Regulations 2022'],
-            ['CDM Regulations 2015',                 'Electricity at Work Regulations 1989'],
-            ['Control of Asbestos Regulations 2012', 'RIDDOR 2013'],
-        ];
-
-        $table = $section->addTable($this->tableStyle());
-
-        // Spanning header
-        $row   = $table->addRow(400);
-        $hCell = $row->addCell(self::W_PORT, ['bgColor' => self::TEAL, 'gridSpan' => 2]);
-        $hCell->addText(
-            'Applicable UK Legislation',
-            $this->font(10, bold: true, colour: self::WHITE),
-            ['alignment' => Jc::CENTER],
-        );
-
-        foreach ($legislation as $i => [$left, $right]) {
-            $bg  = ($i % 2 === 0) ? self::WHITE : self::ROW_ALT;
-            $row = $table->addRow(380);
-            $row->addCell(4933, ['bgColor' => $bg])->addText($left,  $this->font(9));
-            $row->addCell(4933, ['bgColor' => $bg])->addText($right, $this->font(9));
-        }
-
-        $section->addTextBreak(1);
-
-        // ── Risk rating system — Southwark 5-row L × S matrix ────────────────
-        $this->sectionHeading($section, 'Risk Rating System');
-        $table = $section->addTable($this->tableStyle());
-
-        // Header row
-        $hRow = $table->addRow(380);
-        foreach (['Likelihood' => 2400, 'Score' => 700, 'Severity' => 2400, 'Score' => 700, 'Risk = Likelihood × Severity' => 3666] as $label => $w) {
-            $hRow->addCell($w, ['bgColor' => self::TEAL])
-                 ->addText($label, $this->font(9, bold: true, colour: self::WHITE), ['alignment' => Jc::CENTER]);
-        }
-
-        $riskMatrix = [
-            ['Highly Unlikely', '1', 'Trivial',              '1', 'No Action Required (1)',      self::RISK_GREEN],
-            ['Unlikely',        '2', 'Minor Injury',          '2', 'Low Priority (2–6)',           self::RISK_GREEN],
-            ['Possible',        '3', 'Over 3-Day Injury',     '3', 'Medium Priority (7–9)',        self::RISK_AMBER],
-            ['Probable',        '4', 'Major Injury',          '4', 'High Priority (10–14)',        self::RISK_ORANGE],
-            ['Certain',         '5', 'Incapacity or Death',   '5', 'Urgent Action Required (≥15)', self::RISK_RED],
-        ];
-
-        foreach ($riskMatrix as [$likelihood, $lScore, $severity, $sScore, $riskLabel, $riskColour]) {
-            $row = $table->addRow(360);
-            $row->addCell(2400, ['bgColor' => self::WHITE]) ->addText($likelihood, $this->font(9));
-            $row->addCell(700,  ['bgColor' => self::WHITE]) ->addText($lScore,     $this->font(9, bold: true), ['alignment' => Jc::CENTER]);
-            $row->addCell(2400, ['bgColor' => self::WHITE]) ->addText($severity,   $this->font(9));
-            $row->addCell(700,  ['bgColor' => self::WHITE]) ->addText($sScore,     $this->font(9, bold: true), ['alignment' => Jc::CENTER]);
-            $row->addCell(3666, ['bgColor' => $riskColour]) ->addText($riskLabel,  $this->font(9, bold: true));
-        }
-
-        $section->addTextBreak(1);
-
-        // ── PPE table ─────────────────────────────────────────────────────────
-        // Cap at 5 columns per row so text isn't crushed when there are many items.
-        // Overflow items wrap to additional rows; short final rows are padded with
-        // empty cells to keep the Word table column count consistent.
-        $ppeItems = $data['ppe'] ?? [];
-        if (! empty($ppeItems)) {
-            $colsPerRow = min(count($ppeItems), 5);
-            $colWidth   = (int) round(self::W_PORT / $colsPerRow);
-            $chunks     = array_chunk($ppeItems, $colsPerRow);
-
-            $table = $section->addTable($this->tableStyle());
-
-            $row   = $table->addRow(400);
-            $hCell = $row->addCell(self::W_PORT, ['bgColor' => self::TEAL, 'gridSpan' => $colsPerRow]);
-            $hCell->addText(
-                'PPE Required for this Project',
-                $this->font(10, bold: true, colour: self::WHITE),
-                ['alignment' => Jc::CENTER],
-            );
-
-            foreach ($chunks as $chunk) {
-                $row = $table->addRow(500);
-                foreach ($chunk as $item) {
-                    $row->addCell($colWidth, ['bgColor' => self::ROW_ALT])
-                        ->addText($item, $this->font(8), ['alignment' => Jc::CENTER]);
-                }
-                // Pad the last (possibly short) row so column count stays consistent
-                for ($i = count($chunk); $i < $colsPerRow; $i++) {
-                    $row->addCell($colWidth, ['bgColor' => self::ROW_ALT])->addText('');
-                }
-            }
-
-            $section->addTextBreak(1);
-        }
-
-        // ── Persons at risk table ─────────────────────────────────────────────
-        $persons = $data['persons_at_risk'] ?? [];
-        if (! empty($persons)) {
-            $colsPerRow = min(count($persons), 5);
-            $colWidth   = (int) round(self::W_PORT / $colsPerRow);
-            $chunks     = array_chunk($persons, $colsPerRow);
-
-            $table = $section->addTable($this->tableStyle());
-
-            $row   = $table->addRow(400);
-            $hCell = $row->addCell(self::W_PORT, ['bgColor' => self::TEAL, 'gridSpan' => $colsPerRow]);
-            $hCell->addText(
-                'Persons at Risk',
-                $this->font(10, bold: true, colour: self::WHITE),
-                ['alignment' => Jc::CENTER],
-            );
-
-            foreach ($chunks as $chunk) {
-                $row = $table->addRow(500);
-                foreach ($chunk as $person) {
-                    $row->addCell($colWidth, ['bgColor' => self::ROW_ALT])
-                        ->addText('✓  ' . $person, $this->font(9), ['alignment' => Jc::CENTER]);
-                }
-                for ($i = count($chunk); $i < $colsPerRow; $i++) {
-                    $row->addCell($colWidth, ['bgColor' => self::ROW_ALT])->addText('');
-                }
-            }
-        }
-    }
-
-    // =========================================================================
-    // EXTRACTED TABLE HELPERS — used by both template and programmatic paths
-    // =========================================================================
-
-    private function addTeamTable(Section $section, array $team): void
-    {
-        if (empty($team)) {
-            return;
-        }
-        $vc = ['bgColor' => self::WHITE];
-        $vf = $this->font(9);
-        $this->sectionHeading($section, 'Engineering Team');
-        $table = $section->addTable($this->tableStyle());
-        $this->tealHeader($table, ['Role', 'Name', 'Mobile'], [3000, 3500, 3366]);
-        foreach ($team as $member) {
-            $row = $table->addRow(400);
-            $row->addCell(3000, $vc)->addText((string)($member['role']   ?? ''), $vf);
-            $row->addCell(3500, $vc)->addText((string)($member['name']   ?? ''), $vf);
-            $row->addCell(3366, $vc)->addText((string)($member['mobile'] ?? ''), $vf);
-        }
-        $section->addTextBreak(1);
-    }
-
-    private function addEmergencyTable(Section $section, array $formData): void
-    {
-        $vc = ['bgColor' => self::WHITE];
-        $vf = $this->font(9);
-        $this->sectionHeading($section, 'Emergency Contacts');
-        $table = $section->addTable($this->tableStyle());
-        $this->tealHeader($table, ['Contact', 'Tel', 'Mobile', 'Role'], [2466, 2400, 2400, 2600]);
-        $row = $table->addRow(500);
-        $row->addCell(2466, $vc)->addText($formData['emergency_contact'] ?? '', $vf);
-        $row->addCell(2400, $vc)->addText($formData['emergency_tel']     ?? '', $vf);
-        $row->addCell(2400, $vc)->addText('', $vf);
-        $row->addCell(2600, $vc)->addText('', $vf);
-        $row = $table->addRow(500);
-        $row->addCell(2466, $vc)->addText('', $vf);
-        $row->addCell(2400, $vc)->addText('', $vf);
-        $row->addCell(2400, $vc)->addText('', $vf);
-        $row->addCell(2600, $vc)->addText('', $vf);
-        $section->addTextBreak(1);
-    }
-
-    private function addPpeTable(Section $section, array $ppeItems): void
-    {
-        if (empty($ppeItems)) {
-            return;
-        }
-        $colsPerRow = min(count($ppeItems), 5);
-        $colWidth   = (int) round(self::W_PORT / $colsPerRow);
-        $chunks     = array_chunk($ppeItems, $colsPerRow);
-        $table      = $section->addTable($this->tableStyle());
-        $row        = $table->addRow(400);
-        $hCell      = $row->addCell(self::W_PORT, ['bgColor' => self::TEAL, 'gridSpan' => $colsPerRow]);
-        $hCell->addText('PPE Required for this Project', $this->font(10, bold: true, colour: self::WHITE), ['alignment' => Jc::CENTER]);
-        foreach ($chunks as $chunk) {
-            $row = $table->addRow(500);
-            foreach ($chunk as $item) {
-                $row->addCell($colWidth, ['bgColor' => self::ROW_ALT])
-                    ->addText($item, $this->font(8), ['alignment' => Jc::CENTER]);
-            }
-            for ($i = count($chunk); $i < $colsPerRow; $i++) {
-                $row->addCell($colWidth, ['bgColor' => self::ROW_ALT])->addText('');
-            }
-        }
-        $section->addTextBreak(1);
-    }
-
-    private function addPersonsTable(Section $section, array $persons): void
-    {
-        if (empty($persons)) {
-            return;
-        }
-        $colsPerRow = min(count($persons), 5);
-        $colWidth   = (int) round(self::W_PORT / $colsPerRow);
-        $chunks     = array_chunk($persons, $colsPerRow);
-        $table      = $section->addTable($this->tableStyle());
-        $row        = $table->addRow(400);
-        $hCell      = $row->addCell(self::W_PORT, ['bgColor' => self::TEAL, 'gridSpan' => $colsPerRow]);
-        $hCell->addText('Persons at Risk', $this->font(10, bold: true, colour: self::WHITE), ['alignment' => Jc::CENTER]);
-        foreach ($chunks as $chunk) {
-            $row = $table->addRow(500);
-            foreach ($chunk as $person) {
-                $row->addCell($colWidth, ['bgColor' => self::ROW_ALT])
-                    ->addText('✓  ' . $person, $this->font(9), ['alignment' => Jc::CENTER]);
-            }
-            for ($i = count($chunk); $i < $colsPerRow; $i++) {
-                $row->addCell($colWidth, ['bgColor' => self::ROW_ALT])->addText('');
-            }
-        }
-    }
-
-    // =========================================================================
-    // QUOTE SUMMARY — rendered inside Section 1 when source is a PDF upload
-    // =========================================================================
-
-    /**
-     * Render two tables into Section 1 when a QuoteWerks PDF was the source:
-     *   1. Line items  — SKU | Qty | Description
-     *   2. Room summaries — Room / Area | Solution Summary
-     *
-     * This section is skipped entirely for manually-created RAMS documents
-     * (i.e. when $data['quote'] is absent).
-     */
-    private function buildQuoteSummary(Section $section, array $quote): void
-    {
-        $valueFont  = $this->font(9);
-        $headerFont = $this->font(9, bold: true, colour: self::WHITE);
-        $valueCell  = ['bgColor' => self::WHITE];
-        $altCell    = ['bgColor' => self::ROW_ALT];
-
-        // ── Section heading ───────────────────────────────────────────────────
-        $ref   = $quote['qw_number'] ?? $quote['quote_ref'] ?? '';
-        $qwRef = $ref !== '' ? '  —  ' . $ref : '';
-        $row   = null;
-
-        $table = $section->addTable($this->tableStyle());
-        $hRow  = $table->addRow(420);
-        $hCell = $hRow->addCell(self::W_PORT, ['bgColor' => self::TEAL]);
-        $hCell->addText(
-            'Quoted Works Summary' . $qwRef,
-            $this->font(10, bold: true, colour: self::WHITE),
-            ['alignment' => Jc::LEFT],
-        );
-
-        // ── Hardware list (grouped by room) ──────────────────────────────────
-        $hardwareByRoom = $quote['hardware_by_room'] ?? [];
-        $lineItems      = $quote['line_items'] ?? [];
-
-        if (! empty($hardwareByRoom)) {
-            foreach ($hardwareByRoom as $group) {
-                $room  = (string) ($group['room'] ?? 'General');
-                $items = $group['items'] ?? [];
-                if (empty($items)) {
-                    continue;
-                }
-
-                $section->addText($room, $this->font(9, bold: true, colour: self::DARK_GREY));
-
-                $table = $section->addTable($this->tableStyle());
-                $hRow  = $table->addRow(380);
-                $hRow->addCell(600,  ['bgColor' => self::DARK_GREY])
-                     ->addText('Qty', $headerFont, ['alignment' => Jc::CENTER]);
-                $hRow->addCell(9266, ['bgColor' => self::DARK_GREY])
-                     ->addText('Hardware Item', $headerFont);
-
-                foreach ($items as $i => $item) {
-                    $bg  = ($i % 2 === 0) ? $valueCell : $altCell;
-                    $row = $table->addRow(380);
-                    $row->addCell(600,  $bg)->addText((string)($item['qty'] ?? ''), $valueFont, ['alignment' => Jc::CENTER]);
-                    $row->addCell(9266, $bg)->addText($this->t((string)($item['description'] ?? '')), $valueFont);
-                }
-
-                $section->addTextBreak(1);
-            }
-        } elseif (! empty($lineItems)) {
-            // Fallback: ungrouped hardware list
-            $table = $section->addTable($this->tableStyle());
-            $hRow  = $table->addRow(380);
-            $hRow->addCell(600,  ['bgColor' => self::DARK_GREY])
-                 ->addText('Qty', $headerFont, ['alignment' => Jc::CENTER]);
-            $hRow->addCell(9266, ['bgColor' => self::DARK_GREY])
-                 ->addText('Hardware Item', $headerFont);
-
-            foreach ($lineItems as $i => $item) {
-                $bg  = ($i % 2 === 0) ? $valueCell : $altCell;
-                $row = $table->addRow(380);
-                $row->addCell(600,  $bg)->addText((string)($item['qty'] ?? ''), $valueFont, ['alignment' => Jc::CENTER]);
-                $row->addCell(9266, $bg)->addText($this->t((string)($item['description'] ?? '')), $valueFont);
-            }
-
-            $section->addTextBreak(1);
-        }
-
-        // ── Room / solution summaries table ───────────────────────────────────
-        $roomSummaries = $quote['room_summaries'] ?? [];
-        if (! empty($roomSummaries)) {
-            // Column widths: Room: 2800 | Summary: 7066
-            $table = $section->addTable($this->tableStyle());
-
-            $hRow = $table->addRow(380);
-            $hRow->addCell(2800, ['bgColor' => self::DARK_GREY])
-                 ->addText('Room / Area', $headerFont);
-            $hRow->addCell(7066, ['bgColor' => self::DARK_GREY])
-                 ->addText('AV Solution Summary', $headerFont);
-
-            foreach ($roomSummaries as $i => $entry) {
-                $bg  = ($i % 2 === 0) ? $valueCell : $altCell;
-                $row = $table->addRow(400);
-                $row->addCell(2800, $bg)->addText((string)($entry['room']    ?? ''), $valueFont);
-                $row->addCell(7066, $bg)->addText((string)($entry['summary'] ?? ''), $valueFont);
-            }
-        }
-    }
-
-    // =========================================================================
-    // SECTION 2 — Landscape hazard register
-    // =========================================================================
-
-    private function buildSection2(PhpWord $phpWord, array $data): void
-    {
-        $section = $phpWord->addSection($this->landscapeStyle() + ['breakType' => 'nextPage']);
-        $this->attachFooter($section);
-
-        // Page header
-        $projectName = $data['project']['name'] ?? 'RAMS Document';
-        $hdr         = $section->addHeader();
-        $hdr->addText(
-            'RISK ASSESSMENT  |  ' . strtoupper($projectName),
-            $this->font(11, bold: true, colour: self::TEAL),
-            [
-                'alignment'         => Jc::LEFT,
-                'borderBottomSize'  => 8,
-                'borderBottomColor' => self::TEAL,
-                'borderBottomSpace' => 3,
-            ],
-        );
-
-        // Column widths (sum = W_LAND = 15138)
-        $wH  = self::COL_HAZARD;    // 2650
-        $wC  = self::COL_CONSEQ;    // 2920
-        $wP  = self::COL_P;         // 665
-        $wS  = self::COL_S;         // 665
-        $wR  = self::COL_RISK;      // 800
-        $wCt = self::COL_CONTROLS;  // 5308
-
-        $teal      = ['bgColor' => self::TEAL];
-        $whiteFont = $this->font(9, bold: true, colour: self::WHITE);
-        $bodyFont  = $this->font(8);
-        $boldFont  = $this->font(8, bold: true);
-        $centred   = ['alignment' => Jc::CENTER];
-
-        $table = $section->addTable($this->tableStyle());
-
-        // ── Single header row (safe — no vMerge/gridSpan combo) ──────────────
-        // Using combined "Pre L/S/Risk" labels avoids the multi-row merge that
-        // produces malformed OOXML and causes Word to reject the file.
-        $hRow = $table->addRow(420);
-        $hRow->addCell($wH,  $teal)->addText('Hazard',             $whiteFont);
-        $hRow->addCell($wC,  $teal)->addText('Persons at Risk',    $whiteFont);
-        $hRow->addCell($wP,  $teal)->addText('L',                  $whiteFont, $centred);
-        $hRow->addCell($wS,  $teal)->addText('S',                  $whiteFont, $centred);
-        $hRow->addCell($wR,  $teal)->addText('Risk',               $whiteFont, $centred);
-        $hRow->addCell($wCt, $teal)->addText('Control Measures',   $whiteFont);
-        $hRow->addCell($wP,  $teal)->addText('L',                  $whiteFont, $centred);
-        $hRow->addCell($wS,  $teal)->addText('S',                  $whiteFont, $centred);
-        $hRow->addCell($wR,  $teal)->addText('Risk',               $whiteFont, $centred);
-
-        // ── Data rows — one per hazard ─────────────────────────────────────────
-        foreach ($data['hazards'] ?? [] as $idx => $hazard) {
-            $rowBg    = ($idx % 2 === 0) ? self::WHITE : self::ROW_ALT;
-            $preScore = (int)($hazard['pre_likelihood']  ?? 1) * (int)($hazard['pre_severity']  ?? 1);
-            $postScore= (int)($hazard['post_likelihood'] ?? 1) * (int)($hazard['post_severity'] ?? 1);
-
-            $dr = $table->addRow(0);  // auto height
-
-            // Hazard name (bold)
-            $dr->addCell($wH, ['bgColor' => $rowBg, 'valign' => 'top'])
-               ->addText($this->t((string)($hazard['hazard'] ?? '')), $boldFont);
-
-            // Persons at risk (replaces 'consequences' — not present in normalised data)
-            $personsCell = $dr->addCell($wC, ['bgColor' => $rowBg, 'valign' => 'top']);
-            $persons = $hazard['persons_at_risk'] ?? [];
-            if (is_array($persons) && ! empty($persons)) {
-                foreach ($persons as $person) {
-                    $personsCell->addText('•  ' . (string)$person, $bodyFont);
-                }
-            } else {
-                $personsCell->addText('', $bodyFont);
-            }
-
-            // Pre L / S / Risk
-            $dr->addCell($wP, ['bgColor' => $rowBg, 'valign' => 'top'])
-               ->addText((string)($hazard['pre_likelihood'] ?? ''), $bodyFont, $centred);
-            $dr->addCell($wS, ['bgColor' => $rowBg, 'valign' => 'top'])
-               ->addText((string)($hazard['pre_severity']   ?? ''), $bodyFont, $centred);
-            $dr->addCell($wR, ['bgColor' => $this->riskColour($preScore), 'valign' => 'top'])
-               ->addText((string)$preScore, $boldFont, $centred);
-
-            // Control measures — numbered list
-            $ctrlCell = $dr->addCell($wCt, ['bgColor' => $rowBg, 'valign' => 'top']);
-            foreach ($hazard['controls'] ?? [] as $j => $ctrl) {
-                $ctrlCell->addText(($j + 1) . '.  ' . $this->t((string)$ctrl), $bodyFont);
-            }
-
-            // Post L / S / Risk
-            $dr->addCell($wP, ['bgColor' => $rowBg, 'valign' => 'top'])
-               ->addText((string)($hazard['post_likelihood'] ?? ''), $bodyFont, $centred);
-            $dr->addCell($wS, ['bgColor' => $rowBg, 'valign' => 'top'])
-               ->addText((string)($hazard['post_severity']   ?? ''), $bodyFont, $centred);
-            $dr->addCell($wR, ['bgColor' => $this->riskColour($postScore), 'valign' => 'top'])
-               ->addText((string)$postScore, $boldFont, $centred);
-        }
-    }
-
-    // =========================================================================
-    // METHOD STATEMENT — Portrait numbered steps
-    // =========================================================================
-
-    private function buildMethodStatement(PhpWord $phpWord, array $data): void
-    {
-        $phases = $data['method_statement']['phases'] ?? [];
-        if (empty($phases)) {
-            return;
-        }
-
-        $section    = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
-        $this->attachFooter($section);
-
-        $projectName = $data['project']['name'] ?? 'RAMS Document';
-        $hdr         = $section->addHeader();
-        $hdr->addText(
-            'METHOD STATEMENT  |  ' . strtoupper($projectName),
-            $this->font(11, bold: true, colour: self::TEAL),
-            [
-                'alignment'         => Jc::LEFT,
-                'borderBottomSize'  => 8,
-                'borderBottomColor' => self::TEAL,
-                'borderBottomSpace' => 3,
-            ],
-        );
-
-        $this->sectionHeading($section, 'Method Statement — Sequence of Works');
-
-        foreach ($phases as $i => $phase) {
-            $section->addText(
-                ($i + 1) . '.  ' . $this->t((string) ($phase['title'] ?? '')),
-                $this->font(10, bold: true, colour: self::TEAL),
-                ['spacing' => ['before' => 80, 'after' => 80]],
-            );
-
-            foreach (($phase['steps'] ?? []) as $step) {
-                $section->addText(
-                    '    •  ' . $this->t((string) $step),
-                    $this->font(9),
-                    ['spacing' => ['before' => 40, 'after' => 40]],
-                );
-            }
-        }
-    }
-
-    // =========================================================================
-    // SECTION 3 — Portrait operative sign-off
-    // =========================================================================
-
-    private function buildSection3(PhpWord $phpWord): void
-    {
-        $section   = $phpWord->addSection($this->portraitStyle());
-        $this->attachFooter($section);
-
-        $valueFont = $this->font(9);
-        $valueCell = ['bgColor' => self::WHITE];
-        $altCell   = ['bgColor' => self::ROW_ALT];
-
-        // ── Operative sign-off ────────────────────────────────────────────────
-        $table = $section->addTable($this->tableStyle());
-
-        // Spanning header
-        $row   = $table->addRow(400);
-        $hCell = $row->addCell(self::W_PORT, ['bgColor' => self::TEAL, 'gridSpan' => 3]);
-        $hCell->addText(
-            'Operative Sign-Off',
-            $this->font(11, bold: true, colour: self::WHITE),
-            ['alignment' => Jc::CENTER],
-        );
-
-        // Instruction
-        $row   = $table->addRow(500);
-        $iCell = $row->addCell(self::W_PORT, array_merge($valueCell, ['gridSpan' => 3]));
-        $iCell->addText(
-            'I have read and understood this Risk Assessment and Method Statement '
-            . 'and agree to comply with its requirements.',
-            $this->font(9, italic: true, colour: self::MID_GREY),
-        );
-
-        // Column headers
-        $row = $table->addRow(380);
-        $row->addCell(3500, $altCell)->addText('Print Name', $this->font(9, bold: true));
-        $row->addCell(3500, $altCell)->addText('Signature',  $this->font(9, bold: true));
-        $row->addCell(2866, $altCell)->addText('Date',       $this->font(9, bold: true));
-
-        // Six blank rows for operatives
-        for ($i = 0; $i < 6; $i++) {
-            $row = $table->addRow(600);
-            $row->addCell(3500, $valueCell)->addText('', $valueFont);
-            $row->addCell(3500, $valueCell)->addText('', $valueFont);
-            $row->addCell(2866, $valueCell)->addText('', $valueFont);
-        }
-
-        $section->addTextBreak(2);
-
-        // ── Document control ──────────────────────────────────────────────────
-        $table = $section->addTable($this->tableStyle());
-
-        $row   = $table->addRow(400);
-        $hCell = $row->addCell(self::W_PORT, ['bgColor' => self::TEAL, 'gridSpan' => 5]);
-        $hCell->addText(
-            'Document Control',
-            $this->font(10, bold: true, colour: self::WHITE),
-            ['alignment' => Jc::CENTER],
-        );
-
-        // Column headers
-        $dcHeaders = ['Rev' => 900, 'Date' => 2200, 'Prepared By' => 2400, 'Checked By' => 2200, 'Description' => 2166];
-        $row = $table->addRow(360);
-        foreach ($dcHeaders as $label => $w) {
-            $row->addCell($w, $altCell)->addText($label, $this->font(9, bold: true));
-        }
-
-        // Rev 01 row
-        $row = $table->addRow(400);
-        $row->addCell(900,  $valueCell)->addText('01',                   $valueFont);
-        $row->addCell(2200, $valueCell)->addText(now()->format('d/m/Y'), $valueFont);
-        $row->addCell(2400, $valueCell)->addText(config('rams.company_name'),  $valueFont);
-        $row->addCell(2200, $valueCell)->addText('—',                    $valueFont);
-        $row->addCell(2166, $valueCell)->addText('Initial Issue',        $valueFont);
-    }
-
-    // =========================================================================
     // PRIVATE HELPERS
     // =========================================================================
 
@@ -838,7 +838,6 @@ class DocxBuilderService
 
     /**
      * Render a bold teal section heading with a teal bottom border.
-     * Matches the Southwark sample heading style.
      */
     private function sectionHeading(Section $section, string $text): void
     {
@@ -889,12 +888,22 @@ class DocxBuilderService
         };
     }
 
+    /** Return a SHORT risk badge label for the given score. */
+    private function riskBadge(int $score): string
+    {
+        return match (true) {
+            $score >= 10 => 'HIGH',
+            $score >= 7  => 'MED',
+            default      => 'LOW',
+        };
+    }
+
     /** Build a font style array. */
     private function font(
-        int     $size    = 10,
-        bool    $bold    = false,
-        bool    $italic  = false,
-        string  $colour  = self::DARK_GREY,
+        int    $size   = 10,
+        bool   $bold   = false,
+        bool   $italic = false,
+        string $colour = self::DARK_GREY,
     ): array {
         return array_filter([
             'name'   => 'Arial',
