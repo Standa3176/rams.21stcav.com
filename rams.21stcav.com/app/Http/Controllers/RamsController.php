@@ -127,6 +127,18 @@ class RamsController extends Controller
                 'COSHH',
             ];
 
+        // ── Project pre-fill (optional) ──────────────────────────────
+        $project = null;
+        if ($projectId = request()->query('project_id')) {
+            $candidate = \App\Models\Project::find((int) $projectId);
+            if ($candidate) {
+                if ($candidate->user_id !== auth()->id() && ! auth()->user()->isAdmin()) {
+                    abort(403, 'You do not own this project.');
+                }
+                $project = $candidate;
+            }
+        }
+
         return view('rams.create', compact(
             'hazardLibrary',
             'ppeOptions',
@@ -134,6 +146,7 @@ class RamsController extends Controller
             'providers',
             'defaultProvider',
             'hazardTemplates',
+            'project',
         ));
     }
 
@@ -158,6 +171,12 @@ class RamsController extends Controller
             'filename'     => 'pending-' . now()->format('YmdHis') . '.docx',
             'status'       => RamsDocument::STATUS_FOR_REVIEW,
         ]);
+
+        // Link to originating project if supplied
+        if (! empty($validated['project_id'])) {
+            $ramsDocument->project_id = (int) $validated['project_id'];
+            $ramsDocument->save();
+        }
 
         // 2. Run the full local pipeline (classify → hazards → AI method stmt → DOCX)
         try {

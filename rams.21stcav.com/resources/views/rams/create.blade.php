@@ -1,11 +1,11 @@
 @extends('layouts.app')
 
-@section('title', 'Create RAMS Document')
+@section('title', $project ? 'Create RAMS — ' . $project->name : 'Create RAMS Document')
 
 @section('content')
 
     <div class="page-header">
-        <h1 class="page-title">Create RAMS Document</h1>
+        <h1 class="page-title">{{ $project ? 'Create RAMS — ' . $project->name : 'Create RAMS Document' }}</h1>
         <a href="{{ route('rams.index') }}" class="btn btn-outline btn-sm">← Back to list</a>
     </div>
 
@@ -33,6 +33,7 @@
           id="rams-form"
           novalidate>
         @csrf
+        <input type="hidden" name="project_id" value="{{ old('project_id', $project?->id) }}">
 
         {{-- ════════════════════════════════════════════════════════════
              SECTION A — Project Details
@@ -47,7 +48,7 @@
                            id="project_ref"
                            name="project_ref"
                            class="form-control @error('project_ref') is-invalid @enderror"
-                           value="{{ old('project_ref') }}"
+                           value="{{ old('project_ref') ?? $project?->ref ?? '' }}"
                            placeholder="e.g. 21CQ-25001">
                     @error('project_ref')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -62,7 +63,7 @@
                            id="project_name"
                            name="project_name"
                            class="form-control @error('project_name') is-invalid @enderror"
-                           value="{{ old('project_name') }}"
+                           value="{{ old('project_name') ?? $project?->name ?? '' }}"
                            required>
                     @error('project_name')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -77,7 +78,7 @@
                            id="client_name"
                            name="client_name"
                            class="form-control @error('client_name') is-invalid @enderror"
-                           value="{{ old('client_name') }}"
+                           value="{{ old('client_name') ?? $project?->client_name ?? '' }}"
                            required>
                     @error('client_name')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -106,7 +107,7 @@
                           name="site_address"
                           class="form-control @error('site_address') is-invalid @enderror"
                           rows="2"
-                          required>{{ old('site_address') }}</textarea>
+                          required>{{ old('site_address') ?? $project?->site_address ?? '' }}</textarea>
                 @error('site_address')
                     <div class="invalid-feedback">{{ $message }}</div>
                 @enderror
@@ -149,7 +150,7 @@
                           class="form-control @error('works_description') is-invalid @enderror"
                           rows="4"
                           minlength="20"
-                          required>{{ old('works_description') }}</textarea>
+                          required>{{ old('works_description') ?? $project?->works_description ?? '' }}</textarea>
                 <div class="form-help">
                     Describe the AV works in detail — the AI uses this to tailor control measures.
                     Be specific: equipment types, mounting methods, cable routes, commissioning tasks.

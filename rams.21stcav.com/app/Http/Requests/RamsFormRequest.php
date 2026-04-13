@@ -53,6 +53,9 @@ class RamsFormRequest extends FormRequest
             'emergency_contact'   => ['nullable', 'string'],
             'emergency_tel'       => ['nullable', 'string'],
             'doc_author'          => ['nullable', 'string'],
+
+            // Project linkage (optional — set when creating from project show page)
+            'project_id'          => ['nullable', 'integer', 'exists:projects,id'],
         ];
     }
 }
