@@ -288,6 +288,10 @@ Route::middleware('auth')->group(function () {
     Route::post('install-programmes/{programme}/assign-all',
         [\App\Http\Controllers\TaskAssignmentController::class, 'assignAll'])
         ->name('install-programmes.assign-all');
+
+    Route::get('install-programmes/{programme}/schedule',
+        [\App\Http\Controllers\InstallProgrammeController::class, 'schedule'])
+        ->name('install-programmes.schedule');
 });
 
 require __DIR__.'/auth.php';
