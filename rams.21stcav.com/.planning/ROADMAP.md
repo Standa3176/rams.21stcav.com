@@ -69,13 +69,17 @@ Plans:
 **Depends on**: Phase 12
 **Requirements**: INST-02, INST-02a, INST-02b, INST-02c, INST-02d, INST-02e, INST-02f, INST-02g
 **Success Criteria** (what must be TRUE):
-  1. `install_tasks.assigned_user_id` column exists and FK references `users.id`
-  2. Bulk assignment UI assigns all tasks in a room to a selected engineer in one action
-  3. Week-view calendar groups tasks by planned week; each task shows assigned engineer name
-  4. When `planned_end_date - planned_start_date > 4 days`, the Gantt view renders via frappe-gantt
+  1. `install_tasks.assigned_to` column (existing FK to users.id) satisfies INST-02a; `planned_start_date` + `planned_end_date` date columns added to install_tasks
+  2. Bulk assignment routes assign all tasks in a room or entire programme to a selected engineer in one action
+  3. Week-view calendar groups tasks by planned week; each task shows assigned engineer name colour-coded by user ID modulo 8
+  4. When programme `planned_end_date - planned_start_date > 4 days`, the Gantt view renders via frappe-gantt
   5. When project duration ≤ 4 days, Gantt is not shown; week-table is shown instead
-  6. Field engineers see only their assigned tasks; PM role sees all tasks
-**Plans**: TBD
+  6. Field engineers see only their assigned tasks on the schedule page; PM role (project owner / admin) sees all tasks
+**Plans**: 2 plans
+
+Plans:
+- [ ] 13-01-PLAN.md — Migration (per-task planned dates) + TaskAssignmentService + TaskAssignmentController + 3 assignment routes
+- [ ] 13-02-PLAN.md — frappe-gantt install + schedule.blade.php (week-view + conditional Gantt + Alpine panel) + schedule() action + INST-02g filter
 
 ### Phase 14: Mobile Field View
 **Goal**: Mobile-responsive field page where engineers tick tasks complete, capture per-task photos, and clock in/out. HEIC photos are silently converted server-side.
@@ -165,7 +169,7 @@ Plans:
 | 10. Document Quality Scores | v1.1 | — | Planned | — |
 | 11. Bitrix24 Integration | v1.1 | — | Planned | — |
 | 12. Install Task Generation + Worksheet Enhancements | v1.2 | 3/3 | Complete   | 2026-04-13 |
-| 13. Task Assignment & Scheduling | v1.2 | — | Planned | — |
+| 13. Task Assignment & Scheduling | v1.2 | 2 | Planned | — |
 | 14. Mobile Field View & Time Tracking | v1.2 | — | Planned | — |
 | 15. Time Tracking | v1.2 | — | Planned | — |
 | 16. Commissioning Checklist & Sign-off | v1.2 | — | Planned | — |
