@@ -51,13 +51,18 @@ Full archive: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 **Depends on**: Nothing (first phase of v1.2; ProjectDataService from v1.0 is the data source)
 **Requirements**: INST-01, INST-01a, INST-01b, INST-01c, INST-01d, INST-01e, INST-01f, INST-01g, INST-01h, WORK-05, WORK-06
 **Success Criteria** (what must be TRUE):
-  1. `php artisan tinker` can call `InstallTaskGeneratorService::generate($project)` and return a structured array of tasks grouped by room
+  1. `php artisan tinker` can call `InstallTaskGeneratorService::generate($programme)` and create task records grouped by room
   2. `install_programmes` and `install_tasks` tables exist with all columns defined in REQUIREMENTS.md
   3. Generating tasks for a project with 3 rooms and 5 equipment items produces ≥ 3 task records (one per room × equipment combination)
   4. A confirm gate UI exists: generated tasks are shown for PM review before programme is activated
   5. Worksheet DOCX for a project with pre-install answers includes those answers in the generated file
   6. Worksheet generation button appears on project dashboard and dispatches the job
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 12-01-PLAN.md — Migrations (install_programmes, install_tasks) + InstallProgramme/InstallTask models + Project relationships
+- [ ] 12-02-PLAN.md — InstallTaskGeneratorService + InstallProgrammeService + Controller + Routes + Review UI
+- [ ] 12-03-PLAN.md — WorksheetDocxService section E (WORK-05: pre-install answers) + WORK-06 verification
 
 ### Phase 13: Task Assignment & Scheduling
 **Goal**: Engineers can be assigned to tasks and dates set; programme is viewable as a week-grouped table. For projects spanning > 4 days, an interactive Gantt timeline (frappe-gantt) is shown.
@@ -159,7 +164,7 @@ Full archive: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 | 09. Email Notifications | v1.1 | — | Planned | — |
 | 10. Document Quality Scores | v1.1 | — | Planned | — |
 | 11. Bitrix24 Integration | v1.1 | — | Planned | — |
-| 12. Install Task Generation + Worksheet Enhancements | v1.2 | — | Planned | — |
+| 12. Install Task Generation + Worksheet Enhancements | v1.2 | 3 plans | Planned | — |
 | 13. Task Assignment & Scheduling | v1.2 | — | Planned | — |
 | 14. Mobile Field View & Time Tracking | v1.2 | — | Planned | — |
 | 15. Time Tracking | v1.2 | — | Planned | — |
