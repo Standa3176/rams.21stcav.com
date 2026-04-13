@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\Log;
  *     'name', 'is_surveyed', 'equipment', 'install_steps',
  *     'cable_route_desc', 'has_power', 'power_outlet_count',
  *     'requires_additional_power', 'network_port_count', 'existing_cabling',
+ *     'pre_install_answers' (WORK-05) — array of {question, answer, other_text} from latest survey,
  *   ]],
  *   'generated_at' => ISO 8601 string,
  * ]
@@ -103,7 +104,30 @@ class WorksheetGeneratorService
             $worksOverview = trim((string) ($package->reviewed_data['works_overview'] ?? ''));
         }
 
-        $rooms    = $this->buildRooms($data['rooms'], $data['project'], $roomDescriptions, $worksOverview);
+        // ── Pre-install check answers (WORK-05) ──────────────────────────────────────
+        // Load pre_install_answers per room from the latest site survey for this project.
+        // Keyed by lowercase-trimmed room_name for case-insensitive matching in buildRooms().
+        $preInstallAnswers = [];
+        $latestSurvey = $project->siteSurveys()->latest()->first();
+        if ($latestSurvey !== null) {
+            foreach ($latestSurvey->rooms()->with('questions')->get() as $surveyRoom) {
+                $key = strtolower(trim($surveyRoom->room_name));
+                $answered = $surveyRoom->questions
+                    ->whereNotNull('answer')
+                    ->values()
+                    ->map(fn ($q) => [
+                        'question'   => $q->question,
+                        'answer'     => $q->answer,
+                        'other_text' => $q->other_text,
+                    ])
+                    ->toArray();
+                if (! empty($answered)) {
+                    $preInstallAnswers[$key] = $answered;
+                }
+            }
+        }
+
+        $rooms    = $this->buildRooms($data['rooms'], $data['project'], $roomDescriptions, $worksOverview, $preInstallAnswers);
         $provider = config('ai.default', 'claude');
 
         return [
@@ -128,8 +152,9 @@ class WorksheetGeneratorService
     private function buildRooms(
         array $quoteRooms,
         array $projectMeta,
-        array $roomDescriptions = [],
-        string $worksOverview = '',
+        array $roomDescriptions  = [],
+        string $worksOverview    = '',
+        array $preInstallAnswers = [],
     ): array {
         $rooms = [];
 
@@ -169,6 +194,8 @@ class WorksheetGeneratorService
                 'requires_additional_power' => $room['requires_additional_power'] ?? null,
                 'network_port_count'        => $room['network_port_count'] ?? null,
                 'existing_cabling'          => $room['existing_cabling'] ?? null,
+                // WORK-05: pre-install check answers from site survey
+                'pre_install_answers'       => $preInstallAnswers[strtolower(trim($roomName))] ?? [],
             ];
         }
 
