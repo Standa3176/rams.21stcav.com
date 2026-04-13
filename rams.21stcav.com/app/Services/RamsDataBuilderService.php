@@ -54,18 +54,21 @@ class RamsDataBuilderService
         array $formData,
     ): array {
         $data = [
-            'project'          => $this->resolveProjectFields($parsed, $formData),
-            'hazards'          => $risk['hazards']          ?? [],
-            'ppe'              => $this->mergePpe(
-                                      $risk['ppe']          ?? [],
-                                      $formData['ppe']      ?? [],
-                                  ),
-            'access_equipment' => $risk['access_equipment'] ?? [],
-            'persons_at_risk'  => $this->buildPersons($formData['persons_at_risk'] ?? []),
-            'method_statement' => $methodStatement,   // always present — guaranteed by normalise()
-            'team'             => $formData['team']   ?? [],
-            'quote'            => $this->buildQuoteSummary($parsed),
-            'classified'       => $classified,
+            'project'                => $this->resolveProjectFields($parsed, $formData),
+            'hazards'                => $risk['hazards']          ?? [],
+            'ppe'                    => $this->mergePpe(
+                                            $risk['ppe']          ?? [],
+                                            $formData['ppe']      ?? [],
+                                        ),
+            'access_equipment'       => $risk['access_equipment'] ?? [],
+            'persons_at_risk'        => $this->buildPersons($formData['persons_at_risk'] ?? []),
+            'method_statement'       => $methodStatement,   // always present — guaranteed by normalise()
+            'team'                   => $formData['team']   ?? [],
+            'quote'                  => $this->buildQuoteSummary($parsed),
+            'classified'             => $classified,
+            'scope_items'            => $this->buildScopeItems($formData),
+            'tools_and_equipment'    => $this->deriveTools($formData),
+            'client_responsibilities'=> $this->deriveClientResponsibilities($formData),
         ];
 
         $data = $this->normalise($data);
@@ -106,13 +109,19 @@ class RamsDataBuilderService
             'site_address'      => $site,
             'site_contact'      => $formData['site_contact'] ?? '',
             'works_description' => $scope,
-            'document_status'   => $formData['document_status'] ?? 'For Construction',
+            'document_status'   => $formData['document_status'] ?? 'For Issue',
             'doc_author'        => $formData['doc_author']       ?? '',
             'date'              => now()->format('F Y'),
             'project_manager'      => $formData['project_manager']      ?? '',
             'lead_engineer'        => $formData['lead_engineer']        ?? '',
             'additional_engineers' => $formData['additional_engineers'] ?? '',
             'programmer'           => $formData['programmer']           ?? '',
+            // New document control fields
+            'client_contact_name'  => $formData['client_contact_name']  ?? '',
+            'client_contact_email' => $formData['client_contact_email'] ?? '',
+            'working_hours'        => $formData['working_hours']        ?? 'Monday–Friday, 09:00–17:30',
+            'revision'             => $formData['revision']             ?? 'Rev 1.0',
+            'rooms_text'           => $formData['rooms_text']           ?? '',
         ];
     }
 
@@ -290,13 +299,19 @@ class RamsDataBuilderService
             'site_address'      => (string) ($p['site_address']      ?? ''),
             'site_contact'      => (string) ($p['site_contact']      ?? ''),
             'works_description' => (string) ($p['works_description'] ?? ''),
-            'document_status'   => (string) ($p['document_status']   ?? 'For Construction'),
+            'document_status'   => (string) ($p['document_status']   ?? 'For Issue'),
             'doc_author'        => (string) ($p['doc_author']        ?? ''),
             'date'              => (string) ($p['date']              ?? now()->format('F Y')),
             'project_manager'      => (string) ($p['project_manager']      ?? ''),
             'lead_engineer'        => (string) ($p['lead_engineer']        ?? ''),
             'additional_engineers' => (string) ($p['additional_engineers'] ?? ''),
             'programmer'           => (string) ($p['programmer']           ?? ''),
+            // New document control fields
+            'client_contact_name'  => (string) ($p['client_contact_name']  ?? ''),
+            'client_contact_email' => (string) ($p['client_contact_email'] ?? ''),
+            'working_hours'        => (string) ($p['working_hours']        ?? 'Monday–Friday, 09:00–17:30'),
+            'revision'             => (string) ($p['revision']             ?? 'Rev 1.0'),
+            'rooms_text'           => (string) ($p['rooms_text']           ?? ''),
         ];
 
         // ── hazards ───────────────────────────────────────────────────────────
@@ -384,6 +399,26 @@ class RamsDataBuilderService
         // ── team ──────────────────────────────────────────────────────────────
         $data['team'] = is_array($data['team'] ?? null) ? $data['team'] : [];
 
+        // ── scope_items ───────────────────────────────────────────────────────
+        $si = is_array($data['scope_items'] ?? null) ? $data['scope_items'] : [];
+        $data['scope_items'] = [
+            'decommission' => is_array($si['decommission'] ?? null) ? $si['decommission'] : [],
+            'retained'     => is_array($si['retained']     ?? null) ? $si['retained']     : [],
+            'new_install'  => is_array($si['new_install']  ?? null) ? $si['new_install']  : [],
+        ];
+
+        // ── tools_and_equipment ───────────────────────────────────────────────
+        $data['tools_and_equipment'] = array_values(array_filter(
+            array_map('strval', (array) ($data['tools_and_equipment'] ?? [])),
+            static fn (string $s): bool => strlen(trim($s)) > 0,
+        ));
+
+        // ── client_responsibilities ───────────────────────────────────────────
+        $data['client_responsibilities'] = array_values(array_filter(
+            array_map('strval', (array) ($data['client_responsibilities'] ?? [])),
+            static fn (string $s): bool => strlen(trim($s)) > 0,
+        ));
+
         // ── quote ─────────────────────────────────────────────────────────────
         $data['quote'] = is_array($data['quote'] ?? null) ? $data['quote'] : [];
 
@@ -404,6 +439,103 @@ class RamsDataBuilderService
         ];
 
         return $data;
+    }
+
+    // =========================================================================
+    // PRIVATE — SCOPE ITEMS & DERIVED LISTS
+    // =========================================================================
+
+    /**
+     * Build the three scope item buckets from form data.
+     * Filters out rows with empty item_name so blank rows are ignored.
+     */
+    private function buildScopeItems(array $formData): array
+    {
+        return [
+            'decommission' => array_values(array_filter(
+                (array) ($formData['decommission_items'] ?? []),
+                static fn ($r): bool => is_array($r) && ! empty($r['item_name']),
+            )),
+            'retained'     => array_values(array_filter(
+                (array) ($formData['retained_items'] ?? []),
+                static fn ($r): bool => is_array($r) && ! empty($r['item_name']),
+            )),
+            'new_install'  => array_values(array_filter(
+                (array) ($formData['new_install_items'] ?? []),
+                static fn ($r): bool => is_array($r) && ! empty($r['item_name']),
+            )),
+        ];
+    }
+
+    /**
+     * Derive the tools & equipment list.
+     *
+     * Starts with standard AV installation tools, then appends any
+     * access equipment selected on the form.
+     */
+    private function deriveTools(array $formData): array
+    {
+        $tools = [
+            'Drill and drill bits',
+            'Multi-tool / oscillating cutter',
+            'Cable fish tape',
+            'Crimping tools',
+            'Cable tester',
+            'Multi-meter',
+            'Laptop for commissioning',
+            'Label printer',
+        ];
+
+        $accessMap = [
+            'podium_steps'  => 'Podium steps',
+            'access_tower'  => 'Access tower',
+            'scissor_lift'  => 'Scissor lift',
+        ];
+
+        foreach ((array) ($formData['access_equipment'] ?? []) as $key) {
+            $label = $accessMap[$key] ?? ucwords(str_replace('_', ' ', (string) $key));
+            if ($label !== '' && ! in_array($label, $tools, true)) {
+                $tools[] = $label;
+            }
+        }
+
+        return $tools;
+    }
+
+    /**
+     * Derive the client responsibilities list.
+     *
+     * Includes any non-empty notes from new_install_items rows (which may
+     * describe client-side pre-requisites), plus standard standing items.
+     */
+    private function deriveClientResponsibilities(array $formData): array
+    {
+        $items = [];
+
+        // Gather non-empty notes from new install rows as client-side pre-requisites.
+        foreach ((array) ($formData['new_install_items'] ?? []) as $row) {
+            $note = trim((string) ($row['notes'] ?? ''));
+            if ($note !== '' && ! in_array($note, $items, true)) {
+                $items[] = $note;
+            }
+        }
+
+        // Standard standing items — always appended.
+        $standing = [
+            'Ensure all software licences are available prior to commencement of works',
+            'Provide dedicated power outlets as per the agreed specification',
+            'Provide network drops / IT infrastructure as specified',
+            'Book out rooms for the agreed installation period',
+            'Ensure a site contact is available throughout the installation',
+        ];
+
+        foreach ($standing as $s) {
+            if (! in_array($s, $items, true)) {
+                $items[] = $s;
+            }
+        }
+
+        return $items;
     }
 
     // =========================================================================

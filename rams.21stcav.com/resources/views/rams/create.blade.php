@@ -223,10 +223,215 @@
         </div>
 
         {{-- ════════════════════════════════════════════════════════════
-             SECTION C — Hazards
+             SECTION C — Document Control
         ══════════════════════════════════════════════════════════════ --}}
         <div class="section-block">
-            <h2 class="section-heading">C — Hazards <span class="req">*</span></h2>
+            <h2 class="section-heading">C — Document Control <span style="font-weight:400; font-size:.9rem; color:#666;">(optional)</span></h2>
+
+            <div class="form-grid-2">
+                <div class="form-group">
+                    <label class="form-label" for="client_contact_name">Client Contact Name</label>
+                    <input type="text"
+                           id="client_contact_name"
+                           name="client_contact_name"
+                           class="form-control @error('client_contact_name') is-invalid @enderror"
+                           value="{{ old('client_contact_name') }}"
+                           placeholder="Client representative">
+                    @error('client_contact_name')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="client_contact_email">Client Contact Email</label>
+                    <input type="email"
+                           id="client_contact_email"
+                           name="client_contact_email"
+                           class="form-control @error('client_contact_email') is-invalid @enderror"
+                           value="{{ old('client_contact_email') }}"
+                           placeholder="client@example.com">
+                    @error('client_contact_email')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="rooms_text">Rooms / Areas</label>
+                    <input type="text"
+                           id="rooms_text"
+                           name="rooms_text"
+                           class="form-control @error('rooms_text') is-invalid @enderror"
+                           value="{{ old('rooms_text') }}"
+                           placeholder="e.g. Boardroom, Training Room, Reception">
+                    @error('rooms_text')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="working_hours">Working Hours</label>
+                    <input type="text"
+                           id="working_hours"
+                           name="working_hours"
+                           class="form-control @error('working_hours') is-invalid @enderror"
+                           value="{{ old('working_hours', 'Monday–Friday, 09:00–17:30') }}">
+                    @error('working_hours')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="revision">Revision</label>
+                    <input type="text"
+                           id="revision"
+                           name="revision"
+                           class="form-control @error('revision') is-invalid @enderror"
+                           value="{{ old('revision', 'Rev 1.0') }}">
+                    @error('revision')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="document_status">Document Status</label>
+                    <select id="document_status"
+                            name="document_status"
+                            class="form-control @error('document_status') is-invalid @enderror">
+                        <option value="For Issue" {{ old('document_status', 'For Issue') === 'For Issue' ? 'selected' : '' }}>For Issue</option>
+                        <option value="For Construction" {{ old('document_status') === 'For Construction' ? 'selected' : '' }}>For Construction</option>
+                        <option value="Approved" {{ old('document_status') === 'Approved' ? 'selected' : '' }}>Approved</option>
+                        <option value="Draft" {{ old('document_status') === 'Draft' ? 'selected' : '' }}>Draft</option>
+                    </select>
+                    @error('document_status')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
+        </div>
+
+        {{-- ════════════════════════════════════════════════════════════
+             SECTION D — Scope of Works
+        ══════════════════════════════════════════════════════════════ --}}
+        <div class="section-block">
+            <h2 class="section-heading">D — Scope of Works <span style="font-weight:400; font-size:.9rem; color:#666;">(optional)</span></h2>
+            <p style="font-size:.875rem; color:#555; margin-bottom:1rem;">
+                List items to be decommissioned, retained, and newly installed. Used to generate the Scope of Works table in the DOCX.
+            </p>
+
+            {{-- DECOMMISSION & HANDBACK --}}
+            <div x-data="scopeRows('decommission_items', {{ json_encode(old('decommission_items', [])) }})" style="margin-bottom:1.5rem;">
+                <h3 style="font-size:.95rem; font-weight:600; color:#333; margin-bottom:.5rem;">Decommission &amp; Handback</h3>
+                <div style="display:grid; grid-template-columns:1fr 120px 1fr auto; gap:.4rem; margin-bottom:.3rem; padding:0 0 .25rem;">
+                    <span style="font-size:.8rem; font-weight:600; color:#555;">Item Description</span>
+                    <span style="font-size:.8rem; font-weight:600; color:#555;">Qty / Room</span>
+                    <span style="font-size:.8rem; font-weight:600; color:#555;">Notes</span>
+                    <span></span>
+                </div>
+                <template x-for="(row, index) in rows" :key="index">
+                    <div style="display:grid; grid-template-columns:1fr 120px 1fr auto; gap:.4rem; margin-bottom:.35rem;">
+                        <input type="text"
+                               :name="`decommission_items[${index}][item_name]`"
+                               class="form-control"
+                               x-model="row.item_name"
+                               placeholder="Item description">
+                        <input type="text"
+                               :name="`decommission_items[${index}][qty]`"
+                               class="form-control"
+                               x-model="row.qty"
+                               placeholder="Qty">
+                        <input type="text"
+                               :name="`decommission_items[${index}][notes]`"
+                               class="form-control"
+                               x-model="row.notes"
+                               placeholder="Notes">
+                        <button type="button"
+                                class="btn btn-danger-outline btn-sm"
+                                @click="removeRow(index)">✕</button>
+                    </div>
+                </template>
+                <button type="button" class="btn btn-outline btn-sm" @click="addRow()">+ Add item</button>
+            </div>
+
+            {{-- EXISTING — RETAINED --}}
+            <div x-data="scopeRows('retained_items', {{ json_encode(old('retained_items', [])) }})" style="margin-bottom:1.5rem;">
+                <h3 style="font-size:.95rem; font-weight:600; color:#333; margin-bottom:.5rem;">Existing — Retained</h3>
+                <div style="display:grid; grid-template-columns:1fr 120px 1fr auto; gap:.4rem; margin-bottom:.3rem; padding:0 0 .25rem;">
+                    <span style="font-size:.8rem; font-weight:600; color:#555;">Item Description</span>
+                    <span style="font-size:.8rem; font-weight:600; color:#555;">Qty / Room</span>
+                    <span style="font-size:.8rem; font-weight:600; color:#555;">Notes</span>
+                    <span></span>
+                </div>
+                <template x-for="(row, index) in rows" :key="index">
+                    <div style="display:grid; grid-template-columns:1fr 120px 1fr auto; gap:.4rem; margin-bottom:.35rem;">
+                        <input type="text"
+                               :name="`retained_items[${index}][item_name]`"
+                               class="form-control"
+                               x-model="row.item_name"
+                               placeholder="Item description">
+                        <input type="text"
+                               :name="`retained_items[${index}][qty]`"
+                               class="form-control"
+                               x-model="row.qty"
+                               placeholder="Qty">
+                        <input type="text"
+                               :name="`retained_items[${index}][notes]`"
+                               class="form-control"
+                               x-model="row.notes"
+                               placeholder="Notes">
+                        <button type="button"
+                                class="btn btn-danger-outline btn-sm"
+                                @click="removeRow(index)">✕</button>
+                    </div>
+                </template>
+                <button type="button" class="btn btn-outline btn-sm" @click="addRow()">+ Add item</button>
+            </div>
+
+            {{-- NEW INSTALLATION --}}
+            <div x-data="scopeRowsWithPart('new_install_items', {{ json_encode(old('new_install_items', [])) }})">
+                <h3 style="font-size:.95rem; font-weight:600; color:#333; margin-bottom:.5rem;">New Installation</h3>
+                <div style="display:grid; grid-template-columns:1fr 160px 120px 1fr auto; gap:.4rem; margin-bottom:.3rem; padding:0 0 .25rem;">
+                    <span style="font-size:.8rem; font-weight:600; color:#555;">Item Description</span>
+                    <span style="font-size:.8rem; font-weight:600; color:#555;">Part Number</span>
+                    <span style="font-size:.8rem; font-weight:600; color:#555;">Qty / Room</span>
+                    <span style="font-size:.8rem; font-weight:600; color:#555;">Notes</span>
+                    <span></span>
+                </div>
+                <template x-for="(row, index) in rows" :key="index">
+                    <div style="display:grid; grid-template-columns:1fr 160px 120px 1fr auto; gap:.4rem; margin-bottom:.35rem;">
+                        <input type="text"
+                               :name="`new_install_items[${index}][item_name]`"
+                               class="form-control"
+                               x-model="row.item_name"
+                               placeholder="Item description">
+                        <input type="text"
+                               :name="`new_install_items[${index}][part_number]`"
+                               class="form-control"
+                               x-model="row.part_number"
+                               placeholder="Part no.">
+                        <input type="text"
+                               :name="`new_install_items[${index}][qty]`"
+                               class="form-control"
+                               x-model="row.qty"
+                               placeholder="Qty">
+                        <input type="text"
+                               :name="`new_install_items[${index}][notes]`"
+                               class="form-control"
+                               x-model="row.notes"
+                               placeholder="Notes">
+                        <button type="button"
+                                class="btn btn-danger-outline btn-sm"
+                                @click="removeRow(index)">✕</button>
+                    </div>
+                </template>
+                <button type="button" class="btn btn-outline btn-sm" @click="addRow()">+ Add item</button>
+            </div>
+        </div>
+
+        {{-- ════════════════════════════════════════════════════════════
+             SECTION E — Hazards
+        ══════════════════════════════════════════════════════════════ --}}
+        <div class="section-block">
+            <h2 class="section-heading">E — Hazards <span class="req">*</span></h2>
             <p style="font-size:.875rem; color:#555; margin-bottom:.9rem;">
                 Select all hazards applicable to this project (minimum 1).
             </p>
@@ -278,10 +483,10 @@
         </div>
 
         {{-- ════════════════════════════════════════════════════════════
-             SECTION D — PPE Required
+             SECTION F — PPE Required
         ══════════════════════════════════════════════════════════════ --}}
         <div class="section-block">
-            <h2 class="section-heading">D — PPE Required <span class="req">*</span></h2>
+            <h2 class="section-heading">F — PPE Required <span class="req">*</span></h2>
             <p style="font-size:.875rem; color:#555; margin-bottom:.9rem;">
                 Select all PPE required for this project (minimum 1).
             </p>
@@ -304,10 +509,10 @@
         </div>
 
         {{-- ════════════════════════════════════════════════════════════
-             SECTION E — Persons at Risk
+             SECTION G — Persons at Risk
         ══════════════════════════════════════════════════════════════ --}}
         <div class="section-block">
-            <h2 class="section-heading">E — Persons at Risk <span class="req">*</span></h2>
+            <h2 class="section-heading">G — Persons at Risk <span class="req">*</span></h2>
 
             @error('persons_at_risk')
                 <div class="alert alert-error" style="margin-bottom:.9rem;">{{ $message }}</div>
@@ -327,10 +532,10 @@
         </div>
 
         {{-- ════════════════════════════════════════════════════════════
-             SECTION F — Engineering Team
+             SECTION H — Engineering Team
         ══════════════════════════════════════════════════════════════ --}}
         <div class="section-block">
-            <h2 class="section-heading">F — Engineering Team <span style="font-weight:400; font-size:.9rem; color:#666;">(optional)</span></h2>
+            <h2 class="section-heading">H — Engineering Team <span style="font-weight:400; font-size:.9rem; color:#666;">(optional)</span></h2>
 
             <div style="display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:.5rem; margin-bottom:.4rem; padding: 0 0 .3rem;">
                 <span style="font-size:.8rem; font-weight:600; color:#555;">Name</span>
@@ -378,10 +583,10 @@
         </div>
 
         {{-- ════════════════════════════════════════════════════════════
-             SECTION G — Emergency Contact
+             SECTION I — Emergency Contact
         ══════════════════════════════════════════════════════════════ --}}
         <div class="section-block">
-            <h2 class="section-heading">G — Emergency Contact <span style="font-weight:400; font-size:.9rem; color:#666;">(optional)</span></h2>
+            <h2 class="section-heading">I — Emergency Contact <span style="font-weight:400; font-size:.9rem; color:#666;">(optional)</span></h2>
 
             <div class="form-grid-2">
                 <div class="form-group">
@@ -407,10 +612,10 @@
         </div>
 
         {{-- ════════════════════════════════════════════════════════════
-             SECTION H — Document Author
+             SECTION J — Document Author
         ══════════════════════════════════════════════════════════════ --}}
         <div class="section-block">
-            <h2 class="section-heading">H — Document Author <span style="font-weight:400; font-size:.9rem; color:#666;">(optional)</span></h2>
+            <h2 class="section-heading">J — Document Author <span style="font-weight:400; font-size:.9rem; color:#666;">(optional)</span></h2>
 
             <div class="form-group" style="max-width:360px;">
                 <label class="form-label" for="doc_author">Prepared by</label>
@@ -424,7 +629,7 @@
         </div>
 
         {{-- ════════════════════════════════════════════════════════════
-             SECTION I — AI Provider (advanced, collapsible)
+             SECTION K — AI Provider (advanced, collapsible)
         ══════════════════════════════════════════════════════════════ --}}
         <div class="section-block">
             <details class="secondary-section">
@@ -610,6 +815,35 @@
         libModal.addEventListener('click', function (e) {
             if (e.target === this) closeLibraryModal();
         });
+    }
+
+    // ── Scope item rows (Alpine.js components) ──────────────────────────────
+    function scopeRows(group, preloaded) {
+        return {
+            rows: Array.isArray(preloaded) && preloaded.length > 0
+                ? preloaded.map(r => ({ item_name: r.item_name || '', qty: r.qty || '', notes: r.notes || '' }))
+                : [],
+            addRow() {
+                this.rows.push({ item_name: '', qty: '', notes: '' });
+            },
+            removeRow(index) {
+                this.rows.splice(index, 1);
+            }
+        };
+    }
+
+    function scopeRowsWithPart(group, preloaded) {
+        return {
+            rows: Array.isArray(preloaded) && preloaded.length > 0
+                ? preloaded.map(r => ({ item_name: r.item_name || '', part_number: r.part_number || '', qty: r.qty || '', notes: r.notes || '' }))
+                : [],
+            addRow() {
+                this.rows.push({ item_name: '', part_number: '', qty: '', notes: '' });
+            },
+            removeRow(index) {
+                this.rows.splice(index, 1);
+            }
+        };
     }
 
     // ── Loading state on submit ──────────────────────────────────────────────

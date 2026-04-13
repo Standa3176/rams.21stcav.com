@@ -56,6 +56,31 @@ class RamsFormRequest extends FormRequest
 
             // Project linkage (optional — set when creating from project show page)
             'project_id'          => ['nullable', 'integer', 'exists:projects,id'],
+
+            // Document metadata (new fields — all nullable for backward compatibility)
+            'client_contact_name'  => ['nullable', 'string', 'max:200'],
+            'client_contact_email' => ['nullable', 'string', 'max:254'],
+            'working_hours'        => ['nullable', 'string', 'max:200'],
+            'revision'             => ['nullable', 'string', 'max:50'],
+            'document_status'      => ['nullable', 'string', 'in:For Issue,For Construction,Approved,Draft'],
+            'rooms_text'           => ['nullable', 'string', 'max:500'],
+
+            // Scope item buckets (repeatable rows)
+            'decommission_items'               => ['nullable', 'array'],
+            'decommission_items.*.item_name'   => ['required_with:decommission_items.*', 'string', 'max:300'],
+            'decommission_items.*.qty'         => ['nullable', 'string', 'max:50'],
+            'decommission_items.*.notes'       => ['nullable', 'string', 'max:500'],
+
+            'retained_items'                   => ['nullable', 'array'],
+            'retained_items.*.item_name'       => ['required_with:retained_items.*', 'string', 'max:300'],
+            'retained_items.*.qty'             => ['nullable', 'string', 'max:50'],
+            'retained_items.*.notes'           => ['nullable', 'string', 'max:500'],
+
+            'new_install_items'                => ['nullable', 'array'],
+            'new_install_items.*.item_name'    => ['required_with:new_install_items.*', 'string', 'max:300'],
+            'new_install_items.*.part_number'  => ['nullable', 'string', 'max:100'],
+            'new_install_items.*.qty'          => ['nullable', 'string', 'max:50'],
+            'new_install_items.*.notes'        => ['nullable', 'string', 'max:500'],
         ];
     }
 }

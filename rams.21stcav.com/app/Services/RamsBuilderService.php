@@ -207,6 +207,14 @@ class RamsBuilderService
         $data['scope_of_works']  = trim((string) ($reviewedData['scope_of_works'] ?? ''));
         $data['site_logistics']  = (array) ($reviewedData['site_logistics'] ?? []);
 
+        // Inject scope buckets from reviewed data (backward-compat: falls back to whatever
+        // dataBuilder assembled from formData when reviewed data does not carry these keys).
+        $data['scope_items'] = [
+            'decommission' => (array) ($reviewedData['decommission_items'] ?? $data['scope_items']['decommission'] ?? []),
+            'retained'     => (array) ($reviewedData['retained_items']     ?? $data['scope_items']['retained']     ?? []),
+            'new_install'  => (array) ($reviewedData['new_install_items']  ?? $data['scope_items']['new_install']  ?? []),
+        ];
+
         // Persist.
         $record->update([
             'project_ref'    => $data['project']['ref']          ?: $record->project_ref,
