@@ -6,6 +6,7 @@ use App\Models\InstallProgramme;
 use App\Models\InstallTask;
 use App\Models\Project;
 use App\Services\InstallProgrammeService;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
@@ -122,6 +123,103 @@ class InstallProgrammeController extends Controller
         return redirect()
             ->route('projects.show', $programme->project_id)
             ->with('success', 'Install programme activated.');
+    }
+
+    // =========================================================================
+    // SCHEDULE (Week-view + conditional Gantt)
+    // =========================================================================
+
+    /**
+     * Display the programme schedule — week-view calendar with optional Gantt.
+     *
+     * INST-02g: Field engineers (non-owner, non-admin) see only their assigned tasks.
+     * Project owners and admins see all tasks.
+     *
+     * @param  InstallProgramme $programme
+     * @return View
+     */
+    public function schedule(InstallProgramme $programme): View
+    {
+        $programme->load(['project', 'tasks.assignedUser']);
+
+        $isOwnerOrAdmin = $programme->project->user_id === auth()->id()
+            || auth()->user()->isAdmin();
+
+        // Field engineers must be assigned to at least one task to access the schedule.
+        // If user has no assigned tasks and is not owner/admin, deny access.
+        $hasTasks = $programme->tasks->where('assigned_to', auth()->id())->isNotEmpty();
+
+        abort_if(! $isOwnerOrAdmin && ! $hasTasks, 403);
+
+        // INST-02g: filter tasks for field engineers
+        $tasks = $isOwnerOrAdmin
+            ? $programme->tasks
+            : $programme->tasks->where('assigned_to', auth()->id())->values();
+
+        // INST-02e: show Gantt when programme-level planned_end_date - planned_start_date > 4 days
+        $showGantt = false;
+        if ($programme->planned_start_date && $programme->planned_end_date) {
+            $diff = Carbon::parse($programme->planned_end_date)
+                ->diffInDays(Carbon::parse($programme->planned_start_date));
+            $showGantt = $diff > 4;
+        }
+
+        // Week-view grouping: tasks with planned_start_date grouped by ISO year-week
+        // Tasks without planned_start_date go into the 'unscheduled' bucket
+        $unscheduled = $tasks->filter(fn ($t) => is_null($t->planned_start_date))->values();
+        $scheduled   = $tasks->filter(fn ($t) => ! is_null($t->planned_start_date));
+
+        // Group by ISO year + week number for stable ordering
+        $byWeek = $scheduled->groupBy(function ($task) {
+            return Carbon::parse($task->planned_start_date)->format('o-W');
+            // 'o' = ISO year, 'W' = ISO week number — produces '2026-17' etc.
+        })->sortKeys();
+
+        // Gantt data: map tasks to frappe-gantt format
+        $ganttTasks = $tasks
+            ->filter(fn ($t) => $t->planned_start_date && $t->planned_end_date)
+            ->map(fn ($t) => [
+                'id'       => 'task-' . $t->id,
+                'name'     => $t->title,
+                'start'    => Carbon::parse($t->planned_start_date)->format('Y-m-d'),
+                'end'      => Carbon::parse($t->planned_end_date)->format('Y-m-d'),
+                'progress' => match ($t->status) {
+                    InstallTask::STATUS_COMPLETE    => 100,
+                    InstallTask::STATUS_IN_PROGRESS => 50,
+                    default                         => 0,
+                },
+            ])
+            ->values();
+
+        // Colour map for engineer badge colouring — deterministic by user ID modulo 8
+        $engineerColours = [
+            0 => 'bg-blue-100 text-blue-800',
+            1 => 'bg-green-100 text-green-800',
+            2 => 'bg-amber-100 text-amber-800',
+            3 => 'bg-purple-100 text-purple-800',
+            4 => 'bg-pink-100 text-pink-800',
+            5 => 'bg-teal-100 text-teal-800',
+            6 => 'bg-orange-100 text-orange-800',
+            7 => 'bg-red-100 text-red-800',
+        ];
+
+        Log::info('InstallProgrammeController: schedule viewed', [
+            'programme_id'    => $programme->id,
+            'user_id'         => auth()->id(),
+            'is_owner_admin'  => $isOwnerOrAdmin,
+            'task_count'      => $tasks->count(),
+            'show_gantt'      => $showGantt,
+        ]);
+
+        return view('install-programmes.schedule', compact(
+            'programme',
+            'unscheduled',
+            'byWeek',
+            'showGantt',
+            'ganttTasks',
+            'engineerColours',
+            'isOwnerOrAdmin',
+        ));
     }
 
     // =========================================================================
