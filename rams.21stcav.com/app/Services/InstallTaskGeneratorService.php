@@ -92,6 +92,7 @@ class InstallTaskGeneratorService
                         'room_name'            => $roomName,
                         'room_ref'             => $roomRef,
                         'equipment_name'       => $equipmentName,
+                        'quantity'             => $item['quantity'] ?? 1,
                         'equipment_category'   => $item['category'] ?? 'hardware',
                         'task_type'            => InstallTask::TYPE_INSTALL,
                         'title'                => 'Install ' . $equipmentName,

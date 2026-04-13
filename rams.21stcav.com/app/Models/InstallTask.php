@@ -49,6 +49,7 @@ class InstallTask extends Model
         'room_name',
         'room_ref',
         'equipment_name',
+        'quantity',
         'equipment_category',
         'task_type',
         'title',
@@ -72,7 +73,8 @@ class InstallTask extends Model
             'assigned_at'      => 'datetime',
             'started_at'       => 'datetime',
             'completed_at'     => 'datetime',
-            'sort_order'       => 'integer',
+            'quantity'          => 'integer',
+            'sort_order'        => 'integer',
             'sign_off_required' => 'boolean',
         ];
     }
