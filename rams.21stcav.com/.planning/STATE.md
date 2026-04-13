@@ -42,3 +42,4 @@ Tag: `v1.0`
 | ID | Date | Description | Status | Commit |
 |----|------|-------------|--------|--------|
 | 260413-f2h | 2026-04-13 | Fix room detection, room_overviews scaffold, prepared-by multi-line | ✅ Done | 616ec5a |
+| 260413-fjj | 2026-04-13 | Widen part-number regex to accept digit-starting part numbers | ✅ Done | 1ec01b3 |
