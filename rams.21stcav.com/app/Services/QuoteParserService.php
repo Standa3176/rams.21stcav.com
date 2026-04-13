@@ -848,6 +848,32 @@ class QuoteParserService
         $rooms = [];
         $seen  = [];
 
+        // ── Priority: explicit "ROOMS:" / "ROOM:" label on a single line ────────
+        foreach ($lines as $line) {
+            if (! preg_match('/^ROOMS?\s*[:\-]\s*(.+)/i', $line, $labelMatch)) {
+                continue;
+            }
+            $raw     = $labelMatch[1];
+            $parts   = preg_split('/ *[&,] *| and /i', $raw);
+            $results = [];
+            $seen    = [];
+            foreach ($parts as $part) {
+                $name = trim($part);
+                if ($name === '') {
+                    continue;
+                }
+                $key = strtolower($name);
+                if (! isset($seen[$key])) {
+                    $seen[$key] = true;
+                    $results[]  = $name;
+                }
+            }
+            if (! empty($results)) {
+                return $results; // return early — explicit label wins
+            }
+        }
+        // ── Fallback: keyword scan (existing logic below unchanged) ─────────────
+
         foreach ($lines as $line) {
             // Skip very long lines — unlikely to yield a clean room name
             if (strlen($line) > 120) {
@@ -990,6 +1016,26 @@ class QuoteParserService
             }
 
             return $name;
+        }
+
+        // ── Multi-line fallback: label on one line, name on next (RAMS PDF layout) ─
+        if (preg_match(
+            '/PREPARED\s+BY\s*[:\-]?\s*[\r\n]+\s*([A-Za-z][a-zA-Z\'\-]+(?:\s+[A-Za-z][a-zA-Z\'\-]+){0,3})/i',
+            $text,
+            $m
+        )) {
+            $name  = trim(preg_replace('/\s+/', ' ', $m[1]));
+            $words = array_filter(explode(' ', $name), fn ($w) => $w !== '');
+
+            if (
+                ! preg_match('/\d/', $name)
+                && ! preg_match('/\b(ltd|limited|plc|invoice|quote|tel|vat|email|inc|corp|address)\b/i', $name)
+                && count($words) >= 1
+                && count($words) <= 4
+                && ! ($name === strtoupper($name) && preg_match('/[A-Z]/', $name))
+            ) {
+                return $name;
+            }
         }
 
         return '';

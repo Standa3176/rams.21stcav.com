@@ -287,6 +287,21 @@ class ExtractQuoteJob implements ShouldQueue
         if (empty($ai['room_overviews']) && ! empty($parsed['room_overviews'])) {
             $ai['room_overviews'] = array_values((array) $parsed['room_overviews']);
         }
+        // Scaffold minimal room_overviews from rooms list when the tag-based path
+        // produced nothing — ensures the review form always has rows to display.
+        if (empty($ai['room_overviews']) && ! empty($ai['rooms'])) {
+            $ai['room_overviews'] = array_values(array_map(
+                static fn (string $roomName): array => [
+                    'room'             => $roomName,
+                    'overview'         => '',
+                    'works_summary'    => '',
+                    'solution_type_id' => '',
+                    'summary'          => '',
+                    'description'      => '',
+                ],
+                (array) $ai['rooms']
+            ));
+        }
 
         // Auto-generate project_name from available fields
         if (($ai['project_name'] ?? '') === '') {
