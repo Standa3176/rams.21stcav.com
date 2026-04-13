@@ -63,6 +63,8 @@ class InstallTask extends Model
         'started_at',
         'completed_at',
         'sign_off_required',
+        'planned_start_date',
+        'planned_end_date',
     ];
 
     // ── Casts ─────────────────────────────────────────────────────────────────
@@ -70,12 +72,14 @@ class InstallTask extends Model
     protected function casts(): array
     {
         return [
-            'assigned_at'      => 'datetime',
-            'started_at'       => 'datetime',
-            'completed_at'     => 'datetime',
-            'quantity'          => 'integer',
-            'sort_order'        => 'integer',
-            'sign_off_required' => 'boolean',
+            'assigned_at'        => 'datetime',
+            'started_at'         => 'datetime',
+            'completed_at'       => 'datetime',
+            'quantity'           => 'integer',
+            'sort_order'         => 'integer',
+            'sign_off_required'  => 'boolean',
+            'planned_start_date' => 'date',
+            'planned_end_date'   => 'date',
         ];
     }
 
