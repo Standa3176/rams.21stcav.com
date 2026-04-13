@@ -406,7 +406,7 @@ class QuoteParserService
                 //    part numbers, including mixed-case (YealinkVC840).
                 //    Also fires on two-line rows that were pre-merged by
                 //    mergePartNumberLines() into a single "PARTNUM Desc" line.
-                if (preg_match('/^[A-Za-z][A-Za-z0-9\-\.]{3,29}\s+\S.+\s[\d,]+\.\d{2}/', $trimmed)) {
+                if (preg_match('/^[A-Za-z0-9][A-Za-z0-9\-\.]{3,29}\s+\S.+\s[\d,]+\.\d{2}/', $trimmed)) {
                     return $this->buildRange($startIdx, $i, $inlineText);
                 }
 
@@ -479,7 +479,7 @@ class QuoteParserService
             }
 
             // d) First pricing row with trailing price
-            if (preg_match('/^[A-Za-z][A-Za-z0-9\-\.]{3,29}\s+\S.+\s[\d,]+\.\d{2}/', $t)) {
+            if (preg_match('/^[A-Za-z0-9][A-Za-z0-9\-\.]{3,29}\s+\S.+\s[\d,]+\.\d{2}/', $t)) {
                 $boundary = $i;
                 break;
             }
@@ -488,7 +488,7 @@ class QuoteParserService
             //    Only checked after at least 5 lines to avoid firing on header
             //    contact/telephone lines (e.g. "Tel: 01234-567890").
             if ($i >= 5 && preg_match(
-                '/^[A-Za-z][A-Za-z0-9\-\.]{3,29}\s+[A-Za-z].{3,}$/',
+                '/^[A-Za-z0-9][A-Za-z0-9\-\.]{3,29}\s+[A-Za-z].{3,}$/',
                 $t,
             )) {
                 $pn = strtok($t, ' ');
@@ -628,7 +628,7 @@ class QuoteParserService
                 // Strip trailing price
                 $tmpDesc = trim(preg_replace('/\s+[\d,]+\.\d{2}\s*$/', '', $tmpDesc));
 
-                if (preg_match('/^([A-Za-z][A-Za-z0-9\-\.]{3,29})\s+(.{4,})$/', $tmpDesc, $pm)) {
+                if (preg_match('/^([A-Za-z0-9][A-Za-z0-9\-\.]{3,29})\s+(.{4,})$/', $tmpDesc, $pm)) {
                     $pn = $pm[1];
                     $pr = trim($pm[2]);
                     $hasH = str_contains($pn, '-');
@@ -717,7 +717,7 @@ class QuoteParserService
 
             if (! $hasEgInDesc) {
                 // Strategy 1 — Prefix: "PARTNUM Description text"
-                if (preg_match('/^([A-Za-z][A-Za-z0-9\-\.]{3,29})\s+(.{4,})$/', $desc, $pm)) {
+                if (preg_match('/^([A-Za-z0-9][A-Za-z0-9\-\.]{3,29})\s+(.{4,})$/', $desc, $pm)) {
                     $partNum  = $pm[1];
                     $partDesc = trim($pm[2]);
 
@@ -738,7 +738,7 @@ class QuoteParserService
                 // Strategy 2 — Trailing parenthetical: "Description text (PARTNUM)"
                 // e.g. "Yealink Ceiling Mic's (CM20)" → part_number=CM20
                 if ($partNumber === '') {
-                    if (preg_match('/^(.{3,}?)\s*\(([A-Za-z][A-Za-z0-9\-\.]{2,29})\)\s*$/', $desc, $pm)) {
+                    if (preg_match('/^(.{3,}?)\s*\(([A-Za-z0-9][A-Za-z0-9\-\.]{2,29})\)\s*$/', $desc, $pm)) {
                         $candidate     = $pm[2];
                         $remainingDesc = trim($pm[1]);
 
@@ -761,7 +761,7 @@ class QuoteParserService
                 // e.g. "Yealink Ceiling Mic CM20" → part_number=CM20
                 // Only fires when strategies 1 & 2 produced nothing.
                 if ($partNumber === '') {
-                    if (preg_match('/^(.{5,})\s+([A-Za-z][A-Za-z0-9\-\.]{2,29})$/', $desc, $pm)) {
+                    if (preg_match('/^(.{5,})\s+([A-Za-z0-9][A-Za-z0-9\-\.]{2,29})$/', $desc, $pm)) {
                         $candidate     = $pm[2];
                         $remainingDesc = trim($pm[1]);
 
@@ -1315,7 +1315,7 @@ class QuoteParserService
      * else on the line.
      *
      * Acceptance criteria mirror extractEquipment()'s part-number detection:
-     *   - Matches [A-Za-z][A-Za-z0-9\-\.]{3,29}  (4–30 chars)
+     *   - Matches [A-Za-z0-9][A-Za-z0-9\-\.]{3,29}  (4–30 chars)
      *   - Contains a hyphen (traditional: YEA-MIC-S)
      *     OR contains a digit AND 2+ alpha chars (alphanumeric: MVC860, CM20, CS10)
      *
@@ -1327,7 +1327,7 @@ class QuoteParserService
     {
         $trimmed = trim($line);
 
-        if (! preg_match('/^([A-Za-z][A-Za-z0-9\-\.]{3,29})$/', $trimmed, $m)) {
+        if (! preg_match('/^([A-Za-z0-9][A-Za-z0-9\-\.]{3,29})$/', $trimmed, $m)) {
             return false;
         }
 
@@ -2116,7 +2116,7 @@ class QuoteParserService
 
             // Skip standalone part-number tokens (the part number line that
             // immediately precedes PARTSTART — not prose description text).
-            if (preg_match('/^[A-Za-z][A-Za-z0-9\-\.\/]{2,49}$/', $clean)) {
+            if (preg_match('/^[A-Za-z0-9][A-Za-z0-9\-\.\/]{2,49}$/', $clean)) {
                 $hasH = str_contains($clean, '-');
                 $hasD = (bool) preg_match('/\d/', $clean);
                 $hasA = (bool) preg_match('/[a-zA-Z]{2,}/', $clean);
@@ -2939,12 +2939,12 @@ class QuoteParserService
         }
 
         // Strategy A: trailing parenthetical "(PARTNUM)"
-        if (preg_match('/^(.{3,}?)\s*\(([A-Za-z][A-Za-z0-9\-\.]{2,29})\)\s*$/', $desc, $m)) {
+        if (preg_match('/^(.{3,}?)\s*\(([A-Za-z0-9][A-Za-z0-9\-\.]{2,29})\)\s*$/', $desc, $m)) {
             return $this->normaliseTaggedPartNumber($m[2]);
         }
 
         // Strategy B: trailing token "Description text PARTNUM"
-        if (preg_match('/^(.{5,})\s+([A-Za-z][A-Za-z0-9\-\.]{2,29})$/', $desc, $m)) {
+        if (preg_match('/^(.{5,})\s+([A-Za-z0-9][A-Za-z0-9\-\.]{2,29})$/', $desc, $m)) {
             return $this->normaliseTaggedPartNumber($m[2]);
         }
 
