@@ -52,6 +52,10 @@ class MethodStatementService
             'room_overview_summaries' => $roomSummary,
             'works_overview'          => trim((string) ($parsedQuote['works_overview'] ?? '')),
             'room_descriptions'       => $this->buildRoomDescriptions($parsedQuote),
+            // Scope bucket item names — used by MethodStatementPrompt for project-specific steps
+            'decommission_items'      => array_column($parsedQuote['scope_items']['decommission'] ?? [], 'item_name'),
+            'retained_items'          => array_column($parsedQuote['scope_items']['retained']     ?? [], 'item_name'),
+            'new_install_items'       => array_column($parsedQuote['scope_items']['new_install']  ?? [], 'item_name'),
         ];
 
         $prompt = (new MethodStatementPrompt())->withContext($context);

@@ -5,38 +5,37 @@ namespace App\Core\AI\Prompts;
 /**
  * Prompt DTO for AI-generated RAMS Method Statement phases.
  *
- * Generates exactly six phases covering the standard UK AV installation
- * sequence. All output is plain professional prose — no markdown, no tables,
+ * Generates project-specific numbered steps covering the UK AV installation
+ * sequence. Step count is dynamic (5–9) based on project complexity.
+ * All output is plain professional prose — no markdown, no tables,
  * no invented details.
  *
  * Context keys accepted by build():
  *
- *   site_address      string    — installation site name or address
- *   scope_summary     string    — plain-English description of the works
- *   activities        string[]  — activity keys from EquipmentClassifierService
- *   equipment_summary string    — brief comma-separated list of main equipment types
- *   hazard_summary    string    — brief comma-separated list of primary hazard categories
- *   rooms             string[]  — affected rooms / areas (optional)
+ *   site_address         string    — installation site name or address
+ *   scope_summary        string    — plain-English description of the works
+ *   activities           string[]  — activity keys from EquipmentClassifierService
+ *   equipment_summary    string    — brief comma-separated list of main equipment types
+ *   hazard_summary       string    — brief comma-separated list of primary hazard categories
+ *   rooms                string[]  — affected rooms / areas (optional)
  *   room_overview_summaries string — room summaries (optional)
- *   works_overview    string    — project-level 2–3 sentence executive summary (optional)
- *   room_descriptions string    — newline-delimited "Room: prose" entries from content pack (optional)
- *   is_retry          bool      — true on second attempt (appends retrySuffix)
+ *   works_overview       string    — project-level 2–3 sentence executive summary (optional)
+ *   room_descriptions    string    — newline-delimited "Room: prose" entries from content pack (optional)
+ *   decommission_items   string[]  — item names from decommission scope bucket (optional)
+ *   retained_items       string[]  — item names from retained scope bucket (optional)
+ *   new_install_items    string[]  — item names from new install scope bucket (optional)
+ *   is_retry             bool      — true on second attempt (appends retrySuffix)
  *
  * Expected AI response schema (JSON envelope required by MethodStatementService):
  *   {
  *     "phases": [
- *       { "title": "string", "steps": ["string", ...] },
- *       ...   // exactly 6 phases
+ *       { "title": "Step 1 — Arrival & Site Induction", "steps": ["string", ...] },
+ *       ...   // 5–9 steps
  *     ]
  *   }
  *
- * Phase titles are fixed to the standard UK AV installation sequence:
- *   1. Pre-Start Checks
- *   2. Delivery and Materials Handling
- *   3. Access Equipment Setup
- *   4. Installation Works
- *   5. Cable Termination and Testing
- *   6. Final Checks and Handover
+ * NOTE: The JSON key is "phases" (not "steps") for backward compatibility with
+ * MethodStatementGeneratorService which reads $response['phases'].
  *
  * The system message enforces plain-text prose inside each phase.
  * Steps must not contain markdown, bullet symbols, bold text, or tables.
@@ -62,9 +61,9 @@ class MethodStatementPrompt extends BasePrompt
 
     public function maxTokens(): int
     {
-        // 6 phases × up to 5 steps × ~30 words ≈ 900 words ≈ ~1 200 tokens.
-        // 2 500 provides generous headroom for larger projects with many rooms.
-        return 2500;
+        // Up to 9 steps × up to 8 bullets × ~30 words ≈ 2 160 words ≈ ~2 880 tokens.
+        // 3 500 provides generous headroom for complex projects.
+        return 3500;
     }
 
     public function temperature(): float
@@ -94,48 +93,60 @@ class MethodStatementPrompt extends BasePrompt
         $roomDescriptions = $this->resolveRoomDescriptions($ctx);
         $isRetry       = (bool) ($ctx['is_retry'] ?? false);
 
-        // Build optional supplementary lines — omitted when empty so the
-        // prompt stays compact and does not waste tokens on blank labels.
-        $equipmentLine        = $equipment        ? "\nKey equipment: {$equipment}"                  : '';
-        $hazardsLine          = $hazards          ? "\nPrimary hazards: {$hazards}"                  : '';
-        $roomsLine            = $rooms            ? "\nAffected areas: {$rooms}"                     : '';
-        $roomSummaryLine      = $roomSummaries    ? "\nRoom summaries: {$roomSummaries}"             : '';
-        $worksOverviewLine    = $worksOverview    ? "\nProject overview: {$worksOverview}"           : '';
-        $roomDescriptionsLine = $roomDescriptions ? "\nRoom descriptions:\n{$roomDescriptions}"      : '';
+        // Scope bucket item lists
+        $decommItems = array_values(array_filter(
+            (array) ($ctx['decommission_items'] ?? []),
+            static fn ($s): bool => is_string($s) && trim($s) !== '',
+        ));
+        $retainItems = array_values(array_filter(
+            (array) ($ctx['retained_items'] ?? []),
+            static fn ($s): bool => is_string($s) && trim($s) !== '',
+        ));
+        $newItems    = array_values(array_filter(
+            (array) ($ctx['new_install_items'] ?? []),
+            static fn ($s): bool => is_string($s) && trim($s) !== '',
+        ));
+
+        // Build optional supplementary lines — omitted when empty.
+        $equipmentLine        = $equipment        ? "\nKey equipment: {$equipment}"             : '';
+        $hazardsLine          = $hazards          ? "\nPrimary hazards: {$hazards}"             : '';
+        $roomsLine            = $rooms            ? "\nAffected areas: {$rooms}"                : '';
+        $roomSummaryLine      = $roomSummaries    ? "\nRoom summaries: {$roomSummaries}"        : '';
+        $worksOverviewLine    = $worksOverview    ? "\nProject overview: {$worksOverview}"      : '';
+        $roomDescriptionsLine = $roomDescriptions ? "\nRoom descriptions:\n{$roomDescriptions}" : '';
+        $decommLine           = $decommItems      ? "\nDecommission items: " . implode(', ', $decommItems) : '';
+        $retainLine           = $retainItems      ? "\nRetained items: "     . implode(', ', $retainItems) : '';
+        $newItemsLine         = $newItems         ? "\nNew install items: "  . implode(', ', $newItems)    : '';
 
         $retry = $isRetry ? $this->retrySuffix() : '';
 
         return <<<PROMPT
-Write a method statement for the following UK AV installation project.
+Write a project-specific method statement for the following UK AV installation.
 
 Project details:
 Site: {$site}
 Scope: {$scope}
-Activities: {$activities}{$equipmentLine}{$hazardsLine}{$roomsLine}{$roomSummaryLine}{$worksOverviewLine}{$roomDescriptionsLine}
+Activities: {$activities}{$equipmentLine}{$decommLine}{$retainLine}{$newItemsLine}{$hazardsLine}{$roomsLine}{$roomSummaryLine}{$worksOverviewLine}{$roomDescriptionsLine}
 
-Return ONLY the following JSON structure with exactly six phases in this order:
+Return ONLY the following JSON structure:
 {
   "phases": [
-    {"title": "1. Pre-Start Checks",              "steps": ["..."]},
-    {"title": "2. Delivery and Materials Handling","steps": ["..."]},
-    {"title": "3. Access Equipment Setup",         "steps": ["..."]},
-    {"title": "4. Installation Works",             "steps": ["..."]},
-    {"title": "5. Cable Termination and Testing",  "steps": ["..."]},
-    {"title": "6. Final Checks and Handover",      "steps": ["..."]}
+    { "title": "Step 1 — Arrival & Site Induction", "steps": ["..."] },
+    { "title": "Step 2 — [Next logical step]",      "steps": ["..."] }
   ]
 }
 
 Requirements:
-- Each phase must have 3 to 5 steps.
-- Phase 1 must include: toolbox talk briefing, asbestos register check before drilling, permit-to-work confirmation if required, assembly point confirmation, and coordination with client IT/network access where relevant.
-- Phase 2 must include: delivery vehicle access/parking or loading bay coordination, confirmation of goods lift suitability (or contingency plan), and handling of any displaced existing systems (retain/relocate/decommission).
-- Phase 3 must include: maximum working height for access equipment, competency requirements (e.g., PASMA/WAH training), and a rescue plan for work at height.
-- Phase 4 must describe the installation methodology (how), not just what is being installed. Focus only on the equipment and solution types listed in the scope, room summaries, and room descriptions above. Include: cable routing/containment and fire-stopping, segregation of data/audio/power, display or screen mounting sequence and safe lifting procedures, rack build sequence (if applicable), network or control system configuration steps specific to the equipment being installed, and sequencing/phasing considerations for an occupied site. Do NOT mention any brand, product, or technology not referenced in the scope or equipment list above. Include room names only where they add clarity.
-- Phase 5 must include: labelling convention for all cables and interfaces, confirmation of test equipment calibration, signal path verification and functional testing appropriate to the equipment being installed, and any commissioning steps specific to the installed solution (e.g. network configuration, audio level setting, or display calibration). Do NOT reference any product brand, platform, or protocol not present in the scope above.
-- Phase 6 must include: removal of access equipment and waste from the actual work areas, end-user training, and a snagging/defects process before final sign-off.
-- Each step is one plain-English sentence. No bullet points, no bold, no markdown.
-- Steps must be specific to the project details above. Do not use generic filler.
-- Do not add phases, rename phases, or reorder phases.{$retry}
+- Generate between 5 and 9 steps total depending on project complexity.
+- Step 1 MUST be "Arrival & Site Induction" and include: toolbox talk, asbestos register check, permit-to-work confirmation, assembly point confirmation, PPE check.
+- Include a Decommissioning step only if decommission items are listed above. Title it "Step N — Decommissioning & Handback". Reference only the listed decommission items by name.
+- Include a Retained Equipment Check step only if retained items are listed. Reference only the listed retained items.
+- Include one or more Installation steps referencing the new install items by name. Do not invent any equipment not listed above.
+- The penultimate step MUST cover Integration, Testing & Commissioning with signal path verification.
+- The final step MUST be Completion & Sign-Off covering removal of access equipment and waste, end-user training, and snagging sign-off.
+- Each step must have 4 to 8 bullet points.
+- Each bullet point is one plain-English sentence. No markdown, no bold, no symbols.
+- Do not reference any brand, product, or technology not present in the scope data above.{$retry}
 PROMPT;
     }
 
@@ -205,5 +216,31 @@ PROMPT;
     private function resolveRoomDescriptions(array $ctx): string
     {
         return trim((string) ($ctx['room_descriptions'] ?? ''));
+    }
+
+    /**
+     * Extract decommission item names from context, filtering empty strings.
+     *
+     * @return string[]
+     */
+    private function resolveDecommissionItems(array $ctx): array
+    {
+        return array_values(array_filter(
+            (array) ($ctx['decommission_items'] ?? []),
+            static fn ($s): bool => is_string($s) && trim($s) !== '',
+        ));
+    }
+
+    /**
+     * Extract new install item names from context, filtering empty strings.
+     *
+     * @return string[]
+     */
+    private function resolveNewInstallItems(array $ctx): array
+    {
+        return array_values(array_filter(
+            (array) ($ctx['new_install_items'] ?? []),
+            static fn ($s): bool => is_string($s) && trim($s) !== '',
+        ));
     }
 }

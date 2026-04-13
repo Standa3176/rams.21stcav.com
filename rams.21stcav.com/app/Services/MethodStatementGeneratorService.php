@@ -36,7 +36,7 @@ class MethodStatementGeneratorService
     private const MIN_PHASE_COUNT = 4;
 
     /** Maximum number of phases allowed for the result to be valid. */
-    private const MAX_PHASE_COUNT = 6;
+    private const MAX_PHASE_COUNT = 9;
 
     /** Each phase must have at least this many steps. */
     private const MIN_STEPS_PER_PHASE = 2;
