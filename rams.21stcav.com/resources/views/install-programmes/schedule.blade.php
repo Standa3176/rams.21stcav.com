@@ -208,6 +208,14 @@
                     <h4 class="font-semibold text-gray-800 mb-4" x-text="activeTask.name" style="font-size:.95rem;"></h4>
                     <dl style="display:grid;gap:.75rem;">
                         <div>
+                            <dt style="font-size:.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Room</dt>
+                            <dd style="font-size:.875rem;margin-top:.15rem;" x-text="activeTask.room || '—'"></dd>
+                        </div>
+                        <div>
+                            <dt style="font-size:.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Engineer</dt>
+                            <dd style="font-size:.875rem;margin-top:.15rem;" x-text="activeTask.engineer || 'Unassigned'"></dd>
+                        </div>
+                        <div>
                             <dt style="font-size:.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Start</dt>
                             <dd style="font-size:.875rem;margin-top:.15rem;" x-text="activeTask.start"></dd>
                         </div>

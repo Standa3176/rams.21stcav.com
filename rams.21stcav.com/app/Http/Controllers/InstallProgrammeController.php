@@ -188,6 +188,9 @@ class InstallProgrammeController extends Controller
                     InstallTask::STATUS_IN_PROGRESS => 50,
                     default                         => 0,
                 },
+                // INST-02f: extra fields for click-to-detail slide-over panel
+                'room'     => $t->room_name,
+                'engineer' => $t->assignedUser?->name,
             ])
             ->values();
 
