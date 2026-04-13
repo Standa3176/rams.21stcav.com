@@ -276,6 +276,18 @@ Route::middleware('auth')->group(function () {
     Route::delete('install-tasks/{task}',
         [\App\Http\Controllers\InstallProgrammeController::class, 'destroyTask'])
         ->name('install-tasks.destroy');
+
+    Route::post('install-tasks/{task}/assign',
+        [\App\Http\Controllers\TaskAssignmentController::class, 'assign'])
+        ->name('install-tasks.assign');
+
+    Route::post('install-programmes/{programme}/assign-room',
+        [\App\Http\Controllers\TaskAssignmentController::class, 'assignRoom'])
+        ->name('install-programmes.assign-room');
+
+    Route::post('install-programmes/{programme}/assign-all',
+        [\App\Http\Controllers\TaskAssignmentController::class, 'assignAll'])
+        ->name('install-programmes.assign-all');
 });
 
 require __DIR__.'/auth.php';
