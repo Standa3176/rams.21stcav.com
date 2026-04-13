@@ -33,44 +33,78 @@ One dataset powers every document. Engineers capture real-world data, quotes pro
 - ✓ AI content pack — single Claude call generates room scope narratives for RAMS enrichment — v1.0
 - ✓ Dynamic AI-generated pre-install check questions per survey room (Phase 07) — v1.0
 
+## Current Milestone: v1.2 Installation Programme & Field Management
+
+**Goal:** Transform the platform from document generator into a live installation delivery system — auto-generated task lists from project data, engineer assignment, mobile-responsive field view, time tracking, and commissioning sign-off.
+
+**Target features:**
+- Auto-generate install task lists (room × equipment driven)
+- Task assignment to engineers with calendar view
+- Mobile-responsive field view — checklist, clock in/out, photo capture
+- Time tracking — budget vs actual per project/category
+- Commissioning checklist — per-equipment sign-off, photo evidence, client signature
+- Worksheet enhancements — pre-install answers included, triggered from dashboard
+
+---
+
 ### Active
 
-#### Enterprise Dashboard
+#### v1.1 — Operations Dashboard & Notifications (Phases 08–11)
 - [ ] **DASH-01**: Real-time project status dashboard with health indicators across all active projects
 - [ ] **DASH-02**: Overdue survey, generation pending, and blocked project alerts
 - [ ] **DASH-03**: Admin view of AI usage, token consumption, and generation costs
-
-#### Document Quality & Notifications
 - [ ] **NOTF-01**: Email notification when document generation completes
 - [ ] **NOTF-02**: Email notification when external survey is submitted
 - [ ] **QUAL-01**: RAMS document quality score shown to engineer before download
 - [ ] **QUAL-02**: Data confidence indicators per room/equipment (surface DATA-04 partial implementation)
-
-#### Worksheet Generator Enhancements
-- [ ] **WORK-05**: Worksheet includes pre-install check question answers per room
-- [ ] **WORK-06**: Worksheet generation triggered from project dashboard (not just manual API)
-
-#### Installation & Programme
-- [ ] **PROG-01**: Installation task list generated from project data (room-by-room, equipment-driven)
-- [ ] **PROG-01**: Programme of works view showing install sequence
-
-#### Bitrix24 Integration
 - [ ] **BIT-01**: OAuth 2.0 connection to Bitrix24 workspace
 - [ ] **BIT-02**: Project creation in Bitrix24 on RAMS project creation
 - [ ] **BIT-03**: Document links pushed to Bitrix24 deal/task on generation
 - [ ] **BIT-04**: Survey submission triggers Bitrix24 task update
 
+#### v1.2 — Installation Programme & Field Management (Phases 12–16)
+- [ ] **INST-01**: Auto-generate install task lists from project data (room x equipment driven)
+- [ ] **INST-02**: Task assignment to engineers with calendar view and Gantt timeline
+- [ ] **INST-03**: Responsive mobile field view — task checklist, clock in/out, photo capture
+- [ ] **INST-04**: Time tracking per project/category with budget vs actual comparison
+- [ ] **INST-05**: Commissioning checklist — per-equipment sign-off with photo evidence and client signature
+- [ ] **WORK-05**: Worksheet includes pre-install check question answers per room
+- [ ] **WORK-06**: Worksheet generation triggered from project dashboard
+
+#### v1.3 — Technical Drawings & Schematics (Phases 17–20)
+- [ ] **DRAW-01**: AI-generated system schematics from equipment and cable schedule data
+- [ ] **DRAW-02**: Rack elevation generation from equipment lists with U-height and ventilation data
+- [ ] **DRAW-03**: Floor plan upload with auto-placed equipment per room
+- [ ] **DRAW-04**: Drawing export — PDF immediate, DWG for CAD tools (AutoCAD/Vectorworks)
+
+#### v1.4 — Client Portal & Project Visibility (Phases 21–24)
+- [ ] **PORT-01**: Branded client portal per project/site with secure access
+- [ ] **PORT-02**: Client document access — RAMS, O&M, drawings, certificates
+- [ ] **PORT-03**: Live survey and installation completion progress visible to client
+- [ ] **PORT-04**: Client notification on project milestones and document availability
+
+#### v1.5 — Financial & Proposal Engine (Phases 25–28)
+- [ ] **FIN-01**: Multiplier-based pricing engine (HW value x multiplier, min/max), admin+sales accessible
+- [ ] **FIN-02**: Proposal generator — new client + renewal flows, PDF/DOCX branded output
+- [ ] **FIN-03**: Project budget tracking — cost monitoring, margin alerts, forecast vs actual
+- [ ] **FIN-04**: Renewal workflow — auto-populate from existing contract hardware, year-on-year escalation
+
+#### v1.6 — Service & Inventory (Phases 29–32)
+- [ ] **SVC-01**: Asset registry — installed equipment as live assets with QR codes
+- [ ] **SVC-02**: Service tickets — contract search, room/asset select, auto-fill, callback scheduling
+- [ ] **SVC-03**: PMV checklists — per-equipment-type maintenance checks with fault diagnosis and sign-off
+- [ ] **SVC-04**: AI troubleshooting — QR scan triggers AI-guided device-specific troubleshooting
+
 ### Out of Scope
 
-- Mobile native app — responsive web sufficient for survey forms on tablets
-- Real-time collaboration — single-user editing per session matches workflow
-- Client portal — external users access surveys via token links only
 - AI-invented scope/equipment/design — regulatory and liability risk; AI formats only
 - In-app DOCX/XLSX editor — generate, download, edit locally; re-generate if source changes
 - Bi-directional QuoteWerks sync — read-only SQL, never write back
 - Multi-tenancy — single-company platform for 21st Century AV
-- Project scheduling (Gantt) — lifecycle state machine is sufficient
 - Full-text search across documents — project name/client/ref search is sufficient at current scale
+- Native mobile app — responsive web sufficient; mobile field view (v1.2) covers field use
+- Real-time multi-user collaboration — single-user editing per session matches workflow
+- Payment processing — invoicing/payments handled externally by accounts team
 
 ## Context
 
@@ -80,7 +114,7 @@ One dataset powers every document. Engineers capture real-world data, quotes pro
 - **Document generation:** PHPWord (DOCX worksheets/RAMS/O&M), PhpSpreadsheet (XLSX cable schedules), DomPDF/mPDF (PDF)
 - **Current state post-v1.0:** All core document generators shipped, site survey system fully operational with AI pre-install questions, QuoteWerks SQL import working, content pack enriching RAMS quality
 - **Tech debt:** DATA-04 confidence scoring (per-field source annotation) partially implemented — designed in ProjectDataService but no UI surface yet; Phase 07 RED test stubs not greened
-- **Next milestone focus:** Enterprise-grade dashboard, notifications, Bitrix24 integration, installation programme
+- **Next milestone focus:** v1.1 Operations Dashboard & Notifications (Phases 08–11), then v1.2 Install & Field Management through to v1.6 Service & Inventory — 6 milestones, 25 phases planned
 
 ## Constraints
 
