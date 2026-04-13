@@ -44,6 +44,74 @@ Full archive: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [ ] Phase 15: Time Tracking — Actual labour hours per project/category; heartbeat-guarded sessions; UTC storage; actuals-only (no budget comparison in v1.2)
 - [ ] Phase 16: Commissioning Checklist — Per-equipment AVIXA-category sign-off; per-item AJAX saves; client signature (creagia/laravel-sign-pad, DPI-corrected); snagging PDF; programme completion → project state advance
 
+## Phase Details
+
+### Phase 12: Install Task Generation
+**Goal**: Auto-generate a structured install task list from `ProjectDataService`, persisted as `install_programmes` + `install_tasks` records. Engineers confirm the generated list before it becomes active. Also deliver WORK-05/06 worksheet enhancements (pre-install answers + dashboard trigger).
+**Depends on**: Nothing (first phase of v1.2; ProjectDataService from v1.0 is the data source)
+**Requirements**: INST-01, INST-01a, INST-01b, INST-01c, INST-01d, INST-01e, INST-01f, INST-01g, INST-01h, WORK-05, WORK-06
+**Success Criteria** (what must be TRUE):
+  1. `php artisan tinker` can call `InstallTaskGeneratorService::generate($project)` and return a structured array of tasks grouped by room
+  2. `install_programmes` and `install_tasks` tables exist with all columns defined in REQUIREMENTS.md
+  3. Generating tasks for a project with 3 rooms and 5 equipment items produces ≥ 3 task records (one per room × equipment combination)
+  4. A confirm gate UI exists: generated tasks are shown for PM review before programme is activated
+  5. Worksheet DOCX for a project with pre-install answers includes those answers in the generated file
+  6. Worksheet generation button appears on project dashboard and dispatches the job
+**Plans**: TBD
+
+### Phase 13: Task Assignment & Scheduling
+**Goal**: Engineers can be assigned to tasks and dates set; programme is viewable as a week-grouped table. For projects spanning > 4 days, an interactive Gantt timeline (frappe-gantt) is shown.
+**Depends on**: Phase 12
+**Requirements**: INST-02, INST-02a, INST-02b, INST-02c, INST-02d, INST-02e, INST-02f, INST-02g
+**Success Criteria** (what must be TRUE):
+  1. `install_tasks.assigned_user_id` column exists and FK references `users.id`
+  2. Bulk assignment UI assigns all tasks in a room to a selected engineer in one action
+  3. Week-view calendar groups tasks by planned week; each task shows assigned engineer name
+  4. When `planned_end_date - planned_start_date > 4 days`, the Gantt view renders via frappe-gantt
+  5. When project duration ≤ 4 days, Gantt is not shown; week-table is shown instead
+  6. Field engineers see only their assigned tasks; PM role sees all tasks
+**Plans**: TBD
+
+### Phase 14: Mobile Field View
+**Goal**: Mobile-responsive field page where engineers tick tasks complete, capture per-task photos, and clock in/out. HEIC photos are silently converted server-side.
+**Depends on**: Phase 12
+**Requirements**: INST-03, INST-03a, INST-03b, INST-03c, INST-03d, INST-03e, INST-03f, INST-03g, INST-03h
+**Success Criteria** (what must be TRUE):
+  1. `/projects/{project}/programme` route renders on a 375px viewport without horizontal scroll
+  2. Tapping a task status updates it via AJAX with no page reload; success shown visually
+  3. Uploading a HEIC photo from iOS is stored as JPEG in `storage/app/private/task-photos/`
+  4. Room-level progress counter updates when tasks are completed
+  5. Clock in/out controls appear on the field page
+**Plans**: TBD
+
+### Phase 15: Time Tracking
+**Goal**: Engineers clock in/out per project with category selection. Open sessions are protected by server heartbeat; stale sessions auto-closed by scheduled command. Actual hours visible on project dashboard.
+**Depends on**: Phase 12
+**Requirements**: INST-04, INST-04a, INST-04b, INST-04c, INST-04d, INST-04e, INST-04f, INST-04g, INST-04h, INST-04i
+**Success Criteria** (what must be TRUE):
+  1. `time_entries` table has columns: `id`, `project_id`, `user_id`, `category`, `clocked_in_at`, `clocked_out_at`, `last_heartbeat_at`, `notes`
+  2. Clock in creates a row with `clocked_out_at = null`; second clock-in is rejected with an error
+  3. `php artisan programme:close-stale-sessions` closes entries where `last_heartbeat_at` is older than 2 hours
+  4. All `clocked_in_at`/`clocked_out_at` values are stored as UTC in database
+  5. Project dashboard shows total actual hours and per-category breakdown
+**Plans**: TBD
+
+### Phase 16: Commissioning Checklist & Sign-off
+**Goal**: Per-equipment commissioning checklist with AVIXA categories, per-item photo evidence, and client digital signature. Completing the checklist generates a snagging PDF and advances project to Commissioning state.
+**Depends on**: Phase 14
+**Requirements**: INST-05, INST-05a, INST-05b, INST-05c, INST-05d, INST-05e, INST-05f, INST-05g, INST-05h, INST-05i
+**Success Criteria** (what must be TRUE):
+  1. `commissioning_items` table has all columns from REQUIREMENTS.md
+  2. Each item status update is saved via a separate AJAX request (no full-form POST)
+  3. Uploading a HEIC photo for a commissioning item stores it as JPEG
+  4. Client signature canvas renders at correct DPI on iOS Retina (devicePixelRatio scaling applied)
+  5. "Complete Commissioning" button is disabled until all items are pass/fail/na
+  6. Generating the snagging PDF produces a downloadable file embedding the signature image
+  7. On programme completion, `Project.status` advances to `STATUS_COMMISSIONING` via state machine
+**Plans**: TBD
+
+---
+
 ### v1.3 Technical Drawings & Schematics
 *"AI-powered visuals from the same dataset"*
 
