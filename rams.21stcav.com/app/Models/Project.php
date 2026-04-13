@@ -174,6 +174,18 @@ class Project extends Model
         return $this->hasMany(Worksheet::class);
     }
 
+    public function installProgrammes(): HasMany
+    {
+        return $this->hasMany(InstallProgramme::class)->orderBy('created_at', 'desc');
+    }
+
+    public function activeInstallProgramme(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(InstallProgramme::class)
+                    ->where('status', InstallProgramme::STATUS_ACTIVE)
+                    ->latestOfMany();
+    }
+
     /**
      * All uploaded quote versions for this project, oldest first.
      */
