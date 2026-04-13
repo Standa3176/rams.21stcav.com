@@ -197,6 +197,10 @@ class WorksheetDocxService
         $this->buildPowerNetworkTable($section, $room);
 
         $section->addTextBreak(1);
+
+        // ── E. Pre-Install Check Answers ──────────────────────────────────────────────
+        $this->addSectionHeading($section, 'E. Pre-Install Check Answers');
+        $this->buildPreInstallAnswersTable($section, $room['pre_install_answers'] ?? []);
     }
 
     // ── Equipment table ───────────────────────────────────────────────────────
@@ -285,6 +289,64 @@ class WorksheetDocxService
             } else {
                 $cell2->addText($notSurveyed, ['size' => 10, 'color' => '9CA3AF', 'italic' => true]);
             }
+        }
+
+        $section->addTextBreak(1);
+    }
+
+    // ── WORK-06 confirmation ──────────────────────────────────────────────────
+    // The "Generate Worksheet" button is wired on the project dashboard via
+    // ProjectController::show() $linkedRecords entry with generate_route pointing to
+    // route('worksheets.generate-from-project'). This was delivered in v1.0 Phase 04.
+    // No new code required for WORK-06. Confirmed: routes/web.php + ProjectController.php.
+
+    // ── Pre-Install Answers table ─────────────────────────────────────────────
+
+    private function buildPreInstallAnswersTable(
+        \PhpOffice\PhpWord\Element\Section $section,
+        array $answers
+    ): void {
+        if (empty($answers)) {
+            $section->addText(
+                'No pre-install checks recorded.',
+                ['size' => 10, 'color' => '9CA3AF', 'italic' => true]
+            );
+            $section->addTextBreak(1);
+            return;
+        }
+
+        $tableStyle = [
+            'borderSize'  => 6,
+            'borderColor' => self::MID,
+            'cellMargin'  => 80,
+        ];
+
+        $table = $section->addTable($tableStyle);
+
+        // Header row
+        $header = $table->addRow();
+        $hCell1 = $header->addCell(6000, ['bgColor' => self::TEAL]);
+        $hCell1->addText('Question', ['bold' => true, 'color' => self::WHITE, 'size' => 9]);
+        $hCell2 = $header->addCell(3000, ['bgColor' => self::TEAL]);
+        $hCell2->addText('Answer', ['bold' => true, 'color' => self::WHITE, 'size' => 9]);
+
+        foreach ($answers as $idx => $row) {
+            $bgColor = ($idx % 2 === 0) ? self::WHITE : self::GREY;
+            $tableRow = $table->addRow();
+
+            $cell1 = $tableRow->addCell(6000, ['bgColor' => $bgColor]);
+            $cell1->addText(
+                (string) ($row['question'] ?? ''),
+                ['size' => 10, 'color' => self::DARK]
+            );
+
+            $cell2 = $tableRow->addCell(3000, ['bgColor' => $bgColor]);
+            // Format answer: capitalise, append other_text if answer='other'
+            $answerText = ucfirst((string) ($row['answer'] ?? 'unanswered'));
+            if (($row['answer'] ?? '') === 'other' && ! empty($row['other_text'])) {
+                $answerText = 'Other: ' . $row['other_text'];
+            }
+            $cell2->addText($answerText, ['size' => 10, 'color' => self::DARK]);
         }
 
         $section->addTextBreak(1);
