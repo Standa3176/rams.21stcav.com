@@ -398,6 +398,20 @@ p { margin: 3pt 0; }
     // Room overviews for per-room scope paragraphs
     $roomOverviews = $rams->reviewed_data['room_overviews'] ?? [];
 
+    // New sections from reviewed_data
+    $scopeTraceability  = $rams->reviewed_data['scope_traceability']              ?? [];
+    $clientRespExp      = $rams->reviewed_data['client_responsibilities_expanded'] ?? [];
+    $exclusionsList     = $rams->reviewed_data['exclusions']                       ?? [];
+    $decommData         = $rams->reviewed_data['decommissioning']                  ?? [];
+    $commCriteria       = $rams->reviewed_data['commissioning_criteria']           ?? [];
+
+    $scopeTraceability  = is_array($scopeTraceability)  ? $scopeTraceability  : [];
+    $exclusionsList     = is_array($exclusionsList)      ? $exclusionsList     : [];
+    $commCriteria       = is_array($commCriteria)        ? $commCriteria       : [];
+
+    // Decommissioning enabled when flag set OR scope has decommission items
+    $decommEnabled = ! empty($decommData['enabled']) || $hasDecomm;
+
     // Scope items
     $hasDecomm = ! empty($scopeItems['decommission'] ?? []);
     $hasRetain = ! empty($scopeItems['retained']     ?? []);
@@ -770,6 +784,56 @@ p { margin: 3pt 0; }
 </table>
 
 {{-- ════════════════════════════════════════════════════════════════════════
+     SCOPE TRACEABILITY
+     ════════════════════════════════════════════════════════════════════════ --}}
+@if(! empty($scopeTraceability))
+<div class="sec-heading">Scope Traceability</div>
+<table class="std-table" style="margin-bottom: 8pt;">
+    <thead>
+        <tr>
+            <th style="width:26%;">Quote Ref / Item Description</th>
+            <th style="width:28%;">RAMS Activity</th>
+            <th style="width:18%;">Room / Area</th>
+            <th>Notes</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach($scopeTraceability as $stRow)
+    @php $stRow = is_array($stRow) ? $stRow : []; @endphp
+    <tr>
+        <td>{{ $stRow['quote_item']    ?? '' }}</td>
+        <td>{{ $stRow['rams_activity'] ?? '' }}</td>
+        <td>{{ $stRow['room']          ?? '' }}</td>
+        <td>{{ $stRow['notes']         ?? '' }}</td>
+    </tr>
+    @endforeach
+    </tbody>
+</table>
+@endif
+
+{{-- ════════════════════════════════════════════════════════════════════════
+     EXCLUSIONS
+     ════════════════════════════════════════════════════════════════════════ --}}
+<div class="sec-heading">Exclusions</div>
+@if(! empty($exclusionsList))
+<ul class="blist">
+@foreach($exclusionsList as $exItem)
+    @if(trim((string)$exItem) !== '')
+    <li>{{ $exItem }}</li>
+    @endif
+@endforeach
+</ul>
+@else
+<ul class="blist">
+    <li>No structural works.</li>
+    <li>No core drilling unless explicitly scoped.</li>
+    <li>No containment beyond surface trunking.</li>
+    <li>No decorative making good after cable routes.</li>
+    <li>No IT network provision unless scoped.</li>
+</ul>
+@endif
+
+{{-- ════════════════════════════════════════════════════════════════════════
      SECTION 5 — RISK ASSESSMENT
      ════════════════════════════════════════════════════════════════════════ --}}
 <div class="sec-heading page-break">5. &nbsp;Risk Assessment</div>
@@ -958,6 +1022,35 @@ p { margin: 3pt 0; }
 </ul>
 @endif
 
+{{-- 6.3 expanded: structured client responsibilities --}}
+@php
+    $crExpLabels = [
+        'network_readiness' => 'Network / LAN readiness (active drops at device locations)',
+        'licences'          => 'Software licences / subscriptions (Teams Rooms, Zoom, etc.)',
+        'access'            => 'Site access and room availability on installation day(s)',
+        'power_validation'  => 'Mains power validation (sockets live and tested)',
+    ];
+    $crExpChecked = array_filter(
+        is_array($clientRespExp) ? $clientRespExp : [],
+        fn ($v, $k) => is_array($v) && ! empty($v['required']) && $k !== 'additional',
+        ARRAY_FILTER_USE_BOTH
+    );
+    $crExpAdditional = is_array($clientRespExp['additional'] ?? null) ? $clientRespExp['additional'] : [];
+@endphp
+@if(! empty($crExpChecked) || ! empty($crExpAdditional))
+<ul class="blist" style="margin-top:4pt;">
+@foreach($crExpChecked as $crk => $crv)
+    <li><strong>{{ $crExpLabels[$crk] ?? $crk }}:</strong>{{ ! empty($crv['notes']) ? ' ' . $crv['notes'] : ' Required prior to works commencing.' }}</li>
+@endforeach
+@foreach($crExpAdditional as $cra)
+    @php $cra = is_array($cra) ? $cra : []; @endphp
+    @if(! empty($cra['item']))
+    <li><strong>{{ $cra['item'] }}:</strong>{{ ! empty($cra['notes']) ? ' ' . $cra['notes'] : '' }}</li>
+    @endif
+@endforeach
+</ul>
+@endif
+
 {{-- 6.4 Method of Works --}}
 <div class="sec-subheading">6.4 Method of Works &mdash; Step by Step</div>
 @php $phases = is_array($ms) ? ($ms['phases'] ?? []) : []; @endphp
@@ -1009,6 +1102,35 @@ p { margin: 3pt 0; }
 @endif
 @if($mhNotes)
 <p class="body-para"><strong>Handling Notes:</strong> {{ $mhNotes }}</p>
+@endif
+
+{{-- ════════════════════════════════════════════════════════════════════════
+     DECOMMISSIONING PROCEDURE
+     ════════════════════════════════════════════════════════════════════════ --}}
+@if($decommEnabled)
+<div class="sec-heading">Decommissioning Procedure</div>
+@php
+    $decomLabel    = $decommData['labelling_procedure']    ?? '';
+    $decomStorage  = $decommData['storage_location']       ?? '';
+    $decomDisposal = $decommData['disposal_method']        ?? '';
+    $decomSignOff  = ! empty($decommData['client_sign_off_required']);
+    $decomStepsPdf = is_array($decommData['steps'] ?? null) ? $decommData['steps'] : [];
+@endphp
+<div class="kv-block">
+    @if($decomLabel)    <p><strong>Labelling Procedure:</strong> {{ $decomLabel }}</p>@endif
+    @if($decomStorage)  <p><strong>Storage Location:</strong> {{ $decomStorage }}</p>@endif
+    @if($decomDisposal) <p><strong>Disposal Method:</strong> {{ $decomDisposal }}</p>@endif
+    <p><strong>Client Sign-Off Required:</strong> {{ $decomSignOff ? 'Yes — client must sign before removal of any equipment' : 'No' }}</p>
+</div>
+@if(! empty($decomStepsPdf))
+<ol style="margin: 0 0 8pt 18pt; font-size:9.5pt; line-height:1.5;">
+@foreach($decomStepsPdf as $dStep)
+    @if(trim((string)$dStep) !== '')
+    <li>{{ $dStep }}</li>
+    @endif
+@endforeach
+</ol>
+@endif
 @endif
 
 {{-- ════════════════════════════════════════════════════════════════════════
@@ -1192,6 +1314,37 @@ p { margin: 3pt 0; }
     <li>Do not re-enter the building until instructed to do so by the fire warden or emergency services.</li>
     <li>Inform the site manager that {{ $compShort }} engineers are on-site and present at the assembly point.</li>
 </ul>
+
+{{-- ════════════════════════════════════════════════════════════════════════
+     COMMISSIONING CRITERIA
+     ════════════════════════════════════════════════════════════════════════ --}}
+@if(! empty($commCriteria))
+<div class="sec-heading page-break">Commissioning Criteria</div>
+<p class="body-para">The following criteria must be verified and signed off before the installation is considered complete and handed over to the client.</p>
+<table class="std-table" style="margin-bottom: 8pt;">
+    <thead>
+        <tr style="background-color:#1B7A7A; color:#ffffff;">
+            <th style="width:18%; color:#fff;">System</th>
+            <th style="color:#fff;">Criterion</th>
+            <th style="width:22%; color:#fff;">Verification Method</th>
+            <th style="width:20%; color:#fff;">Pass Condition</th>
+            <th style="width:60pt; color:#fff; text-align:center;">Result</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach($commCriteria as $ccRow)
+    @php $ccRow = is_array($ccRow) ? $ccRow : []; @endphp
+    <tr>
+        <td><strong>{{ $ccRow['system'] ?? '' }}</strong></td>
+        <td>{{ $ccRow['criterion'] ?? '' }}</td>
+        <td>{{ $ccRow['verification_method'] ?? '' }}</td>
+        <td>{{ $ccRow['pass_condition'] ?? '' }}</td>
+        <td style="text-align:center; font-size:8.5pt;">Pass &#9744;&nbsp; Fail &#9744;</td>
+    </tr>
+    @endforeach
+    </tbody>
+</table>
+@endif
 
 {{-- ════════════════════════════════════════════════════════════════════════
      SECTION 8 — DOCUMENT SIGN-OFF
