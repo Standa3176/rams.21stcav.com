@@ -598,7 +598,8 @@
                 <button type="submit" class="btn btn-teal">
                     ↓ Save &amp; Download .docx
                 </button>
-                <a href="{{ route('rams.download-pdf', $rams) }}" class="btn btn-outline">
+                <a href="{{ route('rams.download-pdf', $rams) }}" class="btn btn-outline"
+                   onclick="triggerFileDownload(this.href); return false;">
                     ↓ Download PDF
                 </a>
                 <a href="{{ route('rams.download', $rams) }}" class="btn btn-outline">

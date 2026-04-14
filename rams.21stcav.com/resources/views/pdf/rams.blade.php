@@ -605,9 +605,6 @@ p { margin: 3pt 0; }
 </table>
 @endif
 
-<div class="cover-footer-bar">
-    {{ $address }} &nbsp;|&nbsp; {{ $phone }} &nbsp;|&nbsp; {{ $email }} &nbsp;|&nbsp; {{ $website }}
-</div>
 
 {{-- ════════════════════════════════════════════════════════════════════════
      SECTION 1 — DOCUMENT CONTROL

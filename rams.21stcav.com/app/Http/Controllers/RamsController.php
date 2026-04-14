@@ -1089,20 +1089,18 @@ class RamsController extends Controller
 
         // 4. Client contact — checked in priority order:
         //    a) generated_data['project']['site_contact']  (saved by updateAndDownload form field)
-        //    b) reviewed_data['site_logistics'] sub-keys   (saved by site-logistics section)
+        //    b) reviewed_data['site_logistics'] sub-keys   (normaliseSiteLogistics keys: contact_name/phone/email)
         //    c) package extracted_data client contact fields
         $sl = $rd['site_logistics'] ?? [];
         if (empty($p['client_contact_name'])) {
-            $p['client_contact_name'] = ($p['site_contact']          ?? '')   // form field "Site Contact"
-                ?: ($sl['site_contact_name']   ?? '')
-                ?: ($sl['client_contact_name'] ?? '');
+            $p['client_contact_name'] = ($p['site_contact']   ?? '')   // form field "Site Contact"
+                ?: ($sl['contact_name']  ?? '');
         }
         if (empty($p['client_contact_email'])) {
-            $p['client_contact_email'] = ($sl['site_contact_email']   ?? '')
-                ?: ($sl['client_contact_email'] ?? '');
+            $p['client_contact_email'] = $sl['contact_email'] ?? '';
         }
         if (empty($p['client_contact_phone'])) {
-            $p['client_contact_phone'] = $sl['site_contact_phone'] ?? '';
+            $p['client_contact_phone'] = $sl['contact_phone'] ?? '';
         }
 
         // 5. Planned dates and times from reviewed_data['programme'].
@@ -1202,39 +1200,46 @@ class RamsController extends Controller
                 return true;
             };
 
-            $si = $gd['scope_items'] ?? [];
-            $hasAnyScope = ! empty($si['new_install']) || ! empty($si['decommission']) || ! empty($si['retained']);
-
-            if (! $hasAnyScope) {
-                // Build from package when scope is empty (form-created or pre-quote RAMS).
-                $pkgExtracted = $pkg->extracted_data ?? [];
-                $rawEquip     = ! empty($pkgExtracted['hardware_list'])
+            // Always rebuild new_install from package — this is transient display only,
+            // so using the package as the canonical source ensures room/area data is
+            // always current. Decommission and retained are preserved from existing data.
+            $pkgExtracted = $pkg->extracted_data ?? [];
+            // Prefer extracted_data['equipment'] — this is the user-reviewed list
+            // which includes the area/room assignments entered in the package review.
+            // hardware_list is built by ExtractQuoteJob from raw AI output and lacks
+            // room data. Fall back to hardware_list → equipment_list for older packages.
+            $rawEquip = ! empty($pkgExtracted['equipment'])
+                ? $pkgExtracted['equipment']
+                : (! empty($pkgExtracted['hardware_list'])
                     ? $pkgExtracted['hardware_list']
-                    : ($pkg->equipment_list ?? []);
+                    : ($pkg->equipment_list ?? []));
 
-                if (is_array($rawEquip) && count($rawEquip) > 0) {
-                    $mapped = [];
-                    foreach ($rawEquip as $e) {
-                        if (! is_array($e)) {
-                            continue;
-                        }
-                        $name    = $e['description'] ?? ($e['item_name'] ?? ($e['name'] ?? ($e['model'] ?? ($e['item'] ?? ''))));
-                        $qty     = $e['qty']         ?? ($e['quantity']  ?? '');
-                        $note    = $e['location']    ?? ($e['room']      ?? ($e['area'] ?? ($e['notes'] ?? '')));
-                        $nameStr = trim((string) $name);
-                        $iType   = $e['item_type'] ?? '';
-                        $cat     = strtolower((string) ($e['category'] ?? ''));
-
-                        if ($isHardware($nameStr, $iType, $cat)) {
-                            $mapped[] = ['item_name' => $nameStr, 'qty' => $qty, 'room' => $note, 'notes' => ''];
-                        }
+            if (is_array($rawEquip) && count($rawEquip) > 0) {
+                $mapped = [];
+                foreach ($rawEquip as $e) {
+                    if (! is_array($e)) {
+                        continue;
                     }
-                    if (count($mapped) > 0) {
-                        $gd['scope_items']['new_install']  = $mapped;
-                        $gd['scope_items']['decommission'] = $gd['scope_items']['decommission'] ?? [];
-                        $gd['scope_items']['retained']     = $gd['scope_items']['retained']     ?? [];
+                    $name    = $e['description'] ?? ($e['item_name'] ?? ($e['name'] ?? ($e['model'] ?? ($e['item'] ?? ''))));
+                    $qty     = $e['qty']         ?? ($e['quantity']  ?? '');
+                    $room    = $e['location']    ?? ($e['room']      ?? ($e['area'] ?? ''));
+                    $notes   = $e['notes'] ?? '';
+                    $nameStr = trim((string) $name);
+                    $iType   = $e['item_type'] ?? '';
+                    $cat     = strtolower((string) ($e['category'] ?? ''));
+
+                    if ($isHardware($nameStr, $iType, $cat)) {
+                        $mapped[] = ['item_name' => $nameStr, 'qty' => $qty, 'room' => $room, 'notes' => $notes];
                     }
                 }
+                if (count($mapped) > 0) {
+                    $gd['scope_items']['new_install']  = $mapped;
+                    $gd['scope_items']['decommission'] = $gd['scope_items']['decommission'] ?? [];
+                    $gd['scope_items']['retained']     = $gd['scope_items']['retained']     ?? [];
+                }
+            } elseif (empty($gd['scope_items']['new_install'])) {
+                $gd['scope_items']['decommission'] = $gd['scope_items']['decommission'] ?? [];
+                $gd['scope_items']['retained']     = $gd['scope_items']['retained']     ?? [];
             }
 
             // Always filter new_install for hardware-only — this catches items that
@@ -1251,6 +1256,22 @@ class RamsController extends Controller
                         return $isHardware($nameStr);
                     }
                 ));
+
+                // Normalize room field — clear any value that is a substring of the item
+                // name (or vice-versa), which indicates stale data where a description
+                // fragment was incorrectly stored as the room.
+                $gd['scope_items']['new_install'] = array_map(function ($item) {
+                    $room = trim((string) ($item['room'] ?? ''));
+                    $name = trim((string) ($item['item_name'] ?? ''));
+                    if ($room !== '' && $name !== '') {
+                        $roomLower = strtolower($room);
+                        $nameLower = strtolower($name);
+                        if (str_contains($nameLower, $roomLower) || str_contains($roomLower, $nameLower)) {
+                            $item['room'] = '';
+                        }
+                    }
+                    return $item;
+                }, $gd['scope_items']['new_install']);
             }
             // ─────────────────────────────────────────────────────────────────────────
 

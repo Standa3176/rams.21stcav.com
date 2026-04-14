@@ -623,7 +623,8 @@
                                             <a href="{{ route('rams.download', $rams) }}"
                                                class="btn btn-outline btn-sm" style="font-size:.75rem;">↓ .docx</a>
                                             <a href="{{ route('rams.download-pdf', $rams) }}"
-                                               class="btn btn-outline btn-sm" style="font-size:.75rem;">↓ PDF</a>
+                                               class="btn btn-outline btn-sm" style="font-size:.75rem;"
+                                               onclick="triggerFileDownload(this.href); return false;">↓ PDF</a>
                                             <form method="POST" action="{{ route('rams.retry-generation', $rams) }}" style="margin:0;">
                                                 @csrf
                                                 <button type="submit" class="btn btn-outline btn-sm" style="font-size:.75rem;"
@@ -652,7 +653,8 @@
                                             <a href="{{ route('rams.download', $rams) }}"
                                                class="btn btn-outline btn-sm" style="font-size:.75rem;">↓ .docx</a>
                                             <a href="{{ route('rams.download-pdf', $rams) }}"
-                                               class="btn btn-outline btn-sm" style="font-size:.75rem;">↓ PDF</a>
+                                               class="btn btn-outline btn-sm" style="font-size:.75rem;"
+                                               onclick="triggerFileDownload(this.href); return false;">↓ PDF</a>
                                             <form method="POST" action="{{ route('rams.retry-generation', $rams) }}" style="margin:0;">
                                                 @csrf
                                                 <button type="submit" class="btn btn-outline btn-sm" style="font-size:.75rem;"

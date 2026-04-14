@@ -305,7 +305,8 @@ tr.soft-deleted td.actions-cell * { pointer-events: auto; }
 
                                             {{-- Download PDF --}}
                                             <a href="{{ route('rams.download-pdf', $doc) }}"
-                                               class="btn btn-outline btn-sm" title="Download PDF">
+                                               class="btn btn-outline btn-sm" title="Download PDF"
+                                               onclick="triggerFileDownload(this.href); return false;">
                                                 ↓ PDF
                                             </a>
 

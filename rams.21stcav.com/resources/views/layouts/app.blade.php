@@ -693,6 +693,15 @@
     @stack('scripts')
 
     <script>
+        /* ── Silent file download (no blank tab / no navigation) ─── */
+        function triggerFileDownload(url) {
+            var iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = url;
+            document.body.appendChild(iframe);
+            setTimeout(function () { document.body.removeChild(iframe); }, 120000);
+        }
+
         /* ── User dropdown ──────────────────────────────────────── */
         (function () {
             var btn       = document.getElementById('userMenuBtn');
