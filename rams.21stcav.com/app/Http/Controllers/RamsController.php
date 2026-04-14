@@ -1126,15 +1126,62 @@ class RamsController extends Controller
                 }
             }
 
-            // Scope items — build new_install from equipment_list when scope is empty.
-            // Prefer hardware_list (pre-classified by ExtractQuoteJob) when available.
-            // Falls back to equipment_list with keyword/category heuristics to strip
-            // cables, consumables, services, warranties, travel, labour, and fees.
+            // ── Scope items ────────────────────────────────────────────────────────
+            // Hardware filter closure — applied both when building from package AND
+            // when filtering items that already exist in generated_data (e.g. after regen
+            // copies scope_items from the original, which may include warranties/cables).
+            $nonHardwarePattern = '/\b('
+                . 'site\s+survey|engineering\s+team|av\s+team|installation\s+team'
+                . '|project\s+management|programme\s+management'
+                . '|configuration\s+service|commissioning\s+service'
+                . '|extended\s+service|extended\s+warranty|poly\+'
+                . '|support\s+plan|care\s+plan|maintenance\s+plan|\byear\s+warranty'
+                . '|consumable|cable\s+tie|fixings?'
+                . '|network\s+cable|patch\s+cable|patch\s+lead|snagless'
+                . '|delivery|carriage|freight|shipping'
+                . '|travel|mileage|per\s+vehicle|parking'
+                . '|labour|man\s+day|man-day|off\s+site|on\s+site\s+management'
+                . '|rams\b|risk\s+assessment|method\s+statement'
+                . '|discount|credit|foc\b|free\s+of\s+charge'
+                . '|\bvat\b|\btax\b'
+                . ')/i';
+            // Cable-only detection (brand/length prefix allowed, e.g. "Lindy 10m Cat6 …")
+            $cablePattern = '/\b(cat\d[ae]?|hdmi\s+cable|dp\s+cable|displayport\s+cable|usb\s+cable|fibre\s+cable|fiber\s+cable|xlr\s+cable|dmx\s+cable|coax\s+cable|ethernet\s+cable)\b/i';
+
+            $isHardware = function (string $nameStr, string $itemType = '', string $category = '') use ($nonHardwarePattern, $cablePattern): bool {
+                if (! $nameStr) {
+                    return false;
+                }
+                // Generic placeholder rows
+                if (preg_match('/^\s*additional\s*$/i', $nameStr)) {
+                    return false;
+                }
+                // item_type field (ExtractQuoteJob — trust it)
+                if ($itemType === 'consumable' || $itemType === 'professional_service') {
+                    return false;
+                }
+                if ($itemType === 'hardware') {
+                    return true;
+                }
+                // Category field
+                if (in_array($category, ['cables', 'consumables', 'services', 'option', 'labour'], true)) {
+                    return false;
+                }
+                // Keyword heuristic
+                $lower = strtolower($nameStr);
+                if (preg_match($nonHardwarePattern, $lower) || preg_match($cablePattern, $nameStr)) {
+                    return false;
+                }
+                return true;
+            };
+
             $si = $gd['scope_items'] ?? [];
             $hasAnyScope = ! empty($si['new_install']) || ! empty($si['decommission']) || ! empty($si['retained']);
+
             if (! $hasAnyScope) {
-                $pkgExtracted  = $pkg->extracted_data ?? [];
-                $rawEquip      = ! empty($pkgExtracted['hardware_list'])
+                // Build from package when scope is empty (form-created or pre-quote RAMS).
+                $pkgExtracted = $pkg->extracted_data ?? [];
+                $rawEquip     = ! empty($pkgExtracted['hardware_list'])
                     ? $pkgExtracted['hardware_list']
                     : ($pkg->equipment_list ?? []);
 
@@ -1144,67 +1191,16 @@ class RamsController extends Controller
                         if (! is_array($e)) {
                             continue;
                         }
-
                         $name    = $e['description'] ?? ($e['item_name'] ?? ($e['name'] ?? ($e['model'] ?? ($e['item'] ?? ''))));
                         $qty     = $e['qty']         ?? ($e['quantity']  ?? '');
-                        // Location may be keyed as location, room, area, or notes
-                        $note    = $e['location'] ?? ($e['room'] ?? ($e['area'] ?? ($e['notes'] ?? '')));
+                        $note    = $e['location']    ?? ($e['room']      ?? ($e['area'] ?? ($e['notes'] ?? '')));
                         $nameStr = trim((string) $name);
+                        $iType   = $e['item_type'] ?? '';
+                        $cat     = strtolower((string) ($e['category'] ?? ''));
 
-                        if (! $nameStr) {
-                            continue;
-                        }
-
-                        // ── Hardware classification ────────────────────────────────────────────
-                        // item_type is set by ExtractQuoteJob on newer packages — trust it.
-                        $itemType = $e['item_type'] ?? '';
-                        if ($itemType === 'consumable' || $itemType === 'professional_service') {
-                            continue;
-                        }
-                        if ($itemType === 'hardware') {
+                        if ($isHardware($nameStr, $iType, $cat)) {
                             $mapped[] = ['item_name' => $nameStr, 'qty' => $qty, 'notes' => $note];
-                            continue;
                         }
-
-                        // Category field (set by some extraction versions)
-                        $category = strtolower((string) ($e['category'] ?? ''));
-                        if (in_array($category, ['cables', 'consumables', 'services', 'option', 'labour'], true)) {
-                            continue;
-                        }
-
-                        // Keyword heuristic for older packages without item_type/category
-                        $lowerName = strtolower($nameStr);
-
-                        // Skip generic placeholder rows (e.g. items literally named "Additional")
-                        if (preg_match('/^\s*additional\s*$/i', $nameStr)) {
-                            continue;
-                        }
-
-                        $nonHardwarePattern = '/\b('
-                            . 'site\s+survey|engineering\s+team|av\s+team|installation\s+team'
-                            . '|project\s+management|programme\s+management'
-                            . '|configuration\s+service|commissioning\s+service'
-                            . '|extended\s+service|extended\s+warranty|poly\+'
-                            . '|support\s+plan|care\s+plan|maintenance\s+plan|\byear\s+warranty'
-                            . '|consumable|cable\s+tie|fixings?'
-                            . '|network\s+cable|patch\s+cable|patch\s+lead|snagless'
-                            . '|delivery|carriage|freight|shipping'
-                            . '|travel|mileage|per\s+vehicle|parking'
-                            . '|labour|man\s+day|man-day|off\s+site|on\s+site\s+management'
-                            . '|rams\b|risk\s+assessment|method\s+statement'
-                            . '|discount|credit|foc\b|free\s+of\s+charge'
-                            . '|\bvat\b|\btax\b'
-                            . ')/i';
-                        // Cable-only lines: optionally prefixed with brand/length, then a cable type
-                        // (not anchored to start — catches "Lindy 10m Cat6 Snagless Network Cable")
-                        $cablePattern = '/\b(cat\d[ae]?|hdmi\s+cable|dp\s+cable|displayport\s+cable|usb\s+cable|fibre\s+cable|fiber\s+cable|xlr\s+cable|dmx\s+cable|coax\s+cable|ethernet\s+cable)\b/i';
-
-                        if (preg_match($nonHardwarePattern, $lowerName) || preg_match($cablePattern, $nameStr)) {
-                            continue;
-                        }
-                        // ─────────────────────────────────────────────────────────────────────
-
-                        $mapped[] = ['item_name' => $nameStr, 'qty' => $qty, 'notes' => $note];
                     }
                     if (count($mapped) > 0) {
                         $gd['scope_items']['new_install']  = $mapped;
@@ -1213,6 +1209,23 @@ class RamsController extends Controller
                     }
                 }
             }
+
+            // Always filter new_install for hardware-only — this catches items that
+            // were already in generated_data (e.g. copied during regen) and may include
+            // warranties, cables, services, or generic placeholder rows.
+            if (! empty($gd['scope_items']['new_install'])) {
+                $gd['scope_items']['new_install'] = array_values(array_filter(
+                    $gd['scope_items']['new_install'],
+                    function ($item) use ($isHardware) {
+                        if (! is_array($item)) {
+                            return false;
+                        }
+                        $nameStr = trim((string) ($item['item_name'] ?? ($item['name'] ?? ($item['description'] ?? ''))));
+                        return $isHardware($nameStr);
+                    }
+                ));
+            }
+            // ─────────────────────────────────────────────────────────────────────────
 
             // Client contact from package extracted_data when still blank.
             if (empty($p['client_contact_name'])) {
