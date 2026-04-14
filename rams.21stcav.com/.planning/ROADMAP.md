@@ -39,12 +39,30 @@ Full archive: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 *"Quote to field in one platform"*
 
 - [x] Phase 12: Install Task Generation — Auto-generate task list (room × equipment) from ProjectDataService; install_programmes + install_tasks models; WORK-05/06 worksheet enhancements (completed 2026-04-13)
-- [ ] Phase 13: Task Assignment & Scheduling — Engineer assignment, planned dates, week-view calendar; conditional Gantt (frappe-gantt) only when project duration > 4 days
+- [x] Phase 13: Task Assignment & Scheduling — Engineer assignment, planned dates, week-view calendar; conditional Gantt (frappe-gantt) only when project duration > 4 days (completed 2026-04-14)
 - [ ] Phase 14: Mobile Field View — Responsive task checklist, status toggle, per-task photo capture (HEIC protection), clock in/out; online-only
 - [ ] Phase 15: Time Tracking — Actual labour hours per project/category; heartbeat-guarded sessions; UTC storage; actuals-only (no budget comparison in v1.2)
 - [ ] Phase 16: Commissioning Checklist — Per-equipment AVIXA-category sign-off; per-item AJAX saves; client signature (creagia/laravel-sign-pad, DPI-corrected); snagging PDF; programme completion → project state advance
 
 ## Phase Details
+
+### Phase 08: Enterprise Dashboard
+**Goal**: Transform the existing closure-based dashboard into a `DashboardController`-powered operational command centre — showing all active projects with per-project health indicators (green/amber/red derived from document completion state), overdue stage alerts (based on existing milestone timestamps), blocked alerts (e.g. engineering with no approved RAMS), a status summary strip, status-filter tabs, and an install programme task-completion widget for projects in the installing/commissioning stage.
+**Depends on**: Phase 01 (Project model + lifecycle timestamps), Phase 02 (RAMS/ProjectPackage data), Phase 12 (install_programmes + install_tasks — gracefully absent if no programme exists)
+**Requirements**: DASH-01, DASH-01a, DASH-01b, DASH-01c, DASH-01d, DASH-01e, DASH-01f, DASH-01g, DASH-01h
+**Success Criteria** (what must be TRUE):
+  1. `/dashboard` is served by `DashboardController@index` — the route closure is removed from `routes/web.php`
+  2. Dashboard shows all non-archived projects (not capped at 6), each with a health badge (green/amber/red)
+  3. A project in `engineering` status with no approved RAMS document shows a red health badge
+  4. A project whose current-stage milestone timestamp is >14 days ago shows an overdue indicator
+  5. Clicking a status chip in the summary strip filters the project grid to that stage (Alpine.js, no page reload)
+  6. A project in `installing` status with an active install programme shows task completion % alongside its health badge
+  7. `ProjectHealthService::assess(Project $project): ProjectHealth` exists and is unit-testable in isolation
+**Plans**: 2 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — DashboardController + ProjectHealthService + ProjectHealth DTO + unit/feature tests (Wave 1)
+- [ ] 08-02-PLAN.md — Enhanced dashboard.blade.php: health grid, status filter strip, Alpine.js filter, install programme widget (Wave 2)
 
 ### Phase 12: Install Task Generation
 **Goal**: Auto-generate a structured install task list from `ProjectDataService`, persisted as `install_programmes` + `install_tasks` records. Engineers confirm the generated list before it becomes active. Also deliver WORK-05/06 worksheet enhancements (pre-install answers + dashboard trigger).
@@ -78,8 +96,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 13-01-PLAN.md — Migration (per-task planned dates) + TaskAssignmentService + TaskAssignmentController + 3 assignment routes
-- [ ] 13-02-PLAN.md — frappe-gantt install + schedule.blade.php (week-view + conditional Gantt + Alpine panel) + schedule() action + INST-02g filter
+- [x] 13-01-PLAN.md — Migration (per-task planned dates) + TaskAssignmentService + TaskAssignmentController + 3 assignment routes
+- [x] 13-02-PLAN.md — frappe-gantt install + schedule.blade.php (week-view + conditional Gantt + Alpine panel) + schedule() action + INST-02g filter
 
 ### Phase 14: Mobile Field View
 **Goal**: Mobile-responsive field page where engineers tick tasks complete, capture per-task photos, and clock in/out. HEIC photos are silently converted server-side.
@@ -164,12 +182,12 @@ Plans:
 | 05. Project Content Pack | v1.0 | 4/4 | Complete | 2026-04-11 |
 | 06. RAMS Document Quality | v1.0 | 2/2 | Complete | 2026-04-12 |
 | 07. Dynamic Survey AI Questions | v1.0 | 6/6 | Complete | 2026-04-12 |
-| 08. Enterprise Dashboard | v1.1 | — | Planned | — |
+| 08. Enterprise Dashboard | v1.1 | 2 plans | Planned | — |
 | 09. Email Notifications | v1.1 | — | Planned | — |
 | 10. Document Quality Scores | v1.1 | — | Planned | — |
 | 11. Bitrix24 Integration | v1.1 | — | Planned | — |
 | 12. Install Task Generation + Worksheet Enhancements | v1.2 | 3/3 | Complete   | 2026-04-13 |
-| 13. Task Assignment & Scheduling | v1.2 | 2 | Planned | — |
+| 13. Task Assignment & Scheduling | v1.2 | 3/3 | Complete   | 2026-04-14 |
 | 14. Mobile Field View & Time Tracking | v1.2 | — | Planned | — |
 | 15. Time Tracking | v1.2 | — | Planned | — |
 | 16. Commissioning Checklist & Sign-off | v1.2 | — | Planned | — |

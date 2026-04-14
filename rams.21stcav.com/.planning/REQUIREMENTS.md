@@ -1,5 +1,33 @@
-# Requirements: v1.2 — Installation Programme & Field Management
+# Requirements: v1.1 + v1.2
 
+---
+
+## v1.1 — Operations Dashboard & Notifications
+**Milestone goal:** Give PMs real-time visibility across all active projects — health indicators, overdue/blocked alerts, email notifications, and quality scores.
+**Phases:** 08–11
+**Defined:** 2026-04-14
+
+---
+
+### DASH-01 — Enterprise Dashboard
+
+**Goal:** Transform the basic closure-driven dashboard into a real-time project health command centre showing all active projects, health indicators, overdue stage alerts, and install programme progress.
+
+- [ ] **DASH-01a**: Dashboard route uses `DashboardController@index` — closure removed from `routes/web.php`; controller lives at `app/Http/Controllers/DashboardController.php`
+- [ ] **DASH-01b**: All non-archived projects returned in controller and rendered in a health grid — not capped at 6; uses `Project::with(['owner', 'ramsDocuments', 'siteSurveys', 'installProgrammes'])->whereNotIn('status', ['archived'])->get()`
+- [ ] **DASH-01c**: `ProjectHealthService::assess(Project $project): ProjectHealth` returns a value object with `status` (green/amber/red), `reason` (string), and `overdue` (bool)
+- [ ] **DASH-01d**: Health derivation rules (applied in priority order — first match wins):
+  - **Red**: RAMS document for this project has `status = failed`; OR project is in `engineering` with no RAMS document at `approved` or beyond; OR project is in `survey_pending` with no submitted `SiteSurvey` record and `survey_started_at` is >14 days ago
+  - **Amber**: project has been in its current stage for >7 days; OR RAMS is `awaiting_review` (needs engineer action); OR project is in `engineering` with RAMS in `uploaded`/`awaiting_review` (blocked in pipeline)
+  - **Green**: all document states normal for the current project lifecycle stage
+- [ ] **DASH-01e**: Overdue indicator: derived from existing milestone timestamp columns (`survey_started_at`, `engineering_started_at`, `installation_started_at`, `commissioning_started_at`, `handover_started_at`) — a project is overdue when `now() - stage_start > 14 days`; no new column required
+- [ ] **DASH-01f**: Status summary strip: count of non-archived projects per lifecycle stage (quote_imported, survey_pending, engineering, installing, commissioning, handover, completed) shown as clickable chips using `Project::STATUS_LABELS` and `Project::STATUS_COLOURS`
+- [ ] **DASH-01g**: Status filter: clicking a stage chip filters the health grid to show only projects in that stage — implemented with Alpine.js `x-show` on each row, no page reload, URL hash updated for bookmarkability
+- [ ] **DASH-01h**: Install programme widget: for projects in `installing` or `commissioning` status, show active install programme task completion % (`complete_tasks / total_tasks * 100`) alongside health badge; gracefully hidden (no widget shown) when no active `install_programme` record exists
+
+---
+
+## v1.2 — Installation Programme & Field Management
 **Milestone goal:** Transform the platform from document generator into a live installation delivery system — auto-generated task lists from project data, engineer assignment, mobile-responsive field view, time tracking, and commissioning sign-off.
 
 **Phases:** 12–16 (continues from v1.0 Phases 01–07)
