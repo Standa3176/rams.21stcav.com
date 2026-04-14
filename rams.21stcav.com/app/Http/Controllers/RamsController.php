@@ -346,6 +346,33 @@ class RamsController extends Controller
         if (empty($p['project_manager_phone'])) {
             $p['project_manager_phone'] = $prog['project_manager_phone'] ?? '';
         }
+        if (empty($p['programmer'])) {
+            $p['programmer'] = ($prog['programmer_name'] ?? '')
+                ?: ($rd['project']['programmer'] ?? '')
+                ?: ($rams->form_data['programmer'] ?? '');
+        }
+
+        // 4. Pull client contact from reviewed_data['site_logistics'] when not in generated data.
+        $siteLogistics = $rd['site_logistics'] ?? [];
+        if (empty($p['client_contact_name'])) {
+            $p['client_contact_name'] = ($siteLogistics['site_contact_name'] ?? '')
+                ?: ($siteLogistics['client_contact_name'] ?? '');
+        }
+        if (empty($p['client_contact_email'])) {
+            $p['client_contact_email'] = ($siteLogistics['site_contact_email'] ?? '')
+                ?: ($siteLogistics['client_contact_email'] ?? '');
+        }
+        if (empty($p['client_contact_phone'])) {
+            $p['client_contact_phone'] = $siteLogistics['site_contact_phone'] ?? '';
+        }
+
+        // 5. Pull planned dates from reviewed_data['programme'].
+        if (empty($p['planned_start_date'])) {
+            $p['planned_start_date'] = $prog['planned_start_date'] ?? '';
+        }
+        if (empty($p['planned_end_date'])) {
+            $p['planned_end_date'] = $prog['planned_end_date'] ?? '';
+        }
 
         $gd['project']        = $p;
         $rams->generated_data = $gd; // transient — not saved
@@ -593,7 +620,20 @@ class RamsController extends Controller
             return back()->with('error', 'PDF generation failed: ' . $e->getMessage());
         }
 
-        $pdfName = pathinfo($rams->filename ?? 'rams', PATHINFO_FILENAME) . '.pdf';
+        // Build a meaningful filename: "{ref} - {client}.pdf", falling back gracefully.
+        $ref    = trim($rams->project_ref  ?? ($rams->generated_data['project']['ref']    ?? ''));
+        $client = trim($rams->client_name  ?? ($rams->generated_data['project']['client'] ?? ''));
+        if ($ref && $client) {
+            $base = $ref . ' - ' . $client;
+        } elseif ($ref) {
+            $base = $ref;
+        } elseif ($client) {
+            $base = $client;
+        } else {
+            $base = pathinfo($rams->filename ?? 'rams', PATHINFO_FILENAME);
+        }
+        // Strip characters that are invalid in filenames.
+        $pdfName = preg_replace('/[\\\\\/:\*\?"<>|]/', '_', $base) . '.pdf';
 
         return response()->download($pdfPath, $pdfName, [
             'Content-Type' => 'application/pdf',

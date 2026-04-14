@@ -342,16 +342,41 @@ p { margin: 3pt 0; }
     $client        = ($project['client']       ?? '') ?: ($rams->client_name  ?? '');
     $siteAddress   = ($project['site_address'] ?? '') ?: ($rams->site_address ?? '');
     $roomsText     = $project['rooms_text']        ?? '';
-    $docDate       = $project['date']              ?? now()->format('d/m/Y');
+    // Rooms — one per line. Split on commas or newlines if a single text blob.
+    $roomsList = [];
+    $reviewedRooms = $rams->reviewed_data['rooms'] ?? [];
+    if (! empty($reviewedRooms) && is_array($reviewedRooms)) {
+        foreach ($reviewedRooms as $r) {
+            $name = $r['name'] ?? ($r['room_name'] ?? '');
+            if ($name) $roomsList[] = $name;
+        }
+    }
+    if (empty($roomsList) && $roomsText) {
+        $roomsList = array_filter(array_map('trim', preg_split('/[,\n]+/', $roomsText)));
+    }
+    // Use actual document creation date (dd/mm/yyyy) — not the "April 2026" placeholder.
+    $docDate = $rams->created_at
+        ? $rams->created_at->format('d/m/Y')
+        : now()->format('d/m/Y');
     $docAuthor     = ($project['doc_author'] ?? '') ?: ($project['project_manager'] ?? '');
     $pmPhone       = $project['project_manager_phone'] ?? $phone;
     $clientContactName  = $project['client_contact_name']  ?? '';
     $clientContactEmail = $project['client_contact_email'] ?? '';
+    $clientContactPhone = $project['client_contact_phone'] ?? '';
     $clientContact      = trim($clientContactName . ($clientContactEmail ? ' | ' . $clientContactEmail : ''));
     $revision      = $project['revision']        ?? 'Rev 1.0';
     $docStatus     = $project['document_status'] ?? 'For Issue';
     $workingHours  = ($project['working_hours'] ?? '') ?: ($formData['working_hours'] ?? 'Monday–Friday, 09:00–17:30');
     $siteContact   = ($project['site_contact']  ?? '') ?: ($formData['site_contact']  ?? '');
+    // Personnel
+    $leadEngineer      = $project['lead_engineer']        ?? '';
+    $additionalEngs    = $project['additional_engineers'] ?? '';
+    $programmer        = $project['programmer']           ?? '';
+    // Project dates from programme
+    $plannedStart = $project['planned_start_date'] ?? '';
+    $plannedEnd   = $project['planned_end_date']   ?? '';
+    // Room overviews for per-room scope paragraphs
+    $roomOverviews = $rams->reviewed_data['room_overviews'] ?? [];
 
     // Scope items
     $hasDecomm = ! empty($scopeItems['decommission'] ?? []);
@@ -439,7 +464,13 @@ p { margin: 3pt 0; }
     </tr>
     <tr>
         <td class="lbl">ROOMS:</td>
-        <td class="val">{{ $roomsText ?: '—' }}</td>
+        <td class="val">
+            @if(! empty($roomsList))
+                @foreach($roomsList as $r){{ $r }}<br>@endforeach
+            @else
+                &mdash;
+            @endif
+        </td>
     </tr>
     <tr>
         <td class="lbl">DATE:</td>
@@ -466,6 +497,48 @@ p { margin: 3pt 0; }
         <td class="val" colspan="3">{{ $clientContact ?: '—' }}</td>
     </tr>
 </table>
+
+{{-- Cover Table 3: PERSONNEL & PROJECT DATES --}}
+@if($docAuthor || $leadEngineer || $additionalEngs || $programmer || $plannedStart || $plannedEnd)
+<table class="cover-table">
+    @if($docAuthor)
+    <tr>
+        <td class="lbl" style="width:26%;">PROJECT MANAGER:</td>
+        <td class="val" style="width:34%;">{{ $docAuthor }}</td>
+        @if($plannedStart)
+        <td class="lbl" style="width:20%;">START DATE:</td>
+        <td class="val">{{ $plannedStart }}</td>
+        @else
+        <td class="lbl" style="width:20%;"></td><td class="val"></td>
+        @endif
+    </tr>
+    @endif
+    @if($leadEngineer)
+    <tr>
+        <td class="lbl">LEAD ENGINEER:</td>
+        <td class="val">{{ $leadEngineer }}</td>
+        @if($plannedEnd)
+        <td class="lbl">END DATE:</td>
+        <td class="val">{{ $plannedEnd }}</td>
+        @else
+        <td class="lbl"></td><td class="val"></td>
+        @endif
+    </tr>
+    @endif
+    @if($additionalEngs)
+    <tr>
+        <td class="lbl">ENGINEERS:</td>
+        <td class="val" colspan="3">{{ $additionalEngs }}</td>
+    </tr>
+    @endif
+    @if($programmer)
+    <tr>
+        <td class="lbl">PROGRAMMER:</td>
+        <td class="val" colspan="3">{{ $programmer }}</td>
+    </tr>
+    @endif
+</table>
+@endif
 
 <div class="cover-footer-bar">
     {{ $address }} &nbsp;|&nbsp; {{ $phone }} &nbsp;|&nbsp; {{ $email }} &nbsp;|&nbsp; {{ $website }}
@@ -564,12 +637,34 @@ p { margin: 3pt 0; }
 <div class="kv-block">
     <p><strong>Client:</strong> {{ $client ?: '—' }}</p>
     <p><strong>Site:</strong> {{ $siteAddress ?: '—' }}</p>
-    <p><strong>Rooms:</strong> {{ $roomsText ?: '—' }}</p>
+    <p><strong>Rooms:</strong>
+        @if(! empty($roomsList))
+            @foreach($roomsList as $r) {{ $r }}@if(! $loop->last), @endif@endforeach
+        @else
+            &mdash;
+        @endif
+    </p>
     <p><strong>Working Hours:</strong> {{ $workingHours }}</p>
 </div>
 
-@if($scopeOfWorks)
-<p class="body-para">{{ $scopeOfWorks }}</p>
+@if(! empty($roomOverviews) && is_array($roomOverviews))
+    {{-- Per-room scope paragraphs from reviewed data --}}
+    @foreach($roomOverviews as $roomOv)
+        @php
+            $rvName = $roomOv['room_name'] ?? ($roomOv['name'] ?? '');
+            $rvDesc = $roomOv['overview']  ?? ($roomOv['description'] ?? ($roomOv['scope'] ?? ''));
+        @endphp
+        @if($rvName || $rvDesc)
+        <p class="body-para"><strong>{{ $rvName }}:</strong>{{ $rvName && $rvDesc ? ' ' : '' }}{{ $rvDesc }}</p>
+        @endif
+    @endforeach
+@elseif($scopeOfWorks)
+    {{-- Single scope-of-works block — split on double newlines to form paragraphs --}}
+    @foreach(preg_split('/\n{2,}/', trim($scopeOfWorks)) as $para)
+        @if(trim($para))
+        <p class="body-para">{{ trim($para) }}</p>
+        @endif
+    @endforeach
 @else
 <p class="body-para">Works comprise an Audio Visual installation to the rooms listed above. The scope in each room is as follows:</p>
 @endif
