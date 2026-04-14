@@ -374,6 +374,14 @@ class RamsController extends Controller
             $p['planned_end_date'] = $prog['planned_end_date'] ?? '';
         }
 
+        // 6. Pull planned times from reviewed_data['programme'].
+        if (empty($p['planned_start_time'])) {
+            $p['planned_start_time'] = $prog['planned_start_time'] ?? '';
+        }
+        if (empty($p['planned_end_time'])) {
+            $p['planned_end_time'] = $prog['planned_end_time'] ?? '';
+        }
+
         $gd['project']        = $p;
         $rams->generated_data = $gd; // transient — not saved
 
@@ -400,6 +408,34 @@ class RamsController extends Controller
             'lead_engineer'        => ['nullable', 'string', 'max:200'],
             'additional_engineers' => ['nullable', 'string', 'max:500'],
             'programmer'           => ['nullable', 'string', 'max:200'],
+            // Programme dates & times
+            'planned_start_date'  => ['nullable', 'string', 'max:20'],
+            'planned_start_time'  => ['nullable', 'string', 'max:10'],
+            'planned_end_date'    => ['nullable', 'string', 'max:20'],
+            'planned_end_time'    => ['nullable', 'string', 'max:10'],
+            // Waste removal
+            'waste_removal_party' => ['nullable', 'string', 'in:client,21cav,other'],
+            'waste_removal_notes' => ['nullable', 'string', 'max:1000'],
+            // Welfare
+            'welfare_notes'       => ['nullable', 'string', 'max:1000'],
+            // Permits
+            'permits_required'            => ['nullable', 'array'],
+            'permits_required.*.type'     => ['nullable', 'string', 'max:100'],
+            'permits_required.*.required' => ['nullable', 'boolean'],
+            'permits_required.*.notes'    => ['nullable', 'string', 'max:500'],
+            // Material handling
+            'material_handling_has_large_items'         => ['nullable', 'boolean'],
+            'material_handling_handling_notes'          => ['nullable', 'string', 'max:1000'],
+            'material_handling_items'                   => ['nullable', 'array'],
+            'material_handling_items.*.item'            => ['nullable', 'string', 'max:200'],
+            'material_handling_items.*.weight_kg'       => ['nullable', 'string', 'max:20'],
+            'material_handling_items.*.handling_method' => ['nullable', 'string', 'max:500'],
+            // CDM duty holders
+            'cdm'               => ['nullable', 'array'],
+            'cdm.*.role'        => ['nullable', 'string', 'max:100'],
+            'cdm.*.organisation' => ['nullable', 'string', 'max:200'],
+            'cdm.*.name'        => ['nullable', 'string', 'max:200'],
+            'cdm.*.contact'     => ['nullable', 'string', 'max:200'],
         ]);
 
         // Merge edits into generated_data['project']
@@ -416,7 +452,49 @@ class RamsController extends Controller
             'lead_engineer'        => $validated['lead_engineer']        ?? '',
             'additional_engineers' => $validated['additional_engineers'] ?? '',
             'programmer'           => $validated['programmer']           ?? '',
+            // Programme dates & times — pass through to PDF cover table
+            'planned_start_date' => $validated['planned_start_date'] ?? ($generatedData['project']['planned_start_date'] ?? ''),
+            'planned_start_time' => $validated['planned_start_time'] ?? '',
+            'planned_end_date'   => $validated['planned_end_date']   ?? ($generatedData['project']['planned_end_date']   ?? ''),
+            'planned_end_time'   => $validated['planned_end_time']   ?? '',
         ]);
+
+        // Persist new fields into reviewed_data JSON sub-keys (saved before download attempt)
+        $reviewedData = $rams->reviewed_data ?? [];
+        $reviewedData['programme'] = array_merge($reviewedData['programme'] ?? [], [
+            'planned_start_date'  => $validated['planned_start_date']  ?? '',
+            'planned_start_time'  => $validated['planned_start_time']  ?? '',
+            'planned_end_date'    => $validated['planned_end_date']    ?? '',
+            'planned_end_time'    => $validated['planned_end_time']    ?? '',
+            'waste_removal_party' => $validated['waste_removal_party'] ?? '',
+            'waste_removal_notes' => $validated['waste_removal_notes'] ?? '',
+            'welfare_notes'       => $validated['welfare_notes']       ?? '',
+        ]);
+
+        // Build permits array — preserve all types with their state
+        $permitsInput = $request->input('permits_required', []);
+        $reviewedData['permits_required'] = array_values(array_filter(
+            is_array($permitsInput) ? $permitsInput : [],
+            fn ($p) => ! empty($p['type'])
+        ));
+
+        // Material handling
+        $mhItems = $request->input('material_handling_items', []);
+        $reviewedData['material_handling'] = [
+            'has_large_items' => $request->boolean('material_handling_has_large_items'),
+            'large_items'     => array_values(array_filter(
+                is_array($mhItems) ? $mhItems : [],
+                fn ($i) => ! empty($i['item'])
+            )),
+            'handling_notes'  => $validated['material_handling_handling_notes'] ?? '',
+        ];
+
+        // CDM duty holders
+        $cdmInput = $request->input('cdm', []);
+        $reviewedData['cdm'] = array_values(array_filter(
+            is_array($cdmInput) ? $cdmInput : [],
+            fn ($row) => ! empty($row['role'])
+        ));
 
         $rams->update([
             'project_name'   => $validated['project_name'],
@@ -424,6 +502,7 @@ class RamsController extends Controller
             'client_name'    => $validated['client_name'],
             'site_address'   => $validated['site_address'],
             'generated_data' => $generatedData,
+            'reviewed_data'  => $reviewedData,
         ]);
 
         // Write the core project fields back to the linked Project record so
