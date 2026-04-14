@@ -495,7 +495,7 @@ p { margin: 3pt 0; }
 <div class="cover-doc-title">RISK ASSESSMENT &amp;<br>METHOD STATEMENT</div>
 <div class="cover-accent-bar"></div>
 
-{{-- Cover Table 1: CLIENT | SITE | PROJECT REFERENCE | ROOMS | DATE --}}
+{{-- Cover Table 1: CLIENT | SITE | PROJECT REFERENCE | ROOMS | DATE | WORKING HOURS --}}
 <table class="cover-table">
     <tr>
         <td class="lbl">CLIENT:</td>
@@ -523,6 +523,28 @@ p { margin: 3pt 0; }
         <td class="lbl">DATE:</td>
         <td class="val">{{ $docDate }}</td>
     </tr>
+    @if($plannedStart || $plannedEnd)
+    <tr>
+        <td class="lbl">START DATE:</td>
+        <td class="val">
+            {{ $plannedStart ?: '—' }}
+            @if($plannedStartTime) &nbsp; {{ $plannedStartTime }}@endif
+        </td>
+    </tr>
+    <tr>
+        <td class="lbl">END DATE:</td>
+        <td class="val">
+            {{ $plannedEnd ?: '—' }}
+            @if($plannedEndTime) &nbsp; {{ $plannedEndTime }}@endif
+        </td>
+    </tr>
+    @endif
+    @if($workingHours)
+    <tr>
+        <td class="lbl">WORKING HOURS:</td>
+        <td class="val">{{ $workingHours }}</td>
+    </tr>
+    @endif
 </table>
 
 {{-- Cover Table 2: PREPARED BY / TELEPHONE / CLIENT CONTACT with REVISION / STATUS --}}

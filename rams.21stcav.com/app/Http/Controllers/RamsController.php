@@ -761,25 +761,36 @@ class RamsController extends Controller
     {
         $this->authorize('update', $rams);
 
-        $formData = $rams->form_data ?? [];
+        $formData     = $rams->form_data     ?? [];
+        $reviewedData = $rams->reviewed_data ?? [];
+        $generatedData = $rams->generated_data ?? [];
 
-        // Create a new placeholder record for the regenerated document
+        // Create the new record, copying all data from the original so the
+        // rebuilt document is based on real project content, not a blank form.
         $newRams = RamsDocument::create([
-            'user_id'      => auth()->id(),
-            'project_id'   => $rams->project_id,
-            'project_ref'  => $rams->project_ref,
-            'project_name' => $rams->project_name,
-            'client_name'  => $rams->client_name,
-            'site_address' => $rams->site_address,
-            'ai_provider'  => $this->aiSettings->defaultProvider(),
-            'ai_model'     => $this->aiSettings->defaultModel(),
-            'form_data'    => $formData,
-            'filename'     => 'pending-' . now()->format('YmdHis') . '.docx',
-            'status'       => RamsDocument::STATUS_FOR_REVIEW,
+            'user_id'        => auth()->id(),
+            'project_id'     => $rams->project_id,
+            'project_ref'    => $rams->project_ref,
+            'project_name'   => $rams->project_name,
+            'client_name'    => $rams->client_name,
+            'site_address'   => $rams->site_address,
+            'ai_provider'    => $this->aiSettings->defaultProvider(),
+            'ai_model'       => $this->aiSettings->defaultModel(),
+            'form_data'      => $formData,
+            'reviewed_data'  => $reviewedData,
+            'generated_data' => $generatedData,
+            'filename'       => 'pending-' . now()->format('YmdHis') . '.docx',
+            'status'         => RamsDocument::STATUS_FOR_REVIEW,
         ]);
 
         try {
-            $this->ramsBuilder->buildFromForm($formData, $newRams);
+            // If the original went through review, rebuild from that reviewed data
+            // so the DOCX reflects the human-approved content rather than a blank form.
+            if (! empty($reviewedData)) {
+                $this->ramsBuilder->buildFromReview($reviewedData, $formData, $newRams);
+            } else {
+                $this->ramsBuilder->buildFromForm($formData, $newRams);
+            }
         } catch (\Throwable $e) {
             Log::error('RamsController: regenerate failed', [
                 'original_id' => $rams->id,
@@ -1082,14 +1093,33 @@ class RamsController extends Controller
 
         if ($pkg) {
             // Rooms — patch rooms_text from package extracted rooms list when blank.
-            // Filter out financial/pricing lines that the parser sometimes misidentifies as rooms.
+            // Filter out financial/pricing lines and service-category lines that the
+            // parser sometimes misidentifies as rooms (e.g. "Professional Services").
             if (empty($p['rooms_text'])) {
                 $pkgRooms = array_filter(
                     $pkg->extracted_data['rooms'] ?? [],
-                    fn ($r) => $r
-                        && strlen($r) < 80
-                        && ! preg_match('/discount|credit|vat|total|labour|delivery|carriage|price|\bfoc\b/i', $r)
-                        && ! preg_match('/^\s*[\d£$€]/', $r)
+                    function ($r) {
+                        if (! $r || strlen($r) >= 80) {
+                            return false;
+                        }
+                        // Financial / pricing lines
+                        if (preg_match('/discount|credit|vat|total|labour|delivery|carriage|price|\bfoc\b/i', $r)) {
+                            return false;
+                        }
+                        // Lines starting with a currency symbol or digit
+                        if (preg_match('/^\s*[\d£$€]/', $r)) {
+                            return false;
+                        }
+                        // Service-category lines (e.g. "Professional Services", "Support Services")
+                        // Exclude if the string ends with "Services" or "Service" and contains no
+                        // room-like keyword (meeting, room, office, suite, lab, studio, etc.)
+                        if (preg_match('/\bservices?\b/i', $r)
+                            && ! preg_match('/\b(room|office|suite|meeting|conference|board|reception|lobby|studio|lab|kitchen|breakout|training|hall|space|area)\b/i', $r)
+                        ) {
+                            return false;
+                        }
+                        return true;
+                    }
                 );
                 if (count($pkgRooms) > 0) {
                     $p['rooms_text'] = implode(', ', array_values($pkgRooms));
@@ -1144,6 +1174,12 @@ class RamsController extends Controller
 
                         // Keyword heuristic for older packages without item_type/category
                         $lowerName = strtolower($nameStr);
+
+                        // Skip generic placeholder rows (e.g. items literally named "Additional")
+                        if (preg_match('/^\s*additional\s*$/i', $nameStr)) {
+                            continue;
+                        }
+
                         $nonHardwarePattern = '/\b('
                             . 'site\s+survey|engineering\s+team|av\s+team|installation\s+team'
                             . '|project\s+management|programme\s+management'
@@ -1151,6 +1187,7 @@ class RamsController extends Controller
                             . '|extended\s+service|extended\s+warranty|poly\+'
                             . '|support\s+plan|care\s+plan|maintenance\s+plan|\byear\s+warranty'
                             . '|consumable|cable\s+tie|fixings?'
+                            . '|network\s+cable|patch\s+cable|patch\s+lead|snagless'
                             . '|delivery|carriage|freight|shipping'
                             . '|travel|mileage|per\s+vehicle|parking'
                             . '|labour|man\s+day|man-day|off\s+site|on\s+site\s+management'
@@ -1158,10 +1195,11 @@ class RamsController extends Controller
                             . '|discount|credit|foc\b|free\s+of\s+charge'
                             . '|\bvat\b|\btax\b'
                             . ')/i';
-                        // Pure cable lines (e.g. "10m Cat6", "2m HDMI Lead")
-                        $cableOnlyPattern = '/^\s*(\d+\s*m\s+)?(cat\d|hdmi|dp\b|display\s*port|usb\s+cable|fibre|fiber|xlr|dmx|bnc|rj\d+|coax|ethernet|patch\s+lead|patch\s+cable)/i';
+                        // Cable-only lines: optionally prefixed with brand/length, then a cable type
+                        // (not anchored to start — catches "Lindy 10m Cat6 Snagless Network Cable")
+                        $cablePattern = '/\b(cat\d[ae]?|hdmi\s+cable|dp\s+cable|displayport\s+cable|usb\s+cable|fibre\s+cable|fiber\s+cable|xlr\s+cable|dmx\s+cable|coax\s+cable|ethernet\s+cable)\b/i';
 
-                        if (preg_match($nonHardwarePattern, $lowerName) || preg_match($cableOnlyPattern, $nameStr)) {
+                        if (preg_match($nonHardwarePattern, $lowerName) || preg_match($cablePattern, $nameStr)) {
                             continue;
                         }
                         // ─────────────────────────────────────────────────────────────────────
