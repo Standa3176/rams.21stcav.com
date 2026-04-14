@@ -598,12 +598,18 @@ class RamsController extends Controller
 
         $this->authorize('delete', $record);
 
+        $projectId = $record->project_id;
         $record->delete();
 
         Log::info('RamsController: document soft-deleted', [
             'record_id' => $record->id,
             'user_id'   => auth()->id(),
         ]);
+
+        if ($projectId) {
+            return redirect()->route('projects.show', $projectId)
+                ->with('success', 'RAMS document deleted.');
+        }
 
         return redirect()->route('rams.index')
             ->with('success', 'RAMS document deleted.');
@@ -791,8 +797,13 @@ class RamsController extends Controller
             'superseded_by_id' => $newRams->id,
         ]);
 
+        if ($newRams->project_id) {
+            return redirect()->route('projects.show', $newRams->project_id)
+                ->with('success', 'RAMS document regenerated. Previous version superseded.');
+        }
+
         return redirect()->route('rams.index')
-            ->with('success', 'Document regenerated. The previous version has been marked as superseded.');
+            ->with('success', 'RAMS document regenerated. Previous version superseded.');
     }
 
     // ─────────────────────────────────────────────────────────────────────────
