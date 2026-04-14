@@ -286,7 +286,7 @@
                                                    class="btn btn-teal btn-sm" style="font-size:.75rem; margin-left:.25rem;"
                                                    target="_blank" aria-label="Download {{ $entry['type'] }}">↓ DOCX</a>
                                             @endif
-                                            @if(!empty($entry['download_pdf_route_name']) && $record->status === 'completed')
+                                            @if(!empty($entry['download_pdf_route_name']) && in_array($record->status, ['completed', 'for_review', 'approved']))
                                                 <a href="{{ route($entry['download_pdf_route_name'], $record) }}"
                                                    class="btn btn-outline btn-sm" style="font-size:.75rem; margin-left:.25rem;"
                                                    target="_blank" aria-label="Download {{ $entry['type'] }} PDF">↓ PDF</a>
