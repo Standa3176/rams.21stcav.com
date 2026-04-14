@@ -1064,10 +1064,14 @@ class RamsController extends Controller
                 ?: ($rams->form_data['programmer'] ?? '');
         }
 
-        // 4. Client contact from reviewed_data['site_logistics'].
+        // 4. Client contact — checked in priority order:
+        //    a) generated_data['project']['site_contact']  (saved by updateAndDownload form field)
+        //    b) reviewed_data['site_logistics'] sub-keys   (saved by site-logistics section)
+        //    c) package extracted_data client contact fields
         $sl = $rd['site_logistics'] ?? [];
         if (empty($p['client_contact_name'])) {
-            $p['client_contact_name'] = ($sl['site_contact_name']   ?? '')
+            $p['client_contact_name'] = ($p['site_contact']          ?? '')   // form field "Site Contact"
+                ?: ($sl['site_contact_name']   ?? '')
                 ?: ($sl['client_contact_name'] ?? '');
         }
         if (empty($p['client_contact_email'])) {
