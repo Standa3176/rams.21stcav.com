@@ -409,14 +409,14 @@ p { margin: 3pt 0; }
     $exclusionsList     = is_array($exclusionsList)      ? $exclusionsList     : [];
     $commCriteria       = is_array($commCriteria)        ? $commCriteria       : [];
 
-    // Decommissioning enabled when flag set OR scope has decommission items
-    $decommEnabled = ! empty($decommData['enabled']) || $hasDecomm;
-
     // Scope items
     $hasDecomm = ! empty($scopeItems['decommission'] ?? []);
     $hasRetain = ! empty($scopeItems['retained']     ?? []);
     $hasNew    = ! empty($scopeItems['new_install']  ?? []);
     $hasScope  = $hasDecomm || $hasRetain || $hasNew;
+
+    // Decommissioning enabled when flag set OR scope has decommission items
+    $decommEnabled = ! empty($decommData['enabled']) || $hasDecomm;
 
     // Risk helpers — LOW ≤4, MED 5–9, HIGH ≥10 (matching reference)
     $riskBg = function(int $score): string {
