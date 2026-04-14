@@ -749,6 +749,10 @@ class RamsController extends Controller
 
     /**
      * Resolve the absolute path to the RAMS DOCX, tolerating legacy filenames.
+     *
+     * DocxBuilderService writes to storage_path('app/rams/'), NOT to the
+     * local Storage disk root (which is storage/app/private/ in Laravel 11+).
+     * Always resolve via storage_path() to match where files are actually written.
      */
     private function resolveRamsDocxPath(RamsDocument $rams): string
     {
@@ -758,11 +762,13 @@ class RamsController extends Controller
         }
 
         $filename = ltrim($filename, '/');
-        if (str_contains($filename, '/')) {
-            return Storage::disk('local')->path($filename);
+
+        // Legacy filenames may include a subpath (e.g. "rams/file.docx")
+        if (str_starts_with($filename, 'rams/')) {
+            return storage_path('app/' . $filename);
         }
 
-        return Storage::disk('local')->path('rams/' . $filename);
+        return storage_path('app/rams/' . $filename);
     }
 
     /**
