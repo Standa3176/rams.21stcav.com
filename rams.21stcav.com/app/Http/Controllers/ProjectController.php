@@ -138,6 +138,7 @@ class ProjectController extends Controller
             'download_route_name'     => 'rams.download',
             'download_pdf_route_name' => 'rams.download-pdf',
             'regenerate_route_name'   => 'rams.regenerate',
+            'delete_route_name'       => 'rams.destroy',
         ];
 
         if ($latestPackage && $latestPackage->status === ProjectPackage::STATUS_REVIEWED) {

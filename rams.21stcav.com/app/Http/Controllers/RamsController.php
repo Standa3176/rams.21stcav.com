@@ -293,6 +293,23 @@ class RamsController extends Controller
     {
         $this->authorize('view', $rams);
 
+        // Merge current Project fields into generated_data for display.
+        // This keeps the review form fresh without requiring a re-generate.
+        // We do NOT persist this merge — it only affects what the view sees.
+        if ($rams->project_id) {
+            $liveProject = Project::find($rams->project_id);
+            if ($liveProject) {
+                $gd = $rams->generated_data ?? [];
+                $gd['project'] = array_merge($gd['project'] ?? [], array_filter([
+                    'name'         => $liveProject->name,
+                    'client'       => $liveProject->client_name,
+                    'site_address' => $liveProject->site_address,
+                    'ref'          => $liveProject->ref,
+                ], fn ($v) => $v !== null && $v !== ''));
+                $rams->generated_data = $gd; // transient — not saved
+            }
+        }
+
         return view('rams.review', compact('rams'));
     }
 
@@ -341,6 +358,29 @@ class RamsController extends Controller
             'site_address'   => $validated['site_address'],
             'generated_data' => $generatedData,
         ]);
+
+        // Write the core project fields back to the linked Project record so
+        // that future RAMS views pick up these edits without another generate.
+        if ($rams->project_id) {
+            $linkedProject = Project::find($rams->project_id);
+            if ($linkedProject) {
+                $updates = array_filter([
+                    'name'         => $validated['project_name'],
+                    'ref'          => $validated['project_ref'] ?? null,
+                    'client_name'  => $validated['client_name'],
+                    'site_address' => $validated['site_address'],
+                ], fn ($v) => $v !== null && $v !== '');
+
+                if ($updates) {
+                    $linkedProject->update($updates);
+                    Log::info('RamsController: project fields synced from RAMS updateAndDownload', [
+                        'rams_id'    => $rams->id,
+                        'project_id' => $rams->project_id,
+                        'fields'     => array_keys($updates),
+                    ]);
+                }
+            }
+        }
 
         try {
             $filePath = $this->wordDoc->build($generatedData, $rams);

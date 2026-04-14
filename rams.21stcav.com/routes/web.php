@@ -173,6 +173,7 @@ Route::middleware('auth')->group(function () {
     Route::post('rams/{rams}/email',               [RamsController::class, 'email'])            ->name('rams.email');
     Route::post('rams/{rams}/status',              [RamsController::class, 'updateStatus'])     ->name('rams.status');
     Route::post('rams/{rams}/regenerate',          [RamsController::class, 'regenerate'])       ->name('rams.regenerate');
+    Route::delete('rams/{rams}/destroy',           [RamsController::class, 'destroy'])          ->name('rams.destroy');
 
     // ── Retry / recovery actions ──────────────────────────────────────────
     Route::post('rams/{rams}/retry-extraction', [RamsController::class, 'retryExtraction'])->name('rams.retry-extraction');
