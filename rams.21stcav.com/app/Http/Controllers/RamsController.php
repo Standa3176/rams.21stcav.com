@@ -139,6 +139,25 @@ class RamsController extends Controller
             }
         }
 
+        // ── Personnel pre-fill ────────────────────────────────────────
+        // Default to the logged-in user as project manager, then override
+        // with values from the most recent RAMS for this project (if any).
+        $prefill = ['project_manager' => auth()->user()->name ?? ''];
+        if ($project) {
+            $previousRams = \App\Models\RamsDocument::where('project_id', $project->id)
+                ->whereNotNull('form_data')
+                ->latest()
+                ->first();
+            if ($previousRams) {
+                $fd = $previousRams->form_data ?? [];
+                foreach (['project_manager', 'lead_engineer', 'additional_engineers', 'programmer'] as $field) {
+                    if (! empty($fd[$field])) {
+                        $prefill[$field] = $fd[$field];
+                    }
+                }
+            }
+        }
+
         return view('rams.create', compact(
             'hazardLibrary',
             'ppeOptions',
@@ -147,6 +166,7 @@ class RamsController extends Controller
             'defaultProvider',
             'hazardTemplates',
             'project',
+            'prefill',
         ));
     }
 

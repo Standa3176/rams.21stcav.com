@@ -174,7 +174,7 @@
                            id="project_manager"
                            name="project_manager"
                            class="form-control @error('project_manager') is-invalid @enderror"
-                           value="{{ old('project_manager') }}"
+                           value="{{ old('project_manager', $prefill['project_manager'] ?? '') }}"
                            placeholder="Name">
                     @error('project_manager')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -187,7 +187,7 @@
                            id="lead_engineer"
                            name="lead_engineer"
                            class="form-control @error('lead_engineer') is-invalid @enderror"
-                           value="{{ old('lead_engineer') }}"
+                           value="{{ old('lead_engineer', $prefill['lead_engineer'] ?? '') }}"
                            placeholder="Name">
                     @error('lead_engineer')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -200,7 +200,7 @@
                            id="additional_engineers"
                            name="additional_engineers"
                            class="form-control @error('additional_engineers') is-invalid @enderror"
-                           value="{{ old('additional_engineers') }}"
+                           value="{{ old('additional_engineers', $prefill['additional_engineers'] ?? '') }}"
                            placeholder="Comma-separated names">
                     @error('additional_engineers')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -213,7 +213,7 @@
                            id="programmer"
                            name="programmer"
                            class="form-control @error('programmer') is-invalid @enderror"
-                           value="{{ old('programmer') }}"
+                           value="{{ old('programmer', $prefill['programmer'] ?? '') }}"
                            placeholder="Name">
                     @error('programmer')
                         <div class="invalid-feedback">{{ $message }}</div>
