@@ -385,6 +385,38 @@ class RamsController extends Controller
         $gd['project']        = $p;
         $rams->generated_data = $gd; // transient — not saved
 
+        // ── Pre-fill new reviewed_data sub-keys (transient — not saved) ──────────
+        // Pre-fill scope_traceability from quote line_items when not yet reviewed
+        if (empty($rd['scope_traceability'])) {
+            $lineItems = $gd['quote']['line_items'] ?? [];
+            if (is_array($lineItems) && count($lineItems) > 0) {
+                $rd['scope_traceability'] = array_values(array_map(fn ($li) => [
+                    'quote_item'    => ($li['description'] ?? ''),
+                    'rams_activity' => '',
+                    'room'          => ($li['room'] ?? ''),
+                    'notes'         => '',
+                ], $lineItems));
+            }
+        }
+
+        // Default exclusions when not yet reviewed
+        if (! isset($rd['exclusions'])) {
+            $rd['exclusions'] = [
+                'No structural works',
+                'No core drilling unless explicitly scoped',
+                'No containment beyond surface trunking',
+                'No decorative making good after cable routes',
+                'No IT network provision unless scoped',
+            ];
+        }
+
+        // Ensure other sub-keys exist with empty defaults so blade never gets null
+        $rd['client_responsibilities_expanded'] = $rd['client_responsibilities_expanded'] ?? [];
+        $rd['decommissioning']                  = $rd['decommissioning']                  ?? [];
+        $rd['commissioning_criteria']           = $rd['commissioning_criteria']           ?? [];
+
+        $rams->reviewed_data = $rd; // transient — not saved
+
         return view('rams.review', compact('rams'));
     }
 
@@ -436,6 +468,41 @@ class RamsController extends Controller
             'cdm.*.organisation' => ['nullable', 'string', 'max:200'],
             'cdm.*.name'        => ['nullable', 'string', 'max:200'],
             'cdm.*.contact'     => ['nullable', 'string', 'max:200'],
+            // Scope traceability
+            'scope_traceability'                 => ['nullable', 'array'],
+            'scope_traceability.*.quote_item'    => ['nullable', 'string', 'max:500'],
+            'scope_traceability.*.rams_activity' => ['nullable', 'string', 'max:500'],
+            'scope_traceability.*.room'          => ['nullable', 'string', 'max:200'],
+            'scope_traceability.*.notes'         => ['nullable', 'string', 'max:500'],
+            // Client responsibilities expanded
+            'client_resp_network_readiness_required'  => ['nullable', 'boolean'],
+            'client_resp_network_readiness_notes'     => ['nullable', 'string', 'max:500'],
+            'client_resp_licences_required'           => ['nullable', 'boolean'],
+            'client_resp_licences_notes'              => ['nullable', 'string', 'max:500'],
+            'client_resp_access_required'             => ['nullable', 'boolean'],
+            'client_resp_access_notes'                => ['nullable', 'string', 'max:500'],
+            'client_resp_power_validation_required'   => ['nullable', 'boolean'],
+            'client_resp_power_validation_notes'      => ['nullable', 'string', 'max:500'],
+            'client_resp_additional'                  => ['nullable', 'array'],
+            'client_resp_additional.*.item'           => ['nullable', 'string', 'max:300'],
+            'client_resp_additional.*.notes'          => ['nullable', 'string', 'max:500'],
+            // Exclusions
+            'exclusions'   => ['nullable', 'array'],
+            'exclusions.*' => ['nullable', 'string', 'max:500'],
+            // Decommissioning
+            'decommissioning_enabled'               => ['nullable', 'boolean'],
+            'decommissioning_labelling_procedure'   => ['nullable', 'string', 'max:1000'],
+            'decommissioning_storage_location'      => ['nullable', 'string', 'max:500'],
+            'decommissioning_client_sign_off'       => ['nullable', 'boolean'],
+            'decommissioning_disposal_method'       => ['nullable', 'string', 'max:500'],
+            'decommissioning_steps'                 => ['nullable', 'array'],
+            'decommissioning_steps.*'               => ['nullable', 'string', 'max:500'],
+            // Commissioning criteria
+            'commissioning_criteria'                         => ['nullable', 'array'],
+            'commissioning_criteria.*.system'                => ['nullable', 'string', 'max:200'],
+            'commissioning_criteria.*.criterion'             => ['nullable', 'string', 'max:500'],
+            'commissioning_criteria.*.verification_method'   => ['nullable', 'string', 'max:300'],
+            'commissioning_criteria.*.pass_condition'        => ['nullable', 'string', 'max:300'],
         ]);
 
         // Merge edits into generated_data['project']
@@ -494,6 +561,56 @@ class RamsController extends Controller
         $reviewedData['cdm'] = array_values(array_filter(
             is_array($cdmInput) ? $cdmInput : [],
             fn ($row) => ! empty($row['role'])
+        ));
+
+        // ── New reviewed_data sub-keys ────────────────────────────────────────
+
+        // Scope traceability
+        $stInput = $request->input('scope_traceability', []);
+        $reviewedData['scope_traceability'] = array_values(array_filter(
+            is_array($stInput) ? $stInput : [],
+            fn ($row) => ! empty($row['quote_item']) || ! empty($row['rams_activity'])
+        ));
+
+        // Client responsibilities expanded
+        $crAdditional = $request->input('client_resp_additional', []);
+        $reviewedData['client_responsibilities_expanded'] = [
+            'network_readiness' => ['required' => $request->boolean('client_resp_network_readiness_required'), 'notes' => $validated['client_resp_network_readiness_notes'] ?? ''],
+            'licences'          => ['required' => $request->boolean('client_resp_licences_required'),          'notes' => $validated['client_resp_licences_notes']          ?? ''],
+            'access'            => ['required' => $request->boolean('client_resp_access_required'),            'notes' => $validated['client_resp_access_notes']            ?? ''],
+            'power_validation'  => ['required' => $request->boolean('client_resp_power_validation_required'),  'notes' => $validated['client_resp_power_validation_notes']  ?? ''],
+            'additional'        => array_values(array_filter(
+                is_array($crAdditional) ? $crAdditional : [],
+                fn ($r) => ! empty($r['item'])
+            )),
+        ];
+
+        // Exclusions — filter empty strings
+        $exclusionsInput = $request->input('exclusions', []);
+        $reviewedData['exclusions'] = array_values(array_filter(
+            is_array($exclusionsInput) ? $exclusionsInput : [],
+            fn ($e) => trim((string) $e) !== ''
+        ));
+
+        // Decommissioning
+        $decomSteps = $request->input('decommissioning_steps', []);
+        $reviewedData['decommissioning'] = [
+            'enabled'                  => $request->boolean('decommissioning_enabled'),
+            'labelling_procedure'      => $validated['decommissioning_labelling_procedure'] ?? '',
+            'storage_location'         => $validated['decommissioning_storage_location']    ?? '',
+            'client_sign_off_required' => $request->boolean('decommissioning_client_sign_off'),
+            'disposal_method'          => $validated['decommissioning_disposal_method']     ?? '',
+            'steps'                    => array_values(array_filter(
+                is_array($decomSteps) ? $decomSteps : [],
+                fn ($s) => trim((string) $s) !== ''
+            )),
+        ];
+
+        // Commissioning criteria
+        $ccInput = $request->input('commissioning_criteria', []);
+        $reviewedData['commissioning_criteria'] = array_values(array_filter(
+            is_array($ccInput) ? $ccInput : [],
+            fn ($row) => ! empty($row['system']) || ! empty($row['criterion'])
         ));
 
         $rams->update([
