@@ -137,7 +137,7 @@ class ProjectController extends Controller
         $ramsDownloadKeys = [
             'download_route_name'     => 'rams.download',
             'download_pdf_route_name' => 'rams.download-pdf',
-            'regenerate_route_name'   => 'rams.regenerate',
+            'regenerate_route_name'   => 'rams.retry-generation',
             'delete_route_name'       => 'rams.destroy',
         ];
 

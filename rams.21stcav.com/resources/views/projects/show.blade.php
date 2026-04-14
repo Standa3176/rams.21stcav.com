@@ -278,7 +278,7 @@
                                         </td>
                                         <td style="white-space:nowrap;">
                                             {{-- Regen replaces View for document types that support regeneration --}}
-                                            @if(!empty($entry['regenerate_route_name']))
+                                            @if(!empty($entry['regenerate_route_name']) && ($record->status ?? '') !== \App\Models\RamsDocument::STATUS_SUPERSEDED)
                                                 <form method="POST" action="{{ route($entry['regenerate_route_name'], $record) }}"
                                                       style="display:inline-block;">
                                                     @csrf
