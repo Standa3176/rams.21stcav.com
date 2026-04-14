@@ -201,6 +201,8 @@ class RamsController extends Controller
         // 2. Run the full local pipeline (classify → hazards → AI method stmt → DOCX)
         try {
             $this->ramsBuilder->buildFromForm($validated, $ramsDocument);
+            // Mark as completed so the project page shows download buttons immediately.
+            $ramsDocument->update(['status' => RamsDocument::STATUS_COMPLETED]);
         } catch (\Throwable $e) {
             Log::error('RamsController: RAMS build failed', [
                 'record_id' => $ramsDocument->id,
@@ -209,6 +211,11 @@ class RamsController extends Controller
             $ramsDocument->update(['status' => RamsDocument::STATUS_DRAFT]);
 
             return back()->with('error', 'The document could not be generated. Please try again.');
+        }
+
+        if (! empty($validated['project_id'])) {
+            return redirect()->route('projects.show', (int) $validated['project_id'])
+                ->with('success', 'RAMS generated — download below.');
         }
 
         return redirect()->route('rams.review', $ramsDocument)
@@ -1052,6 +1059,13 @@ class RamsController extends Controller
             if ($formPm && ! filter_var($formPm, FILTER_VALIDATE_EMAIL)) {
                 $p['project_manager'] = $formPm;
             }
+        }
+
+        // doc_author drives "Prepared By" / "Author" on the cover and Document Control table.
+        // If it is empty or contains an email address (client data leaked from generated_data),
+        // override it with the resolved project_manager name (always a 21CAV person by this point).
+        if (empty($p['doc_author']) || filter_var($p['doc_author'], FILTER_VALIDATE_EMAIL)) {
+            $p['doc_author'] = $p['project_manager'] ?: $ownerName;
         }
         if (empty($p['lead_engineer'])) {
             $p['lead_engineer'] = ($prog['lead_engineer_name'] ?? '')
