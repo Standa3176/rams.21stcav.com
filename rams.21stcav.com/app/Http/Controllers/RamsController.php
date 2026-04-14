@@ -999,7 +999,7 @@ class RamsController extends Controller
         // 1. Overwrite stale strings with live Project record values.
         $liveProject = null;
         if ($rams->project_id) {
-            $liveProject = Project::with('owner')->find($rams->project_id);
+            $liveProject = Project::with(['owner', 'latestPackage'])->find($rams->project_id);
             if ($liveProject) {
                 $p = array_merge($p, array_filter([
                     'name'         => $liveProject->name,
@@ -1067,6 +1067,49 @@ class RamsController extends Controller
         foreach (['planned_start_date', 'planned_end_date', 'planned_start_time', 'planned_end_time'] as $f) {
             if (empty($p[$f])) {
                 $p[$f] = $prog[$f] ?? '';
+            }
+        }
+
+        $gd['project']        = $p;
+
+        // 5b. Patch scope_items and rooms_text from the project's latest package when empty.
+        //     This fixes RAMS created before quote data was available, or via buildFromForm.
+        $pkg = $liveProject?->latestPackage ?? null;
+
+        if ($pkg) {
+            // Rooms — patch rooms_text from package extracted rooms list when blank.
+            if (empty($p['rooms_text'])) {
+                $pkgRooms = $pkg->extracted_data['rooms'] ?? [];
+                if (is_array($pkgRooms) && count($pkgRooms) > 0) {
+                    $p['rooms_text'] = implode(', ', array_filter($pkgRooms));
+                }
+            }
+
+            // Scope items — build new_install from equipment_list when scope is empty.
+            $si = $gd['scope_items'] ?? [];
+            $hasAnyScope = ! empty($si['new_install']) || ! empty($si['decommission']) || ! empty($si['retained']);
+            if (! $hasAnyScope) {
+                $equip = $pkg->equipment_list ?? [];
+                if (is_array($equip) && count($equip) > 0) {
+                    $gd['scope_items']['new_install'] = array_values(array_map(fn ($e) => [
+                        'item_name' => $e['description'] ?? ($e['item_name'] ?? ''),
+                        'qty'       => $e['qty']         ?? '',
+                        'notes'     => $e['location']    ?? ($e['notes'] ?? ''),
+                    ], $equip));
+                    $gd['scope_items']['decommission'] = $gd['scope_items']['decommission'] ?? [];
+                    $gd['scope_items']['retained']     = $gd['scope_items']['retained']     ?? [];
+                }
+            }
+
+            // Client contact from package extracted_data when still blank.
+            if (empty($p['client_contact_name'])) {
+                $p['client_contact_name'] = $pkg->extracted_data['client_contact_name'] ?? '';
+            }
+            if (empty($p['client_contact_email'])) {
+                $p['client_contact_email'] = $pkg->extracted_data['client_contact_email'] ?? '';
+            }
+            if (empty($p['client_contact_phone'])) {
+                $p['client_contact_phone'] = $pkg->extracted_data['client_contact_phone'] ?? '';
             }
         }
 
