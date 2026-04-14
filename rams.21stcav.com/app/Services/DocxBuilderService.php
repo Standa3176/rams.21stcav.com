@@ -130,7 +130,7 @@ class DocxBuilderService
                 'borderBottomSize'  => 12,
                 'borderBottomColor' => self::TEAL,
                 'borderBottomSpace' => 4,
-                'spacing'           => ['after' => 200],
+                'spaceAfter'        => 200,
             ],
         );
 
@@ -266,7 +266,7 @@ class DocxBuilderService
         $this->sectionHeading($section, '3. Health & Safety Policy Statement');
 
         $bodyFont  = $this->font(9, colour: self::DARK_GREY);
-        $paraStyle = ['spacing' => ['before' => 60, 'after' => 120], 'alignment' => Jc::BOTH];
+        $paraStyle = ['spaceBefore' => 60, 'spaceAfter' => 120, 'alignment' => Jc::BOTH];
 
         $section->addText(
             '21st Century AV Ltd is committed to ensuring the health, safety and welfare of all its employees, '
@@ -582,7 +582,7 @@ class DocxBuilderService
         $vcAlt    = ['bgColor' => self::ROW_ALT];
 
         // ── 6.1 Team Requirements ─────────────────────────────────────────────
-        $section->addText('6.1 Team Requirements', $this->font(10, bold: true, colour: self::TEAL), ['spacing' => ['before' => 80, 'after' => 60]]);
+        $section->addText('6.1 Team Requirements', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 60]);
 
         $teamTable = $section->addTable($this->tableStyle());
         $this->tealHeader($teamTable, ['Role', 'Qty', 'Requirements'], [2600, 800, 6466]);
@@ -619,35 +619,35 @@ class DocxBuilderService
         $section->addTextBreak(1);
 
         // ── 6.2 Tools & Equipment ─────────────────────────────────────────────
-        $section->addText('6.2 Tools & Equipment', $this->font(10, bold: true, colour: self::TEAL), ['spacing' => ['before' => 80, 'after' => 60]]);
+        $section->addText('6.2 Tools & Equipment', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 60]);
 
         $tools = $data['tools_and_equipment'] ?? [];
         foreach ($tools as $tool) {
             $section->addText(
                 '•  ' . $this->t((string)$tool),
                 $vf,
-                ['spacing' => ['before' => 40, 'after' => 40]],
+                ['spaceBefore' => 40, 'spaceAfter' => 40],
             );
         }
 
         $section->addTextBreak(1);
 
         // ── 6.3 Pre-Installation Requirements / Client Responsibilities ───────
-        $section->addText('6.3 Pre-Installation Requirements / Client Responsibilities', $this->font(10, bold: true, colour: self::TEAL), ['spacing' => ['before' => 80, 'after' => 60]]);
+        $section->addText('6.3 Pre-Installation Requirements / Client Responsibilities', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 60]);
 
         $resp = $data['client_responsibilities'] ?? [];
         foreach ($resp as $item) {
             $section->addText(
                 '•  ' . $this->t((string)$item),
                 $vf,
-                ['spacing' => ['before' => 40, 'after' => 40]],
+                ['spaceBefore' => 40, 'spaceAfter' => 40],
             );
         }
 
         $section->addTextBreak(1);
 
         // ── 6.4 Method of Works ───────────────────────────────────────────────
-        $section->addText('6.4 Method of Works', $this->font(10, bold: true, colour: self::TEAL), ['spacing' => ['before' => 80, 'after' => 60]]);
+        $section->addText('6.4 Method of Works', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 60]);
 
         $phases = $data['method_statement']['phases'] ?? [];
         foreach ($phases as $i => $phase) {
@@ -661,14 +661,14 @@ class DocxBuilderService
             $section->addText(
                 $this->t($stepTitle),
                 $this->font(10, bold: true, colour: self::TEAL),
-                ['spacing' => ['before' => 100, 'after' => 60]],
+                ['spaceBefore' => 100, 'spaceAfter' => 60],
             );
 
             foreach (($phase['steps'] ?? []) as $step) {
                 $section->addText(
                     '    •  ' . $this->t((string)$step),
                     $vf,
-                    ['spacing' => ['before' => 40, 'after' => 40]],
+                    ['spaceBefore' => 40, 'spaceAfter' => 40],
                 );
             }
         }
@@ -698,7 +698,7 @@ class DocxBuilderService
         $colW    = (int)(self::W_PORT / 2); // 4933
 
         // ── 7.1 Emergency Contact Numbers ────────────────────────────────────
-        $section->addText('7.1 Emergency Contact Numbers', $this->font(10, bold: true, colour: self::TEAL), ['spacing' => ['before' => 80, 'after' => 60]]);
+        $section->addText('7.1 Emergency Contact Numbers', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 60]);
 
         $contactTable = $section->addTable($this->tableStyle());
         // Header row
@@ -724,7 +724,7 @@ class DocxBuilderService
         $section->addTextBreak(1);
 
         // ── 7.2 Accident / Injury ─────────────────────────────────────────────
-        $section->addText('7.2 Accident / Injury', $this->font(10, bold: true, colour: self::TEAL), ['spacing' => ['before' => 80, 'after' => 60]]);
+        $section->addText('7.2 Accident / Injury', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 60]);
 
         $accidentBullets = [
             'Stop all work. Call 999 if life-threatening.',
@@ -737,13 +737,13 @@ class DocxBuilderService
             'RIDDOR reportable incidents must be reported within required timescales.',
         ];
         foreach ($accidentBullets as $bullet) {
-            $section->addText('•  ' . $bullet, $vf, ['spacing' => ['before' => 40, 'after' => 40]]);
+            $section->addText('•  ' . $bullet, $vf, ['spaceBefore' => 40, 'spaceAfter' => 40]);
         }
 
         $section->addTextBreak(1);
 
         // ── 7.3 Fire Procedure ────────────────────────────────────────────────
-        $section->addText('7.3 Fire Procedure', $this->font(10, bold: true, colour: self::TEAL), ['spacing' => ['before' => 80, 'after' => 60]]);
+        $section->addText('7.3 Fire Procedure', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 60]);
 
         $fireBullets = [
             'Raise the alarm using nearest fire alarm call point.',
@@ -753,7 +753,7 @@ class DocxBuilderService
             'Inform site manager that ' . $compShort . ' engineers are on-site.',
         ];
         foreach ($fireBullets as $bullet) {
-            $section->addText('•  ' . $bullet, $vf, ['spacing' => ['before' => 40, 'after' => 40]]);
+            $section->addText('•  ' . $bullet, $vf, ['spaceBefore' => 40, 'spaceAfter' => 40]);
         }
     }
 
@@ -849,7 +849,8 @@ class DocxBuilderService
                 'borderBottomSize'  => 8,
                 'borderBottomColor' => self::TEAL,
                 'borderBottomSpace' => 3,
-                'spacing'           => ['before' => 120, 'after' => 80],
+                'spaceBefore'       => 120,
+                'spaceAfter'        => 80,
             ],
         );
     }
