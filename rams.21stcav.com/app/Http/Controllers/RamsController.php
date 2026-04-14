@@ -293,129 +293,9 @@ class RamsController extends Controller
     {
         $this->authorize('view', $rams);
 
-        // Patch generated_data['project'] with live values so the review form
-        // always shows current data, not stale strings baked in at generation time.
-        // normalise() casts every field to '' (never null), so ?? won't fall back —
-        // we must actively overwrite empties here. Nothing is persisted to DB.
-        $gd = $rams->generated_data ?? [];
-        $p  = $gd['project'] ?? [];
-
-        // 1. Fill from the linked Project record when available.
-        if ($rams->project_id) {
-            $liveProject = Project::find($rams->project_id);
-            if ($liveProject) {
-                $p = array_merge($p, array_filter([
-                    'name'         => $liveProject->name,
-                    'client'       => $liveProject->client_name,
-                    'site_address' => $liveProject->site_address,
-                    'ref'          => $liveProject->ref,
-                ], fn ($v) => $v !== null && $v !== ''));
-            }
-        }
-
-        // 2. Fall back to model columns for any field still empty.
-        //    This covers form-based RAMS with no project_id.
-        $p['name']         = ($p['name']         ?? '') ?: ($rams->project_name ?? '');
-        $p['client']       = ($p['client']        ?? '') ?: ($rams->client_name  ?? '');
-        $p['site_address'] = ($p['site_address']  ?? '') ?: ($rams->site_address ?? '');
-        $p['ref']          = ($p['ref']           ?? '') ?: ($rams->project_ref  ?? '');
-
-        // 3. Fill personnel from reviewed_data['programme'] when generated_data has none.
-        //    Pipeline RAMS store PM/Lead/etc. in reviewed_data, not form_data.
-        $rd   = $rams->reviewed_data ?? [];
-        $prog = $rd['programme']     ?? [];
-
-        if (empty($p['project_manager'])) {
-            $p['project_manager'] = ($prog['project_manager_name'] ?? '')
-                ?: ($rd['project']['project_manager']   ?? '')
-                ?: ($rams->form_data['project_manager'] ?? '');
-        }
-        if (empty($p['lead_engineer'])) {
-            $p['lead_engineer'] = ($prog['lead_engineer_name'] ?? '')
-                ?: ($rd['project']['lead_engineer']   ?? '')
-                ?: ($rams->form_data['lead_engineer'] ?? '');
-        }
-        if (empty($p['additional_engineers'])) {
-            $addEngs = $prog['additional_engineers'] ?? [];
-            if (is_array($addEngs) && count($addEngs) > 0) {
-                $p['additional_engineers'] = implode(', ', array_filter(array_map('trim', $addEngs)));
-            } else {
-                $p['additional_engineers'] = ($rams->form_data['additional_engineers'] ?? '');
-            }
-        }
-        if (empty($p['project_manager_phone'])) {
-            $p['project_manager_phone'] = $prog['project_manager_phone'] ?? '';
-        }
-        if (empty($p['programmer'])) {
-            $p['programmer'] = ($prog['programmer_name'] ?? '')
-                ?: ($rd['project']['programmer'] ?? '')
-                ?: ($rams->form_data['programmer'] ?? '');
-        }
-
-        // 4. Pull client contact from reviewed_data['site_logistics'] when not in generated data.
-        $siteLogistics = $rd['site_logistics'] ?? [];
-        if (empty($p['client_contact_name'])) {
-            $p['client_contact_name'] = ($siteLogistics['site_contact_name'] ?? '')
-                ?: ($siteLogistics['client_contact_name'] ?? '');
-        }
-        if (empty($p['client_contact_email'])) {
-            $p['client_contact_email'] = ($siteLogistics['site_contact_email'] ?? '')
-                ?: ($siteLogistics['client_contact_email'] ?? '');
-        }
-        if (empty($p['client_contact_phone'])) {
-            $p['client_contact_phone'] = $siteLogistics['site_contact_phone'] ?? '';
-        }
-
-        // 5. Pull planned dates from reviewed_data['programme'].
-        if (empty($p['planned_start_date'])) {
-            $p['planned_start_date'] = $prog['planned_start_date'] ?? '';
-        }
-        if (empty($p['planned_end_date'])) {
-            $p['planned_end_date'] = $prog['planned_end_date'] ?? '';
-        }
-
-        // 6. Pull planned times from reviewed_data['programme'].
-        if (empty($p['planned_start_time'])) {
-            $p['planned_start_time'] = $prog['planned_start_time'] ?? '';
-        }
-        if (empty($p['planned_end_time'])) {
-            $p['planned_end_time'] = $prog['planned_end_time'] ?? '';
-        }
-
-        $gd['project']        = $p;
-        $rams->generated_data = $gd; // transient — not saved
-
-        // ── Pre-fill new reviewed_data sub-keys (transient — not saved) ──────────
-        // Pre-fill scope_traceability from quote line_items when not yet reviewed
-        if (empty($rd['scope_traceability'])) {
-            $lineItems = $gd['quote']['line_items'] ?? [];
-            if (is_array($lineItems) && count($lineItems) > 0) {
-                $rd['scope_traceability'] = array_values(array_map(fn ($li) => [
-                    'quote_item'    => ($li['description'] ?? ''),
-                    'rams_activity' => '',
-                    'room'          => ($li['room'] ?? ''),
-                    'notes'         => '',
-                ], $lineItems));
-            }
-        }
-
-        // Default exclusions when not yet reviewed
-        if (! isset($rd['exclusions'])) {
-            $rd['exclusions'] = [
-                'No structural works',
-                'No core drilling unless explicitly scoped',
-                'No containment beyond surface trunking',
-                'No decorative making good after cable routes',
-                'No IT network provision unless scoped',
-            ];
-        }
-
-        // Ensure other sub-keys exist with empty defaults so blade never gets null
-        $rd['client_responsibilities_expanded'] = $rd['client_responsibilities_expanded'] ?? [];
-        $rd['decommissioning']                  = $rd['decommissioning']                  ?? [];
-        $rd['commissioning_criteria']           = $rd['commissioning_criteria']           ?? [];
-
-        $rams->reviewed_data = $rd; // transient — not saved
+        // Apply transient display patches (live project data, personnel, contacts, dates).
+        // Nothing is persisted to DB — see patchRamsForDisplay() for full logic.
+        $this->patchRamsForDisplay($rams);
 
         return view('rams.review', compact('rams'));
     }
@@ -810,6 +690,11 @@ class RamsController extends Controller
             return back()->with('error', 'No generated data found for this document.');
         }
 
+        // Apply the same live-data patches used in the review form so the PDF
+        // always reflects current project data, personnel, and contacts.
+        // This is transient — nothing is persisted to DB.
+        $this->patchRamsForDisplay($rams);
+
         try {
             $pdfPath = $this->pdfService->buildRams($rams);
         } catch (\Throwable $e) {
@@ -1085,6 +970,119 @@ class RamsController extends Controller
         }
 
         return storage_path('app/rams/' . $filename);
+    }
+
+    /**
+     * Apply transient display patches to a RamsDocument so that both the
+     * review form and the PDF download always reflect current project data,
+     * personnel, contacts, and dates — without persisting anything to the DB.
+     *
+     * Called by review() and downloadPdf(). Mutates $rams in-place (model
+     * attributes only; no save/update is triggered).
+     */
+    private function patchRamsForDisplay(RamsDocument $rams): void
+    {
+        $gd = $rams->generated_data ?? [];
+        $p  = $gd['project'] ?? [];
+
+        // 1. Overwrite stale strings with live Project record values.
+        if ($rams->project_id) {
+            $liveProject = Project::find($rams->project_id);
+            if ($liveProject) {
+                $p = array_merge($p, array_filter([
+                    'name'         => $liveProject->name,
+                    'client'       => $liveProject->client_name,
+                    'site_address' => $liveProject->site_address,
+                    'ref'          => $liveProject->ref,
+                ], fn ($v) => $v !== null && $v !== ''));
+            }
+        }
+
+        // 2. Fall back to model columns for any field still empty.
+        $p['name']         = ($p['name']         ?? '') ?: ($rams->project_name ?? '');
+        $p['client']       = ($p['client']        ?? '') ?: ($rams->client_name  ?? '');
+        $p['site_address'] = ($p['site_address']  ?? '') ?: ($rams->site_address ?? '');
+        $p['ref']          = ($p['ref']           ?? '') ?: ($rams->project_ref  ?? '');
+
+        // 3. Personnel from reviewed_data['programme'].
+        $rd   = $rams->reviewed_data ?? [];
+        $prog = $rd['programme']     ?? [];
+
+        if (empty($p['project_manager'])) {
+            $p['project_manager'] = ($prog['project_manager_name'] ?? '')
+                ?: ($rd['project']['project_manager']   ?? '')
+                ?: ($rams->form_data['project_manager'] ?? '');
+        }
+        if (empty($p['lead_engineer'])) {
+            $p['lead_engineer'] = ($prog['lead_engineer_name'] ?? '')
+                ?: ($rd['project']['lead_engineer']   ?? '')
+                ?: ($rams->form_data['lead_engineer'] ?? '');
+        }
+        if (empty($p['additional_engineers'])) {
+            $addEngs = $prog['additional_engineers'] ?? [];
+            $p['additional_engineers'] = (is_array($addEngs) && count($addEngs) > 0)
+                ? implode(', ', array_filter(array_map('trim', $addEngs)))
+                : ($rams->form_data['additional_engineers'] ?? '');
+        }
+        if (empty($p['project_manager_phone'])) {
+            $p['project_manager_phone'] = $prog['project_manager_phone'] ?? '';
+        }
+        if (empty($p['programmer'])) {
+            $p['programmer'] = ($prog['programmer_name'] ?? '')
+                ?: ($rd['project']['programmer'] ?? '')
+                ?: ($rams->form_data['programmer'] ?? '');
+        }
+
+        // 4. Client contact from reviewed_data['site_logistics'].
+        $sl = $rd['site_logistics'] ?? [];
+        if (empty($p['client_contact_name'])) {
+            $p['client_contact_name'] = ($sl['site_contact_name']   ?? '')
+                ?: ($sl['client_contact_name'] ?? '');
+        }
+        if (empty($p['client_contact_email'])) {
+            $p['client_contact_email'] = ($sl['site_contact_email']   ?? '')
+                ?: ($sl['client_contact_email'] ?? '');
+        }
+        if (empty($p['client_contact_phone'])) {
+            $p['client_contact_phone'] = $sl['site_contact_phone'] ?? '';
+        }
+
+        // 5. Planned dates and times from reviewed_data['programme'].
+        foreach (['planned_start_date', 'planned_end_date', 'planned_start_time', 'planned_end_time'] as $f) {
+            if (empty($p[$f])) {
+                $p[$f] = $prog[$f] ?? '';
+            }
+        }
+
+        $gd['project']        = $p;
+        $rams->generated_data = $gd; // transient
+
+        // 6. Pre-fill reviewed_data sub-keys with defaults when not yet saved.
+        if (empty($rd['scope_traceability'])) {
+            $lineItems = $gd['quote']['line_items'] ?? [];
+            if (is_array($lineItems) && count($lineItems) > 0) {
+                $rd['scope_traceability'] = array_values(array_map(fn ($li) => [
+                    'quote_item'    => ($li['description'] ?? ''),
+                    'rams_activity' => '',
+                    'room'          => ($li['room'] ?? ''),
+                    'notes'         => '',
+                ], $lineItems));
+            }
+        }
+        if (! isset($rd['exclusions'])) {
+            $rd['exclusions'] = [
+                'No structural works',
+                'No core drilling unless explicitly scoped',
+                'No containment beyond surface trunking',
+                'No decorative making good after cable routes',
+                'No IT network provision unless scoped',
+            ];
+        }
+        $rd['client_responsibilities_expanded'] = $rd['client_responsibilities_expanded'] ?? [];
+        $rd['decommissioning']                  = $rd['decommissioning']                  ?? [];
+        $rd['commissioning_criteria']           = $rd['commissioning_criteria']           ?? [];
+
+        $rams->reviewed_data = $rd; // transient
     }
 
     /**
