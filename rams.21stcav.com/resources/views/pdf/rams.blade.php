@@ -637,13 +637,7 @@ p { margin: 3pt 0; }
 <div class="kv-block">
     <p><strong>Client:</strong> {{ $client ?: '—' }}</p>
     <p><strong>Site:</strong> {{ $siteAddress ?: '—' }}</p>
-    <p><strong>Rooms:</strong>
-        @if(! empty($roomsList))
-            @foreach($roomsList as $r) {{ $r }}@if(! $loop->last), @endif@endforeach
-        @else
-            &mdash;
-        @endif
-    </p>
+    <p><strong>Rooms:</strong> {{ ! empty($roomsList) ? implode(', ', $roomsList) : '—' }}</p>
     <p><strong>Working Hours:</strong> {{ $workingHours }}</p>
 </div>
 
@@ -660,10 +654,9 @@ p { margin: 3pt 0; }
     @endforeach
 @elseif($scopeOfWorks)
     {{-- Single scope-of-works block — split on double newlines to form paragraphs --}}
-    @foreach(preg_split('/\n{2,}/', trim($scopeOfWorks)) as $para)
-        @if(trim($para))
-        <p class="body-para">{{ trim($para) }}</p>
-        @endif
+    @php $scopeParas = array_filter(array_map('trim', preg_split('/\n{2,}/', trim($scopeOfWorks)))); @endphp
+    @foreach($scopeParas as $para)
+        <p class="body-para">{{ $para }}</p>
     @endforeach
 @else
 <p class="body-para">Works comprise an Audio Visual installation to the rooms listed above. The scope in each room is as follows:</p>
