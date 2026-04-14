@@ -204,7 +204,15 @@ class RamsBuilderService
         }
 
         // Inject scope_of_works and site_logistics from reviewed data into the PDF data bag.
-        $data['scope_of_works']  = trim((string) ($reviewedData['scope_of_works'] ?? ''));
+        // Fall back to works_description / a generated summary when scope_of_works was not captured during extraction.
+        $scopeOfWorks = trim((string) ($reviewedData['scope_of_works'] ?? ''));
+        if ($scopeOfWorks === '') {
+            $scopeOfWorks = trim((string) ($reviewedData['works_description'] ?? ''));
+        }
+        if ($scopeOfWorks === '') {
+            $scopeOfWorks = $this->buildScopeFromEquipment($reviewedData);
+        }
+        $data['scope_of_works']  = $scopeOfWorks;
         $data['site_logistics']  = (array) ($reviewedData['site_logistics'] ?? []);
 
         // Inject scope buckets from reviewed data (backward-compat: falls back to whatever
@@ -609,6 +617,11 @@ class RamsBuilderService
             throw new \RuntimeException(
                 'Pre-render guard failed: generated_data is empty or method_statement key is missing.'
             );
+        }
+
+        // Populate scope_of_works for the PDF template from works_description when not already set.
+        if (empty($data['scope_of_works'])) {
+            $data['scope_of_works'] = trim((string) ($formData['works_description'] ?? $parsed['works_summary'] ?? ''));
         }
 
         $record->update([
