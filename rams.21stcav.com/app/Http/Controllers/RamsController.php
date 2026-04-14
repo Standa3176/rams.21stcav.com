@@ -293,22 +293,40 @@ class RamsController extends Controller
     {
         $this->authorize('view', $rams);
 
-        // Merge current Project fields into generated_data for display.
-        // This keeps the review form fresh without requiring a re-generate.
-        // We do NOT persist this merge — it only affects what the view sees.
+        // Patch generated_data['project'] with live values so the review form
+        // always shows current data, not stale strings baked in at generation time.
+        // normalise() casts every field to '' (never null), so ?? won't fall back —
+        // we must actively overwrite empties here. Nothing is persisted to DB.
+        $gd = $rams->generated_data ?? [];
+        $p  = $gd['project'] ?? [];
+
+        // 1. Fill from the linked Project record when available.
         if ($rams->project_id) {
             $liveProject = Project::find($rams->project_id);
             if ($liveProject) {
-                $gd = $rams->generated_data ?? [];
-                $gd['project'] = array_merge($gd['project'] ?? [], array_filter([
+                $p = array_merge($p, array_filter([
                     'name'         => $liveProject->name,
                     'client'       => $liveProject->client_name,
                     'site_address' => $liveProject->site_address,
                     'ref'          => $liveProject->ref,
                 ], fn ($v) => $v !== null && $v !== ''));
-                $rams->generated_data = $gd; // transient — not saved
             }
         }
+
+        // 2. Fall back to model columns for any field still empty.
+        //    This covers form-based RAMS with no project_id.
+        $p['name']         = ($p['name']         ?? '') ?: ($rams->project_name ?? '');
+        $p['client']       = ($p['client']        ?? '') ?: ($rams->client_name  ?? '');
+        $p['site_address'] = ($p['site_address']  ?? '') ?: ($rams->site_address ?? '');
+        $p['ref']          = ($p['ref']           ?? '') ?: ($rams->project_ref  ?? '');
+
+        // 3. Fill project_manager from form_data when generated_data has none.
+        if (empty($p['project_manager'])) {
+            $p['project_manager'] = ($rams->form_data['project_manager'] ?? '');
+        }
+
+        $gd['project']        = $p;
+        $rams->generated_data = $gd; // transient — not saved
 
         return view('rams.review', compact('rams'));
     }
