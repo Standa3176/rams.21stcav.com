@@ -342,13 +342,21 @@ p { margin: 3pt 0; }
     $client        = ($project['client']       ?? '') ?: ($rams->client_name  ?? '');
     $siteAddress   = ($project['site_address'] ?? '') ?: ($rams->site_address ?? '');
     $roomsText     = $project['rooms_text']        ?? '';
-    // Rooms — one per line. Split on commas or newlines if a single text blob.
+    // Room overviews needed early so they can seed $roomsList below
+    $roomOverviews = $rams->reviewed_data['room_overviews'] ?? [];
+    // Rooms — priority: reviewed_data['rooms'] → room_overviews names → rooms_text blob
     $roomsList = [];
     $reviewedRooms = $rams->reviewed_data['rooms'] ?? [];
     if (! empty($reviewedRooms) && is_array($reviewedRooms)) {
         foreach ($reviewedRooms as $r) {
             $name = $r['name'] ?? ($r['room_name'] ?? '');
             if ($name) $roomsList[] = $name;
+        }
+    }
+    if (empty($roomsList) && ! empty($roomOverviews) && is_array($roomOverviews)) {
+        foreach ($roomOverviews as $ro) {
+            $rn = $ro['room_name'] ?? ($ro['name'] ?? '');
+            if ($rn) $roomsList[] = $rn;
         }
     }
     if (empty($roomsList) && $roomsText) {
@@ -372,9 +380,15 @@ p { margin: 3pt 0; }
     $leadEngineer      = $project['lead_engineer']        ?? '';
     $additionalEngs    = $project['additional_engineers'] ?? '';
     $programmer        = $project['programmer']           ?? '';
-    // Project dates from programme
+    // Project dates from programme — formatted as dd/mm/yyyy for UK documents
     $plannedStart = $project['planned_start_date'] ?? '';
     $plannedEnd   = $project['planned_end_date']   ?? '';
+    $formatDate = function(string $d): string {
+        if (! $d) return '';
+        try { return \Carbon\Carbon::parse($d)->format('d/m/Y'); } catch (\Throwable $e) { return $d; }
+    };
+    $plannedStart = $formatDate($plannedStart);
+    $plannedEnd   = $formatDate($plannedEnd);
     // Time fields
     $plannedStartTime = $project['planned_start_time'] ?? ($rams->reviewed_data['programme']['planned_start_time'] ?? '');
     $plannedEndTime   = $project['planned_end_time']   ?? ($rams->reviewed_data['programme']['planned_end_time']   ?? '');
@@ -395,8 +409,7 @@ p { margin: 3pt 0; }
     $cdmRows = is_array($cdmRows) ? $cdmRows : [];
     // Welfare
     $welfareNotes = $rams->reviewed_data['programme']['welfare_notes'] ?? '';
-    // Room overviews for per-room scope paragraphs
-    $roomOverviews = $rams->reviewed_data['room_overviews'] ?? [];
+    // Note: $roomOverviews already assigned earlier in the $roomsList block above
 
     // New sections from reviewed_data
     $scopeTraceability  = $rams->reviewed_data['scope_traceability']              ?? [];
@@ -517,7 +530,7 @@ p { margin: 3pt 0; }
     <tr>
         <td class="lbl" style="width:26%;">PREPARED BY:</td>
         <td class="val" style="width:34%;">{{ $docAuthor ?: $company }}</td>
-        <td class="lbl" style="width:16%;">REVISION:</td>
+        <td class="lbl" style="width:22%;">REVISION:</td>
         <td class="val">{{ $revision }}</td>
     </tr>
     <tr>
@@ -692,6 +705,10 @@ p { margin: 3pt 0; }
         @php
             $rvName = $roomOv['room_name'] ?? ($roomOv['name'] ?? '');
             $rvDesc = $roomOv['overview']  ?? ($roomOv['description'] ?? ($roomOv['scope'] ?? ''));
+            // Strip markdown bold markers and limit to first paragraph of survey text
+            $rvDesc = preg_replace('/\*\*([^*]+)\*\*/', '$1', $rvDesc ?? '');
+            $rvDescParas = array_filter(array_map('trim', preg_split('/\n{2,}/', trim($rvDesc))));
+            $rvDesc = reset($rvDescParas) ?: '';
         @endphp
         @if($rvName || $rvDesc)
         <p class="body-para"><strong>{{ $rvName }}:</strong>{{ $rvName && $rvDesc ? ' ' : '' }}{{ $rvDesc }}</p>
