@@ -320,9 +320,31 @@ class RamsController extends Controller
         $p['site_address'] = ($p['site_address']  ?? '') ?: ($rams->site_address ?? '');
         $p['ref']          = ($p['ref']           ?? '') ?: ($rams->project_ref  ?? '');
 
-        // 3. Fill project_manager from form_data when generated_data has none.
+        // 3. Fill personnel from reviewed_data['programme'] when generated_data has none.
+        //    Pipeline RAMS store PM/Lead/etc. in reviewed_data, not form_data.
+        $rd   = $rams->reviewed_data ?? [];
+        $prog = $rd['programme']     ?? [];
+
         if (empty($p['project_manager'])) {
-            $p['project_manager'] = ($rams->form_data['project_manager'] ?? '');
+            $p['project_manager'] = ($prog['project_manager_name'] ?? '')
+                ?: ($rd['project']['project_manager']   ?? '')
+                ?: ($rams->form_data['project_manager'] ?? '');
+        }
+        if (empty($p['lead_engineer'])) {
+            $p['lead_engineer'] = ($prog['lead_engineer_name'] ?? '')
+                ?: ($rd['project']['lead_engineer']   ?? '')
+                ?: ($rams->form_data['lead_engineer'] ?? '');
+        }
+        if (empty($p['additional_engineers'])) {
+            $addEngs = $prog['additional_engineers'] ?? [];
+            if (is_array($addEngs) && count($addEngs) > 0) {
+                $p['additional_engineers'] = implode(', ', array_filter(array_map('trim', $addEngs)));
+            } else {
+                $p['additional_engineers'] = ($rams->form_data['additional_engineers'] ?? '');
+            }
+        }
+        if (empty($p['project_manager_phone'])) {
+            $p['project_manager_phone'] = $prog['project_manager_phone'] ?? '';
         }
 
         $gd['project']        = $p;
