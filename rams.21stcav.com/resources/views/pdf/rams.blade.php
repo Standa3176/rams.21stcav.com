@@ -375,6 +375,26 @@ p { margin: 3pt 0; }
     // Project dates from programme
     $plannedStart = $project['planned_start_date'] ?? '';
     $plannedEnd   = $project['planned_end_date']   ?? '';
+    // Time fields
+    $plannedStartTime = $project['planned_start_time'] ?? ($rams->reviewed_data['programme']['planned_start_time'] ?? '');
+    $plannedEndTime   = $project['planned_end_time']   ?? ($rams->reviewed_data['programme']['planned_end_time']   ?? '');
+    // Waste removal
+    $wasteParty  = $rams->reviewed_data['programme']['waste_removal_party'] ?? '';
+    $wasteNotes  = $rams->reviewed_data['programme']['waste_removal_notes'] ?? '';
+    $wasteLabels = ['client' => 'Client', '21cav' => '21st Century AV Ltd', 'other' => 'Other'];
+    $wasteLabel  = $wasteLabels[$wasteParty] ?? '';
+    // Permits
+    $permitsRd      = $rams->reviewed_data['permits_required'] ?? [];
+    $requiredPermits = array_filter(is_array($permitsRd) ? $permitsRd : [], fn ($p) => ! empty($p['required']));
+    // Material handling
+    $matHandling = $rams->reviewed_data['material_handling'] ?? [];
+    $mhItems     = is_array($matHandling['large_items'] ?? null) ? $matHandling['large_items'] : [];
+    $mhNotes     = $matHandling['handling_notes'] ?? '';
+    // CDM
+    $cdmRows = $rams->reviewed_data['cdm'] ?? [];
+    $cdmRows = is_array($cdmRows) ? $cdmRows : [];
+    // Welfare
+    $welfareNotes = $rams->reviewed_data['programme']['welfare_notes'] ?? '';
     // Room overviews for per-room scope paragraphs
     $roomOverviews = $rams->reviewed_data['room_overviews'] ?? [];
 
@@ -537,6 +557,14 @@ p { margin: 3pt 0; }
         <td class="val" colspan="3">{{ $programmer }}</td>
     </tr>
     @endif
+    @if($plannedStartTime || $plannedEndTime)
+    <tr>
+        <td class="lbl" style="width:26%;">START TIME:</td>
+        <td class="val" style="width:34%;">{{ $plannedStartTime ?: '—' }}</td>
+        <td class="lbl" style="width:20%;">END TIME:</td>
+        <td class="val">{{ $plannedEndTime ?: '—' }}</td>
+    </tr>
+    @endif
 </table>
 @endif
 
@@ -639,6 +667,9 @@ p { margin: 3pt 0; }
     <p><strong>Site:</strong> {{ $siteAddress ?: '—' }}</p>
     <p><strong>Rooms:</strong> {{ ! empty($roomsList) ? implode(', ', $roomsList) : '—' }}</p>
     <p><strong>Working Hours:</strong> {{ $workingHours }}</p>
+    @if($wasteLabel || $wasteNotes)
+    <p><strong>Waste Removal:</strong> {{ $wasteLabel ?: '' }}{{ $wasteNotes ? ($wasteLabel ? ' — ' : '') . $wasteNotes : '' }}</p>
+    @endif
 </div>
 
 @if(! empty($roomOverviews) && is_array($roomOverviews))
@@ -860,12 +891,12 @@ p { margin: 3pt 0; }
     @if(! empty($team))
         @php
             $reqMap = [
-                'lead av engineer' => 'Qualified AV installation engineer. Competent with Biamp DSP configuration, display installation, and AV system commissioning.',
-                'lead engineer'    => 'Qualified AV installation engineer. Competent with Biamp DSP configuration, display installation, and AV system commissioning.',
-                'av engineer'      => 'Qualified AV installation engineer. Experienced in structured AV cabling, rack builds, and equipment installation.',
-                'engineer'         => 'Qualified AV installation engineer. Experienced in structured AV cabling and equipment installation.',
-                'project manager'  => 'SMSTS or equivalent. CSCS Card. Responsible for site management and client liaison.',
-                'programmer'       => 'AV programmer competent in control system configuration and DSP programming.',
+                'lead av engineer' => 'Qualified AV installation engineer. CSCS/ECS Card required. Competent with display installation, structured cabling, Biamp DSP configuration, and AV commissioning. IPAF/PASMA required if working at height.',
+                'lead engineer'    => 'Qualified AV installation engineer. CSCS/ECS Card required. Competent with display installation, structured cabling, and AV commissioning. IPAF/PASMA required if working at height.',
+                'av engineer'      => 'Qualified AV installation engineer. CSCS/ECS Card required. Experienced in structured AV cabling, rack builds, and equipment installation.',
+                'engineer'         => 'Qualified AV installation engineer. CSCS/ECS Card required. Experienced in structured AV cabling and equipment installation.',
+                'project manager'  => 'SMSTS or equivalent. CSCS Card. First Aid at Work certificate. Responsible for site management and client liaison.',
+                'programmer'       => 'AV programmer competent in control system configuration and DSP programming. CSCS Card.',
             ];
             $roleGroups = [];
             foreach ($team as $member) {
@@ -889,12 +920,12 @@ p { margin: 3pt 0; }
         <tr>
             <td>Lead AV Engineer{{ $leName ? ' — ' . $leName : '' }}</td>
             <td style="text-align:center;">1</td>
-            <td>Qualified AV installation engineer. Competent with Biamp DSP configuration, display installation, and AV system commissioning.</td>
+            <td>Qualified AV installation engineer. CSCS/ECS Card required. Competent with display installation, structured cabling, Biamp DSP configuration, and AV commissioning. IPAF/PASMA required if working at height.</td>
         </tr>
         <tr>
             <td>AV Engineer</td>
             <td style="text-align:center;">1</td>
-            <td>Qualified AV installation engineer. Experienced in structured AV cabling, rack builds, and equipment decommissioning.</td>
+            <td>Qualified AV installation engineer. CSCS/ECS Card required. Experienced in structured AV cabling, rack builds, and equipment installation.</td>
         </tr>
     @endif
     </tbody>
@@ -948,6 +979,173 @@ p { margin: 3pt 0; }
     @endforeach
 @else
 <p class="note-text">Method statement not available.</p>
+@endif
+
+{{-- 6.5 Material Handling --}}
+<div class="sec-subheading">6.5 Material Handling</div>
+@if(! empty($mhItems))
+<table class="std-table" style="margin-bottom: 8pt;">
+    <thead>
+        <tr>
+            <th style="width:40%;">Item Description</th>
+            <th style="width:15%;">Weight (approx.)</th>
+            <th>Handling Method / Controls</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach($mhItems as $mhi)
+        @if(! empty($mhi['item']))
+        <tr>
+            <td>{{ $mhi['item'] }}</td>
+            <td style="text-align:center;">{{ $mhi['weight_kg'] ? $mhi['weight_kg'] . ' kg' : '—' }}</td>
+            <td>{{ $mhi['handling_method'] ?? '—' }}</td>
+        </tr>
+        @endif
+    @endforeach
+    </tbody>
+</table>
+@else
+<p class="body-para">No large or heavy items identified for this installation. Standard manual handling precautions apply.</p>
+@endif
+@if($mhNotes)
+<p class="body-para"><strong>Handling Notes:</strong> {{ $mhNotes }}</p>
+@endif
+
+{{-- ════════════════════════════════════════════════════════════════════════
+     PERMITS & AUTHORISATIONS
+     ════════════════════════════════════════════════════════════════════════ --}}
+<div class="sec-heading">Permits &amp; Authorisations</div>
+@if(! empty($requiredPermits))
+<table class="std-table" style="margin-bottom: 8pt;">
+    <thead>
+        <tr>
+            <th style="width:30%;">Permit Type</th>
+            <th>Notes / Requirements</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach($requiredPermits as $permit)
+    <tr>
+        <td><strong>{{ $permit['type'] ?? '' }}</strong></td>
+        <td>{{ $permit['notes'] ?? 'Permit to be obtained from site/client before works commence.' }}</td>
+    </tr>
+    @endforeach
+    </tbody>
+</table>
+<p class="note-text">All permits must be obtained and displayed on site before relevant works commence. Engineers must not start permit-controlled activities without a valid, signed permit.</p>
+@else
+<p class="body-para">No specific permits identified as required for this project. Standard safe-working practices apply. If site conditions change, the Project Manager must be notified and permits obtained as appropriate.</p>
+@endif
+
+{{-- ════════════════════════════════════════════════════════════════════════
+     CDM 2015 DUTY HOLDERS
+     ════════════════════════════════════════════════════════════════════════ --}}
+<div class="sec-heading">CDM 2015 Duty Holders</div>
+<table class="std-table" style="margin-bottom: 8pt;">
+    <thead>
+        <tr>
+            <th style="width:22%;">Role</th>
+            <th style="width:26%;">Organisation</th>
+            <th style="width:26%;">Name</th>
+            <th>Contact</th>
+        </tr>
+    </thead>
+    <tbody>
+    @php
+        $cdmLookup = [];
+        foreach ($cdmRows as $cr) { $cdmLookup[$cr['role'] ?? ''] = $cr; }
+        $cdmDisplayRoles = ['Client', 'Principal Designer', 'Principal Contractor', 'Sub-contractor'];
+    @endphp
+    @foreach($cdmDisplayRoles as $cdmRole)
+    @php
+        $cr = $cdmLookup[$cdmRole] ?? [];
+        $isSubcon = ($cdmRole === 'Sub-contractor');
+        $cdmOrg  = $cr['organisation'] ?? ($isSubcon ? $company : '');
+        $cdmName = $cr['name']         ?? '';
+        $cdmCont = $cr['contact']      ?? ($isSubcon ? $phone : '');
+    @endphp
+    <tr>
+        <td><strong>{{ $cdmRole }}</strong></td>
+        <td>{{ $cdmOrg ?: '—' }}</td>
+        <td>{{ $cdmName ?: '—' }}</td>
+        <td>{{ $cdmCont ?: '—' }}</td>
+    </tr>
+    @endforeach
+    </tbody>
+</table>
+
+{{-- ════════════════════════════════════════════════════════════════════════
+     COSHH ASSESSMENT
+     ════════════════════════════════════════════════════════════════════════ --}}
+<div class="sec-heading">COSHH Assessment</div>
+<p class="body-para">
+    AV installation works on this project involve the use of the following substances or
+    processes that may present a health hazard under the Control of Substances Hazardous
+    to Health Regulations 2002 (COSHH):
+</p>
+<ul class="blist">
+    <li><strong>Cable conduit adhesives / sealants</strong> — used in limited quantities. Ensure adequate ventilation. Wear nitrile gloves and safety glasses. Avoid skin contact. Store according to manufacturer data sheet.</li>
+    <li><strong>Dust generated by drilling / cutting</strong> — use FFP2 dust masks when drilling into plasterboard, masonry or MDF. Use dust extraction where practicable.</li>
+    <li><strong>Electrical flux (soldering)</strong> — only where cable terminations require soldering. Ensure ventilation. Avoid inhalation of fumes. Use flux-specific respiratory protection if repeated soldering is required.</li>
+    <li><strong>Battery acid (UPS batteries if applicable)</strong> — handle sealed VRLA batteries per manufacturer instructions. Wear chemical-resistant gloves and eye protection.</li>
+</ul>
+<p class="body-para">
+    Engineers must report any unexpected COSHH hazard (e.g. discovery of asbestos-containing
+    materials, chemical spills) to the Project Manager and cease work in the affected area
+    immediately. No work to recommence until the hazard is assessed and controlled.
+</p>
+@if(! empty($data['coshh']))
+<p class="body-para"><strong>Site-specific COSHH entries:</strong></p>
+<ul class="blist">
+    @foreach((array)$data['coshh'] as $coshhItem)
+    <li>{{ is_string($coshhItem) ? $coshhItem : ($coshhItem['item'] ?? '') }}</li>
+    @endforeach
+</ul>
+@endif
+
+{{-- ════════════════════════════════════════════════════════════════════════
+     ENVIRONMENTAL MANAGEMENT
+     ════════════════════════════════════════════════════════════════════════ --}}
+<div class="sec-heading">Environmental Management</div>
+
+<div class="sec-subheading">Waste Disposal</div>
+<p class="body-para">
+    All waste generated during the works — including packaging materials, cable off-cuts,
+    redundant equipment, and general site waste — will be managed in accordance with the
+    Environmental Protection Act 1990 and the Waste (England and Wales) Regulations 2011.
+</p>
+@if($wasteLabel)
+<p class="body-para"><strong>Waste removal responsibility:</strong> {{ $wasteLabel }}{{ $wasteNotes ? ' — ' . $wasteNotes : '' }}</p>
+@else
+<p class="body-para">Waste removal responsibility to be confirmed with client prior to works.</p>
+@endif
+<ul class="blist">
+    <li>No waste to be disposed of via client's trade waste unless agreed in writing.</li>
+    <li>Hazardous waste (e.g. batteries, lamps, WEEE) to be disposed of via registered carriers only.</li>
+    <li>Site to be left clean and tidy at the end of each working day.</li>
+</ul>
+
+<div class="sec-subheading">Noise, Dust &amp; Vibration</div>
+<ul class="blist">
+    <li>Noisy operations (drilling, chasing) to be carried out during agreed working hours only and with prior notification to the site/client representative.</li>
+    <li>Dust suppression measures (dust sheets, vacuuming, wet methods) to be used where practical.</li>
+    <li>Hand-arm vibration exposure to be minimised; use of powered tools to comply with the Control of Vibration at Work Regulations 2005. Engineers to use anti-vibration PPE where required.</li>
+    <li>Any spill of materials on site (cable lubricants, adhesives) to be contained and cleaned immediately.</li>
+</ul>
+
+{{-- ════════════════════════════════════════════════════════════════════════
+     WELFARE ARRANGEMENTS
+     ════════════════════════════════════════════════════════════════════════ --}}
+<div class="sec-heading">Welfare Arrangements</div>
+<ul class="blist">
+    <li><strong>Toilets:</strong> Engineers will use welfare facilities provided or indicated by the site/client representative.{{ $welfareNotes ? '' : ' Location to be confirmed at site induction.' }}</li>
+    <li><strong>Washing facilities:</strong> Adequate washing facilities with hot and cold water to be made available on site.</li>
+    <li><strong>Rest area:</strong> Engineers will use designated rest areas as directed by the site manager. No eating or drinking in work areas.</li>
+    <li><strong>First Aid:</strong> At least one engineer on site will hold a current First Aid at Work or Emergency First Aid at Work certificate. First aid kit carried at all times. Nearest hospital A&amp;E to be identified at site induction.</li>
+    <li><strong>Drinking water:</strong> Engineers to carry their own supply; confirm availability of potable water with site contact.</li>
+</ul>
+@if($welfareNotes)
+<p class="body-para"><strong>Site-specific welfare notes:</strong> {{ $welfareNotes }}</p>
 @endif
 
 {{-- ════════════════════════════════════════════════════════════════════════
@@ -1041,6 +1239,38 @@ p { margin: 3pt 0; }
 <div style="margin-top: 14pt; border-top: 0.5pt solid #CCCCCC; padding-top: 5pt; font-size: 8pt; color: #555; text-align: center;">
     {{ $company }} &nbsp;|&nbsp; {{ $address }} &nbsp;|&nbsp; {{ $phone }} &nbsp;|&nbsp; {{ $email }}
 </div>
+
+{{-- ════════════════════════════════════════════════════════════════════════
+     APPENDIX A — TOOLBOX TALK RECORD
+     ════════════════════════════════════════════════════════════════════════ --}}
+<div class="sec-heading page-break">Appendix A &mdash; Toolbox Talk Record</div>
+<p class="body-para">
+    Prior to commencement of works, the lead engineer or Project Manager must conduct a
+    toolbox talk covering the key risks, controls, and procedures in this RAMS document.
+    All attending personnel must sign below to confirm attendance and understanding.
+</p>
+<p class="body-para" style="margin-bottom:8pt;">
+    <strong>Date of toolbox talk:</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    <strong>Conducted by:</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    <strong>Location:</strong>
+</p>
+<table class="signoff-table">
+    <thead>
+        <tr>
+            <th style="width:30%;">Name</th>
+            <th style="width:25%;">Company</th>
+            <th style="width:20%;">Date</th>
+            <th>Signature</th>
+        </tr>
+    </thead>
+    <tbody>
+    @for($i = 0; $i < 5; $i++)
+        <tr class="sig-row">
+            <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+        </tr>
+    @endfor
+    </tbody>
+</table>
 
 </div>{{-- /.page-wrap --}}
 </body>
