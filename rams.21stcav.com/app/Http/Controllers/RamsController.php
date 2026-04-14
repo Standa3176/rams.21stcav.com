@@ -1038,11 +1038,20 @@ class RamsController extends Controller
             $ownerName = trim(explode(' - ', $ownerName, 2)[0]);
         }
 
+        // Always re-resolve project_manager from live sources so stale generated_data
+        // (which may contain a client email from the original form) is overwritten.
+        // Priority: programme (review form) → reviewed_data → project owner → form_data last resort.
+        // form_data['project_manager'] is intentionally lowest priority because it is frequently
+        // populated with client contact data rather than the 21CAV PM's name.
+        $p['project_manager'] = ($prog['project_manager_name'] ?? '')
+            ?: ($rd['project']['project_manager'] ?? '')
+            ?: $ownerName;
         if (empty($p['project_manager'])) {
-            $p['project_manager'] = ($prog['project_manager_name'] ?? '')
-                ?: ($rd['project']['project_manager']   ?? '')
-                ?: ($rams->form_data['project_manager'] ?? '')
-                ?: $ownerName;
+            $formPm = $rams->form_data['project_manager'] ?? '';
+            // Only use form_data PM if it is not an email address (email = likely client data)
+            if ($formPm && ! filter_var($formPm, FILTER_VALIDATE_EMAIL)) {
+                $p['project_manager'] = $formPm;
+            }
         }
         if (empty($p['lead_engineer'])) {
             $p['lead_engineer'] = ($prog['lead_engineer_name'] ?? '')
@@ -1203,7 +1212,7 @@ class RamsController extends Controller
                         $cat     = strtolower((string) ($e['category'] ?? ''));
 
                         if ($isHardware($nameStr, $iType, $cat)) {
-                            $mapped[] = ['item_name' => $nameStr, 'qty' => $qty, 'notes' => $note];
+                            $mapped[] = ['item_name' => $nameStr, 'qty' => $qty, 'room' => $note, 'notes' => ''];
                         }
                     }
                     if (count($mapped) > 0) {

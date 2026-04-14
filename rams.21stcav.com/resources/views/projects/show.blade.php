@@ -290,7 +290,7 @@
                                                 <a href="{{ route($entry['route_name'], $record) }}"
                                                    class="btn btn-outline btn-sm" style="font-size:.75rem;">View</a>
                                             @endif
-                                            @if(!empty($entry['download_route_name']) && $record->filename)
+                                            @if(!empty($entry['download_route_name']) && $record->filename && ($record->status ?? '') !== \App\Models\RamsDocument::STATUS_GENERATING)
                                                 <a href="{{ route($entry['download_route_name'], $record) }}"
                                                    class="btn btn-teal btn-sm" style="font-size:.75rem; margin-left:.25rem;"
                                                    target="_blank" aria-label="Download {{ $entry['type'] }}">↓ DOCX</a>

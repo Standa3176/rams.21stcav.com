@@ -567,31 +567,19 @@ p { margin: 3pt 0; }
     </tr>
 </table>
 
-{{-- Cover Table 3: PERSONNEL & PROJECT DATES --}}
-@if($docAuthor || $leadEngineer || $additionalEngs || $programmer || $plannedStart || $plannedEnd)
+{{-- Cover Table 3: PERSONNEL (dates already shown in Table 1 above) --}}
+@if($docAuthor || $leadEngineer || $additionalEngs || $programmer || $plannedStartTime || $plannedEndTime)
 <table class="cover-table">
     @if($docAuthor)
     <tr>
-        <td class="lbl" style="width:26%;">PROJECT MANAGER:</td>
-        <td class="val" style="width:34%;">{{ $docAuthor }}</td>
-        @if($plannedStart)
-        <td class="lbl" style="width:20%;">START DATE:</td>
-        <td class="val">{{ $plannedStart }}</td>
-        @else
-        <td class="lbl" style="width:20%;"></td><td class="val"></td>
-        @endif
+        <td class="lbl" style="width:30%;">PROJECT MANAGER:</td>
+        <td class="val" colspan="3">{{ $docAuthor }}</td>
     </tr>
     @endif
     @if($leadEngineer)
     <tr>
         <td class="lbl">LEAD ENGINEER:</td>
-        <td class="val">{{ $leadEngineer }}</td>
-        @if($plannedEnd)
-        <td class="lbl">END DATE:</td>
-        <td class="val">{{ $plannedEnd }}</td>
-        @else
-        <td class="lbl"></td><td class="val"></td>
-        @endif
+        <td class="val" colspan="3">{{ $leadEngineer }}</td>
     </tr>
     @endif
     @if($additionalEngs)
@@ -608,8 +596,8 @@ p { margin: 3pt 0; }
     @endif
     @if($plannedStartTime || $plannedEndTime)
     <tr>
-        <td class="lbl" style="width:26%;">START TIME:</td>
-        <td class="val" style="width:34%;">{{ $plannedStartTime ?: '—' }}</td>
+        <td class="lbl" style="width:30%;">START TIME:</td>
+        <td class="val" style="width:20%;">{{ $plannedStartTime ?: '—' }}</td>
         <td class="lbl" style="width:20%;">END TIME:</td>
         <td class="val">{{ $plannedEndTime ?: '—' }}</td>
     </tr>
@@ -750,10 +738,11 @@ p { margin: 3pt 0; }
 <table class="equip-table">
     <thead>
         <tr>
-            <th style="width:22%; text-align:left; padding-left:6pt;">Activity</th>
+            <th style="width:20%; text-align:left; padding-left:6pt;">Activity</th>
             <th style="text-align:left; padding-left:6pt;">Item</th>
-            <th style="width:10%;">Qty per Room</th>
-            <th style="width:22%; text-align:left; padding-left:6pt;">Notes</th>
+            <th style="width:20%; text-align:left; padding-left:6pt;">Room / Area</th>
+            <th style="width:8%;">Qty</th>
+            <th style="width:14%; text-align:left; padding-left:6pt;">Notes</th>
         </tr>
     </thead>
     <tbody>
@@ -761,71 +750,80 @@ p { margin: 3pt 0; }
 
         @if($hasDecomm)
         <tr class="group-header">
-            <td colspan="4">DECOMMISSION &amp; HANDBACK</td>
+            <td colspan="5">DECOMMISSION &amp; HANDBACK</td>
         </tr>
         @foreach($scopeItems['decommission'] as $item)
         <tr>
-            <td>{{ 'DECOMMISSION & HANDBACK' }}</td>
+            <td>DECOMMISSION &amp; HANDBACK</td>
             <td>{{ $item['item_name'] ?? '' }}</td>
+            <td>{{ $item['room'] ?? ($item['notes'] ?? '') }}</td>
             <td style="text-align:center;">{{ $item['qty'] ?? '' }}</td>
-            <td>{{ $item['notes'] ?? '' }}</td>
+            <td>{{ isset($item['room']) ? ($item['notes'] ?? '') : '' }}</td>
         </tr>
         @endforeach
         @endif
 
         @if($hasRetain)
         <tr class="group-header">
-            <td colspan="4">EXISTING &mdash; RETAINED</td>
+            <td colspan="5">EXISTING &mdash; RETAINED</td>
         </tr>
         @foreach($scopeItems['retained'] as $item)
         <tr>
-            <td>{{ 'EXISTING — RETAINED' }}</td>
+            <td>EXISTING &mdash; RETAINED</td>
             <td>{{ $item['item_name'] ?? '' }}</td>
+            <td>{{ $item['room'] ?? ($item['notes'] ?? '') }}</td>
             <td style="text-align:center;">{{ $item['qty'] ?? '' }}</td>
-            <td>{{ $item['notes'] ?? '' }}</td>
+            <td>{{ isset($item['room']) ? ($item['notes'] ?? '') : '' }}</td>
         </tr>
         @endforeach
         @endif
 
         @if($hasNew)
         <tr class="group-header">
-            <td colspan="4">NEW INSTALLATION</td>
+            <td colspan="5">NEW INSTALLATION</td>
         </tr>
         @foreach($scopeItems['new_install'] as $item)
         <tr>
             <td>NEW INSTALLATION</td>
             <td>{{ $item['item_name'] ?? '' }}</td>
+            <td>{{ $item['room'] ?? ($item['notes'] ?? '') }}</td>
             <td style="text-align:center;">{{ $item['qty'] ?? '' }}</td>
-            <td>{{ $item['notes'] ?? '' }}</td>
+            <td>{{ isset($item['room']) ? ($item['notes'] ?? '') : '' }}</td>
         </tr>
         @endforeach
         @endif
 
     @elseif(! empty($quote['line_items']))
         <tr class="group-header">
-            <td colspan="4">NEW INSTALLATION</td>
+            <td colspan="5">NEW INSTALLATION</td>
         </tr>
         @foreach($quote['line_items'] as $item)
         <tr>
             <td>NEW INSTALLATION</td>
             <td>{{ $item['description'] ?? '' }}</td>
-            <td style="text-align:center;">{{ $item['qty'] ?? '' }}</td>
             <td>{{ $item['room'] ?? '' }}</td>
+            <td style="text-align:center;">{{ $item['qty'] ?? '' }}</td>
+            <td></td>
         </tr>
         @endforeach
 
     @else
         <tr>
-            <td colspan="4" style="font-style:italic; color:#666; padding:6pt;">No equipment items listed.</td>
+            <td colspan="5" style="font-style:italic; color:#666; padding:6pt;">No equipment items listed.</td>
         </tr>
     @endif
     </tbody>
 </table>
 
 {{-- ════════════════════════════════════════════════════════════════════════
-     SCOPE TRACEABILITY
+     SCOPE TRACEABILITY — only rendered when at least one row has a RAMS
+     activity filled in (pre-filled rows with blank activity are hidden).
      ════════════════════════════════════════════════════════════════════════ --}}
-@if(! empty($scopeTraceability))
+@php
+    $hasTraceabilityActivity = ! empty($scopeTraceability)
+        && collect($scopeTraceability)->contains(fn ($r) => trim((string)($r['rams_activity'] ?? '')) !== '');
+@endphp
+@if($hasTraceabilityActivity)
 <div class="sec-heading">Scope Traceability</div>
 <table class="std-table" style="margin-bottom: 8pt;">
     <thead>
