@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Core\Modules\Projects\ProjectDataService;
 use App\Core\Modules\Projects\ProjectService;
 use App\Models\Project;
+use App\Models\ProjectPackage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -130,15 +131,46 @@ class ProjectController extends Controller
         $nextStatus = $project->nextStatus();
 
         // Build linked records summary for the Linked Records card.
-        $linkedRecords = [
-            [
+
+        // Determine RAMS action based on package state (latestPackage eager-loaded above).
+        $latestPackage = $project->latestPackage;
+        $ramsDownloadKeys = [
+            'download_route_name'     => 'rams.download',
+            'download_pdf_route_name' => 'rams.download-pdf',
+            'regenerate_route_name'   => 'rams.regenerate',
+        ];
+
+        if ($latestPackage && $latestPackage->status === ProjectPackage::STATUS_REVIEWED) {
+            $ramsEntry = array_merge([
+                'type'           => 'RAMS',
+                'badge_class'    => 'badge-teal',
+                'records'        => $project->ramsDocuments,
+                'route_name'     => 'rams.review',
+                'generate_route' => route('rams.from-project', $project),
+                'generate_label' => 'Create RAMS',
+            ], $ramsDownloadKeys);
+        } elseif ($latestPackage) {
+            $ramsEntry = array_merge([
                 'type'               => 'RAMS',
                 'badge_class'        => 'badge-teal',
                 'records'            => $project->ramsDocuments,
                 'route_name'         => 'rams.review',
-                'empty_action_label' => 'Upload Quote for RAMS',
-                'empty_action_route' => route('rams.upload.create', ['project_id' => $project->id]),
-            ],
+                'empty_action_label' => 'Review Data First',
+                'empty_action_route' => route('project-packages.review.show', $latestPackage),
+            ], $ramsDownloadKeys);
+        } else {
+            $ramsEntry = array_merge([
+                'type'               => 'RAMS',
+                'badge_class'        => 'badge-teal',
+                'records'            => $project->ramsDocuments,
+                'route_name'         => 'rams.review',
+                'empty_action_label' => 'Create RAMS',
+                'empty_action_route' => route('rams.create', ['project_id' => $project->id]),
+            ], $ramsDownloadKeys);
+        }
+
+        $linkedRecords = [
+            $ramsEntry,
             [
                 'type'               => 'Survey',
                 'badge_class'        => 'badge-grey',

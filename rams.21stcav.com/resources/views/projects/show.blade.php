@@ -276,7 +276,7 @@
                                         <td style="color:var(--text-faint); white-space:nowrap; font-size:.8rem;">
                                             {{ $record->updated_at->diffForHumans() }}
                                         </td>
-                                        <td>
+                                        <td style="white-space:nowrap;">
                                             @if($entry['route_name'])
                                                 <a href="{{ route($entry['route_name'], $record) }}"
                                                    class="btn btn-outline btn-sm" style="font-size:.75rem;">View</a>
@@ -284,7 +284,12 @@
                                             @if(!empty($entry['download_route_name']) && $record->filename)
                                                 <a href="{{ route($entry['download_route_name'], $record) }}"
                                                    class="btn btn-teal btn-sm" style="font-size:.75rem; margin-left:.25rem;"
-                                                   target="_blank" aria-label="Download {{ $entry['type'] }}">↓ Download</a>
+                                                   target="_blank" aria-label="Download {{ $entry['type'] }}">↓ DOCX</a>
+                                            @endif
+                                            @if(!empty($entry['download_pdf_route_name']) && $record->status === 'completed')
+                                                <a href="{{ route($entry['download_pdf_route_name'], $record) }}"
+                                                   class="btn btn-outline btn-sm" style="font-size:.75rem; margin-left:.25rem;"
+                                                   target="_blank" aria-label="Download {{ $entry['type'] }} PDF">↓ PDF</a>
                                             @endif
                                         </td>
                                     </tr>
