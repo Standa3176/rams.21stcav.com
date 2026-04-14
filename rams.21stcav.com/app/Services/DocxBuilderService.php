@@ -6,6 +6,7 @@ use App\Models\RamsDocument;
 use App\Services\DocumentTemplateService;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
+use PhpOffice\PhpWord\Settings;
 use PhpOffice\PhpWord\SimpleType\Jc;
 use PhpOffice\PhpWord\Element\Section;
 use PhpOffice\PhpWord\Element\Table;
@@ -70,6 +71,9 @@ class DocxBuilderService
 
     public function build(array $data, RamsDocument $record): string
     {
+        // Ensure PHPWord escapes &, <, > in text content (off by default).
+        Settings::setOutputEscapingEnabled(true);
+
         $storageDir = storage_path('app/rams');
         if (! is_dir($storageDir)) {
             mkdir($storageDir, 0755, true);
