@@ -997,8 +997,9 @@ class RamsController extends Controller
         $p  = $gd['project'] ?? [];
 
         // 1. Overwrite stale strings with live Project record values.
+        $liveProject = null;
         if ($rams->project_id) {
-            $liveProject = Project::find($rams->project_id);
+            $liveProject = Project::with('owner')->find($rams->project_id);
             if ($liveProject) {
                 $p = array_merge($p, array_filter([
                     'name'         => $liveProject->name,
@@ -1019,10 +1020,14 @@ class RamsController extends Controller
         $rd   = $rams->reviewed_data ?? [];
         $prog = $rd['programme']     ?? [];
 
+        // Last-resort PM: fall back to the project owner (the person who created the project).
+        $ownerName = $liveProject?->owner?->name ?? '';
+
         if (empty($p['project_manager'])) {
             $p['project_manager'] = ($prog['project_manager_name'] ?? '')
                 ?: ($rd['project']['project_manager']   ?? '')
-                ?: ($rams->form_data['project_manager'] ?? '');
+                ?: ($rams->form_data['project_manager'] ?? '')
+                ?: $ownerName;
         }
         if (empty($p['lead_engineer'])) {
             $p['lead_engineer'] = ($prog['lead_engineer_name'] ?? '')
