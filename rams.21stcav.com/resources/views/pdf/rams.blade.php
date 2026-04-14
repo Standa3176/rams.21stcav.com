@@ -279,7 +279,7 @@ p { margin: 3pt 0; }
     $siteAddress   = $project['site_address']      ?? $rams->site_address  ?? '';
     $roomsText     = $project['rooms_text']        ?? '';
     $docDate       = $project['date']              ?? now()->format('F Y');
-    $docAuthor     = $project['doc_author']        ?? '';
+    $docAuthor     = $project['doc_author'] ?: ($project['project_manager'] ?? '');
     $clientContact = trim(($project['client_contact_name'] ?? '') . (($project['client_contact_email'] ?? '') !== '' ? ' | ' . $project['client_contact_email'] : ''));
     $revision      = $project['revision']          ?? 'Rev 1.0';
     $docStatus     = $project['document_status']   ?? 'For Issue';
