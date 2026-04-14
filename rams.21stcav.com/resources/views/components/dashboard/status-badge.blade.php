@@ -8,6 +8,7 @@
     /* Map project status keys → brand colors.
        Falls back to the supplied $color prop, then a neutral grey. */
     $colorMap = [
+        // Project lifecycle statuses
         'quote_imported' => '#6B7280',   // grey
         'survey_pending' => '#D97706',   // amber
         'engineering'    => '#2563EB',   // blue
@@ -16,6 +17,19 @@
         'handover'       => '#178A95',   // brand teal
         'completed'      => '#16A34A',   // green
         'archived'       => '#9CA3AF',   // light grey
+
+        // RAMS / document statuses — traffic light
+        'failed'                  => '#DC2626',   // red
+        'generating'              => '#D97706',   // amber
+        'rendering'               => '#D97706',   // amber
+        'processing'              => '#D97706',   // amber
+        'uploaded'                => '#D97706',   // amber
+        'awaiting_review'         => '#D97706',   // amber
+        'approved'                => '#16A34A',   // green
+        'approved_for_generation' => '#16A34A',   // green
+        'complete'                => '#16A34A',   // green
+        'for_review'              => '#16A34A',   // green
+        'superseded'              => '#9CA3AF',   // light grey
 
         // generic aliases
         'active'         => '#16A34A',

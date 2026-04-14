@@ -277,7 +277,16 @@
                                             {{ $record->updated_at->diffForHumans() }}
                                         </td>
                                         <td style="white-space:nowrap;">
-                                            @if($entry['route_name'])
+                                            {{-- Regen replaces View for document types that support regeneration --}}
+                                            @if(!empty($entry['regenerate_route_name']))
+                                                <form method="POST" action="{{ route($entry['regenerate_route_name'], $record) }}"
+                                                      style="display:inline-block;">
+                                                    @csrf
+                                                    <button type="submit" class="btn btn-outline btn-sm" style="font-size:.75rem;">
+                                                        ↻ Regen
+                                                    </button>
+                                                </form>
+                                            @elseif($entry['route_name'])
                                                 <a href="{{ route($entry['route_name'], $record) }}"
                                                    class="btn btn-outline btn-sm" style="font-size:.75rem;">View</a>
                                             @endif
@@ -290,15 +299,6 @@
                                                 <a href="{{ route($entry['download_pdf_route_name'], $record) }}"
                                                    class="btn btn-outline btn-sm" style="font-size:.75rem; margin-left:.25rem;"
                                                    target="_blank" aria-label="Download {{ $entry['type'] }} PDF">↓ PDF</a>
-                                            @endif
-                                            @if(!empty($entry['regenerate_route_name']) && $record->status === 'completed')
-                                                <form method="POST" action="{{ route($entry['regenerate_route_name'], $record) }}"
-                                                      style="display:inline-block; margin-left:.25rem;">
-                                                    @csrf
-                                                    <button type="submit" class="btn btn-outline btn-sm" style="font-size:.75rem;">
-                                                        ↻ Regen
-                                                    </button>
-                                                </form>
                                             @endif
                                             @if(!empty($entry['delete_route_name']))
                                                 <form method="POST" action="{{ route($entry['delete_route_name'], $record) }}"
