@@ -1021,7 +1021,11 @@ class RamsController extends Controller
         $prog = $rd['programme']     ?? [];
 
         // Last-resort PM: fall back to the project owner (the person who created the project).
+        // Strip " - Company Name" suffix that some users append to their registered name.
         $ownerName = $liveProject?->owner?->name ?? '';
+        if ($ownerName && str_contains($ownerName, ' - ')) {
+            $ownerName = trim(explode(' - ', $ownerName, 2)[0]);
+        }
 
         if (empty($p['project_manager'])) {
             $p['project_manager'] = ($prog['project_manager_name'] ?? '')
@@ -1078,26 +1082,43 @@ class RamsController extends Controller
 
         if ($pkg) {
             // Rooms — patch rooms_text from package extracted rooms list when blank.
+            // Filter out financial/pricing lines that the parser sometimes misidentifies as rooms.
             if (empty($p['rooms_text'])) {
-                $pkgRooms = $pkg->extracted_data['rooms'] ?? [];
-                if (is_array($pkgRooms) && count($pkgRooms) > 0) {
-                    $p['rooms_text'] = implode(', ', array_filter($pkgRooms));
+                $pkgRooms = array_filter(
+                    $pkg->extracted_data['rooms'] ?? [],
+                    fn ($r) => $r
+                        && strlen($r) < 80
+                        && ! preg_match('/discount|credit|vat|total|labour|delivery|carriage|price|\bfoc\b/i', $r)
+                        && ! preg_match('/^\s*[\d£$€]/', $r)
+                );
+                if (count($pkgRooms) > 0) {
+                    $p['rooms_text'] = implode(', ', array_values($pkgRooms));
                 }
             }
 
             // Scope items — build new_install from equipment_list when scope is empty.
+            // Be defensive about field names — different extraction versions use different keys.
             $si = $gd['scope_items'] ?? [];
             $hasAnyScope = ! empty($si['new_install']) || ! empty($si['decommission']) || ! empty($si['retained']);
             if (! $hasAnyScope) {
                 $equip = $pkg->equipment_list ?? [];
                 if (is_array($equip) && count($equip) > 0) {
-                    $gd['scope_items']['new_install'] = array_values(array_map(fn ($e) => [
-                        'item_name' => $e['description'] ?? ($e['item_name'] ?? ''),
-                        'qty'       => $e['qty']         ?? '',
-                        'notes'     => $e['location']    ?? ($e['notes'] ?? ''),
-                    ], $equip));
-                    $gd['scope_items']['decommission'] = $gd['scope_items']['decommission'] ?? [];
-                    $gd['scope_items']['retained']     = $gd['scope_items']['retained']     ?? [];
+                    $mapped = [];
+                    foreach ($equip as $e) {
+                        $name = $e['description'] ?? ($e['item_name'] ?? ($e['name'] ?? ($e['item'] ?? '')));
+                        $qty  = $e['qty']         ?? ($e['quantity']  ?? '');
+                        $note = $e['location']    ?? ($e['notes']     ?? ($e['room'] ?? ''));
+                        // Skip completely empty rows (e.g. discount/pricing lines with no description)
+                        if (! trim((string) $name)) {
+                            continue;
+                        }
+                        $mapped[] = ['item_name' => $name, 'qty' => $qty, 'notes' => $note];
+                    }
+                    if (count($mapped) > 0) {
+                        $gd['scope_items']['new_install']  = $mapped;
+                        $gd['scope_items']['decommission'] = $gd['scope_items']['decommission'] ?? [];
+                        $gd['scope_items']['retained']     = $gd['scope_items']['retained']     ?? [];
+                    }
                 }
             }
 

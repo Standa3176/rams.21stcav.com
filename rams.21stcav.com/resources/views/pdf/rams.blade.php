@@ -367,7 +367,7 @@ p { margin: 3pt 0; }
         ? $rams->created_at->format('d/m/Y')
         : now()->format('d/m/Y');
     $docAuthor     = ($project['doc_author'] ?? '') ?: ($project['project_manager'] ?? '');
-    $pmPhone       = $project['project_manager_phone'] ?? $phone;
+    $pmPhone       = ($project['project_manager_phone'] ?? '') ?: $phone;
     $clientContactName  = $project['client_contact_name']  ?? '';
     $clientContactEmail = $project['client_contact_email'] ?? '';
     $clientContactPhone = $project['client_contact_phone'] ?? '';
@@ -530,14 +530,14 @@ p { margin: 3pt 0; }
     <tr>
         <td class="lbl" style="width:26%;">PREPARED BY:</td>
         <td class="val" style="width:34%;">{{ $docAuthor ?: $company }}</td>
-        <td class="lbl" style="width:22%;">REVISION:</td>
-        <td class="val">{{ $revision }}</td>
+        <td class="lbl" style="width:18%;">REVISION:</td>
+        <td class="val" style="white-space:nowrap;">{{ $revision }}</td>
     </tr>
     <tr>
         <td class="lbl">TELEPHONE:</td>
         <td class="val">{{ $pmPhone }}</td>
         <td class="lbl">STATUS:</td>
-        <td class="val">{{ $docStatus }}</td>
+        <td class="val" style="white-space:nowrap;">{{ $docStatus }}</td>
     </tr>
     <tr>
         <td class="lbl">CLIENT CONTACT:</td>
