@@ -17,6 +17,12 @@
     $matHandling = $rd['material_handling'] ?? [];
     $cdmRows     = $rd['cdm']              ?? [];
     $permitTypes = ['Hot Works', 'Working at Height', 'PASMA', 'IPAF', 'Confined Space', 'Electrical Isolation', 'Asbestos Awareness', 'Other'];
+    // New sub-keys for traceability and commissioning sections
+    $scopeTraceability  = $rd['scope_traceability']              ?? [];
+    $clientRespExp      = $rd['client_responsibilities_expanded'] ?? [];
+    $exclusionsList     = $rd['exclusions']                       ?? [];
+    $decommData         = $rd['decommissioning']                  ?? [];
+    $commCriteria       = $rd['commissioning_criteria']           ?? [];
 @endphp
 
     <div class="page-header">
@@ -312,6 +318,281 @@
                           placeholder="e.g. Welfare facilities in Building B, Level 1. First aider: John Smith (07700 000000)"
                 >{{ old('welfare_notes', $prog['welfare_notes'] ?? '') }}</textarea>
             </div>
+
+            {{-- ── Scope Traceability ──────────────────────────────────────────────── --}}
+            <h3 class="section-heading" style="margin-top:1rem;">Scope Traceability</h3>
+            <p style="font-size:.85rem; color:#555; margin-bottom:.65rem;">Map each quoted item to its RAMS installation activity. Pre-filled from quote where available.</p>
+            <table class="data-table" style="font-size:.85rem; margin-bottom:.5rem;">
+                <thead>
+                    <tr>
+                        <th>Quote Item / Description</th>
+                        <th>RAMS Activity</th>
+                        <th style="width:130px;">Room / Area</th>
+                        <th>Notes</th>
+                        <th style="width:40px;"></th>
+                    </tr>
+                </thead>
+                <tbody id="st_tbody">
+                @php $stList = old('scope_traceability', $scopeTraceability); @endphp
+                @forelse($stList as $stIdx => $stRow)
+                    @php $stRow = is_array($stRow) ? $stRow : []; @endphp
+                    <tr class="st-row">
+                        <td><input type="text" name="scope_traceability[{{ $stIdx }}][quote_item]" class="form-control" style="font-size:.85rem;" value="{{ $stRow['quote_item'] ?? '' }}"></td>
+                        <td><input type="text" name="scope_traceability[{{ $stIdx }}][rams_activity]" class="form-control" style="font-size:.85rem;" value="{{ $stRow['rams_activity'] ?? '' }}"></td>
+                        <td><input type="text" name="scope_traceability[{{ $stIdx }}][room]" class="form-control" style="font-size:.85rem;" value="{{ $stRow['room'] ?? '' }}"></td>
+                        <td><input type="text" name="scope_traceability[{{ $stIdx }}][notes]" class="form-control" style="font-size:.85rem;" value="{{ $stRow['notes'] ?? '' }}"></td>
+                        <td><button type="button" onclick="this.closest('tr').remove()" style="color:#c00;background:none;border:none;cursor:pointer;font-size:1rem;">&#x2715;</button></td>
+                    </tr>
+                @empty
+                    <tr class="st-row">
+                        <td><input type="text" name="scope_traceability[0][quote_item]" class="form-control" style="font-size:.85rem;" placeholder="e.g. 100&quot; Display"></td>
+                        <td><input type="text" name="scope_traceability[0][rams_activity]" class="form-control" style="font-size:.85rem;" placeholder="e.g. Wall mount and cable"></td>
+                        <td><input type="text" name="scope_traceability[0][room]" class="form-control" style="font-size:.85rem;" placeholder="Room"></td>
+                        <td><input type="text" name="scope_traceability[0][notes]" class="form-control" style="font-size:.85rem;"></td>
+                        <td><button type="button" onclick="this.closest('tr').remove()" style="color:#c00;background:none;border:none;cursor:pointer;font-size:1rem;">&#x2715;</button></td>
+                    </tr>
+                @endforelse
+                </tbody>
+            </table>
+            <button type="button" onclick="addStRow()" class="btn btn-outline btn-sm" style="font-size:.8rem;">+ Add row</button>
+            <script>
+            var stRowIndex = {{ count(old('scope_traceability', $scopeTraceability)) ?: 1 }};
+            function addStRow() {
+                var tbody = document.getElementById('st_tbody');
+                var tr = document.createElement('tr');
+                tr.className = 'st-row';
+                tr.innerHTML = '<td><input type="text" name="scope_traceability['+stRowIndex+'][quote_item]" class="form-control" style="font-size:.85rem;"></td>'
+                    + '<td><input type="text" name="scope_traceability['+stRowIndex+'][rams_activity]" class="form-control" style="font-size:.85rem;"></td>'
+                    + '<td><input type="text" name="scope_traceability['+stRowIndex+'][room]" class="form-control" style="font-size:.85rem;"></td>'
+                    + '<td><input type="text" name="scope_traceability['+stRowIndex+'][notes]" class="form-control" style="font-size:.85rem;"></td>'
+                    + '<td><button type="button" onclick="this.closest(\'tr\').remove()" style="color:#c00;background:none;border:none;cursor:pointer;font-size:1rem;">&#x2715;</button></td>';
+                tbody.appendChild(tr); stRowIndex++;
+            }
+            </script>
+
+            {{-- ── Client Responsibilities (Expanded) ─────────────────────────────── --}}
+            <h3 class="section-heading" style="margin-top:1rem;">Client Responsibilities (Expanded)</h3>
+            <p style="font-size:.85rem; color:#555; margin-bottom:.65rem;">Check items the client is required to provide. Add notes where relevant.</p>
+            @php
+                $crItems = [
+                    'network_readiness' => 'Network / LAN readiness (active drops at device locations)',
+                    'licences'          => 'Software licences / subscriptions (Teams Rooms, Zoom, etc.)',
+                    'access'            => 'Site access and room availability on installation day(s)',
+                    'power_validation'  => 'Mains power validation (sockets live and tested)',
+                ];
+            @endphp
+            @foreach($crItems as $crKey => $crLabel)
+            @php
+                $crItem = $clientRespExp[$crKey] ?? [];
+                $crReq  = old("client_resp_{$crKey}_required", $crItem['required'] ?? false);
+                $crNote = old("client_resp_{$crKey}_notes",    $crItem['notes']    ?? '');
+            @endphp
+            <div style="display:flex; align-items:flex-start; gap:.75rem; margin-bottom:.5rem; border-bottom:1px solid #f0f0f0; padding-bottom:.5rem;">
+                <label style="display:flex; align-items:center; gap:.4rem; min-width:320px; font-size:.875rem; cursor:pointer; padding-top:.15rem;">
+                    <input type="checkbox" name="client_resp_{{ $crKey }}_required" value="1" {{ $crReq ? 'checked' : '' }}>
+                    {{ $crLabel }}
+                </label>
+                <input type="text" name="client_resp_{{ $crKey }}_notes" class="form-control" style="font-size:.875rem; padding:.3rem .5rem;"
+                       placeholder="Notes (optional)" value="{{ $crNote }}">
+            </div>
+            @endforeach
+
+            <p style="font-size:.85rem; color:#666; margin-top:.5rem; margin-bottom:.35rem;">Additional client responsibilities:</p>
+            <table class="data-table" style="font-size:.85rem; margin-bottom:.5rem;">
+                <thead><tr><th>Item</th><th>Notes</th><th style="width:40px;"></th></tr></thead>
+                <tbody id="cr_tbody">
+                @php $crAdditionalList = old('client_resp_additional', $clientRespExp['additional'] ?? []); @endphp
+                @forelse($crAdditionalList as $craIdx => $craRow)
+                    @php $craRow = is_array($craRow) ? $craRow : []; @endphp
+                    <tr>
+                        <td><input type="text" name="client_resp_additional[{{ $craIdx }}][item]" class="form-control" style="font-size:.85rem;" value="{{ $craRow['item'] ?? '' }}"></td>
+                        <td><input type="text" name="client_resp_additional[{{ $craIdx }}][notes]" class="form-control" style="font-size:.85rem;" value="{{ $craRow['notes'] ?? '' }}"></td>
+                        <td><button type="button" onclick="this.closest('tr').remove()" style="color:#c00;background:none;border:none;cursor:pointer;font-size:1rem;">&#x2715;</button></td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td><input type="text" name="client_resp_additional[0][item]" class="form-control" style="font-size:.85rem;" placeholder="Additional item"></td>
+                        <td><input type="text" name="client_resp_additional[0][notes]" class="form-control" style="font-size:.85rem;"></td>
+                        <td><button type="button" onclick="this.closest('tr').remove()" style="color:#c00;background:none;border:none;cursor:pointer;font-size:1rem;">&#x2715;</button></td>
+                    </tr>
+                @endforelse
+                </tbody>
+            </table>
+            <button type="button" onclick="addCrRow()" class="btn btn-outline btn-sm" style="font-size:.8rem;">+ Add item</button>
+            <script>
+            var crRowIndex = {{ count(old('client_resp_additional', $clientRespExp['additional'] ?? [])) ?: 1 }};
+            function addCrRow() {
+                var tbody = document.getElementById('cr_tbody');
+                var tr = document.createElement('tr');
+                tr.innerHTML = '<td><input type="text" name="client_resp_additional['+crRowIndex+'][item]" class="form-control" style="font-size:.85rem;"></td>'
+                    + '<td><input type="text" name="client_resp_additional['+crRowIndex+'][notes]" class="form-control" style="font-size:.85rem;"></td>'
+                    + '<td><button type="button" onclick="this.closest(\'tr\').remove()" style="color:#c00;background:none;border:none;cursor:pointer;font-size:1rem;">&#x2715;</button></td>';
+                tbody.appendChild(tr); crRowIndex++;
+            }
+            </script>
+
+            {{-- ── Exclusions ──────────────────────────────────────────────────────── --}}
+            <h3 class="section-heading" style="margin-top:1rem;">Exclusions</h3>
+            <p style="font-size:.85rem; color:#555; margin-bottom:.65rem;">Items explicitly excluded from scope. Remove or add as appropriate.</p>
+            <div id="excl_list">
+            @php $exclList = old('exclusions', $exclusionsList); @endphp
+            @forelse($exclList as $exIdx => $exItem)
+            <div style="display:flex; align-items:center; gap:.5rem; margin-bottom:.35rem;" class="excl-row">
+                <input type="text" name="exclusions[{{ $exIdx }}]" class="form-control" style="font-size:.875rem;"
+                       value="{{ is_string($exItem) ? $exItem : '' }}">
+                <button type="button" onclick="this.closest('.excl-row').remove()" style="color:#c00;background:none;border:none;cursor:pointer;font-size:1rem;">&#x2715;</button>
+            </div>
+            @empty
+            <div style="display:flex; align-items:center; gap:.5rem; margin-bottom:.35rem;" class="excl-row">
+                <input type="text" name="exclusions[0]" class="form-control" style="font-size:.875rem;" placeholder="Exclusion item">
+                <button type="button" onclick="this.closest('.excl-row').remove()" style="color:#c00;background:none;border:none;cursor:pointer;font-size:1rem;">&#x2715;</button>
+            </div>
+            @endforelse
+            </div>
+            <button type="button" onclick="addExclRow()" class="btn btn-outline btn-sm" style="font-size:.8rem; margin-top:.35rem;">+ Add exclusion</button>
+            <script>
+            var exclIndex = {{ count(old('exclusions', $exclusionsList)) ?: 1 }};
+            function addExclRow() {
+                var container = document.getElementById('excl_list');
+                var div = document.createElement('div');
+                div.className = 'excl-row';
+                div.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem;';
+                div.innerHTML = '<input type="text" name="exclusions['+exclIndex+']" class="form-control" style="font-size:.875rem;">'
+                    + '<button type="button" onclick="this.closest(\'.excl-row\').remove()" style="color:#c00;background:none;border:none;cursor:pointer;font-size:1rem;">&#x2715;</button>';
+                container.appendChild(div); exclIndex++;
+            }
+            </script>
+
+            {{-- ── Decommissioning Procedure ───────────────────────────────────────── --}}
+            <h3 class="section-heading" style="margin-top:1rem;">Decommissioning Procedure</h3>
+            @php
+                $decomEnabled  = old('decommissioning_enabled',             $decommData['enabled']                  ?? false);
+                $decomLabel    = old('decommissioning_labelling_procedure', $decommData['labelling_procedure']       ?? '');
+                $decomStorage  = old('decommissioning_storage_location',    $decommData['storage_location']          ?? '');
+                $decomSignOff  = old('decommissioning_client_sign_off',     $decommData['client_sign_off_required']  ?? false);
+                $decomDisposal = old('decommissioning_disposal_method',     $decommData['disposal_method']           ?? '');
+                $decomSteps    = old('decommissioning_steps',               $decommData['steps']                     ?? []);
+            @endphp
+            <div class="form-group" style="margin-bottom:.5rem;">
+                <label style="display:flex; align-items:center; gap:.5rem; font-size:.9rem; cursor:pointer;">
+                    <input type="checkbox" name="decommissioning_enabled" value="1" id="decomm_toggle"
+                           {{ $decomEnabled ? 'checked' : '' }}>
+                    This project includes decommissioning / removal of existing equipment
+                </label>
+            </div>
+            <div id="decomm_section" style="{{ $decomEnabled ? '' : 'display:none;' }}">
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Labelling Procedure</label>
+                        <input type="text" name="decommissioning_labelling_procedure" class="form-control"
+                               style="font-size:.875rem;" value="{{ $decomLabel }}" placeholder="e.g. Label all cables before disconnection">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Storage Location</label>
+                        <input type="text" name="decommissioning_storage_location" class="form-control"
+                               style="font-size:.875rem;" value="{{ $decomStorage }}" placeholder="e.g. Client stores in Plant Room B">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Disposal Method</label>
+                        <input type="text" name="decommissioning_disposal_method" class="form-control"
+                               style="font-size:.875rem;" value="{{ $decomDisposal }}" placeholder="e.g. WEEE registered carrier, 21CAV to arrange">
+                    </div>
+                    <div class="form-group" style="display:flex; align-items:center; padding-top:1.5rem;">
+                        <label style="display:flex; align-items:center; gap:.5rem; font-size:.875rem; cursor:pointer;">
+                            <input type="checkbox" name="decommissioning_client_sign_off" value="1"
+                                   {{ $decomSignOff ? 'checked' : '' }}>
+                            Client sign-off required before removal
+                        </label>
+                    </div>
+                </div>
+                <label class="form-label" style="margin-top:.5rem;">Decommissioning Steps (ordered)</label>
+                <div id="decomm_steps_list">
+                @forelse($decomSteps as $dsIdx => $dsStep)
+                    <div style="display:flex; align-items:center; gap:.5rem; margin-bottom:.35rem;" class="decomm-step-row">
+                        <span style="font-size:.8rem; color:#888; min-width:22px;">{{ $dsIdx + 1 }}.</span>
+                        <input type="text" name="decommissioning_steps[{{ $dsIdx }}]" class="form-control"
+                               style="font-size:.875rem;" value="{{ is_string($dsStep) ? $dsStep : '' }}">
+                        <button type="button" onclick="this.closest('.decomm-step-row').remove()" style="color:#c00;background:none;border:none;cursor:pointer;font-size:1rem;">&#x2715;</button>
+                    </div>
+                @empty
+                    <div style="display:flex; align-items:center; gap:.5rem; margin-bottom:.35rem;" class="decomm-step-row">
+                        <span style="font-size:.8rem; color:#888; min-width:22px;">1.</span>
+                        <input type="text" name="decommissioning_steps[0]" class="form-control"
+                               style="font-size:.875rem;" placeholder="e.g. Power down and isolate existing equipment">
+                        <button type="button" onclick="this.closest('.decomm-step-row').remove()" style="color:#c00;background:none;border:none;cursor:pointer;font-size:1rem;">&#x2715;</button>
+                    </div>
+                @endforelse
+                </div>
+                <button type="button" onclick="addDecommStep()" class="btn btn-outline btn-sm" style="font-size:.8rem; margin-top:.35rem;">+ Add step</button>
+            </div>
+            <script>
+                document.getElementById('decomm_toggle').addEventListener('change', function() {
+                    document.getElementById('decomm_section').style.display = this.checked ? '' : 'none';
+                });
+                var decommStepIndex = {{ count($decomSteps) ?: 1 }};
+                function addDecommStep() {
+                    var container = document.getElementById('decomm_steps_list');
+                    var rowNum = container.querySelectorAll('.decomm-step-row').length + 1;
+                    var div = document.createElement('div');
+                    div.className = 'decomm-step-row';
+                    div.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem;';
+                    div.innerHTML = '<span style="font-size:.8rem;color:#888;min-width:22px;">'+rowNum+'.</span>'
+                        + '<input type="text" name="decommissioning_steps['+decommStepIndex+']" class="form-control" style="font-size:.875rem;">'
+                        + '<button type="button" onclick="this.closest(\'.decomm-step-row\').remove()" style="color:#c00;background:none;border:none;cursor:pointer;font-size:1rem;">&#x2715;</button>';
+                    container.appendChild(div); decommStepIndex++;
+                }
+            </script>
+
+            {{-- ── Commissioning Criteria ──────────────────────────────────────────── --}}
+            <h3 class="section-heading" style="margin-top:1rem;">Commissioning Criteria</h3>
+            <p style="font-size:.85rem; color:#555; margin-bottom:.65rem;">Define pass criteria for each system or installation activity. Rendered as a sign-off table in the PDF.</p>
+            <table class="data-table" style="font-size:.85rem; margin-bottom:.5rem;">
+                <thead>
+                    <tr>
+                        <th style="width:18%;">System</th>
+                        <th>Criterion</th>
+                        <th style="width:22%;">Verification Method</th>
+                        <th style="width:20%;">Pass Condition</th>
+                        <th style="width:40px;"></th>
+                    </tr>
+                </thead>
+                <tbody id="cc_tbody">
+                @php $ccList = old('commissioning_criteria', $commCriteria); @endphp
+                @forelse($ccList as $ccIdx => $ccRow)
+                    @php $ccRow = is_array($ccRow) ? $ccRow : []; @endphp
+                    <tr class="cc-row">
+                        <td><input type="text" name="commissioning_criteria[{{ $ccIdx }}][system]" class="form-control" style="font-size:.85rem;" value="{{ $ccRow['system'] ?? '' }}"></td>
+                        <td><input type="text" name="commissioning_criteria[{{ $ccIdx }}][criterion]" class="form-control" style="font-size:.85rem;" value="{{ $ccRow['criterion'] ?? '' }}"></td>
+                        <td><input type="text" name="commissioning_criteria[{{ $ccIdx }}][verification_method]" class="form-control" style="font-size:.85rem;" value="{{ $ccRow['verification_method'] ?? '' }}"></td>
+                        <td><input type="text" name="commissioning_criteria[{{ $ccIdx }}][pass_condition]" class="form-control" style="font-size:.85rem;" value="{{ $ccRow['pass_condition'] ?? '' }}"></td>
+                        <td><button type="button" onclick="this.closest('tr').remove()" style="color:#c00;background:none;border:none;cursor:pointer;font-size:1rem;">&#x2715;</button></td>
+                    </tr>
+                @empty
+                    <tr class="cc-row">
+                        <td><input type="text" name="commissioning_criteria[0][system]" class="form-control" style="font-size:.85rem;" placeholder="e.g. Display"></td>
+                        <td><input type="text" name="commissioning_criteria[0][criterion]" class="form-control" style="font-size:.85rem;" placeholder="e.g. Image displayed on all inputs"></td>
+                        <td><input type="text" name="commissioning_criteria[0][verification_method]" class="form-control" style="font-size:.85rem;" placeholder="e.g. Test each source"></td>
+                        <td><input type="text" name="commissioning_criteria[0][pass_condition]" class="form-control" style="font-size:.85rem;" placeholder="e.g. No artefacts, full screen"></td>
+                        <td><button type="button" onclick="this.closest('tr').remove()" style="color:#c00;background:none;border:none;cursor:pointer;font-size:1rem;">&#x2715;</button></td>
+                    </tr>
+                @endforelse
+                </tbody>
+            </table>
+            <button type="button" onclick="addCcRow()" class="btn btn-outline btn-sm" style="font-size:.8rem;">+ Add criterion</button>
+            <script>
+            var ccRowIndex = {{ count(old('commissioning_criteria', $commCriteria)) ?: 1 }};
+            function addCcRow() {
+                var tbody = document.getElementById('cc_tbody');
+                var tr = document.createElement('tr');
+                tr.className = 'cc-row';
+                tr.innerHTML = '<td><input type="text" name="commissioning_criteria['+ccRowIndex+'][system]" class="form-control" style="font-size:.85rem;"></td>'
+                    + '<td><input type="text" name="commissioning_criteria['+ccRowIndex+'][criterion]" class="form-control" style="font-size:.85rem;"></td>'
+                    + '<td><input type="text" name="commissioning_criteria['+ccRowIndex+'][verification_method]" class="form-control" style="font-size:.85rem;"></td>'
+                    + '<td><input type="text" name="commissioning_criteria['+ccRowIndex+'][pass_condition]" class="form-control" style="font-size:.85rem;"></td>'
+                    + '<td><button type="button" onclick="this.closest(\'tr\').remove()" style="color:#c00;background:none;border:none;cursor:pointer;font-size:1rem;">&#x2715;</button></td>';
+                tbody.appendChild(tr); ccRowIndex++;
+            }
+            </script>
 
             <div style="display:flex; gap:.75rem; flex-wrap:wrap; margin-top:1rem;">
                 <button type="submit" class="btn btn-teal">
