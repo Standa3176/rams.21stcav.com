@@ -10,6 +10,13 @@
     $ms      = $rams->generated_data['method_statement'] ?? null;
     $ppe     = $rams->generated_data['ppe'] ?? [];
     $persons = $rams->generated_data['persons_at_risk'] ?? [];
+    // New fields from reviewed_data
+    $rd          = $rams->reviewed_data ?? [];
+    $prog        = $rd['programme']        ?? [];
+    $permitsRd   = $rd['permits_required'] ?? [];
+    $matHandling = $rd['material_handling'] ?? [];
+    $cdmRows     = $rd['cdm']              ?? [];
+    $permitTypes = ['Hot Works', 'Working at Height', 'PASMA', 'IPAF', 'Confined Space', 'Electrical Isolation', 'Asbestos Awareness', 'Other'];
 @endphp
 
     <div class="page-header">
@@ -118,6 +125,192 @@
                            class="form-control"
                            value="{{ old('programmer', $project['programmer'] ?? '') }}">
                 </div>
+            </div>
+
+            {{-- ── Programme: Dates & Times ─────────────────────────────────── --}}
+            <h3 class="section-heading" style="margin-top:1rem;">Programme</h3>
+            <div class="form-grid-2">
+                <div class="form-group">
+                    <label class="form-label" for="planned_start_date">Planned Start Date</label>
+                    <input id="planned_start_date" name="planned_start_date" type="date"
+                           class="form-control"
+                           value="{{ old('planned_start_date', $project['planned_start_date'] ?? $prog['planned_start_date'] ?? '') }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="planned_start_time">Start Time</label>
+                    <input id="planned_start_time" name="planned_start_time" type="time"
+                           class="form-control"
+                           value="{{ old('planned_start_time', $project['planned_start_time'] ?? $prog['planned_start_time'] ?? '08:00') }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="planned_end_date">Planned End Date</label>
+                    <input id="planned_end_date" name="planned_end_date" type="date"
+                           class="form-control"
+                           value="{{ old('planned_end_date', $project['planned_end_date'] ?? $prog['planned_end_date'] ?? '') }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="planned_end_time">End Time</label>
+                    <input id="planned_end_time" name="planned_end_time" type="time"
+                           class="form-control"
+                           value="{{ old('planned_end_time', $project['planned_end_time'] ?? $prog['planned_end_time'] ?? '17:30') }}">
+                </div>
+            </div>
+
+            {{-- ── Waste Removal ────────────────────────────────────────────── --}}
+            <h3 class="section-heading" style="margin-top:1rem;">Waste Removal</h3>
+            <div class="form-group" style="margin-bottom:.75rem;">
+                <label class="form-label">Waste removed by</label>
+                <div style="display:flex; gap:1.5rem; margin-top:.35rem;">
+                    @foreach(['client' => 'Client', '21cav' => '21CAV', 'other' => 'Other'] as $wrVal => $wrLabel)
+                    <label style="display:flex; align-items:center; gap:.4rem; font-size:.9rem; cursor:pointer;">
+                        <input type="radio" name="waste_removal_party" value="{{ $wrVal }}"
+                               {{ old('waste_removal_party', $prog['waste_removal_party'] ?? '') === $wrVal ? 'checked' : '' }}>
+                        {{ $wrLabel }}
+                    </label>
+                    @endforeach
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="waste_removal_notes">Waste Removal Notes</label>
+                <textarea id="waste_removal_notes" name="waste_removal_notes" class="form-control" rows="2"
+                          placeholder="e.g. All packaging and old equipment removed by 21CAV to skip on site"
+                >{{ old('waste_removal_notes', $prog['waste_removal_notes'] ?? '') }}</textarea>
+            </div>
+
+            {{-- ── Permits Required ─────────────────────────────────────────── --}}
+            <h3 class="section-heading" style="margin-top:1rem;">Permits Required</h3>
+            <p style="font-size:.85rem; color:#555; margin-bottom:.65rem;">Check each permit type that applies. Add notes where relevant.</p>
+            @php
+                $existingPermits = [];
+                foreach ($permitsRd as $pr) {
+                    $existingPermits[$pr['type'] ?? ''] = $pr;
+                }
+            @endphp
+            @foreach($permitTypes as $ptIdx => $pt)
+            @php $existingPt = $existingPermits[$pt] ?? []; @endphp
+            <div style="display:flex; align-items:flex-start; gap:.75rem; margin-bottom:.5rem; border-bottom:1px solid #f0f0f0; padding-bottom:.5rem;">
+                <label style="display:flex; align-items:center; gap:.4rem; min-width:200px; font-size:.875rem; cursor:pointer; padding-top:.15rem;">
+                    <input type="checkbox"
+                           name="permits_required[{{ $ptIdx }}][required]"
+                           value="1"
+                           {{ old("permits_required.{$ptIdx}.required", $existingPt['required'] ?? false) ? 'checked' : '' }}>
+                    <input type="hidden" name="permits_required[{{ $ptIdx }}][type]" value="{{ $pt }}">
+                    {{ $pt }}
+                </label>
+                <input type="text"
+                       name="permits_required[{{ $ptIdx }}][notes]"
+                       class="form-control"
+                       style="font-size:.875rem; padding:.3rem .5rem;"
+                       placeholder="Notes (optional)"
+                       value="{{ old("permits_required.{$ptIdx}.notes", $existingPt['notes'] ?? '') }}">
+            </div>
+            @endforeach
+
+            {{-- ── Material Handling ────────────────────────────────────────── --}}
+            <h3 class="section-heading" style="margin-top:1rem;">Material Handling</h3>
+            <div class="form-group" style="margin-bottom:.5rem;">
+                <label style="display:flex; align-items:center; gap:.5rem; font-size:.9rem; cursor:pointer;">
+                    <input type="checkbox" name="material_handling_has_large_items" value="1"
+                           id="mh_toggle"
+                           {{ old('material_handling_has_large_items', $matHandling['has_large_items'] ?? false) ? 'checked' : '' }}>
+                    Large / heavy items requiring manual handling assessment
+                </label>
+            </div>
+            <div id="mh_items_section" style="{{ old('material_handling_has_large_items', $matHandling['has_large_items'] ?? false) ? '' : 'display:none;' }}">
+                <table class="data-table" style="font-size:.85rem; margin-bottom:.5rem;">
+                    <thead>
+                        <tr>
+                            <th>Item Description</th>
+                            <th style="width:100px;">Weight (kg)</th>
+                            <th>Handling Method</th>
+                            <th style="width:40px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="mh_tbody">
+                    @php $mhItemsList = old('material_handling_items', $matHandling['large_items'] ?? []); @endphp
+                    @forelse($mhItemsList as $miIdx => $mi)
+                        @php $mi = is_array($mi) ? $mi : []; @endphp
+                        <tr class="mh-row">
+                            <td><input type="text" name="material_handling_items[{{ $miIdx }}][item]" class="form-control" style="font-size:.85rem;" value="{{ $mi['item'] ?? '' }}"></td>
+                            <td><input type="text" name="material_handling_items[{{ $miIdx }}][weight_kg]" class="form-control" style="font-size:.85rem;" value="{{ $mi['weight_kg'] ?? '' }}"></td>
+                            <td><input type="text" name="material_handling_items[{{ $miIdx }}][handling_method]" class="form-control" style="font-size:.85rem;" value="{{ $mi['handling_method'] ?? '' }}"></td>
+                            <td><button type="button" onclick="this.closest('tr').remove()" style="color:#c00; background:none; border:none; cursor:pointer; font-size:1rem;">&#x2715;</button></td>
+                        </tr>
+                    @empty
+                        <tr class="mh-row">
+                            <td><input type="text" name="material_handling_items[0][item]" class="form-control" style="font-size:.85rem;" placeholder="e.g. 100&quot; display"></td>
+                            <td><input type="text" name="material_handling_items[0][weight_kg]" class="form-control" style="font-size:.85rem;" placeholder="kg"></td>
+                            <td><input type="text" name="material_handling_items[0][handling_method]" class="form-control" style="font-size:.85rem;" placeholder="e.g. 2-person lift, trolley"></td>
+                            <td><button type="button" onclick="this.closest('tr').remove()" style="color:#c00; background:none; border:none; cursor:pointer; font-size:1rem;">&#x2715;</button></td>
+                        </tr>
+                    @endforelse
+                    </tbody>
+                </table>
+                <button type="button" onclick="addMhRow()" class="btn btn-outline btn-sm" style="font-size:.8rem;">+ Add item</button>
+            </div>
+            <div class="form-group" style="margin-top:.65rem;">
+                <label class="form-label" for="material_handling_handling_notes">Handling Notes</label>
+                <textarea id="material_handling_handling_notes" name="material_handling_handling_notes" class="form-control" rows="2"
+                          placeholder="Any general manual handling notes or risk controls"
+                >{{ old('material_handling_handling_notes', $matHandling['handling_notes'] ?? '') }}</textarea>
+            </div>
+            <script>
+                document.getElementById('mh_toggle').addEventListener('change', function() {
+                    document.getElementById('mh_items_section').style.display = this.checked ? '' : 'none';
+                });
+                var mhRowIndex = {{ count(old('material_handling_items', $matHandling['large_items'] ?? [])) ?: 1 }};
+                function addMhRow() {
+                    var tbody = document.getElementById('mh_tbody');
+                    var tr = document.createElement('tr');
+                    tr.className = 'mh-row';
+                    tr.innerHTML = '<td><input type="text" name="material_handling_items['+mhRowIndex+'][item]" class="form-control" style="font-size:.85rem;"></td>'
+                        + '<td><input type="text" name="material_handling_items['+mhRowIndex+'][weight_kg]" class="form-control" style="font-size:.85rem;" placeholder="kg"></td>'
+                        + '<td><input type="text" name="material_handling_items['+mhRowIndex+'][handling_method]" class="form-control" style="font-size:.85rem;"></td>'
+                        + '<td><button type="button" onclick="this.closest(\'tr\').remove()" style="color:#c00;background:none;border:none;cursor:pointer;font-size:1rem;">&#x2715;</button></td>';
+                    tbody.appendChild(tr);
+                    mhRowIndex++;
+                }
+            </script>
+
+            {{-- ── CDM 2015 Duty Holders + Welfare ─────────────────────────── --}}
+            <h3 class="section-heading" style="margin-top:1rem;">CDM 2015 Duty Holders</h3>
+            <p style="font-size:.85rem; color:#555; margin-bottom:.65rem;">Leave blank if role does not apply. Sub-contractor defaults to 21CAV.</p>
+            @php
+                $cdmRoles    = ['Client', 'Principal Designer', 'Principal Contractor', 'Sub-contractor'];
+                $cdmDefaults = ['Sub-contractor' => ['organisation' => '21st Century AV Ltd']];
+                $cdmLookup   = [];
+                foreach ($cdmRows as $cr) { $cdmLookup[$cr['role'] ?? ''] = $cr; }
+            @endphp
+            <table class="data-table" style="font-size:.85rem; margin-bottom:.75rem;">
+                <thead>
+                    <tr><th>Role</th><th>Organisation</th><th>Name</th><th>Contact</th></tr>
+                </thead>
+                <tbody>
+                @foreach($cdmRoles as $ri => $role)
+                @php
+                    $cdmRow = $cdmLookup[$role] ?? ($cdmDefaults[$role] ?? []);
+                @endphp
+                <tr>
+                    <td>
+                        <input type="hidden" name="cdm[{{ $ri }}][role]" value="{{ $role }}">
+                        <strong>{{ $role }}</strong>
+                    </td>
+                    <td><input type="text" name="cdm[{{ $ri }}][organisation]" class="form-control" style="font-size:.85rem;"
+                               value="{{ old("cdm.{$ri}.organisation", $cdmRow['organisation'] ?? '') }}"></td>
+                    <td><input type="text" name="cdm[{{ $ri }}][name]" class="form-control" style="font-size:.85rem;"
+                               value="{{ old("cdm.{$ri}.name", $cdmRow['name'] ?? '') }}"></td>
+                    <td><input type="text" name="cdm[{{ $ri }}][contact]" class="form-control" style="font-size:.85rem;"
+                               value="{{ old("cdm.{$ri}.contact", $cdmRow['contact'] ?? '') }}"></td>
+                </tr>
+                @endforeach
+                </tbody>
+            </table>
+
+            <div class="form-group">
+                <label class="form-label" for="welfare_notes">Welfare Arrangements — Site-Specific Notes</label>
+                <textarea id="welfare_notes" name="welfare_notes" class="form-control" rows="2"
+                          placeholder="e.g. Welfare facilities in Building B, Level 1. First aider: John Smith (07700 000000)"
+                >{{ old('welfare_notes', $prog['welfare_notes'] ?? '') }}</textarea>
             </div>
 
             <div style="display:flex; gap:.75rem; flex-wrap:wrap; margin-top:1rem;">
