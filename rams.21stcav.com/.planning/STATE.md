@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Operations Dashboard & Notifications
 status: executing
-last_updated: "2026-04-14T18:24:46.161Z"
+last_updated: "2026-04-14T18:27:46.604Z"
 last_activity: 2026-04-14 -- Phase 08 execution started
 progress:
   total_phases: 3
@@ -57,3 +57,4 @@ Tag: `v1.0`
 | 260414-gua | 2026-04-14 | Redesign RAMS PDF output to match 21CQ30017 reference document and add PDF download to project page | ✅ Done | ef64a9e |
 | 260414-j5p | 2026-04-14 | Add start/end times, waste removal, permits, material handling, CDM, COSHH, welfare, toolbox talk to RAMS | ✅ Done | c428316 |
 | 260414-jli | 2026-04-14 | Add scope traceability, client responsibilities expanded, exclusions, decommissioning, commissioning criteria to RAMS | ✅ Done | f33b8b9 |
+| 260415-en6 | 2026-04-15 | Fix site survey gaps: PM email, cable routes, rack room, projection/network/sign-off fields | ✅ Done | d47d653 |
