@@ -166,6 +166,12 @@ class ProjectContextResolver
                 return null;
             }
 
+            // Exclude non-physical-space entries that the quote parser may have
+            // incorrectly captured as rooms (e.g. "Licencing", "Cabling", "Services").
+            if (preg_match('/\b(licen[cs]|cabling|cables?|wiring|network|software|service|warranty|support|delivery|carriage)\b/i', $room)) {
+                return null;
+            }
+
             return [
                 'room'             => $room,
                 'overview'         => trim((string) ($item['overview']         ?? '')),

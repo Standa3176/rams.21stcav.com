@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\RamsDocument;
 use App\Services\ApproveRamsForGenerationService;
+use App\Services\Rams\RamsDiffService;
 use App\Services\RamsReviewDataService;
 use App\Services\RamsReviewValidatorService;
 use App\Services\RoomOverviewSummaryService;
@@ -64,7 +65,17 @@ class RamsReviewController extends Controller
         $reviewPayload = $this->reviewDataService->load($rams);
         $ppeOptions    = self::PPE_OPTIONS;
 
-        return view('rams.quote-review', compact('rams', 'reviewPayload', 'ppeOptions'));
+        // Diff: extracted vs reviewed for change highlighting (only when reviewed_data exists)
+        $hasReviewed = ! empty($rams->reviewed_data);
+
+        $diff = $hasReviewed
+            ? RamsDiffService::diff(
+                $rams->extracted_data ?? [],
+                $rams->reviewed_data ?? [],
+            )
+            : ['changes' => [], 'summary' => ['total' => 0, 'added' => 0, 'modified' => 0, 'removed' => 0]];
+
+        return view('rams.quote-review', compact('rams', 'reviewPayload', 'ppeOptions', 'diff'));
     }
 
     // ─────────────────────────────────────────────────────────────────────────

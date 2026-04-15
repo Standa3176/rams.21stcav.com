@@ -304,7 +304,17 @@ class RamsController extends Controller
         // Nothing is persisted to DB — see patchRamsForDisplay() for full logic.
         $this->patchRamsForDisplay($rams);
 
-        return view('rams.review', compact('rams'));
+        // Diff: extracted vs reviewed for change highlighting (only when reviewed_data exists)
+        $hasReviewed = ! empty($rams->reviewed_data);
+
+        $diff = $hasReviewed
+            ? \App\Services\Rams\RamsDiffService::diff(
+                $rams->extracted_data ?? [],
+                $rams->reviewed_data ?? [],
+            )
+            : ['changes' => [], 'summary' => ['total' => 0, 'added' => 0, 'modified' => 0, 'removed' => 0]];
+
+        return view('rams.review', compact('rams', 'diff'));
     }
 
     // ─────────────────────────────────────────────────────────────────────────

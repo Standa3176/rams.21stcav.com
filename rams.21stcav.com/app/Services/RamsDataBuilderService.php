@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Services\Cable\CableScheduleBuilderService;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\Log;
  * Responsibilities:
  *   - Resolve final project field values (form data takes priority over parsed)
  *   - Merge base PPE with any form-supplied selections
+ *   - Integrate ProjectContext (survey rooms, deterministic risks, cable requirements)
  *   - Assemble the quote summary block (equipment line items + room summaries)
  *   - Build the persons_at_risk list (always includes '21CAV Staff')
  *   - Normalise every key to its expected PHP type
@@ -23,8 +25,8 @@ use Illuminate\Support\Facades\Log;
  *   The returned array ALWAYS contains a 'method_statement' key at the top
  *   level, even when the normalised phases array is empty.
  *
- * No AI calls. No database access. No Eloquent models.
- * Pure data transformation.
+ * No AI calls. No Eloquent models.
+ * Pure data transformation + deterministic ProjectContext integration.
  */
 class RamsDataBuilderService
 {
@@ -42,6 +44,9 @@ class RamsDataBuilderService
      * @param  array  $methodStatement  Output from MethodStatementGeneratorService
      *                                  (key: phases)
      * @param  array  $formData         Validated form input (overrides parsed fields)
+     * @param  array  $projectContext   Output from ProjectContextBuilder::build()
+     *                                  (keys: project_id, rooms). Empty array when
+     *                                  no site survey exists — backwards compatible.
      * @return array                    Fully assembled, normalised data array
      *
      * @throws \RuntimeException  If required sections are empty after normalisation.
@@ -52,15 +57,40 @@ class RamsDataBuilderService
         array $risk,
         array $methodStatement,
         array $formData,
+        array $projectContext = [],
     ): array {
+        // ── ProjectContext integration (deterministic, no AI) ─────────────────
+        // When a site survey provides rooms, resolve additional risks and cable
+        // requirements, then merge into the upstream risk data.
+        $contextRooms       = $projectContext['rooms'] ?? [];
+        $cableRequirements  = [];
+
+        if (! empty($contextRooms)) {
+            $surveyRisk = app(RiskTemplateResolverService::class)
+                ->resolveFromProjectContext($projectContext);
+
+            $risk = $this->mergeRiskData($risk, $surveyRisk);
+
+            $cableRequirements = CableScheduleBuilderService::buildRequirements($projectContext);
+
+            Log::info('RamsDataBuilderService: ProjectContext integrated', [
+                'context_rooms'     => count($contextRooms),
+                'survey_hazards'    => count($surveyRisk['hazards'] ?? []),
+                'cable_requirements'=> count($cableRequirements),
+            ]);
+        }
+
         $data = [
             'project'                => $this->resolveProjectFields($parsed, $formData),
+            'project_context'        => $projectContext,
+            'rooms'                  => $contextRooms,
             'hazards'                => $risk['hazards']          ?? [],
             'ppe'                    => $this->mergePpe(
                                             $risk['ppe']          ?? [],
                                             $formData['ppe']      ?? [],
                                         ),
             'access_equipment'       => $risk['access_equipment'] ?? [],
+            'cable_requirements'     => $cableRequirements,
             'persons_at_risk'        => $this->buildPersons($formData['persons_at_risk'] ?? []),
             'method_statement'       => $methodStatement,   // always present — guaranteed by normalise()
             'team'                   => $formData['team']   ?? [],
@@ -76,6 +106,68 @@ class RamsDataBuilderService
         $this->assertMinimum($data);
 
         return $data;
+    }
+
+    // =========================================================================
+    // PRIVATE — PROJECT CONTEXT RISK MERGING
+    // =========================================================================
+
+    /**
+     * Merge survey-derived risk data into the existing risk array.
+     *
+     * Survey hazards are converted from { title, description, rooms } format
+     * to the RAMS hazard register format { id, hazard, persons_at_risk, ... }.
+     *
+     * PPE and access equipment are merged and deduplicated.
+     * Existing entries take priority (survey data supplements, not replaces).
+     *
+     * @param  array  $existing  Risk data from resolve() or reviewedToRisk()
+     * @param  array  $survey    Risk data from resolveFromProjectContext()
+     * @return array             Merged risk data in RAMS format
+     */
+    private function mergeRiskData(array $existing, array $survey): array
+    {
+        $existingHazards = $existing['hazards'] ?? [];
+        $surveyHazards   = $survey['hazards']   ?? [];
+
+        // Track existing hazard names to avoid duplicates
+        $existingNames = array_map(
+            fn ($h) => strtolower(trim((string) ($h['hazard'] ?? ''))),
+            $existingHazards
+        );
+
+        // Convert and append new survey hazards
+        $nextId = count($existingHazards) + 1;
+        foreach ($surveyHazards as $sh) {
+            $title = trim((string) ($sh['title'] ?? ''));
+            if ($title === '' || in_array(strtolower($title), $existingNames, true)) {
+                continue; // skip empty or duplicate
+            }
+
+            $description = trim((string) ($sh['description'] ?? ''));
+            $existingHazards[] = [
+                'id'              => $nextId++,
+                'hazard'          => $title,
+                'persons_at_risk' => ['21CAV Staff', 'Client Staff'],
+                'pre_likelihood'  => 3,
+                'pre_severity'    => 3,
+                'controls'        => $description !== '' ? [$description] : [],
+                'post_likelihood' => 2,
+                'post_severity'   => 2,
+            ];
+        }
+
+        return [
+            'hazards'          => $existingHazards,
+            'ppe'              => array_values(array_unique(array_merge(
+                $existing['ppe'] ?? [],
+                $survey['ppe'] ?? [],
+            ))),
+            'access_equipment' => array_values(array_unique(array_merge(
+                $existing['access_equipment'] ?? [],
+                $survey['access_equipment'] ?? [],
+            ))),
+        ];
     }
 
     // =========================================================================
@@ -314,6 +406,9 @@ class RamsDataBuilderService
             'rooms_text'           => (string) ($p['rooms_text']           ?? ''),
         ];
 
+        // ── project_context (pass through — already structured) ──────────────
+        $data['project_context'] = is_array($data['project_context'] ?? null) ? $data['project_context'] : [];
+
         // ── hazards ───────────────────────────────────────────────────────────
         $rawHazards  = is_array($data['hazards'] ?? null) ? $data['hazards'] : [];
         $normHazards = [];
@@ -418,6 +513,32 @@ class RamsDataBuilderService
             array_map('strval', (array) ($data['client_responsibilities'] ?? [])),
             static fn (string $s): bool => strlen(trim($s)) > 0,
         ));
+
+        // ── rooms (from ProjectContext — pass through if present) ─────────────
+        $data['rooms'] = is_array($data['rooms'] ?? null) ? $data['rooms'] : [];
+
+        // ── cable_requirements (from ProjectContext) ──────────────────────────
+        $rawCables = is_array($data['cable_requirements'] ?? null) ? $data['cable_requirements'] : [];
+        $normCables = [];
+        foreach ($rawCables as $cr) {
+            if (! is_array($cr)) {
+                continue;
+            }
+            $eqType = strtolower(trim((string) ($cr['equipment_type'] ?? '')));
+            $cType  = trim((string) ($cr['cable_type'] ?? ''));
+            if ($eqType === '' || $cType === '') {
+                continue;
+            }
+            $normCables[] = [
+                'room'               => trim((string) ($cr['room']               ?? '')),
+                'equipment_type'     => $eqType,
+                'equipment_status'   => strtolower(trim((string) ($cr['equipment_status']   ?? 'new'))),
+                'equipment_location' => trim((string) ($cr['equipment_location'] ?? '')),
+                'cable_type'         => $cType,
+                'estimated_distance' => max(0.0, (float) ($cr['estimated_distance'] ?? 10.0)),
+            ];
+        }
+        $data['cable_requirements'] = $normCables;
 
         // ── quote ─────────────────────────────────────────────────────────────
         $data['quote'] = is_array($data['quote'] ?? null) ? $data['quote'] : [];

@@ -113,6 +113,33 @@ class RamsDocument extends Model
         return ! is_null($this->superseded_by_id);
     }
 
+    /**
+     * Whether this document can be approved for generation.
+     * Requires reviewed_data and must not already be generating or completed.
+     */
+    public function canBeApproved(): bool
+    {
+        if (empty($this->reviewed_data)) {
+            return false;
+        }
+
+        return ! in_array($this->status, [
+            self::STATUS_APPROVED,
+            self::STATUS_APPROVED_FOR_GENERATION,
+            self::STATUS_GENERATING,
+            self::STATUS_COMPLETED,
+        ], true);
+    }
+
+    /**
+     * Whether this document can proceed to DOCX generation.
+     * Requires approved_at timestamp and reviewed_data.
+     */
+    public function canGenerate(): bool
+    {
+        return ! is_null($this->approved_at) && ! empty($this->reviewed_data);
+    }
+
     public function isPipelineStatus(): bool
     {
         return in_array($this->status, [

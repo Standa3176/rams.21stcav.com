@@ -406,6 +406,9 @@ class PublicSurveyController extends Controller
             'has_network'               => ! empty($data['has_network']),
             'power_outlet_count'        => (int) ($data['power_outlet_count']  ?? 0),
             'network_port_count'        => (int) ($data['network_port_count']  ?? 0),
+            'network_ssid'              => $data['network_ssid']              ?? null,
+            'network_vlan'              => $data['network_vlan']              ?? null,
+            'network_switch_port'       => $data['network_switch_port']       ?? null,
             'existing_cabling'          => $data['existing_cabling']         ?? null,
             'requires_additional_power' => ! empty($data['requires_additional_power']),
             'access_notes'              => $data['access_notes']             ?? null,
@@ -420,9 +423,16 @@ class PublicSurveyController extends Controller
             'display_mounting'          => $data['display_mounting']         ?? null,
             'rack_unit_space'           => isset($data['rack_unit_space'])  ? (int) $data['rack_unit_space'] : null,
             'cable_route_desc'          => $data['cable_route_desc']         ?? null,
+            'cable_route_from'          => $data['cable_route_from']         ?? null,
+            'cable_route_to'            => $data['cable_route_to']           ?? null,
+            'is_rack_room'              => isset($data['is_rack_room']) ? (bool) $data['is_rack_room'] : null,
+            'projection_throw_m'        => $data['projection_throw_m']       ?? null,
+            'viewing_distance_m'        => $data['viewing_distance_m']       ?? null,
             'existing_condition'        => $data['existing_condition']       ?? null,
             'items_to_remove'           => $data['items_to_remove']          ?? null,
             'items_to_retain'           => $data['items_to_retain']          ?? null,
+            'engineer_confirmed'        => isset($data['engineer_confirmed']) ? (bool) $data['engineer_confirmed'] : null,
+            'engineer_signature_name'   => $data['engineer_signature_name']  ?? null,
         ];
     }
 
@@ -483,6 +493,16 @@ class PublicSurveyController extends Controller
             // Infrastructure
             'rooms.*.rack_unit_space'               => ['nullable', 'integer', 'min:0', 'max:999'],
             'rooms.*.cable_route_desc'              => ['nullable', 'string', 'max:3000'],
+            'rooms.*.cable_route_from'              => ['nullable', 'string', 'max:500'],
+            'rooms.*.cable_route_to'                => ['nullable', 'string', 'max:500'],
+            'rooms.*.is_rack_room'                  => ['nullable', 'boolean'],
+            'rooms.*.projection_throw_m'            => ['nullable', 'numeric', 'min:0', 'max:999'],
+            'rooms.*.viewing_distance_m'            => ['nullable', 'numeric', 'min:0', 'max:999'],
+            'rooms.*.network_ssid'                  => ['nullable', 'string', 'max:255'],
+            'rooms.*.network_vlan'                  => ['nullable', 'string', 'max:100'],
+            'rooms.*.network_switch_port'           => ['nullable', 'string', 'max:100'],
+            'rooms.*.engineer_confirmed'            => ['nullable', 'boolean'],
+            'rooms.*.engineer_signature_name'       => ['nullable', 'string', 'max:255'],
             // Upgrade / strip-out
             'rooms.*.existing_condition'            => ['nullable', 'string', 'max:3000'],
             'rooms.*.items_to_remove'               => ['nullable', 'string', 'max:3000'],

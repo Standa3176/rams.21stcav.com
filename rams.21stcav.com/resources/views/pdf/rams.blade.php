@@ -355,8 +355,12 @@ p { margin: 3pt 0; }
     }
     if (empty($roomsList) && ! empty($roomOverviews) && is_array($roomOverviews)) {
         foreach ($roomOverviews as $ro) {
-            $rn = $ro['room_name'] ?? ($ro['name'] ?? '');
-            if ($rn) $roomsList[] = $rn;
+            // 'room' is the canonical key in reviewed_data room_overviews
+            $rn = $ro['room'] ?? ($ro['room_name'] ?? ($ro['name'] ?? ''));
+            // Exclude non-physical-space entries (licencing, cabling, services, etc.)
+            if ($rn && ! preg_match('/\b(licen[cs]|cabling|cables?|wiring|network|software|service|warranty|support|delivery|carriage)\b/i', $rn)) {
+                $roomsList[] = $rn;
+            }
         }
     }
     if (empty($roomsList) && $roomsText) {
@@ -568,7 +572,7 @@ p { margin: 3pt 0; }
 </table>
 
 {{-- Cover Table 3: PERSONNEL (dates already shown in Table 1 above) --}}
-@if($docAuthor || $leadEngineer || $additionalEngs || $programmer || $plannedStartTime || $plannedEndTime)
+@if($docAuthor || $leadEngineer || $additionalEngs || $programmer)
 <table class="cover-table">
     @if($docAuthor)
     <tr>
@@ -592,14 +596,6 @@ p { margin: 3pt 0; }
     <tr>
         <td class="lbl">PROGRAMMER:</td>
         <td class="val" colspan="3">{{ $programmer }}</td>
-    </tr>
-    @endif
-    @if($plannedStartTime || $plannedEndTime)
-    <tr>
-        <td class="lbl" style="width:30%;">START TIME:</td>
-        <td class="val" style="width:20%;">{{ $plannedStartTime ?: '—' }}</td>
-        <td class="lbl" style="width:20%;">END TIME:</td>
-        <td class="val">{{ $plannedEndTime ?: '—' }}</td>
     </tr>
     @endif
 </table>
@@ -710,10 +706,13 @@ p { margin: 3pt 0; }
     {{-- Per-room scope paragraphs from reviewed data --}}
     @foreach($roomOverviews as $roomOv)
         @php
-            $rvName = $roomOv['room_name'] ?? ($roomOv['name'] ?? '');
+            // 'room' is the canonical key in reviewed_data room_overviews
+            $rvName = $roomOv['room'] ?? ($roomOv['room_name'] ?? ($roomOv['name'] ?? ''));
             $rvDesc = $roomOv['overview']  ?? ($roomOv['description'] ?? ($roomOv['scope'] ?? ''));
             // Strip markdown bold markers and limit to first paragraph of survey text
             $rvDesc = preg_replace('/\*\*([^*]+)\*\*/', '$1', $rvDesc ?? '');
+            // Strip leading colon/space artifact that appears when overview text begins with ":Room Name"
+            $rvDesc = ltrim(trim($rvDesc), ': ');
             $rvDescParas = array_filter(array_map('trim', preg_split('/\n{2,}/', trim($rvDesc))));
             $rvDesc = reset($rvDescParas) ?: '';
         @endphp

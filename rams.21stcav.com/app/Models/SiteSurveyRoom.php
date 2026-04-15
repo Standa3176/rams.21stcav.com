@@ -32,6 +32,9 @@ class SiteSurveyRoom extends Model
         'has_network',
         'power_outlet_count',
         'network_port_count',
+        'network_ssid',
+        'network_vlan',
+        'network_switch_port',
         'existing_cabling',
         'requires_additional_power',
         // Access
@@ -53,10 +56,25 @@ class SiteSurveyRoom extends Model
         // Infrastructure
         'rack_unit_space',
         'cable_route_desc',
+        'cable_route_from',
+        'cable_route_to',
+        'is_rack_room',
+        'projection_throw_m',
+        'viewing_distance_m',
         // Upgrade / strip-out
         'existing_condition',
         'items_to_remove',
         'items_to_retain',
+        // Completion tracking (extended)
+        'engineer_confirmed',
+        'engineer_signature_name',
+        // Wizard step fields
+        'work_type',
+        'access_issues',
+        'working_at_height',
+        'client_present',
+        'hs_flags',
+        'constraints_data',
     ];
 
     protected $casts = [
@@ -65,6 +83,15 @@ class SiteSurveyRoom extends Model
         'requires_additional_power'  => 'boolean',
         'is_completed'               => 'boolean',
         'completed_at'               => 'datetime',
+        'is_rack_room'               => 'boolean',
+        'engineer_confirmed'         => 'boolean',
+        'access_issues'              => 'boolean',
+        'working_at_height'          => 'boolean',
+        'client_present'             => 'boolean',
+        'hs_flags'                   => 'array',
+        'constraints_data'           => 'array',
+        'projection_throw_m'         => 'decimal:2',
+        'viewing_distance_m'         => 'decimal:2',
         'room_width_m'               => 'decimal:2',
         'room_depth_m'               => 'decimal:2',
         'room_height_m'              => 'decimal:2',

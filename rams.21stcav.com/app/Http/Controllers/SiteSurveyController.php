@@ -145,6 +145,28 @@ class SiteSurveyController extends Controller
             ->with('success', 'Survey created and pre-filled from project data. Review the rooms below, then share the engineer link.');
     }
 
+    /**
+     * POST /site-surveys/supersede-from-project/{project}
+     *
+     * Directly archives any existing active survey and creates a fresh one
+     * pre-filled from the project's latest package data — no confirmation page.
+     * Used by the ↻ Regen button on the project overview.
+     */
+    public function supersedeFromProject(Project $project): RedirectResponse
+    {
+        abort_if(
+            $project->user_id !== auth()->id() && ! auth()->user()?->isAdmin(),
+            403
+        );
+
+        /** @var \App\Models\User $user */
+        $user   = auth()->user();
+        $survey = $this->service->createFromProject($project, $user, supersede: true);
+
+        return redirect()->route('site-surveys.edit', $survey)
+            ->with('success', 'Previous survey archived. New survey created and pre-filled from project data.');
+    }
+
     // ─── Edit ────────────────────────────────────────────────────────────────
 
     public function edit(SiteSurvey $siteSurvey): View

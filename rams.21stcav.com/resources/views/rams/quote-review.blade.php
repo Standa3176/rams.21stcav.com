@@ -163,6 +163,36 @@
 .badge-warning { background: #fffbeb; color: #92400e; border: 1px solid #f59e0b; }
 .badge-green   { background: #f0fdf4; color: #166534; border: 1px solid #86efac; }
 .badge-red     { background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5; }
+
+/* ── Diff highlighting ────────────────────────────────────────────── */
+.diff-modified { border-left: 3px solid #f59e0b !important; background: #fffdf5 !important; }
+.diff-added    { border-left: 3px solid #22c55e !important; background: #f7fef9 !important; }
+.diff-removed  { border-left: 3px solid #ef4444 !important; background: #fefafa !important; }
+.diff-hint {
+    font-size: .75rem;
+    margin-top: .25rem;
+    padding: .2rem .5rem;
+    border-radius: 3px;
+    display: inline-block;
+}
+.diff-hint-modified { color: #92400e; background: #fef3c7; }
+.diff-hint-added    { color: #166534; background: #dcfce7; }
+.diff-hint-removed  { color: #991b1b; background: #fee2e2; }
+.diff-legend {
+    display: flex; gap: .75rem; align-items: center;
+    padding: .5rem .75rem; font-size: .8125rem;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); margin-bottom: 1rem;
+}
+.diff-legend-dot {
+    width: 10px; height: 10px; border-radius: 2px; display: inline-block;
+    margin-right: .3rem; vertical-align: middle;
+}
+.diff-summary {
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: var(--radius-sm);
+    padding: .6rem 1rem; font-size: .8125rem; color: #1e40af;
+    margin-bottom: 1rem; display: flex; gap: .75rem; align-items: center;
+}
 </style>
 @endpush
 
@@ -227,6 +257,59 @@
     </div>
 @endif
 
+{{-- ── Diff helper + legend ──────────────────────────────────────────── --}}
+@php
+    use App\Services\Rams\RamsDiffService;
+
+    // Helper: check if a field has a change in the diff
+    $fieldChanged = function (string $field) use ($diff) {
+        return RamsDiffService::fieldChange($diff ?? [], $field);
+    };
+    // Helper: CSS class for a change type
+    $diffClass = function (?array $change): string {
+        if (! $change) return '';
+        return 'diff-' . ($change['type'] ?? '');
+    };
+    // Helper: hint label for a change
+    $diffHint = function (?array $change): string {
+        if (! $change) return '';
+        $type = $change['type'] ?? '';
+        $old  = $change['old'] ?? '';
+        if (is_array($old)) $old = json_encode($old);
+        $old = e(\Illuminate\Support\Str::limit((string) $old, 80));
+        return match ($type) {
+            'modified' => $old !== '' ? "Changed from: {$old}" : 'Modified',
+            'added'    => 'New — not in extracted data',
+            'removed'  => 'Removed from extracted data',
+            default    => '',
+        };
+    };
+@endphp
+
+@if (! empty($diff['changes']))
+    <div class="diff-summary">
+        <span>📋</span>
+        <span>
+            <strong>{{ $diff['summary']['total'] }}</strong> change{{ $diff['summary']['total'] !== 1 ? 's' : '' }} detected between extracted and reviewed data
+            @if ($diff['summary']['added'] > 0)
+                — <strong>{{ $diff['summary']['added'] }}</strong> added
+            @endif
+            @if ($diff['summary']['modified'] > 0)
+                — <strong>{{ $diff['summary']['modified'] }}</strong> modified
+            @endif
+            @if ($diff['summary']['removed'] > 0)
+                — <strong>{{ $diff['summary']['removed'] }}</strong> removed
+            @endif
+        </span>
+    </div>
+    <div class="diff-legend">
+        <span><span class="diff-legend-dot" style="background:#22c55e;"></span> Added</span>
+        <span><span class="diff-legend-dot" style="background:#f59e0b;"></span> Modified</span>
+        <span><span class="diff-legend-dot" style="background:#ef4444;"></span> Removed</span>
+        <span style="color:var(--text-muted);margin-left:auto;font-size:.75rem;">Fields with changes are highlighted below</span>
+    </div>
+@endif
+
 {{-- ================================================================== --}}
 {{-- MAIN FORM                                                           --}}
 {{-- ================================================================== --}}
@@ -246,7 +329,8 @@
         </div>
         <div class="review-section-body">
             <div class="review-grid-2">
-                <div class="form-group">
+                @php $c_pname = $fieldChanged('project.project_name'); @endphp
+                <div class="form-group {{ $diffClass($c_pname) }}">
                     <label class="form-label">
                         Project Name <span style="color:var(--danger)">*</span>
                     </label>
@@ -259,54 +343,81 @@
                     @error('project.project_name')
                         <p class="form-error">{{ $message }}</p>
                     @enderror
+                    @if ($c_pname)
+                        <span class="diff-hint diff-hint-{{ $c_pname['type'] }}">{{ $diffHint($c_pname) }}</span>
+                    @endif
                 </div>
-                <div class="form-group">
+                @php $c_ref = $fieldChanged('project.quote_ref'); @endphp
+                <div class="form-group {{ $diffClass($c_ref) }}">
                     <label class="form-label">Quote / Project Ref</label>
                     <input type="text"
                            name="project[quote_ref]"
                            class="form-control"
                            value="{{ old('project.quote_ref', $reviewPayload['project']['quote_ref']) }}"
                            maxlength="100">
+                    @if ($c_ref)
+                        <span class="diff-hint diff-hint-{{ $c_ref['type'] }}">{{ $diffHint($c_ref) }}</span>
+                    @endif
                 </div>
-                <div class="form-group">
+                @php $c_client = $fieldChanged('project.client_name'); @endphp
+                <div class="form-group {{ $diffClass($c_client) }}">
                     <label class="form-label">Client Name</label>
                     <input type="text"
                            name="project[client_name]"
                            class="form-control"
                            value="{{ old('project.client_name', $reviewPayload['project']['client_name']) }}"
                            maxlength="255">
+                    @if ($c_client)
+                        <span class="diff-hint diff-hint-{{ $c_client['type'] }}">{{ $diffHint($c_client) }}</span>
+                    @endif
                 </div>
-                <div class="form-group">
+                @php $c_sname = $fieldChanged('project.site_name'); @endphp
+                <div class="form-group {{ $diffClass($c_sname) }}">
                     <label class="form-label">Site Name</label>
                     <input type="text"
                            name="project[site_name]"
                            class="form-control"
                            value="{{ old('project.site_name', $reviewPayload['project']['site_name']) }}"
                            maxlength="255">
+                    @if ($c_sname)
+                        <span class="diff-hint diff-hint-{{ $c_sname['type'] }}">{{ $diffHint($c_sname) }}</span>
+                    @endif
                 </div>
-                <div class="form-group" style="grid-column:span 2;">
+                @php $c_saddr = $fieldChanged('project.site_address'); @endphp
+                <div class="form-group {{ $diffClass($c_saddr) }}" style="grid-column:span 2;">
                     <label class="form-label">Site Address</label>
                     <input type="text"
                            name="project[site_address]"
                            class="form-control"
                            value="{{ old('project.site_address', $reviewPayload['project']['site_address']) }}"
                            maxlength="500">
+                    @if ($c_saddr)
+                        <span class="diff-hint diff-hint-{{ $c_saddr['type'] }}">{{ $diffHint($c_saddr) }}</span>
+                    @endif
                 </div>
-                <div class="form-group">
+                @php $c_scontact = $fieldChanged('project.site_contact'); @endphp
+                <div class="form-group {{ $diffClass($c_scontact) }}">
                     <label class="form-label">Site Contact</label>
                     <input type="text"
                            name="project[site_contact]"
                            class="form-control"
                            value="{{ old('project.site_contact', $reviewPayload['project']['site_contact'] ?? '') }}"
                            maxlength="200">
+                    @if ($c_scontact)
+                        <span class="diff-hint diff-hint-{{ $c_scontact['type'] }}">{{ $diffHint($c_scontact) }}</span>
+                    @endif
                 </div>
-                <div class="form-group">
+                @php $c_prepby = $fieldChanged('project.prepared_by'); @endphp
+                <div class="form-group {{ $diffClass($c_prepby) }}">
                     <label class="form-label">Prepared By</label>
                     <input type="text"
                            name="project[prepared_by]"
                            class="form-control"
                            value="{{ old('project.prepared_by', $reviewPayload['project']['prepared_by']) }}"
                            maxlength="255">
+                    @if ($c_prepby)
+                        <span class="diff-hint diff-hint-{{ $c_prepby['type'] }}">{{ $diffHint($c_prepby) }}</span>
+                    @endif
                 </div>
             </div>
         </div>
@@ -663,7 +774,8 @@
                 </thead>
                 <tbody id="hazards-tbody">
                     @foreach ($reviewPayload['hazards'] as $i => $hazard)
-                        <tr>
+                        @php $c_haz = $fieldChanged("hazards.{$i}.hazard"); @endphp
+                        <tr class="{{ $diffClass($c_haz) }}">
                             <td class="col-act">
                                 <input type="text"
                                        name="hazards[{{ $i }}][activity_key]"
@@ -705,9 +817,16 @@
     </div>
 
     {{-- ── 5. PPE ───────────────────────────────────────────────────── --}}
-    <div class="review-section">
+    @php
+        $ppeChanges = \App\Services\Rams\RamsDiffService::fieldChangesUnder($diff ?? [], 'ppe');
+        $ppeHasChanges = ! empty($ppeChanges);
+    @endphp
+    <div class="review-section {{ $ppeHasChanges ? 'diff-modified' : '' }}">
         <div class="review-section-header">
             <h2>6. PPE Required</h2>
+            @if ($ppeHasChanges)
+                <span class="diff-hint diff-hint-modified">{{ count($ppeChanges) }} PPE change{{ count($ppeChanges) !== 1 ? 's' : '' }}</span>
+            @endif
         </div>
         <div class="review-section-body">
             @error('ppe')

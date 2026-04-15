@@ -16,6 +16,7 @@ use App\Http\Controllers\RamsReviewController;
 use App\Http\Controllers\ProjectPackageReviewController;
 use App\Http\Controllers\PublicSurveyController;
 use App\Http\Controllers\SiteSurveyController;
+use App\Http\Controllers\SurveyController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -46,7 +47,8 @@ Route::post('/logout', function () {
 */
 
 Route::get('survey/{token}/confirmation',               [PublicSurveyController::class, 'confirmation']) ->name('survey.confirmation');
-Route::get('survey/{token}',                           [PublicSurveyController::class, 'show'])        ->name('survey.show');
+Route::get('survey/{token}',                           [SurveyController::class, 'show'])             ->name('survey.show');
+Route::post('survey/{token}/step-save',                [SurveyController::class, 'stepSave'])         ->name('survey.step.save')    ->middleware('throttle:60,1');
 Route::post('survey/{token}/save',                     [PublicSurveyController::class, 'save'])        ->name('survey.save')         ->middleware('throttle:30,1');
 Route::post('survey/{token}/submit',                   [PublicSurveyController::class, 'submit'])      ->name('survey.submit')       ->middleware('throttle:10,1');
 Route::post('survey/{token}/rooms/{room}/photos',      [PublicSurveyController::class, 'uploadPhoto'])    ->name('survey.photos.upload')   ->middleware('throttle:30,1');
@@ -219,7 +221,8 @@ Route::middleware('auth')->group(function () {
     // ── Site Surveys ──────────────────────────────────────────────────────
     // Literal-segment routes must be before the resource so they are not
     // captured by {siteSurvey} route model binding.
-    Route::get('site-surveys/from-project/{project}', [SiteSurveyController::class, 'createFromProject'])->name('site-surveys.from-project');
+    Route::get('site-surveys/from-project/{project}',          [SiteSurveyController::class, 'createFromProject'])    ->name('site-surveys.from-project');
+    Route::post('site-surveys/supersede-from-project/{project}', [SiteSurveyController::class, 'supersedeFromProject']) ->name('site-surveys.supersede-from-project');
     Route::get('site-surveys/project-data/{project}', [SiteSurveyController::class, 'projectData'])      ->name('site-surveys.project-data');
     Route::resource('site-surveys', SiteSurveyController::class)
         ->only(['index', 'create', 'store', 'show', 'edit', 'update', 'destroy']);

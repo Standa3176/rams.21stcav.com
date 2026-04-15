@@ -73,6 +73,27 @@ class BuildRamsDocumentJob implements ShouldQueue
             return;
         }
 
+        // ── Guard: RAMS must be approved before generation ───────────────────
+        if (! $record->approved_at) {
+            $errorMessage = "RAMS must be approved before generation. " .
+                "Review the document and click Approve before dispatching generation.";
+
+            Log::error('BuildRamsDocumentJob: document not approved — cannot generate', [
+                'record_id'   => $this->ramsDocumentId,
+                'status'      => $record->status,
+                'approved_at' => null,
+            ]);
+
+            $record->update([
+                'status'        => RamsDocument::STATUS_FAILED,
+                'error_message' => $errorMessage,
+            ]);
+
+            $this->fail(new \RuntimeException($errorMessage));
+
+            return;
+        }
+
         try {
             $record->update([
                 'status'        => RamsDocument::STATUS_GENERATING,

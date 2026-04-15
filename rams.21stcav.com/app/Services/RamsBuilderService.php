@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Core\Modules\KnowledgeLibrary\HazardLibraryService;
 use App\Models\RamsDocument;
+use App\Services\ProjectContext\ProjectContextBuilder;
+use App\Services\Rams\RamsComplianceUpgradeService;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -27,11 +29,13 @@ use Illuminate\Support\Facades\Log;
  *
  * Pipeline stages (Phases A and B combined for direct calls):
  *   1. Parse / classify / resolve risks  (local, no AI)
- *   2. Generate method statement         (AI — single AI call)
- *   3. Assemble + normalise data
- *   4. Pre-render guard
- *   5. Persist generated_data
- *   6. Render DOCX
+ *   2. Build ProjectContext from SiteSurvey when available (deterministic)
+ *   3. Generate method statement         (AI — single AI call)
+ *   4. Assemble + normalise data         (RamsDataBuilderService handles all data shaping,
+ *                                          including ProjectContext integration)
+ *   5. Pre-render guard
+ *   6. Persist generated_data
+ *   7. Render DOCX
  */
 class RamsBuilderService
 {
@@ -130,6 +134,9 @@ class RamsBuilderService
         $risk        = $this->reviewedToRisk($reviewedData, $record->user_id);
         $mergedForm  = $this->mergeReviewedIntoFormData($reviewedData, $formData);
 
+        // Build ProjectContext — passed forward to RamsDataBuilderService for all data shaping.
+        $projectContext = $this->buildProjectContext($record);
+
         // Generate fresh AI summaries only when some room overviews lack a saved summary.
         if (! empty($reviewedData['room_overviews'])) {
             // Treat non-array entries as "empty summary" so they trigger summarize().
@@ -169,10 +176,11 @@ class RamsBuilderService
         }
 
         Log::info('RamsBuilderService::buildFromReview: inputs prepared', [
-            'record_id'      => $record->id,
-            'activities'     => $classified['activities'],
-            'hazard_count'   => count($risk['hazards']),
-            'equipment_count'=> count($parsedQuote['equipment']),
+            'record_id'       => $record->id,
+            'activities'      => $classified['activities'],
+            'hazard_count'    => count($risk['hazards']),
+            'equipment_count' => count($parsedQuote['equipment']),
+            'context_rooms'   => count($projectContext['rooms'] ?? []),
         ]);
 
         // AI call — method statement only.
@@ -188,12 +196,14 @@ class RamsBuilderService
         ]);
 
         // Assemble + normalise final data.
+        // RamsDataBuilderService handles all ProjectContext integration internally.
         $data = $this->dataBuilder->assemble(
             $parsedQuote,
             $classified,
             $risk,
             $methodStatement,
             $mergedForm,
+            $projectContext,
         );
 
         // Pre-render guard.
@@ -222,6 +232,9 @@ class RamsBuilderService
             'retained'     => (array) ($reviewedData['retained_items']     ?? $data['scope_items']['retained']     ?? []),
             'new_install'  => (array) ($reviewedData['new_install_items']  ?? $data['scope_items']['new_install']  ?? []),
         ];
+
+        // ── Tier 1 compliance upgrade (PPE matrix, CDM, risk colour key, etc.) ─
+        $data = RamsComplianceUpgradeService::upgrade($data);
 
         // Persist.
         $record->update([
@@ -599,18 +612,24 @@ class RamsBuilderService
             $formData['persons_at_risk'] ?? [],
         );
 
+        // Build ProjectContext — passed forward to RamsDataBuilderService for all data shaping.
+        $projectContext = $this->buildProjectContext($record);
+
         $methodStatement = $this->methodStatementGen->generate(
             $parsed,
             $classified,
             $risk['hazards'] ?? [],
         );
 
+        // Assemble + normalise final data.
+        // RamsDataBuilderService handles all ProjectContext integration internally.
         $data = $this->dataBuilder->assemble(
             $parsed,
             $classified,
             $risk,
             $methodStatement,
             $formData,
+            $projectContext,
         );
 
         if (empty($data) || ! array_key_exists('method_statement', $data)) {
@@ -623,6 +642,9 @@ class RamsBuilderService
         if (empty($data['scope_of_works'])) {
             $data['scope_of_works'] = trim((string) ($formData['works_description'] ?? $parsed['works_summary'] ?? ''));
         }
+
+        // ── Tier 1 compliance upgrade (PPE matrix, CDM, risk colour key, etc.) ─
+        $data = RamsComplianceUpgradeService::upgrade($data);
 
         $record->update([
             'project_ref'    => $data['project']['ref']          ?: $record->project_ref,
@@ -640,5 +662,57 @@ class RamsBuilderService
         ]);
 
         return $path;
+    }
+
+    // =========================================================================
+    // PRIVATE — PROJECT CONTEXT BUILDING
+    // =========================================================================
+
+    /**
+     * Build a ProjectContext from the RamsDocument's project's site survey.
+     *
+     * Returns a safe fallback (empty rooms) when no project or no survey exists,
+     * ensuring backwards compatibility for projects created without site surveys.
+     *
+     * @param  RamsDocument  $record
+     * @return array  { project_id: int, rooms: array[] }
+     */
+    private function buildProjectContext(RamsDocument $record): array
+    {
+        $fallback = [
+            'project_id' => (int) ($record->project_id ?? 0),
+            'rooms'      => [],
+        ];
+
+        try {
+            $project = $record->project;
+
+            if (! $project) {
+                return $fallback;
+            }
+
+            // Get the latest completed survey, or the most recent one if none completed
+            $survey = $project->siteSurveys()
+                ->where('status', 'completed')
+                ->latest()
+                ->first();
+
+            if (! $survey) {
+                $survey = $project->siteSurveys()->latest()->first();
+            }
+
+            if (! $survey || empty($survey->survey_data)) {
+                return $fallback;
+            }
+
+            return ProjectContextBuilder::build($survey);
+        } catch (\Throwable $e) {
+            Log::warning('RamsBuilderService: ProjectContext build failed, using fallback', [
+                'record_id' => $record->id,
+                'error'     => $e->getMessage(),
+            ]);
+
+            return $fallback;
+        }
     }
 }

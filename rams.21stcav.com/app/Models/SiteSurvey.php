@@ -38,13 +38,15 @@ class SiteSurvey extends Model
         'expires_at',
         'submitted_at',
         'survey_type',
+        'survey_data',
     ];
 
     protected $casts = [
-        'survey_date'  => 'date',
-        'expires_at'   => 'datetime',
-        'submitted_at' => 'datetime',
+        'survey_date'   => 'date',
+        'expires_at'    => 'datetime',
+        'submitted_at'  => 'datetime',
         'superseded_at' => 'datetime',
+        'survey_data'   => 'array',
     ];
 
     // ─── Boot: auto-generate access token on creation ────────────────────────

@@ -192,4 +192,174 @@ class RiskTemplateResolverService
 
         return $this->hazardLibrary->resolveFromSeeds($userId, $names, $includeMandatory);
     }
+
+    // =========================================================================
+    // PROJECT CONTEXT ENTRY POINT
+    // =========================================================================
+
+    /**
+     * Resolve hazards, PPE, and access equipment directly from a ProjectContext.
+     *
+     * This method is deterministic and does NOT use the HazardLibrary.
+     * It is driven entirely by survey-captured risk fields, making it suitable
+     * for the SiteSurvey → ProjectContext pipeline.
+     *
+     * INPUT:
+     * {
+     *   "rooms": [
+     *     {
+     *       "name":       string,
+     *       "activities": string[],   // controlled vocabulary
+     *       "risks": [{
+     *         "working_height":      string,   // "over_2m" | "under_2m" | "ground_level" | ""
+     *         "out_of_hours":        bool,
+     *         "permits_required":    bool,
+     *         "manual_handling_risk": bool,
+     *       }]
+     *     }
+     *   ]
+     * }
+     *
+     * OUTPUT:
+     * {
+     *   "hazards": [{
+     *     "title":       string,
+     *     "description": string,
+     *     "rooms":       string[],   // room names where this hazard applies
+     *   }],
+     *   "ppe":              string[],   // deduplicated across all rooms
+     *   "access_equipment": string[],   // deduplicated across all rooms
+     * }
+     *
+     * Hazard rules (per room):
+     *   working_height = "over_2m"   → "Working at height" + hard hat + ladder/tower/MEWP
+     *   working_height = "under_2m"  → "Working at height (low level)" + hard hat
+     *   cable_installation activity  → "Trip hazard from cables"
+     *   manual_handling_risk = true  → "Manual handling injury" + back support
+     *   out_of_hours = true          → "Out-of-hours working" + hi-vis
+     *   permits_required = true      → "Permit-to-work required"
+     *   Always                       → safety boots (baseline PPE)
+     *
+     * @param  array  $context  Output of ProjectContextBuilder::build()
+     * @return array  { hazards: array, ppe: array, access_equipment: array }
+     */
+    public function resolveFromProjectContext(array $context): array
+    {
+        $rooms = (array) ($context['rooms'] ?? []);
+
+        // Hazards indexed by title so duplicate titles across rooms merge their room lists
+        $hazardMap      = [];
+        $allPpe         = ['Safety Boots (steel toe cap)']; // always required
+        $allAccessEquip = [];
+
+        foreach ($rooms as $room) {
+            $roomName    = trim((string) ($room['name']       ?? 'Unknown room'));
+            $activities  = (array) ($room['activities']       ?? []);
+            $primaryRisk = (array) (($room['risks'] ?? [])[0] ?? []);
+
+            $workingHeight   = strtolower(trim((string) ($primaryRisk['working_height']      ?? '')));
+            $manualHandling  = (bool) ($primaryRisk['manual_handling_risk'] ?? false);
+            $outOfHours      = (bool) ($primaryRisk['out_of_hours']         ?? false);
+            $permitsRequired = (bool) ($primaryRisk['permits_required']     ?? false);
+
+            // ── Working at height ─────────────────────────────────────────────
+
+            if ($workingHeight === 'over_2m') {
+                $this->mergeHazard($hazardMap, $roomName,
+                    'Working at height',
+                    'Work above 2 m. Risk of falls causing serious injury or death. ' .
+                    'Use appropriate access equipment, maintain 3-point contact, ' .
+                    'inspect equipment before use.'
+                );
+                $allPpe[]         = 'Hard Hat';
+                $allAccessEquip[] = 'Podium Steps';
+                $allAccessEquip[] = 'Access Tower (if above 3 m)';
+                $allAccessEquip[] = 'MEWP (if required)';
+
+            } elseif ($workingHeight === 'under_2m') {
+                $this->mergeHazard($hazardMap, $roomName,
+                    'Working at height (low level)',
+                    'Work below 2 m. Risk of minor falls. ' .
+                    'Use appropriate low-level access equipment on a stable, level surface.'
+                );
+                $allPpe[] = 'Hard Hat';
+            }
+
+            // ── Cable installation → trip hazard ──────────────────────────────
+
+            if (in_array('cable_installation', $activities, true)) {
+                $this->mergeHazard($hazardMap, $roomName,
+                    'Trip hazard from cables',
+                    'Cable runs temporarily exposed during installation. ' .
+                    'Use cable covers or warning signage; segregate work area where possible.'
+                );
+            }
+
+            // ── Manual handling ───────────────────────────────────────────────
+
+            if ($manualHandling) {
+                $this->mergeHazard($hazardMap, $roomName,
+                    'Manual handling injury',
+                    'Equipment or materials require manual handling. Risk of musculoskeletal injury. ' .
+                    'Assess load before lifting; use mechanical aids; team-lift for items over 20 kg.'
+                );
+                $allPpe[] = 'Back Support Belt';
+            }
+
+            // ── Out-of-hours working ──────────────────────────────────────────
+
+            if ($outOfHours) {
+                $this->mergeHazard($hazardMap, $roomName,
+                    'Out-of-hours working',
+                    'Works scheduled outside normal business hours. Risk of inadequate supervision ' .
+                    'and reduced emergency response. Follow lone-worker procedure; confirm emergency ' .
+                    'contacts before works commence.'
+                );
+                $allPpe[] = 'Hi-Visibility Vest';
+            }
+
+            // ── Permits required ──────────────────────────────────────────────
+
+            if ($permitsRequired) {
+                $this->mergeHazard($hazardMap, $roomName,
+                    'Permit-to-work required',
+                    'Site requires formal permits before works may begin. Obtain all permits from ' .
+                    'site manager before entering the work area. Works must not commence without a ' .
+                    'valid, signed permit.'
+                );
+            }
+        }
+
+        return [
+            'hazards'          => array_values($hazardMap),
+            'ppe'              => array_values(array_unique($allPpe)),
+            'access_equipment' => array_values(array_unique($allAccessEquip)),
+        ];
+    }
+
+    // ── Private — hazard map helper ───────────────────────────────────────────
+
+    /**
+     * Add or merge a hazard entry into the indexed hazard map.
+     * If the title already exists, the room name is appended to its rooms list.
+     *
+     * @param  array   &$map       Reference to the hazardMap accumulator.
+     * @param  string  $roomName   Room this hazard originates from.
+     * @param  string  $title      Short hazard title (used as map key).
+     * @param  string  $description  Control measures / mitigation text.
+     */
+    private function mergeHazard(array &$map, string $roomName, string $title, string $description): void
+    {
+        if (! isset($map[$title])) {
+            $map[$title] = [
+                'title'       => $title,
+                'description' => $description,
+                'rooms'       => [$roomName],
+            ];
+        } else {
+            if (! in_array($roomName, $map[$title]['rooms'], true)) {
+                $map[$title]['rooms'][] = $roomName;
+            }
+        }
+    }
 }

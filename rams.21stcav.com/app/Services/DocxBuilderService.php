@@ -85,11 +85,12 @@ class DocxBuilderService
         $phpWord->setDefaultFontName('Arial');
         $phpWord->setDefaultFontSize(10);
 
-        // Build all 9 sections in order
+        // Build all sections in order
         $this->buildCoverPage($phpWord, $data, $formData);
         $this->buildDocumentControl($phpWord, $data);
         $this->buildCompanyInformation($phpWord, $data);
         $this->buildHealthSafetyPolicy($phpWord, $data);
+        $this->buildCdmSection($phpWord, $data);
         $this->buildScopeOfWorks($phpWord, $data, $formData);
         $this->buildRiskAssessment($phpWord, $data);
         $this->buildMethodStatement($phpWord, $data);
@@ -119,6 +120,13 @@ class DocxBuilderService
         $this->attachFooter($section);
 
         $project = $data['project'] ?? [];
+
+        // ── Build a filtered rooms string (exclude non-physical-space entries) ─
+        $roomsFiltered = array_values(array_filter(
+            $project['rooms'] ?? [],
+            fn ($r) => $r !== '' && ! preg_match('/\b(licen[cs]|cabling|cables?|wiring|network|software|service|warranty|support|delivery|carriage)\b/i', $r)
+        ));
+        $roomsDisplay = ! empty($roomsFiltered) ? implode(', ', $roomsFiltered) : ($project['rooms_text'] ?? '');
 
         // ── Company name + RAMS title ─────────────────────────────────────────
         $section->addText(
@@ -150,7 +158,7 @@ class DocxBuilderService
             ['CLIENT',            $project['client']       ?? ''],
             ['SITE',              $project['site_address'] ?? ''],
             ['PROJECT REFERENCE', $project['ref']          ?? ''],
-            ['ROOMS',             $project['rooms_text']   ?? ''],
+            ['ROOMS',             $roomsDisplay],
             ['DATE',              $project['date']         ?? now()->format('F Y')],
         ];
         foreach ($rows1 as [$label, $value]) {
@@ -307,7 +315,28 @@ class DocxBuilderService
 
         $project = $data['project'] ?? [];
 
+        // ── Filtered rooms (exclude non-physical-space entries) ───────────────
+        $roomsFiltered = array_values(array_filter(
+            $project['rooms'] ?? [],
+            fn ($r) => $r !== '' && ! preg_match('/\b(licen[cs]|cabling|cables?|wiring|network|software|service|warranty|support|delivery|carriage)\b/i', $r)
+        ));
+        $roomsDisplay = ! empty($roomsFiltered) ? implode(', ', $roomsFiltered) : ($project['rooms_text'] ?? '');
+
         $this->sectionHeading($section, '4. Scope of Works');
+
+        // ── Scope of Works bullets (Tier 1 upgrade) ──────────────────────────
+        $scopeBullets = $data['scope_of_works_bullets'] ?? [];
+        if (! empty($scopeBullets)) {
+            $section->addText('Works Activities', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 60]);
+            foreach ($scopeBullets as $bullet) {
+                $section->addText(
+                    '•  ' . $this->t((string) $bullet),
+                    $this->font(9),
+                    ['spaceBefore' => 40, 'spaceAfter' => 40],
+                );
+            }
+            $section->addTextBreak(1);
+        }
 
         // ── Summary header block ──────────────────────────────────────────────
         $table    = $section->addTable($this->tableStyle());
@@ -319,7 +348,7 @@ class DocxBuilderService
         $headerRows = [
             ['Client',        $project['client']        ?? ''],
             ['Site',          $project['site_address']  ?? ''],
-            ['Rooms',         $project['rooms_text']    ?? ''],
+            ['Rooms',         $roomsDisplay],
             ['Working Hours', $project['working_hours'] ?? 'Monday–Friday, 09:00–17:30'],
         ];
         foreach ($headerRows as $i => [$label, $value]) {
@@ -467,6 +496,31 @@ class DocxBuilderService
                 'borderBottomSpace' => 3,
             ],
         );
+
+        // ── Risk Colour Key (Tier 1 upgrade) ─────────────────────────────────
+        $riskKey = $data['risk_colour_key'] ?? [];
+        if (! empty($riskKey)) {
+            $keyTable = $section->addTable($this->tableStyle());
+
+            $keyHdr = $keyTable->addRow(380);
+            $keyHdr->addCell(2000, ['bgColor' => self::TEAL])->addText('Risk Level',  $this->font(9, bold: true, colour: self::WHITE), ['alignment' => Jc::CENTER]);
+            $keyHdr->addCell(1500, ['bgColor' => self::TEAL])->addText('Score Range', $this->font(9, bold: true, colour: self::WHITE), ['alignment' => Jc::CENTER]);
+            $keyHdr->addCell(5000, ['bgColor' => self::TEAL])->addText('Description', $this->font(9, bold: true, colour: self::WHITE));
+            $keyHdr->addCell(6638, ['bgColor' => self::TEAL])->addText('Action',      $this->font(9, bold: true, colour: self::WHITE));
+
+            $keyColours = ['LOW' => self::RISK_GREEN, 'MEDIUM' => self::RISK_AMBER, 'HIGH' => self::RISK_RED];
+            foreach ($riskKey as $entry) {
+                $level  = (string) ($entry['level'] ?? '');
+                $colour = $keyColours[$level] ?? self::WHITE;
+                $kr = $keyTable->addRow(380);
+                $kr->addCell(2000, ['bgColor' => $colour])->addText($level,                                    $this->font(9, bold: true), ['alignment' => Jc::CENTER]);
+                $kr->addCell(1500, ['bgColor' => $colour])->addText($this->t((string) ($entry['range'] ?? '')),       $this->font(9), ['alignment' => Jc::CENTER]);
+                $kr->addCell(5000, ['bgColor' => $colour])->addText($this->t((string) ($entry['description'] ?? '')), $this->font(9));
+                $kr->addCell(6638, ['bgColor' => $colour])->addText($this->t((string) ($entry['action'] ?? '')),      $this->font(9));
+            }
+
+            $section->addTextBreak(1);
+        }
 
         // Column widths (sum = W_LAND = 15138)
         $wRef = self::COL_REF;      // 600
@@ -636,8 +690,61 @@ class DocxBuilderService
 
         $section->addTextBreak(1);
 
-        // ── 6.3 Pre-Installation Requirements / Client Responsibilities ───────
-        $section->addText('6.3 Pre-Installation Requirements / Client Responsibilities', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 60]);
+        // ── 6.3 Personal Protective Equipment (PPE) (Tier 1 upgrade) ─────────
+        $ppeMatrix = $data['ppe_matrix'] ?? [];
+        if (! empty($ppeMatrix)) {
+            $section->addText('6.3 Personal Protective Equipment (PPE)', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 60]);
+
+            $ppeTable = $section->addTable($this->tableStyle());
+            $this->tealHeader($ppeTable, ['Task', 'PPE Required'], [3200, 6666]);
+
+            foreach ($ppeMatrix as $pi => $ppeRow) {
+                $bg  = ($pi % 2 === 0) ? ['bgColor' => self::WHITE] : ['bgColor' => self::ROW_ALT];
+                $tr  = $ppeTable->addRow(0);
+                $tr->addCell(3200, $bg)->addText($this->t((string) ($ppeRow['task'] ?? '')), $vf);
+                $ppeCell = $tr->addCell(6666, $bg);
+                foreach (($ppeRow['ppe'] ?? []) as $ppeItem) {
+                    $ppeCell->addText('•  ' . $this->t((string) $ppeItem), $vf);
+                }
+            }
+
+            $section->addTextBreak(1);
+        }
+
+        // ── 6.4 Access Equipment (Tier 1 upgrade) ────────────────────────────
+        $accessDetail = $data['access_equipment_detail'] ?? [];
+        if (! empty($accessDetail)) {
+            $section->addText('6.4 Access Equipment', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 60]);
+
+            foreach (($accessDetail['items'] ?? []) as $accessItem) {
+                $section->addText(
+                    '•  ' . $this->t((string) $accessItem),
+                    $vf,
+                    ['spaceBefore' => 40, 'spaceAfter' => 40],
+                );
+            }
+
+            $accessReqs = $accessDetail['requirements'] ?? [];
+            if (! empty($accessReqs)) {
+                $section->addTextBreak(1);
+                $section->addText('Requirements:', $bf, ['spaceBefore' => 60, 'spaceAfter' => 40]);
+                foreach ($accessReqs as $req) {
+                    $section->addText(
+                        '•  ' . $this->t((string) $req),
+                        $vf,
+                        ['spaceBefore' => 40, 'spaceAfter' => 40],
+                    );
+                }
+            }
+
+            $section->addTextBreak(1);
+        }
+
+        // ── Subsection numbering: 6.5 when Tier 1 sections present, 6.3 otherwise
+        $preInstallNum = ! empty($ppeMatrix) ? '6.5' : '6.3';
+
+        // ── Pre-Installation Requirements / Client Responsibilities ───────────
+        $section->addText($preInstallNum . ' Pre-Installation Requirements / Client Responsibilities', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 60]);
 
         $resp = $data['client_responsibilities'] ?? [];
         foreach ($resp as $item) {
@@ -650,8 +757,9 @@ class DocxBuilderService
 
         $section->addTextBreak(1);
 
-        // ── 6.4 Method of Works ───────────────────────────────────────────────
-        $section->addText('6.4 Method of Works', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 60]);
+        // ── Method of Works ───────────────────────────────────────────────────
+        $methodNum = ! empty($ppeMatrix) ? '6.6' : '6.4';
+        $section->addText($methodNum . ' Method of Works', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 60]);
 
         $phases = $data['method_statement']['phases'] ?? [];
         foreach ($phases as $i => $phase) {
@@ -673,6 +781,16 @@ class DocxBuilderService
                     '    •  ' . $this->t((string)$step),
                     $vf,
                     ['spaceBefore' => 40, 'spaceAfter' => 40],
+                );
+            }
+
+            // Risk cross-reference (Tier 1 upgrade)
+            $risksLabel = trim((string) ($phase['associated_risks_label'] ?? ''));
+            if ($risksLabel !== '') {
+                $section->addText(
+                    $this->t($risksLabel),
+                    $this->font(8, bold: true, italic: true, colour: self::MID_GREY),
+                    ['spaceBefore' => 40, 'spaceAfter' => 80],
                 );
             }
         }
@@ -796,6 +914,66 @@ class DocxBuilderService
             $row    = $table->addRow($height);
             $row->addCell($colW, $bg)->addText($label, $labelF);
             $row->addCell($colW, $white)->addText('', $vf);
+        }
+    }
+
+    // =========================================================================
+    // CDM DUTY HOLDERS (Tier 1 upgrade)
+    // =========================================================================
+
+    /**
+     * Render CDM 2015 duty holders section.
+     * Only renders when cdm_duty_holders data is present (from RamsComplianceUpgradeService).
+     */
+    private function buildCdmSection(PhpWord $phpWord, array $data): void
+    {
+        $cdm = $data['cdm_duty_holders'] ?? [];
+        if (empty($cdm)) {
+            return; // No CDM data — skip section entirely (backwards compatible)
+        }
+
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+
+        $this->sectionHeading($section, 'CDM 2015 — Duty Holders');
+
+        $section->addText(
+            $this->t((string) ($cdm['cdm_regulation'] ?? 'Construction (Design and Management) Regulations 2015')),
+            $this->font(9, italic: true),
+            ['spaceBefore' => 60, 'spaceAfter' => 80],
+        );
+
+        $table   = $section->addTable($this->tableStyle());
+        $altCell = ['bgColor' => self::ROW_ALT];
+        $whtCell = ['bgColor' => self::WHITE];
+        $lf      = $this->font(9, bold: true);
+        $vf      = $this->font(9);
+
+        $rows = [
+            ['Client',               $cdm['client']               ?? '[Client Name]'],
+            ['Principal Designer',   $cdm['principal_designer']   ?? '[To be confirmed]'],
+            ['Principal Contractor', $cdm['principal_contractor'] ?? '[To be confirmed]'],
+            ['Contractor',           $cdm['contractor']           ?? '21st Century AV Ltd'],
+            ['Subcontractor',        $cdm['subcontractor']        ?? '21st Century AV Ltd'],
+            ['Project Manager',      $cdm['project_manager']      ?? '[To be confirmed]'],
+            ['Site Supervisor',      $cdm['site_supervisor']      ?? '[To be confirmed]'],
+        ];
+
+        foreach ($rows as $i => [$label, $value]) {
+            $bg  = ($i % 2 === 0) ? $altCell : $whtCell;
+            $row = $table->addRow(400);
+            $row->addCell(3400, $bg)->addText($label,           $lf);
+            $row->addCell(6466, $bg)->addText($this->t($value), $vf);
+        }
+
+        $notification = trim((string) ($cdm['notification'] ?? ''));
+        if ($notification !== '') {
+            $section->addTextBreak(1);
+            $section->addText(
+                $this->t($notification),
+                $this->font(8, italic: true, colour: self::MID_GREY),
+                ['spaceBefore' => 60],
+            );
         }
     }
 

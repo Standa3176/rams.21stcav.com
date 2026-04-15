@@ -5,6 +5,8 @@
 @section('content')
 
 @php
+    use App\Services\Rams\RamsDiffService;
+
     $project = $rams->generated_data['project'] ?? [];
     $hazards = $rams->generated_data['hazards'] ?? [];
     $ms      = $rams->generated_data['method_statement'] ?? null;
@@ -23,6 +25,28 @@
     $exclusionsList     = $rd['exclusions']                       ?? [];
     $decommData         = $rd['decommissioning']                  ?? [];
     $commCriteria       = $rd['commissioning_criteria']           ?? [];
+
+    // ── Diff helpers (use $diff injected from controller) ────────────────
+    $diffClass = function (string $field) use ($diff) {
+        $c = RamsDiffService::fieldChange($diff, $field);
+        return $c ? ('diff-' . $c['type']) : '';
+    };
+    $diffHint = function (string $field) use ($diff) {
+        $c = RamsDiffService::fieldChange($diff, $field);
+        if (! $c) return '';
+        $type = $c['type'];
+        $badge = match ($type) {
+            'added'    => '<span class="badge bg-success" style="font-size:.7rem;margin-left:.4rem;">Added</span>',
+            'modified' => '<span class="badge bg-warning" style="font-size:.7rem;margin-left:.4rem;">Modified</span>',
+            'removed'  => '<span class="badge bg-danger" style="font-size:.7rem;margin-left:.4rem;">Removed</span>',
+            default    => '',
+        };
+        $old = $c['old'] ?? '';
+        if (is_array($old)) $old = implode(', ', $old);
+        $old = e(\Illuminate\Support\Str::limit((string) $old, 60));
+        $detail = ($type === 'modified' && $old !== '') ? " <small style=\"color:#92400e;\">was: {$old}</small>" : '';
+        return $badge . $detail;
+    };
 @endphp
 
     <div class="page-header">
@@ -45,6 +69,34 @@
         Review the AI-generated details below. You can edit project fields before downloading.
         The hazard register and method statement are shown read-only — edit the Word document after download if needed.
     </div>
+
+    {{-- ── Diff styles ─────────────────────────────────────────────────────── --}}
+    <style>
+        .diff-modified { border-left: 3px solid #f59e0b !important; background: #fffdf5 !important; }
+        .diff-added    { border-left: 3px solid #22c55e !important; background: #f7fef9 !important; }
+        .diff-removed  { border-left: 3px solid #ef4444 !important; background: #fefafa !important; text-decoration: line-through; opacity: .7; }
+    </style>
+
+    {{-- ── Diff legend + grouped summary ───────────────────────────────────── --}}
+    @if (($diff['summary']['total'] ?? 0) > 0)
+        <div style="display:flex;gap:.75rem;align-items:center;padding:.5rem .75rem;font-size:.8125rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:.75rem;">
+            <span class="badge bg-success">Added</span>
+            <span class="badge bg-warning">Modified</span>
+            <span class="badge bg-danger">Removed</span>
+            <span style="color:#6b7280;margin-left:auto;">{{ $diff['summary']['total'] }} change{{ $diff['summary']['total'] !== 1 ? 's' : '' }} between extracted and reviewed data</span>
+        </div>
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:.6rem 1rem;font-size:.8125rem;color:#1e40af;margin-bottom:1.25rem;">
+            @php
+                $grouped = collect($diff['changes'] ?? [])
+                    ->groupBy(fn($c) => explode('.', $c['field'])[0]);
+            @endphp
+            @foreach ($grouped as $section => $sectionChanges)
+                <div style="display:inline-block;margin-right:1.25rem;margin-bottom:.25rem;">
+                    <strong>{{ ucfirst(str_replace('_', ' ', $section)) }}</strong>: {{ count($sectionChanges) }} change{{ count($sectionChanges) !== 1 ? 's' : '' }}
+                </div>
+            @endforeach
+        </div>
+    @endif
 
     {{-- ── Edit & Download form ─────────────────────────────────────────────── --}}
     <div class="card">
@@ -621,12 +673,13 @@
                 <table class="data-table" style="font-size:.8rem;">
                     <thead><tr><th>Hazard</th><th style="width:55px;">Pre</th><th style="width:55px;">Post</th></tr></thead>
                     <tbody>
-                    @foreach ($hazards as $h)
+                    @foreach ($hazards as $hIdx => $h)
                         @php
                             $pre  = (int)($h['pre_likelihood']  ?? 1) * (int)($h['pre_severity']  ?? 1);
                             $post = (int)($h['post_likelihood'] ?? 1) * (int)($h['post_severity'] ?? 1);
+                            $hazardRowChanged = !empty(RamsDiffService::fieldChangesUnder($diff, "hazards.{$hIdx}"));
                         @endphp
-                        <tr>
+                        <tr class="{{ $hazardRowChanged ? 'diff-modified' : '' }}">
                             <td>{{ $h['hazard'] ?? '—' }}</td>
                             <td style="text-align:center;">
                                 <span class="badge" style="background:{{ $pre <= 6 ? '#D4EDDA' : ($pre <= 9 ? '#FFF3CD' : ($pre <= 14 ? '#FFD0A0' : '#FFDEDE')) }}; color:#333;">
@@ -652,18 +705,43 @@
                 <h2 class="section-heading">Method Statement</h2>
                 <p style="font-size:.875rem; color:#444; margin-bottom:.75rem;">{{ $ms['introduction'] ?? '' }}</p>
                 @if (!empty($ms['phases']))
-                    <strong style="font-size:.8rem; color:#666;">Phases:</strong>
-                    <ul style="margin:.35rem 0 0 1.1rem; font-size:.85rem;">
-                        @foreach ($ms['phases'] as $phase)
-                            <li>{{ $phase['name'] ?? '' }} <span style="color:#888;">({{ count($phase['procedures'] ?? []) }} steps)</span></li>
-                        @endforeach
-                    </ul>
+                    @foreach ($ms['phases'] as $i => $phase)
+                        @php
+                            $phaseTitleKey = isset($phase['title']) ? 'title' : 'name';
+                            $titleField    = "method_statement.phases.{$i}.{$phaseTitleKey}";
+                            $phaseTitle    = $phase['title'] ?? $phase['name'] ?? '';
+                            // Detect which key holds the steps in this phase
+                            $stepsKey   = isset($phase['steps']) ? 'steps' : 'procedures';
+                            $phaseSteps = $phase[$stepsKey] ?? [];
+                        @endphp
+                        <h5 style="font-size:.85rem;margin:.75rem 0 .35rem;padding:.25rem .4rem;border-radius:3px;" class="{{ $diffClass($titleField) }}">
+                            Step {{ $i + 1 }} — {{ $phaseTitle }}
+                            {!! $diffHint($titleField) !!}
+                        </h5>
+                        @if (!empty($phaseSteps))
+                            <ul style="margin:0 0 .5rem 1.1rem; font-size:.82rem;">
+                                @foreach ($phaseSteps as $j => $step)
+                                    @php $stepField = "method_statement.phases.{$i}.{$stepsKey}.{$j}"; @endphp
+                                    <li style="padding:.15rem 0;" class="{{ $diffClass($stepField) }}">
+                                        {{ is_string($step) ? $step : ($step['step'] ?? '') }}
+                                        {!! $diffHint($stepField) !!}
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+                    @endforeach
                 @endif
             </div>
             @endif
 
-            <div class="card card-sm">
-                <h2 class="section-heading" style="font-size:.9rem;">PPE &amp; Persons at Risk</h2>
+            @php $ppeChanges = RamsDiffService::fieldChangesUnder($diff, 'ppe'); @endphp
+            <div class="card card-sm {{ !empty($ppeChanges) ? 'diff-modified' : '' }}">
+                <h2 class="section-heading" style="font-size:.9rem;">
+                    PPE &amp; Persons at Risk
+                    @if (!empty($ppeChanges))
+                        <span class="badge bg-warning" style="font-size:.65rem;margin-left:.4rem;">{{ count($ppeChanges) }} PPE change{{ count($ppeChanges) !== 1 ? 's' : '' }}</span>
+                    @endif
+                </h2>
                 @if (!empty($ppe))
                     <p style="font-size:.8rem; color:#444; margin-bottom:.5rem;"><strong>PPE:</strong> {{ implode(', ', $ppe) }}</p>
                 @endif
