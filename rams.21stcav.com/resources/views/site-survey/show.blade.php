@@ -497,6 +497,9 @@
                 <span style="font-weight:400;color:#6B7280;font-size:.82rem;"> · {{ $room->floor }}</span>
             @endif
             <span style="font-weight:400;color:#6B7280;font-size:.75rem;margin-left:.5rem;">{{ $spaceLabel }}</span>
+            @if($room->is_rack_room)
+                <span style="font-size:.68rem;font-weight:800;background:#0B3C45;color:#fff;padding:.15rem .5rem;border-radius:10px;margin-left:.4rem;letter-spacing:.04em;vertical-align:middle;">RACK ROOM</span>
+            @endif
         </span>
         @if($isComplete && $room->completed_at)
             <span style="font-size:.72rem;color:#065F46;font-weight:400;">{{ $room->completed_at->format('d M H:i') }}</span>
@@ -614,6 +617,16 @@
                     @endif
                 </td>
             </tr>
+            @if($room->network_ssid || $room->network_vlan || $room->network_switch_port)
+            <tr>
+                <td>Network Details</td>
+                <td>
+                    @if($room->network_ssid)<span style="background:#EBF8FA;padding:.1rem .4rem;border-radius:3px;font-size:.82rem;">SSID: {{ $room->network_ssid }}</span> @endif
+                    @if($room->network_vlan)<span style="background:#EBF8FA;padding:.1rem .4rem;border-radius:3px;font-size:.82rem;margin-left:.3rem;">VLAN: {{ $room->network_vlan }}</span> @endif
+                    @if($room->network_switch_port)<span style="background:#EBF8FA;padding:.1rem .4rem;border-radius:3px;font-size:.82rem;margin-left:.3rem;">Port: {{ $room->network_switch_port }}</span> @endif
+                </td>
+            </tr>
+            @endif
             @if($room->existing_cabling)
             <tr><td>Existing Cabling</td><td>{{ $room->existing_cabling }}</td></tr>
             @endif
@@ -655,11 +668,46 @@
         @endif
 
         {{-- ── Infrastructure ────────────────────────────── --}}
-        @if(in_array($room->space_type, ['infrastructure', 'mixed']) && ($room->rack_unit_space || $room->cable_route_desc))
+        @php
+            $hasInfraData = $room->rack_unit_space || $room->cable_route_desc || $room->cable_route_from
+                            || $room->cable_route_to || $room->is_rack_room || $room->projection_throw_m
+                            || $room->viewing_distance_m;
+        @endphp
+        @if($hasInfraData)
         <div class="room-section-hdr">🏗 Infrastructure</div>
         <table class="field-table">
+            @if($room->is_rack_room)
+            <tr>
+                <td>Rack Room</td>
+                <td><span style="background:#0B3C45;color:#fff;padding:.1rem .5rem;border-radius:10px;font-size:.75rem;font-weight:700;letter-spacing:.04em;">RACK ROOM</span></td>
+            </tr>
+            @endif
             @if($room->rack_unit_space)<tr><td>Rack Space</td><td>{{ $room->rack_unit_space }}U</td></tr>@endif
             @if($room->cable_route_desc)<tr><td>Cable Route</td><td>{{ $room->cable_route_desc }}</td></tr>@endif
+            @if($room->cable_route_from)<tr><td>Route From</td><td>{{ $room->cable_route_from }}</td></tr>@endif
+            @if($room->cable_route_to)<tr><td>Route To</td><td>{{ $room->cable_route_to }}</td></tr>@endif
+            @if($room->projection_throw_m)<tr><td>Projection Throw</td><td>{{ $room->projection_throw_m }}m</td></tr>@endif
+            @if($room->viewing_distance_m)<tr><td>Viewing Distance</td><td>{{ $room->viewing_distance_m }}m</td></tr>@endif
+        </table>
+        @endif
+
+        {{-- ── Engineer Sign-off ─────────────────────────── --}}
+        @if($room->engineer_confirmed !== null || $room->engineer_signature_name)
+        <div class="room-section-hdr" style="color:#14532D;">✅ Engineer Sign-off</div>
+        <table class="field-table">
+            <tr>
+                <td>Confirmed</td>
+                <td>
+                    @if($room->engineer_confirmed)
+                        <span style="color:#065F46;font-weight:600;">✓ Confirmed</span>
+                    @else
+                        <span style="color:#6B7280;">Not confirmed</span>
+                    @endif
+                </td>
+            </tr>
+            @if($room->engineer_signature_name)
+            <tr><td>Engineer Name</td><td>{{ $room->engineer_signature_name }}</td></tr>
+            @endif
         </table>
         @endif
 

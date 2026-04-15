@@ -4,6 +4,7 @@ namespace App\Core\Modules\Survey;
 
 use App\Core\Modules\Projects\ProjectService;
 use App\Jobs\GenerateSurveyQuestionsJob;
+use App\Mail\SurveySubmittedMail;
 use App\Models\Project;
 use App\Models\ProjectActivityLog;
 use App\Models\SiteSurvey;
@@ -14,6 +15,7 @@ use App\Services\ProjectContextResolver;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -334,10 +336,12 @@ class SurveyService
      *
      * Saves all room data, sets status = 'completed', and stamps submitted_at.
      * Logs a 'survey_submitted' activity on the linked project if present.
+     * Sends a PM notification email outside the transaction so a mail failure
+     * cannot roll back the survey submission.
      */
     public function submitPublic(SiteSurvey $survey, array $data): SiteSurvey
     {
-        return DB::transaction(function () use ($survey, $data) {
+        $result = DB::transaction(function () use ($survey, $data) {
             $survey->update([
                 'survey_date'        => $data['survey_date']        ?? $survey->survey_date,
                 'surveyor_name'      => $data['surveyor_name']      ?? $survey->surveyor_name,
@@ -395,6 +399,25 @@ class SurveyService
 
             return $survey->fresh();
         });
+
+        // ── PM notification email — outside transaction so mail failure cannot roll back submission ──
+        if ($result->project_id) {
+            try {
+                $project   = Project::with('user')->find($result->project_id);
+                $recipient = $project?->user ?? User::where('is_admin', true)->first();
+                if ($recipient?->email) {
+                    $completed = $result->rooms()->where('is_completed', true)->count();
+                    Mail::to($recipient->email)->send(new SurveySubmittedMail($result, $completed));
+                }
+            } catch (\Throwable $e) {
+                Log::warning('SurveyService: failed to send survey submitted email', [
+                    'survey_id' => $result->id,
+                    'error'     => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $result;
     }
 
     // ─── Photo management ────────────────────────────────────────────────────
@@ -482,6 +505,9 @@ class SurveyService
             'has_network'               => ! empty($data['has_network']),
             'power_outlet_count'        => (int) ($data['power_outlet_count'] ?? 0),
             'network_port_count'        => (int) ($data['network_port_count'] ?? 0),
+            'network_ssid'              => $data['network_ssid']              ?? null,
+            'network_vlan'              => $data['network_vlan']              ?? null,
+            'network_switch_port'       => $data['network_switch_port']       ?? null,
             'existing_cabling'          => $data['existing_cabling']          ?? null,
             'requires_additional_power' => ! empty($data['requires_additional_power']),
             // Access
@@ -500,10 +526,18 @@ class SurveyService
             // Infrastructure
             'rack_unit_space'           => isset($data['rack_unit_space'])  ? (int) $data['rack_unit_space'] : null,
             'cable_route_desc'          => $data['cable_route_desc']          ?? null,
+            'cable_route_from'          => $data['cable_route_from']          ?? null,
+            'cable_route_to'            => $data['cable_route_to']            ?? null,
+            'is_rack_room'              => isset($data['is_rack_room']) ? (bool) $data['is_rack_room'] : null,
+            'projection_throw_m'        => $data['projection_throw_m']        ?? null,
+            'viewing_distance_m'        => $data['viewing_distance_m']        ?? null,
             // Upgrade / strip-out
             'existing_condition'        => $data['existing_condition']        ?? null,
             'items_to_remove'           => $data['items_to_remove']           ?? null,
             'items_to_retain'           => $data['items_to_retain']           ?? null,
+            // Engineer sign-off
+            'engineer_confirmed'        => isset($data['engineer_confirmed']) ? (bool) $data['engineer_confirmed'] : null,
+            'engineer_signature_name'   => $data['engineer_signature_name']   ?? null,
         ];
     }
 

@@ -1111,7 +1111,7 @@
                                         <input type="hidden" name="rooms[{{ $ri }}][has_network]" value="0">
                                         <input type="checkbox" name="rooms[{{ $ri }}][has_network]" value="1"
                                                {{ $room->has_network ? 'checked' : '' }}
-                                               onchange="syncTapCard(this)">
+                                               onchange="syncTapCard(this); toggleNetworkDetails(this, {{ $room->id }})">
                                         <span class="tap-card__icon">📡</span>
                                         <span class="tap-card__label">Network<br>Present</span>
                                     </label>
@@ -1220,6 +1220,100 @@
                                         <textarea name="rooms[{{ $ri }}][existing_cabling]" class="form-control"
                                                   rows="2" maxlength="500"
                                                   {{ $readonly ? 'readonly' : '' }}>{{ $room->existing_cabling }}</textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Cable Route Description</label>
+                                        <textarea name="rooms[{{ $ri }}][cable_route_desc]" class="form-control"
+                                                  rows="2" maxlength="3000"
+                                                  {{ $readonly ? 'readonly' : '' }}
+                                                  placeholder="Describe the planned cable routing path…">{{ $room->cable_route_desc }}</textarea>
+                                    </div>
+                                    <div class="form-grid-2">
+                                        <div class="form-group">
+                                            <label class="form-label">Cable Route From</label>
+                                            <input type="text" name="rooms[{{ $ri }}][cable_route_from]" class="form-control"
+                                                   value="{{ $room->cable_route_from }}"
+                                                   {{ $readonly ? 'readonly' : '' }}
+                                                   maxlength="500" placeholder="e.g. Rack room, riser B1…">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Cable Route To</label>
+                                            <input type="text" name="rooms[{{ $ri }}][cable_route_to]" class="form-control"
+                                                   value="{{ $room->cable_route_to }}"
+                                                   {{ $readonly ? 'readonly' : '' }}
+                                                   maxlength="500" placeholder="e.g. Boardroom, display position…">
+                                        </div>
+                                    </div>
+                                    <div class="form-grid-2">
+                                        <div class="form-group">
+                                            <label class="form-label">Rack Unit Space (U)</label>
+                                            <input type="number" name="rooms[{{ $ri }}][rack_unit_space]" class="form-control"
+                                                   value="{{ $room->rack_unit_space }}"
+                                                   {{ $readonly ? 'readonly' : '' }} min="0" max="999" step="1">
+                                        </div>
+                                        <div class="form-group" style="display:flex;flex-direction:column;justify-content:flex-end;">
+                                            @if(!$readonly)
+                                            <label class="tap-card {{ $room->is_rack_room ? 'is-checked' : '' }}"
+                                                   style="flex-direction:row;gap:.6rem;min-height:52px;padding:.6rem .9rem;border-radius:7px;justify-content:flex-start;">
+                                                <input type="hidden" name="rooms[{{ $ri }}][is_rack_room]" value="0">
+                                                <input type="checkbox" name="rooms[{{ $ri }}][is_rack_room]" value="1"
+                                                       {{ $room->is_rack_room ? 'checked' : '' }}
+                                                       onchange="syncTapCard(this)">
+                                                <span class="tap-card__icon" style="font-size:1rem;">🗄</span>
+                                                <span class="tap-card__label" style="font-size:.85rem;text-align:left;line-height:1.3;">This is a rack / equipment room</span>
+                                            </label>
+                                            @else
+                                            <div style="font-size:.875rem;color:#374151;padding:.55rem 0;">
+                                                Rack Room: <strong>{{ $room->is_rack_room ? 'Yes' : 'No' }}</strong>
+                                            </div>
+                                            @endif
+                                        </div>
+                                    </div>
+                                    <div class="form-grid-2">
+                                        <div class="form-group">
+                                            <label class="form-label">Projection Throw (m)</label>
+                                            <input type="number" name="rooms[{{ $ri }}][projection_throw_m]" class="form-control"
+                                                   value="{{ $room->projection_throw_m }}"
+                                                   {{ $readonly ? 'readonly' : '' }} min="0" max="999" step="0.01"
+                                                   placeholder="e.g. 3.5">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Viewing Distance (m)</label>
+                                            <input type="number" name="rooms[{{ $ri }}][viewing_distance_m]" class="form-control"
+                                                   value="{{ $room->viewing_distance_m }}"
+                                                   {{ $readonly ? 'readonly' : '' }} min="0" max="999" step="0.01"
+                                                   placeholder="e.g. 5.0">
+                                        </div>
+                                    </div>
+                                    {{-- Network details — shown when has_network is ticked --}}
+                                    <div id="network-details-{{ $room->id }}"
+                                         style="{{ $room->has_network ? '' : 'display:none;' }}">
+                                        <div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin:.5rem 0 .4rem;">
+                                            Network Details
+                                        </div>
+                                        <div class="form-grid-2">
+                                            <div class="form-group">
+                                                <label class="form-label">SSID / Network Name</label>
+                                                <input type="text" name="rooms[{{ $ri }}][network_ssid]" class="form-control"
+                                                       value="{{ $room->network_ssid }}"
+                                                       {{ $readonly ? 'readonly' : '' }}
+                                                       maxlength="255" placeholder="e.g. Corp-AV-Net">
+                                            </div>
+                                            <div class="form-group">
+                                                <label class="form-label">VLAN</label>
+                                                <input type="text" name="rooms[{{ $ri }}][network_vlan]" class="form-control"
+                                                       value="{{ $room->network_vlan }}"
+                                                       {{ $readonly ? 'readonly' : '' }}
+                                                       maxlength="100" placeholder="e.g. 100">
+                                            </div>
+                                            <div class="form-group">
+                                                <label class="form-label">Switch Port</label>
+                                                <input type="text" name="rooms[{{ $ri }}][network_switch_port]" class="form-control"
+                                                       value="{{ $room->network_switch_port }}"
+                                                       {{ $readonly ? 'readonly' : '' }}
+                                                       maxlength="100" placeholder="e.g. SW-1 Port 12">
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">Existing AV Equipment in Room</label>
@@ -1343,6 +1437,49 @@
                         @endif
 
                         {{-- ═══════════════════════════════════════════════════ --}}
+                        {{-- SECTION 3b: ENGINEER SIGN-OFF                      --}}
+                        {{-- ═══════════════════════════════════════════════════ --}}
+                        <div class="survey-section" style="background:#F0FFF4;border:1.5px solid #86EFAC;border-radius:8px;margin-bottom:.75rem;overflow:hidden;">
+                            <div class="survey-section__hdr" style="background:#DCFCE7;color:#14532D;border-bottom:1.5px solid #86EFAC;">
+                                ✅ Engineer Sign-off
+                            </div>
+                            <div class="survey-section__body">
+                                @if(!$readonly)
+                                <div style="margin-bottom:.75rem;">
+                                    <label class="tap-card {{ $room->engineer_confirmed ? 'is-checked' : '' }}"
+                                           style="flex-direction:row;gap:.75rem;min-height:56px;padding:.75rem 1rem;border-radius:8px;justify-content:flex-start;width:100%;box-sizing:border-box;">
+                                        <input type="hidden" name="rooms[{{ $ri }}][engineer_confirmed]" value="0">
+                                        <input type="checkbox" name="rooms[{{ $ri }}][engineer_confirmed]" value="1"
+                                               {{ $room->engineer_confirmed ? 'checked' : '' }}
+                                               onchange="syncTapCard(this)">
+                                        <span class="tap-card__icon" style="font-size:1.1rem;">✔</span>
+                                        <span class="tap-card__label" style="font-size:.9rem;text-align:left;line-height:1.4;">
+                                            I confirm the above survey data is accurate and complete for this room.
+                                        </span>
+                                    </label>
+                                </div>
+                                <div class="form-group" style="margin-bottom:0;">
+                                    <label class="form-label">Engineer Name (Print)</label>
+                                    <input type="text" name="rooms[{{ $ri }}][engineer_signature_name]" class="form-control"
+                                           value="{{ $room->engineer_signature_name }}"
+                                           maxlength="255" placeholder="Full name of surveying engineer">
+                                </div>
+                                @else
+                                <div style="display:flex;gap:.85rem;flex-wrap:wrap;align-items:flex-start;">
+                                    <span class="chip {{ $room->engineer_confirmed ? 'chip--on' : 'chip--off' }}">
+                                        {{ $room->engineer_confirmed ? '✔ Confirmed' : '✗ Not confirmed' }}
+                                    </span>
+                                    @if($room->engineer_signature_name)
+                                    <span style="font-size:.875rem;color:#374151;">
+                                        Signed: <strong>{{ $room->engineer_signature_name }}</strong>
+                                    </span>
+                                    @endif
+                                </div>
+                                @endif
+                            </div>
+                        </div>
+
+                        {{-- ═══════════════════════════════════════════════════ --}}
                         {{-- SECTION 4: NOTES & PHOTOS                          --}}
                         {{-- ═══════════════════════════════════════════════════ --}}
                         <div class="survey-section survey-section--notes">
@@ -1456,6 +1593,12 @@
         const card = checkbox.closest('.tap-card');
         if (!card) return;
         card.classList.toggle('is-checked', checkbox.checked);
+    }
+
+    // ── Toggle network details panel when has_network ticked ──────────────
+    function toggleNetworkDetails(checkbox, roomId) {
+        const panel = document.getElementById('network-details-' + roomId);
+        if (panel) panel.style.display = checkbox.checked ? 'block' : 'none';
     }
 
     // ── Per-space type change (scoped to that card only) ──────────────────

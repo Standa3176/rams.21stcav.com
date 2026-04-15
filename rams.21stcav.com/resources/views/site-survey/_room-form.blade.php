@@ -324,6 +324,71 @@
                           rows="2" maxlength="500">{{ $val('existing_cabling') }}</textarea>
             </div>
             <div class="form-group">
+                <label class="form-label">Cable Route Description</label>
+                <textarea name="rooms[{{ $ri }}][cable_route_desc]" class="form-control"
+                          rows="2" maxlength="3000"
+                          placeholder="Describe the planned cable routing path…">{{ $val('cable_route_desc') }}</textarea>
+            </div>
+            <div class="form-grid-2">
+                <div class="form-group">
+                    <label class="form-label">Cable Route From</label>
+                    <input type="text" name="rooms[{{ $ri }}][cable_route_from]" class="form-control"
+                           value="{{ $val('cable_route_from') }}" maxlength="500"
+                           placeholder="e.g. Rack room, riser B1…">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Cable Route To</label>
+                    <input type="text" name="rooms[{{ $ri }}][cable_route_to]" class="form-control"
+                           value="{{ $val('cable_route_to') }}" maxlength="500"
+                           placeholder="e.g. Boardroom, display position…">
+                </div>
+            </div>
+            <div class="form-grid-2">
+                <div class="form-group">
+                    <label class="form-label">Projection Throw (m)</label>
+                    <input type="number" name="rooms[{{ $ri }}][projection_throw_m]" class="form-control"
+                           value="{{ $val('projection_throw_m') }}" min="0" max="999" step="0.01"
+                           placeholder="e.g. 3.5">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Viewing Distance (m)</label>
+                    <input type="number" name="rooms[{{ $ri }}][viewing_distance_m]" class="form-control"
+                           value="{{ $val('viewing_distance_m') }}" min="0" max="999" step="0.01"
+                           placeholder="e.g. 5.0">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="check-item" style="cursor:pointer;">
+                    <input type="hidden" name="rooms[{{ $ri }}][is_rack_room]" value="0">
+                    <input type="checkbox" name="rooms[{{ $ri }}][is_rack_room]" value="1"
+                           {{ $chk('is_rack_room') ? 'checked' : '' }}>
+                    <span>This is a rack / equipment room</span>
+                </label>
+            </div>
+            <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin:.5rem 0 .4rem;">
+                Network Details
+            </div>
+            <div class="form-grid-2">
+                <div class="form-group">
+                    <label class="form-label">SSID / Network Name</label>
+                    <input type="text" name="rooms[{{ $ri }}][network_ssid]" class="form-control"
+                           value="{{ $val('network_ssid') }}" maxlength="255"
+                           placeholder="e.g. Corp-AV-Net">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">VLAN</label>
+                    <input type="text" name="rooms[{{ $ri }}][network_vlan]" class="form-control"
+                           value="{{ $val('network_vlan') }}" maxlength="100"
+                           placeholder="e.g. 100">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Switch Port</label>
+                    <input type="text" name="rooms[{{ $ri }}][network_switch_port]" class="form-control"
+                           value="{{ $val('network_switch_port') }}" maxlength="100"
+                           placeholder="e.g. SW-1 Port 12">
+                </div>
+            </div>
+            <div class="form-group">
                 <label class="form-label">Existing AV Equipment</label>
                 <textarea name="rooms[{{ $ri }}][av_equipment_list]" class="form-control"
                           rows="2" maxlength="5000">{{ $val('av_equipment_list') }}</textarea>
@@ -332,6 +397,27 @@
                 <label class="form-label">Access / Hazard Notes</label>
                 <textarea name="rooms[{{ $ri }}][access_notes]" class="form-control"
                           rows="2" maxlength="500">{{ $val('access_notes') }}</textarea>
+            </div>
+        </div>
+
+        {{-- ── Engineer sign-off ──────────────────────────────────────────────── --}}
+        <div style="background:#F0FFF4;border:1.5px solid #86EFAC;border-radius:6px;padding:.75rem .85rem;margin-top:.75rem;">
+            <div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#14532D;margin-bottom:.5rem;">
+                ✅ Engineer Sign-off
+            </div>
+            <div style="margin-bottom:.5rem;">
+                <label class="check-item" style="cursor:pointer;">
+                    <input type="hidden" name="rooms[{{ $ri }}][engineer_confirmed]" value="0">
+                    <input type="checkbox" name="rooms[{{ $ri }}][engineer_confirmed]" value="1"
+                           {{ $chk('engineer_confirmed') ? 'checked' : '' }}>
+                    <span>I confirm the above survey data is accurate and complete for this room.</span>
+                </label>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">Engineer Name (Print)</label>
+                <input type="text" name="rooms[{{ $ri }}][engineer_signature_name]" class="form-control"
+                       value="{{ $val('engineer_signature_name') }}" maxlength="255"
+                       placeholder="Full name of surveying engineer">
             </div>
         </div>
 
