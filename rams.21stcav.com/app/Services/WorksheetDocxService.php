@@ -48,6 +48,7 @@ class WorksheetDocxService
         $project  = $generatedData['project']  ?? [];
         $rooms    = $generatedData['rooms']     ?? [];
         $blockers = $generatedData['blockers']  ?? [];
+        $warnings = $generatedData['warnings_panel'] ?? [];
 
         // ── Cover ────────────────────────────────────────────────────────────
         $coverSection = $phpWord->addSection($this->sectionProps());
@@ -56,6 +57,11 @@ class WorksheetDocxService
         // ── Project-level blockers ───────────────────────────────────────────
         if (! empty($blockers)) {
             $this->renderBlockers($coverSection, $blockers);
+        }
+
+        // ── Worksheet QA warnings panel (Pass C) — soft, not a hard block ────
+        if (! empty($warnings)) {
+            $this->renderWarningsPanel($coverSection, $warnings);
         }
 
         // ── One section per room ─────────────────────────────────────────────
@@ -124,6 +130,47 @@ class WorksheetDocxService
             $row->addCell(4500)->addText($this->t($b['action'] ?? ''), ['size' => 9, 'color' => self::DARK]);
         }
         $section->addTextBreak(1);
+    }
+
+    // ── Warnings panel (Pass C) ──────────────────────────────────────────────
+
+    /**
+     * Soft QA warnings — surfaces unclassified / mount-without-parent /
+     * warranty-without-parent / existing-unknown items so the document is
+     * never silently incorrect. Severity only: never hard-blocks the render.
+     */
+    private function renderWarningsPanel($section, array $panels): void
+    {
+        $this->heading($section, 'WORKSHEET QA WARNINGS');
+        foreach ($panels as $p) {
+            $severity = strtoupper((string) ($p['severity'] ?? 'INFO'));
+            $bg = match ($severity) {
+                'REVIEW' => 'FEF2F2',
+                default  => 'FFFBEB',
+            };
+            $text = match ($severity) {
+                'REVIEW' => '991B1B',
+                default  => '92400E',
+            };
+
+            $table = $section->addTable(['borderSize' => 4, 'borderColor' => self::AMBER]);
+            $row = $table->addRow();
+            $cell = $row->addCell(9000, ['bgColor' => $bg]);
+            $cell->addText(
+                $severity . ' — ' . $this->t((string) ($p['title'] ?? '')),
+                ['size' => 10, 'bold' => true, 'color' => $text],
+            );
+            $cell->addText(
+                $this->t((string) ($p['message'] ?? '')),
+                ['size' => 9, 'color' => $text],
+            );
+            foreach (($p['items'] ?? []) as $it) {
+                if (! is_array($it)) continue;
+                $line = '  • ' . ($it['room'] ?? '?') . ' — ' . ($it['item'] ?? '?');
+                $cell->addText($this->t($line), ['size' => 9, 'color' => $text]);
+            }
+            $section->addTextBreak();
+        }
     }
 
     // ── Room Section ─────────────────────────────────────────────────────────

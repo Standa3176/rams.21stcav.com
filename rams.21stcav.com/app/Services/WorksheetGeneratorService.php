@@ -121,34 +121,123 @@ class WorksheetGeneratorService
         //    with no input change produces byte-identical output.
         $blockers = $this->promoteBlockers($rooms, $data, $preInstallAnswers);
 
-        // ── Pass A: shadow classifier run. Telemetry-only; does NOT alter
-        //    render behaviour. Stored under _classification_telemetry so any
-        //    downstream key-iterating renderer ignores it.
+        // ── Pass A telemetry (kept through Pass C for continued observability).
         $shadowTelemetry = null;
         try {
             $shadowTelemetry = app(WorksheetClassifier::class)->runShadow($rooms);
-            Log::info('WorksheetGeneratorService: shadow classifier run', [
-                'worksheet_id'         => $worksheet->id,
-                'total_items'          => $shadowTelemetry['total_items'] ?? 0,
-                'histogram'            => $shadowTelemetry['histogram'] ?? [],
-                'tier_counts'          => $shadowTelemetry['tier_counts'] ?? [],
-                'unclassified_count'   => $shadowTelemetry['unclassified_count'] ?? 0,
+            Log::info('WorksheetGeneratorService: classifier telemetry', [
+                'worksheet_id'       => $worksheet->id,
+                'total_items'        => $shadowTelemetry['total_items'] ?? 0,
+                'histogram'          => $shadowTelemetry['histogram'] ?? [],
+                'tier_counts'        => $shadowTelemetry['tier_counts'] ?? [],
+                'unclassified_count' => $shadowTelemetry['unclassified_count'] ?? 0,
             ]);
         } catch (\Throwable $e) {
-            // Shadow run must never break generation.
             Log::warning('WorksheetGeneratorService: shadow classifier failed', [
                 'worksheet_id' => $worksheet->id,
                 'error'        => $e->getMessage(),
             ]);
         }
 
+        // ── Pass C: build the warnings panel from telemetry. Rendered as a
+        //    soft info block in the DOCX — never a hard block on publish.
+        $warningsPanel = $this->buildWarningsPanel($shadowTelemetry);
+
         return [
             'project'                   => $data['project'],
             'rooms'                     => $rooms,
             'blockers'                  => $blockers,
+            'warnings_panel'            => $warningsPanel,
             'generated_at'              => now()->toIso8601String(),
             '_classification_telemetry' => $shadowTelemetry,
         ];
+    }
+
+    // =========================================================================
+    // PASS C — Warnings panel builder
+    // =========================================================================
+
+    /**
+     * Summarise classifier telemetry into a reviewer-visible warnings block.
+     * Returns an empty array when nothing needs surfacing.
+     *
+     * Warnings raised:
+     *   - unclassified_items           (Tier 5)
+     *   - low_confidence_items         (Tier 3+ fallback_used=true) — aggregate
+     *   - existing_unknown_items       (Tier 4 sentinel)
+     *   - mount_without_parent         (Tier 4 sentinel)
+     *   - warranty_without_parent      (Tier 4 sentinel)
+     */
+    private function buildWarningsPanel(?array $telemetry): array
+    {
+        if (! is_array($telemetry) || empty($telemetry['per_room'])) {
+            return [];
+        }
+
+        $buckets = [
+            'unclassified'     => [],
+            'mount_accessory'  => [],
+            'warranty_service' => [],
+            'existing_unknown' => [],
+            'low_confidence'   => [],
+        ];
+
+        foreach ($telemetry['per_room'] as $room) {
+            $roomName = $room['room'] ?? '(unnamed)';
+            foreach ($room['telemetry'] as $t) {
+                $cat = $t['category'] ?? null;
+                if (isset($buckets[$cat])) {
+                    $buckets[$cat][] = ['room' => $roomName, 'item' => $t['name'] ?? '(no name)', 'tier' => $t['tier'] ?? null];
+                }
+                if (($t['tier'] ?? 0) === 3 && ($t['fallback_used'] ?? false)) {
+                    $buckets['low_confidence'][] = ['room' => $roomName, 'item' => $t['name'] ?? '(no name)', 'reason' => $t['reason'] ?? ''];
+                }
+            }
+        }
+
+        $panel = [];
+        if (! empty($buckets['unclassified'])) {
+            $panel[] = [
+                'severity' => 'review',
+                'title'    => count($buckets['unclassified']) . ' item(s) could not be classified',
+                'message'  => 'These quote lines did not match any tier of the classifier. They are hidden from the rendered kit list so the document is never silently incorrect — review and either extend config/worksheet_taxonomy.php or flag on the quote.',
+                'items'    => array_slice($buckets['unclassified'], 0, 20),
+            ];
+        }
+        if (! empty($buckets['existing_unknown'])) {
+            $panel[] = [
+                'severity' => 'info',
+                'title'    => count($buckets['existing_unknown']) . ' "utilise existing" item(s) with no type hint',
+                'message'  => 'These are rendered as "Client-supplied existing equipment" and excluded from category totals.',
+                'items'    => array_slice($buckets['existing_unknown'], 0, 20),
+            ];
+        }
+        if (! empty($buckets['mount_accessory'])) {
+            $panel[] = [
+                'severity' => 'info',
+                'title'    => count($buckets['mount_accessory']) . ' mount/bracket(s) with no identifiable parent in the room',
+                'message'  => 'Mounts inherit the category of the item they attach to. These could not find a parent — check the quote grouping.',
+                'items'    => array_slice($buckets['mount_accessory'], 0, 20),
+            ];
+        }
+        if (! empty($buckets['warranty_service'])) {
+            $panel[] = [
+                'severity' => 'info',
+                'title'    => count($buckets['warranty_service']) . ' warranty/service line(s) with no preceding parent',
+                'message'  => 'Warranties are classified on their own text first; these lacked enough signal and had no preceding classifiable peer.',
+                'items'    => array_slice($buckets['warranty_service'], 0, 10),
+            ];
+        }
+        if (count($buckets['low_confidence']) >= 3) {
+            $panel[] = [
+                'severity' => 'info',
+                'title'    => count($buckets['low_confidence']) . ' item(s) classified by keyword fallback (Tier 3)',
+                'message'  => 'Consider adding a manufacturer rule or SKU map entry to avoid future drift.',
+                'items'    => array_slice($buckets['low_confidence'], 0, 10),
+            ];
+        }
+
+        return $panel;
     }
 
     // =========================================================================
