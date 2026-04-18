@@ -702,6 +702,16 @@ p { margin: 3pt 0; }
     @endif
 </div>
 
+{{-- Scope of Works bullets (Tier 1 upgrade) --}}
+@if(! empty($data['scope_of_works_bullets']))
+<div class="sec-subheading" style="margin-top:8pt;">Works Activities</div>
+<ul class="blist">
+    @foreach($data['scope_of_works_bullets'] as $bullet)
+        <li>{{ $bullet }}</li>
+    @endforeach
+</ul>
+@endif
+
 @if(! empty($roomOverviews) && is_array($roomOverviews))
     {{-- Per-room scope paragraphs from reviewed data --}}
     @foreach($roomOverviews as $roomOv)
@@ -727,7 +737,9 @@ p { margin: 3pt 0; }
         <p class="body-para">{{ $para }}</p>
     @endforeach
 @else
-<p class="body-para">Works comprise an Audio Visual installation to the rooms listed above. The scope in each room is as follows:</p>
+<p class="body-para">
+    <span style="color:#CC0000; font-style:italic;">Scope of works not generated.</span>
+</p>
 @endif
 
 {{-- Equipment schedule --}}
@@ -1037,8 +1049,57 @@ p { margin: 3pt 0; }
 @endforeach
 </ul>
 
-{{-- 6.3 Pre-Installation Requirements (Client Responsibilities) --}}
-<div class="sec-subheading">6.3 Pre-Installation Requirements (Client Responsibilities)</div>
+{{-- 6.3 PPE Matrix (Tier 1 upgrade) --}}
+@if(! empty($data['ppe_matrix']))
+<div class="sec-subheading">6.3 Personal Protective Equipment (PPE)</div>
+<table class="std-table">
+    <thead>
+        <tr>
+            <th style="width:35%;">Task</th>
+            <th>PPE Required</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach($data['ppe_matrix'] as $ppeRow)
+        <tr>
+            <td>{{ $ppeRow['task'] ?? '' }}</td>
+            <td>
+                <ul class="blist" style="margin:0; padding-left:14pt;">
+                @foreach(($ppeRow['ppe'] ?? []) as $ppeItem)
+                    <li>{{ $ppeItem }}</li>
+                @endforeach
+                </ul>
+            </td>
+        </tr>
+    @endforeach
+    </tbody>
+</table>
+@endif
+
+{{-- 6.4 Access Equipment (Tier 1 upgrade) --}}
+@if(! empty($data['access_equipment_detail']))
+@php $accessDetail = $data['access_equipment_detail']; @endphp
+<div class="sec-subheading">6.4 Access Equipment</div>
+@if(! empty($accessDetail['items']))
+<ul class="blist">
+    @foreach($accessDetail['items'] as $accessItem)
+        <li>{{ $accessItem }}</li>
+    @endforeach
+</ul>
+@endif
+@if(! empty($accessDetail['requirements']))
+<p class="body-para" style="margin-top:4pt;"><strong>Requirements:</strong></p>
+<ul class="blist">
+    @foreach($accessDetail['requirements'] as $req)
+        <li>{{ $req }}</li>
+    @endforeach
+</ul>
+@endif
+@endif
+
+{{-- Pre-Installation Requirements (Client Responsibilities) --}}
+@php $preInstallNum = ! empty($data['ppe_matrix']) ? '6.5' : '6.3'; @endphp
+<div class="sec-subheading">{{ $preInstallNum }} Pre-Installation Requirements (Client Responsibilities)</div>
 @if(! empty($clientResp))
 <ul class="blist">
     @foreach($clientResp as $item)
@@ -1084,8 +1145,9 @@ p { margin: 3pt 0; }
 </ul>
 @endif
 
-{{-- 6.4 Method of Works --}}
-<div class="sec-subheading">6.4 Method of Works &mdash; Step by Step</div>
+{{-- Method of Works --}}
+@php $methodNum = ! empty($data['ppe_matrix']) ? '6.6' : '6.4'; @endphp
+<div class="sec-subheading">{{ $methodNum }} Method of Works &mdash; Step by Step</div>
 @php $phases = is_array($ms) ? ($ms['phases'] ?? []) : []; @endphp
 @if(! empty($phases))
     @foreach($phases as $i => $phase)
@@ -1102,14 +1164,24 @@ p { margin: 3pt 0; }
                 @endif
             @endforeach
         </ul>
+        @if(! empty($phase['associated_risks_label']))
+        <p style="font-size:7.5pt; color:#666; font-style:italic; margin:2pt 0 8pt 0;">{{ $phase['associated_risks_label'] }}</p>
+        @endif
     @endforeach
 @else
 <p class="note-text">Method statement not available.</p>
 @endif
 
-{{-- 6.5 Material Handling --}}
-<div class="sec-subheading">6.5 Material Handling</div>
+{{-- 6.7 Material Handling --}}
+@php
+    $mhNum = ! empty($data['ppe_matrix']) ? '6.7' : '6.5';
+    $mhDerived = $data['material_handling_derived'] ?? null;
+    $mhDerivedItems = is_array($mhDerived['items'] ?? null) ? $mhDerived['items'] : [];
+    $mhHasHeavy = ! empty($mhDerived['has_heavy_items']) || ! empty($mhItems);
+@endphp
+<div class="sec-subheading">{{ $mhNum }} Material Handling</div>
 @if(! empty($mhItems))
+{{-- User-specified items from reviewed_data --}}
 <table class="std-table" style="margin-bottom: 8pt;">
     <thead>
         <tr>
@@ -1123,18 +1195,70 @@ p { margin: 3pt 0; }
         @if(! empty($mhi['item']))
         <tr>
             <td>{{ $mhi['item'] }}</td>
-            <td style="text-align:center;">{{ $mhi['weight_kg'] ? $mhi['weight_kg'] . ' kg' : '—' }}</td>
+            <td style="text-align:center;">{{ ($mhi['weight_kg'] ?? '') ? $mhi['weight_kg'] . ' kg' : '—' }}</td>
             <td>{{ $mhi['handling_method'] ?? '—' }}</td>
         </tr>
         @endif
     @endforeach
     </tbody>
 </table>
-@else
-<p class="body-para">No large or heavy items identified for this installation. Standard manual handling precautions apply.</p>
+@elseif(! empty($mhDerivedItems))
+{{-- Auto-derived from equipment data --}}
+<table class="std-table" style="margin-bottom: 8pt;">
+    <thead>
+        <tr>
+            <th style="width:10%;">Qty</th>
+            <th style="width:35%;">Item</th>
+            <th>Handling Method / Controls</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach($mhDerivedItems as $di)
+        <tr>
+            <td style="text-align:center;">{{ $di['qty'] ?? 1 }}</td>
+            <td>{{ $di['item'] ?? '' }}</td>
+            <td>{{ $di['handling_method'] ?? 'Assess weight before lifting. Team lift for items over 20 kg.' }}</td>
+        </tr>
+    @endforeach
+    </tbody>
+</table>
 @endif
+<p class="body-para">{{ $mhDerived['statement'] ?? ($mhHasHeavy ? 'Manual handling controls apply — team lift for items over 20 kg, use mechanical aids where available.' : 'No significant heavy or bulky items identified. Standard manual handling precautions apply.') }}</p>
 @if($mhNotes)
 <p class="body-para"><strong>Handling Notes:</strong> {{ $mhNotes }}</p>
+@endif
+
+{{-- 6.8 Permit & Isolation Requirements --}}
+@php $permitNum = ! empty($data['ppe_matrix']) ? '6.8' : '6.6'; @endphp
+@if(! empty($data['permit_and_isolation']['rules']))
+<div class="sec-subheading">{{ $permitNum }} Permit &amp; Isolation Requirements</div>
+<ul class="blist">
+    @foreach($data['permit_and_isolation']['rules'] as $rule)
+        <li>{{ $rule }}</li>
+    @endforeach
+</ul>
+@endif
+
+{{-- 6.9 Fixings & Installation Control --}}
+@php $fixingsNum = ! empty($data['ppe_matrix']) ? '6.9' : '6.7'; @endphp
+@if(! empty($data['fixings_control']['rules']))
+<div class="sec-subheading">{{ $fixingsNum }} Fixings &amp; Installation Control</div>
+<ul class="blist">
+    @foreach($data['fixings_control']['rules'] as $rule)
+        <li>{{ $rule }}</li>
+    @endforeach
+</ul>
+@endif
+
+{{-- 6.10 Supervision & Quality Assurance --}}
+@php $qaNum = ! empty($data['ppe_matrix']) ? '6.10' : '6.8'; @endphp
+@if(! empty($data['supervision_and_qa']['responsibilities']))
+<div class="sec-subheading">{{ $qaNum }} Supervision &amp; Quality Assurance</div>
+<ul class="blist">
+    @foreach($data['supervision_and_qa']['responsibilities'] as $item)
+        <li>{{ $item }}</li>
+    @endforeach
+</ul>
 @endif
 
 {{-- ════════════════════════════════════════════════════════════════════════
@@ -1207,8 +1331,19 @@ p { margin: 3pt 0; }
     </thead>
     <tbody>
     @php
+        // Merge cdm_duty_holders from compliance upgrade when cdmRows is empty
+        $cdmMerged = $cdmRows;
+        if (empty($cdmMerged) && ! empty($data['cdm_duty_holders'])) {
+            $cdmDh = $data['cdm_duty_holders'];
+            $cdmMerged = [
+                ['role' => 'Client',               'organisation' => $cdmDh['client'] ?? '',               'name' => '', 'contact' => ''],
+                ['role' => 'Principal Designer',    'organisation' => $cdmDh['principal_designer'] ?? '',   'name' => '', 'contact' => ''],
+                ['role' => 'Principal Contractor',  'organisation' => $cdmDh['principal_contractor'] ?? '', 'name' => '', 'contact' => ''],
+                ['role' => 'Sub-contractor',        'organisation' => $cdmDh['contractor'] ?? $company,    'name' => $cdmDh['site_supervisor'] ?? '', 'contact' => $phone],
+            ];
+        }
         $cdmLookup = [];
-        foreach ($cdmRows as $cr) { $cdmLookup[$cr['role'] ?? ''] = $cr; }
+        foreach ($cdmMerged as $cr) { $cdmLookup[$cr['role'] ?? ''] = $cr; }
         $cdmDisplayRoles = ['Client', 'Principal Designer', 'Principal Contractor', 'Sub-contractor'];
     @endphp
     @foreach($cdmDisplayRoles as $cdmRole)
@@ -1402,22 +1537,22 @@ p { margin: 3pt 0; }
         <tr>
             <td class="row-lbl">Name</td>
             <td>{{ $docAuthor ?: '—' }}</td>
-            <td>&nbsp;</td>
+            <td style="color:#999; font-style:italic;">________________</td>
         </tr>
         <tr>
             <td class="row-lbl">Position</td>
             <td>Project Manager</td>
-            <td>&nbsp;</td>
+            <td style="color:#999; font-style:italic;">________________</td>
         </tr>
         <tr>
             <td class="row-lbl">Date</td>
             <td>{{ $docDate }}</td>
-            <td>&nbsp;</td>
+            <td style="color:#999; font-style:italic;">____/____/________</td>
         </tr>
         <tr class="sig-row">
             <td class="row-lbl">Signature</td>
-            <td>&nbsp;</td>
-            <td>&nbsp;</td>
+            <td style="height:40pt;">&nbsp;</td>
+            <td style="height:40pt; color:#999; font-style:italic;">________________</td>
         </tr>
     </tbody>
 </table>

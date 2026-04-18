@@ -189,6 +189,36 @@ class WorksheetController extends Controller
      * @param  Worksheet $worksheet
      * @return RedirectResponse
      */
+    /**
+     * Retry / regenerate an existing worksheet.
+     * Re-dispatches BuildWorksheetJob using the same project link.
+     */
+    public function retryGeneration(Worksheet $worksheet): RedirectResponse
+    {
+        abort_if(
+            $worksheet->user_id !== auth()->id() && ! auth()->user()->isAdmin(),
+            403
+        );
+
+        if ($worksheet->status === Worksheet::STATUS_GENERATING) {
+            return back()->with('error', 'This worksheet is already being generated. Please wait.');
+        }
+
+        $worksheet->update([
+            'status' => Worksheet::STATUS_GENERATING,
+        ]);
+
+        app(WorkerMonitorService::class)->ensureRunning();
+        BuildWorksheetJob::dispatch($worksheet->id);
+
+        Log::info('WorksheetController: regeneration queued', [
+            'worksheet_id' => $worksheet->id,
+            'user_id'      => auth()->id(),
+        ]);
+
+        return back()->with('success', 'Worksheet regeneration queued. The document will be ready to download shortly.');
+    }
+
     public function destroy(Worksheet $worksheet): RedirectResponse
     {
         abort_if(

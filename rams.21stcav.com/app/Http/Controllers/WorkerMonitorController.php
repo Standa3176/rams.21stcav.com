@@ -89,18 +89,16 @@ class WorkerMonitorController extends Controller
             $lines[] = '✗ Cache signal failed: ' . $e->getMessage();
         }
 
-        if ($this->monitor->canExec()) {
-            $lines[] = '';
-            $lines[] = '— Killing existing processes —';
-            array_push($lines, ...$this->monitor->killProcesses());
-
-            $lines[] = '';
-            $lines[] = '— Starting new worker —';
-            array_push($lines, ...$this->monitor->spawnWorker());
-        } else {
-            $this->monitor->clearHeartbeat();
-            $lines[] = 'WORKER_EXEC_ENABLED is not set — run the start command below manually.';
-        }
+        // Never call exec() from an HTTP request — it can hang PHP-FPM and cause 504s.
+        // The cache signal above is sufficient: the running worker will pick it up and restart.
+        $this->monitor->clearHeartbeat();
+        $lines[] = '✓ Heartbeat cleared — worker will show as stopped until it restarts.';
+        $lines[] = '';
+        $lines[] = 'The queue restart signal has been sent. If a worker is running, it will';
+        $lines[] = 'restart after completing its current job. If no worker is running, start';
+        $lines[] = 'one manually:';
+        $lines[] = '';
+        $lines[] = $this->monitor->startCommand();
 
         return redirect()
             ->route('admin.worker.index')

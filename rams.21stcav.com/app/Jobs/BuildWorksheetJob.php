@@ -58,7 +58,42 @@ class BuildWorksheetJob implements ShouldQueue
             // Step 1: Generate per-room content (AI calls per room).
             $generatedData = $generator->generateContent($worksheet);
 
-            // Step 2: Persist generated data and advance status to draft.
+            // Step 2: Quality gate — prevent blank/cover-only docs.
+            $rooms              = $generatedData['rooms'] ?? [];
+            $roomsCount         = count($rooms);
+            $roomsWithEquipment = 0;
+            $roomsWithSteps     = 0;
+            $roomsWithPreinstall = 0;
+
+            foreach ($rooms as $room) {
+                if (! empty($room['equipment'])) {
+                    $roomsWithEquipment++;
+                }
+                if (! empty($room['install_steps'])) {
+                    $roomsWithSteps++;
+                }
+                if (! empty($room['pre_install_answers'])) {
+                    $roomsWithPreinstall++;
+                }
+            }
+
+            Log::info('BuildWorksheetJob: content quality check', [
+                'worksheet_id'        => $this->worksheetId,
+                'rooms_count'         => $roomsCount,
+                'rooms_with_equipment' => $roomsWithEquipment,
+                'rooms_with_steps'    => $roomsWithSteps,
+                'rooms_with_preinstall' => $roomsWithPreinstall,
+            ]);
+
+            if ($roomsCount === 0 || ($roomsWithEquipment === 0 && $roomsWithSteps === 0 && $roomsWithPreinstall === 0)) {
+                throw new \RuntimeException(
+                    "Worksheet generation produced no substantive content ({$roomsCount} rooms, "
+                    . "{$roomsWithEquipment} with equipment, {$roomsWithSteps} with steps). "
+                    . 'Ensure the project has reviewed equipment data before generating a worksheet.'
+                );
+            }
+
+            // Step 3: Persist generated data and advance status to draft.
             $worksheet->update([
                 'generated_data' => $generatedData,
                 'status'         => Worksheet::STATUS_DRAFT,
@@ -67,10 +102,10 @@ class BuildWorksheetJob implements ShouldQueue
 
             Log::info('BuildWorksheetJob: content generated', [
                 'worksheet_id' => $this->worksheetId,
-                'room_count'   => count($generatedData['rooms'] ?? []),
+                'room_count'   => $roomsCount,
             ]);
 
-            // Step 3: Build the .docx file (also updates worksheet.filename).
+            // Step 4: Build the .docx file (also updates worksheet.filename).
             $docxService->build($generatedData, $worksheet);
 
             Log::info('BuildWorksheetJob: completed', [

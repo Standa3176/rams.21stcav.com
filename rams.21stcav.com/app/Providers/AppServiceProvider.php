@@ -9,6 +9,7 @@ use App\Policies\OmManualPolicy;
 use App\Policies\RamsDocumentPolicy;
 use App\Services\PdfOcrExtractorService;
 use App\Services\PdfTextExtractorService;
+use App\Support\Filesystem\WindowsSafeFilesystem;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Smalot\PdfParser\Config;
@@ -33,6 +34,10 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(ProjectDataService::class);
+
+        // Harden file replacement on Windows to avoid intermittent
+        // Blade compile failures: rename(...): Access is denied (code 5).
+        $this->app->singleton('files', fn () => new WindowsSafeFilesystem());
     }
 
     /**

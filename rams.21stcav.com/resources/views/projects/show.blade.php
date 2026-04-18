@@ -284,9 +284,14 @@
                                         {{ $record->updated_at->diffForHumans() }}
                                     </td>
                                     <td class="proj-cell--nowrap lr-actions">
-                                        {{-- Regen: POST form (RAMS, O&M) --}}
+                                        {{-- Regen: POST form --}}
                                         @if (! empty($entry['regenerate_route_name']) && ($record->status ?? '') !== \App\Models\RamsDocument::STATUS_SUPERSEDED)
-                                            <form method="POST" action="{{ route($entry['regenerate_route_name'], $record) }}"
+                                            @php
+                                                // Some regen routes expect the project (e.g. survey supersede),
+                                                // others expect the record itself. Use regenerate_route_param if set.
+                                                $regenParam = $entry['regenerate_route_param'] ?? $record;
+                                            @endphp
+                                            <form method="POST" action="{{ route($entry['regenerate_route_name'], $regenParam) }}"
                                                   class="form-bare form-bare--inline">
                                                 @csrf
                                                 <button type="submit" class="btn btn-outline btn-sm lr-btn">↻ Regen</button>
@@ -303,11 +308,20 @@
                                                     onclick="copyEngineerLink('{{ $record->publicUrl() }}', this)"
                                                     title="{{ $record->publicUrl() }}">⎘ Copy Link</button>
                                         @endif
-                                        {{-- Download DOCX --}}
-                                        @if (! empty($entry['download_route_name']) && ! empty($record->filename) && ($record->status ?? '') !== \App\Models\RamsDocument::STATUS_GENERATING)
+                                        {{-- Download --}}
+                                        @php
+                                            $hasDownloadFile = ! empty($record->filename) || ! empty($record->source_filename);
+                                            $isGenerating = ($record->status ?? '') === \App\Models\RamsDocument::STATUS_GENERATING;
+                                            $downloadLabel = '↓ DOCX';
+                                            if (! empty($record->source_filename) && empty($record->filename)) {
+                                                $ext = strtoupper(pathinfo($record->source_filename, PATHINFO_EXTENSION));
+                                                $downloadLabel = '↓ ' . ($ext ?: 'File');
+                                            }
+                                        @endphp
+                                        @if (! empty($entry['download_route_name']) && $hasDownloadFile && ! $isGenerating)
                                             <a href="{{ route($entry['download_route_name'], $record) }}"
                                                class="btn btn-teal btn-sm lr-btn"
-                                               target="_blank">↓ DOCX</a>
+                                               target="_blank">{{ $downloadLabel }}</a>
                                         @endif
                                         {{-- Download PDF --}}
                                         @if (! empty($entry['download_pdf_route_name']) && in_array($record->status ?? '', ['completed', 'for_review', 'approved']))
@@ -657,10 +671,10 @@
                 ->isNotEmpty();
         @endphp
 
-        <x-section-card title="O&amp;M Manuals ({{ $project->omManuals->count() }})" :flush="true">
+        <x-section-card title="O&M Manuals ({{ $project->omManuals->count() }})" :flush="true">
             <x-slot name="actions">
                 <x-actions.secondary-button :href="route('om-manuals.create', ['project_id' => $project->id])">
-                    + New O&amp;M
+                    + New O&M
                 </x-actions.secondary-button>
                 @if ($generatingOm)
                     <span class="section-state-note">Processing…</span>
@@ -671,7 +685,7 @@
                 @elseif ($latestPackage && $latestPackage->status === \App\Models\ProjectPackage::STATUS_REVIEWED)
                     <form method="POST" action="{{ route('om-manuals.generate-from-project', $project) }}" class="form-bare">
                         @csrf
-                        <x-actions.secondary-button type="submit">+ Create O&amp;M</x-actions.secondary-button>
+                        <x-actions.secondary-button type="submit">+ Create O&M</x-actions.secondary-button>
                     </form>
                 @elseif ($latestPackage)
                     <x-actions.secondary-button :href="route('project-packages.review.show', $latestPackage)">
@@ -682,16 +696,16 @@
 
             @if ($project->omManuals->isEmpty())
                 @if ($latestPackage && $latestPackage->status === \App\Models\ProjectPackage::STATUS_REVIEWED)
-                    <x-empty-state title="No O&amp;M manuals yet"
-                        description="Project data is reviewed and ready for O&amp;M generation."/>
+                    <x-empty-state title="No O&M manuals yet"
+                        description="Project data is reviewed and ready for O&M generation."/>
                 @elseif ($latestPackage)
-                    <x-empty-state title="No O&amp;M manuals yet"
-                        description="Review quote data to enable O&amp;M generation."
+                    <x-empty-state title="No O&M manuals yet"
+                        description="Review quote data to enable O&M generation."
                         :href="route('project-packages.review.show', $latestPackage)"
                         action="Review Quote Data"/>
                 @else
-                    <x-empty-state title="No O&amp;M manuals yet"
-                        description="Upload a quote in Quote History to enable O&amp;M generation."/>
+                    <x-empty-state title="No O&M manuals yet"
+                        description="Upload a quote in Quote History to enable O&M generation."/>
                 @endif
             @else
                 <table class="data-table data-table--sm">
@@ -713,7 +727,7 @@
                                 @endif
                             </td>
                             <td>
-                                <x-status-badge :status="$manual->status" />
+                                <x-status-badge :status="$manual->status" :label="$manual->statusLabel()" />
                             </td>
                             <td class="proj-cell--faint proj-cell--nowrap">
                                 {{ $manual->created_at->format('d M Y') }}<br>
@@ -739,7 +753,7 @@
                                         <form method="POST" action="{{ route('om-manuals.retry-generation', $manual) }}" class="form-bare">
                                             @csrf
                                             <button type="submit" class="btn btn-outline btn-sm"
-                                                    onclick="return confirm('Rebuild this O&amp;M manual from the existing data?');">↺ Regen</button>
+                                                    onclick="return confirm('Rebuild this O&M manual from the existing data?');">↺ Regen</button>
                                         </form>
 
                                     @elseif ($manual->status === \App\Models\OmManual::STATUS_EXTRACTED)
@@ -751,7 +765,7 @@
 
                                     <form method="POST" action="{{ route('om-manuals.destroy', $manual) }}"
                                           class="form-bare"
-                                          onsubmit="return confirm('Delete this O&amp;M manual?');">
+                                          onsubmit="return confirm('Delete this O&M manual?');">
                                         @csrf @method('DELETE')
                                         <button type="submit" class="btn btn-danger-outline btn-sm" title="Delete">✕</button>
                                     </form>
@@ -848,35 +862,33 @@
         {{-- Copy-to-clipboard for engineer links --}}
         <script>
         function copyEngineerLink(url, btn) {
-            window.prompt('Copy this survey link:', url);
+            const orig = btn.textContent;
+            const showSuccess = () => {
+                btn.textContent = '✓ Copied!';
+                btn.style.background = '#059669';
+                setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 2500);
+            };
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(url).then(showSuccess).catch(() => {
+                    fallbackCopyText(url); showSuccess();
+                });
+            } else {
+                fallbackCopyText(url); showSuccess();
+            }
+        }
+        function fallbackCopyText(text) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch(e) {}
+            document.body.removeChild(ta);
         }
         </script>
 
-        {{-- ── Cable Schedules ──────────────────────────────────────────────────── --}}
-        @if ($project->cableSchedules->isNotEmpty())
-        <x-section-card title="Cable Schedules ({{ $project->cableSchedules->count() }})" :flush="true">
-            <table class="data-table data-table--sm">
-                <thead>
-                    <tr>
-                        <th>Schedule</th>
-                        <th class="proj-cell--nowrap">Created</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($project->cableSchedules->sortByDesc('created_at') as $cs)
-                    <tr>
-                        <td>{{ $cs->name ?? 'Cable Schedule #' . $cs->id }}</td>
-                        <td class="proj-cell--faint proj-cell--nowrap">{{ $cs->created_at->format('d M Y') }}</td>
-                        <td>
-                            <a href="{{ route('cable-schedules.edit', $cs) }}" class="btn btn-outline btn-sm">View</a>
-                        </td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </x-section-card>
-        @endif
+        {{-- Cable Schedules are shown in the Linked Records table above --}}
 
         {{-- ── Activity Log ──────────────────────────────────────────────────────── --}}
         <x-section-card title="Activity Log">
@@ -952,7 +964,7 @@
                     <div class="doc-count-item__value">{{ $project->ramsDocuments->count() }}</div>
                 </div>
                 <div class="doc-count-item">
-                    <div class="doc-count-item__label">O&amp;M</div>
+                    <div class="doc-count-item__label">O&M</div>
                     <div class="doc-count-item__value">{{ $project->omManuals->count() }}</div>
                 </div>
                 <div class="doc-count-item">
@@ -971,7 +983,7 @@
                     <form method="POST" action="{{ route('om-manuals.generate-from-project', $project) }}" class="form-bare">
                         @csrf
                         <x-actions.secondary-button type="submit" class="btn-full">
-                            + Create O&amp;M Manual
+                            + Create O&M Manual
                         </x-actions.secondary-button>
                     </form>
                 @else

@@ -143,7 +143,8 @@ class CableScheduleXlsxService
 
         (new Xlsx($spreadsheet))->save($absolutePath);
 
-        $schedule->update(['filename' => $filename]);
+        // Persist filename via source_filename (always exists on table)
+        $schedule->update(['source_filename' => $filename]);
 
         return $absolutePath;
     }

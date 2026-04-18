@@ -2,13 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Core\AI\AIManager;
-use App\Core\AI\Prompts\CableSchedulePrompt;
-use App\Exceptions\AIGenerationException;
 use App\Jobs\BuildCableScheduleJob;
 use App\Models\CableSchedule;
 use App\Models\CableScheduleItem;
 use App\Models\Project;
+use App\Services\CableScheduleGeneratorService;
 use App\Services\PdfTextExtractorService;
 use App\Services\QuoteLineExtractorService;
 use App\Services\WorkerMonitorService;
@@ -26,6 +24,7 @@ class CableScheduleController extends Controller
     public function __construct(
         private readonly PdfTextExtractorService   $pdfExtractor,
         private readonly QuoteLineExtractorService $lineExtractor,
+        private readonly CableScheduleGeneratorService $deterministicGenerator,
         private readonly WorkerMonitorService      $workerMonitor,
     ) {}
 
@@ -63,25 +62,17 @@ class CableScheduleController extends Controller
 
         $pdf         = $request->file('quote_pdf');
         $filename    = $pdf->getClientOriginalName();
-        $providerKey = config('ai.default', 'claude');
 
-        // Local extraction pipeline — no PDF binary is sent to AI.
+        // Deterministic extraction pipeline — no AI generation in this flow.
         $text  = $this->pdfExtractor->extract($pdf->getRealPath());
         $lines = $this->lineExtractor->extractEquipmentLines($text);
+        $cables = $this->deterministicGenerator->buildRowsFromEquipmentLines($lines, 'Quote Line');
 
-        try {
-            $result = AIManager::run(
-                new CableSchedulePrompt($lines),
-                [],
-                $providerKey,
-            );
-        } catch (AIGenerationException $e) {
-            return back()->withInput()->with('error',
-                'Cable schedule generation failed: ' . $e->getMessage()
-            );
+        if (empty($cables)) {
+            return back()
+                ->withInput()
+                ->with('error', 'No cable-relevant hardware lines were found in the uploaded quote.');
         }
-
-        $cables = $result['cables'] ?? [];
 
         $schedule = DB::transaction(function () use ($request, $filename, $cables) {
             $s = CableSchedule::create([
@@ -103,7 +94,7 @@ class CableScheduleController extends Controller
                     'cores'             => $cable['cores']           ?? null,
                     'approx_length_m'   => $cable['approx_length_m'] ?? null,
                     'notes'             => $cable['notes']           ?? null,
-                    'sort_order'        => $i,
+                    'sort_order'        => $cable['sort_order']      ?? ($i + 1),
                 ]);
             }
 
@@ -240,7 +231,7 @@ class CableScheduleController extends Controller
         return response()->json([
             'status'       => $cableSchedule->status,
             'download_url' => $downloadUrl,
-            'error'        => $cableSchedule->error_message,
+            'error'        => $cableSchedule->error_message ?? null,
         ]);
     }
 
@@ -256,20 +247,61 @@ class CableScheduleController extends Controller
     {
         abort_if($cableSchedule->user_id !== auth()->id() && ! auth()->user()?->isAdmin(), 403);
 
-        if (! $cableSchedule->filename) {
+        // Resolve filename: source_filename is the reliable column (always exists on table).
+        // Fall back to filename for forward compatibility if that column is added later.
+        $outputFilename = $cableSchedule->source_filename
+            ?? $cableSchedule->filename
+            ?? null;
+
+        if (! $outputFilename) {
             return back()->with('error', 'No file available yet. Please generate the schedule first.');
         }
 
-        $diskPath = 'cable-schedules/' . $cableSchedule->filename;
+        // Generated files are stored under storage/app/private/cable-schedules/
+        $absolutePath = storage_path('app/private/cable-schedules/' . $outputFilename);
 
-        if (! Storage::disk('local')->exists($diskPath)) {
+        if (! file_exists($absolutePath)) {
             return back()->with('error', 'Document file not found on disk.');
         }
 
-        return Storage::disk('local')->download(
-            $diskPath,
-            $cableSchedule->filename,
-            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
-        );
+        // Dynamic content type by extension
+        $ext = strtolower(pathinfo($outputFilename, PATHINFO_EXTENSION));
+        $contentType = match ($ext) {
+            'xlsx'  => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'csv'   => 'text/csv',
+            default => 'application/octet-stream',
+        };
+
+        return response()->download($absolutePath, $outputFilename, [
+            'Content-Type' => $contentType,
+        ]);
+    }
+
+    // ── retryGeneration ──────────────────────────────────────────────────────
+
+    public function retryGeneration(CableSchedule $cableSchedule): RedirectResponse
+    {
+        abort_if($cableSchedule->user_id !== auth()->id() && ! auth()->user()?->isAdmin(), 403);
+
+        if ($cableSchedule->status === CableSchedule::STATUS_GENERATING) {
+            return back()->with('error', 'This cable schedule is already being generated. Please wait.');
+        }
+
+        // Clear old items for clean re-generation
+        DB::table('cable_schedule_items')->where('cable_schedule_id', $cableSchedule->id)->delete();
+
+        $cableSchedule->update([
+            'status' => CableSchedule::STATUS_GENERATING,
+        ]);
+
+        app(WorkerMonitorService::class)->ensureRunning();
+        BuildCableScheduleJob::dispatch($cableSchedule->id);
+
+        Log::info('CableScheduleController: regeneration queued', [
+            'cable_schedule_id' => $cableSchedule->id,
+            'user_id'           => auth()->id(),
+        ]);
+
+        return back()->with('success', 'Cable schedule regeneration queued.');
     }
 }

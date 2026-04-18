@@ -14,26 +14,20 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Async O&M generation job — matches the RAMS BuildRamsDocumentJob pattern.
+ * Async O&M generation job.
  *
- * Dispatched by OmManualController::generateFromProject() immediately after
- * the OmManual record is created and Pass 1 extraction is complete.
- *
- * Responsibilities:
- *   1. Run Pass 2: OmManualGeneratorService::generateContent() (AI call).
- *   2. Build the .docx: OmManualDocxService::build().
- *   3. Advance status to 'draft' on success, 'failed' on error.
+ * Status transitions:
+ *   generating → draft   (success)
+ *   generating → failed  (any exception, timeout, or retry exhaustion)
  *
  * The OmManual record is already in status 'generating' when this job starts.
- * Pass 1 (extractFromProjectPackage / extractFromPdf) is always synchronous
- * in the controller so the user gets immediate feedback that the job is queued.
  */
 class BuildOmManualJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries   = 2;
-    public int $timeout = 300; // AI generation can be slow for large equipment lists
+    public int $timeout = 300;
 
     public function __construct(
         public readonly int $omManualId,
@@ -50,19 +44,37 @@ class BuildOmManualJob implements ShouldQueue
         $manual = OmManual::find($this->omManualId);
 
         if (! $manual) {
-            // Record was deleted — discard silently (matches ExtractRamsDraftJob pattern).
+            Log::warning('BuildOmManualJob: record not found, discarding', [
+                'om_manual_id' => $this->omManualId,
+            ]);
             return;
         }
 
+        // ── Ensure status is generating ──────────────────────────────────────
+        if ($manual->status !== OmManual::STATUS_GENERATING) {
+            $manual->update(['status' => OmManual::STATUS_GENERATING]);
+        }
+
+        Log::info('BuildOmManualJob: starting', [
+            'om_manual_id' => $this->omManualId,
+            'attempt'      => $this->attempts(),
+            'status'       => 'generating',
+        ]);
+
         try {
-            // Pass 2: AI generates the full O&M content from reviewed extracted_data.
+            // Pass 2: AI generates the full O&M content.
             $provider      = config('ai.default', 'claude');
-            $user          = User::find($manual->user_id);
+            $user          = User::find($manual->user_id) ?? User::first();
             $generatedData = $generator->generateContent(
                 manual:   $manual,
                 user:     $user,
                 provider: $provider,
             );
+
+            Log::info('BuildOmManualJob: content generated, starting DOCX build', [
+                'om_manual_id' => $this->omManualId,
+                'attempt'      => $this->attempts(),
+            ]);
 
             $manual->update([
                 'generated_data' => $generatedData,
@@ -70,30 +82,37 @@ class BuildOmManualJob implements ShouldQueue
                 'error_message'  => null,
             ]);
 
-            Log::info('BuildOmManualJob: content generated', [
-                'om_manual_id' => $this->omManualId,
-            ]);
-
             // Build the .docx file.
             $docxService->build($generatedData, $manual);
 
-            Log::info('BuildOmManualJob: completed', [
+            Log::info('BuildOmManualJob: completed successfully', [
                 'om_manual_id' => $this->omManualId,
+                'attempt'      => $this->attempts(),
                 'filename'     => $manual->filename,
+                'status'       => 'draft',
             ]);
         } catch (\Throwable $e) {
             Log::error('BuildOmManualJob: failed', [
-                'om_manual_id' => $this->omManualId,
-                'error'        => $e->getMessage(),
-                'file'         => $e->getFile(),
-                'line'         => $e->getLine(),
-                'attempt'      => $this->attempts(),
+                'om_manual_id'    => $this->omManualId,
+                'attempt'         => $this->attempts(),
+                'exception_class' => get_class($e),
+                'error'           => $e->getMessage(),
+                'file'            => $e->getFile(),
+                'line'            => $e->getLine(),
             ]);
 
-            $manual->update([
-                'status'        => OmManual::STATUS_FAILED,
-                'error_message' => $e->getMessage(),
-            ]);
+            // Guarantee status leaves "generating"
+            try {
+                $manual->update([
+                    'status'        => OmManual::STATUS_FAILED,
+                    'error_message' => substr($e->getMessage(), 0, 500),
+                ]);
+            } catch (\Throwable $dbErr) {
+                Log::critical('BuildOmManualJob: could not set failed status', [
+                    'om_manual_id' => $this->omManualId,
+                    'db_error'     => $dbErr->getMessage(),
+                ]);
+            }
 
             throw $e;
         }
@@ -106,14 +125,22 @@ class BuildOmManualJob implements ShouldQueue
     public function failed(\Throwable $e): void
     {
         Log::error('BuildOmManualJob: all retries exhausted', [
-            'om_manual_id' => $this->omManualId,
-            'error'        => $e->getMessage(),
+            'om_manual_id'    => $this->omManualId,
+            'exception_class' => get_class($e),
+            'error'           => $e->getMessage(),
         ]);
 
-        OmManual::find($this->omManualId)
-            ?->update([
-                'status'        => OmManual::STATUS_FAILED,
-                'error_message' => $e->getMessage(),
+        try {
+            OmManual::find($this->omManualId)
+                ?->update([
+                    'status'        => OmManual::STATUS_FAILED,
+                    'error_message' => 'All retries exhausted: ' . substr($e->getMessage(), 0, 400),
+                ]);
+        } catch (\Throwable $dbErr) {
+            Log::critical('BuildOmManualJob::failed: could not set failed status', [
+                'om_manual_id' => $this->omManualId,
+                'db_error'     => $dbErr->getMessage(),
             ]);
+        }
     }
 }

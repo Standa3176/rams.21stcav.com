@@ -25,9 +25,7 @@ class CableSchedule extends Model
         'project_ref',
         'client_name',
         'source_filename',
-        'filename',
         'status',
-        'error_message',
     ];
 
     // ── Relationships ─────────────────────────────────────────────────────────

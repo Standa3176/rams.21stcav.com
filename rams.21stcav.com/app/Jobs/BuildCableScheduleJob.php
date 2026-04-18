@@ -15,27 +15,21 @@ use Illuminate\Support\Facades\Log;
 /**
  * Async cable schedule generation job.
  *
- * Dispatched by CableScheduleController::generateFromProject() immediately after
- * the CableSchedule record is created with status = 'generating'.
+ * Status transitions:
+ *   generating → draft   (success)
+ *   generating → failed  (any exception, timeout, or retry exhaustion)
  *
- * Responsibilities:
- *   1. Run CableScheduleGeneratorService::generate() — creates CableScheduleItem records
- *      deterministically from ProjectDataService equipment data (no AI).
- *   2. Build the .xlsx: CableScheduleXlsxService::build() — reads existing items, saves file,
- *      and updates $schedule->filename on the model.
- *   3. Advance status to 'draft' on success, 'failed' on error.
+ * No AI calls — cable type inference is deterministic keyword matching.
  *
- * No AI calls are made — cable type inference is deterministic keyword matching.
- * timeout=120 is sufficient; no long-running external calls.
- *
- * @see CABLE-01, CABLE-03, D-14
+ * NOTE: cable_schedules table does NOT have an error_message column.
+ * Error context is logged only — never written to the model.
  */
 class BuildCableScheduleJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries   = 2;
-    public int $timeout = 120; // No AI calls — fast deterministic generation
+    public int $timeout = 120;
 
     public function __construct(
         public readonly int $cableScheduleId,
@@ -52,9 +46,29 @@ class BuildCableScheduleJob implements ShouldQueue
         $schedule = CableSchedule::find($this->cableScheduleId);
 
         if (! $schedule) {
-            // Record was deleted — discard silently.
+            Log::warning('BuildCableScheduleJob: record not found, discarding', [
+                'cable_schedule_id' => $this->cableScheduleId,
+            ]);
             return;
         }
+
+        // ── Ensure status is generating ──────────────────────────────────────
+        if ($schedule->status !== CableSchedule::STATUS_GENERATING) {
+            $schedule->update(['status' => CableSchedule::STATUS_GENERATING]);
+        }
+
+        Log::info('BuildCableScheduleJob: starting', [
+            'cable_schedule_id' => $this->cableScheduleId,
+            'attempt'           => $this->attempts(),
+            'status'            => 'generating',
+        ]);
+
+        $hasSpreadsheet = class_exists(\PhpOffice\PhpSpreadsheet\Spreadsheet::class);
+
+        Log::info('BuildCableScheduleJob: dependency check', [
+            'cable_schedule_id' => $this->cableScheduleId,
+            'phpspreadsheet'    => $hasSpreadsheet ? 'available' : 'missing — will use CSV fallback',
+        ]);
 
         try {
             // Step 1: Generate CableScheduleItem records from project data.
@@ -63,40 +77,116 @@ class BuildCableScheduleJob implements ShouldQueue
             Log::info('BuildCableScheduleJob: items generated', [
                 'cable_schedule_id' => $this->cableScheduleId,
                 'items_created'     => $itemCount,
+                'attempt'           => $this->attempts(),
             ]);
 
-            // Step 2: Build the .xlsx file (reads the items just created, saves file,
-            //         and calls $schedule->update(['filename' => ...]) internally).
-            $xlsxService->build($schedule);
+            // Step 2: Build output file.
+            if ($hasSpreadsheet) {
+                // XLSX path (preferred)
+                $xlsxService->build($schedule);
+                Log::info('BuildCableScheduleJob: XLSX built', [
+                    'cable_schedule_id' => $this->cableScheduleId,
+                    'output'            => 'xlsx',
+                ]);
+            } else {
+                // CSV fallback when PhpSpreadsheet is not installed
+                $this->buildCsvFallback($schedule);
+                Log::info('BuildCableScheduleJob: CSV fallback built', [
+                    'cable_schedule_id' => $this->cableScheduleId,
+                    'output'            => 'csv',
+                ]);
+            }
 
             // Step 3: Set status to draft.
-            // CableScheduleXlsxService::build() updates filename but not status,
-            // so we set it here explicitly.
             $schedule->update([
-                'status'        => CableSchedule::STATUS_DRAFT,
-                'error_message' => null,
+                'status' => CableSchedule::STATUS_DRAFT,
             ]);
 
-            Log::info('BuildCableScheduleJob: completed', [
+            Log::info('BuildCableScheduleJob: completed successfully', [
                 'cable_schedule_id' => $this->cableScheduleId,
+                'attempt'           => $this->attempts(),
                 'filename'          => $schedule->filename,
+                'status'            => 'draft',
+                'output_format'     => $hasSpreadsheet ? 'xlsx' : 'csv',
             ]);
         } catch (\Throwable $e) {
             Log::error('BuildCableScheduleJob: failed', [
                 'cable_schedule_id' => $this->cableScheduleId,
+                'attempt'           => $this->attempts(),
+                'exception_class'   => get_class($e),
                 'error'             => $e->getMessage(),
                 'file'              => $e->getFile(),
                 'line'              => $e->getLine(),
-                'attempt'           => $this->attempts(),
             ]);
 
-            $schedule->update([
-                'status'        => CableSchedule::STATUS_FAILED,
-                'error_message' => $e->getMessage(),
-            ]);
+            // Guarantee status leaves "generating"
+            // NOTE: no error_message column on cable_schedules — log only
+            try {
+                $schedule->update([
+                    'status' => CableSchedule::STATUS_FAILED,
+                ]);
+            } catch (\Throwable $dbErr) {
+                Log::critical('BuildCableScheduleJob: could not set failed status', [
+                    'cable_schedule_id' => $this->cableScheduleId,
+                    'db_error'          => $dbErr->getMessage(),
+                ]);
+            }
 
             throw $e;
         }
+    }
+
+    // =========================================================================
+    // CSV FALLBACK — when PhpSpreadsheet is not installed
+    // =========================================================================
+
+    /**
+     * Build a CSV cable schedule as a deterministic fallback.
+     * Same data rows as the XLSX builder, saved with .csv extension.
+     */
+    private function buildCsvFallback(CableSchedule $schedule): void
+    {
+        $directory = storage_path('app/private/cable-schedules');
+        if (! is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        $filename = 'cable_schedule_' . $schedule->id . '_' . now()->format('Ymd') . '.csv';
+        $filePath = $directory . '/' . $filename;
+
+        $fp = fopen($filePath, 'w');
+
+        // Header info
+        fputcsv($fp, ['21st Century AV Ltd — Cable Schedule']);
+        fputcsv($fp, [implode('  |  ', array_filter([
+            $schedule->project_name,
+            $schedule->project_ref ? 'Ref: ' . $schedule->project_ref : null,
+            $schedule->client_name ? 'Client: ' . $schedule->client_name : null,
+            'Generated: ' . now()->format('d/m/Y'),
+        ]))]);
+        fputcsv($fp, []); // spacer
+
+        // Column headers
+        fputcsv($fp, ['Cable ID', 'From Location', 'To Location', 'Cable Type', 'Cores', 'Length (m)', 'Notes', 'Status']);
+
+        // Data rows
+        foreach ($schedule->items as $item) {
+            fputcsv($fp, [
+                $item->cable_id        ?? '',
+                $item->from_location   ?? '',
+                $item->to_location     ?? '',
+                $item->cable_type      ?? '',
+                $item->cores           ?? '',
+                $item->approx_length_m ?? '',
+                $item->notes           ?? '',
+                '',
+            ]);
+        }
+
+        fclose($fp);
+
+        // Persist filename via source_filename (always exists on table)
+        $schedule->update(['source_filename' => $filename]);
     }
 
     // =========================================================================
@@ -107,13 +197,20 @@ class BuildCableScheduleJob implements ShouldQueue
     {
         Log::error('BuildCableScheduleJob: all retries exhausted', [
             'cable_schedule_id' => $this->cableScheduleId,
+            'exception_class'   => get_class($e),
             'error'             => $e->getMessage(),
         ]);
 
-        CableSchedule::find($this->cableScheduleId)
-            ?->update([
-                'status'        => CableSchedule::STATUS_FAILED,
-                'error_message' => $e->getMessage(),
+        try {
+            CableSchedule::find($this->cableScheduleId)
+                ?->update([
+                    'status' => CableSchedule::STATUS_FAILED,
+                ]);
+        } catch (\Throwable $dbErr) {
+            Log::critical('BuildCableScheduleJob::failed: could not set failed status', [
+                'cable_schedule_id' => $this->cableScheduleId,
+                'db_error'          => $dbErr->getMessage(),
             ]);
+        }
     }
 }

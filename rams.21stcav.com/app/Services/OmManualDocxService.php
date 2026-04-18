@@ -7,9 +7,12 @@ use App\Services\DocumentTemplateService;
 use PhpOffice\PhpWord\Element\Section;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
+use PhpOffice\PhpWord\Settings;
 use PhpOffice\PhpWord\SimpleType\Jc;
 use PhpOffice\PhpWord\Style\Font;
 use PhpOffice\PhpWord\TemplateProcessor;
+use Illuminate\Support\Facades\Log;
+use RuntimeException;
 
 /**
  * Builds the O&M Manual .docx file from the generated_data JSON.
@@ -46,6 +49,17 @@ class OmManualDocxService
      */
     public function build(array $data, OmManual $manual): string
     {
+        // ── Runtime marker: prove patched class is executing ────────────────
+        Log::info('OmManualDocxService::build start', [
+            'om_manual_id'      => $manual->id,
+            'class_file'        => __FILE__,
+            'class_modified_at' => date('Y-m-d H:i:s', filemtime(__FILE__)),
+            'escaping_patch'    => true,
+        ]);
+
+        // Ensure PhpWord escapes &, <, > in text content (off by default).
+        Settings::setOutputEscapingEnabled(true);
+
         $project = $data['project'] ?? [];
 
         if ($this->templates->exists('om-manual')) {
@@ -73,10 +87,10 @@ class OmManualDocxService
         $this->addHeading1($s, '1.  Introduction', 1);
         $this->addParagraph($s,
             'This Operation and Maintenance Manual has been prepared by 21st Century AV Ltd for '
-            . ($data['project']['client'] ?? 'the Client')
+            . $this->t($data['project']['client'] ?? 'the Client')
             . ' in relation to the AV installation at '
-            . ($data['project']['site'] ?? 'the above site')
-            . ' (Project Reference ' . ($data['project']['ref'] ?? '') . ').'
+            . $this->t($data['project']['site'] ?? 'the above site')
+            . ' (Project Reference ' . $this->t($data['project']['ref'] ?? '') . ').'
         );
         $this->addParagraph($s,
             'The manual covers the operation of all installed AV systems, day-to-day user guidance, '
@@ -92,13 +106,20 @@ class OmManualDocxService
         );
         $this->buildScopeTable($s, $data['rooms_summary'] ?? []);
 
-        // 1.2 Document contacts
-        $this->addHeading2($s, '1.2  Document Contacts');
+        // 1.2 Existing equipment interfaced with
+        $this->addHeading2($s, '1.2  Existing Equipment Interfaced With');
+        $this->buildExistingEquipmentSection($s, $data['existing_reuse'] ?? []);
+
+        // 1.3 Document contacts
+        $this->addHeading2($s, '1.3  Document Contacts');
         $this->buildContactsTable($s, $data['project'] ?? []);
 
         // ── Sections 2–N: System Operation per room ─────────────────────────
         $sectionNum = 2;
         foreach ($data['operation_sections'] ?? [] as $roomSection) {
+            if (! is_array($roomSection)) {
+                continue;
+            }
             $s = $phpWord->addSection($this->sectionProps());
             $this->buildOperationSection($s, $roomSection, $sectionNum);
             $sectionNum++;
@@ -143,6 +164,9 @@ class OmManualDocxService
         $writer = IOFactory::createWriter($phpWord, 'Word2007');
         $writer->save($filePath);
 
+        // ── Post-build XML validation ────────────────────────────────────────
+        $this->validateDocx($filePath);
+
         $manual->update(['filename' => $filename]);
 
         return $filePath;
@@ -177,19 +201,26 @@ class OmManualDocxService
 
         // Project name
         $s->addText(
-            $project['client'] ?? $manual->client_name ?? '',
+            $this->t($project['name'] ?? $manual->project_name ?? ''),
+            ['name' => 'Arial', 'size' => 18, 'bold' => true, 'color' => self::TEAL],
+            ['alignment' => Jc::CENTER]
+        );
+
+        // Client name
+        $s->addText(
+            $this->t($project['client'] ?? $manual->client_name ?? ''),
             ['name' => 'Arial', 'size' => 16, 'color' => self::DARK],
             ['alignment' => Jc::CENTER]
         );
 
         // Site address
         $s->addText(
-            $project['site'] ?? $manual->site_address ?? '',
+            $this->t($project['site'] ?? $manual->site_address ?? ''),
             ['name' => 'Arial', 'size' => 12, 'color' => '555555'],
             ['alignment' => Jc::CENTER]
         );
         $s->addText(
-            'Project Reference: ' . ($project['ref'] ?? $manual->project_ref ?? ''),
+            'Project Reference: ' . $this->t($project['ref'] ?? $manual->project_ref ?? ''),
             ['name' => 'Arial', 'size' => 11, 'color' => '555555'],
             ['alignment' => Jc::CENTER]
         );
@@ -201,9 +232,9 @@ class OmManualDocxService
         // Info table (Document Type, Client, Site, Reference, Prepared by, Date, Revision, Status)
         $infoRows = [
             ['Document Type:',   'Operation & Maintenance Manual'],
-            ['Client:',          $project['client']  ?? $manual->client_name   ?? '—'],
-            ['Site:',            $project['site']    ?? $manual->site_address  ?? '—'],
-            ['Project Reference:', $project['ref']   ?? $manual->project_ref   ?? '—'],
+            ['Client:',          $this->t($project['client']  ?? $manual->client_name   ?? '—')],
+            ['Site:',            $this->t($project['site']    ?? $manual->site_address  ?? '—')],
+            ['Project Reference:', $this->t($project['ref']   ?? $manual->project_ref   ?? '—')],
             ['Prepared by:',     '21st Century AV Ltd'],
             ['Date:',            now()->format('F Y')],
             ['Revision:',        '01 – Initial Issue'],
@@ -216,7 +247,7 @@ class OmManualDocxService
             $cell = $row->addCell(2500, ['bgColor' => 'E0F4F6']);
             $cell->addText($label, ['name' => 'Arial', 'size' => 10, 'bold' => true, 'color' => self::TEAL]);
             $cell = $row->addCell(6000);
-            $cell->addText($value, ['name' => 'Arial', 'size' => 10, 'color' => self::DARK]);
+            $cell->addText($this->t($value), ['name' => 'Arial', 'size' => 10, 'color' => self::DARK]);
         }
 
         $s->addTextBreak(3);
@@ -244,8 +275,11 @@ class OmManualDocxService
         }
 
         foreach ($rooms as $room) {
-            $roomName = (string) ($room['name'] ?? 'Room');
-            $drawing  = (string) ($room['drawing_ref'] ?? '');
+            if (! is_array($room)) {
+                continue;
+            }
+            $roomName = $this->t((string) ($room['name'] ?? 'Room'));
+            $drawing  = $this->t((string) ($room['drawing_ref'] ?? ''));
 
             $title = $roomName;
             if ($drawing !== '') {
@@ -262,11 +296,14 @@ class OmManualDocxService
             }
 
             foreach ($room['equipment'] ?? [] as $eq) {
+                if (! is_array($eq)) {
+                    continue;
+                }
                 $row = $table->addRow();
                 $row->addCell(800)->addText((string) ($eq['qty'] ?? 1), ['name' => 'Arial', 'size' => 9], ['alignment' => Jc::CENTER]);
-                $row->addCell(3600)->addText($eq['description'] ?? '—', ['name' => 'Arial', 'size' => 9]);
-                $row->addCell(2600)->addText($eq['model'] ?? '—', ['name' => 'Arial', 'size' => 9]);
-                $row->addCell(1500)->addText($eq['part_no'] ?? '', ['name' => 'Arial', 'size' => 9]);
+                $row->addCell(3600)->addText($this->t($eq['description'] ?? '—'), ['name' => 'Arial', 'size' => 9]);
+                $row->addCell(2600)->addText($this->t($eq['model'] ?? '—'), ['name' => 'Arial', 'size' => 9]);
+                $row->addCell(1500)->addText($this->t($eq['part_no'] ?? ''), ['name' => 'Arial', 'size' => 9]);
             }
 
             $s->addTextBreak(1);
@@ -285,17 +322,55 @@ class OmManualDocxService
         }
 
         $contacts = [
-            ['AV Installer',       '21st Century AV Ltd',                       'alison@21stcenturyav.com  |  01189 977 771'],
-            ['Client',             $project['client'] ?? '—',                   '—'],
-            ['Facilities Management', 'TBC',                                    'TBC'],
-            ['Client IT / Network', ($project['client'] ?? '') . ' IT',         'TBC'],
+            ['AV Installer',       '21st Century AV Ltd',                               'alison@21stcenturyav.com  |  01189 977 771'],
+            ['Client',             $this->t($project['client'] ?? '—'),                 '—'],
+            ['Facilities Management', 'TBC',                                            'TBC'],
+            ['Client IT / Network', $this->t(($project['client'] ?? '') . ' IT'),       'TBC'],
         ];
 
         foreach ($contacts as [$role, $name, $contact]) {
             $row = $table->addRow();
-            $row->addCell(2000)->addText($role,    ['name' => 'Arial', 'size' => 9, 'bold' => true]);
-            $row->addCell(3500)->addText($name,    ['name' => 'Arial', 'size' => 9]);
-            $row->addCell(3000)->addText($contact, ['name' => 'Arial', 'size' => 9]);
+            $row->addCell(2000)->addText($this->t($role),    ['name' => 'Arial', 'size' => 9, 'bold' => true]);
+            $row->addCell(3500)->addText($this->t($name),    ['name' => 'Arial', 'size' => 9]);
+            $row->addCell(3000)->addText($this->t($contact), ['name' => 'Arial', 'size' => 9]);
+        }
+    }
+
+    private function buildExistingEquipmentSection(Section $s, array $existing): void
+    {
+        if (empty($existing)) {
+            $this->addParagraph($s, 'No existing client-owned equipment has been identified as interfaced in this scope.');
+            return;
+        }
+
+        $this->addParagraph($s,
+            'The following client-owned or pre-existing equipment is interfaced with the new AV installation. '
+            . 'These items are not part of the newly installed asset register.'
+        );
+
+        $table = $s->addTable(['borderColor' => self::MID, 'borderSize' => 6]);
+        $header = $table->addRow();
+        foreach (['Room', 'Qty', 'Existing Equipment', 'Model / Part No.'] as $i => $heading) {
+            $widths = [1700, 700, 4200, 2200];
+            $cell = $header->addCell($widths[$i], ['bgColor' => self::TEAL]);
+            $cell->addText($heading, ['name' => 'Arial', 'size' => 9, 'bold' => true, 'color' => self::WHITE]);
+        }
+
+        foreach ($existing as $rowData) {
+            if (! is_array($rowData)) {
+                continue;
+            }
+            $row = $table->addRow();
+            $small = ['name' => 'Arial', 'size' => 9];
+            $room = $this->t($rowData['room'] ?? 'General');
+            $desc = $this->t($rowData['description'] ?? '');
+            $qty  = (string) ($rowData['qty'] ?? 1);
+            $modelPart = trim($this->t($rowData['model'] ?? '') . ' ' . $this->t($rowData['part_no'] ?? ''));
+
+            $row->addCell(1700)->addText($room, $small);
+            $row->addCell(700)->addText($qty, $small, ['alignment' => Jc::CENTER]);
+            $row->addCell(4200)->addText($desc, $small);
+            $row->addCell(2200)->addText($modelPart !== '' ? $modelPart : '—', $small);
         }
     }
 
@@ -303,22 +378,28 @@ class OmManualDocxService
 
     private function buildOperationSection(Section $s, array $roomSection, int $num): void
     {
-        $title = $num . '.  System Operation — ' . ($roomSection['room_name'] ?? 'Unknown Room');
+        $title = $num . '.  System Operation — ' . $this->t($roomSection['room_name'] ?? 'Unknown Room');
         if (! empty($roomSection['drawing_ref'])) {
-            $title .= ' (' . $roomSection['drawing_ref'] . ')';
+            $title .= ' (' . $this->t($roomSection['drawing_ref']) . ')';
         }
 
         $this->addHeading1($s, $title, $num);
 
         foreach ($roomSection['subsections'] ?? [] as $sub) {
-            $this->addHeading2($s, $sub['title'] ?? '');
+            if (! is_array($sub)) {
+                continue;
+            }
+            $this->addHeading2($s, $this->t($sub['title'] ?? ''));
 
             foreach ($sub['steps'] ?? [] as $i => $step) {
-                $this->addNumberedStep($s, ($i + 1) . '.  ' . $step);
+                $this->addNumberedStep($s, ($i + 1) . '.  ' . $this->t((string) $step));
             }
 
             foreach ($sub['notes'] ?? [] as $note) {
-                $this->addCallout($s, $note['type'] ?? 'info', $note['text'] ?? '');
+                if (! is_array($note)) {
+                    continue;
+                }
+                $this->addCallout($s, $note['type'] ?? 'info', $this->t($note['text'] ?? ''));
             }
         }
     }
@@ -343,17 +424,21 @@ class OmManualDocxService
         $table = $s->addTable(['borderColor' => self::MID, 'borderSize' => 6]);
 
         $header = $table->addRow();
-        foreach (['Frequency', 'Item', 'Task'] as $i => $heading) {
-            $widths = [1400, 2400, 4700];
+        foreach (['Frequency', 'Item', 'Task', 'Responsible'] as $i => $heading) {
+            $widths = [1200, 2200, 4200, 1100];
             $cell = $header->addCell($widths[$i], ['bgColor' => self::TEAL]);
             $cell->addText($heading, ['name' => 'Arial', 'size' => 9, 'bold' => true, 'color' => self::WHITE]);
         }
 
         foreach ($schedule as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
             $row = $table->addRow();
-            $row->addCell(1400)->addText($item['frequency'] ?? '', ['name' => 'Arial', 'size' => 9, 'bold' => true]);
-            $row->addCell(2400)->addText($item['item']      ?? '', ['name' => 'Arial', 'size' => 9]);
-            $row->addCell(4700)->addText($item['task']      ?? '', ['name' => 'Arial', 'size' => 9]);
+            $row->addCell(1200)->addText($this->t($item['frequency'] ?? ''), ['name' => 'Arial', 'size' => 9, 'bold' => true]);
+            $row->addCell(2200)->addText($this->t($item['item'] ?? ''), ['name' => 'Arial', 'size' => 9]);
+            $row->addCell(4200)->addText($this->t($item['task'] ?? ''), ['name' => 'Arial', 'size' => 9]);
+            $row->addCell(1100)->addText($this->t($item['responsible_party'] ?? 'AV Support'), ['name' => 'Arial', 'size' => 9]);
         }
     }
 
@@ -382,18 +467,16 @@ class OmManualDocxService
         }
 
         foreach ($faults as $fault) {
-            $stepsStr = implode("\n", array_map(
-                fn (int $i, string $step) => ($i + 1) . '. ' . $step,
-                array_keys($fault['steps'] ?? []),
-                array_values($fault['steps'] ?? [])
-            ));
+            if (! is_array($fault)) {
+                continue;
+            }
 
             $row = $table->addRow();
-            $row->addCell(2000)->addText($fault['symptom'] ?? '', ['name' => 'Arial', 'size' => 9, 'bold' => true]);
-            $row->addCell(2000)->addText($fault['cause']   ?? '', ['name' => 'Arial', 'size' => 9]);
+            $row->addCell(2000)->addText($this->t($fault['symptom'] ?? ''), ['name' => 'Arial', 'size' => 9, 'bold' => true]);
+            $row->addCell(2000)->addText($this->t($fault['cause']   ?? ''), ['name' => 'Arial', 'size' => 9]);
             $actionCell = $row->addCell(4500);
             foreach ($fault['steps'] ?? [] as $i => $step) {
-                $actionCell->addText(($i + 1) . '. ' . $step, ['name' => 'Arial', 'size' => 9]);
+                $actionCell->addText(($i + 1) . '. ' . $this->t((string) $step), ['name' => 'Arial', 'size' => 9]);
             }
         }
 
@@ -427,22 +510,32 @@ class OmManualDocxService
         if (! empty($networkDevices)) {
             $table = $s->addTable(['borderColor' => self::MID, 'borderSize' => 6]);
             $header = $table->addRow();
-            foreach (['Room', 'Dwg', 'Device', 'IP Address', 'VLAN', 'MAC Address'] as $i => $heading) {
-                $widths = [1600, 700, 2800, 1500, 800, 1200];
+            foreach (['Room', 'Dwg', 'Device', 'Hostname', 'IP Address', 'VLAN', 'MAC Address', 'Admin URL'] as $i => $heading) {
+                $widths = [1300, 500, 2300, 1100, 1100, 700, 1000, 1100];
                 $cell = $header->addCell($widths[$i], ['bgColor' => self::TEAL]);
                 $cell->addText($heading, ['name' => 'Arial', 'size' => 8, 'bold' => true, 'color' => self::WHITE]);
             }
 
             foreach ($networkDevices as $dev) {
+                if (! is_array($dev)) {
+                    continue;
+                }
                 $row   = $table->addRow();
                 $small = ['name' => 'Arial', 'size' => 8];
                 $grey  = ['name' => 'Arial', 'size' => 8, 'color' => 'AAAAAA', 'italic' => true];
-                $row->addCell(1600)->addText($dev['room']        ?? '', $small);
-                $row->addCell(700) ->addText($dev['drawing_ref'] ?? '', $small);
-                $row->addCell(2800)->addText($dev['device']      ?? '', $small);
-                $row->addCell(1500)->addText('(to complete)', $grey);
-                $row->addCell(800) ->addText('(to complete)', $grey);
-                $row->addCell(1200)->addText('(to complete)', $grey);
+                $hostname = (string) ($dev['hostname'] ?? '');
+                $ip = (string) ($dev['ip_address'] ?? '');
+                $vlan = (string) ($dev['vlan'] ?? '');
+                $mac = (string) ($dev['mac_address'] ?? '');
+                $adminUrl = (string) ($dev['admin_url'] ?? '');
+                $row->addCell(1300)->addText($this->t($dev['room'] ?? ''), $small);
+                $row->addCell(500) ->addText($this->t($dev['drawing_ref'] ?? ''), $small);
+                $row->addCell(2300)->addText($this->t($dev['device'] ?? ''), $small);
+                $row->addCell(1100)->addText($this->t($hostname !== '' ? $hostname : '(to complete)'), $hostname === '' ? $grey : $small);
+                $row->addCell(1100)->addText($this->t($ip !== '' ? $ip : '(to complete)'), $ip === '' ? $grey : $small);
+                $row->addCell(700) ->addText($this->t($vlan !== '' ? $vlan : '(to complete)'), $vlan === '' ? $grey : $small);
+                $row->addCell(1000)->addText($this->t($mac !== '' ? $mac : '(to complete)'), $mac === '' ? $grey : $small);
+                $row->addCell(1100)->addText($this->t($adminUrl !== '' ? $adminUrl : '(to complete)'), $adminUrl === '' ? $grey : $small);
             }
         }
 
@@ -450,12 +543,15 @@ class OmManualDocxService
         if (! empty($networkDevices)) {
             $this->addHeading2($s, $num . '.2  Device-Specific Network Notes');
             foreach ($networkDevices as $dev) {
+                if (! is_array($dev)) {
+                    continue;
+                }
                 if (! empty($dev['network_notes'])) {
                     $s->addText(
-                        $dev['device'] ?? '',
+                        $this->t($dev['device'] ?? ''),
                         ['name' => 'Arial', 'size' => 10, 'bold' => true, 'color' => self::TEAL]
                     );
-                    $this->addParagraph($s, $dev['network_notes']);
+                    $this->addParagraph($s, $this->t($dev['network_notes']));
                 }
             }
         }
@@ -465,7 +561,7 @@ class OmManualDocxService
         if (! empty($secNotes)) {
             $this->addHeading2($s, $num . '.3  Network Security Recommendations');
             foreach ($secNotes as $note) {
-                $this->addBullet($s, $note);
+                $this->addBullet($s, $this->t((string) $note));
             }
         }
     }
@@ -485,18 +581,21 @@ class OmManualDocxService
 
         $subNum = 1;
         foreach ($data['manufacturer_support'] ?? [] as $mfr) {
-            $this->addHeading2($s, $num . '.' . $subNum . '  ' . ($mfr['brand'] ?? 'Unknown'));
+            if (! is_array($mfr)) {
+                continue;
+            }
+            $this->addHeading2($s, $num . '.' . $subNum . '  ' . $this->t($mfr['brand'] ?? 'Unknown'));
             $subNum++;
 
             $infoRows = [
-                ['Equipment installed:', $mfr['equipment_installed'] ?? '—'],
-                ['UK support telephone:', $mfr['uk_phone']           ?? '—'],
-                ['Support portal:',       $mfr['support_portal']     ?? '—'],
+                ['Equipment installed:', $this->t($mfr['equipment_installed'] ?? '—')],
+                ['UK support telephone:', $this->t($mfr['uk_phone']           ?? '—')],
+                ['Support portal:',       $this->t($mfr['support_portal']     ?? '—')],
             ];
             if (! empty($mfr['support_email'])) {
-                $infoRows[] = ['Support email:', $mfr['support_email']];
+                $infoRows[] = ['Support email:', $this->t($mfr['support_email'])];
             }
-            $infoRows[] = ['Warranty:', $mfr['warranty'] ?? '—'];
+            $infoRows[] = ['Warranty:', $this->t($mfr['warranty'] ?? '—')];
 
             $table = $s->addTable(['borderColor' => self::MID, 'borderSize' => 6]);
             foreach ($infoRows as [$label, $value]) {
@@ -504,11 +603,11 @@ class OmManualDocxService
                 $row->addCell(2400, ['bgColor' => 'F0FAFB'])
                     ->addText($label, ['name' => 'Arial', 'size' => 9, 'bold' => true, 'color' => self::TEAL]);
                 $row->addCell(6100)
-                    ->addText($value, ['name' => 'Arial', 'size' => 9]);
+                    ->addText($this->t($value), ['name' => 'Arial', 'size' => 9]);
             }
 
             foreach ($mfr['notes'] ?? [] as $note) {
-                $this->addBullet($s, $note);
+                $this->addBullet($s, $this->t((string) $note));
             }
 
             $s->addTextBreak();
@@ -521,7 +620,7 @@ class OmManualDocxService
             ['Address:',              'Unit 4 Thames Court, 2 Richfield Avenue, Reading, Berkshire, RG4 8EQ'],
             ['Telephone:',            '01189 977 771'],
             ['Email:',                'alison@21stcenturyav.com'],
-            ['Project reference:',    ($data['project']['ref'] ?? '') . ' — always quote when contacting support'],
+            ['Project reference:',    $this->t($data['project']['ref'] ?? '') . ' — always quote when contacting support'],
             ['Scope of support:',     'Configuration changes, system re-programming, additional training, fault investigation, equipment replacement coordination, annual maintenance visits'],
             ['Installation warranty:', '12 months from practical completion for defects arising from 21st Century AV installation workmanship'],
         ];
@@ -532,7 +631,7 @@ class OmManualDocxService
             $row->addCell(2400, ['bgColor' => 'F0FAFB'])
                 ->addText($label, ['name' => 'Arial', 'size' => 9, 'bold' => true, 'color' => self::TEAL]);
             $row->addCell(6100)
-                ->addText($value, ['name' => 'Arial', 'size' => 9]);
+                ->addText($this->t($value), ['name' => 'Arial', 'size' => 9]);
         }
 
         // Warranty summary table
@@ -550,10 +649,13 @@ class OmManualDocxService
             }
 
             foreach ($warrantySummary as $w) {
+                if (! is_array($w)) {
+                    continue;
+                }
                 $row = $table->addRow();
-                $row->addCell(3500)->addText($w['equipment'] ?? '', ['name' => 'Arial', 'size' => 9]);
-                $row->addCell(1800)->addText($w['period']    ?? '', ['name' => 'Arial', 'size' => 9]);
-                $row->addCell(3200)->addText($w['notes']     ?? '', ['name' => 'Arial', 'size' => 9]);
+                $row->addCell(3500)->addText($this->t($w['equipment'] ?? ''), ['name' => 'Arial', 'size' => 9]);
+                $row->addCell(1800)->addText($this->t($w['period']    ?? ''), ['name' => 'Arial', 'size' => 9]);
+                $row->addCell(3200)->addText($this->t($w['notes']     ?? ''), ['name' => 'Arial', 'size' => 9]);
             }
 
             $this->addCallout($s, 'warning',
@@ -578,7 +680,10 @@ class OmManualDocxService
         }
 
         foreach ($rooms as $room) {
-            $roomName = (string) ($room['name'] ?? 'Room');
+            if (! is_array($room)) {
+                continue;
+            }
+            $roomName = $this->t((string) ($room['name'] ?? 'Room'));
             $this->addHeading2($s, $roomName);
 
             $table = $s->addTable(['borderColor' => self::MID, 'borderSize' => 6]);
@@ -590,12 +695,15 @@ class OmManualDocxService
             }
 
             foreach ($room['equipment'] ?? [] as $eq) {
+                if (! is_array($eq)) {
+                    continue;
+                }
                 $row   = $table->addRow();
                 $small = ['name' => 'Arial', 'size' => 9];
                 $grey  = ['name' => 'Arial', 'size' => 9, 'color' => 'AAAAAA', 'italic' => true];
                 $row->addCell(700)->addText((string) ($eq['qty'] ?? 1), $small, ['alignment' => Jc::CENTER]);
-                $row->addCell(3000)->addText($eq['description'] ?? '', $small);
-                $model = trim(($eq['model'] ?? '') . ($eq['part_no'] ? ' ' . $eq['part_no'] : ''));
+                $row->addCell(3000)->addText($this->t($eq['description'] ?? ''), $small);
+                $model = trim($this->t($eq['model'] ?? '') . (! empty($eq['part_no']) ? ' ' . $this->t($eq['part_no']) : ''));
                 $row->addCell(3200)->addText($model, $small);
                 $row->addCell(2000)->addText('', $grey);
             }
@@ -621,11 +729,11 @@ class OmManualDocxService
 
         $row   = $table->addRow();
         $small = ['name' => 'Arial', 'size' => 9];
-        $row->addCell(600) ->addText('01',                          $small);
-        $row->addCell(1500)->addText(now()->format('F Y'),          $small);
-        $row->addCell(2000)->addText('21st Century AV Ltd',         $small);
-        $row->addCell(1800)->addText('—',                           $small);
-        $row->addCell(2600)->addText('Initial Issue — For Client Use', $small);
+        $row->addCell(600) ->addText('01',                               $small);
+        $row->addCell(1500)->addText(now()->format('F Y'),               $small);
+        $row->addCell(2000)->addText('21st Century AV Ltd',              $small);
+        $row->addCell(1800)->addText('—',                                $small);
+        $row->addCell(2600)->addText('Initial Issue — For Client Use',   $small);
     }
 
     // ── PhpWord helpers ──────────────────────────────────────────────────────
@@ -692,10 +800,27 @@ class OmManualDocxService
         ]);
     }
 
+    /**
+     * Sanitise a string for safe XML output.
+     * Strips control characters (except tab, newline, carriage return) that
+     * would produce invalid XML 1.0 in word/document.xml.
+     * Does NOT manually escape &/</>/" — PhpWord output escaping handles that
+     * when Settings::setOutputEscapingEnabled(true) is set.
+     */
+    private function t(string|null $value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        // Strip XML 1.0 illegal control characters (keep \t \n \r)
+        return (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $value);
+    }
+
     private function addHeading1(Section $s, string $text, int $num = 0): void
     {
         $s->addText(
-            $text,
+            $this->t($text),
             ['name' => 'Arial', 'size' => 14, 'bold' => true, 'color' => self::TEAL],
             ['spaceBefore' => 280, 'spaceAfter' => 120, 'pageBreakBefore' => ($num > 1)]
         );
@@ -704,7 +829,7 @@ class OmManualDocxService
     private function addHeading2(Section $s, string $text): void
     {
         $s->addText(
-            $text,
+            $this->t($text),
             ['name' => 'Arial', 'size' => 11, 'bold' => true, 'color' => self::DARK],
             ['spaceBefore' => 160, 'spaceAfter' => 80]
         );
@@ -713,7 +838,7 @@ class OmManualDocxService
     private function addParagraph(Section $s, string $text): void
     {
         $s->addText(
-            $text,
+            $this->t($text),
             ['name' => 'Arial', 'size' => 10, 'color' => self::DARK],
             ['spaceAfter' => 80, 'lineHeight' => 1.15]
         );
@@ -722,7 +847,7 @@ class OmManualDocxService
     private function addNumberedStep(Section $s, string $text): void
     {
         $s->addText(
-            $text,
+            $this->t($text),
             ['name' => 'Arial', 'size' => 10, 'color' => self::DARK],
             ['spaceAfter' => 40, 'indentation' => ['left' => 360]]
         );
@@ -730,7 +855,7 @@ class OmManualDocxService
 
     private function addBullet(Section $s, string $text): void
     {
-        $s->addListItem($text, 0, ['name' => 'Arial', 'size' => 10], 'listBullet');
+        $s->addListItem($this->t($text), 0, ['name' => 'Arial', 'size' => 10], 'listBullet');
     }
 
     private function addCallout(Section $s, string $type, string $text): void
@@ -744,10 +869,54 @@ class OmManualDocxService
         $row    = $table->addRow();
         $cell   = $row->addCell(8500, ['bgColor' => $bg]);
         $cell->addText(
-            $icon . $text,
+            $icon . $this->t($text),
             ['name' => 'Arial', 'size' => 9, 'color' => $colour],
             ['spaceAfter' => 0]
         );
         $s->addTextBreak();
+    }
+
+    // ── Post-build validation ────────────────────────────────────────────────
+
+    /**
+     * Open the generated .docx as a ZIP, parse word/document.xml with libxml,
+     * and throw if the XML is malformed (e.g. unescaped ampersands).
+     */
+    private function validateDocx(string $filePath): void
+    {
+        if (! class_exists(\ZipArchive::class)) {
+            return; // ZipArchive not available — skip validation
+        }
+
+        $zip = new \ZipArchive();
+        if ($zip->open($filePath) !== true) {
+            throw new RuntimeException('O&M DOCX validation failed: cannot open file as ZIP archive.');
+        }
+
+        $xml = $zip->getFromName('word/document.xml');
+        $zip->close();
+
+        if ($xml === false) {
+            throw new RuntimeException('O&M DOCX validation failed: word/document.xml not found in archive.');
+        }
+
+        $prev = libxml_use_internal_errors(true);
+        $doc  = new \DOMDocument();
+        $ok   = $doc->loadXML($xml);
+        $errors = libxml_get_errors();
+        libxml_clear_errors();
+        libxml_use_internal_errors($prev);
+
+        if (! $ok || ! empty($errors)) {
+            $firstError = $errors[0] ?? null;
+            $msg = $firstError
+                ? "line {$firstError->line}: {$firstError->message}"
+                : 'unknown XML parse error';
+
+            throw new RuntimeException(
+                "O&M DOCX validation failed: word/document.xml contains invalid XML ({$msg}). "
+                . 'This is usually caused by unescaped special characters in the source data.'
+            );
+        }
     }
 }

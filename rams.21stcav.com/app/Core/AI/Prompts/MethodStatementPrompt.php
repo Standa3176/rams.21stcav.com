@@ -142,6 +142,7 @@ Requirements:
 - Include a Decommissioning step only if decommission items are listed above. Title it "Step N — Decommissioning & Handback". Reference only the listed decommission items by name.
 - Include a Retained Equipment Check step only if retained items are listed. Reference only the listed retained items.
 - Include one or more Installation steps referencing the new install items by name. Do not invent any equipment not listed above.
+- Use room descriptions where provided to keep steps room-specific.
 - The penultimate step MUST cover Integration, Testing & Commissioning with signal path verification.
 - The final step MUST be Completion & Sign-Off covering removal of access equipment and waste, end-user training, and snagging sign-off.
 - Each step must have 4 to 8 bullet points.

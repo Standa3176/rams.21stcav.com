@@ -680,11 +680,12 @@ class RamsBuilderService
     private function buildProjectContext(RamsDocument $record): array
     {
         $fallback = [
-            'project_id' => (int) ($record->project_id ?? 0),
+            'project_id' => 0,
             'rooms'      => [],
         ];
 
         try {
+            $fallback['project_id'] = (int) ($record->project_id ?? 0);
             $project = $record->project;
 
             if (! $project) {

@@ -74,7 +74,7 @@ class BuildRamsDocumentJob implements ShouldQueue
         }
 
         // ── Guard: RAMS must be approved before generation ───────────────────
-        if (! $record->approved_at) {
+        if (! $record->approved_at && $record->status !== RamsDocument::STATUS_APPROVED_FOR_GENERATION) {
             $errorMessage = "RAMS must be approved before generation. " .
                 "Review the document and click Approve before dispatching generation.";
 

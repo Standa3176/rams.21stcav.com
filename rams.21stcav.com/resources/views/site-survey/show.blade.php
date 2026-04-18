@@ -350,7 +350,7 @@
 <div class="survey-link-banner">
     <span style="font-weight:700;color:#0B3C45;white-space:nowrap;">📱 Engineer Link:</span>
     <span class="survey-link-url" id="survey-link-text">{{ $surveyUrl }}</span>
-    <button class="survey-link-copy" onclick="copyLink()">Copy Link</button>
+    <button class="survey-link-copy" onclick="copyLink(this)">Copy Link</button>
 </div>
 @endif
 
@@ -804,18 +804,38 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ── Copy engineer link ─────────────────────────────────────────────────────
-function copyLink() {
+function copyLink(btn) {
     const text = document.getElementById('survey-link-text')?.textContent?.trim();
     if (!text) return;
-    navigator.clipboard.writeText(text).then(() => {
-        const btn = event.target;
+
+    const showSuccess = () => {
         const orig = btn.textContent;
         btn.textContent = '✓ Copied!';
         btn.style.background = '#059669';
         setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 2500);
-    }).catch(() => {
-        prompt('Copy this link:', text);
-    });
+    };
+
+    // navigator.clipboard requires HTTPS — fallback for HTTP / older browsers
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(showSuccess).catch(() => {
+            fallbackCopy(text);
+            showSuccess();
+        });
+    } else {
+        fallbackCopy(text);
+        showSuccess();
+    }
+}
+
+function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) { prompt('Copy this link:', text); }
+    document.body.removeChild(ta);
 }
 
 // ── Photo upload ───────────────────────────────────────────────────────────

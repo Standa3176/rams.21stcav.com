@@ -144,8 +144,13 @@ class WorkerMonitorService
 
     /**
      * Called before dispatching a queue job.
-     * If the worker is not running and WORKER_EXEC_ENABLED=true, spawns one automatically.
-     * Otherwise logs a warning for the admin to act on.
+     *
+     * CRITICAL: This method must NEVER block an HTTP request.
+     * exec() can hang indefinitely on Windows/managed hosts, causing 504 timeouts
+     * that leave records stuck in "generating" forever.
+     *
+     * In HTTP context: only logs a warning — never calls exec()/spawnWorker().
+     * In console context (artisan commands, tinker): may spawn if exec is enabled.
      */
     public function ensureRunning(): void
     {
@@ -153,8 +158,19 @@ class WorkerMonitorService
             return;
         }
 
+        // NEVER exec() from an HTTP request — it can hang the PHP-FPM worker
+        if (! app()->runningInConsole()) {
+            Log::warning(
+                'WorkerMonitorService: worker not running (HTTP context — will not spawn). ' .
+                'Job dispatched to queue but may not process until worker is started. ' .
+                'Start it via: php artisan queue:listen --tries=2 --timeout=300'
+            );
+            return;
+        }
+
+        // Console context (artisan/tinker) — safe to attempt spawn
         if ($this->canExec()) {
-            Log::info('WorkerMonitorService: worker not running — auto-spawning before job dispatch.');
+            Log::info('WorkerMonitorService: worker not running — auto-spawning (console context).');
             $lines = $this->spawnWorker();
             Log::info('WorkerMonitorService: spawn result', ['output' => $lines]);
         } else {
@@ -310,12 +326,26 @@ class WorkerMonitorService
 
         $lines[] = '$ ' . $cmd;
 
-        exec($cmd, $execOut, $exitCode);
+        $startTime = microtime(true);
+
+        try {
+            exec($cmd, $execOut, $exitCode);
+        } catch (\Throwable $e) {
+            $elapsed = round(microtime(true) - $startTime, 2);
+            $lines[] = "✗ exec() threw after {$elapsed}s: " . $e->getMessage();
+            Log::error('WorkerMonitorService: spawnWorker exec() exception', [
+                'error'   => $e->getMessage(),
+                'elapsed' => $elapsed,
+            ]);
+            return $lines;
+        }
+
+        $elapsed = round(microtime(true) - $startTime, 2);
 
         if ($exitCode !== 0) {
-            $lines[] = '✗ Spawn failed (exit ' . $exitCode . ')' . (empty($execOut) ? '.' : ': ' . implode(' ', $execOut));
+            $lines[] = "✗ Spawn failed (exit {$exitCode}, {$elapsed}s)" . (empty($execOut) ? '.' : ': ' . implode(' ', $execOut));
         } else {
-            $lines[] = '✓ Worker process spawned (exit 0).';
+            $lines[] = "✓ Worker process spawned (exit 0, {$elapsed}s).";
 
             if (! empty($execOut)) {
                 foreach ($execOut as $line) {
@@ -323,8 +353,6 @@ class WorkerMonitorService
                 }
             }
 
-            // Write preliminary heartbeat so the status badge shows Running
-            // immediately. The WorkerHeartbeatJob will refresh it on the next job cycle.
             $this->writeHeartbeat();
             $lines[] = '✓ Heartbeat written — status will show Running.';
         }

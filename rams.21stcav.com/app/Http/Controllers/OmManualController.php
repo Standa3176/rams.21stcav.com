@@ -283,36 +283,17 @@ class OmManualController extends Controller
             return back()->with('error', 'No equipment data found. Please re-upload the quote PDF.');
         }
 
-        $provider = config('ai.default', 'claude');
-
-        try {
-            $generatedData = $this->generator->generateContent(
-                manual:   $omManual,
-                user:     auth()->user(),
-                provider: $provider,
-            );
-        } catch (AIGenerationException $e) {
-            return back()->with('error', 'Content generation failed: ' . $e->getMessage());
-        } catch (\Throwable $e) {
-            return back()->with('error', 'An unexpected error occurred during generation. Please try again.');
-        }
-
+        // Dispatch as background job to avoid 504 timeout — same pattern as
+        // generateFromProject() and retryGeneration().
         $omManual->update([
-            'generated_data' => $generatedData,
-            'status'         => 'draft',
+            'status'        => OmManual::STATUS_GENERATING,
+            'error_message' => null,
         ]);
 
-        try {
-            $this->docxService->build($generatedData, $omManual);
-        } catch (\Throwable $e) {
-            return redirect()
-                ->route('om-manuals.index')
-                ->with('error', 'Content generated but Word document could not be built: ' . $e->getMessage());
-        }
+        app(WorkerMonitorService::class)->ensureRunning();
+        BuildOmManualJob::dispatch($omManual->id);
 
-        return redirect()
-            ->route('om-manuals.index')
-            ->with('success', 'O&M Manual generated successfully. You can now download the Word document.');
+        return back()->with('success', 'O&M generation queued — the document will be ready to download shortly.');
     }
 
     // ── download (.docx) ──────────────────────────────────────────────────────
@@ -325,14 +306,16 @@ class OmManualController extends Controller
             return back()->with('error', 'No document available yet. Please generate the manual first.');
         }
 
-        $diskPath = 'om-manuals/' . $omManual->filename;
+        // OmManualDocxService writes to storage/app/om-manuals/ (absolute path),
+        // not via the 'local' disk (which roots at storage/app/private/).
+        $filePath = storage_path('app/om-manuals/' . $omManual->filename);
 
-        if (! Storage::disk('local')->exists($diskPath)) {
+        if (! file_exists($filePath)) {
             return back()->with('error', 'Document file not found on disk.');
         }
 
-        return Storage::disk('local')->download(
-            $diskPath,
+        return response()->download(
+            $filePath,
             $omManual->filename,
             ['Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
         );

@@ -59,16 +59,23 @@ class ProjectDataService
 
         [$source, $dataSource, $confidence] = $this->resolveSourceTier($package);
 
+        // Raw equipment list with area tags preserved (for room-level distribution
+        // by downstream generators like WorksheetGeneratorService).
+        // Uses equipment_list > equipment > hardware_list in priority since
+        // equipment_list has the broadest coverage with area fields intact.
+        $rawEquipment = (array) ($source['equipment_list'] ?? $source['equipment'] ?? $source['hardware_list'] ?? []);
+
         return [
-            'project'    => $this->resolveProjectFields($project),
-            'equipment'  => $this->resolveEquipment($source, $dataSource, $confidence),
-            'rooms'      => $this->resolveRooms($source, $survey, $dataSource, $confidence),
-            'activities' => $this->resolveActivities($source, $dataSource, $confidence),
-            'risks'      => $this->resolveRisks($source, $survey, $dataSource, $confidence),
-            'survey'     => $this->resolveSurveyMeta($survey),
-            'programme'  => $this->resolveProgramme($source, $dataSource, $confidence),
-            'cables'     => $this->resolveCables($source, $dataSource, $confidence),
-            'meta'       => [
+            'project'        => $this->resolveProjectFields($project),
+            'equipment'      => $this->resolveEquipment($source, $dataSource, $confidence),
+            '_raw_equipment' => $rawEquipment,
+            'rooms'          => $this->resolveRooms($source, $survey, $dataSource, $confidence),
+            'activities'     => $this->resolveActivities($source, $dataSource, $confidence),
+            'risks'          => $this->resolveRisks($source, $survey, $dataSource, $confidence),
+            'survey'         => $this->resolveSurveyMeta($survey),
+            'programme'      => $this->resolveProgramme($source, $dataSource, $confidence),
+            'cables'         => $this->resolveCables($source, $dataSource, $confidence),
+            'meta'           => [
                 'data_source'     => $dataSource,
                 'has_survey'      => $survey !== null,
                 'survey_complete' => $this->isSurveyComplete($survey),
@@ -172,14 +179,35 @@ class ProjectDataService
     {
         $quoteRooms = $source['rooms'] ?? $source['groups'] ?? [];
 
-        // Guard against string entries — the parser can return site names as plain strings.
-        $rooms = array_map(fn(array $room) => array_merge($room, [
-            'data_source' => $dataSource,
-            'confidence'  => $confidence,
-        ]), array_values(array_filter((array) $quoteRooms, fn ($r) => is_array($r))));
+        // Placeholder strings that should not become room entries
+        $ignoredNames = ['', '-', '--', 'n/a', 'additional', 'misc', 'other', 'general', 'tbc', 'tbd', 'none'];
+
+        $rooms = [];
+        foreach ((array) $quoteRooms as $entry) {
+            if (is_array($entry)) {
+                // Already a room array — annotate and keep
+                $rooms[] = array_merge($entry, [
+                    'data_source' => $dataSource,
+                    'confidence'  => $confidence,
+                ]);
+            } elseif (is_string($entry)) {
+                // String room name — convert to canonical room array if not a placeholder
+                $name = trim($entry);
+                if ($name !== '' && ! in_array(strtolower($name), $ignoredNames, true)) {
+                    $rooms[] = [
+                        'room_name'   => $name,
+                        'name'        => $name,
+                        'equipment'   => [],
+                        'data_source' => $dataSource,
+                        'confidence'  => $confidence,
+                    ];
+                }
+            }
+        }
+
+        $rooms = array_values($rooms);
 
         // Survey enriches rooms with physical details (above all package tiers for room data).
-        // Phase 3 will implement full fuzzy merge; Phase 1 provides the hook.
         if ($survey !== null) {
             $rooms = $this->mergeSurveyRooms($rooms, $survey);
         }

@@ -201,8 +201,6 @@ class RamsController extends Controller
         // 2. Run the full local pipeline (classify → hazards → AI method stmt → DOCX)
         try {
             $this->ramsBuilder->buildFromForm($validated, $ramsDocument);
-            // Mark as completed so the project page shows download buttons immediately.
-            $ramsDocument->update(['status' => RamsDocument::STATUS_COMPLETED]);
         } catch (\Throwable $e) {
             Log::error('RamsController: RAMS build failed', [
                 'record_id' => $ramsDocument->id,
@@ -510,6 +508,9 @@ class RamsController extends Controller
             fn ($row) => ! empty($row['system']) || ! empty($row['criterion'])
         ));
 
+        // ── Apply Tier 1 compliance upgrade before persist + render ────────
+        $generatedData = \App\Services\Rams\RamsComplianceUpgradeService::upgrade($generatedData);
+
         $rams->update([
             'project_name'   => $validated['project_name'],
             'project_ref'    => $validated['project_ref'] ?? $rams->project_ref,
@@ -543,8 +544,13 @@ class RamsController extends Controller
         }
 
         try {
-            $filePath = $this->wordDoc->build($generatedData, $rams);
+            // Use DocxBuilderService (via renderer) to render Tier 1 sections
+            $filePath = $this->ramsRenderer->render($generatedData, $rams);
         } catch (\Throwable $e) {
+            Log::error('RamsController: DOCX render failed in updateAndDownload', [
+                'record_id' => $rams->id,
+                'error'     => $e->getMessage(),
+            ]);
             return back()->with('error', 'The document could not be regenerated. Please try again.');
         }
 
@@ -573,8 +579,9 @@ class RamsController extends Controller
         if (! $hasDocxExt || ! $rams->filename || ! file_exists($filePath) || ! $this->isValidDocx($filePath)) {
             if (! empty($rams->generated_data)) {
                 try {
-                    // Use the same renderer used by the pipeline to avoid OOXML mismatch
-                    $this->ramsRenderer->render($rams->generated_data, $rams);
+                    // Apply Tier 1 compliance upgrade + use pipeline renderer
+                    $upgradeData = \App\Services\Rams\RamsComplianceUpgradeService::upgrade($rams->generated_data);
+                    $this->ramsRenderer->render($upgradeData, $rams);
                     $filePath = $this->resolveRamsDocxPath($rams->fresh());
                 } catch (\Throwable $e) {
                     Log::error('RamsController: DOCX rebuild failed during download', [
@@ -718,6 +725,11 @@ class RamsController extends Controller
         // This is transient — nothing is persisted to DB.
         $this->patchRamsForDisplay($rams);
 
+        // Apply Tier 1 compliance upgrade to generated_data (transient — not persisted)
+        $rams->generated_data = \App\Services\Rams\RamsComplianceUpgradeService::upgrade(
+            $rams->generated_data
+        );
+
         try {
             $pdfPath = $this->pdfService->buildRams($rams);
         } catch (\Throwable $e) {
@@ -796,28 +808,15 @@ class RamsController extends Controller
             'form_data'      => $formData,
             'reviewed_data'  => $reviewedData,
             'generated_data' => $generatedData,
+            'approved_by'    => $rams->approved_by ?? auth()->id(),
+            'approved_at'    => $rams->approved_at ?? now(),
             'filename'       => 'pending-' . now()->format('YmdHis') . '.docx',
-            'status'         => RamsDocument::STATUS_FOR_REVIEW,
+            'status'         => RamsDocument::STATUS_GENERATING,
         ]);
 
-        try {
-            // If the original went through review, rebuild from that reviewed data
-            // so the DOCX reflects the human-approved content rather than a blank form.
-            if (! empty($reviewedData)) {
-                $this->ramsBuilder->buildFromReview($reviewedData, $formData, $newRams);
-            } else {
-                $this->ramsBuilder->buildFromForm($formData, $newRams);
-            }
-        } catch (\Throwable $e) {
-            Log::error('RamsController: regenerate failed', [
-                'original_id' => $rams->id,
-                'new_id'      => $newRams->id,
-                'error'       => $e->getMessage(),
-            ]);
-            $newRams->update(['status' => RamsDocument::STATUS_DRAFT]);
-
-            return back()->with('error', 'Document rebuild failed. Please try again.');
-        }
+        // Dispatch as background job to avoid 504 timeout.
+        app(WorkerMonitorService::class)->ensureRunning();
+        BuildRamsDocumentJob::dispatch($newRams->id);
 
         // Mark the original as superseded, linking it to the new one
         $rams->update([
@@ -827,11 +826,11 @@ class RamsController extends Controller
 
         if ($newRams->project_id) {
             return redirect()->route('projects.show', $newRams->project_id)
-                ->with('success', 'RAMS document regenerated. Previous version superseded.');
+                ->with('success', 'RAMS regeneration queued. The document will be ready to download shortly.');
         }
 
         return redirect()->route('rams.index')
-            ->with('success', 'RAMS document regenerated. Previous version superseded.');
+            ->with('success', 'RAMS regeneration queued. The document will be ready to download shortly.');
     }
 
     // ─────────────────────────────────────────────────────────────────────────

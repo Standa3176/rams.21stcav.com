@@ -209,7 +209,8 @@ Route::middleware('auth')->group(function () {
     // so that the {cableSchedule} wildcard does not swallow literal segments.
     Route::post('cable-schedules/generate-from-project/{project}', [CableScheduleController::class, 'generateFromProject'])->name('cable-schedules.generate-from-project');
     Route::get('cable-schedules/{cableSchedule}/status',           [CableScheduleController::class, 'status'])             ->name('cable-schedules.status');
-    Route::get('cable-schedules/{cableSchedule}/download',         [CableScheduleController::class, 'download'])           ->name('cable-schedules.download');
+    Route::get('cable-schedules/{cableSchedule}/download',             [CableScheduleController::class, 'download'])           ->name('cable-schedules.download');
+    Route::post('cable-schedules/{cableSchedule}/retry-generation',   [CableScheduleController::class, 'retryGeneration'])   ->name('cable-schedules.retry-generation');
 
     Route::resource('cable-schedules', CableScheduleController::class)
         ->only(['index', 'create', 'store', 'destroy']);
@@ -258,9 +259,10 @@ Route::middleware('auth')->group(function () {
     // The generate-from-project literal-segment route MUST be registered BEFORE
     // any {worksheet} wildcard routes to prevent route model binding conflicts.
     Route::post('worksheets/generate-from-project/{project}', [\App\Http\Controllers\WorksheetController::class, 'generateFromProject'])->name('worksheets.generate-from-project');
-    Route::get('worksheets/{worksheet}/status',   [\App\Http\Controllers\WorksheetController::class, 'status'])  ->name('worksheets.status');
-    Route::get('worksheets/{worksheet}/download', [\App\Http\Controllers\WorksheetController::class, 'download'])->name('worksheets.download');
-    Route::delete('worksheets/{worksheet}',       [\App\Http\Controllers\WorksheetController::class, 'destroy']) ->name('worksheets.destroy');
+    Route::get('worksheets/{worksheet}/status',       [\App\Http\Controllers\WorksheetController::class, 'status'])          ->name('worksheets.status');
+    Route::get('worksheets/{worksheet}/download',     [\App\Http\Controllers\WorksheetController::class, 'download'])        ->name('worksheets.download');
+    Route::post('worksheets/{worksheet}/retry-generation', [\App\Http\Controllers\WorksheetController::class, 'retryGeneration'])->name('worksheets.retry-generation');
+    Route::delete('worksheets/{worksheet}',           [\App\Http\Controllers\WorksheetController::class, 'destroy'])         ->name('worksheets.destroy');
     Route::get('worksheets/{worksheet}',          [\App\Http\Controllers\WorksheetController::class, 'show'])    ->name('worksheets.show');
     Route::get('worksheets',                      [\App\Http\Controllers\WorksheetController::class, 'index'])   ->name('worksheets.index');
 
