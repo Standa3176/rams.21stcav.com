@@ -9,7 +9,12 @@ use App\Policies\OmManualPolicy;
 use App\Policies\RamsDocumentPolicy;
 use App\Services\PdfOcrExtractorService;
 use App\Services\PdfTextExtractorService;
+use App\Services\WorkerMonitorService;
 use App\Support\Filesystem\WindowsSafeFilesystem;
+use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Queue\Events\Looping;
+use Illuminate\Queue\Events\WorkerStopping;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Smalot\PdfParser\Config;
@@ -51,5 +56,16 @@ class AppServiceProvider extends ServiceProvider
         // and to make the relationship visible at a glance.
         Gate::policy(RamsDocument::class, RamsDocumentPolicy::class);
         Gate::policy(OmManual::class,     OmManualPolicy::class);
+
+        // ── Worker heartbeat — write on every queue loop + job completion ────
+        // Fixes the observability gap behind the "clicked regenerate, nothing
+        // completed for 5+ min" incident: previously the heartbeat file only
+        // existed when spawnWorker() was used (not the normal case), so
+        // WorkerMonitorService::isRunning() fell back to worker.log mtime and
+        // went stale the moment the worker idled. These hooks keep the file
+        // continuously fresh while any queue:work loop is running.
+        Event::listen(Looping::class,       fn () => app(WorkerMonitorService::class)->writeHeartbeat());
+        Event::listen(JobProcessed::class,  fn () => app(WorkerMonitorService::class)->writeHeartbeat());
+        Event::listen(WorkerStopping::class,fn () => app(WorkerMonitorService::class)->clearHeartbeat());
     }
 }
