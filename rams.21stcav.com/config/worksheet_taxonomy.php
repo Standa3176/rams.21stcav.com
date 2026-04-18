@@ -79,8 +79,8 @@ return [
     // Each rule: {manufacturer: [...], keywords: [...], category: '...'}
     'manufacturer_rules' => [
         // ── Displays (flat panel / projector OEMs) ───────────────────────────
-        ['manufacturer' => ['samsung', 'lg', 'sony', 'philips', 'nec', 'sharp', 'panasonic', 'hisense'],
-         'keywords'     => ['display', 'screen', 'monitor', 'tv', 'uhd', '4k', 'oled', 'qled', 'qm', 'qn', 'qb', 'uh', 'um'],
+        ['manufacturer' => ['samsung', 'lg', 'sony', 'philips', 'nec', 'sharp', 'panasonic', 'hisense', 'iiyama', 'benq', 'viewsonic'],
+         'keywords'     => ['display', 'screen', 'monitor', 'tv', 'uhd', '4k', 'oled', 'qled', 'qm', 'qn', 'qb', 'uh', 'um', 'android display'],
          'category'     => 'display'],
         ['manufacturer' => ['epson', 'benq', 'optoma', 'barco', 'christie', 'panasonic'],
          'keywords'     => ['projector', 'beamer', 'lcos', 'dlp'],
@@ -88,12 +88,17 @@ return [
 
         // ── Video Conferencing ───────────────────────────────────────────────
         ['manufacturer' => ['cisco', 'poly', 'polycom', 'logitech', 'yealink', 'neat', 'huddly', 'aver'],
-         'keywords'     => ['codec', 'room kit', 'rally', 'studio', 'bar', 'meetup', 'mx ', 'webex', 'x30', 'x50', 'x70', 'x90'],
+         'keywords'     => ['codec', 'room kit', 'rally', 'studio', 'bar', 'meetup', 'mx ', 'webex', 'x30', 'x50', 'x70', 'x90', 'tv mount for video'],
          'category'     => 'video_conferencing'],
 
         // ── Audio: Microphones ───────────────────────────────────────────────
         ['manufacturer' => ['shure', 'sennheiser', 'audio-technica', 'audix', 'rode', 'clearone'],
-         'keywords'     => ['microphone', 'mic', 'mxw', 'mxa', 'lavalier', 'bodypack', 'handheld', 'gooseneck', 'ceiling array'],
+         'keywords'     => ['microphone', 'mic', 'mxw', 'mxa', 'slx', 'slxd', 'qlxd', 'ulxd', 'axt', 'lavalier', 'bodypack', 'handheld', 'gooseneck', 'ceiling array'],
+         'category'     => 'audio'],
+
+        // ── Assistive listening / hearing loop ───────────────────────────────
+        ['manufacturer' => ['ampetronic', 'univox', 'contacta'],
+         'keywords'     => ['auri', 'hearing loop', 'induction loop', 'assistive listening', 'receiver', 'transmitter', 'neck loop'],
          'category'     => 'audio'],
 
         // ── Audio: DSP / Amplifiers / Loudspeakers ───────────────────────────
@@ -132,11 +137,11 @@ return [
     // Last-resort keyword inference when no manufacturer matches.
     // Evaluated in the order listed; first hit wins.
     'keyword_rules' => [
-        'display'            => ['videowall', 'video wall', 'projector', 'projection screen', 'led wall', 'flat panel', 'interactive display'],
+        'display'            => ['videowall', 'video wall', 'projector', 'projection screen', 'led wall', 'flat panel', 'interactive display', 'android display', 'commercial display', 'flat screen', 'display trolley', 'display cart', 'display stand'],
         'video_conferencing' => ['codec', 'conference camera', 'vc camera', 'ptz camera', 'huddle cam', 'scheduler panel', 'room navigator'],
-        'audio'              => ['loudspeaker', 'pendant speaker', 'ceiling speaker', 'amplifier', 'dsp', 'soundbar', 'subwoofer', 'audio mixer', 'microphone'],
+        'audio'              => ['loudspeaker', 'pendant speaker', 'ceiling speaker', 'amplifier', 'dsp', 'soundbar', 'subwoofer', 'audio mixer', 'microphone', 'headphone', 'headset', 'hearing loop', 'induction loop', 'neck loop', 'auri', 'slxd', 'qlxd', 'ulxd', 'axt', 'mxw', 'mxa'],
         'control'            => ['control processor', 'touch panel', 'button panel', 'keypad', 'partition sensor', 'occupancy sensor', 'relay module', 'dimmer', 'lighting control'],
-        'rack'               => ['server rack', 'equipment rack', 'patch panel', 'power distribution', 'cable tray', 'cable management', 'rack shelf', 'blanking panel'],
+        'rack'               => ['server rack', 'equipment rack', 'patch panel', 'power distribution', 'cable tray', 'cable management', 'rack shelf', 'blanking panel', 'floor plate', 'ceiling plate', 'floor to ceiling mount', 'goal post', 'span unit', 'truss'],
         'network'            => ['managed switch', 'poe switch', 'wireless access point', 'wifi ap', 'network switch', 'router', 'firewall appliance'],
     ],
 
@@ -146,9 +151,9 @@ return [
     // same room to see what the mount is for, and inherit that category.
     // Keywords here detect which category the MOUNTED item belongs to.
     'mount_inherit_keywords' => [
-        'display'            => ['display', 'screen', 'monitor', 'projector', 'tv', 'videowall', 'qled', 'oled', '4k', 'uhd'],
-        'video_conferencing' => ['codec', 'camera', 'rally bar', 'room kit', 'studio x', 'meetup', 'ptz', 'webcam'],
-        'audio'              => ['speaker', 'loudspeaker', 'microphone', 'subwoofer', 'soundbar', 'pendant'],
+        'display'            => ['display', 'screen', 'monitor', 'projector', 'tv', 'videowall', 'qled', 'oled', '4k', 'uhd', 'flat screen', 'flat panel'],
+        'video_conferencing' => ['codec', 'camera', 'rally bar', 'room kit', 'studio x', 'meetup', 'ptz', 'webcam', 'video bar'],
+        'audio'              => ['speaker', 'loudspeaker', 'microphone', 'subwoofer', 'soundbar', 'pendant', 'transmitter', 'receiver'],
     ],
 
     // Patterns that indicate a line item is a warranty / service / smartnet.
