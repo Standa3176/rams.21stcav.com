@@ -30,6 +30,20 @@ class ProjectDataService
     /** Fields with confidence below this threshold are flagged as low-confidence. */
     public const CONFIDENCE_THRESHOLD = 0.7;
 
+    /**
+     * Request-scoped memoisation keyed on $project->id. The service is bound
+     * as a singleton in AppServiceProvider, so this cache lives for the
+     * lifetime of one HTTP request / queue job — long enough to avoid
+     * repeated O(N×M) similar_text() room merges (H-01), short enough not to
+     * serve stale data across requests.
+     *
+     * If a caller mutates the project within a request and needs fresh data,
+     * call forgetResolved($projectId) first.
+     *
+     * @var array<int, array>
+     */
+    private array $resolvedCache = [];
+
     // ─────────────────────────────────────────────────────────────────────────
     // Public API
     // ─────────────────────────────────────────────────────────────────────────
@@ -37,10 +51,48 @@ class ProjectDataService
     /**
      * Resolve a canonical dataset for the given project.
      *
+     * Result is memoised per request on $project->id. Projects without an id
+     * (unsaved models) bypass the cache. Use forgetResolved() to invalidate.
+     *
      * @param  Project $project  The project to resolve.
      * @return array             Canonical dataset with keys: project, equipment, rooms, activities, risks, survey, programme, cables, meta.
      */
     public function resolve(Project $project): array
+    {
+        $cacheKey = $project->id;
+        if ($cacheKey !== null && isset($this->resolvedCache[$cacheKey])) {
+            return $this->resolvedCache[$cacheKey];
+        }
+
+        $result = $this->resolveUncached($project);
+
+        if ($cacheKey !== null) {
+            $this->resolvedCache[$cacheKey] = $result;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Clear memoised result(s). Pass a project id to invalidate that single
+     * entry; pass null to clear the whole cache. Primarily useful in tests
+     * and in any request path that mutates a project's packages/surveys
+     * after an earlier resolve() call.
+     */
+    public function forgetResolved(?int $projectId = null): void
+    {
+        if ($projectId === null) {
+            $this->resolvedCache = [];
+            return;
+        }
+        unset($this->resolvedCache[$projectId]);
+    }
+
+    /**
+     * Build a fresh dataset — the un-memoised inner worker. Extracted from
+     * resolve() so the public surface only holds the caching concern.
+     */
+    private function resolveUncached(Project $project): array
     {
         $package = $project->relationLoaded('latestPackage')
             ? $project->latestPackage

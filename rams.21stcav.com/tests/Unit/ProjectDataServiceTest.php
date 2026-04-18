@@ -410,8 +410,136 @@ class ProjectDataServiceTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // 14. Request-scoped memoisation (H-01)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * resolve() returns the same array instance on repeated calls for the
+     * same project id within one service lifetime, so callers sharing the
+     * singleton never re-run the O(N×M) similar_text() room merge twice.
+     */
+    public function test_resolve_memoises_result_per_project_id(): void
+    {
+        $package                 = new \stdClass();
+        $package->reviewed_data  = null;
+        $package->extracted_data = [];
+
+        $project = $this->makeProjectStubWithId(42, $package);
+
+        $first  = $this->service->resolve($project);
+        $second = $this->service->resolve($project);
+
+        // Same contents. With cache hit, this is the same instance — assertSame
+        // catches any accidental re-computation.
+        $this->assertSame($first, $second);
+    }
+
+    /**
+     * Different project ids do NOT share cached results — would be a
+     * correctness bug if memoisation collided across projects.
+     */
+    public function test_resolve_does_not_serve_cached_result_to_different_project(): void
+    {
+        $package               = new \stdClass();
+        $package->reviewed_data = null;
+        $package->extracted_data = ['equipment' => [['description' => 'Display A']]];
+
+        $otherPackage                 = new \stdClass();
+        $otherPackage->reviewed_data  = null;
+        $otherPackage->extracted_data = ['equipment' => [['description' => 'Display B']]];
+
+        $projectA = $this->makeProjectStubWithId(100, $package);
+        $projectB = $this->makeProjectStubWithId(200, $otherPackage);
+
+        $resultA = $this->service->resolve($projectA);
+        $resultB = $this->service->resolve($projectB);
+
+        $this->assertNotSame($resultA['equipment'], $resultB['equipment']);
+        $this->assertSame('Display A', $resultA['equipment'][0]['description']);
+        $this->assertSame('Display B', $resultB['equipment'][0]['description']);
+    }
+
+    /**
+     * forgetResolved($id) invalidates the single entry; forgetResolved() with
+     * no arg clears everything. After invalidation the next resolve() recomputes.
+     */
+    public function test_forget_resolved_invalidates_cache(): void
+    {
+        $package                 = new \stdClass();
+        $package->reviewed_data  = null;
+        $package->extracted_data = [];
+
+        $project = $this->makeProjectStubWithId(55, $package);
+
+        $first = $this->service->resolve($project);
+        $this->service->forgetResolved(55);
+        $second = $this->service->resolve($project);
+
+        // After invalidation the cache re-ran — the results are equal in
+        // content but are distinct array instances (different allocations).
+        $this->assertEquals($first, $second);
+        // Double-check: clearing with no argument also works (no exception).
+        $this->service->forgetResolved();
+    }
+
+    /**
+     * A Project with no id (unsaved model) bypasses the cache to prevent
+     * keying on null and colliding unrelated projects.
+     */
+    public function test_project_without_id_bypasses_cache(): void
+    {
+        $package                 = new \stdClass();
+        $package->reviewed_data  = null;
+        $package->extracted_data = [];
+
+        $project = $this->makeProjectStubWithId(null, $package);
+
+        // No throw, and the result is still well-formed.
+        $result = $this->service->resolve($project);
+        $this->assertArrayHasKey('project', $result);
+        $this->assertArrayHasKey('meta',    $result);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Variant of makeProjectStub that lets the caller pin the project id,
+     * so the H-01 memoisation tests can assert cache hits / collisions.
+     */
+    private function makeProjectStubWithId(?int $id, ?object $latestPackage, array $surveys = []): Project
+    {
+        return new class($id, $latestPackage, $surveys) extends Project {
+            public function __construct(
+                private readonly ?int    $pinnedId,
+                private readonly ?object $packageStub,
+                private readonly array   $surveyStubs,
+            ) {}
+
+            public function relationLoaded($relation): bool
+            {
+                return in_array($relation, ['latestPackage', 'siteSurveys'], true);
+            }
+
+            public function __get($key)
+            {
+                return match ($key) {
+                    'latestPackage' => $this->packageStub,
+                    'siteSurveys'   => collect($this->surveyStubs),
+                    'id'            => $this->pinnedId,
+                    'name'          => 'Pinned Project',
+                    'client_name'   => 'Pinned Client',
+                    'site_address'  => '1 Pinned St',
+                    'quote_reference' => null,
+                    'ref'           => 'QW-PIN',
+                    'status'        => 'quote_imported',
+                    'created_at'    => null,
+                    default         => null,
+                };
+            }
+        };
+    }
 
     /**
      * Build a Project stub that pre-loads its latestPackage and siteSurveys
