@@ -685,9 +685,14 @@ class RamsController extends Controller
 
         $rams = RamsDocument::onlyTrashed()->findOrFail($id);
 
-        // Remove the uploaded PDF from disk if it exists
-        if ($rams->filename && Storage::disk('local')->exists($rams->filename)) {
-            Storage::disk('local')->delete($rams->filename);
+        // Remove the generated DOCX from disk if it exists. Uses the artifact
+        // store so both the new `documents` disk and any legacy storage/app/rams/
+        // copy are cleaned up. (Previously this called Storage::disk('local')
+        // which resolved to storage/app/private/$filename — the wrong disk —
+        // so the delete was a no-op.)
+        if ($rams->filename) {
+            app(\App\Services\DocumentArtifactStorage::class)
+                ->delete(\App\Services\DocumentArtifactStorage::TYPE_RAMS, basename((string) $rams->filename));
         }
 
         $rams->forceDelete();
@@ -1004,27 +1009,28 @@ class RamsController extends Controller
     }
 
     /**
-     * Resolve the absolute path to the RAMS DOCX, tolerating legacy filenames.
+     * Resolve the absolute path to the RAMS DOCX, tolerating legacy filenames
+     * and legacy on-disk locations.
      *
-     * DocxBuilderService writes to storage_path('app/rams/'), NOT to the
-     * local Storage disk root (which is storage/app/private/ in Laravel 11+).
-     * Always resolve via storage_path() to match where files are actually written.
+     * Post-H-07, writes land in the `documents` disk (storage/app/documents/rams/).
+     * Legacy files may still exist in storage/app/rams/ — DocumentArtifactStorage
+     * transparently falls back to that location. Returns '' if the file cannot
+     * be found anywhere, matching the previous empty-string sentinel.
      */
     private function resolveRamsDocxPath(RamsDocument $rams): string
     {
-        $filename = (string) ($rams->filename ?? '');
+        $filename = ltrim((string) ($rams->filename ?? ''), '/');
         if ($filename === '') {
             return '';
         }
-
-        $filename = ltrim($filename, '/');
-
-        // Legacy filenames may include a subpath (e.g. "rams/file.docx")
+        // Tolerate legacy filenames that include the `rams/` subpath prefix.
         if (str_starts_with($filename, 'rams/')) {
-            return storage_path('app/' . $filename);
+            $filename = substr($filename, strlen('rams/'));
         }
 
-        return storage_path('app/rams/' . $filename);
+        return app(\App\Services\DocumentArtifactStorage::class)
+            ->readPath(\App\Services\DocumentArtifactStorage::TYPE_RAMS, $filename)
+            ?? '';
     }
 
     /**

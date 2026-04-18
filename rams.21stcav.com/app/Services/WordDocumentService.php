@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\RamsDocument;
+use App\Services\DocumentArtifactStorage;
 use PhpOffice\PhpWord\Element\Section;
 use PhpOffice\PhpWord\Element\Table;
 use PhpOffice\PhpWord\IOFactory;
@@ -29,6 +30,10 @@ use PhpOffice\PhpWord\SimpleType\Jc;
  */
 class WordDocumentService
 {
+    public function __construct(
+        private readonly DocumentArtifactStorage $artifacts = new DocumentArtifactStorage(),
+    ) {}
+
     // ── Brand colours ─────────────────────────────────────────────────────────
     private const TEAL       = '00788A';
     private const GOLD       = 'C9A84C';
@@ -75,11 +80,6 @@ class WordDocumentService
      */
     public function build(array $data, RamsDocument $record): string
     {
-        $storageDir = storage_path('app/rams');
-        if (! is_dir($storageDir)) {
-            mkdir($storageDir, 0755, true);
-        }
-
         $phpWord = new PhpWord();
         $phpWord->setDefaultFontName('Arial');
         $phpWord->setDefaultFontSize(10);
@@ -118,7 +118,7 @@ class WordDocumentService
 
         // ── Save and persist filename ─────────────────────────────────────────
         $filename = 'rams_' . $record->id . '_' . now()->format('Ymd') . '.docx';
-        $filePath = $storageDir . '/' . $filename;
+        $filePath = $this->artifacts->writePath(DocumentArtifactStorage::TYPE_RAMS, $filename);
 
         IOFactory::createWriter($phpWord, 'Word2007')->save($filePath);
 

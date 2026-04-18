@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\RamsDocument;
+use App\Services\DocumentArtifactStorage;
 use App\Services\DocumentTemplateService;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
@@ -34,6 +35,7 @@ class DocxBuilderService
 {
     public function __construct(
         private readonly DocumentTemplateService $templates,
+        private readonly DocumentArtifactStorage $artifacts = new DocumentArtifactStorage(),
     ) {}
 
     // ─── Brand colours ────────────────────────────────────────────────────────
@@ -74,11 +76,6 @@ class DocxBuilderService
         // Ensure PHPWord escapes &, <, > in text content (off by default).
         Settings::setOutputEscapingEnabled(true);
 
-        $storageDir = storage_path('app/rams');
-        if (! is_dir($storageDir)) {
-            mkdir($storageDir, 0755, true);
-        }
-
         $formData = $record->form_data ?? [];
 
         $phpWord = new PhpWord();
@@ -97,9 +94,9 @@ class DocxBuilderService
         $this->buildEmergencyProcedures($phpWord, $data, $formData);
         $this->buildDocumentSignOff($phpWord, $data);
 
-        // Write file
+        // Write file to the unified documents disk (H-07).
         $filename = 'rams_' . $record->id . '_' . now()->format('Ymd_His') . '.docx';
-        $filePath = $storageDir . '/' . $filename;
+        $filePath = $this->artifacts->writePath(DocumentArtifactStorage::TYPE_RAMS, $filename);
 
         IOFactory::createWriter($phpWord, 'Word2007')->save($filePath);
 

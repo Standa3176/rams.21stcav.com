@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\RamsDocument;
+use App\Services\DocumentArtifactStorage;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Attachment;
@@ -36,15 +37,21 @@ class RamsDocumentMail extends Mailable
 
     public function attachments(): array
     {
-        $path = storage_path('app/rams/' . $this->rams->filename);
+        $filename = (string) $this->rams->filename;
+        if ($filename === '') {
+            return [];
+        }
 
-        if (! file_exists($path)) {
+        $path = app(DocumentArtifactStorage::class)
+            ->readPath(DocumentArtifactStorage::TYPE_RAMS, basename($filename));
+
+        if ($path === null) {
             return [];
         }
 
         return [
             Attachment::fromPath($path)
-                ->as($this->rams->filename)
+                ->as($filename)
                 ->withMime(
                     'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
                 ),
