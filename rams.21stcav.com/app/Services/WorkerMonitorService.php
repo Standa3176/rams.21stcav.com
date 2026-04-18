@@ -143,6 +143,58 @@ class WorkerMonitorService
     }
 
     /**
+     * Age of the heartbeat file in seconds, or null if missing / unreadable.
+     * Used by queue:health-check to report freshness independent of isRunning().
+     */
+    public function heartbeatAgeSeconds(): ?int
+    {
+        $heartbeat = $this->heartbeatFile();
+        if (! file_exists($heartbeat)) {
+            return null;
+        }
+        $ts = (int) @file_get_contents($heartbeat);
+        if ($ts <= 0) {
+            return null;
+        }
+        return max(0, time() - $ts);
+    }
+
+    /** Age of worker.log mtime in seconds, or null if missing. */
+    public function workerLogAgeSeconds(): ?int
+    {
+        $log = $this->workerLogFile();
+        if (! file_exists($log)) {
+            return null;
+        }
+        return max(0, time() - filemtime($log));
+    }
+
+    /**
+     * "Stalled" means pending work exists AND both freshness signals are absent
+     * or stale beyond a short grace window. Decoupled from isRunning() because a
+     * heartbeat within the (longer) TTL still counts as "running" for the
+     * existing UI, but a shorter staleness window catches a hung loop sooner.
+     */
+    public function isStalled(int $pendingJobs = 0, int $stalenessGraceSeconds = 120): bool
+    {
+        if ($pendingJobs <= 0) {
+            return false;
+        }
+        $hb  = $this->heartbeatAgeSeconds();
+        $log = $this->workerLogAgeSeconds();
+
+        // No heartbeat AND no recent log activity → stalled
+        if ($hb === null && ($log === null || $log >= $stalenessGraceSeconds)) {
+            return true;
+        }
+        // Heartbeat present but gone stale → stalled
+        if ($hb !== null && $hb >= $stalenessGraceSeconds) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Called before dispatching a queue job.
      *
      * CRITICAL: This method must NEVER block an HTTP request.
