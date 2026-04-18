@@ -1,0 +1,141 @@
+<?php
+
+namespace Tests\Unit\Services;
+
+use App\Services\DocumentArtifactStorage;
+use Illuminate\Support\Facades\Storage;
+use InvalidArgumentException;
+use Tests\TestCase;
+
+/**
+ * Contract tests for DocumentArtifactStorage — the H-07 canonical path helper.
+ *
+ * Uses Storage::fake('documents') to isolate the new unified disk. The legacy
+ * fallback path is tested by writing a synthetic file to the real storage_path
+ * and cleaning it up in tearDown, because Storage::fake() does not intercept
+ * raw storage_path() reads.
+ */
+class DocumentArtifactStorageTest extends TestCase
+{
+    private DocumentArtifactStorage $svc;
+    private array $legacyCleanup = [];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Storage::fake(DocumentArtifactStorage::DISK);
+        $this->svc = new DocumentArtifactStorage();
+    }
+
+    protected function tearDown(): void
+    {
+        foreach ($this->legacyCleanup as $path) {
+            if (is_file($path)) {
+                @unlink($path);
+            }
+            $dir = dirname($path);
+            // Only rmdir if empty AND we created it (best-effort).
+            if (is_dir($dir)) {
+                @rmdir($dir);
+            }
+        }
+        parent::tearDown();
+    }
+
+    public function test_write_path_lands_in_documents_disk_subdirectory(): void
+    {
+        $path = $this->svc->writePath(DocumentArtifactStorage::TYPE_RAMS, 'test.docx');
+
+        $this->assertStringContainsString('documents', $path);
+        $this->assertStringContainsString(DocumentArtifactStorage::TYPE_RAMS, $path);
+        $this->assertStringEndsWith('test.docx', $path);
+    }
+
+    public function test_read_path_returns_null_when_file_missing_in_both_locations(): void
+    {
+        $this->assertNull(
+            $this->svc->readPath(DocumentArtifactStorage::TYPE_WORKSHEET, 'does-not-exist.docx')
+        );
+    }
+
+    public function test_read_path_prefers_new_location_over_legacy(): void
+    {
+        // Write to the new disk
+        Storage::disk(DocumentArtifactStorage::DISK)
+            ->put(DocumentArtifactStorage::TYPE_OM . '/preferred.docx', 'NEW');
+
+        $found = $this->svc->readPath(DocumentArtifactStorage::TYPE_OM, 'preferred.docx');
+
+        $this->assertNotNull($found);
+        $this->assertSame('NEW', file_get_contents($found));
+        // The resolved path must be under the faked `documents` disk root.
+        $this->assertStringContainsString('documents', $found);
+    }
+
+    public function test_read_path_falls_back_to_legacy_location(): void
+    {
+        $legacyPath = storage_path('app/rams/legacy.docx');
+        @mkdir(dirname($legacyPath), 0777, true);
+        file_put_contents($legacyPath, 'LEGACY');
+        $this->legacyCleanup[] = $legacyPath;
+
+        $found = $this->svc->readPath(DocumentArtifactStorage::TYPE_RAMS, 'legacy.docx');
+
+        $this->assertNotNull($found);
+        $this->assertSame('LEGACY', file_get_contents($found));
+        // Normalise path separators so the assertion works on Windows and POSIX.
+        $this->assertStringContainsString('app/rams', str_replace('\\', '/', $found));
+    }
+
+    public function test_exists_returns_true_when_only_legacy_file_present(): void
+    {
+        $legacyPath = storage_path('app/private/cable-schedules/legacy.xlsx');
+        @mkdir(dirname($legacyPath), 0777, true);
+        file_put_contents($legacyPath, 'x');
+        $this->legacyCleanup[] = $legacyPath;
+
+        $this->assertTrue(
+            $this->svc->exists(DocumentArtifactStorage::TYPE_CABLE, 'legacy.xlsx')
+        );
+    }
+
+    public function test_delete_removes_both_new_and_legacy_copies(): void
+    {
+        // New location
+        Storage::disk(DocumentArtifactStorage::DISK)
+            ->put(DocumentArtifactStorage::TYPE_WORKSHEET . '/both.docx', 'NEW');
+
+        // Legacy location
+        $legacyPath = storage_path('app/private/worksheets/both.docx');
+        @mkdir(dirname($legacyPath), 0777, true);
+        file_put_contents($legacyPath, 'LEGACY');
+        $this->legacyCleanup[] = $legacyPath;
+
+        $this->svc->delete(DocumentArtifactStorage::TYPE_WORKSHEET, 'both.docx');
+
+        $this->assertFalse(
+            Storage::disk(DocumentArtifactStorage::DISK)
+                ->exists(DocumentArtifactStorage::TYPE_WORKSHEET . '/both.docx')
+        );
+        $this->assertFalse(is_file($legacyPath));
+    }
+
+    public function test_unknown_type_throws(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->svc->writePath('not-a-real-type', 'x.docx');
+    }
+
+    public function test_types_returns_all_four(): void
+    {
+        $this->assertSame(
+            [
+                DocumentArtifactStorage::TYPE_RAMS,
+                DocumentArtifactStorage::TYPE_OM,
+                DocumentArtifactStorage::TYPE_WORKSHEET,
+                DocumentArtifactStorage::TYPE_CABLE,
+            ],
+            $this->svc->types()
+        );
+    }
+}

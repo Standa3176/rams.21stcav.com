@@ -39,3 +39,8 @@ backup_before_cleanup.sql
 !/storage/app/rams/.gitkeep
 /storage/app/tmp/*
 !/storage/app/tmp/.gitkeep
+
+# New unified document-artifact disk (H-07). Subdirectories: rams/, om-manuals/,
+# worksheets/, cable-schedules/ — all runtime output, not source.
+/storage/app/documents/*
+!/storage/app/documents/.gitkeep

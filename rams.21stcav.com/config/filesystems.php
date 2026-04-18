@@ -38,6 +38,22 @@ return [
             'report' => false,
         ],
 
+        /*
+        | Document-artifact disk — the single canonical location for generated
+        | deliverables (RAMS / O&M / Worksheet / Cable). Each document type
+        | lives in its own subdirectory under this root. See
+        | App\Services\DocumentArtifactStorage for the conventions and the
+        | legacy-location read-fallback used during the transition from the
+        | four pre-existing output paths.
+        */
+        'documents' => [
+            'driver'     => 'local',
+            'root'       => storage_path('app/documents'),
+            'visibility' => 'private',
+            'throw'      => false,
+            'report'     => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
