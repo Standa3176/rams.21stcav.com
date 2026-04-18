@@ -298,6 +298,27 @@ Route::middleware('auth')->group(function () {
     Route::get('install-programmes/{programme}/schedule',
         [\App\Http\Controllers\InstallProgrammeController::class, 'schedule'])
         ->name('install-programmes.schedule');
+
+    // ─── Document Edit Core (chat-driven data-only edits) ───────────────────
+    //
+    // All endpoints sit inside the existing `auth` middleware group above.
+    // Chat-driven operations are safety-validated at DocumentChangeSetValidator
+    // so they can never modify app code / routes / config / migrations.
+    Route::post(  'documents/{type}/{id}/threads',
+        [\App\Http\Controllers\DocumentEditController::class, 'createThread'])
+        ->name('documents.threads.create');
+    Route::post(  'documents/{type}/{id}/threads/{thread}/messages',
+        [\App\Http\Controllers\DocumentEditController::class, 'postMessage'])
+        ->name('documents.threads.messages.create');
+    Route::get(   'documents/{type}/{id}/changes/{changeSet}',
+        [\App\Http\Controllers\DocumentEditController::class, 'showChangeSet'])
+        ->name('documents.changes.show');
+    Route::post(  'documents/{type}/{id}/changes/{changeSet}/apply',
+        [\App\Http\Controllers\DocumentEditController::class, 'applyChangeSet'])
+        ->name('documents.changes.apply');
+    Route::get(   'documents/{type}/{id}/revisions',
+        [\App\Http\Controllers\DocumentEditController::class, 'listRevisions'])
+        ->name('documents.revisions.index');
 });
 
 require __DIR__.'/auth.php';
