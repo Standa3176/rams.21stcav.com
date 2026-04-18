@@ -65,6 +65,25 @@ Does **not** spawn a new persistent worker — that is the orchestrator's job
 Register a task that runs every 5 minutes. Replace the path fragments with
 values appropriate to your host.
 
+### Option A — `schtasks.exe` one-liner (recommended)
+
+Simpler, no duration-ceiling gotchas, works on every Windows version:
+
+```powershell
+schtasks.exe /Create /TN "RAMS Queue Recover" /SC MINUTE /MO 5 /TR "cmd /c cd /d \"C:\Users\sonny.tanda\Documents\1 - Claude Projects\Rams2\rams.21stcav.com\" && \"C:\Users\sonny.tanda\.config\herd\bin\php.bat\" artisan queue:recover" /F
+```
+
+The `cmd /c cd /d ...` prefix sets the working directory since `schtasks.exe`
+has no working-directory flag. `/F` forces overwrite, so re-running the line
+is safe.
+
+### Option B — PowerShell `Register-ScheduledTask`
+
+If you prefer the PowerShell cmdlet, use a bounded duration. Do NOT pass
+`[TimeSpan]::MaxValue` — Task Scheduler rejects it with
+`The task XML contains a value which is incorrectly formatted or out of range`.
+Use a long bounded duration instead (9999 days ≈ 27 years is effectively forever):
+
 ```powershell
 $action   = New-ScheduledTaskAction `
     -Execute 'C:\Users\sonny.tanda\.config\herd\bin\php.bat' `
@@ -73,11 +92,11 @@ $action   = New-ScheduledTaskAction `
 
 $trigger  = New-ScheduledTaskTrigger -Once -At (Get-Date) `
     -RepetitionInterval (New-TimeSpan -Minutes 5) `
-    -RepetitionDuration ([TimeSpan]::MaxValue)
+    -RepetitionDuration (New-TimeSpan -Days 9999)
 
 $settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
-    -StartWhenAvailable -RunOnlyIfNetworkAvailable:$false
+    -StartWhenAvailable
 
 Register-ScheduledTask `
     -TaskName 'RAMS Queue Recover (5m)' `
