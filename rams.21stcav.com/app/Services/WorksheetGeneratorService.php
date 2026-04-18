@@ -96,7 +96,10 @@ class WorksheetGeneratorService
         $latestSurvey = $project->siteSurveys()->latest()->first();
         if ($latestSurvey !== null) {
             foreach ($latestSurvey->rooms()->with('questions')->get() as $surveyRoom) {
-                $key = strtolower(trim($surveyRoom->room_name));
+                // Canonicalise on both sides so normaliser-driven edits to the
+                // room label (closed paren, straightened apostrophe, etc.)
+                // can't desync the key from the downstream lookup.
+                $key = $this->canonicalRoomKey((string) $surveyRoom->room_name);
                 $answered = $surveyRoom->questions
                     ->whereNotNull('answer')->values()
                     ->map(fn ($q) => ['question' => $q->question, 'answer' => $q->answer, 'other_text' => $q->other_text])
@@ -472,7 +475,7 @@ class WorksheetGeneratorService
                 'requires_additional_power' => $room['requires_additional_power'] ?? null,
                 'network_port_count'        => $room['network_port_count'] ?? null,
                 'existing_cabling'          => $room['existing_cabling'] ?? null,
-                'pre_install_answers'       => $preInstallAnswers[strtolower(trim($roomName))] ?? [],
+                'pre_install_answers'       => $preInstallAnswers[$this->canonicalRoomKey($roomName)] ?? [],
             ];
         }
 
@@ -922,6 +925,28 @@ class WorksheetGeneratorService
             || isset($room['cable_route_desc'])
             || isset($room['has_power'])
             || ($room['data_source'] ?? '') === 'survey';
+    }
+
+    /**
+     * Canonical lookup key for matching a survey room to a generated room.
+     *
+     * Fix for the pre-install-answer disappearance bug: the generator runs
+     * every room name through WorksheetTextNormalizer (closed parens,
+     * straightened apostrophes, collapsed whitespace), while survey room
+     * labels arrive raw. Applying the same normaliser on both sides before
+     * lowercasing guarantees the keys agree even when the text has been
+     * silently rewritten for display.
+     *
+     * Additionally strips trailing `)` characters so "Meeting Room (Ground
+     * Floor" (survey) and "Meeting Room (Ground Floor)" (after normaliser
+     * closes the paren) collapse to the same key.
+     */
+    private function canonicalRoomKey(string $name): string
+    {
+        $normalised = app(WorksheetTextNormalizer::class)->normalize($name);
+        $normalised = strtolower(trim($normalised));
+        // Drop trailing ')' so matched-paren variants collide.
+        return rtrim($normalised, ' )');
     }
 
     /**
