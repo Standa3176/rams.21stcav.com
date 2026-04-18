@@ -19,3 +19,23 @@ yarn-error.log
 *.log
 *.tmp
 backup_before_cleanup.sql
+
+# Laravel runtime caches (standard)
+/storage/framework/cache/*
+!/storage/framework/cache/.gitkeep
+/storage/framework/sessions/*
+!/storage/framework/sessions/.gitkeep
+/storage/framework/testing/*
+!/storage/framework/testing/.gitkeep
+/storage/framework/views/*
+!/storage/framework/views/.gitkeep
+/storage/logs/*
+!/storage/logs/.gitkeep
+
+# Generated document artifacts (runtime output, not source)
+/storage/app/om-manuals/*
+!/storage/app/om-manuals/.gitkeep
+/storage/app/rams/*
+!/storage/app/rams/.gitkeep
+/storage/app/tmp/*
+!/storage/app/tmp/.gitkeep
