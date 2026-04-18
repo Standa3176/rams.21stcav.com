@@ -57,6 +57,59 @@
     color:var(--text-muted);
 }
 
+/* ── Tier 1 readiness strip (mirrors survey-progress styling) ─── */
+.tier-one-strip {
+    background:#F0FDF4;
+    border:1px solid #A7F3D0;
+    border-radius:var(--radius);
+    padding:.9rem 1.1rem;
+    margin-bottom:1.25rem;
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:.75rem 1.5rem;
+}
+.tier-one-strip__title {
+    font-size:.75rem;
+    font-weight:700;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    color:#065F46;
+    flex:0 0 auto;
+}
+.tier-one-strip__stat {
+    display:flex;
+    flex-direction:column;
+    line-height:1.15;
+}
+.tier-one-strip__num {
+    font-size:1.35rem;
+    font-weight:700;
+    color:#047857;
+}
+.tier-one-strip__num--muted  { color:#6B7280; }
+.tier-one-strip__num--flag   { color:#B45309; }
+.tier-one-strip__label {
+    font-size:.72rem;
+    color:#4B5563;
+    margin-top:.1rem;
+    letter-spacing:.02em;
+}
+/* Per-room Tier-1 badge placed inside the existing room header row */
+.tier-one-room-badge {
+    display:inline-flex;
+    align-items:center;
+    gap:.3rem;
+    font-size:.72rem;
+    font-weight:700;
+    border-radius:999px;
+    padding:.15rem .55rem;
+    letter-spacing:.02em;
+    margin-left:.4rem;
+}
+.tier-one-room-badge--ready    { background:#D1FAE5; color:#065F46; }
+.tier-one-room-badge--partial  { background:#FEF3C7; color:#92400E; }
+
 /* ── Survey link banner ───────────────────────────── */
 .survey-link-banner {
     background:#EBF8FA;
@@ -383,6 +436,26 @@
     </div>
 </div>
 
+{{-- Tier 1 readiness strip (mirrors progress strip, powered by SiteSurveyTierOneReadinessService) --}}
+@if(isset($tierOne) && ($tierOne['summary']['total_rooms'] ?? 0) > 0)
+    @php $t1 = $tierOne['summary']; @endphp
+    <div class="tier-one-strip" aria-label="Tier 1 Readiness">
+        <div class="tier-one-strip__title">Tier 1 Readiness</div>
+        <div class="tier-one-strip__stat">
+            <div class="tier-one-strip__num">{{ $t1['overall_percent'] }}%</div>
+            <div class="tier-one-strip__label">Overall</div>
+        </div>
+        <div class="tier-one-strip__stat">
+            <div class="tier-one-strip__num">{{ $t1['ready_rooms'] }} / {{ $t1['total_rooms'] }}</div>
+            <div class="tier-one-strip__label">Rooms Ready</div>
+        </div>
+        <div class="tier-one-strip__stat">
+            <div class="tier-one-strip__num {{ $t1['missing_items_total'] > 0 ? 'tier-one-strip__num--flag' : 'tier-one-strip__num--muted' }}">{{ $t1['missing_items_total'] }}</div>
+            <div class="tier-one-strip__label">Missing Items</div>
+        </div>
+    </div>
+@endif
+
 {{-- Summary info card --}}
 <div class="section-block" style="margin-bottom:1.25rem;">
     <h2 class="section-heading">Survey Details</h2>
@@ -507,6 +580,20 @@
         <span class="room-view-badge {{ $badgeClass }}">{{ $badgeText }}</span>
         @if($room->photos->count() > 0)
             <span style="font-size:.72rem;color:#6B7280;">📷 {{ $room->photos->count() }}</span>
+        @endif
+        @php $t1Room = $tierOne['rooms'][$room->id] ?? null; @endphp
+        @if($t1Room)
+            @if($t1Room['ready'])
+                <span class="tier-one-room-badge tier-one-room-badge--ready"
+                      title="Tier 1 ready — all required checks passed">
+                    T1 · Ready
+                </span>
+            @else
+                <span class="tier-one-room-badge tier-one-room-badge--partial"
+                      title="Tier 1 progress — {{ count($t1Room['missing']) }} item(s) missing">
+                    T1 · {{ $t1Room['percent'] }}% · {{ count($t1Room['missing']) }} missing
+                </span>
+            @endif
         @endif
     </div>
 

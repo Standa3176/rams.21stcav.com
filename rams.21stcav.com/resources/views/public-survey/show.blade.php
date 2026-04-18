@@ -72,6 +72,64 @@
             height: 5px;
             overflow: hidden;
         }
+        /* Tier-1 readiness card (sits below the progress bar on the header strip) */
+        .tier-one-card {
+            margin-top: .9rem;
+            background: rgba(255,255,255,.08);
+            border: 1px solid rgba(255,255,255,.18);
+            border-radius: 10px;
+            padding: .75rem .95rem;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: .5rem 1.25rem;
+            color: #fff;
+        }
+        .tier-one-card__title {
+            font-weight: 700;
+            font-size: .82rem;
+            letter-spacing: .02em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,.85);
+            flex: 0 0 auto;
+        }
+        .tier-one-card__stat {
+            display: flex;
+            align-items: baseline;
+            gap: .3rem;
+            font-size: .82rem;
+            color: rgba(255,255,255,.9);
+        }
+        .tier-one-card__stat-val {
+            font-weight: 700;
+            font-size: 1.02rem;
+            color: #fff;
+        }
+        .tier-one-card__stat-label {
+            color: rgba(255,255,255,.65);
+            font-size: .74rem;
+        }
+        .tier-one-card__stat--flag .tier-one-card__stat-val {
+            color: #FCD34D;
+        }
+        /* Per-room Tier-1 hint shown at the top of the room body */
+        .tier-one-hint {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: .4rem .8rem;
+            font-size: .78rem;
+            color: #4B5563;
+            background: #F9FAFB;
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            padding: .5rem .75rem;
+            margin: 0 0 .75rem 0;
+        }
+        .tier-one-hint--ready    { background: #ECFDF5; border-color: #A7F3D0; color: #065F46; }
+        .tier-one-hint__label    { font-weight: 700; letter-spacing: .02em; }
+        .tier-one-hint__pct      { font-weight: 700; }
+        .tier-one-hint__missing  { color: #92400E; }
         .progress-bar-fill {
             height: 100%;
             background: #34D399;
@@ -691,6 +749,26 @@
             </div>
         </div>
         @endif
+
+        {{-- Tier 1 Readiness summary (populated by SiteSurveyTierOneReadinessService) --}}
+        @if(isset($tierOne) && ($tierOne['summary']['total_rooms'] ?? 0) > 0)
+            @php $t1 = $tierOne['summary']; @endphp
+            <div class="tier-one-card" aria-label="Tier 1 Readiness">
+                <div class="tier-one-card__title">Tier 1 Readiness</div>
+                <div class="tier-one-card__stat">
+                    <span class="tier-one-card__stat-val">{{ $t1['overall_percent'] }}%</span>
+                    <span class="tier-one-card__stat-label">overall</span>
+                </div>
+                <div class="tier-one-card__stat">
+                    <span class="tier-one-card__stat-val">{{ $t1['ready_rooms'] }} / {{ $t1['total_rooms'] }}</span>
+                    <span class="tier-one-card__stat-label">rooms ready</span>
+                </div>
+                <div class="tier-one-card__stat{{ $t1['missing_items_total'] > 0 ? ' tier-one-card__stat--flag' : '' }}">
+                    <span class="tier-one-card__stat-val">{{ $t1['missing_items_total'] }}</span>
+                    <span class="tier-one-card__stat-label">missing item{{ $t1['missing_items_total'] === 1 ? '' : 's' }}</span>
+                </div>
+            </div>
+        @endif
     </div>
 </div>
 
@@ -905,6 +983,44 @@
                     </div>
 
                     <div class="room-body collapsed" id="room-body-{{ $room->id }}">
+
+                        {{-- Tier 1 readiness hint (populated by SiteSurveyTierOneReadinessService) --}}
+                        @php
+                            $t1Room = $tierOne['rooms'][$room->id] ?? null;
+                            $t1MissingLabels = [
+                                'av_scope'              => 'AV scope',
+                                'dimensions'            => 'Room dimensions',
+                                'power_availability'    => 'Power availability',
+                                'power_outlets'         => 'Power outlet count',
+                                'network_availability'  => 'Network availability',
+                                'network_ports'         => 'Network port count',
+                                'pre_install_checks'    => 'Pre-install checks',
+                                'photos'                => 'Room photo',
+                                'engineer_sign_off'     => 'Engineer sign-off',
+                            ];
+                        @endphp
+                        @if($t1Room)
+                            <div class="tier-one-hint {{ $t1Room['ready'] ? 'tier-one-hint--ready' : '' }}">
+                                <span class="tier-one-hint__label">Tier 1:</span>
+                                @if($t1Room['ready'])
+                                    <span class="tier-one-hint__pct">Ready</span>
+                                @else
+                                    <span class="tier-one-hint__pct">{{ $t1Room['percent'] }}%</span>
+                                    @php $firstTwo = array_slice($t1Room['missing'], 0, 2); @endphp
+                                    @if(!empty($firstTwo))
+                                        <span class="tier-one-hint__missing">
+                                            Missing:
+                                            @foreach($firstTwo as $i => $mKey)
+                                                {{ $t1MissingLabels[$mKey] ?? $mKey }}{{ $i < count($firstTwo) - 1 ? ', ' : '' }}
+                                            @endforeach
+                                            @if(count($t1Room['missing']) > 2)
+                                                <span style="opacity:.7;"> (+{{ count($t1Room['missing']) - 2 }} more)</span>
+                                            @endif
+                                        </span>
+                                    @endif
+                                @endif
+                            </div>
+                        @endif
 
                         {{-- ── KIT LIST DRAWER (at top of room body) ─────────── --}}
                         @if(count($roomKitItems) > 0)
