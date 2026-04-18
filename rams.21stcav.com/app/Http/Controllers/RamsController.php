@@ -1184,53 +1184,14 @@ class RamsController extends Controller
             }
 
             // ── Scope items ────────────────────────────────────────────────────────
-            // Hardware filter closure — applied both when building from package AND
-            // when filtering items that already exist in generated_data (e.g. after regen
-            // copies scope_items from the original, which may include warranties/cables).
-            $nonHardwarePattern = '/\b('
-                . 'site\s+survey|engineering\s+team|av\s+team|installation\s+team'
-                . '|project\s+management|programme\s+management'
-                . '|configuration\s+service|commissioning\s+service'
-                . '|extended\s+service|extended\s+warranty|poly\+'
-                . '|support\s+plan|care\s+plan|maintenance\s+plan|\byear\s+warranty'
-                . '|consumable|cable\s+tie|fixings?'
-                . '|network\s+cable|patch\s+cable|patch\s+lead|snagless'
-                . '|delivery|carriage|freight|shipping'
-                . '|travel|mileage|per\s+vehicle|parking'
-                . '|labour|man\s+day|man-day|off\s+site|on\s+site\s+management'
-                . '|rams\b|risk\s+assessment|method\s+statement'
-                . '|discount|credit|foc\b|free\s+of\s+charge'
-                . '|\bvat\b|\btax\b'
-                . ')/i';
-            // Cable-only detection (brand/length prefix allowed, e.g. "Lindy 10m Cat6 …")
-            $cablePattern = '/\b(cat\d[ae]?|hdmi\s+cable|dp\s+cable|displayport\s+cable|usb\s+cable|fibre\s+cable|fiber\s+cable|xlr\s+cable|dmx\s+cable|coax\s+cable|ethernet\s+cable)\b/i';
-
-            $isHardware = function (string $nameStr, string $itemType = '', string $category = '') use ($nonHardwarePattern, $cablePattern): bool {
-                if (! $nameStr) {
-                    return false;
-                }
-                // Generic placeholder rows
-                if (preg_match('/^\s*additional\s*$/i', $nameStr)) {
-                    return false;
-                }
-                // item_type field (ExtractQuoteJob — trust it)
-                if ($itemType === 'consumable' || $itemType === 'professional_service') {
-                    return false;
-                }
-                if ($itemType === 'hardware') {
-                    return true;
-                }
-                // Category field
-                if (in_array($category, ['cables', 'consumables', 'services', 'option', 'labour'], true)) {
-                    return false;
-                }
-                // Keyword heuristic
-                $lower = strtolower($nameStr);
-                if (preg_match($nonHardwarePattern, $lower) || preg_match($cablePattern, $nameStr)) {
-                    return false;
-                }
-                return true;
-            };
+            // Hardware filter — applied both when building from package AND when
+            // filtering items already in generated_data (post-regen copies may still
+            // contain warranties/cables). The classifier is extracted into
+            // HardwareClassificationService so keyword/pattern changes live in one
+            // place with their own unit tests.
+            $classifier = app(\App\Services\HardwareClassificationService::class);
+            $isHardware = fn (string $nameStr, string $itemType = '', string $category = '')
+                => $classifier->isHardware($nameStr, $itemType, $category);
 
             // Always rebuild new_install from package — this is transient display only,
             // so using the package as the canonical source ensures room/area data is
