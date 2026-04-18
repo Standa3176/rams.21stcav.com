@@ -24,6 +24,7 @@ use App\Services\WorkerMonitorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -516,43 +517,49 @@ class RamsController extends Controller
         // ── Apply Tier 1 compliance upgrade before persist + render ────────
         $generatedData = \App\Services\Rams\RamsComplianceUpgradeService::upgrade($generatedData);
 
-        $rams->update([
-            'project_name'   => $validated['project_name'],
-            'project_ref'    => $projectRefInput ?? $rams->project_ref,
-            'client_name'    => $validated['client_name'],
-            'site_address'   => $validated['site_address'],
-            'generated_data' => $generatedData,
-            'reviewed_data'  => $reviewedData,
-        ]);
-
-        // Write the core project fields back to the linked Project record so
-        // that future RAMS views pick up these edits without another generate.
-        if ($rams->project_id) {
-            $linkedProject = Project::find($rams->project_id);
-            if ($linkedProject) {
-                $updates = array_filter([
-                    'name'         => $validated['project_name'],
-                    'ref'          => $projectRefInput,
-                    'client_name'  => $validated['client_name'],
-                    'site_address' => $validated['site_address'],
-                ], fn ($v) => $v !== null && $v !== '');
-
-                if ($updates) {
-                    $linkedProject->update($updates);
-                    Log::info('RamsController: project fields synced from RAMS updateAndDownload', [
-                        'rams_id'    => $rams->id,
-                        'project_id' => $rams->project_id,
-                        'fields'     => array_keys($updates),
-                    ]);
-                }
-            }
-        }
-
         try {
-            // Use DocxBuilderService (via renderer) to render Tier 1 sections
-            $filePath = $this->ramsRenderer->render($generatedData, $rams);
+            $filePath = DB::transaction(function () use ($rams, $validated, $projectRefInput, $generatedData, $reviewedData): string {
+                $rams->update([
+                    'project_name'   => $validated['project_name'],
+                    'project_ref'    => $projectRefInput ?? $rams->project_ref,
+                    'client_name'    => $validated['client_name'],
+                    'site_address'   => $validated['site_address'],
+                    'generated_data' => $generatedData,
+                    'reviewed_data'  => $reviewedData,
+                ]);
+
+                // Write core fields back to the linked Project record in the
+                // same transaction so render failures roll back both documents.
+                if ($rams->project_id) {
+                    $linkedProject = Project::find($rams->project_id);
+                    if ($linkedProject) {
+                        $updates = array_filter([
+                            'name'         => $validated['project_name'],
+                            'ref'          => $projectRefInput,
+                            'client_name'  => $validated['client_name'],
+                            'site_address' => $validated['site_address'],
+                        ], fn ($v) => $v !== null && $v !== '');
+
+                        if ($updates) {
+                            $linkedProject->update($updates);
+                            Log::info('RamsController: project fields synced from RAMS updateAndDownload', [
+                                'rams_id'    => $rams->id,
+                                'project_id' => $rams->project_id,
+                                'fields'     => array_keys($updates),
+                            ]);
+                        }
+                    }
+                }
+
+                // Render inside the transaction so DB writes are rolled back
+                // if DOCX generation fails.
+                return $this->ramsRenderer->render($generatedData, $rams);
+            });
+
+            // Ensure download uses the latest filename after renderer update.
+            $rams->refresh();
         } catch (\Throwable $e) {
-            Log::error('RamsController: DOCX render failed in updateAndDownload', [
+            Log::error('RamsController: updateAndDownload failed (transaction rolled back)', [
                 'record_id' => $rams->id,
                 'error'     => $e->getMessage(),
             ]);
