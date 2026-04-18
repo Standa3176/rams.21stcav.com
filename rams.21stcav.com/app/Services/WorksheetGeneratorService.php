@@ -6,6 +6,7 @@ use App\Core\AI\AIManager;
 use App\Core\AI\Prompts\WorksheetPrompt;
 use App\Core\Modules\Projects\ProjectDataService;
 use App\Models\Worksheet;
+use App\Services\Worksheet\WorksheetClassifier;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -114,11 +115,33 @@ class WorksheetGeneratorService
         // ── Detect blockers ──────────────────────────────────────────────────
         $blockers = $this->detectBlockers($rooms, $data);
 
+        // ── Pass A: shadow classifier run. Telemetry-only; does NOT alter
+        //    render behaviour. Stored under _classification_telemetry so any
+        //    downstream key-iterating renderer ignores it.
+        $shadowTelemetry = null;
+        try {
+            $shadowTelemetry = app(WorksheetClassifier::class)->runShadow($rooms);
+            Log::info('WorksheetGeneratorService: shadow classifier run', [
+                'worksheet_id'         => $worksheet->id,
+                'total_items'          => $shadowTelemetry['total_items'] ?? 0,
+                'histogram'            => $shadowTelemetry['histogram'] ?? [],
+                'tier_counts'          => $shadowTelemetry['tier_counts'] ?? [],
+                'unclassified_count'   => $shadowTelemetry['unclassified_count'] ?? 0,
+            ]);
+        } catch (\Throwable $e) {
+            // Shadow run must never break generation.
+            Log::warning('WorksheetGeneratorService: shadow classifier failed', [
+                'worksheet_id' => $worksheet->id,
+                'error'        => $e->getMessage(),
+            ]);
+        }
+
         return [
-            'project'      => $data['project'],
-            'rooms'        => $rooms,
-            'blockers'     => $blockers,
-            'generated_at' => now()->toIso8601String(),
+            'project'                   => $data['project'],
+            'rooms'                     => $rooms,
+            'blockers'                  => $blockers,
+            'generated_at'              => now()->toIso8601String(),
+            '_classification_telemetry' => $shadowTelemetry,
         ];
     }
 
@@ -741,18 +764,18 @@ class WorksheetGeneratorService
         $items = $hardwareCount === 1 ? 'item' : 'items';
 
         $sentences[] = match ($variant) {
-            0 => "{$roomName}: {$hardwareCount} {$items} to install across {$systemsText}.",
-            1 => "Work in {$roomName} covers {$systemsText} — {$hardwareCount} {$items} to deliver.",
-            2 => "Engineers will complete {$hardwareCount} AV {$items} in {$roomName}, spanning {$systemsText}.",
-            default => "{$roomName} scope: {$hardwareCount} AV {$items} across {$systemsText}.",
+            0 => "{$roomName}: deliver {$hardwareCount} {$items} across {$systemsText}.",
+            1 => "{$roomName} room scope: {$hardwareCount} {$items} across {$systemsText}.",
+            2 => "{$roomName}: engineer works include {$hardwareCount} {$items} covering {$systemsText}.",
+            default => "{$roomName} install scope is {$hardwareCount} {$items} across {$systemsText}.",
         };
 
         if ($source !== '') {
-            $sentences[] = 'Room note: ' . rtrim($source, ". \t\n\r\0\x0B") . '.';
+            $sentences[] = 'Site note: ' . rtrim($source, ". \t\n\r\0\x0B") . '.';
         }
 
         if (! empty($keyItems)) {
-            $sentences[] = 'Key equipment: ' . $this->formatList($keyItems, 3, 'listed AV equipment') . '.';
+            $sentences[] = 'Key kit: ' . $this->formatList($keyItems, 3, 'listed AV equipment') . '.';
         }
 
         $actions = [];
@@ -772,11 +795,13 @@ class WorksheetGeneratorService
             $actions[] = 'verify control behaviour and room triggers';
         }
         if (! empty($actions)) {
-            $sentences[] = 'Site actions: ' . $this->formatList($actions, 3, 'complete staged installation and commissioning') . '.';
+            $sentences[] = 'Work outputs: ' . $this->formatList($actions, 3, 'install listed kit and complete functional checks') . '.';
+        } elseif ($hardwareCount > 0) {
+            $sentences[] = 'Work outputs: install listed kit, terminate cabling, label terminations, and complete functional checks.';
         }
 
         if (! $isSurveyed) {
-            $sentences[] = 'Survey pending: confirm final fixing points, cable routes, and power/network outlet availability before first fix.';
+            $sentences[] = 'Survey action: confirm final fixing positions, cable routes, and power/network points before first fix.';
         }
 
         $sentences = array_values(array_filter(array_map('trim', $sentences), fn ($s) => $s !== ''));
@@ -784,10 +809,10 @@ class WorksheetGeneratorService
             $sentences = array_slice($sentences, 0, 4);
         }
         if (count($sentences) < 2 && $hardwareCount > 0) {
-            $sentences[] = 'Use the phased install plan and commissioning checklist below to execute room works in order.';
+            $sentences[] = 'Work outputs: install listed kit and complete functional checks.';
         }
 
-        return $this->cleanNarrative(implode(' ', $sentences), 380);
+        return $this->cleanNarrative(implode(' ', $sentences), 340);
     }
 
     /**
@@ -903,7 +928,7 @@ class WorksheetGeneratorService
         }
 
         if (trim($text) === '' || trim($text) === '.') {
-            $text = 'AV installation works are planned for this room. Follow the phased plan and checklist below.';
+            $text = 'Install the listed room kit and complete room functional checks.';
         }
 
         return $text;
