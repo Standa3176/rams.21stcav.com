@@ -2,23 +2,25 @@
 
 namespace Tests\Feature\Rams;
 
+use App\Jobs\BuildRamsDocumentJob;
 use App\Models\RamsDocument;
 use App\Models\User;
+use App\Services\RamsBuilderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
+use Mockery\MockInterface;
 use Tests\TestCase;
 
 /**
  * Feature smoke test: manual RAMS creation via POST /rams.
  *
- * Covers the full pipeline:
+ * Covers manual RAMS create flow:
  *   RamsFormRequest validation → RamsController::store()
- *     → RamsBuilderService::buildFromForm()
- *       → EquipmentClassifierService (empty equipment list)
- *       → HazardLibraryService (DB hazard templates — no AI)
- *       → MethodStatementService (AI faked via Http::fake)
- *       → WordDocumentService (writes DOCX to storage/app/rams/)
- *   → redirect to rams.review
+ *     → queue dispatch (BuildRamsDocumentJob)
+ *     → redirect to rams.review
+ *
+ * BuildRamsDocumentJob execution itself is covered separately in workflow tests.
  */
 class ManualRamsCreationTest extends TestCase
 {
@@ -63,6 +65,33 @@ class ManualRamsCreationTest extends TestCase
     }
 
     // ── Tests ─────────────────────────────────────────────────────────────────
+
+    public function test_store_dispatches_generation_job_instead_of_running_builder_inline(): void
+    {
+        Bus::fake();
+        $user = User::factory()->create();
+
+        // Controller should queue the job and never call builder inline.
+        $this->mock(RamsBuilderService::class, function (MockInterface $mock): void {
+            $mock->shouldNotReceive('buildFromForm');
+        });
+
+        $response = $this->actingAs($user)
+            ->post(route('rams.store'), $this->validFormPayload([
+                'project_ref' => 'QUEUE-STORE-001',
+            ]));
+
+        $record = RamsDocument::where('project_ref', 'QUEUE-STORE-001')->first();
+
+        $this->assertNotNull($record, 'RamsDocument was not created.');
+        $this->assertSame('manual_form', $record->form_data['source'] ?? null);
+        $response->assertRedirectToRoute('rams.review', $record);
+
+        Bus::assertDispatched(
+            BuildRamsDocumentJob::class,
+            fn (BuildRamsDocumentJob $job): bool => $job->ramsDocumentId === $record->id
+        );
+    }
 
     public function test_authenticated_user_can_create_rams_from_form(): void
     {

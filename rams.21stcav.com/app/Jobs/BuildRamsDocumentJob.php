@@ -53,8 +53,10 @@ class BuildRamsDocumentJob implements ShouldQueue
             return;
         }
 
+        $isManualFormGeneration = $this->isManualFormGeneration($record);
+
         // ── Guard: reviewed_data must be present ──────────────────────────────
-        if (empty($record->reviewed_data)) {
+        if (! $isManualFormGeneration && empty($record->reviewed_data)) {
             $errorMessage = "Cannot generate RAMS without reviewed_data. " .
                 "The document must be reviewed and approved before generation can proceed.";
 
@@ -74,7 +76,11 @@ class BuildRamsDocumentJob implements ShouldQueue
         }
 
         // ── Guard: RAMS must be approved before generation ───────────────────
-        if (! $record->approved_at && $record->status !== RamsDocument::STATUS_APPROVED_FOR_GENERATION) {
+        if (
+            ! $isManualFormGeneration &&
+            ! $record->approved_at &&
+            $record->status !== RamsDocument::STATUS_APPROVED_FOR_GENERATION
+        ) {
             $errorMessage = "RAMS must be approved before generation. " .
                 "Review the document and click Approve before dispatching generation.";
 
@@ -102,16 +108,21 @@ class BuildRamsDocumentJob implements ShouldQueue
 
             Log::info('BuildRamsDocumentJob: starting Phase B generation', [
                 'record_id'        => $this->ramsDocumentId,
-                'activities'       => array_column($record->reviewed_data['activities'] ?? [], 'key'),
-                'equipment_count'  => count($record->reviewed_data['equipment'] ?? []),
-                'hazard_count'     => count($record->reviewed_data['hazards'] ?? []),
+                'mode'             => $isManualFormGeneration ? 'manual_form' : 'reviewed_data',
+                'activities'       => $isManualFormGeneration ? [] : array_column($record->reviewed_data['activities'] ?? [], 'key'),
+                'equipment_count'  => $isManualFormGeneration ? 0 : count($record->reviewed_data['equipment'] ?? []),
+                'hazard_count'     => $isManualFormGeneration ? 0 : count($record->reviewed_data['hazards'] ?? []),
             ]);
 
-            $builder->buildFromReview(
-                $record->reviewed_data,
-                $record->form_data ?? [],
-                $record,
-            );
+            if ($isManualFormGeneration) {
+                $builder->buildFromForm($record->form_data ?? [], $record);
+            } else {
+                $builder->buildFromReview(
+                    $record->reviewed_data,
+                    $record->form_data ?? [],
+                    $record,
+                );
+            }
 
             // Refresh to read any status the builder may have set internally.
             $record->refresh();
@@ -121,7 +132,11 @@ class BuildRamsDocumentJob implements ShouldQueue
                 $record->status !== RamsDocument::STATUS_FAILED &&
                 $record->status !== RamsDocument::STATUS_COMPLETED
             ) {
-                $record->update(['status' => RamsDocument::STATUS_COMPLETED]);
+                $record->update([
+                    'status' => $isManualFormGeneration
+                        ? RamsDocument::STATUS_FOR_REVIEW
+                        : RamsDocument::STATUS_COMPLETED,
+                ]);
             }
 
             Log::info('BuildRamsDocumentJob: completed successfully', [
@@ -144,6 +159,11 @@ class BuildRamsDocumentJob implements ShouldQueue
 
             throw $e;
         }
+    }
+
+    private function isManualFormGeneration(RamsDocument $record): bool
+    {
+        return ($record->form_data['source'] ?? null) === 'manual_form';
     }
 
     // =========================================================================

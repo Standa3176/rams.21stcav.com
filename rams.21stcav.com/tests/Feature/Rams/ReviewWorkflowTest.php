@@ -400,7 +400,41 @@ class ReviewWorkflowTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 7. Generation job uses reviewed_data, not extracted_data
+    // 7. Manual-form generation path bypasses reviewed-data guard
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public function test_generation_job_supports_manual_form_source_without_reviewed_data(): void
+    {
+        $user = $this->makeUser();
+
+        $record = $this->makeRecord($user, [
+            'status'        => RamsDocument::STATUS_FOR_REVIEW,
+            'reviewed_data' => null,
+            'form_data'     => [
+                'source'            => 'manual_form',
+                'project_name'      => 'Manual Queue Project',
+                'client_name'       => 'Manual Queue Client',
+                'site_address'      => 'Manual Queue Site',
+                'works_description' => 'Manual queued generation path',
+            ],
+        ]);
+
+        $builderMock = $this->mock(RamsBuilderService::class);
+        $builderMock->shouldReceive('buildFromForm')
+                    ->once()
+                    ->withArgs(fn ($passedFormData, $passedRecord) => ($passedFormData['source'] ?? null) === 'manual_form' && $passedRecord->id === $record->id)
+                    ->andReturn('/tmp/fake-manual.docx');
+        $builderMock->shouldNotReceive('buildFromReview');
+
+        $job = new BuildRamsDocumentJob($record->id);
+        $job->handle($builderMock);
+
+        $record->refresh();
+        $this->assertEquals(RamsDocument::STATUS_FOR_REVIEW, $record->status);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 8. Generation job uses reviewed_data, not extracted_data
     // ─────────────────────────────────────────────────────────────────────────
 
     public function test_generation_job_uses_reviewed_data_not_extracted_data(): void

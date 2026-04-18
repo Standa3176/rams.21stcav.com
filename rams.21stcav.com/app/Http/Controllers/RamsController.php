@@ -178,6 +178,7 @@ class RamsController extends Controller
     public function store(RamsFormRequest $request): RedirectResponse
     {
         $validated = $request->validated();
+        $formData = array_merge($validated, ['source' => 'manual_form']);
 
         // 1. Persist a placeholder record so the builder has an ID for the filename
         $ramsDocument = RamsDocument::create([
@@ -188,7 +189,7 @@ class RamsController extends Controller
             'site_address' => $validated['site_address'] ?? '',
             'ai_provider'  => $this->aiSettings->defaultProvider(),
             'ai_model'     => $this->aiSettings->defaultModel(),
-            'form_data'    => $validated,
+            'form_data'    => $formData,
             'filename'     => 'pending-' . now()->format('YmdHis') . '.docx',
             'status'       => RamsDocument::STATUS_FOR_REVIEW,
         ]);
@@ -199,26 +200,30 @@ class RamsController extends Controller
             $ramsDocument->save();
         }
 
-        // 2. Run the full local pipeline (classify → hazards → AI method stmt → DOCX)
+        // 2. Queue generation to avoid long-running HTTP requests / 504 timeouts.
         try {
-            $this->ramsBuilder->buildFromForm($validated, $ramsDocument);
+            app(WorkerMonitorService::class)->ensureRunning();
+            BuildRamsDocumentJob::dispatch($ramsDocument->id);
         } catch (\Throwable $e) {
-            Log::error('RamsController: RAMS build failed', [
+            Log::error('RamsController: failed to queue manual RAMS generation', [
                 'record_id' => $ramsDocument->id,
                 'error'     => $e->getMessage(),
             ]);
-            $ramsDocument->update(['status' => RamsDocument::STATUS_DRAFT]);
+            $ramsDocument->update([
+                'status'        => RamsDocument::STATUS_FAILED,
+                'error_message' => $e->getMessage(),
+            ]);
 
-            return back()->with('error', 'The document could not be generated. Please try again.');
+            return back()->with('error', 'The document could not be queued for generation. Please try again.');
         }
 
         if (! empty($validated['project_id'])) {
             return redirect()->route('projects.show', (int) $validated['project_id'])
-                ->with('success', 'RAMS generated — download below.');
+                ->with('success', 'RAMS generation queued. The document will be ready shortly.');
         }
 
         return redirect()->route('rams.review', $ramsDocument)
-            ->with('success', 'RAMS generated — review and download below.');
+            ->with('success', 'RAMS generation queued. The document will be ready shortly.');
     }
 
     // ─────────────────────────────────────────────────────────────────────────
