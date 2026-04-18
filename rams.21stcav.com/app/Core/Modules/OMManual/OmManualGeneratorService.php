@@ -235,7 +235,6 @@ class OmManualGeneratorService
         // linked to this project (extracted/reviewed by the PM via review form).
         $descriptionsByRoom = [];
         $linkedPackage = $project->packages()
-            ->whereNotNull('project_id')
             ->latest()
             ->first();
 

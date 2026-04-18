@@ -31,7 +31,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('site_surveys', function (Blueprint $table) {
-            $table->json('survey_data')->nullable()->after('survey_type');
+            $table->json('survey_data')->nullable();
         });
     }
 

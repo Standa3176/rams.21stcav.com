@@ -20,12 +20,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('site_survey_rooms', function (Blueprint $table) {
-            $table->string('work_type', 50)->nullable()->after('area_type');
-            $table->boolean('access_issues')->nullable()->after('access_notes');
-            $table->boolean('working_at_height')->nullable()->after('access_issues');
-            $table->boolean('client_present')->nullable()->after('working_at_height');
-            $table->json('hs_flags')->nullable()->after('client_present');
-            $table->json('constraints_data')->nullable()->after('hs_flags');
+            $table->string('work_type', 50)->nullable();
+            $table->boolean('access_issues')->nullable();
+            $table->boolean('working_at_height')->nullable();
+            $table->boolean('client_present')->nullable();
+            $table->json('hs_flags')->nullable();
+            $table->json('constraints_data')->nullable();
         });
     }
 

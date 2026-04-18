@@ -340,8 +340,17 @@ class WorksheetDocxService
             $row = $table->addRow();
             $row->addCell(3500, ['bgColor' => self::GREY])->addText($label, ['bold' => true, 'size' => 9, 'color' => '4B5563']);
             $cell = $row->addCell(5500);
-            if ($value !== null && $value !== '') {
-                $cell->addText($this->t((string) $value), ['size' => 10, 'color' => self::DARK]);
+            // Render booleans as Yes/No rather than "1"/"" so users see a meaningful
+            // answer for questions like "Additional power required". (M-16)
+            if (is_bool($value)) {
+                $display = $value ? 'Yes' : 'No';
+            } elseif ($value !== null && $value !== '') {
+                $display = (string) $value;
+            } else {
+                $display = null;
+            }
+            if ($display !== null) {
+                $cell->addText($this->t($display), ['size' => 10, 'color' => self::DARK]);
             } else {
                 $cell->addText('Not surveyed', ['size' => 10, 'color' => '9CA3AF', 'italic' => true]);
             }

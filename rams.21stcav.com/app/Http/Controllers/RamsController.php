@@ -400,11 +400,16 @@ class RamsController extends Controller
             'commissioning_criteria.*.pass_condition'        => ['nullable', 'string', 'max:300'],
         ]);
 
+        // Treat an empty-string `project_ref` submission as "not provided" so
+        // fallback chains below reach the existing generated_data / model value
+        // instead of clobbering it with "". (H-03)
+        $projectRefInput = $request->filled('project_ref') ? $validated['project_ref'] : null;
+
         // Merge edits into generated_data['project']
         $generatedData = $rams->generated_data ?? [];
         $generatedData['project'] = array_merge($generatedData['project'] ?? [], [
             'name'            => $validated['project_name'],
-            'ref'             => $validated['project_ref'] ?? ($generatedData['project']['ref'] ?? null),
+            'ref'             => $projectRefInput ?? ($generatedData['project']['ref'] ?? null),
             'client'          => $validated['client_name'],
             'site_address'    => $validated['site_address'],
             'site_contact'    => $validated['site_contact'] ?? '',
@@ -513,7 +518,7 @@ class RamsController extends Controller
 
         $rams->update([
             'project_name'   => $validated['project_name'],
-            'project_ref'    => $validated['project_ref'] ?? $rams->project_ref,
+            'project_ref'    => $projectRefInput ?? $rams->project_ref,
             'client_name'    => $validated['client_name'],
             'site_address'   => $validated['site_address'],
             'generated_data' => $generatedData,
@@ -527,7 +532,7 @@ class RamsController extends Controller
             if ($linkedProject) {
                 $updates = array_filter([
                     'name'         => $validated['project_name'],
-                    'ref'          => $validated['project_ref'] ?? null,
+                    'ref'          => $projectRefInput,
                     'client_name'  => $validated['client_name'],
                     'site_address' => $validated['site_address'],
                 ], fn ($v) => $v !== null && $v !== '');

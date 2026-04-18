@@ -13,16 +13,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('site_survey_rooms', function (Blueprint $table) {
-            $table->string('cable_route_from', 500)->nullable()->after('cable_route_desc');
-            $table->string('cable_route_to',   500)->nullable()->after('cable_route_from');
-            $table->boolean('is_rack_room')->nullable()->default(null)->after('cable_route_to');
-            $table->decimal('projection_throw_m', 5, 2)->nullable()->after('is_rack_room');
-            $table->decimal('viewing_distance_m', 5, 2)->nullable()->after('projection_throw_m');
-            $table->string('network_ssid',         255)->nullable()->after('network_port_count');
-            $table->string('network_vlan',          100)->nullable()->after('network_ssid');
-            $table->string('network_switch_port',   100)->nullable()->after('network_vlan');
-            $table->boolean('engineer_confirmed')->nullable()->default(null)->after('is_completed');
-            $table->string('engineer_signature_name', 255)->nullable()->after('engineer_confirmed');
+            $table->string('cable_route_from', 500)->nullable();
+            $table->string('cable_route_to',   500)->nullable();
+            $table->boolean('is_rack_room')->nullable()->default(null);
+            $table->decimal('projection_throw_m', 5, 2)->nullable();
+            $table->decimal('viewing_distance_m', 5, 2)->nullable();
+            $table->string('network_ssid',         255)->nullable();
+            $table->string('network_vlan',          100)->nullable();
+            $table->string('network_switch_port',   100)->nullable();
+            $table->boolean('engineer_confirmed')->nullable()->default(null);
+            $table->string('engineer_signature_name', 255)->nullable();
         });
     }
 

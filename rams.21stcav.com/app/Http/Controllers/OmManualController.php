@@ -125,7 +125,7 @@ class OmManualController extends Controller
 
     public function storeFromProject(Request $request, Project $project): RedirectResponse
     {
-        abort_if($project->user_id !== auth()->id() && auth()->user()?->role !== 'admin', 403);
+        abort_if($project->user_id !== auth()->id() && ! auth()->user()?->isAdmin(), 403);
 
         $package = $project->latestPackage;
 
@@ -151,7 +151,7 @@ class OmManualController extends Controller
 
     public function generateFromProject(Project $project): RedirectResponse
     {
-        abort_if($project->user_id !== auth()->id() && auth()->user()?->role !== 'admin', 403);
+        abort_if($project->user_id !== auth()->id() && ! auth()->user()?->isAdmin(), 403);
 
         // Pass 1 replacement (D-07, D-08): Build extracted_data from ProjectDataService.
         // ProjectDataService::resolve() returns reviewed, merged canonical data.
@@ -195,7 +195,7 @@ class OmManualController extends Controller
 
     public function status(OmManual $omManual): JsonResponse
     {
-        abort_if($omManual->user_id !== auth()->id() && auth()->user()?->role !== 'admin', 403);
+        abort_if($omManual->user_id !== auth()->id() && ! auth()->user()?->isAdmin(), 403);
 
         $downloadUrl = in_array($omManual->status, [OmManual::STATUS_DRAFT, OmManual::STATUS_FINAL])
             ? route('om-manuals.download', $omManual)
@@ -215,7 +215,7 @@ class OmManualController extends Controller
      */
     public function retryGeneration(OmManual $omManual): RedirectResponse
     {
-        abort_if($omManual->user_id !== auth()->id() && auth()->user()?->role !== 'admin', 403);
+        abort_if($omManual->user_id !== auth()->id() && ! auth()->user()?->isAdmin(), 403);
 
         if (empty($omManual->extracted_data)) {
             return back()->with('error', 'Cannot retry — extracted data is missing. Please create a new O&M manual.');
