@@ -6,7 +6,11 @@ use App\Core\AI\AIManager;
 use App\Core\AI\Prompts\WorksheetPrompt;
 use App\Core\Modules\Projects\ProjectDataService;
 use App\Models\Worksheet;
+use App\Services\Worksheet\BlockerPromoter;
+use App\Services\Worksheet\FriendlyNameResolver;
+use App\Services\Worksheet\SafetyProfileService;
 use App\Services\Worksheet\WorksheetClassifier;
+use App\Services\Worksheet\WorksheetTextNormalizer;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -45,10 +49,10 @@ class WorksheetGeneratorService
 
     private const SUBSYSTEM_PATTERNS = [
         'Display'              => ['display', 'screen', 'monitor', 'tv', 'television', 'samsung', 'lg', 'sony', 'uhd', '4k', 'oled', 'qled', 'projector', 'lens'],
-        'VC / Video Conferencing' => ['cisco', 'poly', 'logitech', 'teams room', 'zoom room', 'room kit', 'codec', 'navigator', 'quad cam', 'ptz', 'camera', 'webcam', 'conferencing'],
+        'Video Conferencing' => ['cisco', 'poly', 'logitech', 'teams room', 'zoom room', 'room kit', 'codec', 'navigator', 'quad cam', 'ptz', 'camera', 'webcam', 'conferencing'],
         'Audio'                => ['speaker', 'loudspeaker', 'microphone', 'mic', 'dsp', 'amplifier', 'amp', 'biamp', 'shure', 'sennheiser', 'audio', 'soundbar'],
         'Rack & Infrastructure' => ['rack', '1u', '2u', 'blank', 'fan', 'pdu', 'power distribution', 'shelf', 'drawer'],
-        'Control / Automation' => ['control', 'crestron', 'extron', 'amx', 'touch panel', 'sensor', 'partition', 'automation', 'keypad', 'button panel'],
+        'Control & Automation' => ['control', 'crestron', 'extron', 'amx', 'touch panel', 'sensor', 'partition', 'automation', 'keypad', 'button panel'],
     ];
 
     public function __construct(
@@ -112,8 +116,10 @@ class WorksheetGeneratorService
             $roomDescriptions, $worksOverview, $preInstallAnswers
         );
 
-        // ── Detect blockers ──────────────────────────────────────────────────
-        $blockers = $this->detectBlockers($rooms, $data);
+        // ── Pass B: blockers are rebuilt from source on every generation so
+        //    a flipped answer cleanly invalidates, and regenerating twice
+        //    with no input change produces byte-identical output.
+        $blockers = $this->promoteBlockers($rooms, $data, $preInstallAnswers);
 
         // ── Pass A: shadow classifier run. Telemetry-only; does NOT alter
         //    render behaviour. Stored under _classification_telemetry so any
@@ -277,16 +283,30 @@ class WorksheetGeneratorService
     ): array {
         $rooms = [];
 
-        foreach ($quoteRooms as $room) {
-            $roomName   = $room['room_name'] ?? $room['name'] ?? 'Unknown Room';
-            $isSurveyed = $this->isSurveyed($room);
-            $allItems   = $room['equipment'] ?? [];
+        $normalizer = app(WorksheetTextNormalizer::class);
+        $friendly   = app(FriendlyNameResolver::class);
+        $safetySvc  = app(SafetyProfileService::class);
 
-            // ── A. Classify every line item ──────────────────────────────────
+        foreach ($quoteRooms as $room) {
+            $rawRoomName = $room['room_name'] ?? $room['name'] ?? 'Unknown Room';
+            $roomName    = $normalizer->normalize((string) $rawRoomName);
+            $isSurveyed  = $this->isSurveyed($room);
+            $allItems    = $room['equipment'] ?? [];
+
+            // ── A. Classify every line item (labour/cable/existing splits) ───
             $classified = $this->classifyItems($allItems);
 
-            // ── B. Group install hardware by subsystem ───────────────────────
-            $subsystems = $this->groupBySubsystem($classified['install_hardware']);
+            // ── A2. Apply friendly-name resolver so bare SKUs become readable.
+            $classified['install_hardware'] = array_map(
+                fn (array $i) => $i + ['name' => $friendly->resolve($i)],
+                $classified['install_hardware'],
+            );
+
+            // ── B. Canonical category grouping (Pass B authoritative path) ───
+            $subsystems = $this->groupByCanonicalCategory($classified['install_hardware']);
+
+            // Room summary string derived dynamically from present category keys.
+            $categorySummary = $this->buildCategorySummary(array_keys($subsystems));
 
             // ── C. AI install steps (narrative) ─────────────────────────────
             $installSteps = null;
@@ -329,8 +349,8 @@ class WorksheetGeneratorService
                 'snags'              => '',
             ];
 
-            // ── H. Safety callouts ───────────────────────────────────────────
-            $safety = $this->detectSafetyCallouts($classified['install_hardware']);
+            // ── H. Safety callouts — per-room, metadata-first (Pass B) ───────
+            $safety = $safetySvc->profileRoom($room, $classified['install_hardware']);
 
             // ── I. Tools required ────────────────────────────────────────────
             $tools = $this->deriveToolsRequired($subsystems);
@@ -345,9 +365,10 @@ class WorksheetGeneratorService
                 'name'                      => $roomName,
                 'floor'                     => $room['floor'] ?? null,
                 'is_surveyed'               => $isSurveyed,
-                'room_works_description'    => $roomWorksDesc,
+                'room_works_description'    => $normalizer->normalize($roomWorksDesc),
                 'equipment'                 => $classified['install_hardware'],
                 'subsystems'                => $subsystems,
+                'category_summary'          => $categorySummary,
                 'cables'                    => $classified['cable_consumable'],
                 'existing_reuse'            => $classified['existing_reuse'],
                 'install_steps'             => $installSteps,
@@ -423,7 +444,68 @@ class WorksheetGeneratorService
     }
 
     // =========================================================================
-    // B. SUBSYSTEM GROUPING
+    // B2. CANONICAL CATEGORY GROUPING (Pass B authoritative path)
+    // =========================================================================
+
+    /**
+     * Group install hardware into the 6 canonical categories using the
+     * deterministic WorksheetClassifier. Items falling to an internal
+     * sentinel (unclassified / mount_accessory / warranty_service /
+     * existing_unknown) are kept out of the rendered groups — Pass C adds
+     * a soft-warning panel for those. Never emits an "Other Hardware" bucket.
+     *
+     * @param  array $hardware  install-hardware items (already classified by
+     *                          upstream classifyItems() as eligible for render)
+     * @return array<string, array<int, array>>  label → items, in taxonomy order
+     */
+    private function groupByCanonicalCategory(array $hardware): array
+    {
+        $taxonomy = (array) config('worksheet_taxonomy', []);
+        $labels   = (array) ($taxonomy['categories']     ?? []);
+        $order    = (array) ($taxonomy['category_order'] ?? array_keys($labels));
+
+        $classifier = app(WorksheetClassifier::class);
+        $result     = $classifier->classifyRoom($hardware);
+
+        $bucketed = [];
+        foreach ($result['items'] as $item) {
+            $cat = $item['_classification']['category'] ?? 'unclassified';
+            // Sentinels never render; Pass C surfaces them via warnings panel.
+            if (! isset($labels[$cat])) continue;
+            $bucketed[$cat][] = $item;
+        }
+
+        $ordered = [];
+        foreach ($order as $key) {
+            if (! empty($bucketed[$key])) {
+                $ordered[$labels[$key]] = $bucketed[$key];
+            }
+        }
+        return $ordered;
+    }
+
+    /**
+     * Build the room-level summary string from the set of category labels
+     * present in the room. Always in canonical taxonomy order; uses Oxford-
+     * free "A and B" / "A, B and C" phrasing.
+     *
+     * @param array<int, string> $presentLabels  labels as they appear in the
+     *                                            grouped-by-category map
+     */
+    private function buildCategorySummary(array $presentLabels): string
+    {
+        if (empty($presentLabels)) return '';
+
+        $n = count($presentLabels);
+        if ($n === 1) return $presentLabels[0];
+        if ($n === 2) return $presentLabels[0] . ' and ' . $presentLabels[1];
+        $last = array_pop($presentLabels);
+        return implode(', ', $presentLabels) . ' and ' . $last;
+    }
+
+    // =========================================================================
+    // B. SUBSYSTEM GROUPING (legacy — kept for backward compat with any stray
+    //    caller; new render path uses groupByCanonicalCategory instead)
     // =========================================================================
 
     private function groupBySubsystem(array $hardware): array
@@ -490,7 +572,7 @@ class WorksheetGeneratorService
         if (isset($subsystems['Audio'])) {
             $firstFix[] = 'Install speaker brackets and ceiling mounts — confirm positions match design.';
         }
-        if (isset($subsystems['VC / Video Conferencing'])) {
+        if (isset($subsystems['Video Conferencing'])) {
             $firstFix[] = 'Install camera mounting brackets and codec shelf/mount.';
         }
         if (isset($subsystems['Rack & Infrastructure'])) {
@@ -535,13 +617,13 @@ class WorksheetGeneratorService
 
         // Phase 5: Power-Up & Configuration
         $config = ['Power on all equipment sequentially — verify each unit before proceeding.'];
-        if (isset($subsystems['VC / Video Conferencing'])) {
+        if (isset($subsystems['Video Conferencing'])) {
             $config[] = 'Sign in to conferencing platform and verify network connectivity.';
         }
         if (isset($subsystems['Audio'])) {
             $config[] = 'Set DSP levels and verify audio signal path.';
         }
-        if (isset($subsystems['Control / Automation'])) {
+        if (isset($subsystems['Control & Automation'])) {
             $config[] = 'Load control system programming and test all functions.';
         }
         if (isset($subsystems['Display'])) {
@@ -564,7 +646,68 @@ class WorksheetGeneratorService
     }
 
     // =========================================================================
-    // D. BLOCKERS
+    // D2. BLOCKER PROMOTION (Pass B authoritative path)
+    // =========================================================================
+
+    /**
+     * Deterministic, idempotent blocker list. Rebuilt from source every call:
+     *   1. Survey-level: if no site survey completed, add the survey blocker.
+     *   2. Room-level: additional-power + VC-without-network-port checks.
+     *   3. Pre-install answers: any failed/unknown answer promotes to a
+     *      typed blocker via BlockerPromoter.
+     *
+     * Flipping an answer from No→Yes between generations must make the blocker
+     * disappear. Regenerating with no input change must produce byte-identical
+     * output. Tests lock both invariants.
+     */
+    private function promoteBlockers(array $rooms, array $data, array $preInstallAnswers): array
+    {
+        $blockers = [];
+
+        if (! ($data['meta']['has_survey'] ?? false)) {
+            $blockers[] = [
+                'type'    => 'survey',
+                'message' => 'Site survey not completed — fixing positions and cable routes unconfirmed.',
+                'action'  => 'Complete site survey before installation.',
+                'room'    => '(project)',
+                'source'  => 'no_survey',
+            ];
+        }
+
+        foreach ($rooms as $room) {
+            $roomName = (string) ($room['name'] ?? 'Unknown');
+            if (($room['requires_additional_power'] ?? false) === true) {
+                $blockers[] = [
+                    'type'    => 'power',
+                    'message' => $roomName . ': Additional power outlets required.',
+                    'action'  => 'Confirm power provision with the client electrician before install.',
+                    'room'    => $roomName,
+                    'source'  => 'room_power_' . substr(md5($roomName), 0, 8),
+                ];
+            }
+            if (($room['network_port_count'] ?? 0) === 0
+                && ! empty($room['subsystems']['Video Conferencing'] ?? [])) {
+                $blockers[] = [
+                    'type'    => 'network',
+                    'message' => $roomName . ': VC system requires network but no ports recorded.',
+                    'action'  => 'Confirm network drop availability with client IT.',
+                    'room'    => $roomName,
+                    'source'  => 'room_net_' . substr(md5($roomName), 0, 8),
+                ];
+            }
+        }
+
+        // Pre-install answer → blocker promotion (idempotent via BlockerPromoter).
+        $promoter = app(BlockerPromoter::class);
+        foreach ($promoter->promoteFromAnswers($preInstallAnswers) as $promoted) {
+            $blockers[] = $promoted;
+        }
+
+        return $blockers;
+    }
+
+    // =========================================================================
+    // D. BLOCKERS (legacy — retained during the Pass B transition only)
     // =========================================================================
 
     private function detectBlockers(array $rooms, array $data): array
@@ -588,7 +731,7 @@ class WorksheetGeneratorService
                     'action'  => 'Confirm power provision with client electrician before install.',
                 ];
             }
-            if (($room['network_port_count'] ?? 0) === 0 && ! empty($room['subsystems']['VC / Video Conferencing'] ?? [])) {
+            if (($room['network_port_count'] ?? 0) === 0 && ! empty($room['subsystems']['Video Conferencing'] ?? [])) {
                 $blockers[] = [
                     'type'    => 'network',
                     'message' => $room['name'] . ': VC system requires network but no ports recorded.',
@@ -616,12 +759,12 @@ class WorksheetGeneratorService
             $checks[] = ['system' => 'Audio', 'check' => 'Audio output from all speakers at correct level', 'result' => '', 'notes' => ''];
             $checks[] = ['system' => 'Audio', 'check' => 'Microphone pickup clear — no feedback', 'result' => '', 'notes' => ''];
         }
-        if (isset($subsystems['VC / Video Conferencing'])) {
+        if (isset($subsystems['Video Conferencing'])) {
             $checks[] = ['system' => 'VC', 'check' => 'Test call completed successfully', 'result' => '', 'notes' => ''];
             $checks[] = ['system' => 'VC', 'check' => 'Camera framing correct — all participants visible', 'result' => '', 'notes' => ''];
             $checks[] = ['system' => 'VC', 'check' => 'Content sharing functional (wired and wireless)', 'result' => '', 'notes' => ''];
         }
-        if (isset($subsystems['Control / Automation'])) {
+        if (isset($subsystems['Control & Automation'])) {
             $checks[] = ['system' => 'Control', 'check' => 'Touch panel responsive — all pages functional', 'result' => '', 'notes' => ''];
             $checks[] = ['system' => 'Control', 'check' => 'All macro functions tested', 'result' => '', 'notes' => ''];
         }
@@ -782,7 +925,7 @@ class WorksheetGeneratorService
         if (isset($subsystems['Display'])) {
             $actions[] = 'mount and align display hardware';
         }
-        if (isset($subsystems['VC / Video Conferencing'])) {
+        if (isset($subsystems['Video Conferencing'])) {
             $actions[] = 'integrate VC endpoints with network services';
         }
         if (isset($subsystems['Audio'])) {
@@ -791,8 +934,11 @@ class WorksheetGeneratorService
         if (isset($subsystems['Rack & Infrastructure'])) {
             $actions[] = 'build, terminate and dress the rack';
         }
-        if (isset($subsystems['Control / Automation'])) {
+        if (isset($subsystems['Control & Automation'])) {
             $actions[] = 'verify control behaviour and room triggers';
+        }
+        if (isset($subsystems['Network'])) {
+            $actions[] = 'rack, patch and label network switch / AP kit';
         }
         if (! empty($actions)) {
             $sentences[] = 'Work outputs: ' . $this->formatList($actions, 3, 'install listed kit and complete functional checks') . '.';

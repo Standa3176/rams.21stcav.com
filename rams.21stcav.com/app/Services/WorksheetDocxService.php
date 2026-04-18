@@ -140,8 +140,8 @@ class WorksheetDocxService
             ['size' => 9, 'color' => $isSurveyed ? '065F46' : '6B7280', 'italic' => true]);
         $section->addTextBreak(1);
 
-        // ── Room works description ───────────────────────────────────────────
-        $this->heading($section, 'ROOM WORKS DESCRIPTION');
+        // ── Engineer work summary ────────────────────────────────────────────
+        $this->heading($section, 'ENGINEER WORK SUMMARY');
         $worksDesc = trim((string) ($room['room_works_description'] ?? ''));
         if ($worksDesc !== '') {
             $section->addText($this->t($worksDesc),
@@ -149,6 +149,13 @@ class WorksheetDocxService
         } else {
             $section->addText('Works description not available for this room.',
                 ['size' => 10, 'color' => '9CA3AF', 'italic' => true]);
+        }
+        $section->addTextBreak(1);
+
+        // ── Engineer task checklist ──────────────────────────────────────────
+        $this->heading($section, 'ENGINEER TASK CHECKLIST');
+        foreach ($this->roomWorkChecklist($room) as $task) {
+            $section->addListItem($this->t($task), 0, ['size' => 10, 'color' => self::DARK], 'listBullet');
         }
         $section->addTextBreak(1);
 
@@ -170,8 +177,8 @@ class WorksheetDocxService
             $section->addTextBreak(1);
         }
 
-        // ── A. Equipment by Subsystem ────────────────────────────────────────
-        $this->heading($section, 'A. EQUIPMENT TO INSTALL');
+        // ── Kit required by room/subsystem ───────────────────────────────────
+        $this->heading($section, 'KIT REQUIRED IN THIS ROOM');
         $subsystems = $room['subsystems'] ?? [];
         if (! empty($subsystems)) {
             foreach ($subsystems as $label => $items) {
@@ -186,22 +193,22 @@ class WorksheetDocxService
         }
         $section->addTextBreak(1);
 
-        // ── B. Existing / Retained ───────────────────────────────────────────
+        // ── Existing / Retained ──────────────────────────────────────────────
         if (! empty($room['existing_reuse'])) {
-            $this->heading($section, 'B. EXISTING EQUIPMENT (RETAINED)');
+            $this->heading($section, 'EXISTING EQUIPMENT (RETAINED)');
             $this->equipmentTable($section, $room['existing_reuse']);
             $section->addTextBreak(1);
         }
 
-        // ── C. Cabling & Connections ─────────────────────────────────────────
+        // ── Cabling & Connections (reference) ────────────────────────────────
         if (! empty($room['cables'])) {
-            $this->heading($section, 'C. CABLING & CONNECTIONS');
+            $this->heading($section, 'CABLING & CONNECTIONS (REFERENCE)');
             $this->equipmentTable($section, $room['cables']);
             $section->addTextBreak(1);
         }
 
-        // ── D. Cable Routes ──────────────────────────────────────────────────
-        $this->heading($section, 'D. CABLE ROUTES');
+        // ── Cable routes ─────────────────────────────────────────────────────
+        $this->heading($section, 'CABLE ROUTE NOTES');
         $cableRoute = $room['cable_route_desc'] ?? null;
         if ($cableRoute) {
             $section->addText($this->t((string) $cableRoute), ['size' => 10, 'color' => self::DARK]);
@@ -210,60 +217,14 @@ class WorksheetDocxService
         }
         $section->addTextBreak(1);
 
-        // ── E. Power & Network ───────────────────────────────────────────────
-        $this->heading($section, 'E. POWER & NETWORK');
+        // ── Power & Network check ────────────────────────────────────────────
+        $this->heading($section, 'POWER & NETWORK CHECK');
         $this->powerNetworkTable($section, $room);
         $section->addTextBreak(1);
 
-        // ── F. Phased Install Plan ───────────────────────────────────────────
-        $this->heading($section, 'F. PHASED INSTALL PLAN');
-        $plan = $room['phased_plan'] ?? $room['install_steps'] ?? null;
-        if (is_array($plan) && ! empty($plan)) {
-            foreach ($plan as $phase) {
-                if (is_array($phase) && isset($phase['title'])) {
-                    $section->addText(
-                        $this->t(($phase['step'] ?? '') . '. ' . ($phase['title'] ?? '')),
-                        ['size' => 10, 'bold' => true, 'color' => self::TEAL]);
-                    foreach ($phase['items'] ?? [] as $item) {
-                        $section->addListItem($this->t((string) $item), 0,
-                            ['size' => 10, 'color' => self::DARK], 'listBullet');
-                    }
-                    $section->addTextBreak();
-                } elseif (is_string($phase) && trim($phase) !== '') {
-                    $section->addText($this->t($phase), ['size' => 10, 'color' => self::DARK], ['lineHeight' => 1.6]);
-                }
-            }
-        } elseif (is_string($plan) && trim($plan) !== '') {
-            $section->addText($this->t($plan), ['size' => 10, 'color' => self::DARK], ['lineHeight' => 1.6]);
-        } else {
-            $section->addText('Install plan not available.', ['size' => 10, 'color' => '9CA3AF', 'italic' => true]);
-        }
-        $section->addTextBreak(1);
-
-        // ── G. Commissioning Checklist ───────────────────────────────────────
-        if (! empty($room['commissioning'])) {
-            $this->heading($section, 'G. COMMISSIONING CHECKLIST');
-            $table = $section->addTable(['borderSize' => 6, 'borderColor' => self::MID, 'cellMargin' => 80]);
-            $h = $table->addRow();
-            $h->addCell(1500, ['bgColor' => self::TEAL])->addText('System', ['bold' => true, 'color' => self::WHITE, 'size' => 9]);
-            $h->addCell(5000, ['bgColor' => self::TEAL])->addText('Check', ['bold' => true, 'color' => self::WHITE, 'size' => 9]);
-            $h->addCell(1200, ['bgColor' => self::TEAL])->addText('Pass/Fail', ['bold' => true, 'color' => self::WHITE, 'size' => 9]);
-            $h->addCell(2300, ['bgColor' => self::TEAL])->addText('Notes', ['bold' => true, 'color' => self::WHITE, 'size' => 9]);
-
-            foreach ($room['commissioning'] as $i => $check) {
-                $bg = ($i % 2 === 0) ? self::WHITE : self::GREY;
-                $row = $table->addRow();
-                $row->addCell(1500, ['bgColor' => $bg])->addText($this->t($check['system'] ?? ''), ['size' => 9, 'bold' => true]);
-                $row->addCell(5000, ['bgColor' => $bg])->addText($this->t($check['check'] ?? ''), ['size' => 9]);
-                $row->addCell(1200, ['bgColor' => $bg])->addText('', ['size' => 9]); // Blank for engineer
-                $row->addCell(2300, ['bgColor' => $bg])->addText('', ['size' => 9]); // Blank for notes
-            }
-            $section->addTextBreak(1);
-        }
-
-        // ── H. Pre-Install Answers ───────────────────────────────────────────
+        // ── Pre-Install Answers ──────────────────────────────────────────────
         if (! empty($room['pre_install_answers'])) {
-            $this->heading($section, 'H. PRE-INSTALL CHECK ANSWERS');
+            $this->heading($section, 'PRE-INSTALL CHECK ANSWERS');
             $table = $section->addTable(['borderSize' => 6, 'borderColor' => self::MID, 'cellMargin' => 80]);
             $h = $table->addRow();
             $h->addCell(6000, ['bgColor' => self::TEAL])->addText('Question', ['bold' => true, 'color' => self::WHITE, 'size' => 9]);
@@ -281,8 +242,8 @@ class WorksheetDocxService
             $section->addTextBreak(1);
         }
 
-        // ── I. Engineer Notes / Snags / Sign-Off ─────────────────────────────
-        $this->heading($section, 'I. ENGINEER SIGN-OFF');
+        // ── Engineer Notes / Snags / Sign-Off ────────────────────────────────
+        $this->heading($section, 'ENGINEER SIGN-OFF');
         $soTable = $section->addTable(['borderSize' => 6, 'borderColor' => self::MID, 'cellMargin' => 80]);
         $soFields = [
             ['Engineer Name', ''],
@@ -297,6 +258,46 @@ class WorksheetDocxService
             $row->addCell(3000, ['bgColor' => self::GREY])->addText($label, ['bold' => true, 'size' => 9, 'color' => '4B5563']);
             $row->addCell(6000)->addText($this->t($val), ['size' => 10, 'color' => self::DARK]);
         }
+    }
+
+    private function roomWorkChecklist(array $room): array
+    {
+        $checks = [];
+        $subsystems = $room['subsystems'] ?? [];
+        $equipmentCount = count($room['equipment'] ?? []);
+        $items = $equipmentCount === 1 ? 'item' : 'items';
+
+        $checks[] = 'Review room summary and kit list before unloading equipment.';
+
+        if ($equipmentCount > 0) {
+            $checks[] = "Install and secure {$equipmentCount} listed {$items} to agreed room positions.";
+        } else {
+            $checks[] = 'Confirm room scope and kit list with project lead before starting.';
+        }
+
+        if (isset($subsystems['Display'])) {
+            $checks[] = 'Set display mounting height/alignment and confirm input mapping.';
+        }
+        if (isset($subsystems['Audio'])) {
+            $checks[] = 'Terminate audio endpoints, label terminations, and verify signal path.';
+        }
+        if (isset($subsystems['Video Conferencing'])) {
+            $checks[] = 'Commission VC endpoints and complete a live test call.';
+        }
+        if (isset($subsystems['Rack & Infrastructure'])) {
+            $checks[] = 'Rack, terminate, dress, and label all associated cabling.';
+        }
+        if (isset($subsystems['Control & Automation'])) {
+            $checks[] = 'Verify control UI pages and room automation triggers.';
+        }
+
+        if (! ($room['is_surveyed'] ?? false)) {
+            $checks[] = 'Before first fix: confirm fixing points, cable routes, and power/network outlet availability.';
+        }
+
+        $checks[] = 'Record snags and complete engineer sign-off before leaving the room.';
+
+        return array_values(array_unique($checks));
     }
 
     // ── Equipment table ──────────────────────────────────────────────────────
