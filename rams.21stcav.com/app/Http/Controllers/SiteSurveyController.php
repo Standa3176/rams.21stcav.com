@@ -8,6 +8,7 @@ use App\Models\SiteSurvey;
 use App\Models\SiteSurveyPhoto;
 use App\Models\SiteSurveyRoom;
 use App\Models\SiteSurveyRoomQuestion;
+use App\Services\Survey\SiteSurveyTierOneReadinessService;
 use App\Services\SurveyPdfService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -18,8 +19,9 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 class SiteSurveyController extends Controller
 {
     public function __construct(
-        private readonly SurveyService    $service,
-        private readonly SurveyPdfService $pdfService,
+        private readonly SurveyService                     $service,
+        private readonly SurveyPdfService                  $pdfService,
+        private readonly SiteSurveyTierOneReadinessService $tierOne,
     ) {}
 
     // ─── Listing / show ──────────────────────────────────────────────────────
@@ -47,9 +49,16 @@ class SiteSurveyController extends Controller
     {
         $this->authorizeSurvey($siteSurvey);
 
-        $siteSurvey->load('rooms.photos', 'project:id,name');
+        // `rooms.questions` eager-loaded so SiteSurveyTierOneReadinessService
+        // doesn't N+1 when counting answered pre-install checks.
+        $siteSurvey->load('rooms.photos', 'rooms.questions', 'project:id,name');
 
-        return view('site-survey.show', ['survey' => $siteSurvey]);
+        $tierOne = $this->tierOne->assessSurvey($siteSurvey);
+
+        return view('site-survey.show', [
+            'survey'  => $siteSurvey,
+            'tierOne' => $tierOne,
+        ]);
     }
 
     // ─── Create ──────────────────────────────────────────────────────────────

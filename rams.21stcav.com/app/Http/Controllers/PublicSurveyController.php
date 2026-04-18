@@ -8,6 +8,7 @@ use App\Models\SiteSurvey;
 use App\Models\SiteSurveyPhoto;
 use App\Models\SiteSurveyRoom;
 use App\Models\SiteSurveyRoomQuestion;
+use App\Services\Survey\SiteSurveyTierOneReadinessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,7 +31,8 @@ use Illuminate\View\View;
 class PublicSurveyController extends Controller
 {
     public function __construct(
-        private readonly SurveyService $service,
+        private readonly SurveyService                     $service,
+        private readonly SiteSurveyTierOneReadinessService $tierOne,
     ) {}
 
     // ─── Show survey form ────────────────────────────────────────────────────
@@ -89,12 +91,15 @@ class PublicSurveyController extends Controller
             }
         }
 
+        $tierOne = $this->tierOne->assessSurvey($survey);
+
         return view('public-survey.show', [
             'survey'               => $survey,
             'token'                => $token,
             'readonly'             => $survey->isSubmitted(),
             'kitByArea'            => $kitByArea,
             'solutionTypesByRoom'  => $solutionTypesByRoom,
+            'tierOne'              => $tierOne,
         ]);
     }
 
