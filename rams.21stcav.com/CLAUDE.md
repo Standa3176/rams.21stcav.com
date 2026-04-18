@@ -116,8 +116,19 @@ An internal operations platform for 21st Century AV Ltd that manages the full li
 ## File Storage
 - Private storage: `storage/app/private/`
 - Public storage: `storage/app/public/` (symlinked to `public/storage`)
+- Document artifacts: `storage/app/documents/{rams,om-manuals,worksheets,cable-schedules}/` via the `documents` disk
 - S3 configured but not active by default
 - Config: `config/filesystems.php`
+
+### Generated-document convention (H-07)
+
+All four document pipelines (RAMS DOCX, O&M DOCX, Worksheet DOCX, Cable XLSX/CSV) write through `App\Services\DocumentArtifactStorage`. Never hand-build paths with `storage_path('app/rams/...')`, `Storage::disk('local')->path('worksheets/...')`, or similar — a typo lands the file in the wrong tree and readers won't find it.
+
+- **Writing:** `$path = app(DocumentArtifactStorage::class)->writePath(DocumentArtifactStorage::TYPE_RAMS, $filename);` — creates the subdirectory on demand, returns an absolute path ready to `file_put_contents` / PhpWord::save().
+- **Reading:** `$path = $artifacts->readPath(TYPE_OM, $filename);` — returns `null` if the file isn't in the current `documents` disk path **or** the legacy location (pre-H-07 artifacts still in `storage/app/rams/` etc). Callers must treat `null` as "not found".
+- **Deleting:** `$artifacts->delete(TYPE_WORKSHEET, $filename)` — idempotent; clears both current and legacy copies.
+- **Type constants:** `TYPE_RAMS`, `TYPE_OM`, `TYPE_WORKSHEET`, `TYPE_CABLE`. Unknown strings throw `InvalidArgumentException` so typos fail loudly.
+- Tests: fake the disk with `Storage::fake('documents')` (see `tests/Unit/Services/DocumentArtifactStorageTest.php`).
 ## Authentication
 - Driver: Eloquent user provider
 - Scaffolded by Laravel Breeze
