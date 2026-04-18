@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\OmManual;
+use App\Services\DocumentArtifactStorage;
 use App\Services\DocumentTemplateService;
 use PhpOffice\PhpWord\Element\Section;
 use PhpOffice\PhpWord\IOFactory;
@@ -32,6 +33,7 @@ class OmManualDocxService
 {
     public function __construct(
         private readonly DocumentTemplateService $templates,
+        private readonly DocumentArtifactStorage $artifacts = new DocumentArtifactStorage(),
     ) {}
 
     // Brand colours
@@ -150,16 +152,11 @@ class OmManualDocxService
         $this->buildDocumentControlSection($s, $sectionNum, $manual);
 
         // ── Save ──────────────────────────────────────────────────────────────
-        $storageDir = storage_path('app/om-manuals');
-        if (! is_dir($storageDir)) {
-            mkdir($storageDir, 0755, true);
-        }
-
         $filename = 'OM_'
             . preg_replace('/[^A-Za-z0-9_\-]/', '_', $manual->project_ref ?? 'manual')
             . '_' . now()->format('YmdHis') . '.docx';
 
-        $filePath = $storageDir . '/' . $filename;
+        $filePath = $this->artifacts->writePath(DocumentArtifactStorage::TYPE_OM, $filename);
 
         $writer = IOFactory::createWriter($phpWord, 'Word2007');
         $writer->save($filePath);

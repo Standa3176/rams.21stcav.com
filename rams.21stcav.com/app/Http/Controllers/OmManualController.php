@@ -306,11 +306,12 @@ class OmManualController extends Controller
             return back()->with('error', 'No document available yet. Please generate the manual first.');
         }
 
-        // OmManualDocxService writes to storage/app/om-manuals/ (absolute path),
-        // not via the 'local' disk (which roots at storage/app/private/).
-        $filePath = storage_path('app/om-manuals/' . $omManual->filename);
+        // Post-H-07: the artifact store resolves the new `documents` disk first
+        // and falls back to legacy storage/app/om-manuals/ for older files.
+        $filePath = app(\App\Services\DocumentArtifactStorage::class)
+            ->readPath(\App\Services\DocumentArtifactStorage::TYPE_OM, basename($omManual->filename));
 
-        if (! file_exists($filePath)) {
+        if ($filePath === null) {
             return back()->with('error', 'Document file not found on disk.');
         }
 
@@ -374,7 +375,12 @@ class OmManualController extends Controller
         $record = OmManual::onlyTrashed()->findOrFail($id);
 
         if ($record->filename) {
-            Storage::disk('local')->delete('om-manuals/' . $record->filename);
+            // Previously this targeted Storage::disk('local') which resolves
+            // to storage/app/private/om-manuals/ — the wrong disk — so the
+            // delete was a silent no-op. The artifact store removes copies
+            // from both the new `documents` disk and the legacy path.
+            app(\App\Services\DocumentArtifactStorage::class)
+                ->delete(\App\Services\DocumentArtifactStorage::TYPE_OM, basename((string) $record->filename));
         }
 
         $record->forceDelete();
