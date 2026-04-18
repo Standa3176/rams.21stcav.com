@@ -167,16 +167,19 @@ class WorksheetController extends Controller
             403
         );
 
-        abort_unless(
-            $worksheet->filename && Storage::disk('local')->exists('worksheets/' . $worksheet->filename),
-            404,
-            'Worksheet DOCX not found. Try regenerating.'
-        );
+        if (! $worksheet->filename) {
+            abort(404, 'Worksheet DOCX not found. Try regenerating.');
+        }
 
-        return response()->download(
-            Storage::disk('local')->path('worksheets/' . $worksheet->filename),
-            $worksheet->filename
-        );
+        // Post-H-07: new worksheets land in storage/app/documents/worksheets/.
+        // readPath() falls back to legacy storage/app/private/worksheets/ so
+        // already-generated files remain downloadable.
+        $filePath = app(\App\Services\DocumentArtifactStorage::class)
+            ->readPath(\App\Services\DocumentArtifactStorage::TYPE_WORKSHEET, basename($worksheet->filename));
+
+        abort_if($filePath === null, 404, 'Worksheet DOCX not found. Try regenerating.');
+
+        return response()->download($filePath, $worksheet->filename);
     }
 
     // =========================================================================

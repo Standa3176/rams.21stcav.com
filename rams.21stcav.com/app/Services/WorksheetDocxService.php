@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use App\Models\Worksheet;
+use App\Services\DocumentArtifactStorage;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
 use PhpOffice\PhpWord\Settings;
@@ -26,6 +26,10 @@ use RuntimeException;
  */
 class WorksheetDocxService
 {
+    public function __construct(
+        private readonly DocumentArtifactStorage $artifacts = new DocumentArtifactStorage(),
+    ) {}
+
     private const TEAL  = '178A95';
     private const WHITE = 'FFFFFF';
     private const DARK  = '0B3C45';
@@ -61,11 +65,9 @@ class WorksheetDocxService
         }
 
         // ── Save ─────────────────────────────────────────────────────────────
-        $filename  = 'worksheet_' . $worksheet->id . '_' . now()->format('Ymd_His') . '.docx';
-        $directory = Storage::disk('local')->path('worksheets');
-        if (! is_dir($directory)) mkdir($directory, 0755, true);
+        $filename = 'worksheet_' . $worksheet->id . '_' . now()->format('Ymd_His') . '.docx';
+        $fullPath = $this->artifacts->writePath(DocumentArtifactStorage::TYPE_WORKSHEET, $filename);
 
-        $fullPath = $directory . DIRECTORY_SEPARATOR . $filename;
         $writer = IOFactory::createWriter($phpWord, 'Word2007');
         $writer->save($fullPath);
 
