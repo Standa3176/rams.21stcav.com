@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\CableSchedule;
 use App\Services\CableScheduleGeneratorService;
 use App\Services\CableScheduleXlsxService;
+use App\Services\DocumentArtifactStorage;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -146,13 +147,9 @@ class BuildCableScheduleJob implements ShouldQueue
      */
     private function buildCsvFallback(CableSchedule $schedule): void
     {
-        $directory = storage_path('app/private/cable-schedules');
-        if (! is_dir($directory)) {
-            mkdir($directory, 0755, true);
-        }
-
         $filename = 'cable_schedule_' . $schedule->id . '_' . now()->format('Ymd') . '.csv';
-        $filePath = $directory . '/' . $filename;
+        $filePath = app(DocumentArtifactStorage::class)
+            ->writePath(DocumentArtifactStorage::TYPE_CABLE, $filename);
 
         $fp = fopen($filePath, 'w');
 

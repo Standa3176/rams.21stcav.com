@@ -257,10 +257,13 @@ class CableScheduleController extends Controller
             return back()->with('error', 'No file available yet. Please generate the schedule first.');
         }
 
-        // Generated files are stored under storage/app/private/cable-schedules/
-        $absolutePath = storage_path('app/private/cable-schedules/' . $outputFilename);
+        // Post-H-07: writes land in storage/app/documents/cable-schedules/; the
+        // artifact store falls back to legacy storage/app/private/cable-schedules/
+        // for files generated before the migration.
+        $absolutePath = app(\App\Services\DocumentArtifactStorage::class)
+            ->readPath(\App\Services\DocumentArtifactStorage::TYPE_CABLE, basename($outputFilename));
 
-        if (! file_exists($absolutePath)) {
+        if ($absolutePath === null) {
             return back()->with('error', 'Document file not found on disk.');
         }
 

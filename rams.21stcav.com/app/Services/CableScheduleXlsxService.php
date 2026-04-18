@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Models\CableSchedule;
-use Illuminate\Support\Facades\Storage;
+use App\Services\DocumentArtifactStorage;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
@@ -13,6 +13,10 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class CableScheduleXlsxService
 {
+    public function __construct(
+        private readonly DocumentArtifactStorage $artifacts = new DocumentArtifactStorage(),
+    ) {}
+
     private const TEAL      = '007B8A';
     private const WHITE     = 'FFFFFF';
     private const ROW_ALT   = 'F0FBFC';
@@ -133,13 +137,7 @@ class CableScheduleXlsxService
 
         // ── Save ──────────────────────────────────────────────────────────────
         $filename     = 'cable_schedule_' . $schedule->id . '_' . now()->format('Ymd') . '.xlsx';
-        $storagePath  = 'cable-schedules/' . $filename;
-        $absolutePath = Storage::disk('local')->path($storagePath);
-
-        $dir = dirname($absolutePath);
-        if (! is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
+        $absolutePath = $this->artifacts->writePath(DocumentArtifactStorage::TYPE_CABLE, $filename);
 
         (new Xlsx($spreadsheet))->save($absolutePath);
 
