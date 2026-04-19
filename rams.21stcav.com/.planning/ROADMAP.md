@@ -31,7 +31,7 @@ Full archive: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 *"See everything, miss nothing"*
 
 - [x] Phase 08: Enterprise Dashboard — Real-time project status, health indicators, overdue/blocked alerts across all active projects (completed 2026-04-19)
-- [ ] Phase 09: Email Notifications — Generation complete, survey submitted, review needed triggers
+- [x] Phase 09: Email Notifications — Generation complete, survey submitted, review needed triggers (completed 2026-04-19)
 - [ ] Phase 10: Document Quality Scores — Confidence indicators and data completeness per room/equipment
 - [ ] Phase 11: Bitrix24 Integration — OAuth connection, project sync, document links, task updates
 
@@ -81,13 +81,13 @@ Plans:
 **Plans**: 7 plans
 
 Plans:
-- [ ] 09-01-PLAN.md — Migrations (9 email-timestamp columns incl. NOTF-03c review_needed + cable_schedules.error_message) + config/rams.php notifications.bcc + .env.example placeholders + model $fillable / $casts wiring on the 4 notifiable models + HasFactory trait on RamsDocument & CableSchedule (per B-01) (Wave 1)
-- [ ] 09-02-PLAN.md — composer require symfony/postmark-mailer + symfony/http-client + NotificationRecipientResolver service + unit tests (Wave 1)
-- [ ] 09-02b-PLAN.md — 4 model factories ONLY (RamsDocument / OmManual / Worksheet / CableSchedule) for plan 09-05 feature tests (Wave 2, depends_on 09-01 per B-01 — HasFactory trait additions moved into 09-01 Task 3 to avoid Wave 1 file collision)
-- [ ] 09-03-PLAN.md — 4 typed *ReadyMail mailables (RAMS / O&M / Worksheet / Cable) implementing ShouldQueue with DocumentArtifactStorage attachments + Blade templates mirroring canonical wrapper (Wave 2)
-- [ ] 09-04-PLAN.md — RamsReviewNeededMail + DocumentGenerationFailedMail (polymorphic) + Blade templates with canonical wrapper + SurveyService refactor to use NotificationRecipientResolver (NOTF-02a) + SiteSurveyController authorizeSurvey() fix (B-02 — uses existing User::isAdmin() method; fixes 3 latent bugs codebase-wide) (Wave 2)
-- [ ] 09-05-PLAN.md — Wire all 5 jobs (Build*Job + ExtractRamsDraftJob) with completion / failure / review email dispatch (review-needed now idempotent via NOTF-03c) + 9 feature tests (Mail::fake) + idempotency + BCC tests + extend PublicSurveyControllerTest (Wave 3)
-- [ ] 09-06-PLAN.md — POSTMARK-OPS-CHECKLIST.md (DNS, Postmark dashboard, production .env) + human-verify checkpoint for cutover decision (Wave 4)
+- [x] 09-01-PLAN.md — Migrations (9 email-timestamp columns incl. NOTF-03c review_needed + cable_schedules.error_message) + config/rams.php notifications.bcc + .env.example placeholders + model $fillable / $casts wiring on the 4 notifiable models + HasFactory trait on RamsDocument & CableSchedule (per B-01) (Wave 1)
+- [x] 09-02-PLAN.md — composer require symfony/postmark-mailer + symfony/http-client + NotificationRecipientResolver service + unit tests (Wave 1)
+- [x] 09-02b-PLAN.md — 4 model factories ONLY (RamsDocument / OmManual / Worksheet / CableSchedule) for plan 09-05 feature tests (Wave 2, depends_on 09-01 per B-01 — HasFactory trait additions moved into 09-01 Task 3 to avoid Wave 1 file collision)
+- [x] 09-03-PLAN.md — 4 typed *ReadyMail mailables (RAMS / O&M / Worksheet / Cable) implementing ShouldQueue with DocumentArtifactStorage attachments + Blade templates mirroring canonical wrapper (Wave 2)
+- [x] 09-04-PLAN.md — RamsReviewNeededMail + DocumentGenerationFailedMail (polymorphic) + Blade templates with canonical wrapper + SurveyService refactor to use NotificationRecipientResolver (NOTF-02a) + SiteSurveyController authorizeSurvey() fix (B-02 — uses existing User::isAdmin() method; fixes 3 latent bugs codebase-wide) (Wave 2)
+- [x] 09-05-PLAN.md — Wire all 5 jobs (Build*Job + ExtractRamsDraftJob) with completion / failure / review email dispatch (review-needed now idempotent via NOTF-03c) + 9 feature tests (Mail::fake) + idempotency + BCC tests + extend PublicSurveyControllerTest (Wave 3)
+- [x] 09-06-PLAN.md — POSTMARK-OPS-CHECKLIST.md (DNS, Postmark dashboard, production .env) + human-verify checkpoint for cutover decision (Wave 4)
 
 ### Phase 12: Install Task Generation
 **Goal**: Auto-generate a structured install task list from `ProjectDataService`, persisted as `install_programmes` + `install_tasks` records. Engineers confirm the generated list before it becomes active. Also deliver WORK-05/06 worksheet enhancements (pre-install answers + dashboard trigger).
@@ -208,7 +208,7 @@ Plans:
 | 06. RAMS Document Quality | v1.0 | 2/2 | Complete | 2026-04-12 |
 | 07. Dynamic Survey AI Questions | v1.0 | 6/6 | Complete | 2026-04-12 |
 | 08. Enterprise Dashboard | v1.1 | 2/2 | Complete    | 2026-04-19 |
-| 09. Email Notifications | v1.1 | — | Planned | — |
+| 09. Email Notifications | v1.1 | 7/7 | Complete    | 2026-04-19 |
 | 10. Document Quality Scores | v1.1 | — | Planned | — |
 | 11. Bitrix24 Integration | v1.1 | — | Planned | — |
 | 12. Install Task Generation + Worksheet Enhancements | v1.2 | 3/3 | Complete   | 2026-04-13 |
