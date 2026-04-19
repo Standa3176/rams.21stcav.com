@@ -78,7 +78,15 @@ Plans:
   7. When `RAMS_NOTIFICATION_BCC` env var is non-empty, every system email BCC's that address; when empty, no BCC is added
   8. A mail send failure (caught `Throwable` → `Log::warning`) never rolls back the underlying document-generation job or aborts a status transition
   9. Feature tests using `Mail::fake()` assert each trigger fires the correct mailable to the correct recipient with the correct attachment / no-attachment shape
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+- [ ] 09-01-PLAN.md — Migrations (8 email-timestamp columns + cable_schedules.error_message) + config/rams.php notifications.bcc + .env.example placeholders (Wave 1)
+- [ ] 09-02-PLAN.md — composer require symfony/postmark-mailer + symfony/http-client + NotificationRecipientResolver service + unit tests (Wave 1)
+- [ ] 09-03-PLAN.md — 4 typed *ReadyMail mailables (RAMS / O&M / Worksheet / Cable) implementing ShouldQueue with DocumentArtifactStorage attachments + Blade templates (Wave 2)
+- [ ] 09-04-PLAN.md — RamsReviewNeededMail + DocumentGenerationFailedMail (polymorphic) + Blade templates + SurveyService refactor to use NotificationRecipientResolver (NOTF-02a, fixes 2 latent bugs) (Wave 2)
+- [ ] 09-05-PLAN.md — Wire all 5 jobs (Build*Job + ExtractRamsDraftJob) with completion / failure / review email dispatch + 9 feature tests (Mail::fake) + idempotency + BCC tests + extend PublicSurveyControllerTest (Wave 3)
+- [ ] 09-06-PLAN.md — POSTMARK-OPS-CHECKLIST.md (DNS, Postmark dashboard, production .env) + human-verify checkpoint for cutover decision (Wave 4)
 
 ### Phase 12: Install Task Generation
 **Goal**: Auto-generate a structured install task list from `ProjectDataService`, persisted as `install_programmes` + `install_tasks` records. Engineers confirm the generated list before it becomes active. Also deliver WORK-05/06 worksheet enhancements (pre-install answers + dashboard trigger).
