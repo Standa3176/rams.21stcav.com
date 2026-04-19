@@ -57,7 +57,9 @@ class SurveyController extends Controller
     public function show(string $token): View
     {
         $survey = $this->resolveSurvey($token);
-        $survey->load('rooms.photos');
+        // rooms.questions exposes the checklist guidance context per room
+        // in buildAlpineRooms(); rooms.photos is authoritative for uploaded photos.
+        $survey->load(['rooms.photos', 'rooms.questions']);
 
         $payload = $survey->survey_data;
 
@@ -223,8 +225,25 @@ class SurveyController extends Controller
 
             $canonical = $this->enforceCanonicalShape($canonical);
 
+            // Checklist questions surfaced per room so engineers see the
+            // guidance context before/while completing the room. Read-only —
+            // never written back to survey_data.
+            $questions = $dbRoom->relationLoaded('questions') ? $dbRoom->questions : collect();
+
             $alpineRooms[] = array_merge($canonical, [
                 'photos' => $photos ?: $canonical['photos'],
+
+                // ── Job context — read-only per-room planning data from DB.
+                // Never written back to survey_data; informational only.
+                '_ctx' => [
+                    'av_requirements'   => (string) ($dbRoom->av_requirements ?? ''),
+                    'av_equipment_list' => (string) ($dbRoom->av_equipment_list ?? ''),
+                    'question_count'    => $questions->count(),
+                    'questions'         => $questions->map(fn ($q) => [
+                        'question' => (string) $q->question,
+                        'answered' => $q->answer !== null && $q->answer !== '',
+                    ])->values()->toArray(),
+                ],
 
                 // ── UI-only block — never written to survey_data ──────────────
                 '_ui' => [

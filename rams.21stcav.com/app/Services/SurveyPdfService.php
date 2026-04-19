@@ -312,7 +312,7 @@ class SurveyPdfService
         } else {
             foreach ($rooms as $room) {
                 $title = 'Room: ' . ($room->room_name ?: 'Unnamed') . ($room->floor ? ' (Floor: ' . $room->floor . ')' : '');
-                $html .= $this->renderBlankRoomSection($title);
+                $html .= $this->renderFieldRoomSection($room, $title);
             }
         }
 
@@ -330,11 +330,42 @@ class SurveyPdfService
         return $html;
     }
 
+    /**
+     * Per-room block that surfaces planned AV works + quote kit for this
+     * specific room (from SiteSurveyRoom) before the blank manual-fill grid,
+     * so engineers see the scope context when completing on paper.
+     */
+    private function renderFieldRoomSection(\App\Models\SiteSurveyRoom $room, string $title): string
+    {
+        $html  = '<h2>' . e($title) . '</h2>';
+
+        $avRequirements  = trim((string) ($room->av_requirements ?? ''));
+        $avEquipmentList = trim((string) ($room->av_equipment_list ?? ''));
+
+        if ($avRequirements !== '' || $avEquipmentList !== '') {
+            $html .= '<table>';
+            if ($avRequirements !== '') {
+                $html .= '<tr><td class="label">Planned AV Works</td><td>' . nl2br(e($avRequirements)) . '</td></tr>';
+            }
+            if ($avEquipmentList !== '') {
+                $html .= '<tr><td class="label">Quote Kit</td><td>' . nl2br(e($avEquipmentList)) . '</td></tr>';
+            }
+            $html .= '</table>';
+        }
+
+        return $html . $this->renderBlankRoomBody();
+    }
+
     /** One per-room block with blank manual-fill areas (power/network/access/notes). */
     private function renderBlankRoomSection(string $title): string
     {
+        return '<h2>' . e($title) . '</h2>' . $this->renderBlankRoomBody();
+    }
+
+    /** The blank-fill grid shared by the fallback (no DB rooms) and per-room sections. */
+    private function renderBlankRoomBody(): string
+    {
         return '
-        <h2>' . e($title) . '</h2>
         <table>
             <tr><td class="label">Room Type</td><td colspan="3"></td></tr>
             <tr><td class="label">W &times; D &times; H (m)</td><td>&nbsp;&nbsp;&times;&nbsp;&nbsp;&times;&nbsp;&nbsp;</td>

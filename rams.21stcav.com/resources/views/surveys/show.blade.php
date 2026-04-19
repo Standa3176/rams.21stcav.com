@@ -179,6 +179,40 @@
                     </button>
 
                 </div>
+
+                {{-- Job context — per-room planned works, quote kit, and
+                     checklist guidance count. Read-only, informational. --}}
+                <template x-if="room._ctx && (room._ctx.av_requirements || room._ctx.av_equipment_list || room._ctx.question_count > 0)">
+                    <div class="px-4 pb-3 pt-2 border-t border-gray-100 bg-gray-50/60 text-xs space-y-2">
+                        <template x-if="room._ctx.av_requirements">
+                            <div>
+                                <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Planned AV works</p>
+                                <p class="text-gray-700 mt-0.5 leading-snug" x-text="room._ctx.av_requirements"></p>
+                            </div>
+                        </template>
+                        <template x-if="room._ctx.av_equipment_list">
+                            <div>
+                                <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Quote kit</p>
+                                <p class="text-gray-700 mt-0.5 leading-snug whitespace-pre-line" x-text="room._ctx.av_equipment_list"></p>
+                            </div>
+                        </template>
+                        <template x-if="room._ctx.question_count > 0">
+                            <div>
+                                <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                                    Pre-install checklist (<span x-text="room._ctx.question_count"></span>)
+                                </p>
+                                <ul class="list-disc pl-4 mt-0.5 text-gray-700 space-y-0.5">
+                                    <template x-for="(q, qi) in room._ctx.questions" :key="qi">
+                                        <li class="leading-snug">
+                                            <span x-text="q.question"></span>
+                                            <span x-show="q.answered" class="text-emerald-600">✓</span>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </template>
+                    </div>
+                </template>
             </div>
         </template>
 
