@@ -90,15 +90,17 @@
 
     {{-- ── Status summary strip ───────────────────────────────────────── --}}
     <div class="dash-status-strip">
-        <button @click="filter = ''" :class="filter === '' ? 'dash-chip dash-chip--active' : 'dash-chip'">
+        <button class="dash-chip"
+                @click="filter = ''"
+                :class="{ 'dash-chip--active': filter === '' }">
             All
             <span class="dash-chip__count">{{ $projects->count() }}</span>
         </button>
         @foreach(\App\Models\Project::STATUS_LABELS as $key => $label)
             @if($key !== 'archived')
-            <button
+            <button class="dash-chip"
                 @click="filter = (filter === '{{ $key }}') ? '' : '{{ $key }}'"
-                :class="filter === '{{ $key }}' ? 'dash-chip dash-chip--active' : 'dash-chip'"
+                :class="{ 'dash-chip--active': filter === '{{ $key }}' }"
                 style="--chip-colour: {{ \App\Models\Project::STATUS_COLOURS[$key] ?? '#6B7280' }}">
                 {{ $label }}
                 <span class="dash-chip__count">{{ $statusCounts[$key] ?? 0 }}</span>
