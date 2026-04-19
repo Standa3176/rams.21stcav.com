@@ -20,4 +20,19 @@ return [
     'company_phone'   => env('RAMS_COMPANY_PHONE',   '01189 977770'),
     'company_website' => env('RAMS_COMPANY_WEBSITE', 'www.21stcenturyav.com'),
     'company_email'   => env('RAMS_COMPANY_EMAIL',   'info@21stcenturyav.com'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Notifications (Phase 09)
+    |--------------------------------------------------------------------------
+    |
+    | Global BCC address applied to every system email (completion, failure,
+    | review-needed, survey-submitted). Leave RAMS_NOTIFICATION_BCC unset in
+    | dev/staging — a null value means no BCC is attached (the shared
+    | dispatcher treats null / empty string as "skip BCC").
+    |
+    */
+    'notifications' => [
+        'bcc' => env('RAMS_NOTIFICATION_BCC'),   // null/empty = no BCC applied to system mail
+    ],
 ];
