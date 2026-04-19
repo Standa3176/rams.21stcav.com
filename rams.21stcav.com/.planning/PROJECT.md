@@ -50,7 +50,7 @@ One dataset powers every document. Engineers capture real-world data, quotes pro
 ### Active
 
 #### v1.1 — Operations Dashboard & Notifications (Phases 08–11)
-- [ ] **DASH-01**: Real-time project status dashboard with health indicators across all active projects
+- [x] **DASH-01**: Real-time project status dashboard with health indicators across all active projects *(validated in Phase 08)*
 - [ ] **DASH-02**: Overdue survey, generation pending, and blocked project alerts
 - [ ] **DASH-03**: Admin view of AI usage, token consumption, and generation costs
 - [ ] **NOTF-01**: Email notification when document generation completes
@@ -157,4 +157,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-12 after v1.0 milestone*
+*Last updated: 2026-04-19 after Phase 08 (Enterprise Dashboard) completion*
