@@ -78,55 +78,109 @@
 
 </div>
 
-{{-- ── Two-panel row ───────────────────────────────────────────────────── --}}
-<div class="dash-panels">
+{{-- ── Status filter strip + project health grid (Alpine-wrapped) ──────── --}}
+<div x-data="{
+    filter: '',
+    init() {
+        const hash = window.location.hash.replace('#', '');
+        if (hash) this.filter = hash;
+        this.$watch('filter', v => { window.location.hash = v || ' '; });
+    }
+}" class="dash-filter-section">
 
-    {{-- Recent Projects ──────────────────────────────────────────────── --}}
-    <x-dashboard.table-wrapper title="Recent Projects">
-        <x-slot name="header">
-            <a href="{{ route('projects.index') }}" class="btn btn-ghost btn-sm">View all</a>
-        </x-slot>
+    {{-- ── Status summary strip ───────────────────────────────────────── --}}
+    <div class="dash-status-strip">
+        <button @click="filter = ''" :class="filter === '' ? 'dash-chip dash-chip--active' : 'dash-chip'">
+            All
+            <span class="dash-chip__count">{{ $projects->count() }}</span>
+        </button>
+        @foreach(\App\Models\Project::STATUS_LABELS as $key => $label)
+            @if($key !== 'archived')
+            <button
+                @click="filter = (filter === '{{ $key }}') ? '' : '{{ $key }}'"
+                :class="filter === '{{ $key }}' ? 'dash-chip dash-chip--active' : 'dash-chip'"
+                style="--chip-colour: {{ \App\Models\Project::STATUS_COLOURS[$key] ?? '#6B7280' }}">
+                {{ $label }}
+                <span class="dash-chip__count">{{ $statusCounts[$key] ?? 0 }}</span>
+            </button>
+            @endif
+        @endforeach
+    </div>
 
-        @if($recentProjects->isEmpty())
-            <x-dashboard.empty-state
-                title="No projects yet"
-                message="Create your first project to get started."
-                href="{{ route('projects.create') }}"
-                action="Create Project"/>
-        @else
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Project</th>
-                    <th>Status</th>
-                    <th>Updated</th>
-                </tr>
-            </thead>
-            <tbody>
-            @foreach($recentProjects as $project)
-                <tr>
-                    <td>
-                        <a href="{{ route('projects.show', $project) }}" style="font-weight:600;">
-                            {{ $project->name }}
-                        </a>
-                        @if($project->client_name)
-                        <div style="font-size:.78rem; color:#9CA3AF; margin-top:1px;">{{ $project->client_name }}</div>
-                        @endif
-                    </td>
-                    <td>
-                        <x-dashboard.status-badge :status="$project->status"/>
-                    </td>
-                    <td style="font-size:.8rem; color:#9CA3AF; white-space:nowrap;">
-                        {{ $project->updated_at->diffForHumans() }}
-                    </td>
-                </tr>
-            @endforeach
-            </tbody>
-        </table>
-        @endif
-    </x-dashboard.table-wrapper>
+    {{-- ── Project health grid ─────────────────────────────────────────── --}}
+    @if($projects->isEmpty())
+        <x-dashboard.empty-state
+            title="No active projects"
+            message="Create or import a project to get started."
+            href="{{ route('projects.create') }}"
+            action="Create Project"/>
+    @else
+    <div class="dash-health-grid">
+        <div class="dash-health-grid__header">
+            <span>Project</span>
+            <span>Stage</span>
+            <span>Health</span>
+            <span>Programme</span>
+            <span>Updated</span>
+            <span></span>
+        </div>
 
-    {{-- Recent RAMS ──────────────────────────────────────────────────── --}}
+        @foreach($projects as $project)
+        @php
+            $health    = $healthMap[$project->id];
+            $programme = null;
+            $pct       = null;
+            if (in_array($project->status, [\App\Models\Project::STATUS_INSTALLING, \App\Models\Project::STATUS_COMMISSIONING])) {
+                $programme = $project->activeInstallProgramme;
+                if ($programme) {
+                    $total  = $programme->tasks->count();
+                    $done   = $programme->tasks->where('status', \App\Models\InstallTask::STATUS_COMPLETE)->count();
+                    $pct    = $total > 0 ? round($done / $total * 100) : 0;
+                }
+            }
+        @endphp
+        <div class="dash-health-row"
+             x-show="filter === '' || filter === '{{ $project->status }}'">
+            <div class="dash-health-row__name">
+                <a href="{{ route('projects.show', $project) }}" class="dash-health-row__link">
+                    {{ $project->name }}
+                </a>
+                @if($project->client_name)
+                <div class="dash-health-row__client">{{ $project->client_name }}</div>
+                @endif
+            </div>
+            <div>
+                <x-dashboard.status-badge :status="$project->status"/>
+            </div>
+            <div>
+                <x-dashboard.health-badge :health="$health"/>
+            </div>
+            <div class="dash-health-row__programme">
+                @if($pct !== null)
+                <div class="dash-prog">
+                    <div class="dash-prog__bar">
+                        <div class="dash-prog__fill" style="width:{{ $pct }}%"></div>
+                    </div>
+                    <span class="dash-prog__pct">{{ $pct }}%</span>
+                </div>
+                @else
+                <span class="dash-health-row__none">—</span>
+                @endif
+            </div>
+            <div class="dash-health-row__updated">{{ $project->updated_at->diffForHumans() }}</div>
+            <div>
+                <a href="{{ route('projects.show', $project) }}" class="btn btn-ghost btn-sm">View</a>
+            </div>
+        </div>
+        @endforeach
+    </div>
+    @endif
+
+</div>{{-- /x-data --}}
+
+{{-- ── Recent RAMS panel (retained, now full-width) ────────────────────── --}}
+<div class="dash-panels dash-panels--single">
+
     <x-dashboard.table-wrapper title="Recent RAMS Documents">
         <x-slot name="header">
             <a href="{{ route('rams.index') }}" class="btn btn-ghost btn-sm">View all</a>
@@ -227,6 +281,7 @@
     margin-bottom: 1.75rem;
     align-items: start;
 }
+.dash-panels--single { grid-template-columns: 1fr; }
 
 /* Quick links */
 .dash-quick-links {
@@ -252,10 +307,125 @@
 .dash-quick-link__title { font-size: .875rem; font-weight: 600; color: #1F2937; }
 .dash-quick-link__sub   { font-size: .75rem; color: #9CA3AF; margin-top: .1rem; }
 
+/* ── Status filter strip ─────────────────────────────────────────────── */
+.dash-filter-section { margin-bottom: 1.75rem; }
+
+.dash-status-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-bottom: 1rem;
+    align-items: center;
+}
+.dash-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .3rem .75rem;
+    border: 1px solid #E5E7EB;
+    border-radius: 9999px;
+    font-size: .75rem;
+    font-weight: 600;
+    background: #fff;
+    color: #374151;
+    cursor: pointer;
+    transition: background .12s ease, border-color .12s ease, color .12s ease;
+}
+.dash-chip:hover {
+    border-color: var(--chip-colour, #178A95);
+    color: var(--chip-colour, #178A95);
+}
+.dash-chip--active {
+    background: var(--chip-colour, #178A95);
+    border-color: var(--chip-colour, #178A95);
+    color: #fff;
+}
+.dash-chip__count {
+    background: rgba(0,0,0,.12);
+    border-radius: 9999px;
+    padding: 0 .4rem;
+    font-size: .65rem;
+}
+
+/* ── Health grid ─────────────────────────────────────────────────────── */
+.dash-health-grid {
+    background: #fff;
+    border: 1px solid #E5E7EB;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    overflow: hidden;
+}
+.dash-health-grid__header {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1.25fr 1fr auto;
+    gap: 1rem;
+    padding: .6rem 1.25rem;
+    background: #F9FAFB;
+    border-bottom: 1px solid #E5E7EB;
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #6B7280;
+}
+.dash-health-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1.25fr 1fr auto;
+    gap: 1rem;
+    align-items: center;
+    padding: .75rem 1.25rem;
+    border-bottom: 1px solid #F3F4F6;
+    transition: background .1s ease;
+}
+.dash-health-row:last-child { border-bottom: none; }
+.dash-health-row:hover { background: #F9FAFB; }
+
+.dash-health-row__link { font-weight: 600; color: #111827; text-decoration: none; }
+.dash-health-row__link:hover { color: #178A95; text-decoration: underline; }
+.dash-health-row__client { font-size: .75rem; color: #9CA3AF; margin-top: 1px; }
+.dash-health-row__updated { font-size: .78rem; color: #9CA3AF; white-space: nowrap; }
+.dash-health-row__none { color: #D1D5DB; font-size: .85rem; }
+
+/* ── Progress bar widget ─────────────────────────────────────────────── */
+.dash-prog {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+.dash-prog__bar {
+    flex: 1;
+    height: 6px;
+    background: #E5E7EB;
+    border-radius: 9999px;
+    overflow: hidden;
+    min-width: 48px;
+}
+.dash-prog__fill {
+    height: 100%;
+    background: #16A34A;
+    border-radius: 9999px;
+    transition: width .3s ease;
+}
+.dash-prog__pct {
+    font-size: .72rem;
+    font-weight: 600;
+    color: #374151;
+    white-space: nowrap;
+}
+
 /* Responsive */
 @media (max-width: 1100px) {
     .dash-stats-grid  { grid-template-columns: repeat(2, 1fr); }
     .dash-quick-links { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 900px) {
+    .dash-health-grid__header { display: none; }
+    .dash-health-row {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto auto;
+        gap: .4rem;
+    }
+    .dash-health-row__programme, .dash-health-row__updated { font-size: .72rem; }
 }
 @media (max-width: 768px) {
     .dash-panels     { grid-template-columns: 1fr; }
