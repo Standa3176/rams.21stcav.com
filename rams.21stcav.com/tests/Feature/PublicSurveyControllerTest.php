@@ -2,11 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Mail\SurveySubmittedMail;
+use App\Models\Project;
 use App\Models\SiteSurvey;
 use App\Models\SiteSurveyRoom;
 use App\Models\SiteSurveyRoomQuestion;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -155,5 +158,47 @@ class PublicSurveyControllerTest extends TestCase
 
         $response->assertStatus(200)
                  ->assertJson(['completed' => true]);
+    }
+
+    // ─── Test 5: submit dispatches SurveySubmittedMail to project owner ───────
+
+    /**
+     * NOTF-02a regression guard (Phase 09 plan 09-05).
+     *
+     * Locks the latent-bug fix from plan 09-04 — the resolver-based lookup in
+     * SurveyService::submitPublic() must deliver the SurveySubmittedMail to
+     * the project owner once, via the public submit endpoint.
+     */
+    public function test_survey_submission_dispatches_SurveySubmittedMail_to_owner(): void
+    {
+        Mail::fake();
+
+        $owner   = User::factory()->create(['email' => 'owner@example.test']);
+        $project = Project::factory()->create(['user_id' => $owner->id]);
+        $token   = (string) Str::uuid();
+
+        $survey = SiteSurvey::create([
+            'user_id'      => $owner->id,
+            'project_id'   => $project->id,
+            'project_name' => 'Test Project',
+            'status'       => 'draft',
+            'access_token' => $token,
+        ]);
+
+        $response = $this->post(
+            route('survey.submit', ['token' => $token]),
+            [
+                'surveyor_name' => 'Jane Engineer',
+                'survey_date'   => now()->toDateString(),
+                'rooms'         => [],
+            ]
+        );
+
+        $response->assertRedirect(route('survey.confirmation', ['token' => $token]));
+
+        Mail::assertSent(SurveySubmittedMail::class, function ($mail) use ($owner) {
+            return $mail->hasTo($owner->email);
+        });
+        Mail::assertSent(SurveySubmittedMail::class, 1);
     }
 }

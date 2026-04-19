@@ -23,6 +23,10 @@ class RamsDocumentFactory extends Factory
             'project_name' => fake()->company() . ' AV Refresh',
             'client_name'  => fake()->company(),
             'site_address' => fake()->address(),
+            // ai_provider / ai_model / form_data are NOT NULL on rams_documents — must be seeded.
+            'ai_provider'  => 'claude',
+            'ai_model'     => 'claude-sonnet-4-6',
+            'form_data'    => [],
             'filename'     => 'rams-' . fake()->uuid() . '.docx',
             'status'       => RamsDocument::STATUS_AWAITING_REVIEW,
         ];
