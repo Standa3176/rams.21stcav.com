@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\AIUsageController;
 use App\Http\Controllers\Admin\SolutionTypeController;
 use App\Http\Controllers\CableScheduleController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HazardTemplateController;
 use App\Http\Controllers\OmManualController;
 use App\Http\Controllers\ProfileController;
@@ -68,17 +69,7 @@ Route::get('survey/{token}/photos/{photo}',            [PublicSurveyController::
 Route::middleware('auth')->group(function () {
 
     // ── Dashboard ─────────────────────────────────────────────────────────
-    Route::get('/dashboard', function () {
-        return view('dashboard', [
-            'statActiveProjects' => \App\Models\Project::whereNotIn('status', ['archived'])->count(),
-            'statAllProjects'    => \App\Models\Project::count(),
-            'statRams'           => \App\Models\RamsDocument::count(),
-            'statSurveys'        => \App\Models\SiteSurvey::count(),
-            'statImports'        => \App\Models\ProjectPackage::count(),
-            'recentProjects'     => \App\Models\Project::with('owner')->orderByDesc('updated_at')->limit(6)->get(),
-            'recentRams'         => \App\Models\RamsDocument::with('project')->orderByDesc('created_at')->limit(6)->get(),
-        ]);
-    })->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // ── Profile ───────────────────────────────────────────────────────────
     Route::get('/profile',    [ProfileController::class, 'edit'])   ->name('profile.edit');

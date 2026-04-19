@@ -9,7 +9,7 @@ use App\Models\SiteSurvey;
 use App\Services\ProjectHealthService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 
 /**
  * Unit tests for ProjectHealthService — covers DASH-01c / DASH-01d / DASH-01e.
