@@ -136,6 +136,12 @@ class ExtractRamsDraftJob implements ShouldQueue
             Log::info('ExtractRamsDraftJob: completed — awaiting review', [
                 'record_id' => $this->ramsDocumentId,
             ]);
+
+            // Phase 09 / NOTF-03 + NOTF-03c — review-needed notification
+            // (idempotent via review_needed_email_sent_at). Extracted into a
+            // public helper so feature tests can exercise the dispatch seam
+            // without running real PDF/OCR work (see 09-05 plan I-08 guidance).
+            $this->dispatchReviewNeededEmail($record);
         } catch (\Throwable $e) {
             Log::error('ExtractRamsDraftJob: failed', [
                 'record_id' => $this->ramsDocumentId,
@@ -151,6 +157,55 @@ class ExtractRamsDraftJob implements ShouldQueue
             ]);
 
             throw $e;
+        }
+    }
+
+    // =========================================================================
+    // REVIEW-NEEDED EMAIL DISPATCH — extracted for test seam (plan 09-05 I-08)
+    // =========================================================================
+
+    /**
+     * Dispatch the RamsReviewNeededMail once per RAMS transition into
+     * STATUS_AWAITING_REVIEW, gated on $record->review_needed_email_sent_at.
+     *
+     * Public so feature tests can exercise the dispatch seam without running
+     * real PDF text extraction / OCR inside handle(). D-03 / NOTF-03c.
+     * Timestamp set BEFORE send (matches completion-mail pattern) to lock
+     * idempotency against $tries=2 retries.
+     */
+    public function dispatchReviewNeededEmail(RamsDocument $record): void
+    {
+        $record->refresh();
+
+        if ($record->status !== RamsDocument::STATUS_AWAITING_REVIEW
+            || $record->review_needed_email_sent_at !== null) {
+            return;
+        }
+
+        // Set timestamp FIRST (matches completion-mail pattern; locks idempotency for $tries=2 retries).
+        $record->update(['review_needed_email_sent_at' => now()]);
+
+        try {
+            $resolver  = app(\App\Services\NotificationRecipientResolver::class);
+            $recipient = $resolver->resolveProjectRecipient($record->project);
+            if ($recipient?->email) {
+                $pending = \Illuminate\Support\Facades\Mail::to($recipient->email);
+                $bcc = config('rams.notifications.bcc');
+                if (is_string($bcc) && trim($bcc) !== '') {
+                    $pending->bcc(trim($bcc));
+                }
+                $pending->send(new \App\Mail\RamsReviewNeededMail($record));
+                Log::info(
+                    'ExtractRamsDraftJob: review-needed email dispatched',
+                    ['rams_document_id' => $record->id, 'recipient' => $recipient->email]
+                );
+            }
+        } catch (\Throwable $mailErr) {
+            Log::warning(
+                'ExtractRamsDraftJob: review-needed email send failed',
+                ['rams_document_id' => $record->id, 'error' => $mailErr->getMessage()]
+            );
+            // Do NOT clear review_needed_email_sent_at — same trade-off as completion mail.
         }
     }
 

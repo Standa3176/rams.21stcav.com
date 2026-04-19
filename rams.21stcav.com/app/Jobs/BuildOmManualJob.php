@@ -91,6 +91,38 @@ class BuildOmManualJob implements ShouldQueue
                 'filename'     => $manual->filename,
                 'status'       => 'draft',
             ]);
+
+            // Phase 09 / NOTF-01 — completion notification (idempotent via completion_email_sent_at).
+            $manual->refresh();
+            if ($manual->status === OmManual::STATUS_DRAFT
+                && $manual->completion_email_sent_at === null) {
+
+                // Set timestamp FIRST (RESEARCH 'Idempotency Pattern') so a retry sees it set.
+                $manual->update(['completion_email_sent_at' => now()]);
+
+                try {
+                    $resolver  = app(\App\Services\NotificationRecipientResolver::class);
+                    $recipient = $resolver->resolveProjectRecipient($manual->project);
+                    if ($recipient?->email) {
+                        $pending = \Illuminate\Support\Facades\Mail::to($recipient->email);
+                        $bcc = config('rams.notifications.bcc');
+                        if (is_string($bcc) && trim($bcc) !== '') {
+                            $pending->bcc(trim($bcc));
+                        }
+                        $pending->send(new \App\Mail\OmManualReadyMail($manual));
+                        Log::info(
+                            'BuildOmManualJob: completion email dispatched',
+                            ['om_manual_id' => $manual->id, 'recipient' => $recipient->email]
+                        );
+                    }
+                } catch (\Throwable $mailErr) {
+                    Log::warning(
+                        'BuildOmManualJob: completion email send failed',
+                        ['om_manual_id' => $manual->id, 'error' => $mailErr->getMessage()]
+                    );
+                    // Do NOT clear completion_email_sent_at — D-14.
+                }
+            }
         } catch (\Throwable $e) {
             Log::error('BuildOmManualJob: failed', [
                 'om_manual_id'    => $this->omManualId,
@@ -141,6 +173,45 @@ class BuildOmManualJob implements ShouldQueue
                 'om_manual_id' => $this->omManualId,
                 'db_error'     => $dbErr->getMessage(),
             ]);
+        }
+
+        // Phase 09 / NOTF-04 — admin failure alert (idempotent via failed_email_sent_at).
+        $record = OmManual::find($this->omManualId);
+        if ($record && $record->failed_email_sent_at === null) {
+            $record->update(['failed_email_sent_at' => now()]);
+
+            try {
+                $resolver = app(\App\Services\NotificationRecipientResolver::class);
+                $admins   = $resolver->resolveAdminRecipients();
+                // Truncate error_message to 500 chars (NOTF-04c).
+                $rawError     = (string) ($record->error_message ?? $e?->getMessage() ?? '');
+                // substr of error_message, 0, 500 — caps the body to NOTF-04c budget.
+                $errorMessage = $rawError !== '' ? substr($rawError, 0, 500) : null;
+
+                $bcc = config('rams.notifications.bcc');
+
+                foreach ($admins as $admin) {
+                    if (! $admin->email) {
+                        continue;
+                    }
+                    $pending = \Illuminate\Support\Facades\Mail::to($admin->email);
+                    if (is_string($bcc) && trim($bcc) !== '') {
+                        $pending->bcc(trim($bcc));
+                    }
+                    $pending->send(new \App\Mail\DocumentGenerationFailedMail(
+                        documentType: 'O&M Manual',
+                        projectRef:   $record->project_ref,
+                        projectName:  (string) $record->project_name,
+                        errorMessage: $errorMessage,
+                        detailUrl:    route('om-manuals.edit', $record),
+                    ));
+                }
+            } catch (\Throwable $mailErr) {
+                Log::warning(
+                    'BuildOmManualJob: failure-alert email send failed',
+                    ['om_manual_id' => $this->omManualId, 'error' => $mailErr->getMessage()]
+                );
+            }
         }
     }
 }

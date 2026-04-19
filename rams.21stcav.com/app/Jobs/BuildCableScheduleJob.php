@@ -110,6 +110,38 @@ class BuildCableScheduleJob implements ShouldQueue
                 'status'            => 'draft',
                 'output_format'     => $hasSpreadsheet ? 'xlsx' : 'csv',
             ]);
+
+            // Phase 09 / NOTF-01 — completion notification (idempotent via completion_email_sent_at).
+            $schedule->refresh();
+            if ($schedule->status === CableSchedule::STATUS_DRAFT
+                && $schedule->completion_email_sent_at === null) {
+
+                // Set timestamp FIRST (RESEARCH 'Idempotency Pattern') so a retry sees it set.
+                $schedule->update(['completion_email_sent_at' => now()]);
+
+                try {
+                    $resolver  = app(\App\Services\NotificationRecipientResolver::class);
+                    $recipient = $resolver->resolveProjectRecipient($schedule->project);
+                    if ($recipient?->email) {
+                        $pending = \Illuminate\Support\Facades\Mail::to($recipient->email);
+                        $bcc = config('rams.notifications.bcc');
+                        if (is_string($bcc) && trim($bcc) !== '') {
+                            $pending->bcc(trim($bcc));
+                        }
+                        $pending->send(new \App\Mail\CableScheduleReadyMail($schedule));
+                        Log::info(
+                            'BuildCableScheduleJob: completion email dispatched',
+                            ['cable_schedule_id' => $schedule->id, 'recipient' => $recipient->email]
+                        );
+                    }
+                } catch (\Throwable $mailErr) {
+                    Log::warning(
+                        'BuildCableScheduleJob: completion email send failed',
+                        ['cable_schedule_id' => $schedule->id, 'error' => $mailErr->getMessage()]
+                    );
+                    // Do NOT clear completion_email_sent_at — D-14.
+                }
+            }
         } catch (\Throwable $e) {
             Log::error('BuildCableScheduleJob: failed', [
                 'cable_schedule_id' => $this->cableScheduleId,
@@ -208,6 +240,48 @@ class BuildCableScheduleJob implements ShouldQueue
                 'cable_schedule_id' => $this->cableScheduleId,
                 'db_error'          => $dbErr->getMessage(),
             ]);
+        }
+
+        // Phase 09 / NOTF-04 — admin failure alert (idempotent via failed_email_sent_at).
+        // Cable uses $exception->getMessage() fallback when error_message column is null
+        // (RESEARCH Pitfall 3). error_message column was added by plan 09-01.
+        $record = CableSchedule::find($this->cableScheduleId);
+        if ($record && $record->failed_email_sent_at === null) {
+            $record->update(['failed_email_sent_at' => now()]);
+
+            try {
+                $resolver = app(\App\Services\NotificationRecipientResolver::class);
+                $admins   = $resolver->resolveAdminRecipients();
+                // Truncate error_message to 500 chars (NOTF-04c). Cable falls back to
+                // $exception->getMessage() when the column is null (RESEARCH Pitfall 3).
+                $rawError     = (string) ($record->error_message ?? $e?->getMessage() ?? '');
+                // substr of error_message, 0, 500 — caps the body to NOTF-04c budget.
+                $errorMessage = $rawError !== '' ? substr($rawError, 0, 500) : null;
+
+                $bcc = config('rams.notifications.bcc');
+
+                foreach ($admins as $admin) {
+                    if (! $admin->email) {
+                        continue;
+                    }
+                    $pending = \Illuminate\Support\Facades\Mail::to($admin->email);
+                    if (is_string($bcc) && trim($bcc) !== '') {
+                        $pending->bcc(trim($bcc));
+                    }
+                    $pending->send(new \App\Mail\DocumentGenerationFailedMail(
+                        documentType: 'Cable Schedule',
+                        projectRef:   $record->project_ref,
+                        projectName:  (string) $record->project_name,
+                        errorMessage: $errorMessage,
+                        detailUrl:    route('cable-schedules.edit', $record),
+                    ));
+                }
+            } catch (\Throwable $mailErr) {
+                Log::warning(
+                    'BuildCableScheduleJob: failure-alert email send failed',
+                    ['cable_schedule_id' => $this->cableScheduleId, 'error' => $mailErr->getMessage()]
+                );
+            }
         }
     }
 }

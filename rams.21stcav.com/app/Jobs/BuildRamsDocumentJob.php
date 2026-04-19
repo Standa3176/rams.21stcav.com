@@ -143,6 +143,39 @@ class BuildRamsDocumentJob implements ShouldQueue
                 'record_id'    => $this->ramsDocumentId,
                 'final_status' => $record->fresh()->status,
             ]);
+
+            // Phase 09 / NOTF-01 — completion notification (idempotent via completion_email_sent_at).
+            $record->refresh();
+            if ($record->status === RamsDocument::STATUS_COMPLETED
+                && $record->completion_email_sent_at === null) {
+
+                // Set timestamp FIRST (RESEARCH 'Idempotency Pattern') so a retry sees it set.
+                $record->update(['completion_email_sent_at' => now()]);
+
+                try {
+                    $resolver  = app(\App\Services\NotificationRecipientResolver::class);
+                    $recipient = $resolver->resolveProjectRecipient($record->project);
+                    if ($recipient?->email) {
+                        $pending = \Illuminate\Support\Facades\Mail::to($recipient->email);
+                        $bcc = config('rams.notifications.bcc');
+                        if (is_string($bcc) && trim($bcc) !== '') {
+                            $pending->bcc(trim($bcc));
+                        }
+                        $pending->send(new \App\Mail\RamsReadyMail($record));
+                        Log::info(
+                            'BuildRamsDocumentJob: completion email dispatched',
+                            ['rams_document_id' => $record->id, 'recipient' => $recipient->email]
+                        );
+                    }
+                } catch (\Throwable $mailErr) {
+                    Log::warning(
+                        'BuildRamsDocumentJob: completion email send failed',
+                        ['rams_document_id' => $record->id, 'error' => $mailErr->getMessage()]
+                    );
+                    // Do NOT clear completion_email_sent_at — D-14: timestamp set in same update
+                    // as dispatch so the queue cannot double-send.
+                }
+            }
         } catch (\Throwable $e) {
             Log::error('BuildRamsDocumentJob: Phase B generation failed', [
                 'record_id' => $this->ramsDocumentId,
@@ -182,5 +215,45 @@ class BuildRamsDocumentJob implements ShouldQueue
                 'status'        => RamsDocument::STATUS_FAILED,
                 'error_message' => $e->getMessage(),
             ]);
+
+        // Phase 09 / NOTF-04 — admin failure alert (idempotent via failed_email_sent_at).
+        $record = RamsDocument::find($this->ramsDocumentId);
+        if ($record && $record->failed_email_sent_at === null) {
+            $record->update(['failed_email_sent_at' => now()]);
+
+            try {
+                $resolver = app(\App\Services\NotificationRecipientResolver::class);
+                $admins   = $resolver->resolveAdminRecipients();
+                // Truncate error_message to 500 chars (NOTF-04c). Cable falls back to
+                // $exception->getMessage() when the DB column is null (RESEARCH Pitfall 3).
+                $rawError     = (string) ($record->error_message ?? $e?->getMessage() ?? '');
+                // substr of error_message, 0, 500 — caps the body to NOTF-04c budget.
+                $errorMessage = $rawError !== '' ? substr($rawError, 0, 500) : null;
+
+                $bcc = config('rams.notifications.bcc');
+
+                foreach ($admins as $admin) {
+                    if (! $admin->email) {
+                        continue;
+                    }
+                    $pending = \Illuminate\Support\Facades\Mail::to($admin->email);
+                    if (is_string($bcc) && trim($bcc) !== '') {
+                        $pending->bcc(trim($bcc));
+                    }
+                    $pending->send(new \App\Mail\DocumentGenerationFailedMail(
+                        documentType: 'RAMS',
+                        projectRef:   $record->project_ref,
+                        projectName:  (string) $record->project_name,
+                        errorMessage: $errorMessage,
+                        detailUrl:    route('rams.review', $record),
+                    ));
+                }
+            } catch (\Throwable $mailErr) {
+                Log::warning(
+                    'BuildRamsDocumentJob: failure-alert email send failed',
+                    ['rams_document_id' => $this->ramsDocumentId, 'error' => $mailErr->getMessage()]
+                );
+            }
+        }
     }
 }

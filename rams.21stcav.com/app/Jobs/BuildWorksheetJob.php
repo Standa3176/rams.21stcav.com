@@ -112,6 +112,38 @@ class BuildWorksheetJob implements ShouldQueue
                 'worksheet_id' => $this->worksheetId,
                 'filename'     => $worksheet->filename,
             ]);
+
+            // Phase 09 / NOTF-01 — completion notification (idempotent via completion_email_sent_at).
+            $worksheet->refresh();
+            if ($worksheet->status === Worksheet::STATUS_DRAFT
+                && $worksheet->completion_email_sent_at === null) {
+
+                // Set timestamp FIRST (RESEARCH 'Idempotency Pattern') so a retry sees it set.
+                $worksheet->update(['completion_email_sent_at' => now()]);
+
+                try {
+                    $resolver  = app(\App\Services\NotificationRecipientResolver::class);
+                    $recipient = $resolver->resolveProjectRecipient($worksheet->project);
+                    if ($recipient?->email) {
+                        $pending = \Illuminate\Support\Facades\Mail::to($recipient->email);
+                        $bcc = config('rams.notifications.bcc');
+                        if (is_string($bcc) && trim($bcc) !== '') {
+                            $pending->bcc(trim($bcc));
+                        }
+                        $pending->send(new \App\Mail\WorksheetReadyMail($worksheet));
+                        Log::info(
+                            'BuildWorksheetJob: completion email dispatched',
+                            ['worksheet_id' => $worksheet->id, 'recipient' => $recipient->email]
+                        );
+                    }
+                } catch (\Throwable $mailErr) {
+                    Log::warning(
+                        'BuildWorksheetJob: completion email send failed',
+                        ['worksheet_id' => $worksheet->id, 'error' => $mailErr->getMessage()]
+                    );
+                    // Do NOT clear completion_email_sent_at — D-14.
+                }
+            }
         } catch (\Throwable $e) {
             Log::error('BuildWorksheetJob: failed', [
                 'worksheet_id' => $this->worksheetId,
@@ -146,5 +178,44 @@ class BuildWorksheetJob implements ShouldQueue
                 'status'        => Worksheet::STATUS_FAILED,
                 'error_message' => $e->getMessage(),
             ]);
+
+        // Phase 09 / NOTF-04 — admin failure alert (idempotent via failed_email_sent_at).
+        $record = Worksheet::find($this->worksheetId);
+        if ($record && $record->failed_email_sent_at === null) {
+            $record->update(['failed_email_sent_at' => now()]);
+
+            try {
+                $resolver = app(\App\Services\NotificationRecipientResolver::class);
+                $admins   = $resolver->resolveAdminRecipients();
+                // Truncate error_message to 500 chars (NOTF-04c).
+                $rawError     = (string) ($record->error_message ?? $e?->getMessage() ?? '');
+                // substr of error_message, 0, 500 — caps the body to NOTF-04c budget.
+                $errorMessage = $rawError !== '' ? substr($rawError, 0, 500) : null;
+
+                $bcc = config('rams.notifications.bcc');
+
+                foreach ($admins as $admin) {
+                    if (! $admin->email) {
+                        continue;
+                    }
+                    $pending = \Illuminate\Support\Facades\Mail::to($admin->email);
+                    if (is_string($bcc) && trim($bcc) !== '') {
+                        $pending->bcc(trim($bcc));
+                    }
+                    $pending->send(new \App\Mail\DocumentGenerationFailedMail(
+                        documentType: 'Worksheet',
+                        projectRef:   $record->project_ref,
+                        projectName:  (string) $record->project_name,
+                        errorMessage: $errorMessage,
+                        detailUrl:    route('worksheets.show', $record),
+                    ));
+                }
+            } catch (\Throwable $mailErr) {
+                Log::warning(
+                    'BuildWorksheetJob: failure-alert email send failed',
+                    ['worksheet_id' => $this->worksheetId, 'error' => $mailErr->getMessage()]
+                );
+            }
+        }
     }
 }
