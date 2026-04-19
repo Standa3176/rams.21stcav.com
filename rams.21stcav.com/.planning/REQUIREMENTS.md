@@ -27,6 +27,61 @@
 
 ---
 
+### NOTF-01 — Document generation completion notifications
+
+**Goal:** Project owner is notified by email when any of the four document types (RAMS, O&M Manual, Worksheet, Cable Schedule) finishes generating, so they don't need to refresh the dashboard or poll the queue.
+
+- [ ] **NOTF-01a**: A `RamsDocumentReadyMail` (or shared `DocumentReadyMail` polymorphic over the four types) implements `Illuminate\Contracts\Queue\ShouldQueue` and is dispatched from `BuildRamsDocumentJob` immediately after the model status flips to `STATUS_COMPLETED`
+- [ ] **NOTF-01b**: The same dispatch hook exists in `BuildOmManualJob` (status → `final` or `STATUS_FINAL`), the worksheet generator job, and the cable-schedule generator job — each fires its own typed mailable so the subject line and template can vary per document type
+- [ ] **NOTF-01c**: Each notifiable model gains a `completion_email_sent_at` timestamp column via migration: `rams_documents.completion_email_sent_at`, `om_manuals.completion_email_sent_at`, `worksheets.completion_email_sent_at`, `cable_schedules.completion_email_sent_at` — `RamsDocument.email_sent_at` (existing, owned by manual `RamsController@email`) is NOT reused
+- [ ] **NOTF-01d**: Send-once guard: each dispatch path checks `$model->completion_email_sent_at === null` before sending; the timestamp is set in the same `update()` call as the dispatch so a job retry cannot double-send
+- [ ] **NOTF-01e**: Manual regenerations do not fire a fresh "regenerated" email — only the standard completion email when the new model row reaches the completed state. The old superseded row stays silent (its `completion_email_sent_at` was already set when its own job completed)
+- [ ] **NOTF-01f**: Each completion email includes the generated artifact as an attachment (resolved via `DocumentArtifactStorage::readPath()`, gracefully omitted when the file is missing — same pattern as `RamsDocumentMail::attachments()`); subject line format: `[{project_ref}] {DocType} ready — {project_name}` (e.g., `[21CQ30017] RAMS ready — Acme Boardroom Refresh`)
+
+---
+
+### NOTF-02 — Site survey submission notification (inherited from v1.0)
+
+**Goal:** Project owner is notified when an external surveyor submits the public site-survey form. **Already implemented** in `SurveyService::submitPublic()` ([app/Core/Modules/Survey/SurveyService.php:403](../../app/Core/Modules/Survey/SurveyService.php#L403)) using `SurveySubmittedMail`. Phase 09 inherits this path and ensures it continues to work; template polish is allowed but the call site stays put.
+
+- [ ] **NOTF-02a**: After Phase 09 ships, the existing survey-submitted send path still passes its current feature tests (no regression) and uses the same recipient-resolution rule as the new triggers (project owner with admin fallback) — if the rule is extracted to a `NotificationRecipientResolver` service, `SurveyService` is refactored to use it for consistency
+
+---
+
+### NOTF-03 — RAMS review-needed notification
+
+**Goal:** Engineer/PM is notified when a RAMS document reaches `awaiting_review` status (i.e., `ExtractRamsDraftJob` has produced extracted data and the document is ready for human review), so review work is not silently sitting in the queue.
+
+- [ ] **NOTF-03a**: A `RamsReviewNeededMail` (`implements ShouldQueue`) is dispatched when `ExtractRamsDraftJob` finishes successfully and updates `RamsDocument.status` to `STATUS_AWAITING_REVIEW` — dispatched from the job, not from a model observer (so test mocking is straightforward)
+- [ ] **NOTF-03b**: Recipient = project owner (with admin fallback when `project.user_id` is null or orphaned). Email body contains a link to the RAMS review URL (`route('rams.review', $rams)`) and a brief summary (project ref, project name, time the document entered the review queue). No 7-day reminder in v1.1 — that scheduled-command extension is deferred to a v1.1 quick task
+
+---
+
+### NOTF-04 — Document generation failure alert
+
+**Goal:** Admins (the operations team) are notified when a `Build*Job` exhausts its retries and the model status lands on `failed`, so failed jobs do not silently rot in the queue.
+
+- [ ] **NOTF-04a**: A `DocumentGenerationFailedMail` (`implements ShouldQueue`) is dispatched from each `Build*Job::failed()` lifecycle hook (Laravel calls this hook after the final retry exhaustion). Recipients = `User::where('is_admin', true)->pluck('email')`; the project owner is NOT CC'd (operational issue, not their concern)
+- [ ] **NOTF-04b**: Each notifiable model gains a `failed_email_sent_at` timestamp column; the dispatch path sets it inside the same `update()` call to prevent duplicate alerts when `failed()` re-fires across separate retry attempts
+- [ ] **NOTF-04c**: Failure email body includes: project ref, project name, document type, the value of `error_message` (truncated to 500 chars), and a link to the document detail page so an admin can drill into the full stack trace via the existing UI
+
+---
+
+### NOTF-05 — Notification recipients, transport, and operational guarantees
+
+**Goal:** All notification triggers share consistent recipient-resolution, transport, and failure-handling rules. No per-user opt-out, no per-project subscriber list, no in-app channel — all deferred.
+
+- [ ] **NOTF-05a**: Default recipient resolution = `Project::user()` (project owner) with fallback to `User::where('is_admin', true)->first()` when the owner is null or the user record is missing. Implemented as a single `App\Services\NotificationRecipientResolver::resolveProjectRecipient(Project $project): ?User` so the rule is not duplicated across mailable call sites
+- [ ] **NOTF-05b**: Failure-alert recipients = all admins (`User::where('is_admin', true)->get()`). No `config/rams.php` admin override list; the role-based query is the single source of truth
+- [ ] **NOTF-05c**: No `project_notification_recipients` table or per-project subscriber UI in v1.1 — project owner is the sole project-level recipient (deferred)
+- [ ] **NOTF-05d**: Configurable global BCC for audit. New env var `RAMS_NOTIFICATION_BCC` (default empty in dev/test, `ops@21stcav.com` in production); when non-empty, every system email applies `->bcc(config('rams.notifications.bcc'))`. `config/rams.php` exposes `notifications.bcc => env('RAMS_NOTIFICATION_BCC')`
+- [ ] **NOTF-05e**: All system mailables are `Illuminate\Mail\Mailable` subclasses (no `Illuminate\Notifications\Notification` framework migration in v1.1 — multi-channel deferred to Phase 11+ when there is a real second channel)
+- [ ] **NOTF-05f**: All system mailables `implements ShouldQueue` so they dispatch through the existing `database` queue. Dev environment with `MAIL_MAILER=log` writes the rendered message to `storage/logs/laravel.log` for visual verification
+- [ ] **NOTF-05g**: Production transport = Postmark. `MAIL_MAILER=postmark` + `POSTMARK_TOKEN` in production `.env`. From address = `rams@21stcav.com`, From name = `RAMS Platform`. SPF / DKIM (Postmark-issued selector) / DMARC records on `21stcav.com` are operational prerequisites (DNS work tracked as a planning checklist item, not a code task)
+- [ ] **NOTF-05h**: Every send wrapped in `try { Mail::to(...)->send(...); } catch (\Throwable $e) { Log::warning('NotificationService: ...', [...]); }` — same defensive pattern as `SurveyService::submitPublic()`. Mail failure must never roll back the underlying document-generation job, status transition, or survey submission. No bounce/complaint webhook ingestion in v1.1 (Postmark dashboard is the operability surface; webhook ingestion deferred)
+
+---
+
 ## v1.2 — Installation Programme & Field Management
 **Milestone goal:** Transform the platform from document generator into a live installation delivery system — auto-generated task lists from project data, engineer assignment, mobile-responsive field view, time tracking, and commissioning sign-off.
 

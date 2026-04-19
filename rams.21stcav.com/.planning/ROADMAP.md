@@ -64,6 +64,22 @@ Plans:
 - [x] 08-01-PLAN.md — DashboardController + ProjectHealthService + ProjectHealth DTO + unit/feature tests (Wave 1)
 - [x] 08-02-PLAN.md — Enhanced dashboard.blade.php: health grid, status filter strip, Alpine.js filter, install programme widget (Wave 2)
 
+### Phase 09: Email Notifications
+**Goal**: Add trigger-based system email notifications for AV-operations events — document generation completed (RAMS, O&M, Worksheet, Cable), document generation failed, RAMS review needed, and inherit the existing survey-submitted email. Wire each trigger into the relevant `Build*Job` success/`failed()` hook or status-transition path; queue mailables via `ShouldQueue`; configure Postmark transport with `rams@21stcav.com` sender for production. Per-user opt-out, in-app notifications, and multi-channel (Slack/Bitrix) are explicitly out of scope.
+**Depends on**: Phase 04 (BuildOmManualJob, BuildWorksheetDocxJob, cable schedule generator hooks), Phase 06 (RAMS pipeline status transitions for review-needed and completion), Phase 03 (existing SurveyService send path)
+**Requirements**: NOTF-01, NOTF-01a, NOTF-01b, NOTF-01c, NOTF-01d, NOTF-01e, NOTF-01f, NOTF-02, NOTF-02a, NOTF-03, NOTF-03a, NOTF-03b, NOTF-04, NOTF-04a, NOTF-04b, NOTF-04c, NOTF-05, NOTF-05a, NOTF-05b, NOTF-05c, NOTF-05d, NOTF-05e, NOTF-05f, NOTF-05g, NOTF-05h
+**Success Criteria** (what must be TRUE):
+  1. When a `RamsDocument` transitions to `STATUS_COMPLETED` via `BuildRamsDocumentJob`, the project owner receives an email with the DOCX attached and `completion_email_sent_at` is set on the model row
+  2. The same completion-notification pattern fires for O&M Manuals, Worksheets, and Cable Schedules — each model has its own `completion_email_sent_at` column and idempotency guard
+  3. When a `Build*Job` exhausts retries and lands in `STATUS_FAILED`, every `User::where('is_admin', true)` recipient receives a failure alert exactly once (`failed_email_sent_at` guard)
+  4. When `ExtractRamsDraftJob` finishes and `RamsDocument.status` becomes `awaiting_review`, the project owner (or admin fallback) receives a review-needed email
+  5. The existing survey-submitted send path in `SurveyService::submitPublic()` continues to work unchanged after Phase 09 ships (no regression)
+  6. With `MAIL_MAILER=postmark` and a valid `POSTMARK_TOKEN`, all mailables dispatch via the database queue (`implements ShouldQueue`) and arrive at the recipient
+  7. When `RAMS_NOTIFICATION_BCC` env var is non-empty, every system email BCC's that address; when empty, no BCC is added
+  8. A mail send failure (caught `Throwable` → `Log::warning`) never rolls back the underlying document-generation job or aborts a status transition
+  9. Feature tests using `Mail::fake()` assert each trigger fires the correct mailable to the correct recipient with the correct attachment / no-attachment shape
+**Plans**: TBD
+
 ### Phase 12: Install Task Generation
 **Goal**: Auto-generate a structured install task list from `ProjectDataService`, persisted as `install_programmes` + `install_tasks` records. Engineers confirm the generated list before it becomes active. Also deliver WORK-05/06 worksheet enhancements (pre-install answers + dashboard trigger).
 **Depends on**: Nothing (first phase of v1.2; ProjectDataService from v1.0 is the data source)
