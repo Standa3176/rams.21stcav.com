@@ -67,7 +67,7 @@ Plans:
 ### Phase 09: Email Notifications
 **Goal**: Add trigger-based system email notifications for AV-operations events — document generation completed (RAMS, O&M, Worksheet, Cable), document generation failed, RAMS review needed, and inherit the existing survey-submitted email. Wire each trigger into the relevant `Build*Job` success/`failed()` hook or status-transition path; queue mailables via `ShouldQueue`; configure Postmark transport with `rams@21stcav.com` sender for production. Per-user opt-out, in-app notifications, and multi-channel (Slack/Bitrix) are explicitly out of scope.
 **Depends on**: Phase 04 (BuildOmManualJob, BuildWorksheetDocxJob, cable schedule generator hooks), Phase 06 (RAMS pipeline status transitions for review-needed and completion), Phase 03 (existing SurveyService send path)
-**Requirements**: NOTF-01, NOTF-01a, NOTF-01b, NOTF-01c, NOTF-01d, NOTF-01e, NOTF-01f, NOTF-02, NOTF-02a, NOTF-03, NOTF-03a, NOTF-03b, NOTF-04, NOTF-04a, NOTF-04b, NOTF-04c, NOTF-05, NOTF-05a, NOTF-05b, NOTF-05c, NOTF-05d, NOTF-05e, NOTF-05f, NOTF-05g, NOTF-05h
+**Requirements**: NOTF-01, NOTF-01a, NOTF-01b, NOTF-01c, NOTF-01d, NOTF-01e, NOTF-01f, NOTF-02, NOTF-02a, NOTF-03, NOTF-03a, NOTF-03b, NOTF-03c, NOTF-04, NOTF-04a, NOTF-04b, NOTF-04c, NOTF-05, NOTF-05a, NOTF-05b, NOTF-05c, NOTF-05d, NOTF-05e, NOTF-05f, NOTF-05g, NOTF-05h
 **Success Criteria** (what must be TRUE):
   1. When a `RamsDocument` transitions to `STATUS_COMPLETED` via `BuildRamsDocumentJob`, the project owner receives an email with the DOCX attached and `completion_email_sent_at` is set on the model row
   2. The same completion-notification pattern fires for O&M Manuals, Worksheets, and Cable Schedules — each model has its own `completion_email_sent_at` column and idempotency guard
@@ -78,14 +78,15 @@ Plans:
   7. When `RAMS_NOTIFICATION_BCC` env var is non-empty, every system email BCC's that address; when empty, no BCC is added
   8. A mail send failure (caught `Throwable` → `Log::warning`) never rolls back the underlying document-generation job or aborts a status transition
   9. Feature tests using `Mail::fake()` assert each trigger fires the correct mailable to the correct recipient with the correct attachment / no-attachment shape
-**Plans**: 6 plans
+**Plans**: 7 plans
 
 Plans:
-- [ ] 09-01-PLAN.md — Migrations (8 email-timestamp columns + cable_schedules.error_message) + config/rams.php notifications.bcc + .env.example placeholders (Wave 1)
+- [ ] 09-01-PLAN.md — Migrations (9 email-timestamp columns incl. NOTF-03c review_needed + cable_schedules.error_message) + config/rams.php notifications.bcc + .env.example placeholders + model $fillable / $casts wiring on the 4 notifiable models + HasFactory trait on RamsDocument & CableSchedule (per B-01) (Wave 1)
 - [ ] 09-02-PLAN.md — composer require symfony/postmark-mailer + symfony/http-client + NotificationRecipientResolver service + unit tests (Wave 1)
-- [ ] 09-03-PLAN.md — 4 typed *ReadyMail mailables (RAMS / O&M / Worksheet / Cable) implementing ShouldQueue with DocumentArtifactStorage attachments + Blade templates (Wave 2)
-- [ ] 09-04-PLAN.md — RamsReviewNeededMail + DocumentGenerationFailedMail (polymorphic) + Blade templates + SurveyService refactor to use NotificationRecipientResolver (NOTF-02a, fixes 2 latent bugs) (Wave 2)
-- [ ] 09-05-PLAN.md — Wire all 5 jobs (Build*Job + ExtractRamsDraftJob) with completion / failure / review email dispatch + 9 feature tests (Mail::fake) + idempotency + BCC tests + extend PublicSurveyControllerTest (Wave 3)
+- [ ] 09-02b-PLAN.md — 4 model factories ONLY (RamsDocument / OmManual / Worksheet / CableSchedule) for plan 09-05 feature tests (Wave 2, depends_on 09-01 per B-01 — HasFactory trait additions moved into 09-01 Task 3 to avoid Wave 1 file collision)
+- [ ] 09-03-PLAN.md — 4 typed *ReadyMail mailables (RAMS / O&M / Worksheet / Cable) implementing ShouldQueue with DocumentArtifactStorage attachments + Blade templates mirroring canonical wrapper (Wave 2)
+- [ ] 09-04-PLAN.md — RamsReviewNeededMail + DocumentGenerationFailedMail (polymorphic) + Blade templates with canonical wrapper + SurveyService refactor to use NotificationRecipientResolver (NOTF-02a) + SiteSurveyController authorizeSurvey() fix (B-02 — uses existing User::isAdmin() method; fixes 3 latent bugs codebase-wide) (Wave 2)
+- [ ] 09-05-PLAN.md — Wire all 5 jobs (Build*Job + ExtractRamsDraftJob) with completion / failure / review email dispatch (review-needed now idempotent via NOTF-03c) + 9 feature tests (Mail::fake) + idempotency + BCC tests + extend PublicSurveyControllerTest (Wave 3)
 - [ ] 09-06-PLAN.md — POSTMARK-OPS-CHECKLIST.md (DNS, Postmark dashboard, production .env) + human-verify checkpoint for cutover decision (Wave 4)
 
 ### Phase 12: Install Task Generation

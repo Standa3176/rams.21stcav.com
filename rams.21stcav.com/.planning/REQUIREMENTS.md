@@ -53,6 +53,7 @@
 **Goal:** Engineer/PM is notified when a RAMS document reaches `awaiting_review` status (i.e., `ExtractRamsDraftJob` has produced extracted data and the document is ready for human review), so review work is not silently sitting in the queue.
 
 - [ ] **NOTF-03a**: A `RamsReviewNeededMail` (`implements ShouldQueue`) is dispatched when `ExtractRamsDraftJob` finishes successfully and updates `RamsDocument.status` to `STATUS_AWAITING_REVIEW` — dispatched from the job, not from a model observer (so test mocking is straightforward)
+- [ ] **NOTF-03c**: Idempotency guard via `rams_documents.review_needed_email_sent_at` (nullable timestamp added in plan 09-01); the dispatch path checks `if ($record->review_needed_email_sent_at === null) { ... }` and sets the timestamp BEFORE send (same pattern as completion mail per NOTF-01d). Without this column, ExtractRamsDraftJob `$tries=2` retries would silently re-fire the review email
 - [ ] **NOTF-03b**: Recipient = project owner (with admin fallback when `project.user_id` is null or orphaned). Email body contains a link to the RAMS review URL (`route('rams.review', $rams)`) and a brief summary (project ref, project name, time the document entered the review queue). No 7-day reminder in v1.1 — that scheduled-command extension is deferred to a v1.1 quick task
 
 ---
@@ -61,7 +62,7 @@
 
 **Goal:** Admins (the operations team) are notified when a `Build*Job` exhausts its retries and the model status lands on `failed`, so failed jobs do not silently rot in the queue.
 
-- [ ] **NOTF-04a**: A `DocumentGenerationFailedMail` (`implements ShouldQueue`) is dispatched from each `Build*Job::failed()` lifecycle hook (Laravel calls this hook after the final retry exhaustion). Recipients = `User::where('is_admin', true)->pluck('email')`; the project owner is NOT CC'd (operational issue, not their concern)
+- [ ] **NOTF-04a**: A `DocumentGenerationFailedMail` (`implements ShouldQueue`) is dispatched from each `Build*Job::failed()` lifecycle hook (Laravel calls this hook after the final retry exhaustion). Recipients = `User::where('role', 'admin')->get()` (the codebase uses `users.role`, not an `is_admin` boolean — see NOTF-05b); the project owner is NOT CC'd (operational issue, not their concern)
 - [ ] **NOTF-04b**: Each notifiable model gains a `failed_email_sent_at` timestamp column; the dispatch path sets it inside the same `update()` call to prevent duplicate alerts when `failed()` re-fires across separate retry attempts
 - [ ] **NOTF-04c**: Failure email body includes: project ref, project name, document type, the value of `error_message` (truncated to 500 chars), and a link to the document detail page so an admin can drill into the full stack trace via the existing UI
 
