@@ -35,4 +35,14 @@ class RamsEditAdapter implements DocumentEditAdapterInterface
             'error' => "RAMS operation '{$op['op']}' is not implemented yet — available from the next pass.",
         ];
     }
+
+    public function summariseDiff(array $before, array $after): array
+    {
+        return [];
+    }
+
+    public function commitChanges(int $documentId, array $payload): ?string
+    {
+        return null;
+    }
 }

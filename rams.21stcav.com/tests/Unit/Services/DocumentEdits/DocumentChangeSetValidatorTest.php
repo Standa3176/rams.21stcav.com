@@ -24,6 +24,8 @@ class DocumentChangeSetValidatorTest extends TestCase
             public function applyOperation(array $payload, array $op): array {
                 return ['ok' => false, 'code' => 'not_implemented', 'error' => 'stub'];
             }
+            public function summariseDiff(array $before, array $after): array { return []; }
+            public function commitChanges(int $documentId, array $payload): ?string { return null; }
         };
     }
 

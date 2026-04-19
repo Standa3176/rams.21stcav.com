@@ -93,7 +93,7 @@ class DocumentEditControllerTest extends TestCase
             'role'            => 'assistant',
             'content'         => 'Proposing a worksheet update.',
             'operations_json' => [
-                ['op' => 'update_room_field', 'room_id' => 1, 'field' => 'has_power', 'value' => true],
+                ['op' => 'add_blocker', 'type' => 'power', 'message' => 'Outlets unconfirmed.', 'action' => 'Check with client.', 'room' => '(project)'],
             ],
         ]);
 
@@ -168,8 +168,14 @@ class DocumentEditControllerTest extends TestCase
 
     // ─── applyChangeSet ──────────────────────────────────────────────────────
 
-    public function test_apply_change_set_returns_422_when_adapter_not_implemented(): void
+    public function test_apply_marks_change_set_applied_and_writes_revision(): void
     {
+        // Pass-A controller contract: apply walks the ops through the adapter
+        // and either records a new revision (success) or returns 422. The
+        // not-implemented-in-pass-a branch is superseded by WorksheetEditAdapter
+        // in pass B — exhaustive apply-failure coverage lives in
+        // WorksheetAdapterApplyTest. This test pins the success path:
+        // validated change-set → apply → applied + new_revision.
         $this->auth();
         $ws = $this->makeWorksheet();
         $thread = $this->postJson("/documents/worksheet/{$ws->id}/threads")->json('thread');
@@ -179,17 +185,26 @@ class DocumentEditControllerTest extends TestCase
             'document_id'       => $ws->id,
             'base_revision_id'  => $thread['base_revision_id'],
             'status'            => DocumentChangeSet::STATUS_VALIDATED,
-            'operations_json'   => [['op' => 'update_room_field', 'field' => 'x']],
+            'operations_json'   => [
+                ['op' => 'add_blocker', 'type' => 'power', 'message' => 'Outlets unconfirmed.', 'action' => 'Check.', 'room' => '(project)'],
+            ],
             'validation_errors' => null,
         ]);
 
+        // WorksheetDocxService would normally run here; stub it so the test
+        // doesn't touch the real artifact disk.
+        $this->mock(\App\Services\WorksheetDocxService::class, function ($m) {
+            $m->shouldReceive('build')
+                ->andReturnUsing(fn ($payload, $ws) => $ws->update(['filename' => 'applied.docx']));
+        });
+
         $res = $this->postJson("/documents/worksheet/{$ws->id}/changes/{$cs->id}/apply");
 
-        $res->assertStatus(422)
-            ->assertJsonPath('error', 'adapter_apply_failed')
-            ->assertJsonFragment(['code' => 'not_implemented_in_pass_a']);
+        $res->assertStatus(200)
+            ->assertJsonPath('change_set.status', 'applied')
+            ->assertJsonPath('new_revision.source', 'ai_chat');
 
-        $this->assertSame('rejected', $cs->fresh()->status);
+        $this->assertSame('applied', $cs->fresh()->status);
     }
 
     public function test_apply_rejects_previously_rejected_change_set(): void

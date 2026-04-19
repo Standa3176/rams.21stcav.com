@@ -47,4 +47,27 @@ interface DocumentEditAdapterInterface
      * @return array{ok: bool, payload?: array, error?: string, code?: string}
      */
     public function applyOperation(array $payload, array $op): array;
+
+    /**
+     * Produce a lightweight preview-diff between two payloads. Used by the
+     * change-set GET endpoint to populate the diff block the UI needs without
+     * actually mutating data. Adapters that don't yet implement a real diff
+     * should return an empty array.
+     *
+     * @param  array<string, mixed> $before
+     * @param  array<string, mixed> $after
+     * @return array<string, mixed>
+     */
+    public function summariseDiff(array $before, array $after): array;
+
+    /**
+     * Persist the post-apply payload back to the source model AND regenerate
+     * any derived artifact (DOCX / XLSX / PDF). Returns the filename of the
+     * newly-written artifact, or null when the adapter doesn't regenerate an
+     * artifact (pass A stubs).
+     *
+     * Adapters MUST NOT throw; return null on failure and log the reason so
+     * the apply endpoint can still record the revision cleanly.
+     */
+    public function commitChanges(int $documentId, array $payload): ?string;
 }

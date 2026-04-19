@@ -133,12 +133,34 @@ class DocumentEditController extends Controller
             return $this->jsonError('change_set_not_found', "Change-set #{$changeSet} not found", 404);
         }
 
+        // Preview diff — compute without persisting. Silent no-op when the
+        // adapter hasn't implemented a diff (pass A stubs return []).
+        $preview = [];
+        try {
+            $adapter = $this->resolveAdapter($type);
+            if ($adapter !== null && $cs->status !== DocumentChangeSet::STATUS_REJECTED) {
+                $before = $adapter->loadPayload($id) ?? [];
+                $after  = $before;
+                foreach ((array) $cs->operations_json as $op) {
+                    $res = $adapter->applyOperation($after, (array) $op);
+                    if ($res['ok'] ?? false) {
+                        $after = (array) ($res['payload'] ?? $after);
+                    }
+                    // Ignore individual op failures in preview — partial ok.
+                }
+                $preview = $adapter->summariseDiff($before, $after);
+            }
+        } catch (\Throwable) {
+            $preview = [];
+        }
+
         return response()->json([
             'change_set' => $cs->only([
                 'id', 'thread_id', 'document_type', 'document_id',
                 'base_revision_id', 'status', 'operations_json',
                 'validation_errors', 'model_name', 'created_at',
             ]),
+            'preview' => $preview,
         ]);
     }
 
@@ -208,16 +230,30 @@ class DocumentEditController extends Controller
             ]);
         }
 
-        // (pass A) No artifact regeneration; mark applied + write a revision.
-        $baseRev  = $cs->baseRevision;
-        $newRev   = $baseRev
-            ? $this->revisions->recordRevision($baseRev, $payload, \App\Models\DocumentRevision::SOURCE_AI_CHAT, 'Applied via chat change-set')
+        // Persist payload + regenerate derived artifact via the adapter.
+        // Adapters that don't produce an artifact (pass A stubs) return null;
+        // adapters that fail artifact regen also return null and log — the
+        // apply still records the revision so the payload change isn't lost.
+        $artifactFilename = $adapter->commitChanges($id, $payload);
+
+        $baseRev = $cs->baseRevision;
+        $newRev  = $baseRev
+            ? $this->revisions->recordRevision(
+                $baseRev,
+                $payload,
+                \App\Models\DocumentRevision::SOURCE_AI_CHAT,
+                'Applied via chat change-set',
+            )
             : null;
+        if ($newRev !== null && $artifactFilename !== null) {
+            $newRev->update(['artifact_filename' => $artifactFilename]);
+        }
         $cs->update(['status' => DocumentChangeSet::STATUS_APPLIED]);
 
         return response()->json([
-            'change_set'    => $cs->only(['id', 'status']),
-            'new_revision'  => $newRev?->only(['id', 'parent_revision_id', 'source', 'created_at']),
+            'change_set'        => $cs->only(['id', 'status']),
+            'new_revision'      => $newRev?->only(['id', 'parent_revision_id', 'source', 'artifact_filename', 'created_at']),
+            'artifact_filename' => $artifactFilename,
         ]);
     }
 
