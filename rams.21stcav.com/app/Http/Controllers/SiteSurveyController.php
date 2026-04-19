@@ -446,7 +446,7 @@ class SiteSurveyController extends Controller
 
     private function authorizeSurvey(SiteSurvey $survey): void
     {
-        abort_unless($survey->user_id === auth()->id() || auth()->user()?->is_admin, 403);
+        abort_unless($survey->user_id === auth()->id() || auth()->user()?->isAdmin(), 403);
     }
 
     private function validateSurvey(Request $request): array

@@ -403,8 +403,9 @@ class SurveyService
         // ── PM notification email — outside transaction so mail failure cannot roll back submission ──
         if ($result->project_id) {
             try {
-                $project   = Project::with('user')->find($result->project_id);
-                $recipient = $project?->user ?? User::where('is_admin', true)->first();
+                $project   = Project::find($result->project_id);
+                $recipient = app(\App\Services\NotificationRecipientResolver::class)
+                    ->resolveProjectRecipient($project);
                 if ($recipient?->email) {
                     $completed = $result->rooms()->where('is_completed', true)->count();
                     Mail::to($recipient->email)->send(new SurveySubmittedMail($result, $completed));
