@@ -66,7 +66,13 @@ class NotificationRecipientResolverTest extends TestCase
         $firstAdmin  = User::factory()->create(['role' => 'admin', 'email' => 'first-admin@example.test']);
         $secondAdmin = User::factory()->create(['role' => 'admin', 'email' => 'second-admin@example.test']);
 
-        $project = Project::factory()->create(['user_id' => null]);
+        // projects.user_id is NOT NULL with cascadeOnDelete FK, so we cannot
+        // save a Project without an owner. Use an in-memory Project (no DB
+        // row) with user_id cleared — loadMissing('owner') then resolves to
+        // null because the FK points nowhere. This mirrors the production
+        // "job-failed alert with no project context" path.
+        $project          = Project::factory()->make();
+        $project->user_id = null;
 
         $result = $this->resolver->resolveProjectRecipient($project);
 
@@ -87,15 +93,16 @@ class NotificationRecipientResolverTest extends TestCase
 
     public function test_falls_back_to_admin_when_project_owner_has_no_email(): void
     {
-        // Owner exists but has a null email — treat owner as missing and fall
-        // back to admin. Build via mass assign + direct save to bypass factory
-        // safeEmail() default which never returns null.
-        $owner = new User([
-            'name' => 'No Email Owner',
-            'role' => 'user',
+        // Owner exists but has an empty email — treat owner as missing and
+        // fall back to admin. The users.email column is declared NOT NULL
+        // at the schema level (see 0001_01_01_000000_create_users_table.php),
+        // so "no email" in practice means an empty string rather than null.
+        // The resolver treats both null and '' as falsy and falls through to
+        // the admin lookup.
+        $owner = User::factory()->create([
+            'email' => 'placeholder+tmp@example.test',
         ]);
-        $owner->email    = null;
-        $owner->password = bcrypt('password');
+        $owner->email = '';
         $owner->save();
 
         $admin = User::factory()->create(['role' => 'admin', 'email' => 'admin@example.test']);
@@ -105,7 +112,7 @@ class NotificationRecipientResolverTest extends TestCase
         $result = $this->resolver->resolveProjectRecipient($project);
 
         $this->assertNotNull($result);
-        $this->assertSame($admin->id, $result->id, 'Expected admin fallback when owner has no email');
+        $this->assertSame($admin->id, $result->id, 'Expected admin fallback when owner has empty email');
     }
 
     public function test_returns_null_when_no_owner_and_no_admin(): void
@@ -114,7 +121,11 @@ class NotificationRecipientResolverTest extends TestCase
         // tests sometimes seed an admin).
         User::where('role', 'admin')->delete();
 
-        $project = Project::factory()->create(['user_id' => null]);
+        // In-memory Project with no owner — see note in the "owner null"
+        // test. This is the only way to exercise the "no owner + no admin"
+        // branch given the projects.user_id NOT NULL FK.
+        $project          = Project::factory()->make();
+        $project->user_id = null;
 
         $result = $this->resolver->resolveProjectRecipient($project);
 
@@ -152,20 +163,18 @@ class NotificationRecipientResolverTest extends TestCase
 
         $adminWithEmail = User::factory()->create(['role' => 'admin', 'email' => 'alerts@example.test']);
 
-        // Admin with null email — build without the factory's safeEmail().
-        $adminNoEmail = new User([
-            'name' => 'Silent Admin',
-            'role' => 'admin',
-        ]);
-        $adminNoEmail->email    = null;
-        $adminNoEmail->password = bcrypt('password');
+        // Admin with empty email — users.email is NOT NULL at the schema
+        // level, so "no email" = empty string in practice. The resolver must
+        // filter these out (a mail-send to '' would hard-fail at runtime).
+        $adminNoEmail = User::factory()->create(['role' => 'admin', 'email' => 'placeholder@example.test']);
+        $adminNoEmail->email = '';
         $adminNoEmail->save();
 
         User::factory()->create(['role' => 'user', 'email' => 'regular@example.test']);
 
         $result = $this->resolver->resolveAdminRecipients();
 
-        $this->assertCount(1, $result, 'Only the admin with a non-null email should be returned');
+        $this->assertCount(1, $result, 'Only the admin with a usable email should be returned');
         $this->assertSame($adminWithEmail->id, $result->first()->id);
     }
 }
