@@ -71,10 +71,10 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. When a `RamsDocument` transitions to `STATUS_COMPLETED` via `BuildRamsDocumentJob`, the project owner receives an email with the DOCX attached and `completion_email_sent_at` is set on the model row
   2. The same completion-notification pattern fires for O&M Manuals, Worksheets, and Cable Schedules — each model has its own `completion_email_sent_at` column and idempotency guard
-  3. When a `Build*Job` exhausts retries and lands in `STATUS_FAILED`, every `User::where('is_admin', true)` recipient receives a failure alert exactly once (`failed_email_sent_at` guard)
+  3. When a `Build*Job` exhausts retries and lands in `STATUS_FAILED`, every `User::where('role', 'admin')` recipient receives a failure alert exactly once (`failed_email_sent_at` guard) — note: codebase uses `users.role = 'admin'`, not an `is_admin` boolean
   4. When `ExtractRamsDraftJob` finishes and `RamsDocument.status` becomes `awaiting_review`, the project owner (or admin fallback) receives a review-needed email
   5. The existing survey-submitted send path in `SurveyService::submitPublic()` continues to work unchanged after Phase 09 ships (no regression)
-  6. With `MAIL_MAILER=postmark` and a valid `POSTMARK_TOKEN`, all mailables dispatch via the database queue (`implements ShouldQueue`) and arrive at the recipient
+  6. With `MAIL_MAILER=postmark` and a valid `POSTMARK_API_KEY` (the env var name Laravel 12 + `config/services.php` already use), all mailables dispatch via the database queue (`implements ShouldQueue`) and arrive at the recipient
   7. When `RAMS_NOTIFICATION_BCC` env var is non-empty, every system email BCC's that address; when empty, no BCC is added
   8. A mail send failure (caught `Throwable` → `Log::warning`) never rolls back the underlying document-generation job or aborts a status transition
   9. Feature tests using `Mail::fake()` assert each trigger fires the correct mailable to the correct recipient with the correct attachment / no-attachment shape
