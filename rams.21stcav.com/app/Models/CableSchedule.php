@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -9,7 +10,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class CableSchedule extends Model
 {
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     // ── Status constants ──────────────────────────────────────────────────────
     public const STATUS_PENDING    = 'pending';
@@ -26,7 +27,20 @@ class CableSchedule extends Model
         'client_name',
         'source_filename',
         'status',
+        'error_message',
+        'completion_email_sent_at',
+        'failed_email_sent_at',
     ];
+
+    // ── Casts ─────────────────────────────────────────────────────────────────
+
+    protected function casts(): array
+    {
+        return [
+            'completion_email_sent_at' => 'datetime',
+            'failed_email_sent_at'     => 'datetime',
+        ];
+    }
 
     // ── Relationships ─────────────────────────────────────────────────────────
 

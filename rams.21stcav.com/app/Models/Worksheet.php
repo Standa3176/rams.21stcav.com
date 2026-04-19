@@ -46,6 +46,8 @@ class Worksheet extends Model
         'error_message',
         'generated_data',
         'filename',
+        'completion_email_sent_at',
+        'failed_email_sent_at',
     ];
 
     // ── Casts ─────────────────────────────────────────────────────────────────
@@ -53,7 +55,9 @@ class Worksheet extends Model
     protected function casts(): array
     {
         return [
-            'generated_data' => 'array',
+            'generated_data'           => 'array',
+            'completion_email_sent_at' => 'datetime',
+            'failed_email_sent_at'     => 'datetime',
         ];
     }
 

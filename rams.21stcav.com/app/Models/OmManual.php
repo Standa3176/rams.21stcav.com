@@ -35,13 +35,17 @@ class OmManual extends Model
         'extracted_data',
         'generated_data',
         'filename',
+        'completion_email_sent_at',
+        'failed_email_sent_at',
     ];
 
     protected function casts(): array
     {
         return [
-            'extracted_data' => 'array',
-            'generated_data' => 'array',
+            'extracted_data'           => 'array',
+            'generated_data'           => 'array',
+            'completion_email_sent_at' => 'datetime',
+            'failed_email_sent_at'     => 'datetime',
         ];
     }
 

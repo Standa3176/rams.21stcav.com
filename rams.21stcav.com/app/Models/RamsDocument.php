@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -10,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 
 class RamsDocument extends Model
 {
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     // ── Pipeline / upload statuses ────────────────────────────────────────────
     const STATUS_UPLOADED                = 'uploaded';
@@ -46,19 +47,25 @@ class RamsDocument extends Model
         'status',
         'error_message',
         'email_sent_at',
+        'completion_email_sent_at',
+        'failed_email_sent_at',
+        'review_needed_email_sent_at',
         'approved_at',
         'approved_by',
         'superseded_by_id',
     ];
 
     protected $casts = [
-        'form_data'      => 'array',
-        'extracted_data' => 'array',
-        'reviewed_data'  => 'array',
-        'generated_data' => 'array',
-        'email_sent_at'  => 'datetime',
-        'approved_at'    => 'datetime',
-        'deleted_at'     => 'datetime',
+        'form_data'                   => 'array',
+        'extracted_data'              => 'array',
+        'reviewed_data'               => 'array',
+        'generated_data'              => 'array',
+        'email_sent_at'               => 'datetime',
+        'completion_email_sent_at'    => 'datetime',
+        'failed_email_sent_at'        => 'datetime',
+        'review_needed_email_sent_at' => 'datetime',
+        'approved_at'                 => 'datetime',
+        'deleted_at'                  => 'datetime',
     ];
 
     // ── Model events ──────────────────────────────────────────────────────────
