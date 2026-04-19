@@ -127,6 +127,12 @@ class SurveyService
             $ctx   = $this->contextResolver->resolve($project);
             $rooms = $ctx['rooms'];  // [['room' => string, 'overview' => string, 'summary' => string], ...]
 
+            // Group quote equipment by area so each seeded room gets its own
+            // kit string (av_equipment_list) — engineers need this context
+            // on-site when completing the survey. Key is a lowercased/trimmed
+            // area so case/whitespace variants collapse to the same room.
+            $equipmentByRoomKey = $this->groupEquipmentByRoom($ctx['equipment'] ?? []);
+
             $survey = SiteSurvey::create([
                 'user_id'       => $user->id,
                 'project_id'    => $project->id,
@@ -159,10 +165,17 @@ class SurveyService
                     }
                 }
 
+                // Deterministic per-room kit string. Falls back to the room's
+                // works_summary when the quote didn't itemise equipment under
+                // this room's area.
+                $kitList = $this->kitListForRoom($roomName, $equipmentByRoomKey)
+                    ?: trim((string) ($roomData['works_summary'] ?? ''));
+
                 $room = $survey->rooms()->create($this->roomAttributes([
-                    'room_name'       => $roomName,
-                    'av_requirements' => $avRequirements ?: null,
-                    'space_type'      => $solutionTypeId
+                    'room_name'         => $roomName,
+                    'av_requirements'   => $avRequirements ?: null,
+                    'av_equipment_list' => $kitList !== '' ? $kitList : null,
+                    'space_type'        => $solutionTypeId
                         ? (\App\Models\SolutionType::find($solutionTypeId)?->slug ?? 'general')
                         : 'general',
                 ], $i));
@@ -548,6 +561,49 @@ class SurveyService
             Storage::disk('local')->delete($photo->storagePath());
         }
         $room->photos()->delete();
+    }
+
+    /**
+     * Group quote equipment rows by their area (room) name, keyed by a
+     * lowercased/trimmed area so case/whitespace variance collapses to the
+     * same room. Each group preserves quote insertion order.
+     *
+     * @param  array<int, array<string, mixed>>  $equipment
+     * @return array<string, array<int, array{name: string, quantity: int}>>
+     */
+    private function groupEquipmentByRoom(array $equipment): array
+    {
+        $grouped = [];
+        foreach ($equipment as $item) {
+            if (! is_array($item)) continue;
+            $area = trim((string) ($item['area'] ?? ''));
+            if ($area === '') continue;
+            $name = trim((string) ($item['name'] ?? ''));
+            if ($name === '') continue;
+            $qty  = max(1, (int) ($item['quantity'] ?? 1));
+            $key  = strtolower($area);
+            $grouped[$key][] = ['name' => $name, 'quantity' => $qty];
+        }
+        return $grouped;
+    }
+
+    /**
+     * Render a deterministic kit string for a room — one `"{qty} × {name}"`
+     * entry per line, in quote order. Returns '' when the room has no
+     * itemised equipment in the grouped map.
+     *
+     * @param  array<string, array<int, array{name: string, quantity: int}>>  $grouped
+     */
+    private function kitListForRoom(string $roomName, array $grouped): string
+    {
+        $key   = strtolower(trim($roomName));
+        $items = $grouped[$key] ?? [];
+        if (empty($items)) return '';
+
+        return implode("\n", array_map(
+            fn (array $i): string => $i['quantity'] . ' × ' . $i['name'],
+            $items,
+        ));
     }
 
     /**

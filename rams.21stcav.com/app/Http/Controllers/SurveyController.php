@@ -178,7 +178,24 @@ class SurveyController extends Controller
                 'permits_required'     => false,
                 'manual_handling_risk' => false,
             ]],
-            'notes' => '',
+            'notes'       => '',
+            // Step 7 — site constraints captured by the wizard. Stored in a
+            // strict 4-field shape so the shape is predictable for downstream
+            // consumers and survives the canonical enforcer.
+            'constraints' => [
+                'obstructions'          => '',
+                'noise_restrictions'    => '',
+                'client_constraints'    => '',
+                'programme_constraints' => '',
+            ],
+            // Step 8 — completion-critical engineer sign-off. ISO timestamp
+            // captured server-side on the POST so clock-skew in the browser
+            // doesn't fabricate a bogus signed_at.
+            'signoff'     => [
+                'engineer_name'       => '',
+                'engineer_confirmed'  => false,
+                'signed_at'           => null,
+            ],
         ];
     }
 
@@ -264,20 +281,22 @@ class SurveyController extends Controller
                     'working_at_height'=> false,
                     'client_present'   => false,
 
-                    // Step 7 constraints — not canonical
+                    // Step 7 constraints — seeded from canonical survey_data
+                    // so a reload after stepSave shows what was captured.
                     'constraints' => [
-                        'obstructions'          => '',
-                        'noise_restrictions'    => '',
-                        'client_constraints'    => '',
-                        'programme_constraints' => '',
+                        'obstructions'          => (string) ($canonical['constraints']['obstructions']          ?? ''),
+                        'noise_restrictions'    => (string) ($canonical['constraints']['noise_restrictions']    ?? ''),
+                        'client_constraints'    => (string) ($canonical['constraints']['client_constraints']    ?? ''),
+                        'programme_constraints' => (string) ($canonical['constraints']['programme_constraints'] ?? ''),
                     ],
 
-                    // Step 8 sign-off — not canonical
+                    // Step 8 sign-off — seeded from canonical survey_data so
+                    // a reload restores the engineer's confirmation state.
                     'signoff' => [
-                        'engineer_name'    => '',
+                        'engineer_name'    => (string) ($canonical['signoff']['engineer_name']      ?? ''),
                         'client_signature' => '',
-                        'is_confirmed'     => false,
-                        'timestamp'        => null,
+                        'is_confirmed'     => (bool)   ($canonical['signoff']['engineer_confirmed'] ?? false),
+                        'timestamp'        =>          ($canonical['signoff']['signed_at']          ?? null) ?: null,
                     ],
                 ],
             ]);
@@ -378,6 +397,25 @@ class SurveyController extends Controller
             return null;
         }
 
+        if ($step === 7) {
+            if (array_key_exists('constraints', $data) && ! is_array($data['constraints'])) {
+                return 'Constraints payload is invalid.';
+            }
+            return null;
+        }
+
+        if ($step === 8) {
+            if (array_key_exists('signoff', $data) && ! is_array($data['signoff'])) {
+                return 'Signoff payload is invalid.';
+            }
+            $confirmed = (bool) ($data['signoff']['engineer_confirmed'] ?? $data['engineer_confirmed'] ?? false);
+            $engineer  = trim((string) ($data['signoff']['engineer_name'] ?? $data['engineer_name'] ?? ''));
+            if ($confirmed && $engineer === '') {
+                return 'Engineer name is required to confirm sign-off.';
+            }
+            return null;
+        }
+
         return null;
     }
 
@@ -435,13 +473,62 @@ class SurveyController extends Controller
                 break;
 
             case 7:
+                // Step 7 — site constraints. Persist the structured 4-field
+                // block so a superseded/reloaded survey still shows what the
+                // engineer captured. Unknown keys are discarded by
+                // normalizeConstraints().
+                if (array_key_exists('constraints', $data)) {
+                    $room['constraints'] = $this->normalizeConstraints($data['constraints']);
+                }
+                break;
+
             case 8:
-                // Constraints (step 7) and sign-off (step 8) are UI-only capture fields.
-                // No canonical contribution. The server silently ignores these steps.
+                // Step 8 — engineer sign-off. Server timestamps the signing
+                // so clock-skew in the browser cannot fabricate a signed_at.
+                // engineer_confirmed gates is_completed on the client side.
+                if (array_key_exists('signoff', $data) || array_key_exists('engineer_name', $data)) {
+                    $incoming = is_array($data['signoff'] ?? null)
+                        ? $data['signoff']
+                        : [
+                            'engineer_name'      => $data['engineer_name']      ?? null,
+                            'engineer_confirmed' => $data['engineer_confirmed'] ?? false,
+                        ];
+                    $room['signoff'] = $this->normalizeSignoff($incoming, $room['signoff'] ?? []);
+                }
                 break;
         }
 
         return $this->enforceCanonicalShape($room);
+    }
+
+    private function normalizeConstraints(mixed $raw): array
+    {
+        $raw = is_array($raw) ? $raw : [];
+        return [
+            'obstructions'          => (string) ($raw['obstructions']          ?? ''),
+            'noise_restrictions'    => (string) ($raw['noise_restrictions']    ?? ''),
+            'client_constraints'    => (string) ($raw['client_constraints']    ?? ''),
+            'programme_constraints' => (string) ($raw['programme_constraints'] ?? ''),
+        ];
+    }
+
+    /**
+     * Normalise the step 8 sign-off. `signed_at` is always server-stamped on
+     * a new confirmation — we never trust the client clock. When the engineer
+     * un-ticks confirmation, signed_at resets to null so a later re-tick
+     * gets a fresh timestamp.
+     */
+    private function normalizeSignoff(array $raw, array $existing): array
+    {
+        $confirmed   = (bool) ($raw['engineer_confirmed'] ?? false);
+        $engineer    = trim((string) ($raw['engineer_name'] ?? ''));
+        $priorSigned = $existing['signed_at'] ?? null;
+
+        return [
+            'engineer_name'      => $engineer,
+            'engineer_confirmed' => $confirmed,
+            'signed_at'          => $confirmed ? ($priorSigned ?: now()->toIso8601String()) : null,
+        ];
     }
 
     /**
@@ -450,6 +537,7 @@ class SurveyController extends Controller
      */
     private function enforceCanonicalShape(array $room): array
     {
+        $signoff = is_array($room['signoff'] ?? null) ? $room['signoff'] : [];
         return [
             'name'           => (string) ($room['name']  ?? ''),
             'type'           => (string) ($room['type']  ?? ''),
@@ -458,6 +546,12 @@ class SurveyController extends Controller
             'equipment'      => $this->normalizeEquipment($room['equipment'] ?? []),
             'risks'          => (array)  ($room['risks']  ?? []),
             'notes'          => (string) ($room['notes']  ?? ''),
+            'constraints'    => $this->normalizeConstraints($room['constraints'] ?? []),
+            'signoff'        => [
+                'engineer_name'      => (string) ($signoff['engineer_name']      ?? ''),
+                'engineer_confirmed' => (bool)   ($signoff['engineer_confirmed'] ?? false),
+                'signed_at'          =>          ($signoff['signed_at']          ?? null) ?: null,
+            ],
         ];
     }
 
