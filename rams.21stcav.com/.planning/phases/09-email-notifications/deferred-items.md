@@ -33,3 +33,22 @@ TypeError: Cannot assign null to property App\Core\AI\Providers\ClaudeProvider::
 **Out of scope for 09-04:** Adding a `/storage/worker-heartbeat` entry to `.gitignore` would be a housekeeping patch unrelated to the email-notifications scope. Flagged here so a future housekeeping pass can gitignore it.
 
 **Suggested follow-up (separate task):** Add `/storage/worker-heartbeat` to `.gitignore` under the "Laravel runtime caches" block. One-line change.
+
+## Pre-existing Auth-screen render tests — 6 failures (Vite manifest missing)
+
+**Discovered during:** 09-05 Task 3 full Feature suite run.
+
+**Failing tests:**
+
+- `tests/Feature/Auth/AuthenticationTest::test_login_screen_can_be_rendered`
+- `tests/Feature/Auth/EmailVerificationTest::test_email_verification_screen_can_be_rendered`
+- `tests/Feature/Auth/PasswordConfirmationTest::test_confirm_password_screen_can_be_rendered`
+- `tests/Feature/Auth/PasswordResetTest::test_reset_password_link_screen_can_be_rendered`
+- `tests/Feature/Auth/PasswordResetTest::test_reset_password_screen_can_be_rendered`
+- `tests/Feature/Auth/RegistrationTest::test_registration_screen_can_be_rendered`
+
+**Root cause:** All six tests render `resources/views/layouts/guest.blade.php`, which uses `@vite(...)`. The environment (this worktree + its junctioned vendor) has no `public/build/manifest.json` — Vite has never been built here. Laravel throws `Illuminate\Foundation\ViteManifestNotFoundException` during Blade render.
+
+**Out of scope for 09-05:** These tests have nothing to do with email notifications. The failure is purely environmental (no `npm run build` in dev / CI). Plan 09-05 does NOT modify any guest auth views, the guest layout, Vite config, or routes exercised by these tests.
+
+**Suggested follow-up (separate task):** Either (a) run `npm run build` in CI before the Feature suite, or (b) mock the Vite facade in the Auth test base class, or (c) skip-if-no-manifest using `$this->markTestSkipped()` in those specific tests. One-line tooling fix; not a Phase 09 concern.
