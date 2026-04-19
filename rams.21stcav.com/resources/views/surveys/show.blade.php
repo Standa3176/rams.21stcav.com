@@ -120,6 +120,18 @@
             </div>
         @endif
 
+        {{-- Download printable PDF form — offline/manual completion fallback --}}
+        <a href="{{ route('survey.download.form', ['token' => $token]) }}"
+           target="_blank" rel="noopener"
+           class="block w-full mb-4 px-4 py-3 rounded-2xl bg-white border border-gray-200
+                  text-center text-sm font-semibold text-brand-teal shadow-sm
+                  hover:bg-gray-50 min-h-[44px]">
+            📄 Download PDF Form
+            <span class="block text-[11px] font-normal text-gray-500 mt-0.5">
+                Complete on paper if offline — return to office for processing
+            </span>
+        </a>
+
         {{-- Room cards --}}
         <template x-for="(room, idx) in rooms" :key="room._ui.room_id">
             <div class="bg-white rounded-2xl mb-3 shadow-sm overflow-hidden">

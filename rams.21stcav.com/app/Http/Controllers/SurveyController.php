@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\SiteSurvey;
+use App\Services\SurveyPdfService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\View\View;
 
 /**
@@ -42,6 +44,8 @@ use Illuminate\View\View;
  */
 class SurveyController extends Controller
 {
+    public function __construct(private readonly SurveyPdfService $pdfService) {}
+
     // ── Show ──────────────────────────────────────────────────────────────────
 
     /**
@@ -507,6 +511,33 @@ class SurveyController extends Controller
                 'manual_handling_risk' => (bool)   ($risk['manual_handling_risk'] ?? false),
             ];
         }, $risks));
+    }
+
+    // ── Download printable PDF form ───────────────────────────────────────────
+
+    /**
+     * GET /survey/{token}/download-form
+     *
+     * Streams a printable Field Survey Form PDF pre-populated with project,
+     * client, site, and planned kit data — with blank manual-fill sections
+     * per room so engineers can complete the survey by hand when the mobile
+     * wizard isn't viable (no signal, device dead, etc).
+     *
+     * Token-gated (same 404/410 behaviour as show/stepSave). Read-only path:
+     * no DB mutations, no filesystem writes — bytes are streamed in-memory.
+     */
+    public function downloadForm(string $token): Response
+    {
+        $survey = $this->resolveSurvey($token);
+
+        $contents = $this->pdfService->buildFieldFormContents($survey);
+        $filename = 'field-survey-form-' . $survey->id . '.pdf';
+
+        return response($contents, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Cache-Control'       => 'private, no-store',
+        ]);
     }
 
     // ── Private — token gate ──────────────────────────────────────────────────

@@ -64,6 +64,27 @@ class SurveyPdfService
         return $absolutePath;
     }
 
+    /**
+     * Build an in-memory printable Field Survey Form PDF pre-populated with
+     * project/client/site header, planned works + planned quote kit, and a
+     * per-room section with blank manual-fill areas for power / network /
+     * access / notes / sign-off.
+     *
+     * Returns the raw PDF bytes — no disk write, no DB mutation. Used by the
+     * public /survey/{token}/download-form endpoint so engineers can complete
+     * the survey by hand on-site when the mobile wizard isn't viable.
+     */
+    public function buildFieldFormContents(SiteSurvey $survey): string
+    {
+        $survey->loadMissing(['rooms', 'project.latestPackage']);
+
+        $pdf = $this->makeDompdf();
+        $pdf->loadHtml($this->renderFieldFormHtml($survey));
+        $pdf->render();
+
+        return (string) $pdf->output();
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
 
     private function makeDompdf(): Dompdf
@@ -226,5 +247,108 @@ class SurveyPdfService
         }
 
         return $html;
+    }
+
+    /**
+     * Field Survey Form — header + planned works + planned kit pre-populated
+     * from the survey/project/package data. Each room gets a blank manual-fill
+     * section covering the same ground as the wizard (power/network/access/
+     * notes/sign-off) so engineers can complete on paper when offline.
+     */
+    private function renderFieldFormHtml(SiteSurvey $survey): string
+    {
+        $dateStr = $survey->survey_date ? $survey->survey_date->format('d/m/Y') : '—';
+        $package = $survey->project?->latestPackage;
+
+        $html  = $this->css();
+        $html .= '<div class="footer">21st Century AV Ltd — Field Survey Form | '
+              . e($survey->project_name) . ' | Generated ' . now()->format('d/m/Y') . '</div>';
+        $html .= '<h1>Field Survey Form</h1>';
+        $html .= '<p class="meta">Complete by hand on-site. Return to office for processing into the digital survey.</p>';
+
+        // ── Project / client / site header ───────────────────────────────────
+        $html .= '<h2>Project &amp; Site</h2>
+        <table>
+            <tr><td class="label">Project Name</td><td>' . e($survey->project_name) . '</td></tr>
+            <tr><td class="label">Project Ref</td><td>' . e($survey->project_ref ?? '—') . '</td></tr>
+            <tr><td class="label">Client</td><td>' . e($survey->client_name ?? '—') . '</td></tr>
+            <tr><td class="label">Site Address</td><td>' . e($survey->site_address ?? '—') . '</td></tr>
+            <tr><td class="label">Surveyor</td><td>' . e($survey->surveyor_name ?? '—') . '</td></tr>
+            <tr><td class="label">Survey Date</td><td>' . $dateStr . '</td></tr>
+            <tr><td class="label">Site Contact</td><td>' . e(trim(($survey->site_contact_name ?? '') . ' ' . ($survey->site_contact_phone ? '(' . $survey->site_contact_phone . ')' : ''))) . '</td></tr>
+        </table>';
+
+        // ── Planned AV works summary (if available) ──────────────────────────
+        $worksDescription = $package->works_description ?? null;
+        if (is_string($worksDescription) && trim($worksDescription) !== '') {
+            $html .= '<h2>Planned AV Works</h2>';
+            $html .= '<p>' . nl2br(e($worksDescription)) . '</p>';
+        }
+
+        // ── Planned quote kit list (if available) ────────────────────────────
+        $equipment = is_array($package?->equipment_list) ? $package->equipment_list : [];
+        if (! empty($equipment)) {
+            $html .= '<h2>Planned Quote Kit</h2>';
+            $html .= '<table>
+                <tr><th style="width:12%;">Qty</th><th>Item</th><th style="width:30%;">Manufacturer / Model</th></tr>';
+            foreach ($equipment as $item) {
+                $qty          = is_array($item) ? ($item['quantity'] ?? $item['qty'] ?? '') : '';
+                $description  = is_array($item) ? (string) ($item['description'] ?? $item['name'] ?? $item['item'] ?? '') : (string) $item;
+                $manufacturer = is_array($item) ? trim((string) ($item['manufacturer'] ?? '') . ' ' . (string) ($item['model'] ?? '')) : '';
+                $html .= '<tr>'
+                       . '<td>' . e((string) $qty) . '</td>'
+                       . '<td>' . e($description) . '</td>'
+                       . '<td>' . e($manufacturer) . '</td>'
+                       . '</tr>';
+            }
+            $html .= '</table>';
+        }
+
+        // ── Per-room manual-fill sections ────────────────────────────────────
+        $rooms = $survey->rooms;
+        if ($rooms->isEmpty()) {
+            $html .= '<h2>Rooms</h2><p class="meta">No rooms pre-populated. Use the blank section below.</p>';
+            $html .= $this->renderBlankRoomSection('Room / Area 1');
+        } else {
+            foreach ($rooms as $room) {
+                $title = 'Room: ' . ($room->room_name ?: 'Unnamed') . ($room->floor ? ' (Floor: ' . $room->floor . ')' : '');
+                $html .= $this->renderBlankRoomSection($title);
+            }
+        }
+
+        // ── Sign-off page ────────────────────────────────────────────────────
+        $html .= '<div class="page-break"></div>';
+        $html .= '<h2>Sign-off</h2>
+        <table>
+            <tr><td class="label">Engineer Name</td><td></td></tr>
+            <tr><td class="label">Engineer Signature</td><td></td></tr>
+            <tr><td class="label">Client Name</td><td></td></tr>
+            <tr><td class="label">Client Signature</td><td></td></tr>
+            <tr><td class="label">Date</td><td></td></tr>
+        </table>';
+
+        return $html;
+    }
+
+    /** One per-room block with blank manual-fill areas (power/network/access/notes). */
+    private function renderBlankRoomSection(string $title): string
+    {
+        return '
+        <h2>' . e($title) . '</h2>
+        <table>
+            <tr><td class="label">Room Type</td><td colspan="3"></td></tr>
+            <tr><td class="label">W &times; D &times; H (m)</td><td>&nbsp;&nbsp;&times;&nbsp;&nbsp;&times;&nbsp;&nbsp;</td>
+                <td class="label">Ceiling Height (m)</td><td></td></tr>
+            <tr><td class="label">Power Available</td>
+                <td>&#9744; Yes &nbsp; &#9744; No &nbsp;&nbsp; Outlets: ____ &nbsp; Spare capacity: &#9744; Y &nbsp; &#9744; N</td>
+                <td class="label">Distance to Screen (m)</td><td></td></tr>
+            <tr><td class="label">Network Available</td>
+                <td>&#9744; Yes &nbsp; &#9744; No &nbsp;&nbsp; Ports: ____ &nbsp; VLAN: &#9744; Y &nbsp; &#9744; N</td>
+                <td class="label">Switch Location</td><td></td></tr>
+            <tr><td class="label">Cable Route</td><td colspan="3">&#9744; Containment &nbsp; &#9744; Floor boxes &nbsp; &#9744; Ceiling void &nbsp; &#9744; Surface trunking &nbsp; Est. distance: ____ m</td></tr>
+            <tr><td class="label">Access / Hazards</td><td colspan="3">&#9744; Working at height &nbsp; &#9744; Out-of-hours &nbsp; &#9744; Permits &nbsp; &#9744; Manual handling</td></tr>
+            <tr><td class="label">Notes</td><td colspan="3"></td></tr>
+        </table>
+        <div class="field-box">Additional notes / sketch…</div>';
     }
 }

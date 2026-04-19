@@ -48,6 +48,7 @@ Route::post('/logout', function () {
 */
 
 Route::get('survey/{token}/confirmation',               [PublicSurveyController::class, 'confirmation']) ->name('survey.confirmation');
+Route::get('survey/{token}/download-form',              [SurveyController::class, 'downloadForm'])     ->name('survey.download.form');
 Route::get('survey/{token}',                           [SurveyController::class, 'show'])             ->name('survey.show');
 Route::post('survey/{token}/step-save',                [SurveyController::class, 'stepSave'])         ->name('survey.step.save')    ->middleware('throttle:60,1');
 Route::post('survey/{token}/save',                     [PublicSurveyController::class, 'save'])        ->name('survey.save')         ->middleware('throttle:30,1');
