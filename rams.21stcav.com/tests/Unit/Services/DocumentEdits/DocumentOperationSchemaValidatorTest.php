@@ -123,6 +123,38 @@ class DocumentOperationSchemaValidatorTest extends TestCase
         $this->assertContains('schema_target_unknown_key', $codes);
     }
 
+    public function test_target_null_is_rejected(): void
+    {
+        $p = $this->goodPayload();
+        $p['operations'][0]['target'] = null;
+        $codes = array_column($this->svc->validate($p), 'code');
+        $this->assertContains('schema_target_not_object', $codes);
+    }
+
+    public function test_target_empty_object_is_rejected(): void
+    {
+        $p = $this->goodPayload();
+        $p['operations'][0]['target'] = [];
+        $codes = array_column($this->svc->validate($p), 'code');
+        $this->assertContains('schema_target_empty', $codes);
+    }
+
+    public function test_target_missing_room_name_is_rejected(): void
+    {
+        $p = $this->goodPayload();
+        $p['operations'][0]['target'] = ['index' => null];
+        $codes = array_column($this->svc->validate($p), 'code');
+        $this->assertContains('schema_target_missing_field', $codes);
+    }
+
+    public function test_target_missing_index_is_rejected(): void
+    {
+        $p = $this->goodPayload();
+        $p['operations'][0]['target'] = ['room_name' => 'Boardroom'];
+        $codes = array_column($this->svc->validate($p), 'code');
+        $this->assertContains('schema_target_missing_field', $codes);
+    }
+
     public function test_flatten_merges_args_and_room(): void
     {
         $p   = $this->goodPayload();

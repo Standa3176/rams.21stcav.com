@@ -97,7 +97,7 @@ class DocumentEditParserServiceTest extends TestCase
 
     public function test_returns_failed_after_three_invalid_attempts(): void
     {
-        $invalid = ['operations' => [['op' => 'not_a_real_op', 'target' => null, 'args' => [], 'rationale' => 'x']], 'summary' => 's'];
+        $invalid = ['operations' => [['op' => 'not_a_real_op', 'target' => ['room_name' => 'Boardroom', 'index' => null], 'args' => [], 'rationale' => 'x']], 'summary' => 's'];
         [$svc, $caller] = $this->serviceWithResponses([$invalid, $invalid, $invalid]);
 
         $res = $svc->parse($this->worksheetAdapter(), 'Bad request', null);

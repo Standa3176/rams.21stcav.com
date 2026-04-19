@@ -244,8 +244,16 @@ class DocumentEditController extends Controller
 
     // ─── GET /documents/{type}/{id}/changes/{changeSet} ───────────────────────
 
-    public function showChangeSet(string $type, int $id, int $changeSet): JsonResponse
+    public function showChangeSet(Request $request, string $type, int $id, int $changeSet): JsonResponse
     {
+        if ($this->resolveAdapter($type) === null) {
+            return $this->jsonError('unknown_document_type', "Unknown document type '{$type}'", 404);
+        }
+        // Ownership / 401 / 404(doc) check — matches every other doc-edit endpoint.
+        if ($denied = $this->authorizeDocument($request, $type, $id)) {
+            return $denied;
+        }
+
         $cs = DocumentChangeSet::query()
             ->where('document_type', $type)
             ->where('document_id',   $id)
@@ -254,13 +262,19 @@ class DocumentEditController extends Controller
             return $this->jsonError('change_set_not_found', "Change-set #{$changeSet} not found", 404);
         }
 
-        // Preview diff — compute without persisting. Silent no-op when the
-        // adapter hasn't implemented a diff (pass A stubs return []).
+        // Preview diff — compute against the change-set's BASE revision
+        // snapshot (the state the change-set was proposed from), not the
+        // current live payload. That way a concurrent edit between propose
+        // and view doesn't make the preview look wrong. Falls back to the
+        // live payload if the base revision snapshot is missing.
         $preview = [];
         try {
             $adapter = $this->resolveAdapter($type);
             if ($adapter !== null && $cs->status !== DocumentChangeSet::STATUS_REJECTED) {
-                $before = $adapter->loadPayload($id) ?? [];
+                $baseRev = $cs->baseRevision;
+                $before  = is_array($baseRev?->payload_snapshot)
+                    ? (array) $baseRev->payload_snapshot
+                    : ($adapter->loadPayload($id) ?? []);
                 $after  = $before;
                 foreach ((array) $cs->operations_json as $op) {
                     $res = $adapter->applyOperation($after, (array) $op);

@@ -122,9 +122,22 @@ class DocumentOperationSchemaValidator
 
         if (array_key_exists('target', $op)) {
             $t = $op['target'];
-            if ($t !== null && ! is_array($t)) {
-                $errors[] = ['code' => 'schema_target_not_object', 'message' => "operations[{$idx}].target must be an object or null"];
-            } elseif (is_array($t)) {
+            // Strict: target is required to be an OBJECT (not null), must
+            // contain both room_name and index, and may not contain other keys.
+            if (! is_array($t)) {
+                $errors[] = ['code' => 'schema_target_not_object', 'message' => "operations[{$idx}].target must be an object with keys room_name, index"];
+            } else {
+                if (count($t) === 0) {
+                    $errors[] = ['code' => 'schema_target_empty', 'message' => "operations[{$idx}].target must include room_name and index"];
+                }
+                foreach (self::TARGET_KEYS as $req) {
+                    if (! array_key_exists($req, $t)) {
+                        $errors[] = [
+                            'code'    => 'schema_target_missing_field',
+                            'message' => "operations[{$idx}].target is missing required key '{$req}'",
+                        ];
+                    }
+                }
                 foreach (array_keys($t) as $k) {
                     if (! in_array($k, self::TARGET_KEYS, true)) {
                         $errors[] = [
