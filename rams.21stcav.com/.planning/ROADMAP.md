@@ -30,7 +30,7 @@ Full archive: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 ### v1.1 Operations Dashboard & Notifications
 *"See everything, miss nothing"*
 
-- [ ] Phase 08: Enterprise Dashboard — Real-time project status, health indicators, overdue/blocked alerts across all active projects
+- [x] Phase 08: Enterprise Dashboard — Real-time project status, health indicators, overdue/blocked alerts across all active projects (completed 2026-04-19)
 - [ ] Phase 09: Email Notifications — Generation complete, survey submitted, review needed triggers
 - [ ] Phase 10: Document Quality Scores — Confidence indicators and data completeness per room/equipment
 - [ ] Phase 11: Bitrix24 Integration — OAuth connection, project sync, document links, task updates
@@ -61,8 +61,8 @@ Full archive: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 **Plans**: 2 plans
 
 Plans:
-- [ ] 08-01-PLAN.md — DashboardController + ProjectHealthService + ProjectHealth DTO + unit/feature tests (Wave 1)
-- [ ] 08-02-PLAN.md — Enhanced dashboard.blade.php: health grid, status filter strip, Alpine.js filter, install programme widget (Wave 2)
+- [x] 08-01-PLAN.md — DashboardController + ProjectHealthService + ProjectHealth DTO + unit/feature tests (Wave 1)
+- [x] 08-02-PLAN.md — Enhanced dashboard.blade.php: health grid, status filter strip, Alpine.js filter, install programme widget (Wave 2)
 
 ### Phase 12: Install Task Generation
 **Goal**: Auto-generate a structured install task list from `ProjectDataService`, persisted as `install_programmes` + `install_tasks` records. Engineers confirm the generated list before it becomes active. Also deliver WORK-05/06 worksheet enhancements (pre-install answers + dashboard trigger).
@@ -182,7 +182,7 @@ Plans:
 | 05. Project Content Pack | v1.0 | 4/4 | Complete | 2026-04-11 |
 | 06. RAMS Document Quality | v1.0 | 2/2 | Complete | 2026-04-12 |
 | 07. Dynamic Survey AI Questions | v1.0 | 6/6 | Complete | 2026-04-12 |
-| 08. Enterprise Dashboard | v1.1 | 2 plans | Planned | — |
+| 08. Enterprise Dashboard | v1.1 | 2/2 | Complete    | 2026-04-19 |
 | 09. Email Notifications | v1.1 | — | Planned | — |
 | 10. Document Quality Scores | v1.1 | — | Planned | — |
 | 11. Bitrix24 Integration | v1.1 | — | Planned | — |
