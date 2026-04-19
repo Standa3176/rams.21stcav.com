@@ -390,6 +390,7 @@
 
         <a href="{{ route('site-surveys.edit', $survey) }}" class="btn btn-outline btn-sm">&#9998; Edit Survey</a>
         <a href="{{ route('site-surveys.pdf', $survey) }}" class="btn btn-outline btn-sm" target="_blank">&#128438; Download PDF</a>
+        <a href="{{ route('documents.revisions.view', ['type' => 'survey', 'id' => $survey->id]) }}" class="btn btn-outline btn-sm">&#8634; History</a>
         <a href="{{ route('site-surveys.index') }}" class="btn btn-outline btn-sm">&#8592; All Surveys</a>
     </div>
 </div>

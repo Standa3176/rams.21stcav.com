@@ -2,15 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CableSchedule;
 use App\Models\DocumentChangeSet;
 use App\Models\DocumentEditMessage;
 use App\Models\DocumentEditThread;
+use App\Models\OmManual;
+use App\Models\RamsDocument;
+use App\Models\SiteSurvey;
+use App\Models\Worksheet;
 use App\Services\DocumentEdits\DocumentChangeSetValidator;
 use App\Services\DocumentEdits\DocumentEditAdapterInterface;
 use App\Services\DocumentEdits\DocumentEditAdapterRegistry;
 use App\Services\DocumentEdits\DocumentRevisionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\View\View;
 use InvalidArgumentException;
 
 /**
@@ -43,6 +50,9 @@ class DocumentEditController extends Controller
         if ($adapter === null) {
             return $this->jsonError('unknown_document_type', "Unknown document type '{$type}'", 404);
         }
+        if ($denied = $this->authorizeDocument($request, $type, $id)) {
+            return $denied;
+        }
 
         $payload = $adapter->loadPayload($id);
         if ($payload === null) {
@@ -51,6 +61,7 @@ class DocumentEditController extends Controller
 
         $userId = $request->user()?->id;
         $base   = $this->revisions->ensureBaseRevision($type, $id, $payload, $userId);
+        $this->audit('thread_created', $type, $id, ['base_revision_id' => $base->id, 'user_id' => $userId]);
 
         $thread = DocumentEditThread::create([
             'document_type'    => $type,
@@ -74,13 +85,18 @@ class DocumentEditController extends Controller
         if ($adapter === null) {
             return $this->jsonError('unknown_document_type', "Unknown document type '{$type}'", 404);
         }
+        if ($denied = $this->authorizeDocument($request, $type, $id)) {
+            return $denied;
+        }
 
-        $threadModel = DocumentEditThread::query()
-            ->where('document_type', $type)
-            ->where('document_id',   $id)
-            ->find($thread);
+        // Thread/type/document coherence — refuse cross-document or cross-type threads.
+        $threadModel = DocumentEditThread::query()->find($thread);
         if ($threadModel === null) {
-            return $this->jsonError('thread_not_found', "Thread #{$thread} not found for {$type} #{$id}", 404);
+            return $this->jsonError('thread_not_found', "Thread #{$thread} not found", 404);
+        }
+        if ($threadModel->document_type !== $type || (int) $threadModel->document_id !== $id) {
+            return $this->jsonError('thread_mismatch',
+                "Thread #{$thread} does not belong to {$type} #{$id}", 422);
         }
 
         $data = $request->validate([
@@ -113,6 +129,11 @@ class DocumentEditController extends Controller
                 'validation_errors' => empty($errors) ? null : $errors,
                 'model_name'        => null,
             ]);
+            $this->audit(
+                $status === DocumentChangeSet::STATUS_VALIDATED ? 'change_set_validated' : 'change_set_rejected',
+                $type, $id,
+                ['change_set_id' => $changeSet->id, 'thread_id' => $threadModel->id, 'error_codes' => array_column($errors, 'code')],
+            );
         }
 
         return response()->json([
@@ -166,20 +187,26 @@ class DocumentEditController extends Controller
 
     // ─── POST /documents/{type}/{id}/changes/{changeSet}/apply ────────────────
 
-    public function applyChangeSet(string $type, int $id, int $changeSet): JsonResponse
+    public function applyChangeSet(Request $request, string $type, int $id, int $changeSet): JsonResponse
     {
         $adapter = $this->resolveAdapter($type);
         if ($adapter === null) {
             return $this->jsonError('unknown_document_type', "Unknown document type '{$type}'", 404);
         }
+        if ($denied = $this->authorizeDocument($request, $type, $id)) {
+            return $denied;
+        }
 
-        $cs = DocumentChangeSet::query()
-            ->where('document_type', $type)
-            ->where('document_id',   $id)
-            ->find($changeSet);
+        $cs = DocumentChangeSet::query()->find($changeSet);
         if ($cs === null) {
             return $this->jsonError('change_set_not_found', "Change-set #{$changeSet} not found", 404);
         }
+        // Type / document coherence — change-set must belong to this URL pair.
+        if ($cs->document_type !== $type || (int) $cs->document_id !== $id) {
+            return $this->jsonError('change_set_mismatch',
+                "Change-set #{$changeSet} does not belong to {$type} #{$id}", 422);
+        }
+
         if ($cs->status === DocumentChangeSet::STATUS_APPLIED) {
             return $this->jsonError('already_applied', 'Change-set already applied', 409);
         }
@@ -187,6 +214,22 @@ class DocumentEditController extends Controller
             return $this->jsonError('change_set_rejected', 'Change-set failed validation', 422, [
                 'validation_errors' => $cs->validation_errors,
             ]);
+        }
+
+        // Optimistic concurrency — reject if a newer revision has been recorded
+        // since this change-set was proposed. Prevents applying a stale plan
+        // over a newer state.
+        $latest = \App\Models\DocumentRevision::query()
+            ->where('document_type', $type)
+            ->where('document_id',   $id)
+            ->latest('id')
+            ->first();
+        if ($latest !== null && (int) $cs->base_revision_id !== (int) $latest->id) {
+            return $this->jsonError('base_revision_stale',
+                "Change-set was based on revision #{$cs->base_revision_id} but revision #{$latest->id} is now current.",
+                409,
+                ['expected_base_revision_id' => $latest->id],
+            );
         }
 
         // Re-validate — defence against ops that slipped through an earlier path.
@@ -225,6 +268,10 @@ class DocumentEditController extends Controller
                 'status'            => DocumentChangeSet::STATUS_REJECTED,
                 'validation_errors' => $applyErrors,
             ]);
+            $this->audit('change_set_apply_rejected', $type, $id, [
+                'change_set_id' => $cs->id,
+                'error_codes'   => array_column($applyErrors, 'code'),
+            ]);
             return $this->jsonError('adapter_apply_failed', 'Adapter rejected one or more operations', 422, [
                 'apply_errors' => $applyErrors,
             ]);
@@ -250,6 +297,13 @@ class DocumentEditController extends Controller
         }
         $cs->update(['status' => DocumentChangeSet::STATUS_APPLIED]);
 
+        $this->audit('change_set_applied', $type, $id, [
+            'change_set_id'      => $cs->id,
+            'new_revision_id'    => $newRev?->id,
+            'artifact_filename'  => $artifactFilename,
+            'ops_count'          => count((array) $cs->operations_json),
+        ]);
+
         return response()->json([
             'change_set'        => $cs->only(['id', 'status']),
             'new_revision'      => $newRev?->only(['id', 'parent_revision_id', 'source', 'artifact_filename', 'created_at']),
@@ -259,10 +313,13 @@ class DocumentEditController extends Controller
 
     // ─── GET /documents/{type}/{id}/revisions ─────────────────────────────────
 
-    public function listRevisions(string $type, int $id): JsonResponse
+    public function listRevisions(Request $request, string $type, int $id): JsonResponse
     {
         if ($this->resolveAdapter($type) === null) {
             return $this->jsonError('unknown_document_type', "Unknown document type '{$type}'", 404);
+        }
+        if ($denied = $this->authorizeDocument($request, $type, $id)) {
+            return $denied;
         }
 
         $revisions = $this->revisions->listForDocument($type, $id);
@@ -272,6 +329,24 @@ class DocumentEditController extends Controller
                 'id', 'parent_revision_id', 'source', 'change_summary',
                 'artifact_filename', 'created_by', 'created_at',
             ]))->values(),
+        ]);
+    }
+
+    // ─── GET /documents/{type}/{id}/revisions-view ────────────────────────────
+
+    public function revisionsView(Request $request, string $type, int $id): \Illuminate\Http\Response|JsonResponse|View
+    {
+        if ($this->resolveAdapter($type) === null) {
+            return $this->jsonError('unknown_document_type', "Unknown document type '{$type}'", 404);
+        }
+        if ($denied = $this->authorizeDocument($request, $type, $id)) {
+            return $denied;
+        }
+        $revisions = $this->revisions->listForDocument($type, $id);
+        return view('document-edits.revisions', [
+            'document_type' => $type,
+            'document_id'   => $id,
+            'revisions'     => $revisions,
         ]);
     }
 
@@ -292,5 +367,59 @@ class DocumentEditController extends Controller
             'error'   => $code,
             'message' => $message,
         ], $extras), $status);
+    }
+
+    /**
+     * Ownership + accessibility check for a document. Returns null when the
+     * current user may access the row; otherwise returns a 403/404 response.
+     * Admins bypass ownership checks.
+     */
+    private function authorizeDocument(Request $request, string $type, int $id): ?JsonResponse
+    {
+        $user = $request->user();
+        if ($user === null) {
+            return $this->jsonError('unauthenticated', 'Authentication required', 401);
+        }
+        $isAdmin = method_exists($user, 'isAdmin') ? $user->isAdmin() : false;
+
+        $ownerId = $this->ownerIdFor($type, $id);
+        if ($ownerId === null) {
+            return $this->jsonError('document_not_found', "{$type} #{$id} not found", 404);
+        }
+        if (! $isAdmin && (int) $ownerId !== (int) $user->id) {
+            return $this->jsonError('document_forbidden', "You do not have access to this {$type}", 403);
+        }
+        return null;
+    }
+
+    /** Returns owner user_id for the document, or null when not found. */
+    private function ownerIdFor(string $type, int $id): ?int
+    {
+        $class = match ($type) {
+            'rams'      => RamsDocument::class,
+            'survey'    => SiteSurvey::class,
+            'worksheet' => Worksheet::class,
+            'om'        => OmManual::class,
+            'cable'     => CableSchedule::class,
+            default     => null,
+        };
+        if ($class === null) return null;
+
+        $row = $class::query()->find($id);
+        if ($row === null) return null;
+        return (int) $row->user_id;
+    }
+
+    /**
+     * Structured audit log — one line per state transition so operators can
+     * trace propose → validate → apply / reject sequences after the fact.
+     */
+    private function audit(string $event, string $type, int $id, array $context = []): void
+    {
+        Log::info('DocumentEditController: ' . $event, array_merge([
+            'document_type' => $type,
+            'document_id'   => $id,
+            'user_id'       => auth()->id(),
+        ], $context));
     }
 }

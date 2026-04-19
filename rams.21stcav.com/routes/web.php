@@ -319,6 +319,9 @@ Route::middleware('auth')->group(function () {
     Route::get(   'documents/{type}/{id}/revisions',
         [\App\Http\Controllers\DocumentEditController::class, 'listRevisions'])
         ->name('documents.revisions.index');
+    Route::get(   'documents/{type}/{id}/revisions-view',
+        [\App\Http\Controllers\DocumentEditController::class, 'revisionsView'])
+        ->name('documents.revisions.view');
 });
 
 require __DIR__.'/auth.php';

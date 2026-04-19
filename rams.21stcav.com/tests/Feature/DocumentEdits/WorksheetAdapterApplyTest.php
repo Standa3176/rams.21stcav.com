@@ -25,16 +25,22 @@ class WorksheetAdapterApplyTest extends TestCase
 {
     use RefreshDatabase;
 
+    private ?User $currentUser = null;
+
     private function auth(): User
     {
-        $u = User::factory()->create();
-        $this->actingAs($u);
-        return $u;
+        $this->currentUser = User::factory()->create();
+        $this->actingAs($this->currentUser);
+        return $this->currentUser;
     }
 
     private function makeWorksheet(array $generatedData = []): Worksheet
     {
-        $u = User::factory()->create();
+        // Pass-C ownership checks require the worksheet to belong to the user
+        // the test is acting as. If auth() was called first, reuse that user;
+        // otherwise fall back to a fresh owner (the auth-required tests will
+        // assert 401 before ownership is ever evaluated).
+        $u = $this->currentUser ?? User::factory()->create();
         return Worksheet::create([
             'user_id'        => $u->id,
             'project_name'   => 'DocEdit B Test',

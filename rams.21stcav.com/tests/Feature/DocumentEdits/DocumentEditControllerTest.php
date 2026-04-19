@@ -21,14 +21,16 @@ class DocumentEditControllerTest extends TestCase
 
     private function auth(): User
     {
-        $u = User::factory()->create();
-        $this->actingAs($u);
-        return $u;
+        $this->currentUser = User::factory()->create();
+        $this->actingAs($this->currentUser);
+        return $this->currentUser;
     }
+
+    private ?User $currentUser = null;
 
     private function makeWorksheet(): Worksheet
     {
-        $u = User::factory()->create();
+        $u = $this->currentUser ?? User::factory()->create();
         return Worksheet::create([
             'user_id'        => $u->id,
             'project_name'   => 'DocEdit Test Project',

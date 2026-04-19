@@ -137,6 +137,7 @@
         @else
             <a href="{{ route('worksheets.index') }}" class="btn-outline btn-sm">← All Worksheets</a>
         @endif
+        <a href="{{ route('documents.revisions.view', ['type' => 'worksheet', 'id' => $worksheet->id]) }}" class="btn-outline btn-sm">↻ History</a>
     </div>
 </div>
 
@@ -314,6 +315,7 @@
         @else
             <a href="{{ route('worksheets.index') }}" class="btn-outline btn-sm">← All Worksheets</a>
         @endif
+        <a href="{{ route('documents.revisions.view', ['type' => 'worksheet', 'id' => $worksheet->id]) }}" class="btn-outline btn-sm">↻ History</a>
     </div>
 </div>
 
