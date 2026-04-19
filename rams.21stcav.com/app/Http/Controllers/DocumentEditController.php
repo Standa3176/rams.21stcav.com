@@ -40,6 +40,7 @@ class DocumentEditController extends Controller
         private readonly DocumentEditAdapterRegistry $registry,
         private readonly DocumentChangeSetValidator  $validator,
         private readonly DocumentRevisionService     $revisions,
+        private readonly \App\Services\DocumentEdits\DocumentEditParserService $parser,
     ) {}
 
     // ─── POST /documents/{type}/{id}/threads ──────────────────────────────────
@@ -140,6 +141,105 @@ class DocumentEditController extends Controller
             'message'    => $message->only(['id', 'thread_id', 'role', 'created_at']),
             'change_set' => $changeSet?->only(['id', 'status', 'validation_errors', 'created_at']),
         ], 201);
+    }
+
+    // ─── POST /documents/{type}/{id}/threads/{thread}/parse ───────────────────
+    //
+    // Parse-only endpoint (Pass D). Runs the conversational AI parser over
+    // the user's message, validates the output against schema + safety +
+    // adapter allow-list, and persists the result as a validated or
+    // rejected change-set. Never calls apply.
+
+    public function parseMessage(Request $request, string $type, int $id, int $thread): JsonResponse
+    {
+        $adapter = $this->resolveAdapter($type);
+        if ($adapter === null) {
+            return $this->jsonError('unknown_document_type', "Unknown document type '{$type}'", 404);
+        }
+        if ($denied = $this->authorizeDocument($request, $type, $id)) {
+            return $denied;
+        }
+
+        $threadModel = DocumentEditThread::query()->find($thread);
+        if ($threadModel === null) {
+            return $this->jsonError('thread_not_found', "Thread #{$thread} not found", 404);
+        }
+        if ($threadModel->document_type !== $type || (int) $threadModel->document_id !== $id) {
+            return $this->jsonError('thread_mismatch', "Thread #{$thread} does not belong to {$type} #{$id}", 422);
+        }
+
+        $data = $request->validate([
+            'message'    => 'required|string|max:8000',
+            'model_name' => 'nullable|string|max:128',
+        ]);
+
+        // Record the user's message first so even a failed parse has a trace.
+        DocumentEditMessage::create([
+            'thread_id'       => $threadModel->id,
+            'role'            => DocumentEditMessage::ROLE_USER,
+            'content'         => $data['message'],
+            'operations_json' => null,
+        ]);
+
+        // Run the parser. Payload snapshot is the adapter's loadPayload output
+        // filtered to the safe subset by DocumentEditParsingPromptFactory.
+        $payload = $adapter->loadPayload($id);
+        $result  = $this->parser->parse(
+            adapter:         $adapter,
+            userMessage:     $data['message'],
+            documentPayload: $payload,
+            modelName:       $data['model_name'] ?? null,
+            logContext:      [
+                'document_type' => $type,
+                'document_id'   => $id,
+                'thread_id'     => $threadModel->id,
+                'user_id'       => $request->user()?->id,
+            ],
+        );
+
+        $assistantContent = $result['status'] === \App\Services\DocumentEdits\DocumentEditParserService::STATUS_SUCCESS
+            ? ($result['summary'] !== '' ? $result['summary'] : 'Parsed ' . count($result['operations']) . ' operation(s).')
+            : ('Parse failed after ' . $result['attempts'] . ' attempt(s).');
+
+        DocumentEditMessage::create([
+            'thread_id'       => $threadModel->id,
+            'role'            => DocumentEditMessage::ROLE_ASSISTANT,
+            'content'         => $assistantContent,
+            'operations_json' => $result['operations'] ?: null,
+        ]);
+
+        // Create the change-set row. Validated on success, rejected on failure.
+        $cs = DocumentChangeSet::create([
+            'thread_id'         => $threadModel->id,
+            'document_type'     => $type,
+            'document_id'       => $id,
+            'base_revision_id'  => $threadModel->base_revision_id,
+            'status'            => $result['status'] === \App\Services\DocumentEdits\DocumentEditParserService::STATUS_SUCCESS
+                                      ? DocumentChangeSet::STATUS_VALIDATED
+                                      : DocumentChangeSet::STATUS_REJECTED,
+            // operations_json is NOT NULL in schema; use [] for parse_failed
+            // so we still record the rejection with its validation_errors.
+            'operations_json'   => ! empty($result['operations']) ? $result['operations'] : [],
+            'validation_errors' => empty($result['errors']) ? null : $result['errors'],
+            'model_name'        => $result['model_name'],
+        ]);
+
+        $this->audit($cs->status === DocumentChangeSet::STATUS_VALIDATED ? 'parse_validated' : 'parse_rejected',
+            $type, $id, [
+                'change_set_id' => $cs->id,
+                'thread_id'     => $threadModel->id,
+                'attempts'      => $result['attempts'],
+                'op_count'      => count($result['operations']),
+                'error_codes'   => array_unique(array_column($result['errors'], 'code')),
+            ]);
+
+        return response()->json([
+            'parse_status'      => $cs->status,
+            'change_set_id'     => $cs->id,
+            'operations_json'   => $result['operations'],
+            'summary'           => $result['summary'],
+            'validation_errors' => $result['errors'],
+        ], $cs->status === DocumentChangeSet::STATUS_VALIDATED ? 201 : 422);
     }
 
     // ─── GET /documents/{type}/{id}/changes/{changeSet} ───────────────────────

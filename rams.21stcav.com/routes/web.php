@@ -310,6 +310,9 @@ Route::middleware('auth')->group(function () {
     Route::post(  'documents/{type}/{id}/threads/{thread}/messages',
         [\App\Http\Controllers\DocumentEditController::class, 'postMessage'])
         ->name('documents.threads.messages.create');
+    Route::post(  'documents/{type}/{id}/threads/{thread}/parse',
+        [\App\Http\Controllers\DocumentEditController::class, 'parseMessage'])
+        ->name('documents.threads.parse');
     Route::get(   'documents/{type}/{id}/changes/{changeSet}',
         [\App\Http\Controllers\DocumentEditController::class, 'showChangeSet'])
         ->name('documents.changes.show');
