@@ -75,7 +75,11 @@ class HeicImageConverterTest extends TestCase
 
     public function test_throws_when_imagick_missing(): void
     {
-        // D-11 — fail loudly
+        // D-11 — fail loudly when HEIC upload arrives and imagick is unavailable.
+        // Plan 04 refactored the check from eager (constructor) to lazy
+        // (inside writeAsJpeg when the input is actually HEIC) so that JPEG /
+        // PNG / WebP passthrough uploads succeed on boxes without imagick.
+        // The fail-loud guarantee still holds for the HEIC path.
         if (extension_loaded('imagick')) {
             $this->markTestSkipped(
                 'ext-imagick IS loaded on this box; cannot test the missing-extension path '
@@ -84,9 +88,23 @@ class HeicImageConverterTest extends TestCase
             );
         }
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/imagick/i');
+        $converter = new HeicImageConverter();
 
-        new HeicImageConverter();
+        // Construction must succeed (non-HEIC paths still work without imagick).
+        $this->assertInstanceOf(HeicImageConverter::class, $converter);
+
+        // But HEIC input MUST throw loudly — D-11 invariant.
+        $src = base_path('tests/Fixtures/sample.heic');
+        $dst = sys_get_temp_dir() . '/heic-fail-' . uniqid() . '.jpg';
+        try {
+            $upload = new UploadedFile($src, 'sample.heic', 'image/heic', null, true);
+
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessageMatches('/imagick/i');
+
+            $converter->writeAsJpeg($upload, $dst);
+        } finally {
+            @unlink($dst);
+        }
     }
 }

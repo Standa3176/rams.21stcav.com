@@ -34,26 +34,22 @@ class HeicImageConverter
 
     private const JPEG_QUALITY = 85;
 
-    private ImageManagerInterface $manager;
+    private ?ImageManagerInterface $manager = null;
 
-    public function __construct()
-    {
-        if (! extension_loaded('imagick') || ! class_exists(\Imagick::class)) {
-            throw new RuntimeException(
-                'HeicImageConverter: the php-imagick PHP extension is required for HEIC conversion. '
-                .'Install it: `sudo apt install php8.2-imagick libheif-dev` (Linux) or '
-                .'enable `extension=imagick` in php.ini (Windows). '
-                .'See .planning/phases/14-mobile-field-view/14-RESEARCH.md → Deployment note.'
-            );
-        }
-
-        $this->manager = ImageManager::imagick();
-    }
+    /**
+     * Constructor is intentionally empty. The php-imagick health check is
+     * deferred to the HEIC conversion path only (see requireImagick()). This
+     * keeps JPEG/PNG/WebP passthrough working on environments without the
+     * imagick extension while still honouring D-11 "fail loudly when HEIC
+     * cannot be decoded" for the HEIC path.
+     */
+    public function __construct() {}
 
     /**
      * Write the uploaded file to $destinationAbsPath as JPEG (if HEIC) or
      * as-is passthrough (if already JPEG/PNG/WebP).
      *
+     * @throws RuntimeException if php-imagick is missing and input is HEIC (D-11)
      * @throws RuntimeException if HEIC decode fails (ImageMagick lacks libheif delegate)
      */
     public function writeAsJpeg(UploadedFile $file, string $destinationAbsPath): void
@@ -66,8 +62,10 @@ class HeicImageConverter
         $mime = $this->detectMime($file);
 
         if ($this->isHeic($mime)) {
+            $manager = $this->requireImagick();
+
             try {
-                $this->manager
+                $manager
                     ->read($file->getRealPath())
                     ->toJpeg(quality: self::JPEG_QUALITY)
                     ->save($destinationAbsPath);
@@ -84,8 +82,41 @@ class HeicImageConverter
             return;
         }
 
-        // JPEG / PNG / WebP passthrough — just move.
-        $file->move($destDir, basename($destinationAbsPath));
+        // JPEG / PNG / WebP passthrough — copy bytes rather than move() so that
+        // test fixtures (which point the UploadedFile at the committed sample
+        // file) are not consumed by the first test run. In production this is
+        // equivalent: PHP clears the tmp upload file at request end even if we
+        // don't move_uploaded_file() it ourselves.
+        if (! copy($file->getRealPath(), $destinationAbsPath)) {
+            throw new RuntimeException(
+                'HeicImageConverter: failed to copy uploaded file to '.$destinationAbsPath
+            );
+        }
+    }
+
+    /**
+     * Lazy health check for the HEIC path (D-11 fail-loud).
+     *
+     * Called only when the input is actually HEIC/HEIF. JPEG/PNG/WebP
+     * passthrough never touches this — so boxes without imagick can still
+     * handle non-HEIC uploads without blowing up.
+     */
+    private function requireImagick(): ImageManagerInterface
+    {
+        if ($this->manager !== null) {
+            return $this->manager;
+        }
+
+        if (! extension_loaded('imagick') || ! class_exists(\Imagick::class)) {
+            throw new RuntimeException(
+                'HeicImageConverter: the php-imagick PHP extension is required for HEIC conversion. '
+                .'Install it: `sudo apt install php8.2-imagick libheif-dev` (Linux) or '
+                .'enable `extension=imagick` in php.ini (Windows). '
+                .'See .planning/phases/14-mobile-field-view/14-RESEARCH.md → Deployment note.'
+            );
+        }
+
+        return $this->manager = ImageManager::imagick();
     }
 
     private function isHeic(string $mime): bool

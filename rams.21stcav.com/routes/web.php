@@ -304,6 +304,23 @@ Route::middleware('auth')->group(function () {
         [\App\Http\Controllers\TaskStatusController::class, 'updateNotes'])
         ->name('install-tasks.notes');
 
+    Route::post('install-tasks/{task}/photos',
+        [\App\Http\Controllers\TaskPhotoController::class, 'store'])
+        ->name('install-task-photos.store')
+        ->middleware('throttle:60,1');
+
+    Route::patch('install-task-photos/{photo}',
+        [\App\Http\Controllers\TaskPhotoController::class, 'update'])
+        ->name('install-task-photos.update');
+
+    Route::delete('install-task-photos/{photo}',
+        [\App\Http\Controllers\TaskPhotoController::class, 'destroy'])
+        ->name('install-task-photos.destroy');
+
+    Route::get('install-task-photos/{photo}',
+        [\App\Http\Controllers\TaskPhotoController::class, 'show'])
+        ->name('install-task-photos.show');
+
     // ─── Document Edit Core (chat-driven data-only edits) ───────────────────
     //
     // All endpoints sit inside the existing `auth` middleware group above.
