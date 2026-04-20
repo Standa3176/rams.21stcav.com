@@ -458,9 +458,9 @@
 
             // Last-resort watchdog. If neither alpine:init nor window.Alpine
             // has arrived after 3s, surface a console warning so the dev
-            // knows Alpine never booted (usually: @vite fell back to the hot
-            // server but `npm run dev` isn't running, or CSP blocked the
-            // module script).
+            // knows Alpine never booted (usually: the Vite directive fell
+            // back to the hot server but `npm run dev` isn't running, or
+            // CSP blocked the module script).
             setTimeout(() => {
                 if (!window.Alpine) {
                     console.warn('[docChat] Alpine did not start after 3s. ' +
