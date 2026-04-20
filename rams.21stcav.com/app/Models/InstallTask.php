@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -65,6 +66,8 @@ class InstallTask extends Model
         'sign_off_required',
         'planned_start_date',
         'planned_end_date',
+        'status_changed_at',
+        'status_changed_by',
     ];
 
     // ── Casts ─────────────────────────────────────────────────────────────────
@@ -80,6 +83,7 @@ class InstallTask extends Model
             'sign_off_required'  => 'boolean',
             'planned_start_date' => 'date',
             'planned_end_date'   => 'date',
+            'status_changed_at'  => 'datetime',
         ];
     }
 
@@ -93,6 +97,16 @@ class InstallTask extends Model
     public function assignedUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function photos(): HasMany
+    {
+        return $this->hasMany(InstallTaskPhoto::class)->orderBy('sort_order');
+    }
+
+    public function statusChangedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'status_changed_by');
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
