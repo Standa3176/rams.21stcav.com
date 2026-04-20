@@ -321,6 +321,16 @@ Route::middleware('auth')->group(function () {
         [\App\Http\Controllers\TaskPhotoController::class, 'show'])
         ->name('install-task-photos.show');
 
+    Route::post('projects/{project}/time-entries/start',
+        [\App\Http\Controllers\TimeEntryController::class, 'start'])
+        ->name('time-entries.start')
+        ->middleware('throttle:30,1');
+
+    Route::post('projects/{project}/time-entries/stop',
+        [\App\Http\Controllers\TimeEntryController::class, 'stop'])
+        ->name('time-entries.stop')
+        ->middleware('throttle:30,1');
+
     // ─── Document Edit Core (chat-driven data-only edits) ───────────────────
     //
     // All endpoints sit inside the existing `auth` middleware group above.
