@@ -291,6 +291,19 @@ Route::middleware('auth')->group(function () {
         [\App\Http\Controllers\InstallProgrammeController::class, 'schedule'])
         ->name('install-programmes.schedule');
 
+    // ── Phase 14 — Mobile Field View ──────────────────────────────────────
+    Route::get('projects/{project}/programme',
+        [\App\Http\Controllers\InstallProgrammeController::class, 'field'])
+        ->name('install-programmes.field');
+
+    Route::patch('install-tasks/{task}/status',
+        [\App\Http\Controllers\TaskStatusController::class, 'update'])
+        ->name('install-tasks.status');
+
+    Route::patch('install-tasks/{task}/notes',
+        [\App\Http\Controllers\TaskStatusController::class, 'updateNotes'])
+        ->name('install-tasks.notes');
+
     // ─── Document Edit Core (chat-driven data-only edits) ───────────────────
     //
     // All endpoints sit inside the existing `auth` middleware group above.

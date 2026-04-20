@@ -226,6 +226,97 @@ class InstallProgrammeController extends Controller
     }
 
     // =========================================================================
+    // FIELD VIEW (Mobile — engineers execute tasks from phone)
+    // =========================================================================
+
+    /**
+     * Mobile-first field page for a project's active install programme (INST-03a).
+     *
+     * Scope rules (D-02 / INST-03b):
+     *   - Owner/admin: sees all tasks by default, with `scope=mine` query param to filter
+     *   - Engineer (assigned-only): sees their own tasks, with `scope=all` to broaden
+     *   - Unrelated user: 403
+     *
+     * Shape returned to the Blade view:
+     *   - $programme           InstallProgramme|null (null if project has no active programme)
+     *   - $project             Project (for sticky-bar chrome)
+     *   - $rooms               Collection grouped by room_name
+     *   - $counters            ['programme' => ['complete' => int, 'total' => int], 'room' => [...]]
+     *   - $openEntry           TimeEntry|null — current user's open time entry on this project
+     *   - $isOwnerOrAdmin      bool
+     *   - $scope               'mine' | 'all'
+     *
+     * @param  \Illuminate\Http\Request $request
+     * @param  \App\Models\Project      $project
+     * @return View
+     */
+    public function field(\Illuminate\Http\Request $request, Project $project): View
+    {
+        $user = auth()->user();
+        $isOwnerOrAdmin = $project->user_id === $user->id || $user->isAdmin();
+
+        // Resolve active programme (null = none yet; view shows an empty state)
+        $programme = $project->activeInstallProgramme()
+            ->with(['tasks.assignedUser', 'tasks.photos'])
+            ->first();
+
+        // Field engineers (non-owner, non-admin) must be assigned to at least one task
+        // on the active programme to access the field view. This mirrors the
+        // schedule() gate above and prevents random employees from browsing.
+        if (! $isOwnerOrAdmin) {
+            $hasAssigned = $programme
+                && $programme->tasks->where('assigned_to', $user->id)->isNotEmpty();
+            abort_if(! $hasAssigned, 403);
+        }
+
+        // Scope toggle: D-02. Default for engineer = 'mine'. Default for owner/admin = 'all'.
+        $scope = $request->query('scope', $isOwnerOrAdmin ? 'all' : 'mine');
+        if (! in_array($scope, ['mine', 'all'], true)) {
+            $scope = $isOwnerOrAdmin ? 'all' : 'mine';
+        }
+
+        $allTasks = $programme ? $programme->tasks : collect();
+        $tasks = ($scope === 'mine')
+            ? $allTasks->where('assigned_to', $user->id)->values()
+            : $allTasks->values();
+
+        // Group by denormalised room_name string (Phase 12 convention)
+        $rooms = $tasks->groupBy('room_name');
+
+        // Counters (scoped to the current view — engineers see their own counts)
+        $counters = [
+            'programme' => [
+                'complete' => $tasks->where('status', InstallTask::STATUS_COMPLETE)->count(),
+                'total'    => $tasks->count(),
+            ],
+            'room' => $rooms->map(fn ($rt) => [
+                'complete' => $rt->where('status', InstallTask::STATUS_COMPLETE)->count(),
+                'total'    => $rt->count(),
+            ])->toArray(),
+        ];
+
+        // Open time entry for this (project, user) pair (null if not clocked in)
+        $openEntry = \App\Models\TimeEntry::where('project_id', $project->id)
+            ->where('user_id', $user->id)
+            ->whereNull('clocked_out_at')
+            ->first();
+
+        Log::info('InstallProgrammeController: field view loaded', [
+            'project_id'     => $project->id,
+            'programme_id'   => $programme?->id,
+            'user_id'        => $user->id,
+            'is_owner_admin' => $isOwnerOrAdmin,
+            'scope'          => $scope,
+            'task_count'     => $tasks->count(),
+        ]);
+
+        return view('install-programmes.field', compact(
+            'project', 'programme', 'rooms', 'counters', 'openEntry',
+            'isOwnerOrAdmin', 'scope',
+        ));
+    }
+
+    // =========================================================================
     // DESTROY TASK
     // =========================================================================
 
