@@ -144,8 +144,19 @@
     @push('scripts')
     @vite(['resources/js/app.js'])
     <script>
-        document.addEventListener('alpine:init', () => {
-            Alpine.data('docChat', (config) => ({
+        // Defensive factory registration — covers both timings:
+        //   (a) Alpine not yet loaded → register listener for alpine:init
+        //   (b) Alpine already running (another bundle got there first, or this
+        //       script is late in the stack) → register the factory immediately.
+        //
+        // Without (b), late-arriving scripts silently miss the alpine:init
+        // event, leaving x-data="docChat(...)" bound to an undefined factory.
+        // Alpine then swallows the error, the button dispatches its event into
+        // the void, and the drawer does nothing when clicked.
+        (function registerDocChatFactory() {
+            const define = (AlpineRef) => {
+                AlpineRef.data('docChat', (config) => ({
+                    _factoryLoaded: true,
                 open:        false,
                 threadId:    null,
                 messages:    [],
@@ -431,8 +442,33 @@
                         if (el) el.scrollTop = el.scrollHeight;
                     });
                 },
-            }));
-        });
+                }));
+            };
+
+            // Path (b): Alpine already running → register now.
+            if (window.Alpine && typeof window.Alpine.data === 'function') {
+                define(window.Alpine);
+                return;
+            }
+
+            // Path (a): Alpine not loaded yet → wait for alpine:init.
+            document.addEventListener('alpine:init', () => {
+                if (window.Alpine) define(window.Alpine);
+            });
+
+            // Last-resort watchdog. If neither alpine:init nor window.Alpine
+            // has arrived after 3s, surface a console warning so the dev
+            // knows Alpine never booted (usually: @vite fell back to the hot
+            // server but `npm run dev` isn't running, or CSP blocked the
+            // module script).
+            setTimeout(() => {
+                if (!window.Alpine) {
+                    console.warn('[docChat] Alpine did not start after 3s. ' +
+                        'Run `composer dev` (or `npm run build` + reload) to ensure the ' +
+                        'Vite bundle is served.');
+                }
+            }, 3000);
+        })();
     </script>
     @endpush
 @endonce
