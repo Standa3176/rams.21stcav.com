@@ -157,15 +157,21 @@
             const define = (AlpineRef) => {
                 AlpineRef.data('docChat', (config) => ({
                     _factoryLoaded: true,
-                open:        false,
-                threadId:    null,
-                messages:    [],
-                input:       '',
-                sending:     false,
-                applying:    null,
-                label:       config.label,
-                _busy:       false,
-                _storageKey: `docChat:${config.documentType}:${config.documentId}`,
+                open:         false,
+                threadId:     null,
+                messages:     [],
+                input:        '',
+                sending:      false,
+                applying:     null,
+                // Expose config values on the reactive scope so template
+                // expressions like @open-doc-chat.window="... type === documentType"
+                // can see them. Previously these stayed in the factory closure
+                // and the listener short-circuited on 'rams' === undefined.
+                label:        config.label,
+                documentType: config.documentType,
+                documentId:   config.documentId,
+                _busy:        false,
+                _storageKey:  `docChat:${config.documentType}:${config.documentId}`,
 
                 init() {
                     // Restore thread + messages from sessionStorage if present.

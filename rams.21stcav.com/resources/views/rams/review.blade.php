@@ -2,6 +2,132 @@
 
 @section('title', 'Review RAMS — ' . $rams->project_name)
 
+@push('styles')
+<style>
+/* ── RAMS review page polish ─────────────────────────────────────────── */
+.rams-hero {
+    background: linear-gradient(135deg, #EBF6F7 0%, #F7FBFC 60%, #FFFFFF 100%);
+    border: 1px solid var(--teal-mid);
+    border-radius: var(--radius);
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+.rams-hero-title { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
+.rams-hero-title h1 { font-size: 1.4rem; margin: 0; color: var(--sidebar-bg); letter-spacing: -0.01em; }
+.rams-hero-meta {
+    font-size: .8rem; color: var(--text-muted);
+    display: flex; gap: .75rem; flex-wrap: wrap; margin-top: .25rem;
+}
+.rams-hero-meta strong { color: var(--text); font-weight: 600; }
+.rams-hero-actions { display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; }
+
+/* Status pill in hero */
+.status-pill {
+    display: inline-flex; align-items: center; gap: .35rem;
+    padding: .18rem .6rem; border-radius: 999px;
+    font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+}
+.status-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; }
+.status-pill--completed { background: #D1FAE5; color: #065F46; }
+.status-pill--completed::before { background: #10B981; }
+.status-pill--approved  { background: #DBEAFE; color: #1E3A8A; }
+.status-pill--approved::before  { background: #3B82F6; }
+.status-pill--awaiting  { background: #FEF3C7; color: #92400E; }
+.status-pill--awaiting::before  { background: #F59E0B; }
+.status-pill--generating{ background: #EDE9FE; color: #5B21B6; }
+.status-pill--generating::before{ background: #8B5CF6; }
+.status-pill--failed    { background: #FEE2E2; color: #991B1B; }
+.status-pill--failed::before    { background: #EF4444; }
+.status-pill--uploaded  { background: #F3F4F6; color: #374151; }
+.status-pill--uploaded::before  { background: #6B7280; }
+
+/* Header action buttons — colored variants */
+.btn-regen {
+    display:inline-flex; align-items:center; gap:.35rem;
+    padding:.35rem .75rem; border-radius: var(--radius-sm);
+    background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A;
+    font-size: .8125rem; font-weight: 600; cursor: pointer;
+    transition: background 150ms ease;
+}
+.btn-regen:hover    { background: #FDE68A; text-decoration: none; color: #78350F; }
+.btn-regen form     { margin: 0; display: inline; }
+
+/* Tab navigation */
+.rams-tabs {
+    display: flex; gap: .25rem; flex-wrap: wrap;
+    background: #FFFFFF; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: .3rem; margin-bottom: 1.1rem;
+    box-shadow: var(--shadow-xs);
+}
+.rams-tab {
+    display: inline-flex; align-items: center; gap: .4rem;
+    padding: .55rem 1rem; border-radius: calc(var(--radius-sm) + 2px);
+    background: transparent; color: var(--text-muted); border: none;
+    font-size: .875rem; font-weight: 600; cursor: pointer;
+    transition: background 150ms ease, color 150ms ease;
+    white-space: nowrap;
+}
+.rams-tab:hover { background: var(--teal-light); color: var(--teal); }
+.rams-tab.is-active {
+    background: var(--teal); color: #fff;
+    box-shadow: 0 1px 3px rgba(23,138,149,.3);
+}
+.rams-tab-count {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 20px; height: 18px; padding: 0 .35rem;
+    background: rgba(0,0,0,.08); color: inherit;
+    border-radius: 999px; font-size: .68rem; font-weight: 700;
+}
+.rams-tab.is-active .rams-tab-count { background: rgba(255,255,255,.25); color: #fff; }
+
+/* Section heading upgraded with teal accent bar */
+.section-heading {
+    font-size: 1rem; font-weight: 700; color: var(--sidebar-bg);
+    margin-top: 1.25rem; margin-bottom: .75rem;
+    padding-left: .65rem; border-left: 3px solid var(--teal);
+    line-height: 1.2;
+}
+.section-heading:first-child { margin-top: 0; }
+
+/* Save bar at bottom of form (always visible regardless of active tab) */
+.rams-save-bar {
+    margin-top: 1.25rem; padding: .9rem 1rem;
+    background: linear-gradient(to right, var(--teal-light), #FFFFFF);
+    border: 1px solid var(--teal-mid); border-radius: var(--radius);
+    display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; justify-content: flex-end;
+}
+.rams-save-bar-label {
+    margin-right: auto; font-size: .8rem; color: var(--text-muted);
+}
+.rams-save-bar-label strong { color: var(--teal); font-weight: 700; }
+
+/* Subtle card tinting inside tabs */
+.rams-tab-panel .card,
+.rams-tab-panel > .card-sm { border-top: 2px solid var(--teal-mid); }
+
+/* Diff summary box — clearer hierarchy */
+.rams-diff-banner {
+    display: flex; gap: .5rem; align-items: center; flex-wrap: wrap;
+    padding: .6rem .85rem; font-size: .8125rem;
+    background: #FEF9E7; border: 1px solid #F5D776; border-radius: var(--radius-sm);
+    margin-bottom: .75rem;
+}
+.rams-diff-banner strong { color: #92400E; }
+
+/* Responsive */
+@media (max-width: 640px) {
+    .rams-hero { flex-direction: column; align-items: flex-start; }
+    .rams-hero-actions { width: 100%; }
+    .rams-tab { padding: .45rem .7rem; font-size: .8rem; }
+}
+</style>
+@endpush
+
 @section('content')
 
 @php
@@ -49,9 +175,35 @@
     };
 @endphp
 
-    <div class="page-header">
-        <h1 class="page-title">Review &amp; Download RAMS</h1>
-        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+    @php
+        $statusMap = [
+            \App\Models\RamsDocument::STATUS_COMPLETED       => 'completed',
+            \App\Models\RamsDocument::STATUS_APPROVED        => 'approved',
+            \App\Models\RamsDocument::STATUS_AWAITING_REVIEW => 'awaiting',
+            \App\Models\RamsDocument::STATUS_GENERATING      => 'generating',
+            \App\Models\RamsDocument::STATUS_FAILED          => 'failed',
+            \App\Models\RamsDocument::STATUS_UPLOADED        => 'uploaded',
+        ];
+        $statusKey   = $statusMap[$rams->status] ?? 'uploaded';
+        $statusLabel = ucfirst(str_replace('_', ' ', $rams->status));
+    @endphp
+
+    <div class="rams-hero">
+        <div class="rams-hero-title">
+            <div>
+                <h1>Review &amp; Download RAMS</h1>
+                <div class="rams-hero-meta">
+                    <span><strong>Project:</strong> {{ \Illuminate\Support\Str::limit($rams->project_name, 60) }}</span>
+                    <span><strong>Client:</strong> {{ $rams->client_name }}</span>
+                    @if ($rams->project_ref)
+                        <span><strong>Ref:</strong> {{ $rams->project_ref }}</span>
+                    @endif
+                </div>
+            </div>
+            <span class="status-pill status-pill--{{ $statusKey }}">{{ $statusLabel }}</span>
+        </div>
+
+        <div class="rams-hero-actions">
             @if ($rams->project_id && $rams->project)
                 <a href="{{ route('projects.show', $rams->project_id) }}" class="btn btn-outline btn-sm">← Back to Project</a>
             @else
@@ -63,6 +215,17 @@
                 :id="$rams->id"
                 label="RAMS"
                 :visible="in_array($rams->status, [\App\Models\RamsDocument::STATUS_APPROVED, \App\Models\RamsDocument::STATUS_COMPLETED])" />
+            <a href="{{ route('rams.download-pdf', $rams) }}" class="btn btn-outline btn-sm"
+               onclick="triggerFileDownload(this.href); return false;">↓ PDF</a>
+            <a href="{{ route('rams.download', $rams) }}" class="btn btn-outline btn-sm">↓ DOCX</a>
+            <form method="POST" action="{{ route('rams.regenerate', $rams) }}" style="margin:0;display:inline;">
+                @csrf
+                <button type="submit" class="btn-regen"
+                        onclick="return confirm('Regenerate this RAMS document? The current version will be replaced.')"
+                        aria-label="Regenerate RAMS via AI">
+                    ↺ Regenerate
+                </button>
+            </form>
         </div>
     </div>
 
@@ -73,9 +236,9 @@
         <div class="alert alert-error">{{ session('error') }}</div>
     @endif
 
-    <div class="alert alert-info">
-        Review the AI-generated details below. You can edit project fields before downloading.
-        The hazard register and method statement are shown read-only — edit the Word document after download if needed.
+    <div class="alert alert-info" style="background:#EBF6F7;border:1px solid var(--teal-mid);color:var(--sidebar-bg);">
+        <strong>💡 Tip:</strong> Edit project fields across the tabs below, then click <strong>Save &amp; Download</strong> at the bottom.
+        Hazards and the method statement are AI-generated and read-only — use <strong>✎ Edit via chat</strong> above if you need to change them.
     </div>
 
     {{-- ── Diff styles ─────────────────────────────────────────────────────── --}}
@@ -87,30 +250,66 @@
 
     {{-- ── Diff legend + grouped summary ───────────────────────────────────── --}}
     @if (($diff['summary']['total'] ?? 0) > 0)
-        <div style="display:flex;gap:.75rem;align-items:center;padding:.5rem .75rem;font-size:.8125rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:.75rem;">
+        <div class="rams-diff-banner">
             <span class="badge bg-success">Added</span>
             <span class="badge bg-warning">Modified</span>
             <span class="badge bg-danger">Removed</span>
-            <span style="color:#6b7280;margin-left:auto;">{{ $diff['summary']['total'] }} change{{ $diff['summary']['total'] !== 1 ? 's' : '' }} between extracted and reviewed data</span>
-        </div>
-        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:.6rem 1rem;font-size:.8125rem;color:#1e40af;margin-bottom:1.25rem;">
-            @php
-                $grouped = collect($diff['changes'] ?? [])
-                    ->groupBy(fn($c) => explode('.', $c['field'])[0]);
-            @endphp
-            @foreach ($grouped as $section => $sectionChanges)
-                <div style="display:inline-block;margin-right:1.25rem;margin-bottom:.25rem;">
-                    <strong>{{ ucfirst(str_replace('_', ' ', $section)) }}</strong>: {{ count($sectionChanges) }} change{{ count($sectionChanges) !== 1 ? 's' : '' }}
-                </div>
-            @endforeach
+            <strong style="margin-left:auto;">{{ $diff['summary']['total'] }} change{{ $diff['summary']['total'] !== 1 ? 's' : '' }} since last generation</strong>
         </div>
     @endif
 
+    {{-- ── Tabbed form ──────────────────────────────────────────────────────── --}}
+    <div x-data="{ tab: 'project' }" x-cloak>
+        @php
+            // Precompute tab counts for heading badges. Cheap — handful of arrays.
+            $permitsSel     = collect($permitsRd)->where('required', true)->count();
+            $matHItemsN     = count($matHandling['large_items'] ?? []);
+            $cdmFilledN     = collect($cdmRows)->filter(fn($r) => !empty($r['organisation'] ?? $r['name'] ?? null))->count();
+            $scopeTraceN    = count($scopeTraceability);
+            $exclusionsN    = count(array_filter($exclusionsList, fn($e) => is_string($e) && trim($e) !== ''));
+            $commCritN      = count($commCriteria);
+            $decommStepsN   = count($decommData['steps'] ?? []);
+            $hazardsN       = count($hazards);
+        @endphp
+
+        <nav class="rams-tabs" role="tablist">
+            <button type="button" class="rams-tab" :class="tab==='project' && 'is-active'" @click="tab='project'" role="tab">
+                Project
+            </button>
+            <button type="button" class="rams-tab" :class="tab==='works' && 'is-active'" @click="tab='works'" role="tab">
+                Works &amp; Permits
+                @if ($permitsSel + $matHItemsN + $cdmFilledN > 0)
+                    <span class="rams-tab-count">{{ $permitsSel + $matHItemsN + $cdmFilledN }}</span>
+                @endif
+            </button>
+            <button type="button" class="rams-tab" :class="tab==='scope' && 'is-active'" @click="tab='scope'" role="tab">
+                Scope &amp; Exclusions
+                @if ($scopeTraceN + $exclusionsN > 0)
+                    <span class="rams-tab-count">{{ $scopeTraceN + $exclusionsN }}</span>
+                @endif
+            </button>
+            <button type="button" class="rams-tab" :class="tab==='commissioning' && 'is-active'" @click="tab='commissioning'" role="tab">
+                Commissioning
+                @if ($commCritN + $decommStepsN > 0)
+                    <span class="rams-tab-count">{{ $commCritN + $decommStepsN }}</span>
+                @endif
+            </button>
+            <button type="button" class="rams-tab" :class="tab==='hazards' && 'is-active'" @click="tab='hazards'" role="tab">
+                Hazards &amp; Method
+                @if ($hazardsN > 0)
+                    <span class="rams-tab-count">{{ $hazardsN }}</span>
+                @endif
+            </button>
+        </nav>
+
     {{-- ── Edit & Download form ─────────────────────────────────────────────── --}}
     <div class="card">
-        <h2 class="section-heading">Project Details</h2>
         <form method="POST" action="{{ route('rams.update-and-download', $rams) }}">
             @csrf
+
+            {{-- ══════════ TAB: PROJECT ══════════ --}}
+            <div x-show="tab==='project'" class="rams-tab-panel">
+                <h2 class="section-heading">Project Details</h2>
             <div class="form-grid-2">
                 <div class="form-group">
                     <label class="form-label" for="project_name">Project Name <span class="req">*</span></label>
@@ -221,9 +420,12 @@
                            value="{{ old('planned_end_time', $project['planned_end_time'] ?? $prog['planned_end_time'] ?? '17:30') }}">
                 </div>
             </div>
+            </div>{{-- /TAB: PROJECT --}}
 
+            {{-- ══════════ TAB: WORKS & PERMITS ══════════ --}}
+            <div x-show="tab==='works'" class="rams-tab-panel">
             {{-- ── Waste Removal ────────────────────────────────────────────── --}}
-            <h3 class="section-heading" style="margin-top:1rem;">Waste Removal</h3>
+            <h3 class="section-heading" style="margin-top:0;">Waste Removal</h3>
             <div class="form-group" style="margin-bottom:.75rem;">
                 <label class="form-label">Waste removed by</label>
                 <div style="display:flex; gap:1.5rem; margin-top:.35rem;">
@@ -378,9 +580,12 @@
                           placeholder="e.g. Welfare facilities in Building B, Level 1. First aider: John Smith (07700 000000)"
                 >{{ old('welfare_notes', $prog['welfare_notes'] ?? '') }}</textarea>
             </div>
+            </div>{{-- /TAB: WORKS & PERMITS --}}
 
+            {{-- ══════════ TAB: SCOPE & EXCLUSIONS ══════════ --}}
+            <div x-show="tab==='scope'" class="rams-tab-panel">
             {{-- ── Scope Traceability ──────────────────────────────────────────────── --}}
-            <h3 class="section-heading" style="margin-top:1rem;">Scope Traceability</h3>
+            <h3 class="section-heading" style="margin-top:0;">Scope Traceability</h3>
             <p style="font-size:.85rem; color:#555; margin-bottom:.65rem;">Map each quoted item to its RAMS installation activity. Pre-filled from quote where available.</p>
             <table class="data-table" style="font-size:.85rem; margin-bottom:.5rem;">
                 <thead>
@@ -522,9 +727,12 @@
                 container.appendChild(div); exclIndex++;
             }
             </script>
+            </div>{{-- /TAB: SCOPE & EXCLUSIONS --}}
 
+            {{-- ══════════ TAB: COMMISSIONING ══════════ --}}
+            <div x-show="tab==='commissioning'" class="rams-tab-panel">
             {{-- ── Decommissioning Procedure ───────────────────────────────────────── --}}
-            <h3 class="section-heading" style="margin-top:1rem;">Decommissioning Procedure</h3>
+            <h3 class="section-heading" style="margin-top:0;">Decommissioning Procedure</h3>
             @php
                 $decomEnabled  = old('decommissioning_enabled',             $decommData['enabled']                  ?? false);
                 $decomLabel    = old('decommissioning_labelling_procedure', $decommData['labelling_procedure']       ?? '');
@@ -653,23 +861,21 @@
                 tbody.appendChild(tr); ccRowIndex++;
             }
             </script>
+            </div>{{-- /TAB: COMMISSIONING --}}
 
-            <div style="display:flex; gap:.75rem; flex-wrap:wrap; margin-top:1rem;">
-                <button type="submit" class="btn btn-teal">
-                    ↓ Save &amp; Download .docx
-                </button>
-                <a href="{{ route('rams.download-pdf', $rams) }}" class="btn btn-outline"
-                   onclick="triggerFileDownload(this.href); return false;">
-                    ↓ Download PDF
-                </a>
-                <a href="{{ route('rams.download', $rams) }}" class="btn btn-outline">
-                    ↓ Download current .docx
-                </a>
+            {{-- ══════════ Sticky save bar — visible across all form tabs ══════════ --}}
+            <div class="rams-save-bar">
+                <span class="rams-save-bar-label">Saves all tabs. <strong>Save &amp; Download</strong> writes changes and re-generates the DOCX.</span>
+                <a href="{{ route('rams.download', $rams) }}" class="btn btn-outline btn-sm">↓ Current DOCX</a>
+                <a href="{{ route('rams.download-pdf', $rams) }}" class="btn btn-outline btn-sm"
+                   onclick="triggerFileDownload(this.href); return false;">↓ Current PDF</a>
+                <button type="submit" class="btn btn-teal">↓ Save &amp; Download .docx</button>
             </div>
         </form>
     </div>
 
-    {{-- ── AI Summary (read-only) ───────────────────────────────────────────── --}}
+    {{-- ══════════ TAB: HAZARDS & METHOD (read-only) ══════════ --}}
+    <div x-show="tab==='hazards'" class="rams-tab-panel">
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.25rem;">
 
         {{-- Hazard summary --}}
@@ -759,23 +965,13 @@
             </div>
         </div>
     </div>
+    </div>{{-- /TAB: HAZARDS & METHOD --}}
 
-    {{-- ── Regenerate ────────────────────────────────────────────────────────── --}}
-    <div class="card card-sm">
-        <h2 class="section-heading" style="font-size:.9rem;">↺ Regenerate</h2>
-        <p style="font-size:.875rem; color:#666; margin-bottom:.75rem;">Re-run the AI to produce a fresh RAMS document using the same source data.</p>
-        <form method="POST" action="{{ route('rams.regenerate', $rams) }}">
-            @csrf
-            <button type="submit" class="btn btn-outline btn-sm"
-                    onclick="return confirm('Regenerate this RAMS document? The current version will be replaced.')">
-                ↺ Regenerate
-            </button>
-        </form>
-    </div>
+    </div>{{-- /x-data tab wrapper --}}
 
     {{-- ── Email form ───────────────────────────────────────────────────────── --}}
-    <div class="card card-sm">
-        <h2 class="section-heading" style="font-size:.9rem;">Email this RAMS</h2>
+    <div class="card card-sm" style="border-top:2px solid var(--teal-mid);">
+        <h2 class="section-heading" style="font-size:.9rem;">📧 Email this RAMS</h2>
         <form method="POST" action="{{ route('rams.email', $rams) }}" style="display:flex; gap:.75rem; align-items:flex-end; flex-wrap:wrap;">
             @csrf
             <div class="form-group" style="flex:1; min-width:200px; margin-bottom:0;">
