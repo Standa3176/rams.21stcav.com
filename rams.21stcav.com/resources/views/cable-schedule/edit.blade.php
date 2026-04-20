@@ -6,7 +6,15 @@
 
 <div class="page-header">
     <h1 class="page-title">{{ $schedule->project_name }}</h1>
-    <a href="{{ route('cable-schedules.index') }}" class="btn btn-outline btn-sm">← Back to list</a>
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+        <a href="{{ route('documents.revisions.view', ['type' => 'cable', 'id' => $schedule->id]) }}" class="btn btn-outline btn-sm">↻ History</a>
+        <x-document-edit-drawer
+            type="cable"
+            :id="$schedule->id"
+            label="Cable Schedule"
+            :visible="in_array($schedule->status, [\App\Models\CableSchedule::STATUS_DRAFT, \App\Models\CableSchedule::STATUS_FINAL])" />
+        <a href="{{ route('cable-schedules.index') }}" class="btn btn-outline btn-sm">← Back to list</a>
+    </div>
 </div>
 
 @if (session('success'))

@@ -11,7 +11,15 @@
                 <span style="font-weight:400; color:#888;">— {{ $manual->project_name }}</span>
             @endif
         </h1>
-        <a href="{{ route('om-manuals.index') }}" class="btn btn-outline btn-sm">← Back</a>
+        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+            <a href="{{ route('documents.revisions.view', ['type' => 'om', 'id' => $manual->id]) }}" class="btn btn-outline btn-sm">↻ History</a>
+            <x-document-edit-drawer
+                type="om"
+                :id="$manual->id"
+                label="O&M Manual"
+                :visible="in_array($manual->status, [\App\Models\OmManual::STATUS_DRAFT, \App\Models\OmManual::STATUS_FINAL])" />
+            <a href="{{ route('om-manuals.index') }}" class="btn btn-outline btn-sm">← Back</a>
+        </div>
     </div>
 
     @if (session('success'))

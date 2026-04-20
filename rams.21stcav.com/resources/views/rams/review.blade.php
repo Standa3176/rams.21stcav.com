@@ -51,11 +51,19 @@
 
     <div class="page-header">
         <h1 class="page-title">Review &amp; Download RAMS</h1>
-        @if ($rams->project_id && $rams->project)
-            <a href="{{ route('projects.show', $rams->project_id) }}" class="btn btn-outline btn-sm">← Back to Project</a>
-        @else
-            <a href="{{ route('projects.index') }}" class="btn btn-outline btn-sm">← Back to Projects</a>
-        @endif
+        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+            @if ($rams->project_id && $rams->project)
+                <a href="{{ route('projects.show', $rams->project_id) }}" class="btn btn-outline btn-sm">← Back to Project</a>
+            @else
+                <a href="{{ route('projects.index') }}" class="btn btn-outline btn-sm">← Back to Projects</a>
+            @endif
+            <a href="{{ route('documents.revisions.view', ['type' => 'rams', 'id' => $rams->id]) }}" class="btn btn-outline btn-sm">↻ History</a>
+            <x-document-edit-drawer
+                type="rams"
+                :id="$rams->id"
+                label="RAMS"
+                :visible="in_array($rams->status, [\App\Models\RamsDocument::STATUS_APPROVED, \App\Models\RamsDocument::STATUS_COMPLETED])" />
+        </div>
     </div>
 
     @if (session('success'))
