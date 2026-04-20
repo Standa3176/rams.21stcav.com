@@ -666,9 +666,12 @@
            PAGINATION
         ═══════════════════════════════════════════════════════════════ */
         .pagination-wrap { margin-top: 1.25rem; display: flex; justify-content: center; }
-        .pagination-wrap nav { display: flex; gap: .3rem; }
-        .pagination-wrap a,
-        .pagination-wrap span {
+        .pag-block       { display: flex; flex-direction: column; align-items: flex-end; gap: .5rem; }
+        .pag-meta        { font-size: .8125rem; color: var(--text-muted); margin: 0; }
+        .pag-meta strong { color: var(--text); font-weight: 600; }
+        .pagination-wrap nav { display: flex; gap: .3rem; align-items: center; flex-wrap: wrap; }
+        .pagination-wrap nav a,
+        .pagination-wrap nav span {
             padding: .4rem .75rem;
             border: 1px solid var(--border);
             border-radius: var(--radius-sm);
@@ -676,9 +679,13 @@
             color: var(--text);
             background: var(--surface);
             transition: background var(--transition), border-color var(--transition);
+            min-width: 2rem;
+            text-align: center;
         }
-        .pagination-wrap a:hover          { background: var(--bg); border-color: #D1D5DB; text-decoration: none; color: var(--text); }
-        .pagination-wrap span[aria-current] { background: var(--teal); color: #fff; border-color: var(--teal); }
+        .pagination-wrap nav a:hover              { background: var(--bg); border-color: #D1D5DB; text-decoration: none; color: var(--text); }
+        .pagination-wrap nav span[aria-current]   { background: var(--teal); color: #fff; border-color: var(--teal); }
+        .pagination-wrap nav span.is-disabled     { opacity: .35; cursor: not-allowed; }
+        .pagination-wrap nav span.is-separator    { border: none; background: transparent; color: var(--text-muted); padding: .4rem .25rem; }
 
         /* ═══════════════════════════════════════════════════════════════
            DETAILS / SUMMARY
