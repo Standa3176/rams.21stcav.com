@@ -67,5 +67,26 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(Looping::class,       fn () => app(WorkerMonitorService::class)->writeHeartbeat());
         Event::listen(JobProcessed::class,  fn () => app(WorkerMonitorService::class)->writeHeartbeat());
         Event::listen(WorkerStopping::class,fn () => app(WorkerMonitorService::class)->clearHeartbeat());
+
+        // ── Phase 14: libheif delegate health check ───────────────────────────
+        // Warn at boot if imagick is loaded but libheif delegate is missing.
+        // Non-blocking — app still starts; HEIC uploads will surface the error
+        // at upload time via HeicImageConverter. See CONTEXT.md D-11 (fail-loud)
+        // and 14-RESEARCH.md Pitfall 1 (libheif delegate trap).
+        if (extension_loaded('imagick') && class_exists(\Imagick::class)) {
+            try {
+                $formats = (new \Imagick())->queryFormats('HEI*');
+                if (empty($formats)) {
+                    \Illuminate\Support\Facades\Log::warning(
+                        'AppServiceProvider: imagick loaded but HEIC delegate missing. '
+                        .'HEIC uploads will fail. Install libheif-dev and recompile ImageMagick.'
+                    );
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning(
+                    'AppServiceProvider: imagick extension check failed: '.$e->getMessage()
+                );
+            }
+        }
     }
 }
