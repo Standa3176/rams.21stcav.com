@@ -902,35 +902,41 @@ public function update(Request $request, InstallTask $task): JsonResponse
 
 **Confirm with user before execution:** A1, A2, A7. Others are low-risk defaults.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does the production server (as of phase execution) have `ext-imagick` AND the libheif delegate?**
    - What we know: REQUIREMENTS.md mandates HEIC handling; CONTEXT.md D-11 mandates Imagick.
    - What's unclear: Current state of the production server is not inspected in this research.
    - Recommendation: Wave 0 task — run `php -r "echo extension_loaded('imagick') ? 'ok' : 'MISSING'; print_r((new Imagick())->queryFormats('HEI*'));"` on the dev box and every target environment **before** Wave 1 lands. Add the one-liner to a new `php artisan env:check-imagick` command if we want it repeatable. (This is a small, safe artisan command — belongs in Wave 1.)
+   - **RESOLVED:** Adopt the recommendation. Wave 0 validation is delegated to the test scaffold (fixtures + imagick-gated unit test with `@requires extension imagick`); a dedicated `env:check-imagick` artisan command is explicitly deferred (not required by any D-XX, and assumption A1 already has a mitigation path in Pitfall 1). HeicImageConverter MUST fail loudly per D-11 if imagick is missing at runtime.
 
 2. **Should we commit a real HEIC test fixture (~200 KB) to the repo?**
    - What we know: Tests need to assert HEIC→JPEG end-to-end.
    - What's unclear: Repo policy on binary test fixtures. `tests/` has no existing HEIC.
    - Recommendation: Yes — commit `tests/fixtures/sample.heic` (a ~100 KB real HEIC photo). Binary in git is fine at this size. Alternative: generate one via `magick -size 100x100 xc:red sample.heic` at test-bootstrap time — dependency on `magick` binary in CI, messier.
+   - **RESOLVED:** Adopt the recommendation. Commit `tests/Fixtures/sample.heic` (50–300 KB, real HEIC with `ftyp` magic bytes verified) and `tests/Fixtures/sample.jpg`. Fixtures MUST be scrubbed of EXIF GPS / identifying metadata before commit; a `tests/Fixtures/README.md` documents source and scrubbing. See plan 14-01 Task 1 and threat T-14-00a.
 
 3. **Field controller: extend `InstallProgrammeController` or create `FieldController`?**
    - What we know: CONTEXT.md leaves this to the planner. Existing controller is 262 lines.
    - Recommendation: Extend `InstallProgrammeController` with `field()`. The status / photo / time endpoints get their own dedicated controllers (see "Route registration" above) because they have different responsibilities. This keeps `InstallProgrammeController` as the install-programme-shaped HTTP surface and isolates the mobile-specific action patterns.
+   - **RESOLVED:** Adopt the recommendation. `InstallProgrammeController::field()` owns the GET page; `TaskStatusController`, `TaskPhotoController`, and `TimeEntryController` are new controllers. See plan 14-04 Tasks 1–3.
 
 4. **Should room-progress counters be computed on every status save, or on view load only?**
    - What we know: D-01 requires room `N of M` counter. D-04 requires programme-wide progress bar.
    - What's unclear: Whether counter drift matters enough to justify a per-save recompute.
    - Recommendation: Per-save recompute (already shown in Example 5). Cost = 2 COUNT queries per status change = negligible. Benefit: UI is always correct without double-requests.
+   - **RESOLVED:** Adopt the recommendation — per-save recompute. The status endpoint returns `{room_progress: {done, total}, programme_progress: {done, total}}` so the Alpine client can update counters without a page refresh. See plan 14-04 Task 1.
 
 5. **Does `mimes:heic,heif` work at all, or do we definitely need `mimetypes`?**
    - What we know: Laravel 12 docs show `mimes` reads file contents. HEIC is supported in `mimes` starting Laravel 9 per some community sources.
    - What's unclear: Whether all Laravel 12 environments reliably detect HEIC via `mimes`.
    - Recommendation: Use `mimetypes:image/jpeg,image/png,image/webp,image/heic,image/heif` for certainty. Slightly more verbose but removes ambiguity. (Multiple sources recommend this approach.)
+   - **RESOLVED:** Adopt the recommendation. Use `mimetypes:image/jpeg,image/png,image/webp,image/heic,image/heif` on the photo upload rule. This is the canonical Phase 14 validation rule for image uploads; no `mimes` fallback. See plan 14-04 Task 2 and threat T-14-02.
 
 6. **Lightbox: native `<dialog>` vs Alpine modal?**
    - What we know: CONTEXT.md says "Tap opens a lightbox".
    - Recommendation: Native `<dialog>` with `showModal()` — zero dependencies, iOS-native, auto-dismissable. If browser support becomes an issue, fall back to a small Alpine modal (8 lines).
+   - **RESOLVED:** Adopt the recommendation. Use native `<dialog>` + `showModal()` in plan 14-05. Alpine modal is the fallback only if a device regression surfaces during manual iOS testing — not a pre-emptive second path.
 
 ## Environment Availability
 
