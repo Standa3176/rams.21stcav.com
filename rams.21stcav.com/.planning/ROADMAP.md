@@ -41,7 +41,7 @@ Full archive: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 - [x] Phase 12: Install Task Generation — Auto-generate task list (room × equipment) from ProjectDataService; install_programmes + install_tasks models; WORK-05/06 worksheet enhancements (completed 2026-04-13)
 - [x] Phase 13: Task Assignment & Scheduling — Engineer assignment, planned dates, week-view calendar; conditional Gantt (frappe-gantt) only when project duration > 4 days (completed 2026-04-14)
-- [ ] Phase 14: Mobile Field View — Responsive task checklist, status toggle, per-task photo capture (HEIC protection), clock in/out; online-only
+- [x] Phase 14: Mobile Field View — Responsive task checklist, status toggle, per-task photo capture (HEIC protection), clock in/out; online-only (completed 2026-04-20)
 - [ ] Phase 15: Time Tracking — Actual labour hours per project/category; heartbeat-guarded sessions; UTC storage; actuals-only (no budget comparison in v1.2)
 - [ ] Phase 16: Commissioning Checklist — Per-equipment AVIXA-category sign-off; per-item AJAX saves; client signature (creagia/laravel-sign-pad, DPI-corrected); snagging PDF; programme completion → project state advance
 
@@ -138,11 +138,11 @@ Plans:
 **Plans**: 5 plans
 
 Plans:
-- [ ] 14-01-PLAN.md — Wave 0 test scaffold, fixtures, factories (Wave 0)
-- [ ] 14-02-PLAN.md — Schemas: install_task_photos, time_entries, install_tasks audit columns + models (Wave 1)
-- [ ] 14-03-PLAN.md — Services: composer intervention/image, HeicImageConverter, TaskPhotoService, TimeEntryService (Wave 2)
-- [ ] 14-04-PLAN.md — Controllers + 9 routes: field(), TaskStatus, TaskPhoto, TimeEntry (Wave 3)
-- [ ] 14-05-PLAN.md — Blade views: field.blade.php + partials + photo-upload component + bottom-sheet (Wave 4)
+- [x] 14-01-PLAN.md — Wave 0 test scaffold, fixtures, factories (Wave 0)
+- [x] 14-02-PLAN.md — Schemas: install_task_photos, time_entries, install_tasks audit columns + models (Wave 1)
+- [x] 14-03-PLAN.md — Services: composer intervention/image, HeicImageConverter, TaskPhotoService, TimeEntryService (Wave 2)
+- [x] 14-04-PLAN.md — Controllers + 9 routes: field(), TaskStatus, TaskPhoto, TimeEntry (Wave 3)
+- [x] 14-05-PLAN.md — Blade views: field.blade.php + partials + photo-upload component + bottom-sheet (Wave 4)
 
 ### Phase 15: Time Tracking
 **Goal**: Engineers clock in/out per project with category selection. Open sessions are protected by server heartbeat; stale sessions auto-closed by scheduled command. Actual hours visible on project dashboard.
@@ -221,7 +221,7 @@ Plans:
 | 11. Bitrix24 Integration | v1.1 | — | Planned | — |
 | 12. Install Task Generation + Worksheet Enhancements | v1.2 | 3/3 | Complete   | 2026-04-13 |
 | 13. Task Assignment & Scheduling | v1.2 | 3/3 | Complete   | 2026-04-14 |
-| 14. Mobile Field View & Time Tracking | v1.2 | — | Planned | — |
+| 14. Mobile Field View & Time Tracking | v1.2 | 5/5 | Complete   | 2026-04-20 |
 | 15. Time Tracking | v1.2 | — | Planned | — |
 | 16. Commissioning Checklist & Sign-off | v1.2 | — | Planned | — |
 | 17. System Schematics | v1.3 | — | Planned | — |
