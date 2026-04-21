@@ -42,7 +42,7 @@ Full archive: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [x] Phase 12: Install Task Generation — Auto-generate task list (room × equipment) from ProjectDataService; install_programmes + install_tasks models; WORK-05/06 worksheet enhancements (completed 2026-04-13)
 - [x] Phase 13: Task Assignment & Scheduling — Engineer assignment, planned dates, week-view calendar; conditional Gantt (frappe-gantt) only when project duration > 4 days (completed 2026-04-14)
 - [x] Phase 14: Mobile Field View — Responsive task checklist, status toggle, per-task photo capture (HEIC protection), clock in/out; online-only (completed 2026-04-20)
-- [ ] Phase 15: Time Tracking — Actual labour hours per project/category; heartbeat-guarded sessions; UTC storage; actuals-only (no budget comparison in v1.2)
+- [x] Phase 15: Time Tracking — Actual labour hours per project/category; heartbeat-guarded sessions; UTC storage; actuals-only (no budget comparison in v1.2) (completed 2026-04-21)
 - [ ] Phase 16: Commissioning Checklist — Per-equipment AVIXA-category sign-off; per-item AJAX saves; client signature (creagia/laravel-sign-pad, DPI-corrected); snagging PDF; programme completion → project state advance
 
 ## Phase Details
@@ -161,7 +161,7 @@ Plans:
 - [x] 15-02-PLAN.md — TimeEntryService extensions (heartbeat, retro-edit, summary, closeStaleSessions) + 4 Form Requests + controller endpoints + routes (Wave 2)
 - [x] 15-03-PLAN.md — CloseStaleSessionsCommand + hourly scheduler registration (Wave 2)
 - [x] 15-04-PLAN.md — Mobile field view extensions: category bottom-sheet, silent heartbeat w/ exponential retry, visibility-paused, optional note-on-stop (Wave 3)
-- [ ] 15-05-PLAN.md — Actual Hours dashboard widget: total + 4-category horizontal bars, owner+admin only (Wave 3)
+- [x] 15-05-PLAN.md — Actual Hours dashboard widget: total + 4-category horizontal bars, owner+admin only (Wave 3)
 
 ### Phase 16: Commissioning Checklist & Sign-off
 **Goal**: Per-equipment commissioning checklist with AVIXA categories, per-item photo evidence, and client digital signature. Completing the checklist generates a snagging PDF and advances project to Commissioning state.
@@ -181,7 +181,7 @@ Plans:
 - [x] 15-01-PLAN.md — Schema extensions (time_entries category/notes/closure_reason + time_entry_audits table) + model wiring (Wave 1)
 - [x] 15-02-PLAN.md — TimeEntryService extensions (heartbeat, retro-edit, summary, closeStaleSessions) + 4 Form Requests + controller endpoints + routes (Wave 2)
 - [x] 15-03-PLAN.md — CloseStaleSessionsCommand + hourly scheduler registration (Wave 2)
-- [ ] 15-04-PLAN.md — Mobile field view extensions: category bottom-sheet, silent heartbeat w/ exponential retry, visibility-paused, optional note-on-stop (Wave 3)
+- [x] 15-04-PLAN.md — Mobile field view extensions: category bottom-sheet, silent heartbeat w/ exponential retry, visibility-paused, optional note-on-stop (Wave 3)
 - [ ] 15-05-PLAN.md — Actual Hours dashboard widget: total + 4-category horizontal bars, owner+admin only (Wave 3)
 
 ---
@@ -236,7 +236,7 @@ Plans:
 | 12. Install Task Generation + Worksheet Enhancements | v1.2 | 3/3 | Complete   | 2026-04-13 |
 | 13. Task Assignment & Scheduling | v1.2 | 3/3 | Complete   | 2026-04-14 |
 | 14. Mobile Field View & Time Tracking | v1.2 | 5/5 | Complete    | 2026-04-21 |
-| 15. Time Tracking | v1.2 | 4/5 | In Progress|  |
+| 15. Time Tracking | v1.2 | 5/5 | Complete   | 2026-04-21 |
 | 16. Commissioning Checklist & Sign-off | v1.2 | — | Planned | — |
 | 17. System Schematics | v1.3 | — | Planned | — |
 | 18. Rack Elevations | v1.3 | — | Planned | — |
