@@ -41,12 +41,18 @@ class TimeEntriesSchemaTest extends TestCase
         }
     }
 
-    public function test_does_not_have_category_column_yet(): void
+    public function test_phase_14_baseline_excludes_category(): void
     {
-        // CONTEXT.md — Phase 14 defers category to Phase 15
-        $this->assertFalse(
-            Schema::hasColumn('time_entries', 'category'),
-            'category column should be deferred to Phase 15 (INST-04a)',
+        // CONTEXT.md — Phase 14 deferred category to Phase 15.
+        // Phase 15-01 has now added it; this test now documents the historical
+        // boundary: the Phase 14 create migration itself does not create the
+        // column (the Phase 15 ALTER migration does).
+        $baselinePath = database_path('migrations/2026_04_20_000002_create_time_entries_table.php');
+        $this->assertFileExists($baselinePath);
+        $this->assertStringNotContainsString(
+            "'category'",
+            file_get_contents($baselinePath),
+            'Phase 14 baseline migration must not define category — Phase 15 owns that column',
         );
     }
 
