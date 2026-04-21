@@ -19,6 +19,7 @@
         progCounter: @js($counters['programme']),
     })"
     x-init="init()"
+    data-user-id="{{ auth()->id() }}"
     class="pt-[env(safe-area-inset-top)] pb-24 md:pb-6 bg-[#F3F6F7] min-h-screen -mx-8 -my-8 sm:-mx-4"
 >
     {{-- ══════════════════════════════════════════════════════════════════════
@@ -174,6 +175,12 @@
 
     {{-- Bottom-sheet (blocked/skipped reason) — single instance --}}
     @include('install-programmes._field-sheet')
+
+    {{-- Category sheet (opens on clock-in; Phase 15 D-01) --}}
+    @include('install-programmes._field-category-sheet')
+
+    {{-- Note sheet (opens on clock-out; Phase 15 D-06, optional) --}}
+    @include('install-programmes._field-note-sheet')
 </div>
 
 {{-- ══════════════════════════════════════════════════════════════════════════
@@ -201,56 +208,73 @@
                 saving: false,
                 error: null,
             },
+            categorySheet: {
+                open: false,
+                lastUsed: null,          // 'installation' | 'commissioning' | 'testing' | 'other' | null
+                saving: false,
+                error: null,
+            },
+            noteSheet: {
+                open: false,
+                note: '',
+                saving: false,
+                error: null,
+            },
+            heartbeat: {
+                handle: null,            // setTimeout id (NOT setInterval — so we can back off)
+                delayMs: 60000,          // current retry delay; resets to 60000 on success
+                consecutiveFailures: 0,  // exponential-retry counter
+                currentEntryId: null,    // the entry we're heartbeating
+                visibilityPaused: false, // true while document.hidden === true
+            },
             lastRoomName: null,
             init() {
+                // Pre-load last-used category per D-02 (localStorage keyed by user_id).
+                // user_id is rendered server-side via a data attribute on the container;
+                // fallback to 'anon' if absent so we don't crash on edge cases.
+                const userId = document.querySelector('[data-user-id]')?.dataset.userId ?? 'anon';
+                this.categorySheet.lastUsed = localStorage.getItem('last-category-' + userId);
+
                 if (this.clock.openEntry) {
                     this.startClockTicker();
+                    this.heartbeat.currentEntryId = this.clock.openEntry.id;
+                    this.startHeartbeat();
                 }
-                // Task rows post this when their save succeeds; root refreshes counters.
+
+                // Task rows dispatch these (Phase 14 mechanism preserved verbatim)
                 window.addEventListener('task-saved', (e) => {
                     if (e.detail?.room_name) { this.lastRoomName = e.detail.room_name; }
                     this.applyCounters(e.detail?.counters);
                 });
-                // Task rows request bottom-sheet open via this event.
                 window.addEventListener('open-blocked-sheet', (e) => {
                     this.openSheet(e.detail.mode, e.detail.taskId, e.detail.roomName);
                 });
+
+                // Phase 15 D-10: pause heartbeat when tab hidden; resume + catch-up on re-show.
+                document.addEventListener('visibilitychange', () => {
+                    if (document.hidden) {
+                        this.heartbeat.visibilityPaused = true;
+                        this.stopHeartbeat();
+                    } else {
+                        this.heartbeat.visibilityPaused = false;
+                        if (this.clock.openEntry) {
+                            this.sendHeartbeat();   // catch-up ping immediately
+                            this.startHeartbeat();
+                        }
+                    }
+                });
             },
-            // ── Clock chip ──
-            // Endpoints: POST /projects/{project}/time-entries/start
-            //            POST /projects/{project}/time-entries/stop
+            // ── Clock chip (Phase 15) ──
+            // Clock-in path: opens the category sheet (D-01) — actual POST happens in submitCategory().
+            // Clock-out path: opens the note sheet (D-06) — actual POST happens in submitNote().
             async toggleClock() {
                 this.clock.error = null;
-                this.clock.saving = true;
-                const path = this.clock.openEntry ? 'stop' : 'start';
-                try {
-                    const res = await fetch(`/projects/${projectId}/time-entries/${path}`, {
-                        method: 'POST',
-                        headers: { 'X-CSRF-TOKEN': csrf(), 'Accept': 'application/json' },
-                    });
-                    if (!res.ok) {
-                        const body = await res.json().catch(() => ({}));
-                        if (res.status === 422 && body.message) {
-                            this.clock.error = body.message;
-                        } else {
-                            this.clock.error = 'Couldn\'t reach the server — try again in a moment.';
-                        }
-                        setTimeout(() => { this.clock.error = null; }, 3000);
-                        return;
-                    }
-                    const data = await res.json();
-                    if (path === 'start') {
-                        this.clock.openEntry = { id: data.id, clocked_in_at: data.clocked_in_at };
-                        this.startClockTicker();
-                    } else {
-                        this.clock.openEntry = null;
-                        this.stopClockTicker();
-                        this.clock.elapsed = '0:00';
-                    }
-                } catch (e) {
-                    this.clock.error = 'Couldn\'t reach the server — try again in a moment.';
-                } finally {
-                    this.clock.saving = false;
+                if (this.clock.openEntry) {
+                    // Clock out path: open the note sheet rather than firing POST immediately
+                    this.openNoteSheet();
+                } else {
+                    // Clock in path: open the category sheet
+                    this.openCategorySheet();
                 }
             },
             startClockTicker() {
@@ -260,12 +284,26 @@
             stopClockTicker() {
                 if (this.clock._tickHandle) { clearInterval(this.clock._tickHandle); this.clock._tickHandle = null; }
             },
+            // Phase 15 D-19 note: this renders a DURATION (not a wall-clock time) —
+            // elapsed minutes since clocked_in_at. Duration math is timezone-invariant,
+            // so no Carbon::setTimezone / Europe/London conversion is needed at this
+            // presentation layer. D-19's UTC-storage requirement is satisfied by
+            // Laravel persisting clocked_in_at in UTC; the subtraction (Date.now() -
+            // since.getTime()) produces a timezone-agnostic millisecond delta.
+            //
+            // If a future Phase wants to display clocked_in_at as a wall-clock time
+            // (e.g. "Started at 09:15 BST"), THAT is where a Europe/London conversion
+            // must happen — not here. Deferred, not in Phase 15 scope.
             tickClock() {
                 if (!this.clock.openEntry) return;
                 const since = new Date(this.clock.openEntry.clocked_in_at);
                 const mins = Math.max(0, Math.floor((Date.now() - since.getTime()) / 60000));
                 const h = Math.floor(mins / 60), m = mins % 60;
-                this.clock.elapsed = `${h}:${String(m).padStart(2, '0')}`;
+                if (h >= 10) {
+                    this.clock.elapsed = `${h}h ${String(m).padStart(2, '0')}m`;
+                } else {
+                    this.clock.elapsed = `${h}:${String(m).padStart(2, '0')}`;
+                }
             },
             clockChipClasses() {
                 if (this.clock.error) return 'bg-red-50 text-red-700 ring-1 ring-red-300';
@@ -276,6 +314,154 @@
                 if (this.clock.error) return 'Try again';
                 if (this.clock.openEntry) return 'On the clock — tap to clock out';
                 return 'Clock in';
+            },
+            // ── Category sheet (D-01, D-02) ──
+            openCategorySheet() {
+                this.categorySheet.open = true;
+                this.categorySheet.error = null;
+                this.categorySheet.saving = false;
+                // lastUsed is pre-loaded in init(); highlight happens declaratively in the partial
+            },
+            dismissCategorySheet() {
+                if (this.categorySheet.saving) return;   // don't allow dismiss mid-POST
+                this.categorySheet.open = false;
+            },
+            async submitCategory(category) {
+                if (!['installation', 'commissioning', 'testing', 'other'].includes(category)) return;
+                this.categorySheet.saving = true;
+                this.categorySheet.error = null;
+                this.clock.saving = true;
+                try {
+                    // projectId is in closure scope from fieldRoot({ projectId, ... })
+                    const res = await fetch(`/projects/${projectId}/time-entries/start`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json',
+                                   'X-CSRF-TOKEN': csrf(), 'Accept': 'application/json' },
+                        body: JSON.stringify({ category }),
+                    });
+                    if (!res.ok) {
+                        const body = await res.json().catch(() => ({}));
+                        this.categorySheet.error = body.message ?? "Couldn't clock in — try again.";
+                        return;
+                    }
+                    const data = await res.json();
+                    this.clock.openEntry = { id: data.id, clocked_in_at: data.clocked_in_at };
+                    this.startClockTicker();
+                    this.heartbeat.currentEntryId = data.id;
+                    this.startHeartbeat();
+                    // Persist the chosen category for next clock-in (D-02)
+                    const userId = document.querySelector('[data-user-id]')?.dataset.userId ?? 'anon';
+                    localStorage.setItem('last-category-' + userId, category);
+                    this.categorySheet.lastUsed = category;
+                    this.categorySheet.open = false;
+                } catch (e) {
+                    this.categorySheet.error = "Couldn't reach the server — try again in a moment.";
+                } finally {
+                    this.categorySheet.saving = false;
+                    this.clock.saving = false;
+                }
+            },
+
+            // ── Note sheet (D-06) ──
+            openNoteSheet() {
+                this.noteSheet.note = '';
+                this.noteSheet.error = null;
+                this.noteSheet.saving = false;
+                this.noteSheet.open = true;
+            },
+            dismissNoteSheet() {
+                if (this.noteSheet.saving) return;
+                this.noteSheet.open = false;
+            },
+            async submitNote(note) {
+                // note === null  -> Skip tapped (no note)
+                // note is string -> Save & clock out tapped
+                this.noteSheet.saving = true;
+                this.noteSheet.error = null;
+                this.clock.saving = true;
+                try {
+                    const body = {};
+                    if (note !== null && typeof note === 'string' && note.trim() !== '') {
+                        body.note = note.trim().slice(0, 500);
+                    }
+                    // projectId is in closure scope from fieldRoot({ projectId, ... })
+                    const res = await fetch(`/projects/${projectId}/time-entries/stop`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json',
+                                   'X-CSRF-TOKEN': csrf(), 'Accept': 'application/json' },
+                        body: JSON.stringify(body),
+                    });
+                    if (!res.ok) {
+                        const bodyErr = await res.json().catch(() => ({}));
+                        this.noteSheet.error = bodyErr.message ?? "Couldn't clock out — try again.";
+                        return;
+                    }
+                    // On success: reset chip state + tear down heartbeat
+                    this.clock.openEntry = null;
+                    this.stopClockTicker();
+                    this.clock.elapsed = '0:00';
+                    this.stopHeartbeat();
+                    this.heartbeat.currentEntryId = null;
+                    this.noteSheet.open = false;
+                } catch (e) {
+                    this.noteSheet.error = "Couldn't reach the server — try again in a moment.";
+                } finally {
+                    this.noteSheet.saving = false;
+                    this.clock.saving = false;
+                }
+            },
+
+            // ── Heartbeat (D-08, D-09, D-10) ──
+            // Uses setTimeout + recursive re-schedule so we can vary delay per retry.
+            startHeartbeat() {
+                this.stopHeartbeat();    // idempotent — clears any pending timeout
+                if (!this.heartbeat.currentEntryId) return;
+                this.heartbeat.handle = setTimeout(
+                    () => this.sendHeartbeat(),
+                    this.heartbeat.delayMs,
+                );
+            },
+            stopHeartbeat() {
+                if (this.heartbeat.handle) {
+                    clearTimeout(this.heartbeat.handle);
+                    this.heartbeat.handle = null;
+                }
+            },
+            async sendHeartbeat() {
+                if (!this.heartbeat.currentEntryId || this.heartbeat.visibilityPaused) return;
+                try {
+                    const res = await fetch(`/time-entries/${this.heartbeat.currentEntryId}/heartbeat`, {
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': csrf(), 'Accept': 'application/json' },
+                    });
+                    if (res.ok || res.status === 204) {
+                        // Reset delay to baseline on success
+                        this.heartbeat.delayMs = 60000;
+                        this.heartbeat.consecutiveFailures = 0;
+                    } else if (res.status === 422) {
+                        // Server says entry is closed (stale-close or peer-close). Give up silently.
+                        this.stopHeartbeat();
+                        return;
+                    } else {
+                        this._backoffHeartbeat();
+                    }
+                } catch (e) {
+                    this._backoffHeartbeat();
+                }
+                // Re-schedule the next tick with the (possibly updated) delay
+                if (this.heartbeat.currentEntryId && !this.heartbeat.visibilityPaused) {
+                    this.heartbeat.handle = setTimeout(
+                        () => this.sendHeartbeat(),
+                        this.heartbeat.delayMs,
+                    );
+                }
+            },
+            _backoffHeartbeat() {
+                this.heartbeat.consecutiveFailures++;
+                // D-09 schedule: 60s → 120s → 300s → stay at 300s
+                const ladder = [60000, 120000, 300000, 300000];
+                const idx = Math.min(this.heartbeat.consecutiveFailures, ladder.length - 1);
+                this.heartbeat.delayMs = ladder[idx];
             },
             // ── Bottom-sheet ──
             openSheet(mode, taskId, roomName) {
