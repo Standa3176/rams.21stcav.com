@@ -65,4 +65,21 @@ class User extends Authenticatable
     {
         return $this->hasMany(Worksheet::class);
     }
+
+    /**
+     * Time entries this user has clocked on any project (Phase 15).
+     */
+    public function timeEntries(): HasMany
+    {
+        return $this->hasMany(TimeEntry::class);
+    }
+
+    /**
+     * Retro-edit audit rows created by this user (Phase 15 D-04 / D-07).
+     * Non-default FK: audits point at the editor, not the entry's owner.
+     */
+    public function timeEntryAudits(): HasMany
+    {
+        return $this->hasMany(TimeEntryAudit::class, 'edited_by_user_id');
+    }
 }
