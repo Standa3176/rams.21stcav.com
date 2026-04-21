@@ -69,6 +69,11 @@
     </div>
 </x-summary-card>
 
+{{-- ── Actual Hours widget (Phase 15 D-13) ─────────────────────────────────── --}}
+@if (! empty($canSeeActualHours) && $actualHours !== null)
+    @include('projects._actual-hours-widget')
+@endif
+
 {{-- ── Lifecycle progress bar ───────────────────────────────────────────────── --}}
 <x-section-card>
     <div class="lifecycle-bar">
