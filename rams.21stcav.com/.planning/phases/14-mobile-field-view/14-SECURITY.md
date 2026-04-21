@@ -1,21 +1,22 @@
 ---
 phase: 14
 slug: mobile-field-view
-status: verified_with_open_items
+status: verified
 threats_total: 25
-threats_closed: 21
-threats_open: 1
+threats_closed: 22
+threats_open: 0
 threats_accepted: 5
 asvs_level: 2
 block_on: "critical,high"
 created: 2026-04-20
+updated: 2026-04-21
 ---
 
 # Phase 14 — Security (Mobile Field View)
 
 > Per-phase security contract. Verifies each threat from the five 14-0N-PLAN.md `<threat_model>` blocks against the implemented code. Cross-references the five REVIEW.md warnings (WR-02, WR-03, WR-04 are security-adjacent).
 >
-> Result: 21 CLOSED, 1 OPEN (T-14-21, new from WR-04), 5 ACCEPTED. No critical/high-severity open threats. Phase clears `block_on: critical,high` policy.
+> Result (re-audit 2026-04-21 after commit 6c6b2a6): 22 CLOSED, 0 OPEN, 5 ACCEPTED. T-14-21 closed; WR-02 and WR-03 advisories resolved. Phase cleared for advancement.
 
 ---
 
@@ -52,7 +53,7 @@ created: 2026-04-20
 | T-14-04 | Repudiation | install_tasks status change with no audit | mitigate | D-07 columns `status_changed_at` + `status_changed_by` added; controller sets from `auth()->id()`, never from request body | `database/migrations/2026_04_20_000003_add_status_audit_to_install_tasks_table.php:26-31` + `app/Http/Controllers/TaskStatusController.php:66-67` | CLOSED |
 | T-14-05 | Tampering | install_task_photos row inserted with fake install_task_id | mitigate | `foreignId('install_task_id')->constrained('install_tasks')->cascadeOnDelete()` — DB rejects invalid IDs | `database/migrations/2026_04_20_000001_create_install_task_photos_table.php` (foreign key constraint) + `app/Services/TaskPhotoService.php:56` (UUID-only filename, never client-derived) | CLOSED |
 | T-14-06 | Information Disclosure | install_task_photos.filename stored as relative path | accept → mitigate (Wave 3) | Relative path only; absolute resolution server-side; served through ownership-guarded route | `app/Models/InstallTaskPhoto.php::storagePath()` + `app/Http/Controllers/TaskPhotoController.php:173-186` (show() with `authoriseTaskMutation`) | CLOSED |
-| T-14-07 | Tampering | install_task_photos.mime_type client-controlled | mitigate (Wave 2) | `mime_type` set from `mime_content_type(absolutePath)` POST-conversion; never from `$file->getMimeType()` | `app/Services/TaskPhotoService.php:72` | CLOSED (see WR-03 gap below — marginal server-side sniff reuse issue, not a spoof of the stored mime_type column itself) |
+| T-14-07 | Tampering | install_task_photos.mime_type client-controlled | mitigate (Wave 2) | `mime_type` set from `mime_content_type(absolutePath)` POST-conversion; never from `$file->getMimeType()` | `app/Services/TaskPhotoService.php:72` | CLOSED (WR-03 controller-level hardening RESOLVED in 6c6b2a6 — `TaskPhotoController::store()` lines 76-92 now always content-sniffs pre-conversion regardless of extension, asserts `str_starts_with($finfo, 'image/')` AND membership in the allow-list) |
 | T-14-08 | Tampering | Concurrent double clock-in creates two open entries | mitigate | `DB::transaction` wraps check+insert; `lockForUpdate()` on open-entry query serialises parallel requests | `app/Services/TimeEntryService.php:40-46` + `tests/Feature/TimeEntries/TimeEntryTest.php:49` (`test_double_clock_in_rejected`) | CLOSED |
 
 ### Wave 2 — Services (14-03-PLAN.md)
@@ -79,7 +80,7 @@ created: 2026-04-20
 
 | Threat ID | Category | Component | Disposition | Mitigation | Evidence | Status |
 |-----------|----------|-----------|-------------|------------|----------|--------|
-| T-14-15 | Tampering (XSS) | task title / notes / caption XSS | mitigate | Zero `{!! !!}` or `x-html` in Phase 14 blades; all dynamic output uses Blade `{{ }}` or Alpine `x-text` / `x-model` | `Grep "x-html\|{!!"` across `resources/views/install-programmes/` and `resources/views/components/install-task/` returns 0 matches | CLOSED (see WR-02 gap below — adjacent injection site in `_field-room.blade.php:17` Alpine `:aria-label` binding; theoretical not exploitable in current data model but should be fixed) |
+| T-14-15 | Tampering (XSS) | task title / notes / caption XSS | mitigate | Zero `{!! !!}` or `x-html` in Phase 14 blades; all dynamic output uses Blade `{{ }}` or Alpine `x-text` / `x-model` | `Grep "x-html\|{!!"` across `resources/views/install-programmes/` and `resources/views/components/install-task/` returns 0 matches | CLOSED (WR-02 adjacent hardening RESOLVED in 6c6b2a6 — `_field-room.blade.php:17` now uses `Illuminate\Support\Js::from($roomName)` for the `:aria-label` Alpine binding, safely JSON-encoding quotes/apostrophes) |
 | T-14-16 | CSRF | fetch() state-mutating calls | mitigate | Every fetch with method != GET includes `X-CSRF-TOKEN` from `<meta name="csrf-token">`; no middleware exemption introduced | `resources/views/install-programmes/field.blade.php:185` (csrf() helper) + lines 229, 302, 413, 437 (header injection) | CLOSED |
 | T-14-17 | Clickjacking | field page inside iframe | accept | Existing Laravel app sets X-Frame-Options globally; no Phase-14 change needed | Global Laravel middleware — not phase-scoped | CLOSED (accepted) |
 | T-14-18 | Information Disclosure | task data in Alpine `x-data` | accept | Values injected via `@js()` are only readable by a logged-in, ownership-authorised user (render-time gate in `InstallProgrammeController::field()`) | `app/Http/Controllers/InstallProgrammeController.php::field()` ownership guard at entry | CLOSED (accepted) |
@@ -90,7 +91,7 @@ created: 2026-04-20
 
 | Threat ID | Category | Component | Disposition | Mitigation | Evidence | Status |
 |-----------|----------|-----------|-------------|------------|----------|--------|
-| T-14-21 | Information Disclosure | Shared-device browser cache leak — photo response `Cache-Control: private, max-age=3600` means a subsequent user logged into the same tablet sees the previous user's cached photo (cache keyed by URL, not cookie) | mitigate (proposed) | Change header to `private, no-cache, must-revalidate` with `Pragma: no-cache` — browser re-validates every request so the 403 gate in `show()` re-runs | `app/Http/Controllers/TaskPhotoController.php:184` — current header is `Cache-Control: private, max-age=3600` | **OPEN** |
+| T-14-21 | Information Disclosure | Shared-device browser cache leak — photo response `Cache-Control: private, max-age=3600` means a subsequent user logged into the same tablet sees the previous user's cached photo (cache keyed by URL, not cookie) | mitigate | Response headers changed to `Cache-Control: private, no-cache, no-store, must-revalidate` + `Pragma: no-cache` + `Expires: 0` — browser re-validates every request so the `authoriseTaskMutation` gate in `show()` re-runs and cross-session leakage is prevented | `app/Http/Controllers/TaskPhotoController.php:187-189` (commit 6c6b2a6) | **CLOSED** |
 
 ---
 
@@ -99,9 +100,9 @@ created: 2026-04-20
 | Finding | Threat Mapping | Status | Notes |
 |---------|----------------|--------|-------|
 | WR-01 | Not security — UX mismatch (scope=all shows photo thumbnails that 403) | — | Deferred; advisory. Scope=all engineer sees broken thumbnails for non-assigned tasks. No data disclosure — guard correctly rejects. Fix is tighten Blade or broaden view-only guard. |
-| WR-02 | Adjacent to T-14-15 (XSS) | Not blocking — logged below | `_field-room.blade.php:17` interpolates `{{ $roomName }}` inside Alpine `:aria-label` expression. HTML-encoded apostrophe silently breaks Alpine's JS parser (unterminated string → no aria-label). Theoretical XSS only if `room_name` contained attacker-controlled JS; in practice `room_name` comes from quote/survey data under owner/admin control. Fix: use `@js($roomName)` pattern. Does NOT open T-14-15 — XSS is not reachable without prior compromise, but the robustness fix is recommended. |
-| WR-03 | Adjacent to T-14-07 | Not blocking — logged below | `TaskPhotoController::store` only content-sniffs when extension is NOT in allow-list. A file named `payload.jpg` with HTML content could pass `mimetypes:` (octet-stream accepted) and skip the extension-mismatch branch. Downstream `TaskPhotoService` then sets `mime_type` from `mime_content_type()` of the now-stored bytes — so serving via `response()->file()` would use `text/html` as Content-Type → stored XSS against the viewer. T-14-07 is CLOSED because the *stored* mime_type is not client-supplied, but WR-03 is a real hardening gap in the controller's sniff flow. Fix: always content-sniff regardless of extension; assert `str_starts_with($finfo, 'image/')`. Severity: MEDIUM (mitigated in part because delivery path requires an authenticated attacker with upload rights on a project they have access to). |
-| WR-04 | NEW — T-14-21 (see Threat Register) | **OPEN** | Elevated to T-14-21 — see register. Represents real privacy exposure on shared field tablets. |
+| WR-02 | Adjacent to T-14-15 (XSS) | **RESOLVED in 6c6b2a6** | `_field-room.blade.php:17` previously interpolated `{{ $roomName }}` inside Alpine `:aria-label` expression. HTML-encoded apostrophe silently broke Alpine's JS parser (unterminated string → no aria-label). Theoretical XSS only if `room_name` contained attacker-controlled JS; in practice `room_name` comes from quote/survey data under owner/admin control. **Fix applied:** binding now uses `{{ \Illuminate\Support\Js::from($roomName) }}` which produces a safely JSON-encoded JS string literal. Robustness restored; does not re-open T-14-15. |
+| WR-03 | Adjacent to T-14-07 | **RESOLVED in 6c6b2a6** | `TaskPhotoController::store` previously only content-sniffed when extension was NOT in the allow-list, so a file named `payload.jpg` with HTML content could pass `mimetypes:` (octet-stream accepted) and skip the extension-mismatch branch. Downstream `TaskPhotoService` then set `mime_type` from `mime_content_type()` of the stored bytes — so serving via `response()->file()` would use `text/html` as Content-Type → stored XSS against the viewer. **Fix applied:** `TaskPhotoController::store()` lines 76-92 now always sniff via `mime_content_type($original->getRealPath())` regardless of extension, assert `str_starts_with($finfo, 'image/')` AND `in_array($finfo, $allowedMimes, true)` — fails with `abort_unless(..., 422)` otherwise. Severity MEDIUM gap now closed. |
+| WR-04 | → T-14-21 (Threat Register) | **RESOLVED in 6c6b2a6** (T-14-21 now CLOSED) | Cache-Control hardened to `private, no-cache, no-store, must-revalidate` + `Pragma: no-cache` + `Expires: 0` at `TaskPhotoController::show()` lines 187-189. Browser revalidates every request → ownership guard re-runs → cross-session leakage on shared field tablets prevented. |
 | WR-05 | Tampering / data integrity (not originally in register) | Accepted — see Accepted Risks Log (ACC-14-01) | File orphaning on DB insert failure after successful disk write. Low probability; logged here to preserve audit trail. |
 
 ---
@@ -123,33 +124,11 @@ created: 2026-04-20
 
 ## Open Threats
 
-### T-14-21 — Shared-device browser cache leak (OPEN)
+_None. All three outstanding items (T-14-21, WR-02 advisory, WR-03 advisory) were resolved in commit 6c6b2a6 on 2026-04-21. Evidence:_
 
-**File:** `app/Http/Controllers/TaskPhotoController.php:181-185`
-
-**Issue:** Photo responses set `Cache-Control: private, max-age=3600`. Disk cache is URL-keyed — a subsequent user logged into the same browser sees cached images without re-auth. Realistic on field tablets passed between engineers. Photos can contain client site details (racks, cable runs, whiteboards with network diagrams).
-
-**Severity:** MEDIUM (confidentiality — requires specific shared-device workflow). Not classified as HIGH because it requires physical device sharing and a prior authenticated session; does not cross the auth boundary remotely.
-
-**Remediation (one-line change):**
-
-```php
-return response()->file($path, [
-    'Content-Type'        => $photo->mime_type ?? 'image/jpeg',
-    'Content-Disposition' => 'inline; filename="'.$photo->original_name.'"',
-    'Cache-Control'       => 'private, no-cache, must-revalidate',
-    'Pragma'              => 'no-cache',
-]);
-```
-
-With `no-cache, must-revalidate` the browser always re-hits the server and the `authoriseTaskMutation` guard runs on every fetch — same-session thumbnails still serve fast (304 on second load) but cross-session leakage is prevented.
-
-**Recommended follow-up actions (advisory, non-blocking for Phase 14 sign-off under `block_on: critical,high`):**
-1. Apply the one-line cache header fix to `TaskPhotoController::show()`.
-2. (Optional) Apply WR-03 hardening — always content-sniff uploaded photos, assert `str_starts_with($finfo, 'image/')`.
-3. (Optional) Apply WR-02 fix — `_field-room.blade.php:17` use `@js($roomName)` pattern for the aria-label binding.
-
-All three fixes are <30 LOC combined and could land in a single follow-up commit. Neither WR-02 nor WR-03 re-opens an existing threat (both are defence-in-depth); T-14-21 (WR-04) is the only new OPEN threat.
+- **T-14-21** → `app/Http/Controllers/TaskPhotoController.php:187-189` (Cache-Control + Pragma + Expires hardened).
+- **WR-02** → `resources/views/install-programmes/_field-room.blade.php:17` (`Illuminate\Support\Js::from($roomName)`).
+- **WR-03** → `app/Http/Controllers/TaskPhotoController.php:76-92` (always content-sniff + `str_starts_with 'image/'` + allow-list).
 
 ---
 
@@ -164,6 +143,25 @@ SUMMARY.md `## Threat Flags` sections reviewed across 14-01 through 14-05: none 
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
 | 2026-04-20 | 25 | 21 | 1 (+3 accepted-from-review) | gsd-secure-phase (Claude) |
+| 2026-04-21 | 25 | 22 | 0 | gsd-secure-phase (Claude) — re-audit post commit 6c6b2a6 |
+
+### Security Audit 2026-04-21
+
+| Metric | Count |
+|--------|-------|
+| Threats verified | 25 |
+| Closed | 22 |
+| Open | 0 |
+| Accepted | 5 (+ 1 accepted from REVIEW WR-05) |
+
+Note: Phase 14 cleared for advancement.
+
+**Scope of re-audit:** Three fixes landed in commit 6c6b2a6 were verified against the implementation:
+1. T-14-21 — `TaskPhotoController::show()` lines 187-189 emit `Cache-Control: private, no-cache, no-store, must-revalidate` + `Pragma: no-cache` + `Expires: 0`. OPEN → CLOSED.
+2. WR-02 advisory — `_field-room.blade.php:17` `:aria-label` binding now uses `Illuminate\Support\Js::from($roomName)`. Apostrophe-in-room-name robustness gap resolved.
+3. WR-03 advisory — `TaskPhotoController::store()` lines 76-92 always content-sniff, require `str_starts_with($finfo, 'image/')` AND membership in the allow-list. Pre-conversion sniff gap resolved.
+
+Regression coverage: `tests/Feature/InstallTasks/InstallTaskPhotoUploadTest.php` exercises upload, HEIC conversion, oversize rejection, non-image rejection, caption update, cross-user forbidden upload, cross-user forbidden view, and path-traversal sanitisation.
 
 ---
 
@@ -171,9 +169,9 @@ SUMMARY.md `## Threat Flags` sections reviewed across 14-01 through 14-05: none 
 
 - [x] All threats have a disposition (mitigate / accept / transfer)
 - [x] Accepted risks documented in Accepted Risks Log
-- [ ] `threats_open: 0` — **NOT YET** — T-14-21 remains OPEN (MEDIUM severity; not blocked under `block_on: critical,high`)
-- [x] Cross-referenced REVIEW.md findings WR-02/WR-03/WR-04/WR-05
-- [x] ASVS Level 2 controls verified: session auth, CSRF, ownership guards, input validation, rate limiting (partial), server-side MIME detection, UUID filenames, path isolation, transaction-safe race guard
-- [x] `status: verified_with_open_items` set in frontmatter
+- [x] `threats_open: 0` — confirmed 2026-04-21 after commit 6c6b2a6
+- [x] Cross-referenced REVIEW.md findings WR-02/WR-03/WR-04/WR-05 — all resolved or accepted
+- [x] ASVS Level 2 controls verified: session auth, CSRF, ownership guards, input validation, rate limiting (partial), server-side MIME detection (pre- AND post-conversion), UUID filenames, path isolation, transaction-safe race guard, no-cache photo responses
+- [x] `status: verified` set in frontmatter
 
-**Approval:** verified with open items 2026-04-20 (clears `block_on: critical,high` policy; T-14-21 noted as MEDIUM follow-up)
+**Approval:** verified 2026-04-21 — Phase 14 cleared for advancement under `block_on: critical,high` policy. No open threats remain.
