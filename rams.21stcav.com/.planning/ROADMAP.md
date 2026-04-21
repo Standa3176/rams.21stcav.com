@@ -154,7 +154,14 @@ Plans:
   3. `php artisan programme:close-stale-sessions` closes entries where `last_heartbeat_at` is older than 2 hours
   4. All `clocked_in_at`/`clocked_out_at` values are stored as UTC in database
   5. Project dashboard shows total actual hours and per-category breakdown
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+- [x] 15-01-PLAN.md — Schema extensions (time_entries category/notes/closure_reason + time_entry_audits table) + model wiring (Wave 1)
+- [ ] 15-02-PLAN.md — TimeEntryService extensions (heartbeat, retro-edit, summary, closeStaleSessions) + 4 Form Requests + controller endpoints + routes (Wave 2)
+- [ ] 15-03-PLAN.md — CloseStaleSessionsCommand + hourly scheduler registration (Wave 2)
+- [ ] 15-04-PLAN.md — Mobile field view extensions: category bottom-sheet, silent heartbeat w/ exponential retry, visibility-paused, optional note-on-stop (Wave 3)
+- [ ] 15-05-PLAN.md — Actual Hours dashboard widget: total + 4-category horizontal bars, owner+admin only (Wave 3)
 
 ### Phase 16: Commissioning Checklist & Sign-off
 **Goal**: Per-equipment commissioning checklist with AVIXA categories, per-item photo evidence, and client digital signature. Completing the checklist generates a snagging PDF and advances project to Commissioning state.
@@ -168,7 +175,14 @@ Plans:
   5. "Complete Commissioning" button is disabled until all items are pass/fail/na
   6. Generating the snagging PDF produces a downloadable file embedding the signature image
   7. On programme completion, `Project.status` advances to `STATUS_COMMISSIONING` via state machine
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+- [ ] 15-01-PLAN.md — Schema extensions (time_entries category/notes/closure_reason + time_entry_audits table) + model wiring (Wave 1)
+- [ ] 15-02-PLAN.md — TimeEntryService extensions (heartbeat, retro-edit, summary, closeStaleSessions) + 4 Form Requests + controller endpoints + routes (Wave 2)
+- [ ] 15-03-PLAN.md — CloseStaleSessionsCommand + hourly scheduler registration (Wave 2)
+- [ ] 15-04-PLAN.md — Mobile field view extensions: category bottom-sheet, silent heartbeat w/ exponential retry, visibility-paused, optional note-on-stop (Wave 3)
+- [ ] 15-05-PLAN.md — Actual Hours dashboard widget: total + 4-category horizontal bars, owner+admin only (Wave 3)
 
 ---
 
@@ -222,7 +236,7 @@ Plans:
 | 12. Install Task Generation + Worksheet Enhancements | v1.2 | 3/3 | Complete   | 2026-04-13 |
 | 13. Task Assignment & Scheduling | v1.2 | 3/3 | Complete   | 2026-04-14 |
 | 14. Mobile Field View & Time Tracking | v1.2 | 5/5 | Complete    | 2026-04-21 |
-| 15. Time Tracking | v1.2 | — | Planned | — |
+| 15. Time Tracking | v1.2 | 1/5 | In Progress|  |
 | 16. Commissioning Checklist & Sign-off | v1.2 | — | Planned | — |
 | 17. System Schematics | v1.3 | — | Planned | — |
 | 18. Rack Elevations | v1.3 | — | Planned | — |
