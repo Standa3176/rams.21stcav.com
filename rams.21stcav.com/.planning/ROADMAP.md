@@ -158,7 +158,7 @@ Plans:
 
 Plans:
 - [x] 15-01-PLAN.md — Schema extensions (time_entries category/notes/closure_reason + time_entry_audits table) + model wiring (Wave 1)
-- [ ] 15-02-PLAN.md — TimeEntryService extensions (heartbeat, retro-edit, summary, closeStaleSessions) + 4 Form Requests + controller endpoints + routes (Wave 2)
+- [x] 15-02-PLAN.md — TimeEntryService extensions (heartbeat, retro-edit, summary, closeStaleSessions) + 4 Form Requests + controller endpoints + routes (Wave 2)
 - [ ] 15-03-PLAN.md — CloseStaleSessionsCommand + hourly scheduler registration (Wave 2)
 - [ ] 15-04-PLAN.md — Mobile field view extensions: category bottom-sheet, silent heartbeat w/ exponential retry, visibility-paused, optional note-on-stop (Wave 3)
 - [ ] 15-05-PLAN.md — Actual Hours dashboard widget: total + 4-category horizontal bars, owner+admin only (Wave 3)
@@ -178,7 +178,7 @@ Plans:
 **Plans**: 5 plans
 
 Plans:
-- [ ] 15-01-PLAN.md — Schema extensions (time_entries category/notes/closure_reason + time_entry_audits table) + model wiring (Wave 1)
+- [x] 15-01-PLAN.md — Schema extensions (time_entries category/notes/closure_reason + time_entry_audits table) + model wiring (Wave 1)
 - [ ] 15-02-PLAN.md — TimeEntryService extensions (heartbeat, retro-edit, summary, closeStaleSessions) + 4 Form Requests + controller endpoints + routes (Wave 2)
 - [ ] 15-03-PLAN.md — CloseStaleSessionsCommand + hourly scheduler registration (Wave 2)
 - [ ] 15-04-PLAN.md — Mobile field view extensions: category bottom-sheet, silent heartbeat w/ exponential retry, visibility-paused, optional note-on-stop (Wave 3)
@@ -236,7 +236,7 @@ Plans:
 | 12. Install Task Generation + Worksheet Enhancements | v1.2 | 3/3 | Complete   | 2026-04-13 |
 | 13. Task Assignment & Scheduling | v1.2 | 3/3 | Complete   | 2026-04-14 |
 | 14. Mobile Field View & Time Tracking | v1.2 | 5/5 | Complete    | 2026-04-21 |
-| 15. Time Tracking | v1.2 | 1/5 | In Progress|  |
+| 15. Time Tracking | v1.2 | 2/5 | In Progress|  |
 | 16. Commissioning Checklist & Sign-off | v1.2 | — | Planned | — |
 | 17. System Schematics | v1.3 | — | Planned | — |
 | 18. Rack Elevations | v1.3 | — | Planned | — |
