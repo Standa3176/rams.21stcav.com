@@ -3,31 +3,49 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\ClockInBlockedException;
+use App\Exceptions\TimeEntryEditException;
+use App\Http\Requests\HeartbeatTimeEntryRequest;
+use App\Http\Requests\StartTimeEntryRequest;
+use App\Http\Requests\StopTimeEntryRequest;
+use App\Http\Requests\UpdateTimeEntryRequest;
 use App\Models\InstallTask;
 use App\Models\Project;
+use App\Models\TimeEntry;
 use App\Models\User;
 use App\Services\TimeEntryService;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
 use RuntimeException;
 
 /**
- * TimeEntryController — clock in / clock out for the mobile field view.
+ * TimeEntryController — clock in / clock out / heartbeat / retro-edit for the
+ * mobile field view.
  *
- * Phase 14 partial (INST-04g): minimal start/stop endpoints; category, heartbeat,
- * and stale-session handling live in Phase 15 (INST-04).
+ * Phase 14 (INST-04g): start / stop with one-open-entry guard.
+ * Phase 15 Plan 02 (INST-04b/c/d/g/h): adds category to start, optional note
+ * to stop, heartbeat (204) and retro-edit (PATCH) endpoints.
  *
- * Ownership rule: same as field() action — project owner, admin, or assigned
- * engineer. A non-owner, non-admin user must have at least one assigned task
- * on the project's active programme to clock in.
+ * Ownership rule (start/stop): project owner, admin, or assigned engineer on
+ * the active programme — enforced via {@see authoriseProjectAccess()}.
+ *
+ * Ownership rule (heartbeat/update): ENTRY ownership (not project access) —
+ * delegated to TimeEntryService. The service rejects:
+ *   - non-owner on heartbeat (strict — T-15-02-01)
+ *   - non-owner AND non-admin on update (T-15-02-02)
+ * Controller catches the AuthorizationException and returns a generic 403.
  *
  * Error translation:
- *   - ClockInBlockedException  → 422 JSON { message } (engineer-friendly copy; no internal IDs)
+ *   - ClockInBlockedException  → 422 JSON { message } (engineer-friendly copy)
+ *   - InvalidArgumentException → 422 JSON { message } (defence-in-depth after FormRequest)
+ *   - TimeEntryEditException   → 422 JSON { message }
+ *   - AuthorizationException   → 403 JSON { message }
  *   - RuntimeException (stop)  → 422 JSON { message }
- *   - Ownership failure        → 403 via abort_if
  *
- * @see TimeEntryService — business logic
- * @see ClockInBlockedException — translated to 422 here
+ * @see TimeEntryService        — business logic
+ * @see ClockInBlockedException — translated to 422
+ * @see TimeEntryEditException  — translated to 422
  */
 class TimeEntryController extends Controller
 {
@@ -41,22 +59,23 @@ class TimeEntryController extends Controller
 
     /**
      * POST /projects/{project}/time-entries/start
-     * Response 200: { id, clocked_in_at } on success
-     * Response 422: { message } on guard violation (already clocked in)
      *
-     * @param  Project $project
-     * @return JsonResponse
+     * Body: { category: installation|commissioning|testing|other }
+     * Response 200: { id, category, clocked_in_at }
+     * Response 422: { message } on guard violation or invalid category
      */
-    public function start(Project $project): JsonResponse
+    public function start(StartTimeEntryRequest $request, Project $project): JsonResponse
     {
         $user = auth()->user();
         $this->authoriseProjectAccess($project, $user);
 
         try {
-            $entry = $this->service->start($project, $user);
+            $entry = $this->service->start(
+                $project,
+                $user,
+                $request->string('category')->toString(),
+            );
         } catch (ClockInBlockedException $e) {
-            // Keep the internal-ID message server-side only (for operator triage).
-            // Client gets the engineer-friendly copy from 14-UI-SPEC.md.
             Log::warning('TimeEntryController: start blocked by guard', [
                 'project_id'       => $project->id,
                 'user_id'          => $user->id,
@@ -66,10 +85,14 @@ class TimeEntryController extends Controller
             return response()->json([
                 'message' => "You're already clocked into another session on this project. Clock out first.",
             ], 422);
+        } catch (InvalidArgumentException $e) {
+            // Defence-in-depth — FormRequest should have caught this
+            return response()->json(['message' => 'Invalid category.'], 422);
         }
 
         return response()->json([
             'id'            => $entry->id,
+            'category'      => $entry->category,
             'clocked_in_at' => $entry->clocked_in_at->toIso8601String(),
         ]);
     }
@@ -80,19 +103,20 @@ class TimeEntryController extends Controller
 
     /**
      * POST /projects/{project}/time-entries/stop
-     * Response 200: { id, clocked_in_at, clocked_out_at, duration_minutes } on success
-     * Response 422: { message } if no open entry
      *
-     * @param  Project $project
-     * @return JsonResponse
+     * Body: { note?: string (<=500 chars) }
+     * Response 200: { id, clocked_in_at, clocked_out_at, duration_minutes, notes }
+     * Response 422: { message } if no open entry or oversize note
      */
-    public function stop(Project $project): JsonResponse
+    public function stop(StopTimeEntryRequest $request, Project $project): JsonResponse
     {
         $user = auth()->user();
         $this->authoriseProjectAccess($project, $user);
 
         try {
-            $entry = $this->service->stop($project, $user);
+            $entry = $this->service->stop($project, $user, $request->input('note'));
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
         } catch (RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
@@ -102,6 +126,73 @@ class TimeEntryController extends Controller
             'clocked_in_at'    => $entry->clocked_in_at->toIso8601String(),
             'clocked_out_at'   => $entry->clocked_out_at->toIso8601String(),
             'duration_minutes' => (int) $entry->clocked_in_at->diffInMinutes($entry->clocked_out_at),
+            'notes'            => $entry->notes,
+        ]);
+    }
+
+    // =========================================================================
+    // HEARTBEAT (INST-04d)
+    // =========================================================================
+
+    /**
+     * POST /time-entries/{entry}/heartbeat
+     *
+     * Response 204 on success.
+     * Response 403 if entry.user_id !== auth()->id() (strict owner-only).
+     * Response 422 if entry already closed.
+     *
+     * Rate-limited to 10/min at the route layer (throttle:10,1).
+     */
+    public function heartbeat(HeartbeatTimeEntryRequest $request, TimeEntry $entry): JsonResponse
+    {
+        try {
+            $this->service->recordHeartbeat($entry, auth()->user());
+        } catch (AuthorizationException $e) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        } catch (TimeEntryEditException $e) {
+            return response()->json(['message' => 'Session is no longer active.'], 422);
+        }
+
+        return response()->json(null, 204);
+    }
+
+    // =========================================================================
+    // UPDATE (retro-edit — INST-04b/c)
+    // =========================================================================
+
+    /**
+     * PATCH /time-entries/{entry}
+     *
+     * Body: { field: 'category'|'notes', value: string|null }
+     * Owner or admin only.
+     * Response 200: { id, field, old_value, new_value, edited_at }
+     * Response 403 if not owner and not admin.
+     * Response 422 if entry still open, invalid field, or invalid value.
+     */
+    public function update(UpdateTimeEntryRequest $request, TimeEntry $entry): JsonResponse
+    {
+        try {
+            $fresh = $this->service->editEntry(
+                $entry,
+                auth()->user(),
+                $request->string('field')->toString(),
+                $request->input('value'),
+            );
+        } catch (AuthorizationException $e) {
+            return response()->json(['message' => "You can't edit this time entry."], 403);
+        } catch (TimeEntryEditException | InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        // Reload the audit row we just wrote to pull canonical edited_at
+        $audit = $fresh->audits()->latest('edited_at')->first();
+
+        return response()->json([
+            'id'        => $fresh->id,
+            'field'     => $request->string('field')->toString(),
+            'old_value' => $audit?->old_value,
+            'new_value' => $audit?->new_value,
+            'edited_at' => $audit?->edited_at?->toIso8601String(),
         ]);
     }
 

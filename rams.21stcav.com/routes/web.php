@@ -331,6 +331,16 @@ Route::middleware('auth')->group(function () {
         ->name('time-entries.stop')
         ->middleware('throttle:30,1');
 
+    Route::post('time-entries/{entry}/heartbeat',
+        [\App\Http\Controllers\TimeEntryController::class, 'heartbeat'])
+        ->name('time-entries.heartbeat')
+        ->middleware('throttle:10,1');
+
+    Route::patch('time-entries/{entry}',
+        [\App\Http\Controllers\TimeEntryController::class, 'update'])
+        ->name('time-entries.update')
+        ->middleware('throttle:20,1');
+
     // ─── Document Edit Core (chat-driven data-only edits) ───────────────────
     //
     // All endpoints sit inside the existing `auth` middleware group above.
