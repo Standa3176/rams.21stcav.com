@@ -336,7 +336,7 @@ class TimeEntryService
         $closed = 0;
 
         foreach ($candidates as $candidate) {
-            DB::transaction(function () use ($candidate, &$closed) {
+            DB::transaction(function () use ($candidate, $cutoff, &$closed) {
                 $entry = TimeEntry::where('id', $candidate->id)
                     ->whereNull('clocked_out_at')
                     ->lockForUpdate()
@@ -344,6 +344,19 @@ class TimeEntryService
 
                 if ($entry === null) {
                     // Lost the race — some other path closed it first
+                    return;
+                }
+
+                // Re-verify staleness AFTER acquiring the lock (T-15-02-TOCTOU).
+                // A late heartbeat may have arrived between the candidate scan
+                // and acquiring the row lock — in that case the session is
+                // live again and must NOT be auto-closed.
+                $stillStale = ($entry->last_heartbeat_at !== null
+                        && $entry->last_heartbeat_at < $cutoff)
+                    || ($entry->last_heartbeat_at === null
+                        && $entry->clocked_in_at < $cutoff);
+
+                if (! $stillStale) {
                     return;
                 }
 
