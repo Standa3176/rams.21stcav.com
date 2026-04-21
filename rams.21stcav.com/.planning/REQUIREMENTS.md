@@ -159,7 +159,7 @@
 - [x] **INST-04b**: Clock in: creates `time_entry` row with `clocked_in_at = now(UTC)`, `clocked_out_at = null`
 - [x] **INST-04c**: Clock out: sets `clocked_out_at = now(UTC)` on open entry
 - [x] **INST-04d**: Heartbeat: mobile page sends heartbeat every 60 seconds; `last_heartbeat_at` updated server-side; no JS library required (Axios interval)
-- [ ] **INST-04e**: Stale session recovery: scheduled job (`php artisan programme:close-stale-sessions`) auto-closes entries where `last_heartbeat_at` is older than 2 hours; logs a warning
+- [x] **INST-04e**: Stale session recovery: scheduled job (`php artisan programme:close-stale-sessions`) auto-closes entries where `last_heartbeat_at` is older than 2 hours; logs a warning
 - [x] **INST-04f**: Timezone: all storage in UTC; display in Europe/London (BST/GMT aware) — `Carbon::setTimezone('Europe/London')` for display only, never for storage
 - [x] **INST-04g**: Guard: only one open time entry per user per project at a time; clock in rejected if open entry exists
 - [x] **INST-04h**: Actual hours summary: per-project total and per-category breakdown shown on project dashboard
