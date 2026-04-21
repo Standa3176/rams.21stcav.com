@@ -53,7 +53,7 @@
                        transition-colors focus-visible:ring-2 focus-visible:ring-white
                        focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B3C45]
                        focus-visible:outline-none">
-            <span x-show="!clock.openEntry && !clock.saving && !clock.error">
+            <span x-show="!clock.openEntry && !clock.saving">
                 <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75 15 12l-5.25 2.25V9.75Z" />
@@ -70,19 +70,19 @@
                 </svg>
             </span>
             <span class="hidden sm:inline">
-                <span x-show="!clock.openEntry && !clock.saving && !clock.error">Clock in</span>
+                <span x-show="!clock.openEntry && !clock.saving">Clock in</span>
                 <span x-show="clock.openEntry && !clock.saving" x-cloak aria-live="polite">
                     On the clock · <span x-text="clock.elapsed"></span>
                 </span>
                 <span x-show="clock.saving" x-cloak>Clocking…</span>
-                <span x-show="clock.error" x-cloak>Try again</span>
             </span>
         </button>
     </header>
 
-    {{-- Clock-in error inline below sticky bar --}}
-    <div x-show="clock.error" x-cloak class="bg-red-50 text-red-700 text-sm px-4 py-2"
-         role="alert" x-text="clock.error"></div>
+    {{-- Clock-in / clock-out errors surface inside the respective bottom sheets
+         (categorySheet.error on clock-in failures, noteSheet.error on clock-out
+         failures) rather than at the sticky-bar level, so IN-01's `clock.error`
+         chip/banner state was dead UI and has been removed. --}}
 
     {{-- ══════════════════════════════════════════════════════════════════════
          PROGRAMME PROGRESS (D-04)
@@ -196,7 +196,6 @@
             clock: {
                 openEntry: openEntry,   // { id, clocked_in_at } | null
                 saving: false,
-                error: null,
                 elapsed: '0:00',
                 _tickHandle: null,
             },
@@ -268,7 +267,6 @@
             // Clock-in path: opens the category sheet (D-01) — actual POST happens in submitCategory().
             // Clock-out path: opens the note sheet (D-06) — actual POST happens in submitNote().
             async toggleClock() {
-                this.clock.error = null;
                 if (this.clock.openEntry) {
                     // Clock out path: open the note sheet rather than firing POST immediately
                     this.openNoteSheet();
@@ -306,12 +304,10 @@
                 }
             },
             clockChipClasses() {
-                if (this.clock.error) return 'bg-red-50 text-red-700 ring-1 ring-red-300';
                 if (this.clock.openEntry) return 'bg-[#178A95] text-white';
                 return 'bg-white text-[#0B3C45]';
             },
             clockAriaLabel() {
-                if (this.clock.error) return 'Try again';
                 if (this.clock.openEntry) return 'On the clock — tap to clock out';
                 return 'Clock in';
             },
