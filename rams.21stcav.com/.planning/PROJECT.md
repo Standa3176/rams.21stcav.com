@@ -66,7 +66,7 @@ One dataset powers every document. Engineers capture real-world data, quotes pro
 - [ ] **INST-01**: Auto-generate install task lists from project data (room x equipment driven)
 - [ ] **INST-02**: Task assignment to engineers with calendar view and Gantt timeline
 - [ ] **INST-03**: Responsive mobile field view — task checklist, clock in/out, photo capture
-- [ ] **INST-04**: Time tracking per project/category with budget vs actual comparison
+- [x] **INST-04**: Time tracking per project/category with heartbeat-guarded sessions and dashboard actual hours *(validated in Phase 15 — actuals-only, budget comparison deferred)*
 - [ ] **INST-05**: Commissioning checklist — per-equipment sign-off with photo evidence and client signature
 - [ ] **WORK-05**: Worksheet includes pre-install check question answers per room
 - [ ] **WORK-06**: Worksheet generation triggered from project dashboard

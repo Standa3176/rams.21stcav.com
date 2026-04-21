@@ -175,14 +175,7 @@ Plans:
   5. "Complete Commissioning" button is disabled until all items are pass/fail/na
   6. Generating the snagging PDF produces a downloadable file embedding the signature image
   7. On programme completion, `Project.status` advances to `STATUS_COMMISSIONING` via state machine
-**Plans**: 5 plans
-
-Plans:
-- [x] 15-01-PLAN.md — Schema extensions (time_entries category/notes/closure_reason + time_entry_audits table) + model wiring (Wave 1)
-- [x] 15-02-PLAN.md — TimeEntryService extensions (heartbeat, retro-edit, summary, closeStaleSessions) + 4 Form Requests + controller endpoints + routes (Wave 2)
-- [x] 15-03-PLAN.md — CloseStaleSessionsCommand + hourly scheduler registration (Wave 2)
-- [x] 15-04-PLAN.md — Mobile field view extensions: category bottom-sheet, silent heartbeat w/ exponential retry, visibility-paused, optional note-on-stop (Wave 3)
-- [x] 15-05-PLAN.md — Actual Hours dashboard widget: total + 4-category horizontal bars, owner+admin only (Wave 3)
+**Plans**: TBD — run `/gsd-plan-phase 16` to generate
 
 ---
 
