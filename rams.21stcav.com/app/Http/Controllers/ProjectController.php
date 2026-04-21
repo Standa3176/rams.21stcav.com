@@ -6,6 +6,7 @@ use App\Core\Modules\Projects\ProjectDataService;
 use App\Core\Modules\Projects\ProjectService;
 use App\Models\Project;
 use App\Models\ProjectPackage;
+use App\Services\TimeEntryService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -16,6 +17,7 @@ class ProjectController extends Controller
     public function __construct(
         private readonly ProjectService     $service,
         private readonly ProjectDataService $projectDataService,
+        private readonly TimeEntryService   $timeEntryService,
     ) {}
 
     // ── index ─────────────────────────────────────────────────────────────────
@@ -240,7 +242,24 @@ class ProjectController extends Controller
 
         $canonicalData = $this->projectDataService->resolve($project);
 
-        return view('projects.show', compact('project', 'nextStatus', 'linkedRecords', 'canonicalData'));
+        // ── Phase 15 D-13/D-16: Actual Hours widget visibility ────────────────
+        // Owner + admin only — assigned engineers must NOT see aggregate actuals
+        // (per CONTEXT.md Deferred: "Per-engineer roll-up … declined for privacy").
+        $canSeeActualHours = $project->user_id === auth()->id()
+            || auth()->user()?->isAdmin();
+
+        $actualHours = $canSeeActualHours
+            ? $this->timeEntryService->summaryForProject($project)
+            : null;
+
+        return view('projects.show', compact(
+            'project',
+            'nextStatus',
+            'linkedRecords',
+            'canonicalData',
+            'canSeeActualHours',
+            'actualHours',
+        ));
     }
 
     // ── edit / update ─────────────────────────────────────────────────────────
