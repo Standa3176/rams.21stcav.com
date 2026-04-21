@@ -221,7 +221,7 @@ Plans:
 | 11. Bitrix24 Integration | v1.1 | — | Planned | — |
 | 12. Install Task Generation + Worksheet Enhancements | v1.2 | 3/3 | Complete   | 2026-04-13 |
 | 13. Task Assignment & Scheduling | v1.2 | 3/3 | Complete   | 2026-04-14 |
-| 14. Mobile Field View & Time Tracking | v1.2 | 5/5 | Complete   | 2026-04-20 |
+| 14. Mobile Field View & Time Tracking | v1.2 | 5/5 | Complete    | 2026-04-21 |
 | 15. Time Tracking | v1.2 | — | Planned | — |
 | 16. Commissioning Checklist & Sign-off | v1.2 | — | Planned | — |
 | 17. System Schematics | v1.3 | — | Planned | — |

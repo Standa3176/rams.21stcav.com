@@ -1,7 +1,9 @@
 ---
 phase: 14-mobile-field-view
 verified: 2026-04-20T13:15:00Z
-status: human_needed
+status: passed
+status_updated: 2026-04-21T10:45:00Z
+status_note: "Human UAT resolved 2026-04-21 — 3 passed, 1 blocked on deployment (iOS HEIC upload retest after go-live). Security audit cleared 0 threats open (see 14-SECURITY.md). See 14-HUMAN-UAT.md for full UAT detail."
 score: 5/5 must-haves verified
 overrides_applied: 0
 human_verification:
