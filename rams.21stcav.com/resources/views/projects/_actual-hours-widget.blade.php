@@ -13,21 +13,30 @@
     This partial itself does NOT re-check — it trusts the include gate.
 --}}
 @php
+    // IN-02 / IN-06: use TimeEntry::CATEGORIES as the single source of truth for
+    // both the per-category fallback shape AND the breakdown row order/labels.
+    // Colours remain widget-local (presentation concern, not domain).
     $total  = (int) ($actualHours['total_minutes'] ?? 0);
-    $perCat = $actualHours['per_category'] ?? [
-        'installation' => 0, 'commissioning' => 0, 'testing' => 0, 'other' => 0,
-    ];
+    $perCat = $actualHours['per_category']
+        ?? array_fill_keys(\App\Models\TimeEntry::CATEGORIES, 0);
     $fmt = static function (int $m): string {
         $h   = intdiv($m, 60);
         $rem = $m % 60;
         return $h . 'h ' . $rem . 'm';
     };
-    $categories = [
-        'installation'  => ['label' => 'Installation',  'colour' => '#178A95'],
-        'commissioning' => ['label' => 'Commissioning', 'colour' => '#21A8B5'],
-        'testing'       => ['label' => 'Testing',       'colour' => '#4FB8C2'],
-        'other'         => ['label' => 'Other',         'colour' => '#9CA3AF'],
+    $categoryColours = [
+        \App\Models\TimeEntry::CATEGORY_INSTALLATION  => '#178A95',
+        \App\Models\TimeEntry::CATEGORY_COMMISSIONING => '#21A8B5',
+        \App\Models\TimeEntry::CATEGORY_TESTING       => '#4FB8C2',
+        \App\Models\TimeEntry::CATEGORY_OTHER         => '#9CA3AF',
     ];
+    $categories = [];
+    foreach (\App\Models\TimeEntry::CATEGORY_LABELS as $value => $label) {
+        $categories[$value] = [
+            'label'  => $label,
+            'colour' => $categoryColours[$value] ?? '#9CA3AF',
+        ];
+    }
 @endphp
 
 <x-section-card title="Actual Hours">

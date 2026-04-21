@@ -323,7 +323,11 @@
                 this.categorySheet.open = false;
             },
             async submitCategory(category) {
-                if (!['installation', 'commissioning', 'testing', 'other'].includes(category)) return;
+                // IN-02: pull allowed categories from TimeEntry::CATEGORIES (PHP enum,
+                // single source of truth) so this client guard can't drift from the
+                // server whitelist.
+                const allowedCategories = @json(\App\Models\TimeEntry::CATEGORIES);
+                if (!allowedCategories.includes(category)) return;
                 this.categorySheet.saving = true;
                 this.categorySheet.error = null;
                 this.clock.saving = true;

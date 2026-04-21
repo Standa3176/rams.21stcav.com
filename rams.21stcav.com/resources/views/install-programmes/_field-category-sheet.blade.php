@@ -53,7 +53,9 @@
             </p>
 
             <div class="grid grid-cols-2 gap-3" data-testid="category-pills">
-                @foreach (['installation' => 'Installation', 'commissioning' => 'Commissioning', 'testing' => 'Testing', 'other' => 'Other'] as $value => $label)
+                {{-- IN-02: pull category value→label map from TimeEntry::CATEGORY_LABELS
+                     (single source of truth — see app/Models/TimeEntry.php). --}}
+                @foreach (\App\Models\TimeEntry::CATEGORY_LABELS as $value => $label)
                     <button type="button"
                             @click="submitCategory('{{ $value }}')"
                             :disabled="categorySheet.saving"

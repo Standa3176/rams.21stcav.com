@@ -48,6 +48,22 @@ class TimeEntry extends Model
         self::CATEGORY_OTHER,
     ];
 
+    /**
+     * Canonical DB-value → UI label mapping (IN-02 single source of truth).
+     *
+     * Consumed by:
+     *   - resources/views/install-programmes/_field-category-sheet.blade.php (pills)
+     *   - resources/views/projects/_actual-hours-widget.blade.php (breakdown labels)
+     *
+     * When adding a category here, also append to CATEGORIES above (same order).
+     */
+    public const CATEGORY_LABELS = [
+        self::CATEGORY_INSTALLATION  => 'Installation',
+        self::CATEGORY_COMMISSIONING => 'Commissioning',
+        self::CATEGORY_TESTING       => 'Testing',
+        self::CATEGORY_OTHER         => 'Other',
+    ];
+
     // ─────────────────────────────────────────────────────────────────────────
     // Closure reason (D-12) — null = manual clock-out; sentinel below = scheduler
     // ─────────────────────────────────────────────────────────────────────────
