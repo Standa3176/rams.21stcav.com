@@ -9,8 +9,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * INST-04g partial — one open entry per user per project at a time.
- * Covers start/stop happy path + double-start guard.
+ * INST-04g (Phase 14) — one open entry per user per project.
+ * INST-04b/c (Phase 15 Plan 02) — category required on start, optional note on stop.
+ *
+ * Covers start/stop happy path, double-start guard, and the new
+ * category/note payload requirements.
  */
 class TimeEntryTest extends TestCase
 {
@@ -23,12 +26,14 @@ class TimeEntryTest extends TestCase
 
         $response = $this->actingAs($user)->postJson(
             "/projects/{$project->id}/time-entries/start",
+            ['category' => TimeEntry::CATEGORY_INSTALLATION],
         );
 
         $response->assertOk();
         $this->assertDatabaseHas('time_entries', [
             'project_id'     => $project->id,
             'user_id'        => $user->id,
+            'category'       => TimeEntry::CATEGORY_INSTALLATION,
             'clocked_out_at' => null,
         ]);
     }
@@ -38,7 +43,10 @@ class TimeEntryTest extends TestCase
         $user = User::factory()->create();
         $project = Project::factory()->create(['user_id' => $user->id]);
 
-        $this->actingAs($user)->postJson("/projects/{$project->id}/time-entries/start");
+        $this->actingAs($user)->postJson(
+            "/projects/{$project->id}/time-entries/start",
+            ['category' => TimeEntry::CATEGORY_INSTALLATION],
+        );
         $stop = $this->actingAs($user)->postJson("/projects/{$project->id}/time-entries/stop");
 
         $stop->assertOk();
@@ -52,10 +60,16 @@ class TimeEntryTest extends TestCase
         $user = User::factory()->create();
         $project = Project::factory()->create(['user_id' => $user->id]);
 
-        $first = $this->actingAs($user)->postJson("/projects/{$project->id}/time-entries/start");
+        $first = $this->actingAs($user)->postJson(
+            "/projects/{$project->id}/time-entries/start",
+            ['category' => TimeEntry::CATEGORY_INSTALLATION],
+        );
         $first->assertOk();
 
-        $second = $this->actingAs($user)->postJson("/projects/{$project->id}/time-entries/start");
+        $second = $this->actingAs($user)->postJson(
+            "/projects/{$project->id}/time-entries/start",
+            ['category' => TimeEntry::CATEGORY_INSTALLATION],
+        );
         $second->assertStatus(422);
 
         // Only ONE open entry must exist
@@ -84,7 +98,10 @@ class TimeEntryTest extends TestCase
         $stranger = User::factory()->create();
         $project = Project::factory()->create(['user_id' => $owner->id]);
 
-        $response = $this->actingAs($stranger)->postJson("/projects/{$project->id}/time-entries/start");
+        $response = $this->actingAs($stranger)->postJson(
+            "/projects/{$project->id}/time-entries/start",
+            ['category' => TimeEntry::CATEGORY_INSTALLATION],
+        );
 
         $response->assertForbidden();
     }
@@ -96,9 +113,68 @@ class TimeEntryTest extends TestCase
         $projectA = Project::factory()->create(['user_id' => $user->id]);
         $projectB = Project::factory()->create(['user_id' => $user->id]);
 
-        $this->actingAs($user)->postJson("/projects/{$projectA->id}/time-entries/start")->assertOk();
-        $this->actingAs($user)->postJson("/projects/{$projectB->id}/time-entries/start")->assertOk();
+        $this->actingAs($user)->postJson(
+            "/projects/{$projectA->id}/time-entries/start",
+            ['category' => TimeEntry::CATEGORY_INSTALLATION],
+        )->assertOk();
+        $this->actingAs($user)->postJson(
+            "/projects/{$projectB->id}/time-entries/start",
+            ['category' => TimeEntry::CATEGORY_COMMISSIONING],
+        )->assertOk();
 
         $this->assertSame(2, TimeEntry::whereNull('clocked_out_at')->count());
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Phase 15 Plan 02 — category required, note optional
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public function test_start_rejects_missing_category(): void
+    {
+        $user = User::factory()->create();
+        $project = Project::factory()->create(['user_id' => $user->id]);
+
+        $response = $this->actingAs($user)->postJson(
+            "/projects/{$project->id}/time-entries/start",
+        );
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['category']);
+    }
+
+    public function test_start_rejects_invalid_category(): void
+    {
+        $user = User::factory()->create();
+        $project = Project::factory()->create(['user_id' => $user->id]);
+
+        $response = $this->actingAs($user)->postJson(
+            "/projects/{$project->id}/time-entries/start",
+            ['category' => 'nonsense'],
+        );
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['category']);
+    }
+
+    public function test_stop_persists_note(): void
+    {
+        $user = User::factory()->create();
+        $project = Project::factory()->create(['user_id' => $user->id]);
+
+        $this->actingAs($user)->postJson(
+            "/projects/{$project->id}/time-entries/start",
+            ['category' => TimeEntry::CATEGORY_INSTALLATION],
+        );
+        $stop = $this->actingAs($user)->postJson(
+            "/projects/{$project->id}/time-entries/stop",
+            ['note' => 'rack finished'],
+        );
+
+        $stop->assertOk();
+        $this->assertDatabaseHas('time_entries', [
+            'project_id' => $project->id,
+            'user_id'    => $user->id,
+            'notes'      => 'rack finished',
+        ]);
     }
 }
