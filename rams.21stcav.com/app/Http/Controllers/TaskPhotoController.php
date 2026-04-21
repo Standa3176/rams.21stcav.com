@@ -73,23 +73,23 @@ class TaskPhotoController extends Controller
             ], 422);
         }
 
-        // Secondary defence against the octet-stream fallback being used as a
-        // smuggling vector: require the file extension to be one of the image
-        // types we handle, OR let a content-sniff decide.
+        // WR-03 / T-14-07 defence-in-depth: always content-sniff, regardless of
+        // extension or client-sent MIME. Prevents a renamed payload.jpg with HTML
+        // content slipping past the allow-list and being served inline by show().
+        // Stored mime_type still comes from the post-conversion sniff in
+        // TaskPhotoService::store() — this is the pre-conversion gate.
         $original = $request->file('photo');
-        $ext = strtolower($original->getClientOriginalExtension());
-        $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
-        if (! in_array($ext, $allowedExts, true)) {
-            // Fall back to content-sniff; if that also fails we 422
-            $finfo = @mime_content_type($original->getRealPath());
-            $allowedMimes = [
-                'image/jpeg', 'image/png', 'image/webp',
-                'image/heic', 'image/heif',
-                'image/heic-sequence', 'image/heif-sequence',
-            ];
-            abort_unless(in_array($finfo, $allowedMimes, true), 422,
-                'Only photos (JPG, PNG, WEBP, HEIC) are allowed.');
-        }
+        $finfo = @mime_content_type($original->getRealPath());
+        $allowedMimes = [
+            'image/jpeg', 'image/png', 'image/webp',
+            'image/heic', 'image/heif',
+            'image/heic-sequence', 'image/heif-sequence',
+        ];
+        abort_unless(
+            is_string($finfo) && str_starts_with($finfo, 'image/') && in_array($finfo, $allowedMimes, true),
+            422,
+            'Only photos (JPG, PNG, WEBP, HEIC) are allowed.'
+        );
 
         $photo = $this->photos->store($task, $original);
 
@@ -181,7 +181,12 @@ class TaskPhotoController extends Controller
         return response()->file($path, [
             'Content-Type'        => $photo->mime_type ?? 'image/jpeg',
             'Content-Disposition' => 'inline; filename="'.$photo->original_name.'"',
-            'Cache-Control'       => 'private, max-age=3600',
+            // T-14-21: shared field tablets → browser disk cache is URL-keyed,
+            // so a following logged-in user could see the prior user's photos.
+            // Force revalidation per-request; always goes through the auth guard.
+            'Cache-Control'       => 'private, no-cache, no-store, must-revalidate',
+            'Pragma'              => 'no-cache',
+            'Expires'             => '0',
         ]);
     }
 

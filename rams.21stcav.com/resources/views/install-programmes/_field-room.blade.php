@@ -14,7 +14,7 @@
                 class="flex items-center gap-2 text-base font-semibold text-gray-800
                        focus-visible:ring-2 focus-visible:ring-[#178A95] focus-visible:outline-none
                        rounded min-h-[44px] -ml-1 px-1"
-                :aria-label="open ? 'Collapse {{ $roomName }}' : 'Expand {{ $roomName }}'"
+                :aria-label="open ? 'Collapse ' + {{ \Illuminate\Support\Js::from($roomName) }} : 'Expand ' + {{ \Illuminate\Support\Js::from($roomName) }}"
                 :aria-expanded="open.toString()"
                 @click="open = !open">
             <svg x-show="open" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
