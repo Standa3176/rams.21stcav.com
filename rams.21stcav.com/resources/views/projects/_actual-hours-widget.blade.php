@@ -65,8 +65,11 @@
                         <span class="actual-hours-row__value">({{ $fmt($mins) }})</span>
                     </div>
                     <div class="actual-hours-bar-track" aria-hidden="true">
+                        {{-- IN-04: $pct is already clamped to >= 2 by the max() on line
+                             of the @php block above, so the previous `$mins > 0 ? $pct : 2`
+                             ternary was unreachable on its false branch. --}}
                         <div class="actual-hours-bar"
-                             style="width: {{ $mins > 0 ? $pct : 2 }}%; background: {{ $meta['colour'] }};"></div>
+                             style="width: {{ $pct }}%; background: {{ $meta['colour'] }};"></div>
                     </div>
                 </li>
             @endforeach
