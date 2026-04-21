@@ -227,11 +227,17 @@ class TimeEntryService
             throw TimeEntryEditException::invalidCategory((string) $newValue);
         }
 
-        if ($field === TimeEntryAudit::FIELD_NOTES
-            && $newValue !== null
-            && mb_strlen($newValue) > 500
-        ) {
-            throw TimeEntryEditException::noteTooLong(mb_strlen($newValue));
+        // IN-03: mirror stop()'s note normalisation — trim whitespace and coerce
+        // empty strings to null so editEntry and stop store consistent data (and
+        // the audit log doesn't retain empty-string retro-edits verbatim).
+        if ($field === TimeEntryAudit::FIELD_NOTES) {
+            $newValue = $newValue !== null ? trim($newValue) : null;
+            if ($newValue === '') {
+                $newValue = null;
+            }
+            if ($newValue !== null && mb_strlen($newValue) > 500) {
+                throw TimeEntryEditException::noteTooLong(mb_strlen($newValue));
+            }
         }
 
         return DB::transaction(function () use ($entry, $editor, $field, $newValue) {
