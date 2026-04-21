@@ -150,7 +150,11 @@ class TimeEntryController extends Controller
         } catch (AuthorizationException $e) {
             return response()->json(['message' => 'Forbidden'], 403);
         } catch (TimeEntryEditException $e) {
-            return response()->json(['message' => 'Session is no longer active.'], 422);
+            // Per the TimeEntryEditException contract (see class docblock),
+            // the exception message IS the payload shown to the user. Mirror
+            // the update() path so both endpoints surface the factory copy
+            // consistently (WR-02).
+            return response()->json(['message' => $e->getMessage()], 422);
         }
 
         return response()->json(null, 204);
