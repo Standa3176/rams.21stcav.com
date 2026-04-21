@@ -74,3 +74,18 @@ Artisan::command('ai:cache-prune', function () {
 // actually registers it with the task scheduler (php artisan schedule:run).
 Schedule::command('ai:cache-prune')->dailyAt('03:00');
 
+// Phase 15 (D-17): auto-close stale time-tracking sessions.
+// withoutOverlapping(30) prevents the same command from running twice if an hourly
+// tick starts before the previous invocation finishes (caches lock for 30 min).
+// runInBackground() lets the scheduler continue with other tasks.
+// onOneServer() is defensive for a future multi-server deployment — requires a
+// cache driver that supports locking (database/redis/file all do).
+// Output is appended to storage/logs/stale-sessions.log so ops can inspect
+// counts over time without trawling laravel.log.
+Schedule::command('programme:close-stale-sessions')
+    ->hourly()
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->onOneServer()
+    ->appendOutputTo(storage_path('logs/stale-sessions.log'));
+
