@@ -57,6 +57,13 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(RamsDocument::class, RamsDocumentPolicy::class);
         Gate::policy(OmManual::class,     OmManualPolicy::class);
 
+        // ── Phase 16: commissioning generation trigger (D-03) ────────────────
+        // Observer fires CommissioningItemGenerator::generate() when the
+        // LAST install_task in a programme flips to STATUS_COMPLETE. Guard
+        // logic lives in the observer (wasChanged + remaining count) so
+        // mid-flight completions never trigger generation.
+        \App\Models\InstallTask::observe(\App\Observers\InstallTaskObserver::class);
+
         // ── Worker heartbeat — write on every queue loop + job completion ────
         // Fixes the observability gap behind the "clicked regenerate, nothing
         // completed for 5+ min" incident: previously the heartbeat file only

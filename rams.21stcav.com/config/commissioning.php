@@ -41,15 +41,28 @@ return [
     // Keyword strings themselves are lowercased at match time by the
     // generator (mb_strtolower) so contributors do not have to remember
     // casing conventions when adding vocabulary.
+    //
+    // Note on VC bar product keywords (Rule 1 fix during Plan 16-02):
+    // the research worked example (§VC bar, line 204) requires that a task
+    // named "Poly Studio X70" (or "Logitech Rally Bar", "Neat Bar") matches
+    // FOUR categories: display + audio + vtc + power. Literal substring match
+    // on "videobar" alone does NOT catch product names like "Poly Studio X70"
+    // — those strings don't contain the word "videobar". To honour D-02's
+    // per-instance grain for these all-in-one room bars, we include the
+    // actual product-family keywords ("poly studio", "logitech rally",
+    // "neat bar") in each of the four affected categories.
     'keyword_map' => [
         'power'   => ['display', 'monitor', 'projector', 'videowall', 'videobar',
                       'amplifier', 'dsp', 'codec', 'pdu', 'ups', 'switch',
-                      'processor', 'mixer', 'rack', 'pc', 'mini pc', 'nuc'],
+                      'processor', 'mixer', 'rack', 'pc', 'mini pc', 'nuc',
+                      'poly studio', 'logitech rally', 'neat bar'],
         'display' => ['display', 'monitor', 'projector', 'videowall', 'screen',
-                      'tv', 'oled', 'lcd', 'ledwall', 'confidence monitor'],
+                      'tv', 'oled', 'lcd', 'ledwall', 'confidence monitor',
+                      'poly studio', 'logitech rally', 'neat bar'],
         'audio'   => ['microphone', 'mic', 'ceiling mic', 'mxa', 'speaker',
                       'soundbar', 'amplifier', 'amp', 'dsp', 'tesira', 'q-sys',
-                      'biamp', 'shure', 'videobar', 'bose', 'mixer'],
+                      'biamp', 'shure', 'videobar', 'bose', 'mixer',
+                      'poly studio', 'logitech rally', 'neat bar'],
         'vtc'     => ['codec', 'videobar', 'teams room', 'mtr', 'zoom room',
                       'logitech rally', 'poly studio', 'cisco room', 'vc bar',
                       'webex', 'bluejeans', 'neat'],
