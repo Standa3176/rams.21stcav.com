@@ -2,8 +2,8 @@
 phase: 16
 slug: commissioning-checklist-signoff
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-04-22
 ---
 
@@ -41,7 +41,21 @@ created: 2026-04-22
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| (populated by planner) | | | | | | | | | |
+| 16-01-1 | 01 | 0 | INST-05a..i | T-16-TEST-01 | Wave 0 scaffold — 22 red tests + 2 factories | Feature/Unit | `php artisan test --filter=Commissioning` | ✅ | ⬜ |
+| 16-01-2 | 01 | 0 | — | — | Validation map populated | docs | `grep -c '^\| 16-0' 16-VALIDATION.md` | ✅ | ⬜ |
+| 16-01-3 | 01 | 0 | — | — | Flip Nyquist flags | docs | `grep -q 'nyquist_compliant: true' 16-VALIDATION.md` | ✅ | ⬜ |
+| 16-02-1 | 02 | 1 | INST-05f stack | T-16-04 | Package install + TYPE_SNAGGING + DPI spike | contract | `composer show creagia/laravel-sign-pad`; `php artisan test --filter=DocumentArtifactStorageTest` | ✅ | ⬜ |
+| 16-02-2 | 02 | 1 | INST-05a | T-16-01, T-16-05 | Schema migrations | integration | `php artisan test --filter=CommissioningSchemaTest` | ✅ | ⬜ |
+| 16-02-3 | 02 | 1 | INST-05b, INST-05i | T-16-01 | Models + config + exception | unit | `php artisan test --filter=CommissioningItemTest --filter=CommissioningSignoffTest` | ✅ | ⬜ |
+| 16-02-4 | 02 | 1 | INST-05b, D-03, D-04, D-07 | T-16-04 | Generator + Sync + Observer | unit/integration | `php artisan test --filter=CommissioningItemGeneratorTest --filter=CommissioningSyncServiceTest --filter=GenerationTriggerTest` | ✅ | ⬜ |
+| 16-03-1 | 03 | 2 | INST-05c, INST-05i | T-16-01, T-16-03 | AJAX status/notes + immutability | integration | `php artisan test --filter=ItemStatusPatchTest --filter=ItemNotesPatchTest --filter=ImmutabilityAfterSignoffTest` | ✅ | ⬜ |
+| 16-03-2 | 03 | 2 | INST-05d, D-14 | T-16-02, T-16-03 | Photo upload + HEIC + fail-requires-photo | integration | `php artisan test --filter=ItemPhotoUploadTest` | ✅ | ⬜ |
+| 16-03-3 | 03 | 2 | INST-05, CONTEXT | T-16-03 | Checklist view + ownership | integration/e2e | `php artisan test --filter=OwnershipGuardTest` | ✅ | ⬜ |
+| 16-04-1 | 04 | 2 | INST-05g | T-16-05, T-16-06, T-16-07 | PDF service + base64 embed + TYPE_SNAGGING | integration/unit | `php artisan test --filter=CommissioningPdfServiceTest --filter=SnaggingPdfGenerationTest` | ✅ | ⬜ |
+| 16-04-2 | 04 | 2 | INST-05g, INST-05h, D-16 | T-16-04, T-16-05 | Finalise + state transition + atomicity | integration | `php artisan test --filter=SignoffFinaliseTest --filter=StateTransitionTest --filter=SignoffTransactionTest --filter=ZeroItemsTest --filter=SignoffRaceTest` | ✅ | ⬜ |
+| 16-05-1 | 05 | 3 | INST-05f | T-16-01, T-16-07 | DPI canvas + signoff sheet view | integration | `php artisan test --filter=SignoffSheetViewTest` | ✅ | ⬜ |
+| 16-05-2 | 05 | 3 | D-04 | T-16-03 | Re-sync diff UI | integration | `php artisan test --filter=ResyncDiffTest` | ✅ | ⬜ |
+| 16-05-3 | 05 | 3 | CONTEXT D-13 | — | Zero-items empty state + checkpoint | human-verify | manual iOS Safari | ❌ | ⬜ |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -75,11 +89,11 @@ Planner derives from task list. Expected Wave 0 scaffolds (from RESEARCH.md §Va
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 90s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 90s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved (Wave 0 scaffold complete 2026-04-21)
