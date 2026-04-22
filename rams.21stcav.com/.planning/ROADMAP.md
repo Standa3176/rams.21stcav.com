@@ -1,167 +1,49 @@
-# Roadmap: RAMS Platform — AV Operations System
+---
+milestone: v1.2
+milestone_name: Installation Programme & Field Management
+last_updated: "2026-04-22"
+---
 
-## Milestones
+# Roadmap
 
-- ✅ **v1.0 RAMS MVP** — Phases 01–07 (shipped 2026-04-12)
-- 📋 **v1.1 Operations Dashboard & Notifications** — Phases 08–11 (planned)
-- 📋 **v1.2 Installation Programme & Field Management** — Phases 12–16 (planned)
-- 📋 **v1.3 Technical Drawings & Schematics** — Phases 17–20 (planned)
-- 📋 **v1.4 Client Portal & Project Visibility** — Phases 21–24 (planned)
-- 📋 **v1.5 Financial & Proposal Engine** — Phases 25–28 (planned)
-- 📋 **v1.6 Service & Inventory** — Phases 29–32 (planned)
+## Project Reference
 
-## Phases
+See: `.planning/PROJECT.md` (updated 2026-04-13)
 
-<details>
-<summary>✅ v1.0 RAMS MVP (Phases 01–07) — SHIPPED 2026-04-12</summary>
+**Current milestone:** v1.2 — Installation Programme & Field Management
 
-- [x] Phase 01: Project Layer & Data Foundation (6/6 plans) — completed 2026-04-10
-- [x] Phase 02: QuoteWerks SQL Import (3/3 plans) — completed 2026-04-10
-- [x] Phase 03: Survey Data Integration (4/4 plans) — completed 2026-04-11
-- [x] Phase 04: Document Generators — Worksheets, O&M, Cable Schedules (4/4 plans) — completed 2026-04-11
-- [x] Phase 05: Project Content Pack — Single AI Call Scope Generation (4/4 plans) — completed 2026-04-11
-- [x] Phase 06: RAMS Document Quality (2/2 plans) — completed 2026-04-12
-- [x] Phase 07: Dynamic Site Survey AI-Generated Room Questions (6/6 plans) — completed 2026-04-12
+## Roadmap Overview
 
-Full archive: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
+| Milestone | Theme | Phases | Status |
+|-----------|-------|--------|--------|
+| v1.0 | RAMS MVP | 01–07 | ✅ Shipped |
+| v1.1 | Operations Dashboard & Notifications | 08–11 | ✅ Shipped |
+| v1.2 | Installation Programme & Field Management | 12–16 | 🚧 In progress |
+| v1.3 | Technical Drawings & Schematics | 17–20 | 📋 Planned |
+| v1.4 | Client Portal & Project Visibility | 21–24 | 📋 Planned |
+| v1.5 | Financial & Proposal Engine | 25–28 | 📋 Planned |
+| v1.6 | Service & Inventory | 29–32 | 📋 Planned |
 
-</details>
+---
 
-### v1.1 Operations Dashboard & Notifications
-*"See everything, miss nothing"*
-
-- [x] Phase 08: Enterprise Dashboard — Real-time project status, health indicators, overdue/blocked alerts across all active projects (completed 2026-04-19)
-- [x] Phase 09: Email Notifications — Generation complete, survey submitted, review needed triggers
- (completed 2026-04-19)
-- [ ] Phase 10: Document Quality Scores — Confidence indicators and data completeness per room/equipment
-- [ ] Phase 11: Bitrix24 Integration — OAuth connection, project sync, document links, task updates
-
-### v1.2 Installation Programme & Field Management
-*"Quote to field in one platform"*
-
-- [x] Phase 12: Install Task Generation — Auto-generate task list (room × equipment) from ProjectDataService; install_programmes + install_tasks models; WORK-05/06 worksheet enhancements (completed 2026-04-13)
-- [x] Phase 13: Task Assignment & Scheduling — Engineer assignment, planned dates, week-view calendar; conditional Gantt (frappe-gantt) only when project duration > 4 days (completed 2026-04-14)
-- [x] Phase 14: Mobile Field View — Responsive task checklist, status toggle, per-task photo capture (HEIC protection), clock in/out; online-only (completed 2026-04-20)
-- [x] Phase 15: Time Tracking — Actual labour hours per project/category; heartbeat-guarded sessions; UTC storage; actuals-only (no budget comparison in v1.2) (completed 2026-04-21)
-- [ ] Phase 16: Commissioning Checklist — Per-equipment AVIXA-category sign-off; per-item AJAX saves; client signature (creagia/laravel-sign-pad, DPI-corrected); snagging PDF; programme completion → project state advance
-
-## Phase Details
-
-### Phase 08: Enterprise Dashboard
-**Goal**: Transform the existing closure-based dashboard into a `DashboardController`-powered operational command centre — showing all active projects with per-project health indicators (green/amber/red derived from document completion state), overdue stage alerts (based on existing milestone timestamps), blocked alerts (e.g. engineering with no approved RAMS), a status summary strip, status-filter tabs, and an install programme task-completion widget for projects in the installing/commissioning stage.
-**Depends on**: Phase 01 (Project model + lifecycle timestamps), Phase 02 (RAMS/ProjectPackage data), Phase 12 (install_programmes + install_tasks — gracefully absent if no programme exists)
-**Requirements**: DASH-01, DASH-01a, DASH-01b, DASH-01c, DASH-01d, DASH-01e, DASH-01f, DASH-01g, DASH-01h
-**Success Criteria** (what must be TRUE):
-  1. `/dashboard` is served by `DashboardController@index` — the route closure is removed from `routes/web.php`
-  2. Dashboard shows all non-archived projects (not capped at 6), each with a health badge (green/amber/red)
-  3. A project in `engineering` status with no approved RAMS document shows a red health badge
-  4. A project whose current-stage milestone timestamp is >14 days ago shows an overdue indicator
-  5. Clicking a status chip in the summary strip filters the project grid to that stage (Alpine.js, no page reload)
-  6. A project in `installing` status with an active install programme shows task completion % alongside its health badge
-  7. `ProjectHealthService::assess(Project $project): ProjectHealth` exists and is unit-testable in isolation
-**Plans**: 2 plans
-
-Plans:
-- [x] 08-01-PLAN.md — DashboardController + ProjectHealthService + ProjectHealth DTO + unit/feature tests (Wave 1)
-- [x] 08-02-PLAN.md — Enhanced dashboard.blade.php: health grid, status filter strip, Alpine.js filter, install programme widget (Wave 2)
-
-### Phase 09: Email Notifications
-**Goal**: Add trigger-based system email notifications for AV-operations events — document generation completed (RAMS, O&M, Worksheet, Cable), document generation failed, RAMS review needed, and inherit the existing survey-submitted email. Wire each trigger into the relevant `Build*Job` success/`failed()` hook or status-transition path; queue mailables via `ShouldQueue`; configure Postmark transport with `rams@21stcav.com` sender for production. Per-user opt-out, in-app notifications, and multi-channel (Slack/Bitrix) are explicitly out of scope.
-**Depends on**: Phase 04 (BuildOmManualJob, BuildWorksheetDocxJob, cable schedule generator hooks), Phase 06 (RAMS pipeline status transitions for review-needed and completion), Phase 03 (existing SurveyService send path)
-**Requirements**: NOTF-01, NOTF-01a, NOTF-01b, NOTF-01c, NOTF-01d, NOTF-01e, NOTF-01f, NOTF-02, NOTF-02a, NOTF-03, NOTF-03a, NOTF-03b, NOTF-03c, NOTF-04, NOTF-04a, NOTF-04b, NOTF-04c, NOTF-05, NOTF-05a, NOTF-05b, NOTF-05c, NOTF-05d, NOTF-05e, NOTF-05f, NOTF-05g, NOTF-05h
-**Success Criteria** (what must be TRUE):
-  1. When a `RamsDocument` transitions to `STATUS_COMPLETED` via `BuildRamsDocumentJob`, the project owner receives an email with the DOCX attached and `completion_email_sent_at` is set on the model row
-  2. The same completion-notification pattern fires for O&M Manuals, Worksheets, and Cable Schedules — each model has its own `completion_email_sent_at` column and idempotency guard
-  3. When a `Build*Job` exhausts retries and lands in `STATUS_FAILED`, every `User::where('role', 'admin')` recipient receives a failure alert exactly once (`failed_email_sent_at` guard) — note: codebase uses `users.role = 'admin'`, not an `is_admin` boolean
-  4. When `ExtractRamsDraftJob` finishes and `RamsDocument.status` becomes `awaiting_review`, the project owner (or admin fallback) receives a review-needed email
-  5. The existing survey-submitted send path in `SurveyService::submitPublic()` continues to work unchanged after Phase 09 ships (no regression)
-  6. With `MAIL_MAILER=postmark` and a valid `POSTMARK_API_KEY` (the env var name Laravel 12 + `config/services.php` already use), all mailables dispatch via the database queue (`implements ShouldQueue`) and arrive at the recipient
-  7. When `RAMS_NOTIFICATION_BCC` env var is non-empty, every system email BCC's that address; when empty, no BCC is added
-  8. A mail send failure (caught `Throwable` → `Log::warning`) never rolls back the underlying document-generation job or aborts a status transition
-  9. Feature tests using `Mail::fake()` assert each trigger fires the correct mailable to the correct recipient with the correct attachment / no-attachment shape
-**Plans**: 7 plans
-
-Plans:
-- [x] 09-01-PLAN.md — Migrations (9 email-timestamp columns incl. NOTF-03c review_needed + cable_schedules.error_message) + config/rams.php notifications.bcc + .env.example placeholders + model $fillable / $casts wiring on the 4 notifiable models + HasFactory trait on RamsDocument & CableSchedule (per B-01) (Wave 1)
-- [x] 09-02-PLAN.md — composer require symfony/postmark-mailer + symfony/http-client + NotificationRecipientResolver service + unit tests (Wave 1)
-- [x] 09-02b-PLAN.md — 4 model factories ONLY (RamsDocument / OmManual / Worksheet / CableSchedule) for plan 09-05 feature tests (Wave 2, depends_on 09-01 per B-01 — HasFactory trait additions moved into 09-01 Task 3 to avoid Wave 1 file collision)
-- [x] 09-03-PLAN.md — 4 typed *ReadyMail mailables (RAMS / O&M / Worksheet / Cable) implementing ShouldQueue with DocumentArtifactStorage attachments + Blade templates mirroring canonical wrapper (Wave 2)
-- [x] 09-04-PLAN.md — RamsReviewNeededMail + DocumentGenerationFailedMail (polymorphic) + Blade templates with canonical wrapper + SurveyService refactor to use NotificationRecipientResolver (NOTF-02a) + SiteSurveyController authorizeSurvey() fix (B-02 — uses existing User::isAdmin() method; fixes 3 latent bugs codebase-wide) (Wave 2)
-- [x] 09-05-PLAN.md — Wire all 5 jobs (Build*Job + ExtractRamsDraftJob) with completion / failure / review email dispatch (review-needed now idempotent via NOTF-03c) + 9 feature tests (Mail::fake) + idempotency + BCC tests + extend PublicSurveyControllerTest (Wave 3)
-- [x] 09-06-PLAN.md — POSTMARK-OPS-CHECKLIST.md (DNS, Postmark dashboard, production .env) + human-verify checkpoint for cutover decision (Wave 4)
+## v1.2 Installation Programme & Field Management
+*"From commissioned install plan to signed-off handover"*
 
 ### Phase 12: Install Task Generation
-**Goal**: Auto-generate a structured install task list from `ProjectDataService`, persisted as `install_programmes` + `install_tasks` records. Engineers confirm the generated list before it becomes active. Also deliver WORK-05/06 worksheet enhancements (pre-install answers + dashboard trigger).
-**Depends on**: Nothing (first phase of v1.2; ProjectDataService from v1.0 is the data source)
-**Requirements**: INST-01, INST-01a, INST-01b, INST-01c, INST-01d, INST-01e, INST-01f, INST-01g, INST-01h, WORK-05, WORK-06
-**Success Criteria** (what must be TRUE):
-  1. `php artisan tinker` can call `InstallTaskGeneratorService::generate($programme)` and create task records grouped by room
-  2. `install_programmes` and `install_tasks` tables exist with all columns defined in REQUIREMENTS.md
-  3. Generating tasks for a project with 3 rooms and 5 equipment items produces ≥ 3 task records (one per room × equipment combination)
-  4. A confirm gate UI exists: generated tasks are shown for PM review before programme is activated
-  5. Worksheet DOCX for a project with pre-install answers includes those answers in the generated file
-  6. Worksheet generation button appears on project dashboard and dispatches the job
-**Plans**: 3 plans
-
-Plans:
-- [x] 12-01-PLAN.md — Migrations (install_programmes, install_tasks) + InstallProgramme/InstallTask models + Project relationships
-- [x] 12-02-PLAN.md — InstallTaskGeneratorService + InstallProgrammeService + Controller + Routes + Review UI
-- [x] 12-03-PLAN.md — WorksheetDocxService section E (WORK-05: pre-install answers) + WORK-06 verification
+**Goal**: Generate structured install_tasks from reviewed project data grouped by room.
+**Status**: ✅ Complete
 
 ### Phase 13: Task Assignment & Scheduling
-**Goal**: Engineers can be assigned to tasks and dates set; programme is viewable as a week-grouped table. For projects spanning > 4 days, an interactive Gantt timeline (frappe-gantt) is shown.
-**Depends on**: Phase 12
-**Requirements**: INST-02, INST-02a, INST-02b, INST-02c, INST-02d, INST-02e, INST-02f, INST-02g
-**Success Criteria** (what must be TRUE):
-  1. `install_tasks.assigned_to` column (existing FK to users.id) satisfies INST-02a; `planned_start_date` + `planned_end_date` date columns added to install_tasks
-  2. Bulk assignment routes assign all tasks in a room or entire programme to a selected engineer in one action
-  3. Week-view calendar groups tasks by planned week; each task shows assigned engineer name colour-coded by user ID modulo 8
-  4. When programme `planned_end_date - planned_start_date > 4 days`, the Gantt view renders via frappe-gantt
-  5. When project duration ≤ 4 days, Gantt is not shown; week-table is shown instead
-  6. Field engineers see only their assigned tasks on the schedule page; PM role (project owner / admin) sees all tasks
-**Plans**: 2 plans
-
-Plans:
-- [x] 13-01-PLAN.md — Migration (per-task planned dates) + TaskAssignmentService + TaskAssignmentController + 3 assignment routes
-- [x] 13-02-PLAN.md — frappe-gantt install + schedule.blade.php (week-view + conditional Gantt + Alpine panel) + schedule() action + INST-02g filter
+**Goal**: Assign install_tasks to engineers with scheduling, dependency, and capacity visibility.
+**Status**: ✅ Complete
 
 ### Phase 14: Mobile Field View
-**Goal**: Mobile-responsive field page where engineers tick tasks complete, capture per-task photos, and clock in/out. HEIC photos are silently converted server-side.
-**Depends on**: Phase 12
-**Requirements**: INST-03, INST-03a, INST-03b, INST-03c, INST-03d, INST-03e, INST-03f, INST-03g, INST-03h
-**Success Criteria** (what must be TRUE):
-  1. `/projects/{project}/programme` route renders on a 375px viewport without horizontal scroll
-  2. Tapping a task status updates it via AJAX with no page reload; success shown visually
-  3. Uploading a HEIC photo from iOS is stored as JPEG in `storage/app/private/task-photos/`
-  4. Room-level progress counter updates when tasks are completed
-  5. Clock in/out controls appear on the field page
-**Plans**: 5 plans
-
-Plans:
-- [x] 14-01-PLAN.md — Wave 0 test scaffold, fixtures, factories (Wave 0)
-- [x] 14-02-PLAN.md — Schemas: install_task_photos, time_entries, install_tasks audit columns + models (Wave 1)
-- [x] 14-03-PLAN.md — Services: composer intervention/image, HeicImageConverter, TaskPhotoService, TimeEntryService (Wave 2)
-- [x] 14-04-PLAN.md — Controllers + 9 routes: field(), TaskStatus, TaskPhoto, TimeEntry (Wave 3)
-- [x] 14-05-PLAN.md — Blade views: field.blade.php + partials + photo-upload component + bottom-sheet (Wave 4)
+**Goal**: Engineer-facing mobile field view with per-task photo evidence, notes, HEIC conversion, and one-open-time-entry guard.
+**Status**: ✅ Complete
 
 ### Phase 15: Time Tracking
-**Goal**: Engineers clock in/out per project with category selection. Open sessions are protected by server heartbeat; stale sessions auto-closed by scheduled command. Actual hours visible on project dashboard.
-**Depends on**: Phase 12
-**Requirements**: INST-04, INST-04a, INST-04b, INST-04c, INST-04d, INST-04e, INST-04f, INST-04g, INST-04h, INST-04i
-**Success Criteria** (what must be TRUE):
-  1. `time_entries` table has columns: `id`, `project_id`, `user_id`, `category`, `clocked_in_at`, `clocked_out_at`, `last_heartbeat_at`, `notes`
-  2. Clock in creates a row with `clocked_out_at = null`; second clock-in is rejected with an error
-  3. `php artisan programme:close-stale-sessions` closes entries where `last_heartbeat_at` is older than 2 hours
-  4. All `clocked_in_at`/`clocked_out_at` values are stored as UTC in database
-  5. Project dashboard shows total actual hours and per-category breakdown
-**Plans**: 5 plans
-
-Plans:
-- [x] 15-01-PLAN.md — Schema extensions (time_entries category/notes/closure_reason + time_entry_audits table) + model wiring (Wave 1)
-- [x] 15-02-PLAN.md — TimeEntryService extensions (heartbeat, retro-edit, summary, closeStaleSessions) + 4 Form Requests + controller endpoints + routes (Wave 2)
-- [x] 15-03-PLAN.md — CloseStaleSessionsCommand + hourly scheduler registration (Wave 2)
-- [x] 15-04-PLAN.md — Mobile field view extensions: category bottom-sheet, silent heartbeat w/ exponential retry, visibility-paused, optional note-on-stop (Wave 3)
-- [x] 15-05-PLAN.md — Actual Hours dashboard widget: total + 4-category horizontal bars, owner+admin only (Wave 3)
+**Goal**: Clock in / clock out time_entries with category, heartbeat, stale-session recovery, retro-edit, and actual-hours widget.
+**Status**: ✅ Complete
 
 ### Phase 16: Commissioning Checklist & Sign-off
 **Goal**: Per-equipment commissioning checklist with AVIXA categories, per-item photo evidence, and client digital signature. Completing the checklist generates a snagging PDF and advances project to Commissioning state.
@@ -175,7 +57,13 @@ Plans:
   5. "Complete Commissioning" button is disabled until all items are pass/fail/na
   6. Generating the snagging PDF produces a downloadable file embedding the signature image
   7. On programme completion, `Project.status` advances to `STATUS_COMMISSIONING` via state machine
-**Plans**: TBD — run `/gsd-plan-phase 16` to generate
+**Plans**: 5 plans
+Plans:
+- [ ] 16-01-PLAN.md — Wave 0 test scaffold (22 tests + 2 factories + VALIDATION map; Nyquist red baseline)
+- [ ] 16-02-PLAN.md — Scaffold: composer require creagia/laravel-sign-pad + DPI spike + config/commissioning.php + 2 migrations + 2 models + exception + generator + sync service + InstallTaskObserver + DocumentArtifactStorage::TYPE_SNAGGING (Wave 1)
+- [ ] 16-03-PLAN.md — Checklist UI + per-item AJAX: CommissioningController + CommissioningItemController + 3 FormRequests + CommissioningPhotoService + show/item-row/fail-sheet Blade views + 5 routes (Wave 2)
+- [ ] 16-04-PLAN.md — Snagging PDF + signoff finalisation: CommissioningPdfService + CommissioningService + CommissioningSignoffController + FinaliseRequest + PDF Blade + 3 routes + D-16 atomic transaction + state-machine guard (Wave 2, parallel to 16-03)
+- [ ] 16-05-PLAN.md — Signature canvas + Re-sync UI + checkpoint: signoff-sheet Blade with DPI scaling + resync-diff partial + CommissioningResyncController + iOS Retina human-verify (Wave 3)
 
 ---
 
@@ -210,40 +98,3 @@ Plans:
 - [ ] Phase 30: Service Tickets — Contract search, room/asset select, auto-fill site/contact, callback scheduling
 - [ ] Phase 31: PMV Checklists — Per-equipment-type maintenance checks with fault diagnosis and sign-off
 - [ ] Phase 32: AI Troubleshooting — QR scan triggers AI-guided device-specific troubleshooting workflow
-
-## Progress
-
-| Phase | Milestone | Plans | Status | Completed |
-|-------|-----------|-------|--------|-----------|
-| 01. Project Layer & Data Foundation | v1.0 | 6/6 | Complete | 2026-04-10 |
-| 02. QuoteWerks SQL Import | v1.0 | 3/3 | Complete | 2026-04-10 |
-| 03. Survey Data Integration | v1.0 | 4/4 | Complete | 2026-04-11 |
-| 04. Document Generators | v1.0 | 4/4 | Complete | 2026-04-11 |
-| 05. Project Content Pack | v1.0 | 4/4 | Complete | 2026-04-11 |
-| 06. RAMS Document Quality | v1.0 | 2/2 | Complete | 2026-04-12 |
-| 07. Dynamic Survey AI Questions | v1.0 | 6/6 | Complete | 2026-04-12 |
-| 08. Enterprise Dashboard | v1.1 | 2/2 | Complete    | 2026-04-19 |
-| 09. Email Notifications | v1.1 | 7/7 | Complete    | 2026-04-19 |
-| 10. Document Quality Scores | v1.1 | — | Planned | — |
-| 11. Bitrix24 Integration | v1.1 | — | Planned | — |
-| 12. Install Task Generation + Worksheet Enhancements | v1.2 | 3/3 | Complete   | 2026-04-13 |
-| 13. Task Assignment & Scheduling | v1.2 | 3/3 | Complete   | 2026-04-14 |
-| 14. Mobile Field View & Time Tracking | v1.2 | 5/5 | Complete    | 2026-04-21 |
-| 15. Time Tracking | v1.2 | 5/5 | Complete    | 2026-04-21 |
-| 16. Commissioning Checklist & Sign-off | v1.2 | — | Planned | — |
-| 17. System Schematics | v1.3 | — | Planned | — |
-| 18. Rack Elevations | v1.3 | — | Planned | — |
-| 19. Floor Plans | v1.3 | — | Planned | — |
-| 20. Drawing Export | v1.3 | — | Planned | — |
-| 21. Client Portal | v1.4 | — | Planned | — |
-| 22. Document Access | v1.4 | — | Planned | — |
-| 23. Survey & Installation Progress | v1.4 | — | Planned | — |
-| 24. Notification & Communication | v1.4 | — | Planned | — |
-| 25. Pricing Engine | v1.5 | — | Planned | — |
-| 26. Proposal Generator | v1.5 | — | Planned | — |
-| 27. Budget Tracking | v1.5 | — | Planned | — |
-| 28. Renewal Workflow | v1.5 | — | Planned | — |
-| 29. Asset Registry | v1.6 | — | Planned | — |
-| 30. Service Tickets | v1.6 | — | Planned | — |
-| 31. PMV Checklists | v1.6 | — | Planned | — |
-| 32. AI Troubleshooting | v1.6 | — | Planned | — |
