@@ -173,8 +173,8 @@
 
 - [x] **INST-05a**: `commissioning_items` table: `id`, `install_programme_id`, `equipment_name`, `room_name`, `category` (power / display / audio / vtc / control / network / cabling), `status` (pending / pass / fail / na), `evidence_photo_path`, `notes`, `signed_off_by`, `signed_off_at`, `created_at`, `updated_at`
 - [x] **INST-05b**: Commissioning items generated from programme equipment list — one item per equipment × AVIXA category where applicable
-- [ ] **INST-05c**: Per-item AJAX save: each status update, photo upload, or note is saved immediately as a separate AJAX request — never a single full-form POST
-- [ ] **INST-05d**: Photo evidence upload per item: same HEIC protection as INST-03e
+- [x] **INST-05c**: Per-item AJAX save: each status update, photo upload, or note is saved immediately as a separate AJAX request — never a single full-form POST
+- [x] **INST-05d**: Photo evidence upload per item: same HEIC protection as INST-03e
 - [x] **INST-05e**: AVIXA checklist categories: Power On / Display Quality / Audio Level / VTC Connectivity / Control System / Network / Cabling — applied per equipment type (not every category applies to every item)
 - [x] **INST-05f**: Client signature: `creagia/laravel-sign-pad` package; canvas with explicit `devicePixelRatio` scaling (prevents Retina/iOS DPI corruption); signature stored as base64 PNG
 - [ ] **INST-05g**: Commissioning completion: all items pass/fail/na → "Complete Commissioning" button unlocked; generates PDF snagging report (uses existing DomPDF pipeline, embeds signature image)
