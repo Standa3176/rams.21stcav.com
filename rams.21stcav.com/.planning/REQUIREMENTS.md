@@ -171,15 +171,15 @@
 
 **Goal:** Per-equipment commissioning checklist with photo evidence and client signature; triggers project state transition.
 
-- [ ] **INST-05a**: `commissioning_items` table: `id`, `install_programme_id`, `equipment_name`, `room_name`, `category` (power / display / audio / vtc / control / network / cabling), `status` (pending / pass / fail / na), `evidence_photo_path`, `notes`, `signed_off_by`, `signed_off_at`, `created_at`, `updated_at`
-- [ ] **INST-05b**: Commissioning items generated from programme equipment list — one item per equipment × AVIXA category where applicable
+- [x] **INST-05a**: `commissioning_items` table: `id`, `install_programme_id`, `equipment_name`, `room_name`, `category` (power / display / audio / vtc / control / network / cabling), `status` (pending / pass / fail / na), `evidence_photo_path`, `notes`, `signed_off_by`, `signed_off_at`, `created_at`, `updated_at`
+- [x] **INST-05b**: Commissioning items generated from programme equipment list — one item per equipment × AVIXA category where applicable
 - [ ] **INST-05c**: Per-item AJAX save: each status update, photo upload, or note is saved immediately as a separate AJAX request — never a single full-form POST
 - [ ] **INST-05d**: Photo evidence upload per item: same HEIC protection as INST-03e
-- [ ] **INST-05e**: AVIXA checklist categories: Power On / Display Quality / Audio Level / VTC Connectivity / Control System / Network / Cabling — applied per equipment type (not every category applies to every item)
-- [ ] **INST-05f**: Client signature: `creagia/laravel-sign-pad` package; canvas with explicit `devicePixelRatio` scaling (prevents Retina/iOS DPI corruption); signature stored as base64 PNG
+- [x] **INST-05e**: AVIXA checklist categories: Power On / Display Quality / Audio Level / VTC Connectivity / Control System / Network / Cabling — applied per equipment type (not every category applies to every item)
+- [x] **INST-05f**: Client signature: `creagia/laravel-sign-pad` package; canvas with explicit `devicePixelRatio` scaling (prevents Retina/iOS DPI corruption); signature stored as base64 PNG
 - [ ] **INST-05g**: Commissioning completion: all items pass/fail/na → "Complete Commissioning" button unlocked; generates PDF snagging report (uses existing DomPDF pipeline, embeds signature image)
 - [ ] **INST-05h**: Programme completion auto-advances `Project.status` from `STATUS_INSTALLING` to `STATUS_COMMISSIONING` via existing state machine — guard confirms valid transition before advancing
-- [ ] **INST-05i**: Audit trail: `commissioning_items.signed_off_by` (engineer name), `signed_off_at` (UTC timestamp); immutable once signed
+- [x] **INST-05i**: Audit trail: `commissioning_items.signed_off_by` (engineer name), `signed_off_at` (UTC timestamp); immutable once signed
 
 ---
 
