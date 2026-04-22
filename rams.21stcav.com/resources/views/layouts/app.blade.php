@@ -1041,6 +1041,12 @@
          shell without a defer race. See 16-02-DPI-SPIKE-NOTES.md for why
          Plan 05 additionally loads signature_pad UMD from CDN. --}}
     <script src="{{ asset('vendor/sign-pad/sign-pad.min.js') }}"></script>
+    {{-- Phase 16 Plan 05 B-06 Option C — additional szimek/signature_pad@5.1.3 UMD
+         load from CDN so window.SignaturePad is a reliable global for the Alpine
+         signoffSheet factory. Creagia's bundle is a webpack IIFE that does not
+         expose its SignaturePad class (see 16-02-DPI-SPIKE-NOTES.md); this line
+         fills that gap without forking the vendor bundle. --}}
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@5.1.3/dist/signature_pad.umd.min.js"></script>
     @stack('scripts')
 
     <script>

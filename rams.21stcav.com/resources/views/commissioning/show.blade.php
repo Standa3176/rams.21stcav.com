@@ -140,8 +140,9 @@
     {{-- Fail-reason bottom sheet (D-14 photo + note required) --}}
     @include('commissioning._commissioning-fail-sheet')
 
-    {{-- Sign-off sheet placeholder — implemented in Plan 05 --}}
-    <div data-role="signoff-sheet-slot"></div>
+    {{-- Sign-off sheet (Plan 05) — listens for the commissioning:open-signoff-sheet
+         CustomEvent dispatched by openSignoffSheet(). Hidden until then. --}}
+    @include('commissioning._commissioning-signoff-sheet', ['programme' => $programme])
 
 </div>
 @endsection
