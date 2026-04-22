@@ -15,6 +15,8 @@
         .commissioning-header h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: .25rem; }
         .commissioning-header p  { font-size: .875rem; color: var(--text-muted); }
         .commissioning-signoff   { display: inline-flex; align-items: center; gap: .25rem; color: #15803D; font-weight: 500; }
+        .commissioning-header__resync     { padding-top: .25rem; }
+        .commissioning-header__resync-btn { background: transparent; border: none; color: var(--teal); font-size: .75rem; text-decoration: underline; cursor: pointer; padding: 0; }
 
         .commissioning-empty     { border: 1px dashed var(--border); border-radius: var(--radius); padding: 1.5rem; text-align: center; color: var(--text-muted); }
 
@@ -90,6 +92,18 @@
                 {{ $counters['programme']['complete'] }} of {{ $counters['programme']['total'] }} complete
             @endif
         </p>
+
+        {{-- D-04 — Re-sync from programme. Hidden post-signoff (INST-05i).
+             Server also rejects a post-signoff resync (422) as defence-in-depth. --}}
+        @if (! $signoff && $programme)
+            <div class="commissioning-header__resync">
+                <button type="button"
+                        @click="triggerResync()"
+                        class="commissioning-header__resync-btn">
+                    Re-sync from programme
+                </button>
+            </div>
+        @endif
     </header>
 
     {{-- ─── Empty state (D-13) ──────────────────────────────────────── --}}
@@ -144,6 +158,10 @@
          CustomEvent dispatched by openSignoffSheet(). Hidden until then. --}}
     @include('commissioning._commissioning-signoff-sheet', ['programme' => $programme])
 
+    {{-- D-04 re-sync diff modal (Plan 05). Opens from triggerResync(); reads
+         resync.counters populated by the POST /commissioning/resync response. --}}
+    @include('commissioning._resync-diff')
+
 </div>
 @endsection
 
@@ -157,9 +175,40 @@
             locked: initial.locked,
             counters: initial.counters,
             failSheet: { open: false, itemId: null, note: '', photoFile: null, uploading: false, error: null },
+            resync:    { open: false, loading: false, error: null, counters: null },
 
             csrf() {
                 return document.querySelector('meta[name="csrf-token"]').content;
+            },
+
+            // ─── D-04 re-sync trigger ──────────────────────────────────────
+            // Opens the diff modal, fires the POST, stores the counters. If
+            // the server rejects (post-signoff → 422) surface the message.
+            // The modal's Reload button is only shown when the diff is
+            // non-trivial — nothing-changed just closes.
+            async triggerResync() {
+                this.resync = { open: true, loading: true, error: null, counters: null };
+                try {
+                    const res = await fetch(`/install-programmes/${this.programmeId}/commissioning/resync`, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': this.csrf(),
+                            'Accept': 'application/json',
+                        },
+                    });
+                    if (! res.ok) {
+                        const body = await res.json().catch(() => ({ message: 'Re-sync failed.' }));
+                        this.resync.loading = false;
+                        this.resync.error = body.message || 'Re-sync failed.';
+                        return;
+                    }
+                    const json = await res.json();
+                    this.resync.loading = false;
+                    this.resync.counters = json.diff;
+                } catch (err) {
+                    this.resync.loading = false;
+                    this.resync.error = 'Re-sync request failed — check connectivity and retry.';
+                }
             },
 
             // ─── Status PATCH ──────────────────────────────────────────────

@@ -400,6 +400,14 @@ Route::middleware('auth')->group(function () {
         [\App\Http\Controllers\CommissioningSignoffController::class, 'downloadSnagging'])
         ->name('commissioning.snagging.show');
 
+    // Plan 05 — D-04 re-sync endpoint. Rebuilds commissioning_items from the
+    // programme's current install_tasks (preserving statuses, soft-deleting
+    // removed, restoring previously soft-deleted rows whose equipment has
+    // returned). Refuses after signoff (INST-05i → 422).
+    Route::post('install-programmes/{programme}/commissioning/resync',
+        [\App\Http\Controllers\CommissioningResyncController::class, 'resync'])
+        ->name('commissioning.resync');
+
     // ─── Document Edit Core (chat-driven data-only edits) ───────────────────
     //
     // All endpoints sit inside the existing `auth` middleware group above.
