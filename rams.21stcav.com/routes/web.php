@@ -381,6 +381,25 @@ Route::middleware('auth')->group(function () {
         [\App\Http\Controllers\CommissioningItemController::class, 'failWithEvidence'])
         ->name('commissioning-items.fail-with-evidence');
 
+    // Plan 04 — finalise flow (preview → sign → finalise, D-10 + D-16).
+    // preview: returns a draft snagging PDF (no signature block); not persisted
+    //          beyond the engineer review session.
+    // finalise: atomic DB::transaction — signoff insert → final PDF →
+    //           Project STATUS_COMMISSIONING → Programme STATUS_COMPLETE. Any
+    //           failure rolls back ALL four writes (SignoffTransactionTest).
+    // snagging: T-16-06 ownership-guarded download of the final signed PDF.
+    Route::post('install-programmes/{programme}/commissioning/signoff/preview',
+        [\App\Http\Controllers\CommissioningSignoffController::class, 'preview'])
+        ->name('commissioning.signoff.preview');
+
+    Route::post('install-programmes/{programme}/commissioning/signoff/finalise',
+        [\App\Http\Controllers\CommissioningSignoffController::class, 'finalise'])
+        ->name('commissioning.signoff.finalise');
+
+    Route::get('install-programmes/{programme}/snagging',
+        [\App\Http\Controllers\CommissioningSignoffController::class, 'downloadSnagging'])
+        ->name('commissioning.snagging.show');
+
     // ─── Document Edit Core (chat-driven data-only edits) ───────────────────
     //
     // All endpoints sit inside the existing `auth` middleware group above.
