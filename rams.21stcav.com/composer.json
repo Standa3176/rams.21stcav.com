@@ -8,6 +8,7 @@
     "require": {
         "php": "^8.2",
         "barryvdh/laravel-dompdf": "^3.1",
+        "creagia/laravel-sign-pad": "3.0",
         "doctrine/dbal": "^4.4",
         "dompdf/dompdf": "^3.1",
         "guzzlehttp/guzzle": "^7.10",

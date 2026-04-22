@@ -1035,6 +1035,12 @@
     <x-mobile-tab-bar />
     @endauth
 
+    {{-- Phase 16 W-11 — global sign-pad bundle load (creagia/laravel-sign-pad).
+         Loaded synchronously, unconditionally, BEFORE @stack('scripts') so any
+         page-level pushed Alpine factory (Plan 05) can reference the canvas
+         shell without a defer race. See 16-02-DPI-SPIKE-NOTES.md for why
+         Plan 05 additionally loads signature_pad UMD from CDN. --}}
+    <script src="{{ asset('vendor/sign-pad/sign-pad.min.js') }}"></script>
     @stack('scripts')
 
     <script>

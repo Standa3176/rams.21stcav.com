@@ -128,12 +128,18 @@ class DocumentArtifactStorageTest extends TestCase
 
     public function test_types_returns_all_four(): void
     {
+        // Historical name — kept for backwards compatibility. After Phase 16
+        // Plan 02 the registry grew to 5 types (TYPE_SNAGGING added). Assert
+        // the full ordered list; the dedicated snagging-specific test below
+        // (test_types_array_includes_snagging) remains authoritative for the
+        // "must contain" contract.
         $this->assertSame(
             [
                 DocumentArtifactStorage::TYPE_RAMS,
                 DocumentArtifactStorage::TYPE_OM,
                 DocumentArtifactStorage::TYPE_WORKSHEET,
                 DocumentArtifactStorage::TYPE_CABLE,
+                DocumentArtifactStorage::TYPE_SNAGGING,
             ],
             $this->svc->types()
         );

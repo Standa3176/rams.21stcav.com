@@ -34,11 +34,18 @@ class DocumentArtifactStorage
     public const TYPE_OM        = 'om-manuals';
     public const TYPE_WORKSHEET = 'worksheets';
     public const TYPE_CABLE     = 'cable-schedules';
+    // TYPE_SNAGGING (Phase 16) has NO pre-H-07 legacy history — only current
+    // documents disk lookup. Deliberately absent from LEGACY_ROOTS so a
+    // missing snagging PDF returns null instead of silently resolving to a
+    // fake legacy path that never had data in it (B-02 guard).
+    public const TYPE_SNAGGING  = 'snagging';
 
     /**
      * Legacy absolute-path roots, relative to storage_path(). Used ONLY for
      * read-fallback so existing files remain accessible. New writes never go
      * here.
+     *
+     * NB: TYPE_SNAGGING is intentionally NOT listed — see constant docblock.
      */
     private const LEGACY_ROOTS = [
         self::TYPE_RAMS      => 'app/rams',
@@ -79,9 +86,16 @@ class DocumentArtifactStorage
             return $new;
         }
 
-        $legacy = storage_path(self::LEGACY_ROOTS[$type] . '/' . $filename);
-        if (is_file($legacy)) {
-            return $legacy;
+        // Guard: TYPE_SNAGGING (and any future add-on types) are NOT in
+        // LEGACY_ROOTS. Skip the legacy-directory branch when no mapping
+        // exists — return null instead of probing a directory that was
+        // never a real pre-H-07 location (B-02).
+        $legacyRel = self::LEGACY_ROOTS[$type] ?? null;
+        if ($legacyRel !== null) {
+            $legacy = storage_path($legacyRel . '/' . $filename);
+            if (is_file($legacy)) {
+                return $legacy;
+            }
         }
 
         return null;
@@ -107,9 +121,14 @@ class DocumentArtifactStorage
             @unlink($new);
         }
 
-        $legacy = storage_path(self::LEGACY_ROOTS[$type] . '/' . $filename);
-        if (is_file($legacy)) {
-            @unlink($legacy);
+        // Guard: same rationale as readPath() — types without a LEGACY_ROOTS
+        // entry (e.g. TYPE_SNAGGING) skip the legacy branch entirely.
+        $legacyRel = self::LEGACY_ROOTS[$type] ?? null;
+        if ($legacyRel !== null) {
+            $legacy = storage_path($legacyRel . '/' . $filename);
+            if (is_file($legacy)) {
+                @unlink($legacy);
+            }
         }
     }
 
@@ -121,6 +140,7 @@ class DocumentArtifactStorage
             self::TYPE_OM,
             self::TYPE_WORKSHEET,
             self::TYPE_CABLE,
+            self::TYPE_SNAGGING,
         ];
     }
 
