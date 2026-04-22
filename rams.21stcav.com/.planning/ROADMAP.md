@@ -63,7 +63,7 @@ Plans:
 - [x] 16-02-PLAN.md — Scaffold: composer require creagia/laravel-sign-pad + DPI spike + config/commissioning.php + 2 migrations + 2 models + exception + generator + sync service + InstallTaskObserver + DocumentArtifactStorage::TYPE_SNAGGING (Wave 1)
 - [x] 16-03-PLAN.md — Checklist UI + per-item AJAX: CommissioningController + CommissioningItemController + 3 FormRequests + CommissioningPhotoService + show/item-row/fail-sheet Blade views + 5 routes (Wave 2)
 - [x] 16-04-PLAN.md — Snagging PDF + signoff finalisation: CommissioningPdfService + CommissioningService + CommissioningSignoffController + FinaliseRequest + PDF Blade + 3 routes + D-16 atomic transaction + state-machine guard (Wave 2, parallel to 16-03)
-- [ ] 16-05-PLAN.md — Signature canvas + Re-sync UI + checkpoint: signoff-sheet Blade with DPI scaling + resync-diff partial + CommissioningResyncController + iOS Retina human-verify (Wave 3)
+- [x] 16-05-PLAN.md — Signature canvas + Re-sync UI + checkpoint: signoff-sheet Blade with DPI scaling + resync-diff partial + CommissioningResyncController + iOS Retina human-verify (Wave 3)
 
 ---
 

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Installation Programme & Field Management
-status: executing
-last_updated: "2026-04-22T10:34:50.833Z"
+status: verifying
+last_updated: "2026-04-22T15:19:59.398Z"
 last_activity: 2026-04-22
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 21
-  completed_plans: 20
-  percent: 95
+  completed_plans: 21
+  percent: 100
 ---
 
 ## Project Reference
@@ -22,9 +22,9 @@ See: .planning/PROJECT.md (updated 2026-04-13)
 
 ## Current Position
 
-Phase: 16 (commissioning-checklist-signoff) — EXECUTING
-Plan: 5 of 5
-Status: Ready to execute
+Phase: 16 (commissioning-checklist-signoff) — COMPLETE
+Plan: 5 of 5 ✅ (all 5 plans shipped; 87 passed / 1 skipped / 0 failed on Commissioning filter; iOS Retina DPI human-verify approved 2026-04-22)
+Status: Phase complete — ready for /gsd-verify-work
 Last activity: 2026-04-22
 
 ## Milestone v1.0 Complete
