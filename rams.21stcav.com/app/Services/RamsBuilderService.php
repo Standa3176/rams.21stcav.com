@@ -225,6 +225,15 @@ class RamsBuilderService
         $data['scope_of_works']  = $scopeOfWorks;
         $data['site_logistics']  = (array) ($reviewedData['site_logistics'] ?? []);
 
+        // Preserve PM guidance verbatim on generated_data — the compliance upgrade service's
+        // scope gates (RamsComplianceUpgradeService) read this to decide whether podium/tower,
+        // ceiling-void, rack, and existing-services hazards apply. Without this key set,
+        // ground-level-only jobs get boilerplate platform-access content injected by default.
+        $msNotes = trim((string) ($reviewedData['method_statement_notes'] ?? ''));
+        if ($msNotes !== '') {
+            $data['method_statement_notes'] = $msNotes;
+        }
+
         // Inject scope buckets from reviewed data (backward-compat: falls back to whatever
         // dataBuilder assembled from formData when reviewed data does not carry these keys).
         $data['scope_items'] = [

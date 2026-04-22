@@ -205,25 +205,76 @@ class RamsComplianceUpgradeService
 
     private static function addAccessEquipmentDetail(array $data): array
     {
+        $items = [
+            'Step ladders (EN131 compliant, inspected before each use)',
+            'Podium steps (where working platform required)',
+            'Mobile access tower (where above 2 m, PASMA assembled)',
+            'MEWP / scissor lift (where above 3.5 m, IPAF certified operator)',
+            'Kick stool (for low-level access only)',
+        ];
+        $requirements = [
+            'All access equipment to be inspected before use and defective items removed from service',
+            'PASMA certification required for tower assembly and use',
+            'IPAF certification required for MEWP / powered access operation',
+            'Harness and lanyard to be used with MEWP where required by site rules',
+            'Access equipment not to be positioned near open edges or on uneven surfaces',
+            'No improvised access (chairs, desks, stacked items) permitted',
+        ];
+
+        // Honour explicit "ground level / no podium / no access equipment" PM instructions.
+        // Scope of works or method-statement notes may carry these signals when the engineer
+        // has declared the installation does not require platform access.
+        $hints = strtolower(implode(' ', array_filter([
+            (string) ($data['method_statement_notes'] ?? ''),
+            (string) ($data['works_description']      ?? ''),
+            (string) ($data['scope_of_works']         ?? ''),
+            (string) ($data['works_summary']          ?? ''),
+        ])));
+
+        $noPodium    = self::containsPhrase($hints, ['no podium', 'without podium', 'not podium', 'no platform', 'without platform']);
+        $groundLevel = self::containsPhrase($hints, ['ground level', 'floor level', 'at ground', 'reachable from the floor', 'reachable from floor']);
+        $noAccessKit = self::containsPhrase($hints, ['no access equipment', 'without access equipment']);
+
+        if ($groundLevel || $noAccessKit) {
+            // Keep only ladders + kick stool — strip platform-class items and their requirements.
+            $items = array_values(array_filter($items, static fn (string $s): bool
+                => stripos($s, 'podium') === false
+                    && stripos($s, 'tower') === false
+                    && stripos($s, 'MEWP')  === false
+                    && stripos($s, 'scissor') === false));
+            $requirements = array_values(array_filter($requirements, static fn (string $s): bool
+                => stripos($s, 'PASMA') === false
+                    && stripos($s, 'IPAF') === false
+                    && stripos($s, 'tower') === false
+                    && stripos($s, 'MEWP') === false
+                    && stripos($s, 'harness') === false));
+            $items[]        = 'Working height confirmed at ground/floor level — no platform access equipment required.';
+        } elseif ($noPodium) {
+            $items = array_values(array_filter($items, static fn (string $s): bool
+                => stripos($s, 'podium') === false));
+            $items[]        = 'Podium steps excluded — working height does not require a working platform.';
+        }
+
         $data['access_equipment_detail'] = [
-            'items' => [
-                'Step ladders (EN131 compliant, inspected before each use)',
-                'Podium steps (where working platform required)',
-                'Mobile access tower (where above 2 m, PASMA assembled)',
-                'MEWP / scissor lift (where above 3.5 m, IPAF certified operator)',
-                'Kick stool (for low-level access only)',
-            ],
-            'requirements' => [
-                'All access equipment to be inspected before use and defective items removed from service',
-                'PASMA certification required for tower assembly and use',
-                'IPAF certification required for MEWP / powered access operation',
-                'Harness and lanyard to be used with MEWP where required by site rules',
-                'Access equipment not to be positioned near open edges or on uneven surfaces',
-                'No improvised access (chairs, desks, stacked items) permitted',
-            ],
+            'items'        => $items,
+            'requirements' => $requirements,
         ];
 
         return $data;
+    }
+
+    /**
+     * Case-insensitive multi-phrase contains check.
+     * Returns true if any of the given phrases appears in the haystack.
+     */
+    private static function containsPhrase(string $haystack, array $phrases): bool
+    {
+        foreach ($phrases as $phrase) {
+            if ($phrase !== '' && str_contains($haystack, strtolower($phrase))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // =========================================================================
@@ -328,7 +379,7 @@ class RamsComplianceUpgradeService
     {
         $existing = (array) ($data['hazards'] ?? []);
 
-        // Track existing hazard names to avoid duplicates
+        // Track existing hazard names to avoid duplicates — keep in sync as we append.
         $existingNames = array_map(
             fn ($h) => strtolower(trim((string) ($h['hazard'] ?? ''))),
             $existing
@@ -342,8 +393,34 @@ class RamsComplianceUpgradeService
             }
         }
 
+        // Build a single lowercased hint string from scope/notes once, for keyword gating.
+        $hints = strtolower(implode(' ', array_filter([
+            (string) ($data['method_statement_notes'] ?? ''),
+            (string) ($data['works_description']      ?? ''),
+            (string) ($data['scope_of_works']         ?? ''),
+            (string) ($data['works_summary']          ?? ''),
+        ])));
+
+        // Equipment descriptions — used to derive whether rack work, cable pulling, etc. apply.
+        $equipmentBlob = strtolower(implode(' | ', array_map(
+            static fn ($e) => is_array($e)
+                ? trim((string) ($e['description'] ?? '') . ' ' . (string) ($e['part_number'] ?? ''))
+                : (string) $e,
+            (array) ($data['equipment'] ?? []))));
+
+        $scopeBlob = $hints . ' ' . $equipmentBlob;
+
+        // Explicit PM opt-outs
+        $noCeiling = self::containsPhrase($scopeBlob, ['no ceiling', 'without ceiling', 'not working in ceiling', 'no ceiling access']);
+        $noRack    = self::containsPhrase($scopeBlob, ['no rack', 'without rack', 'no rack work']);
+
+        // Each candidate risk is now tagged with an `applies` closure that inspects scope
+        // and equipment text. A risk is only appended when its scope condition evaluates true.
         $avRisks = [
             [
+                'applies' => static fn (): bool
+                    => ! $noRack
+                    && self::containsPhrase($scopeBlob, ['rack', '19-inch', '19"', 'equipment cabinet', 'comms cabinet', 'server rack', 'av rack']),
                 'hazard'          => 'Rack installation — heavy equipment handling and securing',
                 'persons_at_risk' => ['21CAV Staff', 'Client Staff'],
                 'pre_likelihood'  => 3,
@@ -358,6 +435,7 @@ class RamsComplianceUpgradeService
                 'post_severity'   => 2,
             ],
             [
+                'applies' => static fn (): bool => true, // cable work is universal on AV installs
                 'hazard'          => 'Cable pulling and termination — strain injury and eye hazard',
                 'persons_at_risk' => ['21CAV Staff'],
                 'pre_likelihood'  => 3,
@@ -373,6 +451,9 @@ class RamsComplianceUpgradeService
                 'post_severity'   => 1,
             ],
             [
+                'applies' => static fn (): bool
+                    => ! $noCeiling
+                    && self::containsPhrase($scopeBlob, ['ceiling void', 'ceiling tile', 'above ceiling', 'cable tray', 'basket tray', 'ceiling cavity', 'plenum', 'ceiling access', 'overhead cable', 'drop rod', 'containment']),
                 'hazard'          => 'Working in ceiling voids — falling debris and dust inhalation',
                 'persons_at_risk' => ['21CAV Staff', 'Client Staff', 'Building Occupants'],
                 'pre_likelihood'  => 3,
@@ -389,6 +470,7 @@ class RamsComplianceUpgradeService
                 'post_severity'   => 2,
             ],
             [
+                'applies' => static fn (): bool => true, // AV installs always involve LV connections
                 'hazard'          => 'Low voltage AV connections — electric shock and equipment damage',
                 'persons_at_risk' => ['21CAV Staff'],
                 'pre_likelihood'  => 2,
@@ -404,6 +486,7 @@ class RamsComplianceUpgradeService
                 'post_severity'   => 2,
             ],
             [
+                'applies' => static fn (): bool => true, // wall fixings are universal — mount, bracket, anchor
                 'hazard'          => 'Fixings into walls and ceilings — structural damage and falling objects',
                 'persons_at_risk' => ['21CAV Staff', 'Client Staff', 'Building Occupants'],
                 'pre_likelihood'  => 3,
@@ -419,6 +502,8 @@ class RamsComplianceUpgradeService
                 'post_severity'   => 2,
             ],
             [
+                'applies' => static fn (): bool
+                    => self::containsPhrase($scopeBlob, ['drill', 'fix', 'mount', 'bracket', 'anchor', 'masonry', 'plasterboard', 'wall mount']),
                 'hazard'          => 'Dust generation from drilling and cutting — respiratory and eye hazard',
                 'persons_at_risk' => ['21CAV Staff', 'Client Staff', 'Building Occupants'],
                 'pre_likelihood'  => 3,
@@ -434,6 +519,9 @@ class RamsComplianceUpgradeService
                 'post_severity'   => 1,
             ],
             [
+                'applies' => static fn (): bool
+                    => ! $noCeiling
+                    && self::containsPhrase($scopeBlob, ['ceiling void', 'ceiling tile', 'above ceiling', 'riser', 'plenum', 'cable tray', 'basket tray', 'containment', 'comms room', 'ceiling access', 'overhead']),
                 'hazard'          => 'Working near existing services — damage to fire, HVAC, or electrical systems',
                 'persons_at_risk' => ['21CAV Staff', 'Client Staff', 'Building Occupants'],
                 'pre_likelihood'  => 2,
@@ -451,25 +539,40 @@ class RamsComplianceUpgradeService
         ];
 
         foreach ($avRisks as $risk) {
-            // Skip if a hazard with a similar name already exists
+            // Scope gate — skip risks that don't apply to this project.
+            $applies = $risk['applies'] ?? static fn (): bool => true;
+            if (! $applies()) {
+                continue;
+            }
+            unset($risk['applies']);
+
+            // Exact-match and significant-overlap dedup. Critical: short first words (Rack, Dust,
+            // Low) are not exempt — the previous strlen > 4 gate caused the RA08/RA15, RA11/RA16,
+            // RA13/RA17 duplicates. `$existingNames` must be updated inside the loop so hazards
+            // appended earlier in this pass are also considered when testing later candidates.
             $riskName = strtolower(trim($risk['hazard']));
+            $riskWords = array_values(array_filter(
+                explode(' ', preg_replace('/[^a-z ]/', ' ', $riskName) ?? ''),
+                static fn (string $w): bool => strlen($w) > 3,
+            ));
+
             $isDuplicate = false;
             foreach ($existingNames as $existingName) {
-                // Check if first significant word matches
-                $riskFirstWord = explode(' ', preg_replace('/[^a-z ]/', '', $riskName))[0] ?? '';
-                if ($riskFirstWord !== '' && str_contains($existingName, $riskFirstWord) && strlen($riskFirstWord) > 4) {
-                    // More specific check: significant overlap
-                    $riskWords = array_filter(explode(' ', $riskName), fn ($w) => strlen($w) > 3);
-                    $matchCount = 0;
-                    foreach ($riskWords as $w) {
-                        if (str_contains($existingName, $w)) {
-                            $matchCount++;
-                        }
+                if ($existingName === $riskName) {
+                    $isDuplicate = true;
+                    break;
+                }
+                $matchCount = 0;
+                foreach ($riskWords as $w) {
+                    if (str_contains($existingName, $w)) {
+                        $matchCount++;
                     }
-                    if ($matchCount >= 2) {
-                        $isDuplicate = true;
-                        break;
-                    }
+                }
+                // Require a majority of significant words to match — prevents false positives
+                // between "Dust generation from drilling" and "Dust mask provision" style names.
+                if (count($riskWords) > 0 && $matchCount >= max(2, (int) ceil(count($riskWords) * 0.5))) {
+                    $isDuplicate = true;
+                    break;
                 }
             }
 
@@ -478,8 +581,9 @@ class RamsComplianceUpgradeService
             }
 
             $maxId++;
-            $risk['id'] = $maxId;
-            $existing[] = $risk;
+            $risk['id']      = $maxId;
+            $existing[]      = $risk;
+            $existingNames[] = $riskName; // keep in-loop dedup consistent
         }
 
         $data['hazards'] = $existing;

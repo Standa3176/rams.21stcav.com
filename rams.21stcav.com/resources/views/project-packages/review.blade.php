@@ -86,6 +86,36 @@
     box-shadow: 0 0 0 2px rgba(23,138,149,.12);
 }
 .repeater-table textarea { resize: vertical; min-height: 60px; }
+
+/* ── Equipment part-number + description (auto-growing single-line → textarea) ── */
+.repeater-table textarea.equip-input {
+    resize: none;                /* we auto-grow via JS; user can't drag */
+    min-height: 0;
+    height: auto;
+    overflow: hidden;            /* hide scrollbar while typing — scrollHeight drives the grow */
+    line-height: 1.35;
+    padding: .35rem .5rem;
+}
+.repeater-table textarea.equip-input.pn {
+    font-family: monospace;
+    font-size: .82rem;
+    text-transform: uppercase;
+}
+
+/* ── Invalid-field highlight (scoped to repeater inputs — the main form uses .form-control.is-invalid) ── */
+.repeater-table .is-invalid,
+.repeater-table input.is-invalid,
+.repeater-table textarea.is-invalid,
+.repeater-table select.is-invalid {
+    border-color: var(--danger, #dc2626) !important;
+    background: #fef2f2;
+    box-shadow: 0 0 0 3px rgba(220,38,38,.12);
+}
+.repeater-table .form-error {
+    color: var(--danger, #dc2626);
+    font-size: .75rem;
+    margin: .2rem 0 0;
+}
 /* AV Works Summary textarea — monospace so the field:value block aligns cleanly */
 .av-works-summary-textarea {
     font-family: 'Courier New', Courier, monospace !important;
@@ -671,22 +701,27 @@
                                            min="1" max="999">
                                 </td>
                                 <td style="width:140px;">
-                                    <input type="text"
+                                    <textarea
                                            name="equipment[{{ $i }}][part_number]"
-                                           value="{{ old("equipment.{$i}.part_number", $item['part_number'] ?? '') }}"
+                                           class="equip-input pn @error("equipment.{$i}.part_number") is-invalid @enderror"
+                                           rows="1"
                                            placeholder="e.g. YEA-MVC-S90"
-                                           maxlength="60"
-                                           style="font-family:monospace;font-size:.82rem;text-transform:uppercase;"
-                                           oninput="this.value=this.value.toUpperCase()">
+                                           maxlength="100"
+                                           oninput="equipAutoGrow(this); this.value=this.value.toUpperCase();">{{ old("equipment.{$i}.part_number", $item['part_number'] ?? '') }}</textarea>
+                                    @error("equipment.{$i}.part_number")
+                                        <p class="form-error">{{ $message }}</p>
+                                    @enderror
                                 </td>
                                 <td>
-                                    <input type="text"
+                                    <textarea
                                            name="equipment[{{ $i }}][name]"
-                                           value="{{ old("equipment.{$i}.name", $item['name'] ?? '') }}"
+                                           class="equip-input @error("equipment.{$i}.name") is-invalid @enderror"
+                                           rows="1"
                                            placeholder="e.g. 55&quot; Samsung Display"
-                                           maxlength="500">
+                                           maxlength="1000"
+                                           oninput="equipAutoGrow(this)">{{ old("equipment.{$i}.name", $item['name'] ?? '') }}</textarea>
                                     @error("equipment.{$i}.name")
-                                        <p class="form-error" style="font-size:.75rem;">{{ $message }}</p>
+                                        <p class="form-error">{{ $message }}</p>
                                     @enderror
                                 </td>
                                 <td style="width:150px;">
@@ -1279,12 +1314,14 @@ function equipmentRowTemplate(idx, category) {
             <input type="number" name="equipment[${idx}][quantity]" value="1" min="1" max="999">
         </td>
         <td style="width:140px;">
-            <input type="text" name="equipment[${idx}][part_number]" placeholder="e.g. YEA-MVC-S90"
-                   maxlength="60" style="font-family:monospace;font-size:.82rem;text-transform:uppercase;"
-                   oninput="this.value=this.value.toUpperCase()">
+            <textarea name="equipment[${idx}][part_number]" class="equip-input pn" rows="1"
+                      placeholder="e.g. YEA-MVC-S90" maxlength="100"
+                      oninput="equipAutoGrow(this); this.value=this.value.toUpperCase();"></textarea>
         </td>
         <td>
-            <input type="text" name="equipment[${idx}][name]" placeholder="e.g. 55&quot; Display" maxlength="500">
+            <textarea name="equipment[${idx}][name]" class="equip-input" rows="1"
+                      placeholder="e.g. 55&quot; Display" maxlength="1000"
+                      oninput="equipAutoGrow(this)"></textarea>
         </td>
         <td style="width:150px;">
             <select name="equipment[${idx}][category]" data-equip-category>
@@ -1369,6 +1406,26 @@ function removeRow(btn) {
         if (tbody) ensureEquipmentEmptyState(tbody);
     }
 }
+
+// ─── Equipment textarea auto-grow (part_number + name) ───────────────────────
+// Called on every `oninput` + once per row on DOM ready. Resets height to 0
+// then uses scrollHeight so the textarea shrinks when text is deleted too.
+function equipAutoGrow(el) {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = (el.scrollHeight + 2) + 'px';
+}
+
+// Initialise sizes + attach a safety listener to keep existing browsers happy
+// if someone clones a row and forgets the inline oninput.
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('textarea.equip-input').forEach(equipAutoGrow);
+});
+document.addEventListener('input', function (e) {
+    if (e.target && e.target.matches && e.target.matches('textarea.equip-input')) {
+        equipAutoGrow(e.target);
+    }
+});
 
 // ─── Save Review ──────────────────────────────────────────────────────────────
 // Serialise the main form and re-submit it via the hidden save form so we

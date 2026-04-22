@@ -47,7 +47,9 @@ class RamsReviewValidatorService
 
             'equipment'                      => ['required', 'array', 'min:1'],
             'equipment.*.quantity'           => ['required', 'integer', 'min:1'],
-            'equipment.*.name'               => ['required', 'string', 'min:1', 'max:500'],
+            'equipment.*.part_number'        => ['nullable', 'string', 'max:100'],
+            'equipment.*.name'               => ['required', 'string', 'min:1', 'max:1000'],
+            'equipment.*.area'               => ['nullable', 'string', 'max:150'],
             'equipment.*.category'           => ['nullable', 'string', 'in:hardware,cables,consumables,services,option'],
 
             'activities'                     => ['required', 'array', 'min:1'],
