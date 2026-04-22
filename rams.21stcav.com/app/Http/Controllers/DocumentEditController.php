@@ -333,17 +333,38 @@ class DocumentEditController extends Controller
         // Optimistic concurrency — reject if a newer revision has been recorded
         // since this change-set was proposed. Prevents applying a stale plan
         // over a newer state.
+        //
+        // Opt-in recovery: when the client passes ?rebase=1 the server retargets
+        // the change-set to the current revision before applying. This preserves
+        // the AI-parsed ops so the user does not have to re-describe their intent
+        // after a trivial concurrent write. Safe because the subsequent
+        // applyOperation walk runs against the fresh payload — if the ops would
+        // conflict with the newer state they still return ok=false below and
+        // the change-set lands as rejected. The audit trail records the rebase.
         $latest = \App\Models\DocumentRevision::query()
             ->where('document_type', $type)
             ->where('document_id',   $id)
             ->latest('id')
             ->first();
         if ($latest !== null && (int) $cs->base_revision_id !== (int) $latest->id) {
-            return $this->jsonError('base_revision_stale',
-                "Change-set was based on revision #{$cs->base_revision_id} but revision #{$latest->id} is now current.",
-                409,
-                ['expected_base_revision_id' => $latest->id],
-            );
+            if ($request->boolean('rebase')) {
+                $previousBase = (int) $cs->base_revision_id;
+                $cs->update(['base_revision_id' => $latest->id]);
+                $this->audit('change_set_rebased', $type, $id, [
+                    'change_set_id'        => $cs->id,
+                    'from_base_revision'   => $previousBase,
+                    'to_base_revision'     => $latest->id,
+                ]);
+            } else {
+                return $this->jsonError('base_revision_stale',
+                    "Change-set was based on revision #{$cs->base_revision_id} but revision #{$latest->id} is now current.",
+                    409,
+                    [
+                        'expected_base_revision_id' => $latest->id,
+                        'rebase_available'          => true,
+                    ],
+                );
+            }
         }
 
         // Re-validate — defence against ops that slipped through an earlier path.

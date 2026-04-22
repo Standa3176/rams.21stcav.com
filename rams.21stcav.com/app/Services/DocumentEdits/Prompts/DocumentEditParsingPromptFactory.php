@@ -21,10 +21,18 @@ class DocumentEditParsingPromptFactory
         array   $priorErrors    = [],
         ?string $priorRawOutput = null,
     ): DocumentEditParsingPrompt {
+        // Optional adapter capability — not part of the interface so older adapters
+        // work unchanged. When present, per-op arg schemas go into the prompt so
+        // the AI emits correct args instead of inventing field names.
+        $schemas = method_exists($adapter, 'operationSchemas')
+            ? (array) $adapter->operationSchemas()
+            : [];
+
         return new DocumentEditParsingPrompt(
             documentType:      $adapter->documentType(),
             userMessage:       trim($userMessage),
             allowedOperations: $adapter->allowedOperations(),
+            operationSchemas:  $schemas,
             payloadSnapshot:   $this->safeSnapshot($adapter->documentType(), $documentPayload),
             priorErrors:       $priorErrors,
             priorRawOutput:    $priorRawOutput,

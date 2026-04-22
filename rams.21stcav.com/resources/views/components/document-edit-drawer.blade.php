@@ -107,11 +107,20 @@
                         <span class="chat-apply-pill chat-apply-pill--applied">✓ Applied — regenerating</span>
                     </template>
 
-                    {{-- Stale base revision (409) — offer restart --}}
-                    <template x-if="m.stale">
-                        <button type="button" class="chat-apply-pill chat-apply-pill--restart" @click="restart()">
-                            ⟳ Restart conversation
-                        </button>
+                    {{-- Stale base revision (409) — offer rebase-apply first, restart as fallback --}}
+                    <template x-if="m.stale && !m.applied">
+                        <div class="chat-apply-stale-actions" style="display:flex;gap:.4rem;flex-wrap:wrap;">
+                            <button type="button"
+                                    class="chat-apply-pill"
+                                    :disabled="applying === m.changeSetId"
+                                    @click="applyChanges(m, { rebase: true })">
+                                <span x-show="applying !== m.changeSetId">↻ Apply on current revision</span>
+                                <span x-show="applying === m.changeSetId">Applying…</span>
+                            </button>
+                            <button type="button" class="chat-apply-pill chat-apply-pill--restart" @click="restart()">
+                                ⟳ Restart conversation
+                            </button>
+                        </div>
                     </template>
                 </div>
             </template>
@@ -298,11 +307,15 @@
                     } catch (e) { /* preview is optional — don't block apply */ }
                 },
 
-                async applyChanges(msg) {
+                async applyChanges(msg, opts = {}) {
                     if (this.applying) return;
                     this.applying = msg.changeSetId;
 
-                    const url = config.routes.applyTemplate.replace('__CID__', msg.changeSetId);
+                    const base = config.routes.applyTemplate.replace('__CID__', msg.changeSetId);
+                    // opts.rebase=true → server retargets the change-set to the current
+                    // revision before applying. Used by the "Apply on current revision"
+                    // button that appears after a 409 base_revision_stale response.
+                    const url  = opts.rebase ? `${base}?rebase=1` : base;
                     try {
                         const res  = await fetch(url, {
                             method:  'POST',
@@ -313,18 +326,22 @@
                         });
                         if (res.ok) {
                             msg.applied = true;
-                            this._pushSystem('Applied. Regenerating document…');
+                            msg.stale   = false;
+                            this._pushSystem(opts.rebase
+                                ? 'Rebased and applied. Regenerating document…'
+                                : 'Applied. Regenerating document…');
                             // Clear stored thread — once applied, base revision
                             // has moved. Next open will start a fresh thread.
                             sessionStorage.removeItem(this._storageKey);
                             setTimeout(() => window.location.reload(), 1400);
                         } else if (res.status === 409) {
                             // Base revision stale — the doc was updated behind
-                            // the chat's back. Mark this message stale and offer
-                            // to restart with the current state.
+                            // the chat's back. Mark this message stale; the UI
+                            // will show an "Apply on current revision" button that
+                            // retries with rebase=1, plus a Restart fallback.
                             const err = await res.json().catch(() => ({}));
                             msg.stale = true;
-                            this._pushError(err.message || 'The document was updated since this change was proposed. Restart the conversation to re-plan against the current state.');
+                            this._pushError(err.message || 'The document was updated since this change was proposed. You can apply against the current revision, or restart to re-plan from scratch.');
                             this._persist();
                         } else {
                             const err = await res.json().catch(() => ({}));

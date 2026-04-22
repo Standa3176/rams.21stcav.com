@@ -20,7 +20,8 @@ use App\Core\AI\Prompts\BasePrompt;
 class DocumentEditParsingPrompt extends BasePrompt
 {
     /**
-     * @param array<int, string>            $allowedOperations
+     * @param array<int, string>             $allowedOperations
+     * @param array<string, array{args:array<string,string>, notes?:string}> $operationSchemas  Per-op arg docs
      * @param array<string, mixed>           $payloadSnapshot  Safe subset only
      * @param list<array{code: string, message: string}> $priorErrors
      */
@@ -29,8 +30,9 @@ class DocumentEditParsingPrompt extends BasePrompt
         private readonly string $userMessage,
         private readonly array  $allowedOperations,
         private readonly array  $payloadSnapshot,
-        private readonly array  $priorErrors    = [],
-        private readonly ?string $priorRawOutput = null,
+        private readonly array  $priorErrors       = [],
+        private readonly ?string $priorRawOutput   = null,
+        private readonly array  $operationSchemas  = [],
     ) {}
 
     public function build(array $context = []): string
@@ -41,6 +43,22 @@ class DocumentEditParsingPrompt extends BasePrompt
         $sections = [];
         $sections[] = "# Task\nConvert the user's request into a strict JSON operations plan for a '{$this->documentType}' document.";
         $sections[] = "# Allowed operations\nAvailable op names: {$ops}\nEvery operation you emit MUST use one of these exact strings.";
+
+        if (! empty($this->operationSchemas)) {
+            $lines = ['# Operation argument schemas', 'Each op accepts ONLY the args listed below — do not invent keys.', ''];
+            foreach ($this->operationSchemas as $opName => $spec) {
+                $lines[] = "## {$opName}";
+                foreach ((array) ($spec['args'] ?? []) as $arg => $help) {
+                    $lines[] = "- `{$arg}`: {$help}";
+                }
+                if (! empty($spec['notes'])) {
+                    $lines[] = "  note: {$spec['notes']}";
+                }
+                $lines[] = '';
+            }
+            $sections[] = trim(implode("\n", $lines));
+        }
+
         $sections[] = "# Document snapshot (safe subset)\n```json\n{$snapshot}\n```";
         $sections[] = "# Schema (STRICT — must match exactly)\n```\n{\n  \"operations\": [\n    {\"op\": \"<name>\", \"target\": {\"room_name\": \"<string|null>\", \"index\": <int|null>}, \"args\": { ... }, \"rationale\": \"<short explanation>\"}\n  ],\n  \"summary\": \"<short human summary ≤ 1000 chars>\"\n}\n```\nRules:\n- Return JSON only. No markdown fences, no prose.\n- Top-level keys allowed: operations, summary. Nothing else.\n- Each operation has exactly four keys: op, target, args, rationale. No extras.\n- Max 25 operations per parse.\n- rationale and summary each ≤ 1000 chars.\n- Never include file paths, route names, class names, PHP code, or shell commands anywhere.";
         $sections[] = "# User request\n{$this->userMessage}";
