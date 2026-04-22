@@ -138,4 +138,60 @@ class DocumentArtifactStorageTest extends TestCase
             $this->svc->types()
         );
     }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Phase 16 — TYPE_SNAGGING extension (INST-05g + H-07 convention)
+    //
+    // These three tests are red until Plan 16-02 adds the TYPE_SNAGGING
+    // constant + types() entry AND keeps TYPE_SNAGGING OUT of LEGACY_ROOTS
+    // (no pre-H-07 snagging history exists; a fake legacy path would
+    // mask real missing-file bugs — B-02 guard).
+    // ────────────────────────────────────────────────────────────────────
+
+    public function test_type_snagging_writes_and_reads(): void
+    {
+        $this->assertSame(
+            'snagging',
+            DocumentArtifactStorage::TYPE_SNAGGING,
+            'TYPE_SNAGGING constant must equal "snagging" per H-07 convention.',
+        );
+
+        $filename = 'snagging_programme_1_20260422_120000_final.pdf';
+        $writePath = $this->svc->writePath(DocumentArtifactStorage::TYPE_SNAGGING, $filename);
+
+        file_put_contents($writePath, 'PDF-BYTES');
+
+        $readPath = $this->svc->readPath(DocumentArtifactStorage::TYPE_SNAGGING, $filename);
+
+        $this->assertNotNull($readPath);
+        $this->assertSame('PDF-BYTES', file_get_contents($readPath));
+        $this->assertStringContainsString('snagging', str_replace('\\', '/', $readPath));
+    }
+
+    public function test_types_array_includes_snagging(): void
+    {
+        $this->assertContains(
+            DocumentArtifactStorage::TYPE_SNAGGING,
+            $this->svc->types(),
+            'types() must include TYPE_SNAGGING after Plan 16-02.',
+        );
+    }
+
+    public function test_type_snagging_read_path_returns_null_without_legacy_fallback(): void
+    {
+        // B-02 — TYPE_SNAGGING is NOT in LEGACY_ROOTS. Even if we write a
+        // "legacy"-style file to storage/app/private/snagging/, readPath must
+        // still return null — there is no legacy fallback path for snagging.
+        $legacyStyle = storage_path('app/private/snagging/' . 'should-not-be-found.pdf');
+        @mkdir(dirname($legacyStyle), 0777, true);
+        file_put_contents($legacyStyle, 'LEGACY-NOT-ACCEPTED');
+        $this->legacyCleanup[] = $legacyStyle;
+
+        $found = $this->svc->readPath(DocumentArtifactStorage::TYPE_SNAGGING, 'should-not-be-found.pdf');
+
+        $this->assertNull(
+            $found,
+            'TYPE_SNAGGING must NOT have a legacy fallback — readPath must return null when file missing from documents disk.',
+        );
+    }
 }
