@@ -1041,24 +1041,30 @@ private function sanitiseBase64(string $raw): string
 | A4 | Snagging PDF memory footprint fits in default PHP 128M at typical project scale (50-100 items + thumbnails + signature) | §Pitfall 9 | OOM in production. Mitigation: Plan 03 load test with a 300-item fixture. |
 | A5 | `HeicImageConverter` is thread-safe / instance-shareable when the DI container injects the same instance across controllers | §Architecture Patterns | No leakage expected — service has no mutable state beyond a lazily-initialized ImageManager (private to the instance). Confidence high; noting for planner. |
 
-## Open Questions
+## Open Questions (RESOLVED 2026-04-22)
+
+All four open questions were answered during the discuss-phase step and are now locked in 16-CONTEXT.md. Entries retained for audit traceability.
 
 1. **Empty-state unlock behaviour** (see A3 above)
    - What we know: D-07 means some programmes will have zero commissioning items if no equipment matches any keyword.
    - What's unclear: does "Complete Commissioning" unlock in that case?
    - Recommendation: Treat zero items as "all done" → unlock. User confirms in discuss-phase or planner locks in Plan 02.
+   - **RESOLVED: see CONTEXT.md D-13 — zero-items programmes unlock immediately; client signs an empty snagging PDF; project still advances.**
 
 2. **Evidence-photo requirement on `fail`** — Claude's Discretion says REQUIRED. But should photo also be required on `pass` for specific AVIXA categories (e.g., Power On always wants a photo of the illuminated device)?
    - What we know: D-12 says fail-items don't block sign-off and must roll into the snagging PDF — photos make that defensible.
    - What's unclear: is pass-with-photo also a real requirement?
    - Recommendation: Plan 02 makes photo required on `fail` only; leave `pass`/`na` photos optional. Revisit after field feedback.
+   - **RESOLVED: see CONTEXT.md D-14 — photo evidence required on `fail` only; `pass` and `na` are photo-optional; server-side 422 guard in the per-item PATCH endpoint.**
 
 3. **Certification text versioning** — if the legal wording in `config/commissioning.php` changes, older signoffs still reference the old wording at the PDF level, but the config change affects future renders. Should the signed text be stored on the `commissioning_signoffs` row for immutability?
    - Recommendation: Yes — add `certification_text` longText column to `commissioning_signoffs` and snapshot at signoff time. Cheap audit defensibility. Plan 01 adds the column.
+   - **RESOLVED: see CONTEXT.md D-15 — `certification_text` longText column on `commissioning_signoffs` snapshotted at signoff time; row holds the historic version, config holds the current template.**
 
 4. **Phase 16's relationship to `InstallProgramme.status = complete`** — when do we set the programme's `status` to `complete`? On generator fire? On signoff? Neither?
    - What we know: `InstallProgramme` has a `STATUS_COMPLETE` constant but the lifecycle isn't wired to an automatic trigger yet.
    - Recommendation: Advance `InstallProgramme.status` to `complete` in the same transaction as the signoff finalise (immediately after `Project.status` transition). Add to Plan 04 service.
+   - **RESOLVED: see CONTEXT.md D-16 — `InstallProgramme.status` advances to `STATUS_COMPLETE` in the same `DB::transaction` as the signoff + Project state transition; atomic all-or-nothing.**
 
 ## Environment Availability
 
