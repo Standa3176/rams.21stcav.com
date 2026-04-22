@@ -341,6 +341,46 @@ Route::middleware('auth')->group(function () {
         ->name('time-entries.update')
         ->middleware('throttle:20,1');
 
+    // ── Phase 16 — Commissioning checklist + signoff (INST-05) ────────────
+    //
+    // All routes live behind the same ownership guard: project owner, admin, or
+    // engineer assigned to a task on the active install_programme. Mutation
+    // routes additionally refuse once a CommissioningSignoff row exists
+    // (INST-05i immutability). Plan 03 provides the checklist + per-item
+    // endpoints; Plan 04 appends the finalise endpoint + related routes on top.
+    Route::get('projects/{project}/commissioning',
+        [\App\Http\Controllers\CommissioningController::class, 'show'])
+        ->name('commissioning.show');
+
+    Route::patch('commissioning-items/{item}/status',
+        [\App\Http\Controllers\CommissioningItemController::class, 'updateStatus'])
+        ->name('commissioning-items.status');
+
+    Route::patch('commissioning-items/{item}/notes',
+        [\App\Http\Controllers\CommissioningItemController::class, 'updateNotes'])
+        ->name('commissioning-items.notes');
+
+    Route::post('commissioning-items/{item}/photo',
+        [\App\Http\Controllers\CommissioningItemController::class, 'storePhoto'])
+        ->name('commissioning-items.photo.store');
+
+    Route::delete('commissioning-items/{item}/photo',
+        [\App\Http\Controllers\CommissioningItemController::class, 'destroyPhoto'])
+        ->name('commissioning-items.photo.destroy');
+
+    // B-03 — streaming show route for stored evidence JPEGs (ownership-guarded).
+    // Plan 04's snagging PDF and Plan 05's checklist UI both resolve this URL.
+    Route::get('commissioning-items/{item}/photo',
+        [\App\Http\Controllers\CommissioningItemController::class, 'show'])
+        ->name('commissioning-items.photo.show');
+
+    // W-12 — atomic multipart POST combining fail status transition, photo
+    // upload, and note save in a single DB::transaction. Eliminates the
+    // photo-POST + status-PATCH orphan-photo race.
+    Route::post('commissioning-items/{item}/fail-with-evidence',
+        [\App\Http\Controllers\CommissioningItemController::class, 'failWithEvidence'])
+        ->name('commissioning-items.fail-with-evidence');
+
     // ─── Document Edit Core (chat-driven data-only edits) ───────────────────
     //
     // All endpoints sit inside the existing `auth` middleware group above.
