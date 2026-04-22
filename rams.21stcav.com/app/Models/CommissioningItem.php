@@ -125,4 +125,28 @@ class CommissioningItem extends Model
             true,
         );
     }
+
+    /**
+     * B-04 — Read the evidence photo file from the private disk and return its
+     * raw bytes base64-encoded. Returns null when `evidence_photo_path` is null
+     * OR the file is missing from disk (both cases render a placeholder in the
+     * snagging PDF rather than crashing DomPDF).
+     *
+     * Used by resources/views/pdf/commissioning-snagging.blade.php to embed
+     * the evidence JPEG as a `data:image/jpeg;base64,{...}` URI — DomPDF 3.x
+     * renders data: URIs natively. Keeping the read-logic on the model (not
+     * in the Blade) means we only have to null-guard in one place.
+     */
+    public function resolvedEvidencePhotoBase64(): ?string
+    {
+        if ($this->evidence_photo_path === null) {
+            return null;
+        }
+        $disk = \Illuminate\Support\Facades\Storage::disk('local');
+        if (! $disk->exists($this->evidence_photo_path)) {
+            return null;
+        }
+        $bytes = $disk->get($this->evidence_photo_path);
+        return $bytes === null ? null : base64_encode($bytes);
+    }
 }
