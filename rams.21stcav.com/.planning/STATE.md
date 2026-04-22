@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Installation Programme & Field Management
 status: executing
-last_updated: "2026-04-22T10:21:30.043Z"
+last_updated: "2026-04-22T10:34:50.833Z"
 last_activity: 2026-04-22
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 21
-  completed_plans: 19
-  percent: 90
+  completed_plans: 20
+  percent: 95
 ---
 
 ## Project Reference
@@ -23,7 +23,7 @@ See: .planning/PROJECT.md (updated 2026-04-13)
 ## Current Position
 
 Phase: 16 (commissioning-checklist-signoff) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-04-22
 

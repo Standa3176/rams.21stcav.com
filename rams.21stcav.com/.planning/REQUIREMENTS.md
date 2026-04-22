@@ -177,8 +177,8 @@
 - [x] **INST-05d**: Photo evidence upload per item: same HEIC protection as INST-03e
 - [x] **INST-05e**: AVIXA checklist categories: Power On / Display Quality / Audio Level / VTC Connectivity / Control System / Network / Cabling — applied per equipment type (not every category applies to every item)
 - [x] **INST-05f**: Client signature: `creagia/laravel-sign-pad` package; canvas with explicit `devicePixelRatio` scaling (prevents Retina/iOS DPI corruption); signature stored as base64 PNG
-- [ ] **INST-05g**: Commissioning completion: all items pass/fail/na → "Complete Commissioning" button unlocked; generates PDF snagging report (uses existing DomPDF pipeline, embeds signature image)
-- [ ] **INST-05h**: Programme completion auto-advances `Project.status` from `STATUS_INSTALLING` to `STATUS_COMMISSIONING` via existing state machine — guard confirms valid transition before advancing
+- [x] **INST-05g**: Commissioning completion: all items pass/fail/na → "Complete Commissioning" button unlocked; generates PDF snagging report (uses existing DomPDF pipeline, embeds signature image)
+- [x] **INST-05h**: Programme completion auto-advances `Project.status` from `STATUS_INSTALLING` to `STATUS_COMMISSIONING` via existing state machine — guard confirms valid transition before advancing
 - [x] **INST-05i**: Audit trail: `commissioning_items.signed_off_by` (engineer name), `signed_off_at` (UTC timestamp); immutable once signed
 
 ---
