@@ -109,6 +109,17 @@ class InstallTask extends Model
         return $this->belongsTo(User::class, 'status_changed_by');
     }
 
+    /**
+     * Phase 16 — commissioning items derived from this install_task via
+     * keyword-map matching (D-05 traceability). Multiple categories can match
+     * one task (e.g. a VTC codec hits display + audio + vtc + power) so this
+     * is a HasMany, not HasOne.
+     */
+    public function commissioningItems(): HasMany
+    {
+        return $this->hasMany(CommissioningItem::class, 'install_task_id');
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /**

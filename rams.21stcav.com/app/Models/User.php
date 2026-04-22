@@ -82,4 +82,15 @@ class User extends Authenticatable
     {
         return $this->hasMany(TimeEntryAudit::class, 'edited_by_user_id');
     }
+
+    /**
+     * Commissioning sign-off rows this user attested as the engineer (Phase
+     * 16 INST-05i). Non-default FK: signed_off_engineer_id, not user_id —
+     * the engineer attests alongside a free-text client_name that is not a
+     * User row.
+     */
+    public function commissioningSignoffs(): HasMany
+    {
+        return $this->hasMany(CommissioningSignoff::class, 'signed_off_engineer_id');
+    }
 }
