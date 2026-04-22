@@ -50,6 +50,15 @@ Deliver a per-equipment commissioning checklist against AVIXA categories, captur
 - **D-11** — **Client metadata captured = Name + Role + Company**. Three freetext fields on the signature screen (above the canvas). Typed by engineer or by the client before they sign. Stored on a new `commissioning_signoffs` table (one row per programme) with `client_name`, `client_role`, `client_company`, `signature_png_base64`, `signed_at`, `install_programme_id`. Company NOT inferred from `project.client_id` — capture what the signing person states.
 - **D-12** — **Fail items do not block sign-off**. Any mix of `pass` / `fail` / `na` unlocks the "Complete Commissioning" button (per INST-05g). Failed items roll into the snagging PDF as "To Be Resolved". Client signs acknowledging the snag list. `Project.status` advances to `STATUS_COMMISSIONING` after signature. Standard AV-industry handover practice — don't let perfect block handover.
 
+### Post-Research Clarifications (2026-04-22)
+
+Added after `gsd-phase-researcher` returned `eb107df` and surfaced four open questions:
+
+- **D-13** — **Zero-items programmes unlock immediately**. If the generator produces zero commissioning items (no equipment matched any AVIXA keyword), "Complete Commissioning" unlocks the moment the view opens. Client signs an empty snagging PDF; project still advances. Matches the "don't let perfect block handover" ethos of D-12.
+- **D-14** — **Photo evidence required on `fail` only**. `pass` and `na` are photo-optional; `fail` requires at least one evidence photo before the AJAX save succeeds (422 otherwise with a clear message, `ClockInBlockedException`-style). Validation lives server-side in the per-item PATCH endpoint; client-side validation is a UX nicety, not the guard.
+- **D-15** — **Certification text snapshot on signoff row**. The legal wording shown above the signature canvas is copied into `commissioning_signoffs.certification_text` (longText column) at sign time. Immutable even if `config/commissioning.php` wording changes later — the client signed that text, not whatever the config says today. Config holds the current template for new sign-offs; the row holds the historic version.
+- **D-16** — **Sign-off advances both Project and InstallProgramme in one transaction**. Atomic sequence: `commissioning_signoffs` row insert → snagging PDF written via `DocumentArtifactStorage` → `Project.status` → `STATUS_COMMISSIONING` → `InstallProgramme.status` → `STATUS_COMPLETE`. All in a single `DB::transaction` — any failure rolls the whole set back. Clean finalisation; neither state machine drifts apart.
+
 ### Claude's Discretion
 
 Planner decides the following during research/plan; flagged here so the user can overrule before `/gsd-plan-phase 16`:
