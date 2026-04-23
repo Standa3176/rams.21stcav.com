@@ -67,7 +67,7 @@ One dataset powers every document. Engineers capture real-world data, quotes pro
 - [ ] **INST-02**: Task assignment to engineers with calendar view and Gantt timeline
 - [ ] **INST-03**: Responsive mobile field view — task checklist, clock in/out, photo capture
 - [x] **INST-04**: Time tracking per project/category with heartbeat-guarded sessions and dashboard actual hours *(validated in Phase 15 — actuals-only, budget comparison deferred)*
-- [ ] **INST-05**: Commissioning checklist — per-equipment sign-off with photo evidence and client signature
+- [x] **INST-05**: Commissioning checklist — per-equipment sign-off with photo evidence and client signature *(validated in Phase 16 — INST-05a through INST-05i all satisfied, iOS Retina DPI signature capture human-verified)*
 - [ ] **WORK-05**: Worksheet includes pre-install check question answers per room
 - [ ] **WORK-06**: Worksheet generation triggered from project dashboard
 
@@ -157,4 +157,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-19 after Phase 08 (Enterprise Dashboard) completion*
+*Last updated: 2026-04-23 after Phase 16 (Commissioning Checklist & Sign-Off) completion — installation delivery loop closed end-to-end (task list → mobile field view → time tracking → commissioning sign-off with snagging PDF).*
