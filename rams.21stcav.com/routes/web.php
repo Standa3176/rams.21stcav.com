@@ -400,6 +400,17 @@ Route::middleware('auth')->group(function () {
         [\App\Http\Controllers\CommissioningSignoffController::class, 'downloadSnagging'])
         ->name('commissioning.snagging.show');
 
+    // WR-01 — dedicated preview streaming route. downloadSnagging only serves
+    // finalised signoffs (404s when commissioningSignoff is null), so the D-10
+    // "review before sign" iframe needs its own endpoint. The {file} regex
+    // pins the filename to the buildPreview() naming convention; the
+    // controller additionally asserts str_starts_with(snagging_programme_{id}_)
+    // so clients can't view previews from other programmes.
+    Route::get('install-programmes/{programme}/snagging/preview/{file}',
+        [\App\Http\Controllers\CommissioningSignoffController::class, 'streamPreview'])
+        ->where('file', 'snagging_programme_\d+_\d{8}_\d{6}_preview\.pdf')
+        ->name('commissioning.snagging.preview');
+
     // Plan 05 — D-04 re-sync endpoint. Rebuilds commissioning_items from the
     // programme's current install_tasks (preserving statuses, soft-deleting
     // removed, restoring previously soft-deleted rows whose equipment has
