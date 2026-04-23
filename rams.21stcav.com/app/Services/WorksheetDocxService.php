@@ -360,16 +360,29 @@ class WorksheetDocxService
         $h->addCell(2300, ['bgColor' => self::TEAL])->addText('Part No.', ['bold' => true, 'color' => self::WHITE, 'size' => 9]);
 
         foreach ($equipment as $i => $item) {
-            $bg = ($i % 2 === 0) ? self::WHITE : self::GREY;
+            $bg     = ($i % 2 === 0) ? self::WHITE : self::GREY;
+            $name   = trim((string) ($item['name']    ?? $item['description']  ?? ''));
+            $partNo = trim((string) ($item['part_no'] ?? $item['part_number'] ?? ''));
+
+            // When a line item arrives with no part_no AND the name field is
+            // carrying a bare SKU (e.g. `MXWAPXD2UK=-Z11`), the quote had no
+            // friendly name and no resolver entry. Echo the SKU into the Part
+            // No. column so the row doesn't visibly half-render — the
+            // classifier QA warnings panel still flags SKU-only items for the
+            // reviewer to enrich.
+            if ($partNo === '' && $name !== '' && $this->looksLikeBareSku($name)) {
+                $partNo = $name;
+            }
+
             $row = $table->addRow();
             $row->addCell(6500, ['bgColor' => $bg])->addText(
-                $this->t($item['name'] ?? $item['description'] ?? ''),
+                $this->t($name),
                 ['size' => 10, 'color' => self::DARK]);
             $row->addCell(1200, ['bgColor' => $bg])->addText(
                 (string) ($item['quantity'] ?? $item['qty'] ?? 1),
                 ['size' => 10, 'color' => self::DARK]);
             $row->addCell(2300, ['bgColor' => $bg])->addText(
-                $this->t($item['part_no'] ?? $item['part_number'] ?? ''),
+                $this->t($partNo),
                 ['size' => 9, 'color' => '6B7280']);
         }
         $section->addTextBreak(1);
@@ -420,6 +433,23 @@ class WorksheetDocxService
     {
         if ($value === null || $value === '') return '';
         return (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $value);
+    }
+
+    /**
+     * Heuristic: looks like a bare SKU rather than a human name.
+     * True for symbol-heavy, space-free identifiers (`MXW2X/SM86=-Z11`), or
+     * single-token all-caps strings with digits of length ≥ 6 (`QE65T`,
+     * `LH65QETELGCXEN`). False for normal descriptions and short brand-only
+     * strings.
+     */
+    private function looksLikeBareSku(string $s): bool
+    {
+        $s = trim($s);
+        if ($s === '' || str_contains($s, ' ')) return false;
+        if (preg_match('/[=\/]/', $s)) return true;
+        return strlen($s) >= 6
+            && preg_match('/[A-Z]/', $s) === 1
+            && preg_match('/\d/', $s) === 1;
     }
 
     private function validateDocx(string $filePath): void

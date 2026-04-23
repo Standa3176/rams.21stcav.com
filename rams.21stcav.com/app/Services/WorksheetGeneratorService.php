@@ -994,8 +994,18 @@ class WorksheetGeneratorService
 
     /**
      * Build a concise, engineer-readable description of works for a room.
-     * Prefers explicit source description when available; synthesises from
-     * equipment/subsystem data otherwise. Never blank when equipment exists.
+     *
+     * Structure (in order):
+     *   1. Scope sentence — item count + canonical category list.
+     *      If a human-authored source description exists, that leads instead.
+     *   2. Work sentence — gerund phrases per subsystem ("mounting the displays,
+     *      wiring the audio path"). Imperative voice would duplicate the task
+     *      checklist rendered below; gerunds keep it a distinct at-a-glance
+     *      summary.
+     *   3. Survey caveat — appended when the room hasn't been surveyed yet.
+     *
+     * The old builder padded the paragraph with "Key kit:" (duplicated the
+     * kit table below) and "Work outputs:" (corporate jargon); both are gone.
      */
     private function buildRoomWorksDescription(
         string $roomName,
@@ -1004,75 +1014,105 @@ class WorksheetGeneratorService
         bool   $isSurveyed,
         string $sourceDescription,
     ): string {
-        $roomName = trim($roomName) !== '' ? trim($roomName) : 'General';
         $hardwareCount = count($hardware);
+        $source = trim($sourceDescription);
 
-        if ($hardwareCount === 0 && trim($sourceDescription) === '') {
+        if ($hardwareCount === 0 && $source === '') {
             return 'No new AV equipment is scheduled in this room.';
         }
 
-        $subsystemNames = array_values(array_keys($subsystems));
-        $systemsText = $this->formatList($subsystemNames, 3, 'general AV systems');
-        $source = trim($sourceDescription);
-        $keyItems = $this->pickKeyEquipmentNames($hardware, 3);
-
-        $variant = abs((int) crc32(strtolower($roomName))) % 4;
         $sentences = [];
-        $items = $hardwareCount === 1 ? 'item' : 'items';
 
-        $sentences[] = match ($variant) {
-            0 => "{$roomName}: deliver {$hardwareCount} {$items} across {$systemsText}.",
-            1 => "{$roomName} room scope: {$hardwareCount} {$items} across {$systemsText}.",
-            2 => "{$roomName}: engineer works include {$hardwareCount} {$items} covering {$systemsText}.",
-            default => "{$roomName} install scope is {$hardwareCount} {$items} across {$systemsText}.",
-        };
-
+        // 1. Scope — lead with the PM's human-written description if present,
+        //    otherwise synthesise a short "N items covering X, Y and Z."
         if ($source !== '') {
-            $sentences[] = 'Site note: ' . rtrim($source, ". \t\n\r\0\x0B") . '.';
-        }
-
-        if (! empty($keyItems)) {
-            $sentences[] = 'Key kit: ' . $this->formatList($keyItems, 3, 'listed AV equipment') . '.';
-        }
-
-        $actions = [];
-        if (isset($subsystems['Display'])) {
-            $actions[] = 'mount and align display hardware';
-        }
-        if (isset($subsystems['Video Conferencing'])) {
-            $actions[] = 'integrate VC endpoints with network services';
-        }
-        if (isset($subsystems['Audio'])) {
-            $actions[] = 'wire and commission the audio signal path';
-        }
-        if (isset($subsystems['Rack & Infrastructure'])) {
-            $actions[] = 'build, terminate and dress the rack';
-        }
-        if (isset($subsystems['Control & Automation'])) {
-            $actions[] = 'verify control behaviour and room triggers';
-        }
-        if (isset($subsystems['Network'])) {
-            $actions[] = 'rack, patch and label network switch / AP kit';
-        }
-        if (! empty($actions)) {
-            $sentences[] = 'Work outputs: ' . $this->formatList($actions, 3, 'install listed kit and complete functional checks') . '.';
+            $sentences[] = rtrim($source, ". \t\n\r\0\x0B") . '.';
         } elseif ($hardwareCount > 0) {
-            $sentences[] = 'Work outputs: install listed kit, terminate cabling, label terminations, and complete functional checks.';
+            $items = $hardwareCount === 1 ? 'item' : 'items';
+            $categorySummary = $this->buildCategorySummary(array_keys($subsystems));
+            $sentences[] = $categorySummary !== ''
+                ? "Install {$hardwareCount} {$items} covering {$categorySummary}."
+                : "Install {$hardwareCount} {$items} of AV kit.";
         }
 
+        // 2. Work — one sentence of gerund phrases, one per subsystem present.
+        $workSentence = $this->buildWorkSentence($subsystems);
+        if ($workSentence !== '') {
+            $sentences[] = $workSentence;
+        }
+
+        // 3. Survey caveat — only when the room hasn't been surveyed.
         if (! $isSurveyed) {
-            $sentences[] = 'Survey action: confirm final fixing positions, cable routes, and power/network points before first fix.';
+            $sentences[] = 'Room not surveyed yet — confirm fixing points, cable routes, and power/network drops on arrival.';
         }
 
         $sentences = array_values(array_filter(array_map('trim', $sentences), fn ($s) => $s !== ''));
-        if (count($sentences) > 4) {
-            $sentences = array_slice($sentences, 0, 4);
+
+        return $this->cleanNarrative(implode(' ', $sentences), 420);
+    }
+
+    /**
+     * Compose a single-sentence description of the engineering work for a
+     * room, derived from the canonical subsystems present. Returns empty
+     * string when no subsystems map to known work phrases.
+     *
+     * @param array<string, array> $subsystems  canonical label → items map
+     */
+    private function buildWorkSentence(array $subsystems): string
+    {
+        $phrases = [];
+        if (isset($subsystems['Display'])) {
+            $phrases[] = count($subsystems['Display']) > 1
+                ? 'mounting and aligning the displays'
+                : 'mounting and aligning the display';
         }
-        if (count($sentences) < 2 && $hardwareCount > 0) {
-            $sentences[] = 'Work outputs: install listed kit and complete functional checks.';
+        if (isset($subsystems['Video Conferencing'])) {
+            $phrases[] = 'installing and commissioning the VC codec and camera';
+        }
+        if (isset($subsystems['Audio'])) {
+            $phrases[] = 'wiring and balancing the audio signal path';
+        }
+        if (isset($subsystems['Rack & Infrastructure'])) {
+            $phrases[] = 'racking, terminating, and dressing the infrastructure';
+        }
+        if (isset($subsystems['Control & Automation'])) {
+            $phrases[] = 'testing the control system and room automation';
+        }
+        if (isset($subsystems['Network'])) {
+            $phrases[] = 'racking, patching, and testing the network switch';
         }
 
-        return $this->cleanNarrative(implode(' ', $sentences), 340);
+        if (empty($phrases)) {
+            return '';
+        }
+
+        return 'Work covers ' . $this->joinNaturalPhrases($phrases) . '.';
+    }
+
+    /**
+     * Join descriptive phrases with natural prose connectors. Uses semicolons
+     * when any phrase itself contains a comma (to keep list boundaries visible
+     * at a glance); otherwise plain commas with an Oxford-free final "and".
+     *
+     * @param array<int, string> $phrases
+     */
+    private function joinNaturalPhrases(array $phrases): string
+    {
+        $phrases = array_values(array_filter(array_map('trim', $phrases), fn ($p) => $p !== ''));
+        $n = count($phrases);
+        if ($n === 0) return '';
+        if ($n === 1) return $phrases[0];
+        if ($n === 2) return $phrases[0] . ' and ' . $phrases[1];
+
+        // If any phrase has an internal comma, switch list separator to `;`
+        // so the reader doesn't confuse phrase boundaries with internal commas.
+        $sep = '';
+        foreach ($phrases as $p) {
+            if (str_contains($p, ',')) { $sep = '; '; break; }
+        }
+        $sep = $sep !== '' ? $sep : ', ';
+        $last = array_pop($phrases);
+        return implode($sep, $phrases) . $sep . 'and ' . $last;
     }
 
     /**
@@ -1145,10 +1185,19 @@ class WorksheetGeneratorService
     }
 
     /**
-     * Post-build narrative cleaner: collapse whitespace, remove duplicate fragments,
-     * enforce max length, ensure sentence ending and non-empty fallback.
+     * Post-build narrative cleaner: collapse whitespace, remove duplicate
+     * fragments, enforce max length, ensure sentence ending and non-empty
+     * fallback.
+     *
+     * Length enforcement is sentence-granular — the old implementation chopped
+     * at a character offset and rtrim'd mid-word, producing outputs like
+     *   "Work outputs: wire and commission the audio signal path, build,
+     *    terminate and."
+     * where an engineer reads a sentence that literally ends with "and." and
+     * can't tell whether it's a bug or content was omitted. Dropping whole
+     * sentences keeps every rendered sentence syntactically complete.
      */
-    private function cleanNarrative(string $text, int $maxLength = 380): string
+    private function cleanNarrative(string $text, int $maxLength = 420): string
     {
         $text = preg_replace('/\b(designated position|as required|where applicable)\b/i', '', $text);
         $text = trim((string) preg_replace('/\s{2,}/', ' ', $text));
@@ -1172,16 +1221,13 @@ class WorksheetGeneratorService
         if (count($deduped) > 4) {
             $deduped = array_slice($deduped, 0, 4);
         }
-        $text = implode(' ', $deduped);
 
-        if (strlen($text) > $maxLength) {
-            $text = substr($text, 0, $maxLength);
-            $lastSpace = strrpos($text, ' ');
-            if ($lastSpace !== false && $lastSpace > ($maxLength * 0.7)) {
-                $text = substr($text, 0, $lastSpace);
-            }
-            $text = rtrim($text, " ,;:-\t\n\r\0\x0B") . '.';
+        // Drop whole sentences from the tail until the joined text fits.
+        // Keeps every rendered sentence syntactically complete — never mid-word.
+        while (count($deduped) > 1 && strlen(implode(' ', $deduped)) > $maxLength) {
+            array_pop($deduped);
         }
+        $text = implode(' ', $deduped);
 
         if ($text !== '' && ! preg_match('/[.!?]$/', $text)) {
             $text .= '.';
