@@ -36,10 +36,17 @@ class FinaliseCommissioningSignoffRequest extends FormRequest
             'client_role'    => ['required', 'string', 'max:200'],
             'client_company' => ['required', 'string', 'max:200'],
             // T-16-07 — allow both raw body and data URI prefix; service normalises.
+            // WR-03 — cap payload at ~5 MB base64 (≈3.7 MB decoded PNG). The
+            // migration docblock records real iPad Retina signatures at
+            // 30-60 KB, so this is comfortably above the realistic ceiling
+            // while protecting the host from a single-request memory blow-up
+            // when the payload is base64_decoded + preg_replaced + stored on
+            // every snagging PDF render.
             'signature_png_base64' => [
                 'required',
                 'string',
                 'min:100',
+                'max:5242880',
                 'regex:#^(data:image/png;base64,)?[A-Za-z0-9+/=\s]+$#',
             ],
         ];
