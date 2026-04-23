@@ -723,6 +723,26 @@ p { margin: 3pt 0; }
             $rvDesc = preg_replace('/\*\*([^*]+)\*\*/', '$1', $rvDesc ?? '');
             // Strip leading colon/space artifact that appears when overview text begins with ":Room Name"
             $rvDesc = ltrim(trim($rvDesc), ': ');
+
+            // When the overview text begins with the room name on its own first line,
+            // drop that line — the renderer already emits "<strong>{name}:</strong>"
+            // just before the description, so keeping the first line produces a
+            // duplicated-heading artifact like:
+            //   **VC Room (22) - Primary Left:** VC Room (22) - Primary Left VC Room 22 ...
+            // Canonicalise both sides (strip non-alphanumerics) before comparing so
+            // punctuation drift (missing closing paren, curly apostrophes, spacing)
+            // doesn't prevent the strip.
+            $rvDescLines = preg_split('/\r?\n/', trim($rvDesc)) ?: [];
+            if (count($rvDescLines) >= 2) {
+                $firstLine     = trim($rvDescLines[0]);
+                $canonFirst    = strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $firstLine));
+                $canonRoomName = strtolower((string) preg_replace('/[^a-z0-9]+/i', '', (string) $rvName));
+                if ($canonFirst !== '' && $canonFirst === $canonRoomName) {
+                    array_shift($rvDescLines);
+                    $rvDesc = implode("\n", $rvDescLines);
+                }
+            }
+
             $rvDescParas = array_filter(array_map('trim', preg_split('/\n{2,}/', trim($rvDesc))));
             $rvDesc = reset($rvDescParas) ?: '';
         @endphp
