@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\CommissioningItem;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -73,20 +74,30 @@ class CommissioningPhotoService
             'size_bytes' => @filesize($absolute) ?: 0,
         ]);
 
-        // Replace any prior photo — INST-05a single-photo-per-item. The new
-        // path is assigned by the caller, so we only clean up the old file
-        // on disk here. Idempotent if the column is null or the file is
-        // already missing.
+        // WR-02 — INST-05a single-photo-per-item. Defer the destructive
+        // filesystem unlink until AFTER the caller's DB transaction commits.
+        // Previously this ran inline, so if the controller's $item->save()
+        // threw inside DB::transaction the DB rollback left the column
+        // pointing at the old path but the old file was already gone —
+        // permanent data loss.
+        //
+        // DB::afterCommit queues the closure on the ACTIVE transaction if
+        // one is open, else runs it immediately. That matches both the
+        // atomic failWithEvidence path (transaction wrapper) and the plain
+        // storePhoto path (no transaction).
         $old = $item->evidence_photo_path;
         if ($old && $old !== $relative) {
             $oldAbs = Storage::disk('local')->path($old);
-            if (is_file($oldAbs)) {
-                @unlink($oldAbs);
-                Log::info('CommissioningPhotoService: old photo replaced', [
-                    'item_id' => $itemId,
-                    'old'     => $old,
-                ]);
-            }
+            $itemIdForLog = $itemId;
+            DB::afterCommit(function () use ($oldAbs, $old, $itemIdForLog) {
+                if (is_file($oldAbs)) {
+                    @unlink($oldAbs);
+                    Log::info('CommissioningPhotoService: old photo replaced', [
+                        'item_id' => $itemIdForLog,
+                        'old'     => $old,
+                    ]);
+                }
+            });
         }
 
         return $relative;
