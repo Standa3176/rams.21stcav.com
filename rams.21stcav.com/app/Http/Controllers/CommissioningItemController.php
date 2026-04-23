@@ -181,7 +181,15 @@ class CommissioningItemController extends Controller
                 $path = $this->photoService->store($item, $request->file('photo'));
 
                 $item->evidence_photo_path = $path;
-                $item->notes               = $note;
+                // WR-04 — mirror updateStatus() append semantics so engineers
+                // who typed context notes into the free-text box before
+                // opening the fail sheet don't lose them. Fail reason is
+                // appended with the same [Fail reason] marker used in the
+                // two-step path; if notes were empty, the note stands alone.
+                $existing = trim((string) $item->notes);
+                $item->notes = $existing === ''
+                    ? $note
+                    : $item->notes . "\n\n[Fail reason] " . $note;
                 $item->status              = CommissioningItem::STATUS_FAIL;
                 $item->signed_off_by       = auth()->user()->name;
                 $item->signed_off_at       = now();
