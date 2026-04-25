@@ -342,18 +342,26 @@
                                 <p class="px-3 pb-3 text-gray-700 leading-snug" x-text="room._ctx.av_requirements"></p>
                             </details>
                         </template>
-                        {{-- QUOTE KIT --}}
+                        {{-- QUOTE KIT — rendered as a parsed list --}}
                         <template x-if="room._ctx.av_equipment_list">
                             <details class="bg-white rounded-lg border border-gray-200">
                                 <summary class="px-3 py-2 cursor-pointer select-none flex items-center justify-between list-none">
                                     <span class="font-semibold text-gray-700 flex items-center gap-1.5">
                                         <span>📦</span>
                                         <span>Quote kit</span>
+                                        <span class="text-gray-400 font-normal">(<span x-text="parseKitLines(room._ctx.av_equipment_list).length"></span>)</span>
                                     </span>
                                     <span class="text-gray-400">▾</span>
                                 </summary>
-                                <p class="px-3 pb-3 text-gray-700 leading-snug whitespace-pre-line"
-                                   x-text="room._ctx.av_equipment_list"></p>
+                                <ul class="px-3 pb-3 pt-0 space-y-1 text-gray-800">
+                                    <template x-for="(item, ki) in parseKitLines(room._ctx.av_equipment_list)" :key="ki">
+                                        <li class="flex items-start gap-2 leading-snug">
+                                            <span class="inline-flex items-center justify-center min-w-[28px] h-5 px-1.5 rounded bg-brand-teal/10 text-brand-teal text-[11px] font-bold tabular-nums"
+                                                  x-text="item.qty ? item.qty + '×' : '·'"></span>
+                                            <span class="flex-1" x-text="item.name"></span>
+                                        </li>
+                                    </template>
+                                </ul>
                             </details>
                         </template>
                         {{-- REFERENCE CHECKLIST --}}
@@ -597,8 +605,15 @@
                 <template x-if="screen === 'step'">
                     <div>
                         <template x-if="currentRoom?._ctx?.av_equipment_list">
-                            <p class="text-gray-800 leading-snug whitespace-pre-line"
-                               x-text="currentRoom._ctx.av_equipment_list"></p>
+                            <ul class="space-y-1.5 text-gray-800">
+                                <template x-for="(item, ki) in parseKitLines(currentRoom._ctx.av_equipment_list)" :key="ki">
+                                    <li class="flex items-start gap-2 leading-snug">
+                                        <span class="inline-flex items-center justify-center min-w-[32px] h-6 px-2 rounded bg-brand-teal/10 text-brand-teal text-xs font-bold tabular-nums flex-shrink-0"
+                                              x-text="item.qty ? item.qty + '×' : '·'"></span>
+                                        <span class="flex-1" x-text="item.name"></span>
+                                    </li>
+                                </template>
+                            </ul>
                         </template>
                         <template x-if="!currentRoom?._ctx?.av_equipment_list">
                             <p class="text-gray-500 italic">No kit recorded for this room.</p>
@@ -610,11 +625,18 @@
                     <div class="space-y-3">
                         <template x-for="(room, idx) in rooms" :key="room._ui.room_id">
                             <div class="border border-gray-200 rounded-xl p-3">
-                                <p class="font-semibold text-gray-900 mb-1.5"
+                                <p class="font-semibold text-gray-900 mb-2"
                                    x-text="room.name || 'Unnamed room'"></p>
                                 <template x-if="room._ctx?.av_equipment_list">
-                                    <p class="text-xs text-gray-700 leading-snug whitespace-pre-line"
-                                       x-text="room._ctx.av_equipment_list"></p>
+                                    <ul class="space-y-1 text-xs text-gray-800">
+                                        <template x-for="(item, ki) in parseKitLines(room._ctx.av_equipment_list)" :key="ki">
+                                            <li class="flex items-start gap-2 leading-snug">
+                                                <span class="inline-flex items-center justify-center min-w-[28px] h-5 px-1.5 rounded bg-brand-teal/10 text-brand-teal text-[11px] font-bold tabular-nums flex-shrink-0"
+                                                      x-text="item.qty ? item.qty + '×' : '·'"></span>
+                                                <span class="flex-1" x-text="item.name"></span>
+                                            </li>
+                                        </template>
+                                    </ul>
                                 </template>
                                 <template x-if="!room._ctx?.av_equipment_list">
                                     <p class="text-xs text-gray-400 italic">No kit.</p>
@@ -1545,6 +1567,23 @@ function surveyWizard() {
         removeAdditionalItem(idx) {
             const r = this.rooms[this.currentRoomIdx];
             if (Array.isArray(r.additional_items)) r.additional_items.splice(idx, 1);
+        },
+
+        // Parse the per-room kit string ("1 × Sony 98″ display\n2 × Crestron Saros…")
+        // into structured rows so the wizard can render them as a clean table.
+        parseKitLines(kitText) {
+            const out = [];
+            for (const raw of String(kitText ?? '').split(/\r?\n/)) {
+                const line = raw.trim();
+                if (line === '') continue;
+                const m = line.match(/^(\d+)\s*[×xX]\s*(.+)$/);
+                if (m) {
+                    out.push({ qty: m[1], name: m[2].trim() });
+                } else {
+                    out.push({ qty: '',   name: line });
+                }
+            }
+            return out;
         },
 
         // Aggregate across all rooms — drives the rooms-list "Items" burger.
