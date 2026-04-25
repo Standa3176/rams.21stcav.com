@@ -101,26 +101,51 @@ class SurveyQuestionsPrompt extends BasePrompt
             : '';
 
         return <<<PROMPT
-You are an AV installation engineer preparing a pre-installation site check for this room.
+You are a senior UK AV installation engineer writing a pre-installation site check
+for ONE specific room. The engineer will tick yes / no / other for each question
+on a tablet, on-site, before installation begins.
 
 SOLUTION TYPE: {$solutionSlug}
 
-EXISTING SURVEY CHECKLIST FOR THIS SOLUTION TYPE:
+SOLUTION-TYPE CHECKLIST (use these as a strong anchor — pick the items that apply
+given the actual equipment and adapt them to the kit and room):
 {$checklistBlock}
 
-EQUIPMENT TO BE INSTALLED IN THIS ROOM:
+EQUIPMENT TO BE INSTALLED IN THIS ROOM (for each item, generate at least one
+install-readiness question that names the item — e.g. mention "Samsung 65"
+display" not "the display"):
 {$equipmentBlock}{$overviewBlock}{$descriptionBlock}{$summaryBlock}
 
 INSTRUCTIONS:
-- Generate 4–8 pre-install verification check questions for this room.
-- Questions must verify physical site conditions BEFORE installation begins (e.g. power availability, structural suitability, cable route clearance, access constraints).
-- Base questions ONLY on the solution type, checklist, and equipment provided above.
-- Do NOT invent equipment, scope, or conditions not mentioned above.
-- Do NOT ask open-ended design questions — only yes/no verifiable site conditions.
-- Use British English spelling.
-- Return a JSON array (not an object) of question strings.
+- Generate 6–10 pre-install verification questions tailored to THIS room and
+  THIS equipment. Quantity scales with kit complexity.
+- Reference specific equipment by short, recognisable name in each question that
+  applies to a particular item (e.g. "Cisco Room Kit EQ", "75″ NEC ME552",
+  "Q-SYS Core 8Flex"). Do NOT use vague phrases like "the display" or
+  "the equipment".
+- Cover these dimensions across the question set (omit a dimension only if no
+  item in the equipment list relates to it):
+    1. MOUNTING — wall material / weight rating / structural suitability /
+       fixing type confirmed for each mounted item
+    2. POWER — circuit available, distance to socket, isolation point,
+       PoE budget on the network switch where PoE devices are listed
+    3. NETWORK — port count and live patching, VLAN, distance to switch,
+       PoE class for IP devices
+    4. CABLE ROUTING — path type, distance, fire-stop requirements, dressing
+    5. SIGHT LINES & COVERAGE — viewing distance for displays, mic pickup
+       zones for microphones, speaker spread for speakers
+    6. EXISTING INFRASTRUCTURE — kit being retained, integrated with, or
+       displaced (only relevant when scope mentions "existing" or upgrade)
+- Phrase questions as concrete yes/no checks an engineer can verify with eyes,
+  a tape measure, or a voltage tester. Avoid open-ended design questions.
+- Avoid duplicate questions — each question should add new information.
+- Do NOT invent equipment, scope, or site conditions not mentioned above.
+- Use British English spelling and AV industry terminology
+  (e.g. "first fix", "containment", "PoE", "PSU", "DSP", "HDBaseT").
+- Return a JSON array (not an object) of question strings, in priority order
+  (mounting and power first, soft checks last).
 
-Return ONLY valid JSON with this exact shape:
+Return ONLY valid JSON with this exact shape (no markdown, no commentary):
 { "questions": ["Question one?", "Question two?", "Question three?"] }
 PROMPT;
     }

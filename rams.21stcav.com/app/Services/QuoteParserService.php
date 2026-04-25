@@ -2058,21 +2058,29 @@ class QuoteParserService
         $result = [];
         $seen   = [];
 
-        // Any line containing one of these tokens is a structural tag line or
-        // page-header line and must be skipped entirely.  We test the ORIGINAL
-        // (pre-strip) line so tag content on the same line is not accidentally
-        // rescued by stripping the token away.
-        //
-        // This covers:
-        //   - Content / structural tags  (OVERVIEW*, PART*, QTY*)
-        //   - Page-header tags that repeat on every page  (SHIP*, SITENAME*,
-        //     PREPAREDBY*, QUOTENUM*)
-        static $skipTokens = [
+        // Two-tier token handling:
+        //   (1) $stripTokens — section/part markers that may share a line with
+        //       legitimate prose in tight-word-wrap PDFs, e.g.:
+        //         "OVERVIEWTXTSTART Restaurant will have… OVERVIEWTXTEND"
+        //         "for media play back. A USB-A extension. PARTSTART … QTYEND"
+        //       We strip the tokens and preserve the surrounding prose rather
+        //       than dropping the whole line.
+        //   (2) $headerTokens — tags that only ever appear inside the repeated
+        //       page header banner. Their content (SHIPCONT names, SITENAME
+        //       etc.) is never section prose, so lines mentioning them are
+        //       dropped in full.
+        static $stripTokens = [
             'OVERVIEWTXTSTART', 'OVERVIEWTXTEND',
             'OVERVIEWTITLESTART', 'OVERVIEWTITLEEND',
             'PARTSTART', 'PARTEND',
             'PARTDESCSTART', 'PARTDESCEND',
             'QTYSTART', 'QTYEND', 'QTVEND',
+        ];
+        $stripPattern = '/\b(?:' . implode('|', $stripTokens) . ')\b/i';
+
+        // Page-header tokens that only ever appear in repeated page headers.
+        // Any line mentioning one of these is guaranteed to be header noise.
+        static $headerTokens = [
             'SITENAMESTART', 'SITENAMEEND',
             'PREPAREDBYSTART', 'PREPAREDBYEND',
             'QUOTENUMSTART', 'QUOTENUMEND',
@@ -2082,7 +2090,7 @@ class QuoteParserService
             'SHIPCOMPSTART', 'SHIPCOMPEND',
             'SHIPADDSTART', 'SHIPADDEND',
         ];
-        $skipPattern = '/\b(?:' . implode('|', $skipTokens) . ')\b/i';
+        $headerPattern = '/\b(?:' . implode('|', $headerTokens) . ')\b/i';
 
         foreach ($lines as $line) {
             // Normalise Unicode whitespace.
@@ -2093,9 +2101,25 @@ class QuoteParserService
                 continue;
             }
 
-            // Skip any line that contains a structural or page-header tag token.
-            if (preg_match($skipPattern, $line)) {
+            // Header-token lines are always noise — drop in full.
+            if (preg_match($headerPattern, $line)) {
                 continue;
+            }
+
+            // Rescue prose that shares a line with section/part tokens.
+            // "OVERVIEWTXTSTART Restaurant will have… OVERVIEWTXTEND" → keep the middle.
+            // "for media play back. A USB… playback. PARTSTART PARTEND … QTYEND" → keep the prefix.
+            // Collapse multi-token spans to a single space so two prose fragments
+            // stay recognisable as two sentences, not concatenated.
+            if (preg_match($stripPattern, $line)) {
+                $line = (string) preg_replace($stripPattern, ' ', $line);
+                $line = trim((string) preg_replace('/\s{2,}/', ' ', $line));
+                // After token stripping, a trailing part-number-shape token
+                // ("2 60005923") may be all that's left on the prose line —
+                // the existing standalone-part-number filter below handles it.
+                if ($line === '') {
+                    continue;
+                }
             }
 
             $clean = $line;

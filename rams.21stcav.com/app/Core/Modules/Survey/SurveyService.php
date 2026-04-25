@@ -115,12 +115,33 @@ class SurveyService
                 ->first();
 
             if ($existing) {
-                if ($supersede) {
-                    $this->supersedeSurvey($existing);
-                } else {
-                    throw new \RuntimeException(
-                        'Project already has an active survey. Use supersede flag to replace it.'
-                    );
+                // If the existing survey hasn't been touched by an engineer
+                // yet, regen has nothing to preserve — discard it instead of
+                // superseding. Without this, every Regen click accumulates an
+                // empty husk in the DB (see survey-15 stranded data incident).
+                // "Touched" = surveyor name set, OR survey_data has any room
+                // with non-default canonical fields, OR any room photo, OR
+                // any pre-install question answered. This deliberately ignores
+                // the av_requirements column because that's seeded by us.
+                if ($supersede && $this->surveyIsUntouched($existing)) {
+                    Log::info('SurveyService: discarding empty existing survey before regen', [
+                        'project_id' => $project->id,
+                        'survey_id'  => $existing->id,
+                    ]);
+                    $existing->rooms()->each(function ($room) {
+                        $this->deleteRoomPhotos($room);
+                        $room->questions()->delete();
+                        $room->delete();
+                    });
+                    $existing->forceDelete();
+                } elseif ($existing) {
+                    if ($supersede) {
+                        $this->supersedeSurvey($existing);
+                    } else {
+                        throw new \RuntimeException(
+                            'Project already has an active survey. Use supersede flag to replace it.'
+                        );
+                    }
                 }
             }
 
@@ -147,10 +168,17 @@ class SurveyService
                 // access_token is auto-generated in SiteSurvey::boot()
             ]);
 
-            // Seed one SiteSurveyRoom per room_overview entry.
+            // Seed one SiteSurveyRoom per room_overview entry. Skip "rooms"
+            // that are actually quote line-items rather than physical spaces
+            // (Cabling, Professional Services, Support Services, etc.) —
+            // engineers don't survey those, and seeding them as rooms wastes
+            // time and clutters the survey wizard.
             foreach ($rooms as $i => $roomData) {
                 $roomName = trim((string) ($roomData['room'] ?? ''));
                 if ($roomName === '') {
+                    continue;
+                }
+                if ($this->isNonPhysicalRoomLabel($roomName)) {
                     continue;
                 }
 
@@ -448,9 +476,22 @@ class SurveyService
      * The full relative path is stored in SiteSurveyPhoto::filename so that
      * SiteSurveyPhoto::storagePath() can address it correctly.
      */
-    public function addPhoto(SiteSurveyRoom $room, UploadedFile $file, ?string $caption = null): SiteSurveyPhoto
+    public function addPhoto(SiteSurveyRoom $room, UploadedFile $file, ?string $category = null, ?string $caption = null): SiteSurveyPhoto
     {
-        $extension = $file->getClientOriginalExtension() ?: 'jpg';
+        // Derive extension from validated MIME type rather than the
+        // client-supplied filename. A polyglot file uploaded as image/jpeg
+        // but named `shell.jpg.php` would otherwise land on disk with a `.php`
+        // extension and become executable if the photos directory ever had
+        // PHP enabled — a latent code-execution path we don't need.
+        $extension = match ($file->getMimeType()) {
+            'image/jpeg'      => 'jpg',
+            'image/png'       => 'png',
+            'image/webp'      => 'webp',
+            'image/gif'       => 'gif',
+            'image/heic',
+            'image/heif'      => 'heic',
+            default           => 'jpg',
+        };
         $basename  = Str::uuid() . '.' . $extension;
 
         // Resolve the survey (may already be loaded as a relationship).
@@ -474,6 +515,7 @@ class SurveyService
             'filename'      => $storedFilename,
             'original_name' => $file->getClientOriginalName(),
             'mime_type'     => $file->getMimeType() ?? 'image/jpeg',
+            'category'      => $category,
             'caption'       => $caption,
             'sort_order'    => $sortOrder,
         ]);
@@ -561,6 +603,105 @@ class SurveyService
             Storage::disk('local')->delete($photo->storagePath());
         }
         $room->photos()->delete();
+    }
+
+    /**
+     * Return true when a room label refers to a quote line-item rather than
+     * a physical space — used by createFromProject() to skip seeding rooms
+     * the engineer cannot physically survey.
+     *
+     * Match is case-insensitive on the trimmed label. Numbered variants
+     * ("Cabling 1", "Professional Services 2") are also matched so quote
+     * imports that expand qty>1 line-items into separate areas don't slip
+     * through.
+     */
+    public function isNonPhysicalRoomLabel(string $name): bool
+    {
+        $needle = strtolower(trim($name));
+        if ($needle === '') return true;
+
+        // Strip any trailing numeric suffix (e.g. "Cabling 1" → "cabling")
+        $needle = preg_replace('/\s+\d+$/', '', $needle);
+
+        static $nonPhysical = [
+            'cabling', 'cables', 'wiring',
+            'consumables', 'consumable',
+            'delivery', 'carriage', 'shipping',
+            'professional services', 'professional service',
+            'support services', 'support service',
+            'service contract', 'service contracts',
+            'warranty', 'warranties',
+            'options', 'option',
+            'licencing', 'licensing', 'licences', 'licenses',
+            'training',
+            'project management', 'pm', 'project manager',
+            'travel', 'travel costs',
+            'rams', 'method statement',
+            'site survey', 'survey',
+        ];
+
+        return in_array($needle, $nonPhysical, true);
+    }
+
+    /**
+     * Return true when an existing survey has nothing engineer-entered on it
+     * yet — used by createFromProject() to discard empty regen targets
+     * instead of superseding them. Anything seeded by us at creation time
+     * (av_requirements, av_equipment_list, default space_type) is ignored.
+     *
+     * Touched signals (any one is enough):
+     *   - surveyor_name set
+     *   - any room has a photo
+     *   - any pre-install question has been answered
+     *   - survey_data has a room with a non-default canonical/ui_state field
+     */
+    public function surveyIsUntouched(SiteSurvey $survey): bool
+    {
+        if (! empty(trim((string) $survey->surveyor_name))) return false;
+
+        if ($survey->rooms()->whereHas('photos')->exists())                       return false;
+        if ($survey->rooms()->whereHas('questions', fn ($q) => $q->whereNotNull('answer'))->exists()) return false;
+
+        $payload = (array) ($survey->survey_data ?? []);
+        foreach ((array) ($payload['rooms'] ?? []) as $room) {
+            if (! is_array($room)) continue;
+
+            // ui_state — any non-default toggle / work_type / voice_note
+            $ui = (array) ($room['ui_state'] ?? []);
+            if (! empty($ui['work_type']))                                return false;
+            if (! empty($ui['voice_note']))                               return false;
+            foreach (['power_available','network_available','access_issues','working_at_height','client_present'] as $k) {
+                if (! empty($ui[$k])) return false;
+            }
+
+            // Canonical capture fields
+            if (! empty(trim((string) ($room['notes'] ?? ''))))           return false;
+
+            // Infrastructure has any non-default value
+            $infra = (array) ($room['infrastructure'] ?? []);
+            $power = (array) ($infra['power'] ?? []);
+            if (! empty($power['socket_locations']) || ! empty($power['distance_to_screen']) || ! empty($power['spare_capacity'])) return false;
+            $net = (array) ($infra['network'] ?? []);
+            if (! empty($net['ports_available']) || ! empty($net['vlan_required']) || ! empty($net['switch_location'])) return false;
+            $cab = (array) ($infra['cable_routes'] ?? []);
+            if (! empty($cab['route_type']) || ! empty($cab['estimated_distance'])) return false;
+
+            // Equipment / risks / constraints / signoff filled
+            if (! empty($room['equipment']))                              return false;
+            foreach ((array) ($room['risks'] ?? []) as $risk) {
+                if (! is_array($risk)) continue;
+                if (! empty($risk['working_height']) && $risk['working_height'] !== '') return false;
+                if (! empty($risk['out_of_hours']) || ! empty($risk['permits_required']) || ! empty($risk['manual_handling_risk'])) return false;
+            }
+            $cons = (array) ($room['constraints'] ?? []);
+            foreach (['obstructions','noise_restrictions','client_constraints','programme_constraints'] as $k) {
+                if (! empty(trim((string) ($cons[$k] ?? '')))) return false;
+            }
+            $so = (array) ($room['signoff'] ?? []);
+            if (! empty($so['engineer_name']) || ! empty($so['engineer_confirmed'])) return false;
+        }
+
+        return true;
     }
 
     /**

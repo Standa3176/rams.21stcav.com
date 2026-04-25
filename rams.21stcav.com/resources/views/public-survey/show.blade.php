@@ -419,7 +419,7 @@
             cursor: pointer;
             margin-bottom: .65rem;
             touch-action: manipulation;
-            min-height: 44px;
+            min-height: 48px;
         }
         .infra-toggle:hover { background: rgba(253,186,116,.35); }
         .infra-panel { display: none; }
@@ -534,7 +534,13 @@
             margin-bottom: .85rem;
         }
         .btn-complete:hover { background: #047857; }
-        .btn-complete:disabled { opacity: .5; cursor: not-allowed; }
+        .btn-complete:disabled,
+        .btn-complete:disabled:hover {
+            background: #9CA3AF;
+            color: rgba(255,255,255,.92);
+            cursor: not-allowed;
+            opacity: 1;
+        }
         .btn-undo-complete {
             display: flex;
             align-items: center;
@@ -579,7 +585,7 @@
             background: none;
             cursor: pointer;
             touch-action: manipulation;
-            min-height: 44px;
+            min-height: 48px;
         }
         .photo-upload-btn:hover { background: #EBF6F7; }
         .photo-file-input { display: none; }
@@ -634,7 +640,7 @@
         .check-item:last-child { border-bottom:none; }
         .check-question { font-size:.875rem; color:#1F2937; line-height:1.5; margin-bottom:.5rem; }
         .check-answers { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:.25rem; }
-        .check-btn { min-height:44px; padding:.45rem 1rem; border-radius:6px; font-size:.82rem; font-weight:700;
+        .check-btn { min-height:48px; padding:.45rem 1rem; border-radius:6px; font-size:.82rem; font-weight:700;
             cursor:pointer; border:1.5px solid #D1D5DB; background:#ffffff; color:#374151; transition:opacity .15s; }
         .check-btn.is-yes  { background:#D1FAE5; border-color:#059669; color:#065F46; }
         .check-btn.is-no   { background:#FEE2E2; border-color:#FCA5A5; color:#991B1B; }
@@ -961,6 +967,7 @@
                     $roomKitItems     = $kitByArea[$room->room_name] ?? [];
                     $roomSolutionType = $solutionTypesByRoom[$room->room_name] ?? null;
                     $checklistLines   = $roomSolutionType ? $roomSolutionType->checklistLines() : [];
+                    $roomPlannedWorks = $plannedWorksByRoom[$room->room_name] ?? [];
                 @endphp
 
                 <div class="room-card" id="room-card-{{ $room->id }}">
@@ -1020,6 +1027,26 @@
                                     @endif
                                 @endif
                             </div>
+                        @endif
+
+                        {{-- ── PLANNED AV WORKS DRAWER (PM-authored scope as bullets) ─── --}}
+                        @if(count($roomPlannedWorks) > 0)
+                        <div class="kit-block">
+                            <button type="button" class="kit-toggle" onclick="toggleKit(this)">
+                                <span style="background:#0B3C45;color:#fff;border-radius:4px;padding:.1rem .45rem;font-size:.7rem;letter-spacing:.04em;flex-shrink:0;">WORKS</span>
+                                <span style="flex:1;">Planned AV Works — {{ count($roomPlannedWorks) }} item{{ count($roomPlannedWorks) !== 1 ? 's' : '' }}</span>
+                                <span class="kit-chevron">&#9660;</span>
+                            </button>
+                            <div class="kit-drawer">
+                                <div class="kit-drawer-inner" style="padding-top:.5rem;">
+                                    <ul style="margin:0;padding-left:1.2rem;font-size:.86rem;color:#1F2937;line-height:1.55;">
+                                        @foreach($roomPlannedWorks as $bullet)
+                                        <li style="margin-bottom:.3rem;">{{ $bullet }}</li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
                         @endif
 
                         {{-- ── KIT LIST DRAWER (at top of room body) ─────────── --}}
@@ -1269,19 +1296,19 @@
                                     <div class="form-grid-2">
                                         <div class="form-group">
                                             <label class="form-label">Width (m)</label>
-                                            <input type="number" name="rooms[{{ $ri }}][room_width_m]" class="form-control"
+                                            <input type="number" inputmode="decimal" name="rooms[{{ $ri }}][room_width_m]" class="form-control"
                                                    value="{{ $room->room_width_m }}"
                                                    {{ $readonly ? 'readonly' : '' }} min="0" max="999" step="0.01">
                                         </div>
                                         <div class="form-group">
                                             <label class="form-label">Depth (m)</label>
-                                            <input type="number" name="rooms[{{ $ri }}][room_depth_m]" class="form-control"
+                                            <input type="number" inputmode="decimal" name="rooms[{{ $ri }}][room_depth_m]" class="form-control"
                                                    value="{{ $room->room_depth_m }}"
                                                    {{ $readonly ? 'readonly' : '' }} min="0" max="999" step="0.01">
                                         </div>
                                         <div class="form-group">
                                             <label class="form-label">Height (m)</label>
-                                            <input type="number" name="rooms[{{ $ri }}][room_height_m]" class="form-control"
+                                            <input type="number" inputmode="decimal" name="rooms[{{ $ri }}][room_height_m]" class="form-control"
                                                    value="{{ $room->room_height_m }}"
                                                    {{ $readonly ? 'readonly' : '' }} min="0" max="99" step="0.01">
                                         </div>
@@ -1296,7 +1323,7 @@
                                         </div>
                                         <div class="form-group">
                                             <label class="form-label">Ceiling Height (m)</label>
-                                            <input type="number" name="rooms[{{ $ri }}][ceiling_height_m]" class="form-control"
+                                            <input type="number" inputmode="decimal" name="rooms[{{ $ri }}][ceiling_height_m]" class="form-control"
                                                    value="{{ $room->ceiling_height_m }}"
                                                    {{ $readonly ? 'readonly' : '' }} min="0" max="99" step="0.01">
                                         </div>
@@ -1320,13 +1347,13 @@
                                         </div>
                                         <div class="form-group">
                                             <label class="form-label">Power Outlets</label>
-                                            <input type="number" name="rooms[{{ $ri }}][power_outlet_count]" class="form-control"
+                                            <input type="number" inputmode="numeric" name="rooms[{{ $ri }}][power_outlet_count]" class="form-control"
                                                    value="{{ $room->power_outlet_count ?? 0 }}"
                                                    {{ $readonly ? 'readonly' : '' }} min="0" max="999" step="1">
                                         </div>
                                         <div class="form-group">
                                             <label class="form-label">Network Ports</label>
-                                            <input type="number" name="rooms[{{ $ri }}][network_port_count]" class="form-control"
+                                            <input type="number" inputmode="numeric" name="rooms[{{ $ri }}][network_port_count]" class="form-control"
                                                    value="{{ $room->network_port_count ?? 0 }}"
                                                    {{ $readonly ? 'readonly' : '' }} min="0" max="999" step="1">
                                         </div>
@@ -1363,7 +1390,7 @@
                                     <div class="form-grid-2">
                                         <div class="form-group">
                                             <label class="form-label">Rack Unit Space (U)</label>
-                                            <input type="number" name="rooms[{{ $ri }}][rack_unit_space]" class="form-control"
+                                            <input type="number" inputmode="numeric" name="rooms[{{ $ri }}][rack_unit_space]" class="form-control"
                                                    value="{{ $room->rack_unit_space }}"
                                                    {{ $readonly ? 'readonly' : '' }} min="0" max="999" step="1">
                                         </div>
@@ -1388,14 +1415,14 @@
                                     <div class="form-grid-2">
                                         <div class="form-group">
                                             <label class="form-label">Projection Throw (m)</label>
-                                            <input type="number" name="rooms[{{ $ri }}][projection_throw_m]" class="form-control"
+                                            <input type="number" inputmode="decimal" name="rooms[{{ $ri }}][projection_throw_m]" class="form-control"
                                                    value="{{ $room->projection_throw_m }}"
                                                    {{ $readonly ? 'readonly' : '' }} min="0" max="999" step="0.01"
                                                    placeholder="e.g. 3.5">
                                         </div>
                                         <div class="form-group">
                                             <label class="form-label">Viewing Distance (m)</label>
-                                            <input type="number" name="rooms[{{ $ri }}][viewing_distance_m]" class="form-control"
+                                            <input type="number" inputmode="decimal" name="rooms[{{ $ri }}][viewing_distance_m]" class="form-control"
                                                    value="{{ $room->viewing_distance_m }}"
                                                    {{ $readonly ? 'readonly' : '' }} min="0" max="999" step="0.01"
                                                    placeholder="e.g. 5.0">
@@ -1458,7 +1485,7 @@
                                 <div class="form-grid-2">
                                     <div class="form-group">
                                         <label class="form-label">Number of Speakers</label>
-                                        <input type="number" name="rooms[{{ $ri }}][speaker_count]" class="form-control"
+                                        <input type="number" inputmode="numeric" name="rooms[{{ $ri }}][speaker_count]" class="form-control"
                                                value="{{ $room->speaker_count }}" min="0" max="999" step="1"
                                                {{ $readonly ? 'readonly' : '' }}>
                                     </div>
@@ -1482,7 +1509,7 @@
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">Background Noise (dB)</label>
-                                        <input type="number" name="rooms[{{ $ri }}][bg_noise_db]" class="form-control"
+                                        <input type="number" inputmode="numeric" name="rooms[{{ $ri }}][bg_noise_db]" class="form-control"
                                                value="{{ $room->bg_noise_db }}" min="0" max="120" step="1"
                                                placeholder="Measured dB(A)" {{ $readonly ? 'readonly' : '' }}>
                                     </div>
@@ -1499,7 +1526,7 @@
                                 <div class="form-grid-2">
                                     <div class="form-group">
                                         <label class="form-label">Display Size (inches)</label>
-                                        <input type="number" name="rooms[{{ $ri }}][display_size_in]" class="form-control"
+                                        <input type="number" inputmode="decimal" name="rooms[{{ $ri }}][display_size_in]" class="form-control"
                                                value="{{ $room->display_size_in }}" min="0" max="999" step="0.1"
                                                placeholder="e.g. 55, 75, 86" {{ $readonly ? 'readonly' : '' }}>
                                     </div>
@@ -1667,8 +1694,11 @@
                             @else
                             <button type="button"
                                     class="btn-complete"
+                                    id="complete-btn-{{ $room->id }}"
+                                    data-room-id="{{ $room->id }}"
+                                    disabled
                                     onclick="completeRoom({{ $room->id }}, '{{ $completeUrl }}', this)">
-                                ✓ Mark Room Complete
+                                Enter Answers
                             </button>
                             @endif
                         </div>
@@ -1983,8 +2013,15 @@
             const area       = document.getElementById('complete-area-' + roomId);
             const completeUrl = url.replace('/uncomplete', '/complete');
             area.innerHTML = `<button type="button" class="btn-complete"
+                id="complete-btn-${roomId}"
+                data-room-id="${roomId}"
+                disabled
                 onclick="completeRoom(${roomId}, '${completeUrl}', this)">
-                ✓ Mark Room Complete</button>`;
+                Enter Answers</button>`;
+            // Re-run gating so the button reflects current form state immediately.
+            if (typeof updateCompleteButtonState === 'function') {
+                updateCompleteButtonState(roomId);
+            }
         })
         .catch(() => alert('Could not update. Please try again.'));
     }
@@ -2075,12 +2112,88 @@
 
             statusEl.textContent = '✓ Photo added.';
             setTimeout(() => statusEl.textContent = '', 2500);
+            // A new photo counts as engineer input — re-evaluate room gate.
+            if (typeof updateCompleteButtonState === 'function') {
+                updateCompleteButtonState(roomId);
+            }
         } catch (e) {
             statusEl.textContent = '⚠ Upload failed. Please try again.';
         }
 
         input.value = '';
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Mark Room Complete — gated on at least one engineer-entered answer.
+    // Disabled state shows "Enter Answers" in grey; enabled state shows the
+    // normal "✓ Mark Room Complete". The "Update Room Data" variant (shown
+    // once a room is already complete) is not gated — that's an edit flow.
+    // ═══════════════════════════════════════════════════════════════════════
+    function hasAnyRoomAnswer(body) {
+        if (!body) return false;
+
+        // Pre-install checks with a yes/no/other state
+        if (body.querySelector('.check-btn.is-yes, .check-btn.is-no, .check-btn.is-other')) return true;
+
+        // Any free-text/number/date input with a real value
+        const textyInputs = body.querySelectorAll(
+            'input[type="text"], input[type="number"], input[type="date"], input[type="time"], textarea, select'
+        );
+        for (const el of textyInputs) {
+            if (!el.name) continue;
+            if (el.name.includes('[id]')) continue;          // hidden room_id
+            if (el.type === 'hidden') continue;               // sync/aux hidden inputs
+            const v = (el.value || '').trim();
+            if (v !== '' && v !== '0') return true;
+        }
+
+        // Any user-toggled checkbox. Skip the 0-value "sync hidden" siblings.
+        const checkedBoxes = body.querySelectorAll('input[type="checkbox"]:checked');
+        for (const el of checkedBoxes) {
+            if (el.value === '0') continue;
+            return true;
+        }
+
+        // Any radio selected
+        if (body.querySelector('input[type="radio"]:checked')) return true;
+
+        // Any photo already uploaded
+        if (body.querySelector('.photo-thumb')) return true;
+
+        return false;
+    }
+
+    function updateCompleteButtonState(roomId) {
+        const btn  = document.getElementById('complete-btn-' + roomId);
+        if (!btn) return; // not present when the room is already complete (Update/Undo mode)
+
+        const body = document.getElementById('room-body-' + roomId);
+        const ready = hasAnyRoomAnswer(body);
+
+        btn.disabled     = !ready;
+        btn.textContent  = ready ? '✓ Mark Room Complete' : 'Enter Answers';
+    }
+
+    (function wireRoomGating() {
+        // Run once on page load and whenever anything in a room card changes.
+        document.querySelectorAll('.room-card').forEach(card => {
+            const id = (card.id || '').replace('room-card-', '');
+            if (!id) return;
+            updateCompleteButtonState(id);
+
+            const body = document.getElementById('room-body-' + id);
+            if (!body) return;
+
+            const handler = () => updateCompleteButtonState(id);
+            body.addEventListener('input',  handler);
+            body.addEventListener('change', handler);
+            // .check-btn uses onclick + a short fetch delay before applying is-* class,
+            // so re-run gating shortly after a click inside the pre-install checks.
+            body.addEventListener('click', (e) => {
+                if (e.target.closest('.check-btn')) setTimeout(() => updateCompleteButtonState(id), 150);
+            });
+        });
+    })();
 </script>
 @endif
 

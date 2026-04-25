@@ -13,6 +13,7 @@ class SiteSurveyPhoto extends Model
         'filename',
         'original_name',
         'mime_type',
+        'category',
         'caption',
         'sort_order',
     ];

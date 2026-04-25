@@ -830,6 +830,99 @@ class QuoteParserServiceTest extends TestCase
         $this->assertSame(1, $result['equipment'][1]['qty']);
     }
 
+    public function test_overview_text_preserved_when_sharing_line_with_section_tokens(): void
+    {
+        // Regression test for the 21CQ30069 Restaurant Display defect where the
+        // quote's short 2-sentence overview ended up losing its first sentence
+        // because tight PDF word-wrap placed the prose on the same extracted
+        // line as OVERVIEWTXTSTART/END and PARTSTART tags. The fallback line
+        // extractor was dropping any line that contained a structural token,
+        // so the prose prefix was lost even though Step 1's between-markers
+        // regex should have rescued it. Lock in the fix.
+        $text = implode("\n", [
+            'SITENAMESTART Example Client SITENAMEEND',
+            'OVERVIEWTITLESTART Restaurant Display OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART The Restaurant Area will have 2 x NEC 55" MultiSync ME552 Displays wall mounted and shall use the integrated USB connection OVERVIEWTXTEND',
+            'for media play back. A USB- A male to female extension will allow easy input of a USB device for media playback. PARTSTART PARTEND PARTDESCSTART PARTDESCEND QTYSTART 2 60005923 QTYEND',
+            'Sharp 55" Multisync ME552 Commercial Display',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        // The rescued overview must contain BOTH the in-markers first sentence
+        // AND the post-marker continuation prose.
+        $overviews = $result['room_overviews'] ?? [];
+        $this->assertNotEmpty($overviews, 'room_overviews should include the Restaurant Display section');
+
+        $restaurant = null;
+        foreach ($overviews as $ro) {
+            if (trim((string) ($ro['room'] ?? '')) === 'Restaurant Display') {
+                $restaurant = $ro;
+                break;
+            }
+        }
+        $this->assertNotNull($restaurant, 'Restaurant Display overview must be present');
+
+        $overview = (string) ($restaurant['overview'] ?? '');
+        $this->assertStringContainsString(
+            'The Restaurant Area will have',
+            $overview,
+            'First sentence (between OVERVIEWTXT markers) must survive parsing'
+        );
+        $this->assertStringContainsString(
+            'for media play back',
+            $overview,
+            'Continuation after OVERVIEWTXTEND but on same line as PARTSTART must survive'
+        );
+        $this->assertStringContainsString(
+            'USB- A male to female extension',
+            $overview,
+            'Full continuation prose must be preserved'
+        );
+
+        // Tag tokens themselves must NOT appear in the output.
+        $this->assertStringNotContainsString('OVERVIEWTXT',   $overview);
+        $this->assertStringNotContainsString('PARTSTART',     $overview);
+        $this->assertStringNotContainsString('PARTDESCSTART', $overview);
+        $this->assertStringNotContainsString('QTYSTART',      $overview);
+    }
+
+    public function test_header_token_lines_are_dropped_not_leaked_into_section_text(): void
+    {
+        // Defensive test: header tokens (SHIP*, SITENAME*, etc.) must never
+        // be rescued by the same logic that preserves prose around section
+        // tokens. A line like "SHIPCONTSTART Lizzie Thorpe SHIPCONTEND" must
+        // NOT leak "Lizzie Thorpe" into a section overview, even if it falls
+        // inside a section's raw text window due to page-break layout.
+        $text = implode("\n", [
+            'OVERVIEWTITLESTART Meeting Room OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART Install a display and mount OVERVIEWTXTEND',
+            // Simulated page-header spill inside the section window
+            'SHIPCONTSTART Lizzie Thorpe SHIPCONTEND',
+            'SITENAMESTART Volkswagen National Learning Centre SITENAMEEND',
+            'Additional scope note on second line.',
+            'PARTSTART LHBSW PARTEND PARTDESCSTART Samsung Display PARTDESCEND QTYSTART 1 QTYEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $overviews = $result['room_overviews'] ?? [];
+        $meetingRoom = null;
+        foreach ($overviews as $ro) {
+            if (trim((string) ($ro['room'] ?? '')) === 'Meeting Room') {
+                $meetingRoom = $ro;
+                break;
+            }
+        }
+        $this->assertNotNull($meetingRoom);
+
+        $overview = (string) ($meetingRoom['overview'] ?? '');
+        $this->assertStringContainsString('Install a display and mount', $overview);
+        $this->assertStringContainsString('Additional scope note',        $overview);
+        $this->assertStringNotContainsString('Lizzie Thorpe',             $overview);
+        $this->assertStringNotContainsString('Volkswagen National',       $overview);
+    }
+
     public function test_tagged_equipment_deduplicates_same_area_and_part_number(): void
     {
         $text = implode("\n", [

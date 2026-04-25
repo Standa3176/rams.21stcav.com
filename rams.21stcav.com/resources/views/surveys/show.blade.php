@@ -182,12 +182,27 @@
 
                 {{-- Job context — per-room planned works, quote kit, and
                      checklist guidance count. Read-only, informational. --}}
-                <template x-if="room._ctx && (room._ctx.av_requirements || room._ctx.av_equipment_list || room._ctx.question_count > 0)">
+                <template x-if="room._ctx && (room._ctx.av_requirements || room._ctx.av_equipment_list || room._ctx.question_count > 0 || (room._ctx.checklist_lines && room._ctx.checklist_lines.length > 0))">
                     <div class="px-4 pb-3 pt-2 border-t border-gray-100 bg-gray-50/60 text-xs space-y-2">
                         <template x-if="room._ctx.av_requirements">
                             <div>
                                 <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Planned AV works</p>
                                 <p class="text-gray-700 mt-0.5 leading-snug" x-text="room._ctx.av_requirements"></p>
+                            </div>
+                        </template>
+                        <template x-if="room._ctx.checklist_lines && room._ctx.checklist_lines.length > 0">
+                            <div>
+                                <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                                    Reference checklist
+                                    <template x-if="room._ctx.solution_type_name">
+                                        <span class="text-gray-400 normal-case font-normal">— <span x-text="room._ctx.solution_type_name"></span></span>
+                                    </template>
+                                </p>
+                                <ul class="list-disc pl-4 mt-0.5 text-gray-700 space-y-0.5">
+                                    <template x-for="(line, li) in room._ctx.checklist_lines" :key="li">
+                                        <li class="leading-snug" x-text="line"></li>
+                                    </template>
+                                </ul>
                             </div>
                         </template>
                         <template x-if="room._ctx.av_equipment_list">
@@ -281,6 +296,37 @@
 
         {{-- ── STEP 1: ROOM CONTEXT ────────────────────────────── --}}
         <x-survey.step-container :step="1">
+
+            {{-- Reference checklist — collapsible. Pulled from the office
+                 master checklist for this room's solution type. Engineers
+                 cross-reference against it as they capture data. --}}
+            <template x-if="currentRoom?._ctx?.checklist_lines?.length > 0">
+                <details class="bg-amber-50 border border-amber-200 rounded-2xl overflow-hidden"
+                         x-data="{ open: false }">
+                    <summary @click.prevent="open = !open"
+                             class="px-4 py-3 cursor-pointer select-none flex items-center justify-between text-sm">
+                        <span class="font-semibold text-amber-900">
+                            📋 Reference checklist
+                            <template x-if="currentRoom?._ctx?.solution_type_name">
+                                <span class="text-amber-700 font-normal">— <span x-text="currentRoom._ctx.solution_type_name"></span></span>
+                            </template>
+                            <span class="text-amber-700 font-normal text-xs ml-1"
+                                  x-text="'(' + (currentRoom?._ctx?.checklist_lines?.length || 0) + ' items)'"></span>
+                        </span>
+                        <span class="text-amber-700 text-xs" x-text="open ? '▲' : '▼'"></span>
+                    </summary>
+                    <div x-show="open" x-cloak class="px-4 pb-3 border-t border-amber-200 bg-amber-50">
+                        <p class="text-xs text-amber-800 mt-2 mb-2 italic leading-snug">
+                            Office master checklist — verify these as you capture data below.
+                        </p>
+                        <ul class="list-disc pl-5 text-sm text-amber-900 space-y-1 leading-snug">
+                            <template x-for="(line, li) in currentRoom._ctx.checklist_lines" :key="li">
+                                <li x-text="line"></li>
+                            </template>
+                        </ul>
+                    </div>
+                </details>
+            </template>
 
             {{-- Room name (canonical: name) --}}
             <div class="bg-white rounded-2xl p-4 shadow-sm">
@@ -763,6 +809,35 @@ function surveyWizard() {
         //        + _ui block (UI-only fields: room_id, is_completed, work_type, quick_notes, etc.)
         rooms: @json($rooms),
 
+        // ── Init — set up debounced autosave on toggle / selection changes
+        //          so engineers don't lose Step 2 toggles or Step 1 work_type
+        //          when they reload mid-step without clicking Next.
+        // ──────────────────────────────────────────────────────────────────────
+        _autosaveTimer: null,
+
+        init() {
+            const watchedFields = [
+                'work_type', 'voice_note', 'quick_notes',
+                'power_available', 'network_available',
+                'access_issues', 'working_at_height', 'client_present',
+            ];
+            this.rooms.forEach((_, idx) => {
+                watchedFields.forEach(f => {
+                    this.$watch(`rooms.${idx}._ui.${f}`, () => this.debouncedAutosave());
+                });
+            });
+        },
+
+        debouncedAutosave() {
+            if (this._autosaveTimer) clearTimeout(this._autosaveTimer);
+            this._autosaveTimer = setTimeout(() => {
+                // Only fire when actively editing a room and not read-only.
+                if (this.screen === 'step' && this.currentRoom && !this.readonly) {
+                    this.autosave();
+                }
+            }, 600);
+        },
+
         // ── Computed ──────────────────────────────────────────────────────────
         get currentRoom() {
             return this.currentRoomIdx !== null ? this.rooms[this.currentRoomIdx] : null;
@@ -881,13 +956,28 @@ function surveyWizard() {
 
             switch (step) {
                 case 1:
-                    // Canonical: name, type only. _ui.work_type is not sent.
-                    data = { name: r.name, type: r.type };
+                    // name + type are canonical room fields.
+                    // work_type is persisted into canonical ui_state so the
+                    // engineer's Step 1 selection survives a reload.
+                    data = {
+                        name:      r.name,
+                        type:      r.type,
+                        work_type: r._ui.work_type ?? '',
+                    };
                     break;
                 case 2:
                     // quick_notes maps to canonical notes server-side.
-                    // Toggles and voice_note are UI-only and not sent.
-                    data = { quick_notes: r._ui.quick_notes };
+                    // Toggles + voice_note are persisted into canonical
+                    // ui_state so reload restores the engineer's selections.
+                    data = {
+                        quick_notes:       r._ui.quick_notes,
+                        power_available:   !! r._ui.power_available,
+                        network_available: !! r._ui.network_available,
+                        access_issues:     !! r._ui.access_issues,
+                        working_at_height: !! r._ui.working_at_height,
+                        client_present:    !! r._ui.client_present,
+                        voice_note:        r._ui.voice_note ?? null,
+                    };
                     break;
                 case 3:
                     // Sync current photo list (from DB, hydrated on page load) to canonical payload.
@@ -919,8 +1009,25 @@ function surveyWizard() {
 
         // ── Mark room complete ────────────────────────────────────────────────
         async markRoomComplete() {
-            await this.autosave();
             const r = this.currentRoom;
+
+            // Photo gate — soft-block if no photos uploaded.
+            // Engineers consistently skip photos when rushing; that costs
+            // the office downstream because they have no visual record of
+            // the room state. Confirm-dialog warning, NOT a hard block —
+            // some surveys (e.g. cabling-only routes) genuinely have no
+            // photo subject. Engineer can override.
+            const photoCount = Array.isArray(r.photos) ? r.photos.length : 0;
+            if (photoCount === 0) {
+                const proceed = window.confirm(
+                    'No photos have been captured for this room.\n\n' +
+                    'Photos are critical for the office to plan the install ' +
+                    'without a return visit. Continue without photos?'
+                );
+                if (!proceed) return;
+            }
+
+            await this.autosave();
             try {
                 const resp = await fetch(
                     '/survey/' + this.token + '/rooms/' + r._ui.room_id + '/complete',
@@ -960,8 +1067,8 @@ function surveyWizard() {
             if (!file) return;
             const category = input.dataset.category || '';
             const formData = new FormData();
-            formData.append('photo',   file);
-            formData.append('caption', category);
+            formData.append('photo',    file);
+            formData.append('category', category);
             try {
                 const resp = await fetch(
                     '/survey/' + this.token + '/rooms/' + roomId + '/photos',
@@ -975,14 +1082,36 @@ function surveyWizard() {
                 );
                 const res = await resp.json();
                 if (res.id && this.currentRoom) {
-                    // Push into canonical photos array with consistent {type, file_path} shape.
+                    // Push into canonical photos array with full shape so the
+                    // caption editor can mutate it without a page reload.
                     this.rooms[this.currentRoomIdx].photos.push({
-                        type:      res.caption ?? category,
+                        id:        res.id,
+                        type:      res.category ?? category,
+                        caption:   res.caption ?? '',
                         file_path: res.url ?? '',
                     });
                 }
             } catch (_) {}
             input.value = '';
+        },
+
+        // ── Photo caption ─────────────────────────────────────────────────────
+        async savePhotoCaption(photo, value) {
+            if (!photo || !photo.id) return;
+            const next = (value ?? '').trim();
+            if ((photo.caption ?? '') === next) return;
+            photo.caption = next;
+            try {
+                await fetch('/survey/' + this.token + '/photos/' + photo.id, {
+                    method:  'PATCH',
+                    headers: {
+                        'Content-Type':   'application/json',
+                        'Accept':         'application/json',
+                        'X-CSRF-TOKEN':   document.querySelector('meta[name="csrf-token"]').content,
+                    },
+                    body: JSON.stringify({ caption: next }),
+                });
+            } catch (_) {}
         },
 
         // ── Final submit ──────────────────────────────────────────────────────

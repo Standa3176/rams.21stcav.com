@@ -196,6 +196,21 @@ class SurveyController extends Controller
                 'engineer_confirmed'  => false,
                 'signed_at'           => null,
             ],
+            // UI selections that need to survive a page reload but aren't
+            // captured by other canonical fields. Initially these were
+            // marked "UI-only / never persisted" — that meant work_type,
+            // power_available, network_available and client_present always
+            // came back blank when an engineer reopened the survey.
+            // Stored here so reload restores what the engineer chose.
+            'ui_state' => [
+                'work_type'         => '',     // new_install|upgrade|retrofit|fault_repair
+                'power_available'   => false,
+                'network_available' => false,
+                'access_issues'     => false,
+                'working_at_height' => false,
+                'client_present'    => false,
+                'voice_note'        => null,
+            ],
         ];
     }
 
@@ -216,6 +231,47 @@ class SurveyController extends Controller
     {
         $alpineRooms = [];
 
+        // Pull the project's latest-package scope data once. We use it to
+        // replace stale av_requirements column values that were seeded at
+        // room-creation time but never refreshed when a quote is re-extracted.
+        // Priority for "Planned AV Works" text:
+        //   1. Per-room AI-cleaned description / works_summary / overview
+        //   2. Project-level works_overview / scope_of_works
+        //   3. The room's stored av_requirements column (legacy, often stale)
+        $packageRoomScopes = []; // canonical-lower-name → cleanest scope text
+        $projectScope      = '';
+        if ($survey->project_id) {
+            $project = \App\Models\Project::with('latestPackage')->find($survey->project_id);
+            $rd = (array) ($project?->latestPackage?->reviewed_data  ?? []);
+            $ed = (array) ($project?->latestPackage?->extracted_data ?? []);
+
+            $projectScope = trim((string) (
+                $rd['works_overview']  ??
+                $ed['works_overview']  ??
+                $rd['scope_of_works']  ??
+                $ed['scope_of_works']  ??
+                ''
+            ));
+
+            $roSource = ! empty($rd['room_overviews'])
+                ? (array) $rd['room_overviews']
+                : (array) ($ed['room_overviews'] ?? []);
+
+            foreach ($roSource as $ro) {
+                if (! is_array($ro)) continue;
+                $name = trim((string) ($ro['room'] ?? $ro['room_name'] ?? $ro['name'] ?? ''));
+                if ($name === '') continue;
+
+                $text = '';
+                foreach (['description', 'works_summary', 'overview', 'scope'] as $field) {
+                    $candidate = trim((string) ($ro[$field] ?? ''));
+                    if ($candidate !== '') { $text = $candidate; break; }
+                }
+
+                $packageRoomScopes[strtolower($name)] = $text;
+            }
+        }
+
         foreach ($survey->rooms as $idx => $dbRoom) {
             $canonical = $payload['rooms'][$idx]
                 ?? $this->emptyCanonicalRoom((string) ($dbRoom->room_name ?? ''));
@@ -231,9 +287,16 @@ class SurveyController extends Controller
                 ]];
             }
 
-            // Photos from DB are authoritative (uploaded via PublicSurveyController)
+            // Photos from DB are authoritative (uploaded via PublicSurveyController).
+            // `type` is the system category slug used by the wizard to filter into
+            // the right thumbnail group. `caption` is the engineer-supplied
+            // free-text annotation (added post-Phase-15 for inspection clarity).
+            // Legacy rows without a `category` fall back to `caption` since the
+            // category slug used to live there before the migration split them.
             $photos = $dbRoom->photos->map(fn ($p) => [
-                'type'      => $p->caption ?? '',
+                'id'        => $p->id,
+                'type'      => $p->category ?? $p->caption ?? '',
+                'caption'   => $p->category ? ($p->caption ?? '') : '',
                 'file_path' => route('survey.photos.serve', [
                     'token' => $token,
                     'photo' => $p->id,
@@ -247,39 +310,64 @@ class SurveyController extends Controller
             // never written back to survey_data.
             $questions = $dbRoom->relationLoaded('questions') ? $dbRoom->questions : collect();
 
+            // Pick the cleanest "Planned AV Works" text available for this room.
+            // The DB column $dbRoom->av_requirements is seeded at room creation
+            // and goes stale when a quote is re-extracted with parser fixes —
+            // prefer the live package data, fall back to the column, then to
+            // project-level scope when nothing room-specific is meaningful.
+            $columnAv     = trim((string) ($dbRoom->av_requirements ?? ''));
+            $packageAv    = $packageRoomScopes[strtolower((string) $dbRoom->room_name)] ?? '';
+            $plannedWorks = $columnAv;
+            if (strlen($packageAv) > strlen($plannedWorks)) {
+                $plannedWorks = $packageAv;
+            }
+            // If still short / fragmentary, prefer the project-wide scope.
+            if (strlen(trim($plannedWorks)) < 60 && $projectScope !== '') {
+                $plannedWorks = $projectScope;
+            }
+
             $alpineRooms[] = array_merge($canonical, [
                 'photos' => $photos ?: $canonical['photos'],
 
                 // ── Job context — read-only per-room planning data from DB.
                 // Never written back to survey_data; informational only.
                 '_ctx' => [
-                    'av_requirements'   => (string) ($dbRoom->av_requirements ?? ''),
-                    'av_equipment_list' => (string) ($dbRoom->av_equipment_list ?? ''),
-                    'question_count'    => $questions->count(),
-                    'questions'         => $questions->map(fn ($q) => [
+                    'av_requirements'    => $plannedWorks,
+                    'av_equipment_list'  => (string) ($dbRoom->av_equipment_list ?? ''),
+                    'question_count'     => $questions->count(),
+                    'questions'          => $questions->map(fn ($q) => [
                         'question' => (string) $q->question,
                         'answered' => $q->answer !== null && $q->answer !== '',
                     ])->values()->toArray(),
+                    // Solution-type reference checklist — what the office
+                    // master checklist says an engineer should verify for
+                    // this kind of room. Engineers cross-reference against
+                    // this without leaving the wizard.
+                    'solution_type_name' => $this->resolveSolutionTypeName($dbRoom),
+                    'checklist_lines'    => $this->resolveSolutionChecklist($dbRoom),
                 ],
 
-                // ── UI-only block — never written to survey_data ──────────────
+                // ── UI block — most values now seeded from canonical
+                //     ui_state so a reload restores the engineer's selections.
+                //     room_id and is_completed remain from the DB row.
                 '_ui' => [
                     'room_id'          => $dbRoom->id,
                     'is_completed'     => (bool) $dbRoom->is_completed,
 
-                    // Step 1 logic state — not canonical
-                    'work_type'        => '',
+                    // Step 1 logic state — persisted to canonical ui_state
+                    'work_type'        => (string) ($canonical['ui_state']['work_type'] ?? ''),
 
-                    // Step 2 capture fields — map to canonical notes on save
-                    'voice_note'       => null,
+                    // Step 2 capture fields
+                    'voice_note'       =>          ($canonical['ui_state']['voice_note'] ?? null) ?: null,
                     'quick_notes'      => $canonical['notes'],
 
-                    // Step 2 toggles — not canonical
-                    'power_available'  => (bool) ($dbRoom->has_power  ?? false),
-                    'network_available'=> (bool) ($dbRoom->has_network ?? false),
-                    'access_issues'    => false,
-                    'working_at_height'=> false,
-                    'client_present'   => false,
+                    // Step 2 toggles — now persisted to canonical ui_state so
+                    // they actually survive page reloads.
+                    'power_available'  => (bool) ($canonical['ui_state']['power_available']  ?? false),
+                    'network_available'=> (bool) ($canonical['ui_state']['network_available']?? false),
+                    'access_issues'    => (bool) ($canonical['ui_state']['access_issues']    ?? false),
+                    'working_at_height'=> (bool) ($canonical['ui_state']['working_at_height']?? false),
+                    'client_present'   => (bool) ($canonical['ui_state']['client_present']   ?? false),
 
                     // Step 7 constraints — seeded from canonical survey_data
                     // so a reload after stepSave shows what was captured.
@@ -303,6 +391,35 @@ class SurveyController extends Controller
         }
 
         return $alpineRooms;
+    }
+
+    /**
+     * Resolve the solution type name for a survey room. Looks up the
+     * matching SolutionType by the room's space_type slug. Returns empty
+     * string if no match — the wizard then suppresses the reference panel.
+     */
+    private function resolveSolutionTypeName(\App\Models\SiteSurveyRoom $room): string
+    {
+        $slug = trim((string) ($room->space_type ?? ''));
+        if ($slug === '' || $slug === 'general') return '';
+        $st = \App\Models\SolutionType::where('slug', $slug)->first();
+        return $st?->name ?? '';
+    }
+
+    /**
+     * Resolve the solution-type reference checklist for a survey room. The
+     * checklist is the office master list of what to verify for this kind
+     * of room — engineers cross-reference against it as they capture data
+     * in the wizard. Returns an array of trimmed lines, empty when no match.
+     *
+     * @return array<int, string>
+     */
+    private function resolveSolutionChecklist(\App\Models\SiteSurveyRoom $room): array
+    {
+        $slug = trim((string) ($room->space_type ?? ''));
+        if ($slug === '' || $slug === 'general') return [];
+        $st = \App\Models\SolutionType::where('slug', $slug)->first();
+        return $st?->checklistLines() ?? [];
     }
 
     // ── Private — step validation ─────────────────────────────────────────────
@@ -430,18 +547,36 @@ class SurveyController extends Controller
     {
         switch ($step) {
             case 1:
-                // Canonical: name, type only. work_type is UI-only — discarded.
+                // Canonical: name, type, and ui_state.work_type so the
+                // engineer's Step 1 selection survives a reload.
                 if (array_key_exists('name', $data)) {
                     $room['name'] = (string) $data['name'];
                 }
                 if (array_key_exists('type', $data)) {
                     $room['type'] = (string) $data['type'];
                 }
+                if (array_key_exists('work_type', $data)) {
+                    $room['ui_state'] = (array) ($room['ui_state'] ?? []);
+                    $room['ui_state']['work_type'] = (string) $data['work_type'];
+                }
                 break;
 
             case 2:
-                // Canonical: notes = quick_notes. All toggles/voice_note are UI-only.
-                $room['notes'] = (string) ($data['quick_notes'] ?? $room['notes'] ?? '');
+                // Canonical: notes = quick_notes, plus the Step 2 toggles
+                // (power_available, network_available, access_issues,
+                // working_at_height, client_present, voice_note) preserved
+                // in ui_state so reload restores the engineer's selections.
+                $room['notes']    = (string) ($data['quick_notes'] ?? $room['notes'] ?? '');
+                $room['ui_state'] = (array)  ($room['ui_state']    ?? []);
+                foreach (['power_available','network_available','access_issues','working_at_height','client_present'] as $k) {
+                    if (array_key_exists($k, $data)) {
+                        $room['ui_state'][$k] = (bool) $data[$k];
+                    }
+                }
+                if (array_key_exists('voice_note', $data)) {
+                    $v = $data['voice_note'];
+                    $room['ui_state']['voice_note'] = ($v === '' || $v === null) ? null : (string) $v;
+                }
                 break;
 
             case 3:
@@ -537,7 +672,8 @@ class SurveyController extends Controller
      */
     private function enforceCanonicalShape(array $room): array
     {
-        $signoff = is_array($room['signoff'] ?? null) ? $room['signoff'] : [];
+        $signoff = is_array($room['signoff']  ?? null) ? $room['signoff']  : [];
+        $ui      = is_array($room['ui_state'] ?? null) ? $room['ui_state'] : [];
         return [
             'name'           => (string) ($room['name']  ?? ''),
             'type'           => (string) ($room['type']  ?? ''),
@@ -551,6 +687,15 @@ class SurveyController extends Controller
                 'engineer_name'      => (string) ($signoff['engineer_name']      ?? ''),
                 'engineer_confirmed' => (bool)   ($signoff['engineer_confirmed'] ?? false),
                 'signed_at'          =>          ($signoff['signed_at']          ?? null) ?: null,
+            ],
+            'ui_state'       => [
+                'work_type'         => (string) ($ui['work_type']        ?? ''),
+                'power_available'   => (bool)   ($ui['power_available']  ?? false),
+                'network_available' => (bool)   ($ui['network_available']?? false),
+                'access_issues'     => (bool)   ($ui['access_issues']    ?? false),
+                'working_at_height' => (bool)   ($ui['working_at_height']?? false),
+                'client_present'    => (bool)   ($ui['client_present']   ?? false),
+                'voice_note'        =>          ($ui['voice_note']       ?? null) ?: null,
             ],
         ];
     }
@@ -591,7 +736,9 @@ class SurveyController extends Controller
                 continue;
             }
             $out[] = [
+                'id'        =>           $p['id']        ?? null,
                 'type'      => (string) ($p['type']      ?? ''),
+                'caption'   => (string) ($p['caption']   ?? ''),
                 'file_path' => $filePath,
             ];
         }

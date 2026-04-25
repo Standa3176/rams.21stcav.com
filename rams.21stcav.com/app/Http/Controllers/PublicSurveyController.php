@@ -53,9 +53,11 @@ class PublicSurveyController extends Controller
         // each room card on the public form can show the quote kit list.
         $kitByArea            = [];
         $solutionTypesByRoom  = []; // room_name → SolutionType
+        $plannedWorksByRoom   = []; // room_name → array<int,string> of bullet lines
         if ($survey->project_id) {
             $project = Project::with('latestPackage')->find($survey->project_id);
             $extractedData = $project?->latestPackage?->extracted_data ?? [];
+            $reviewedData  = $project?->latestPackage?->reviewed_data  ?? [];
 
             foreach ((array) ($extractedData['equipment'] ?? []) as $item) {
                 if (! is_array($item)) {
@@ -89,6 +91,69 @@ class PublicSurveyController extends Controller
                     }
                 }
             }
+
+            // Build planned-works-as-bullets lookup. We pick the cleanest
+            // available source per room, with fallback to project-level scope:
+            //   1. room_overviews[N]['description']    — AI-cleaned per-room prose
+            //   2. room_overviews[N]['works_summary']  — PM-curated short summary
+            //   3. room_overviews[N]['overview']       — raw extracted per-room
+            //   4. project-level works_overview        — formal project-wide scope
+            //   5. project-level scope_of_works        — fallback formal scope
+            // The room-level fallthrough handles projects where the per-room
+            // overview is fragmentary (e.g. tight-wrap PDF extraction artifacts);
+            // the project-level scope is always cleaner AI-generated text.
+            $projectScope = trim((string) (
+                $reviewedData['works_overview']  ??
+                $extractedData['works_overview'] ??
+                $reviewedData['scope_of_works']  ??
+                $extractedData['scope_of_works'] ??
+                ''
+            ));
+
+            $roSource = ! empty($reviewedData['room_overviews'])
+                ? (array) $reviewedData['room_overviews']
+                : (array) ($extractedData['room_overviews'] ?? []);
+
+            foreach ($roSource as $ro) {
+                if (! is_array($ro)) continue;
+                $name = trim((string) ($ro['room'] ?? $ro['room_name'] ?? $ro['name'] ?? ''));
+                if ($name === '') continue;
+
+                // Try room-level sources, in cleanest-first order
+                $text = '';
+                foreach (['description', 'works_summary', 'overview', 'scope'] as $field) {
+                    $candidate = trim((string) ($ro[$field] ?? ''));
+                    if ($candidate !== '') {
+                        $text = $candidate;
+                        break;
+                    }
+                }
+
+                // If nothing room-level — or what we have is suspiciously short
+                // / fragmentary (single sentence-fragment under 60 chars) — fall
+                // back to the project-wide scope statement.
+                if (strlen($text) < 60 && $projectScope !== '') {
+                    $text = $projectScope;
+                }
+
+                if (trim($text) === '') continue;
+                $bullets = $this->textToBullets($name, $text);
+                if (! empty($bullets)) {
+                    $plannedWorksByRoom[$name] = $bullets;
+                }
+            }
+
+            // If the loop produced nothing (no room_overviews entries) but a
+            // project-level scope exists, seed each survey room with it so the
+            // engineer sees something useful in the WORKS panel.
+            if (empty($plannedWorksByRoom) && $projectScope !== '') {
+                foreach ($survey->rooms as $room) {
+                    $bullets = $this->textToBullets($room->room_name, $projectScope);
+                    if (! empty($bullets)) {
+                        $plannedWorksByRoom[$room->room_name] = $bullets;
+                    }
+                }
+            }
         }
 
         $tierOne = $this->tierOne->assessSurvey($survey);
@@ -99,8 +164,52 @@ class PublicSurveyController extends Controller
             'readonly'             => $survey->isSubmitted(),
             'kitByArea'            => $kitByArea,
             'solutionTypesByRoom'  => $solutionTypesByRoom,
+            'plannedWorksByRoom'   => $plannedWorksByRoom,
             'tierOne'              => $tierOne,
         ]);
+    }
+
+    /**
+     * Convert a PM-authored prose overview into a clean bullet list for the
+     * public survey page. Applies the same first-line-dedup logic the RAMS
+     * PDF uses so the room name isn't echoed back as the first bullet, then
+     * splits on line breaks first (PMs usually write line-per-point) and
+     * falls back to sentence splitting for unstructured paragraphs.
+     *
+     * @return array<int, string>  trimmed, non-empty bullet lines (max 12)
+     */
+    private function textToBullets(string $roomName, string $text): array
+    {
+        // Strip markdown bold markers — source often has **headers**
+        $text = (string) preg_replace('/\*\*([^*]+)\*\*/', '$1', $text);
+        $text = ltrim(trim($text), ': ');
+
+        // Drop a leading line that just echoes the room name (same logic as
+        // the RAMS PDF renderer uses to avoid duplicate headings).
+        $lines = preg_split('/\r?\n/', trim($text)) ?: [];
+        if (count($lines) >= 2) {
+            $canonFirst = strtolower((string) preg_replace('/[^a-z0-9]+/i', '', (string) $lines[0]));
+            $canonName  = strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $roomName));
+            if ($canonFirst !== '' && $canonFirst === $canonName) {
+                array_shift($lines);
+            }
+        }
+
+        // If the text is only one line, treat each sentence as a bullet.
+        if (count($lines) < 2) {
+            $lines = preg_split('/(?<=[.!?])\s+(?=[A-Z])/', (string) ($lines[0] ?? '')) ?: [];
+        }
+
+        $bullets = [];
+        foreach ($lines as $line) {
+            $line = trim((string) $line);
+            // Strip any leading bullet marker the PM may have typed in
+            $line = (string) preg_replace('/^[\-\*•·\d]+[\.\)]?\s*/u', '', $line);
+            if ($line === '' || strlen($line) < 3) continue;
+            $bullets[] = $line;
+            if (count($bullets) >= 12) break;
+        }
+        return $bullets;
     }
 
     // ─── Save draft ──────────────────────────────────────────────────────────
@@ -314,13 +423,15 @@ class PublicSurveyController extends Controller
         abort_if($survey->isSubmitted(), 403, 'This survey has already been submitted.');
 
         $request->validate([
-            'photo'   => ['required', 'file', 'image', 'max:10240'],  // 10 MB
-            'caption' => ['nullable', 'string', 'max:200'],
+            'photo'    => ['required', 'file', 'image', 'max:10240'],  // 10 MB
+            'category' => ['nullable', 'string', 'max:50'],
+            'caption'  => ['nullable', 'string', 'max:200'],
         ]);
 
         $photo = $this->service->addPhoto(
             $room,
             $request->file('photo'),
+            $request->input('category'),
             $request->input('caption'),
         );
 
@@ -328,11 +439,39 @@ class PublicSurveyController extends Controller
             'id'            => $photo->id,
             'filename'      => $photo->filename,
             'original_name' => $photo->original_name,
+            'category'      => $photo->category,
             'caption'       => $photo->caption,
             'url'           => route('survey.photos.serve', [
                 'token' => $token,
                 'photo' => $photo->id,
             ]),
+        ]);
+    }
+
+    /**
+     * PATCH /survey/{token}/photos/{photo}
+     *
+     * Update the engineer-supplied caption on an existing photo. Used by the
+     * survey wizard so engineers can annotate individual photos after upload.
+     * Only the caption is mutable — category, filename, and storage path are
+     * fixed at upload time.
+     */
+    public function updatePhoto(Request $request, string $token, SiteSurveyPhoto $photo): JsonResponse
+    {
+        $survey = $this->resolveSurvey($token);
+
+        abort_unless($photo->room->site_survey_id === $survey->id, 403);
+        abort_if($survey->isSubmitted(), 403, 'This survey has already been submitted.');
+
+        $data = $request->validate([
+            'caption' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        $photo->update(['caption' => $data['caption'] ?? null]);
+
+        return response()->json([
+            'id'      => $photo->id,
+            'caption' => $photo->caption,
         ]);
     }
 

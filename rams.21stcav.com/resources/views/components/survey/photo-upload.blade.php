@@ -43,14 +43,23 @@
         </label>
     </div>
 
-    {{-- Uploaded thumbnails for this category --}}
-    <div class="flex flex-wrap gap-2 mt-1">
-        <template x-for="photo in (currentRoom?.photos ?? []).filter(p => p.type === '{{ $category }}')"
-                  :key="photo.file_path">
-            <div class="relative w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                <img :src="photo.file_path"
-                     class="w-full h-full object-cover"
-                     :alt="'{{ $label }}'">
+    {{-- Uploaded photos for this category — thumbnail + editable caption --}}
+    <div class="flex flex-col gap-2 mt-1">
+        <template x-for="(photo, photoIdx) in (currentRoom?.photos ?? []).filter(p => p.type === '{{ $category }}')"
+                  :key="photo.id ?? photo.file_path">
+            <div class="flex items-start gap-2">
+                <div class="relative w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                    <img :src="photo.file_path"
+                         class="w-full h-full object-cover"
+                         :alt="'{{ $label }}'">
+                </div>
+                <input type="text"
+                       maxlength="200"
+                       placeholder="Add a note (e.g. 'crack above socket')"
+                       class="flex-1 text-sm rounded-lg border-gray-300 focus:border-[#178A95] focus:ring-[#178A95]"
+                       :value="photo.caption ?? ''"
+                       @blur="savePhotoCaption(photo, $event.target.value)"
+                       @keydown.enter.prevent="$event.target.blur()">
             </div>
         </template>
     </div>

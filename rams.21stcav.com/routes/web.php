@@ -60,6 +60,7 @@ Route::post('survey/{token}/rooms/{room}/questions/{question}', [PublicSurveyCon
     ->name('survey.question.answer')
     ->middleware('throttle:120,1');
 Route::get('survey/{token}/photos/{photo}',            [PublicSurveyController::class, 'servePhoto'])     ->name('survey.photos.serve');
+Route::patch('survey/{token}/photos/{photo}',          [PublicSurveyController::class, 'updatePhoto'])    ->name('survey.photos.update')   ->middleware('throttle:60,1');
 
 /*
 |--------------------------------------------------------------------------
