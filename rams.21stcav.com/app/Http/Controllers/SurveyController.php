@@ -70,30 +70,11 @@ class SurveyController extends Controller
 
         $rooms = $this->buildAlpineRooms($survey, $payload, $token);
 
-        // Project-level install-action bullets (generated on the office review
-        // screen). Surfaced on the rooms list and inside the Kit Info drawer
-        // so engineers see the full project scope as a checklist anywhere in
-        // the wizard.
-        $projectBullets = [];
-        if ($survey->project_id) {
-            $package = \App\Models\Project::with('latestPackage')->find($survey->project_id)?->latestPackage;
-            $rd = (array) ($package?->reviewed_data  ?? []);
-            $ed = (array) ($package?->extracted_data ?? []);
-            $bulletText = trim((string) ($rd['works_bullets'] ?? $ed['works_bullets'] ?? ''));
-            if ($bulletText !== '') {
-                $projectBullets = array_values(array_filter(
-                    array_map('trim', preg_split('/\r?\n/', $bulletText)),
-                    fn ($l) => $l !== ''
-                ));
-            }
-        }
-
         return view('surveys.show', [
-            'survey'         => $survey,
-            'token'          => $token,
-            'rooms'          => $rooms,
-            'readonly'       => $survey->isSubmitted(),
-            'projectBullets' => $projectBullets,
+            'survey'   => $survey,
+            'token'    => $token,
+            'rooms'    => $rooms,
+            'readonly' => $survey->isSubmitted(),
         ]);
     }
 
@@ -257,8 +238,9 @@ class SurveyController extends Controller
         //   1. Per-room AI-cleaned description / works_summary / overview
         //   2. Project-level works_overview / scope_of_works
         //   3. The room's stored av_requirements column (legacy, often stale)
-        $packageRoomScopes = []; // canonical-lower-name → cleanest scope text
-        $projectScope      = '';
+        $packageRoomScopes  = []; // canonical-lower-name → cleanest scope text (prose)
+        $packageRoomBullets = []; // canonical-lower-name → install-action bullets (newline-separated)
+        $projectScope       = '';
         if ($survey->project_id) {
             $project = \App\Models\Project::with('latestPackage')->find($survey->project_id);
             $rd = (array) ($project?->latestPackage?->reviewed_data  ?? []);
@@ -288,6 +270,11 @@ class SurveyController extends Controller
                 }
 
                 $packageRoomScopes[strtolower($name)] = $text;
+
+                // works_summary is the install-action bullet list — captured
+                // separately so the wizard can render it as a checklist
+                // without losing the prose description / overview text.
+                $packageRoomBullets[strtolower($name)] = trim((string) ($ro['works_summary'] ?? ''));
             }
         }
 
@@ -352,6 +339,14 @@ class SurveyController extends Controller
                 // Never written back to survey_data; informational only.
                 '_ctx' => [
                     'av_requirements'    => $plannedWorks,
+                    // Per-room install-action bullets generated on the office
+                    // review screen (Room/Space Overviews → AV Works Summary).
+                    // One bullet per line, "- " prefix optional. Engineers see
+                    // these in the Kit Info drawer as a checklist for THIS room.
+                    'works_bullets'      => array_values(array_filter(
+                        array_map('trim', preg_split('/\r?\n/', (string) ($packageRoomBullets[strtolower((string) $dbRoom->room_name)] ?? ''))),
+                        fn ($l) => $l !== ''
+                    )),
                     'av_equipment_list'  => (string) ($dbRoom->av_equipment_list ?? ''),
                     'question_count'     => $questions->count(),
                     'questions'          => $questions->map(fn ($q) => [

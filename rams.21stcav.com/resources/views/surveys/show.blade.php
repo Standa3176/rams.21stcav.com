@@ -256,15 +256,25 @@
                         </svg>
                     </div>
 
-                    <div class="flex-1 min-w-0">
-                        <p class="font-semibold text-gray-900 leading-tight"
-                           x-text="room.name || 'Unnamed Room'"></p>
-                        <p class="text-xs text-gray-500 mt-0.5"
-                           x-text="[room.type, room._ui.work_type]
-                               .filter(Boolean)
-                               .map(s => s.replace(/_/g, ' '))
-                               .join(' · ') || 'Tap to begin'"></p>
-                    </div>
+                    <button type="button"
+                            @click="expandedRoomIdx = (expandedRoomIdx === idx ? null : idx)"
+                            class="flex-1 min-w-0 text-left flex items-center gap-2 cursor-pointer"
+                            aria-label="Toggle room details">
+                        <div class="flex-1 min-w-0">
+                            <p class="font-semibold text-gray-900 leading-tight"
+                               x-text="room.name || 'Unnamed Room'"></p>
+                            <p class="text-xs text-gray-500 mt-0.5"
+                               x-text="[room.type, room._ui.work_type]
+                                   .filter(Boolean)
+                                   .map(s => s.replace(/_/g, ' '))
+                                   .join(' · ') || 'Tap to expand'"></p>
+                        </div>
+                        <svg class="w-4 h-4 text-gray-400 transition-transform flex-shrink-0"
+                             :class="expandedRoomIdx === idx ? 'rotate-180' : ''"
+                             fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
 
                     <button @click="selectRoom(idx)"
                             class="flex-shrink-0 flex items-center gap-1 px-4 py-2.5 rounded-xl
@@ -282,10 +292,21 @@
                 </div>
 
                 {{-- Job context — per-room planned works, quote kit, and
-                     checklist guidance count. Read-only, informational. --}}
-                <template x-if="room._ctx && (room._ctx.av_requirements || room._ctx.av_equipment_list || room._ctx.question_count > 0 || (room._ctx.checklist_lines && room._ctx.checklist_lines.length > 0))">
+                     checklist guidance count. Hidden by default; chevron in
+                     the card header expands. Read-only, informational. --}}
+                <template x-if="expandedRoomIdx === idx && room._ctx && (room._ctx.av_requirements || room._ctx.av_equipment_list || room._ctx.question_count > 0 || (room._ctx.checklist_lines && room._ctx.checklist_lines.length > 0) || (room._ctx.works_bullets && room._ctx.works_bullets.length > 0))">
                     <div class="px-4 pb-3 pt-2 border-t border-gray-100 bg-gray-50/60 text-xs space-y-2">
-                        <template x-if="room._ctx.av_requirements">
+                        <template x-if="room._ctx.works_bullets && room._ctx.works_bullets.length > 0">
+                            <div>
+                                <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Install actions</p>
+                                <ul class="list-disc pl-4 mt-0.5 text-gray-700 space-y-0.5">
+                                    <template x-for="(b, bi) in room._ctx.works_bullets" :key="bi">
+                                        <li class="leading-snug" x-text="b.replace(/^[-•]\s*/, '')"></li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </template>
+                        <template x-if="room._ctx.av_requirements && (!room._ctx.works_bullets || room._ctx.works_bullets.length === 0)">
                             <div>
                                 <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Planned AV works</p>
                                 <p class="text-gray-700 mt-0.5 leading-snug" x-text="room._ctx.av_requirements"></p>
@@ -409,12 +430,12 @@
                 </button>
             </div>
             <div class="flex-1 overflow-y-auto px-4 py-4 space-y-4 text-sm">
-                <template x-if="projectBullets.length > 0">
+                <template x-if="(currentRoom?._ctx?.works_bullets ?? []).length > 0">
                     <div>
-                        <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">Project install actions (all rooms)</p>
+                        <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">Install actions for this room</p>
                         <ul class="list-disc pl-5 text-gray-800 space-y-1 leading-snug">
-                            <template x-for="(b, bi) in projectBullets" :key="bi">
-                                <li x-text="b"></li>
+                            <template x-for="(b, bi) in currentRoom._ctx.works_bullets" :key="bi">
+                                <li x-text="b.replace(/^[-•]\s*/, '')"></li>
                             </template>
                         </ul>
                     </div>
@@ -447,7 +468,7 @@
                         </ul>
                     </div>
                 </template>
-                <template x-if="!currentRoom?._ctx?.av_requirements && !currentRoom?._ctx?.av_equipment_list && !currentRoom?._ctx?.checklist_lines?.length && projectBullets.length === 0">
+                <template x-if="!currentRoom?._ctx?.av_requirements && !currentRoom?._ctx?.av_equipment_list && !currentRoom?._ctx?.checklist_lines?.length && (currentRoom?._ctx?.works_bullets ?? []).length === 0">
                     <p class="text-gray-500 italic">No planned kit recorded for this room.</p>
                 </template>
             </div>
@@ -1102,8 +1123,9 @@ function surveyWizard() {
         //        + _ui block (UI-only fields: room_id, is_completed, work_type, quick_notes, etc.)
         rooms: @json($rooms),
 
-        // Project-level install-action bullets (from office review screen).
-        projectBullets: @json($projectBullets ?? []),
+        // Per-room expand state on the rooms list (collapsed by default so the
+        // list stays scannable on mobile). Toggled by the chevron on each card.
+        expandedRoomIdx: null,
 
         // ── Init — set up debounced autosave on toggle / selection changes
         //          so engineers don't lose Step 2 toggles or Step 1 work_type

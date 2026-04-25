@@ -504,28 +504,6 @@
     @endif
 </div>
 
-{{-- Project install-action bullets — generated on the office review screen
-     by AI converting scope prose to a clean checklist. Read-only here. --}}
-@php
-    $package = $survey->project?->latestPackage;
-    $rd = (array) ($package?->reviewed_data  ?? []);
-    $ed = (array) ($package?->extracted_data ?? []);
-    $bulletText = trim((string) ($rd['works_bullets'] ?? $ed['works_bullets'] ?? ''));
-    $projectBullets = $bulletText !== ''
-        ? array_values(array_filter(array_map('trim', preg_split('/\r?\n/', $bulletText)), fn ($l) => $l !== ''))
-        : [];
-@endphp
-@if(count($projectBullets) > 0)
-<div class="section-block" style="margin-bottom:1.25rem;">
-    <h2 class="section-heading">Project install actions</h2>
-    <ul style="padding-left:1.25rem;margin:.25rem 0 0;font-size:.875rem;color:#374151;line-height:1.5;">
-        @foreach($projectBullets as $b)
-            <li style="margin-bottom:.25rem;">{{ $b }}</li>
-        @endforeach
-    </ul>
-</div>
-@endif
-
 {{-- Site Conditions --}}
 @if($survey->site_risks || $survey->access_constraints || $survey->h_and_s_notes)
 <div class="section-block" style="margin-bottom:1.25rem;">
@@ -679,10 +657,41 @@
         @endif
 
         {{-- ── AV Scope ─────────────────────────────────────── --}}
-        @if($room->av_requirements || $room->av_equipment_list)
+        @php
+            // Per-room install-action bullets sourced from the project package's
+            // room_overviews[i].works_summary. Replaces the project-wide lump
+            // bullets block that used to live above Site Conditions.
+            $roomBullets = [];
+            $package2 = $survey->project?->latestPackage;
+            $rd2 = (array) ($package2?->reviewed_data  ?? []);
+            $ed2 = (array) ($package2?->extracted_data ?? []);
+            $roSource2 = ! empty($rd2['room_overviews']) ? (array) $rd2['room_overviews'] : (array) ($ed2['room_overviews'] ?? []);
+            foreach ($roSource2 as $ro2) {
+                if (! is_array($ro2)) continue;
+                $rname = trim((string) ($ro2['room'] ?? $ro2['room_name'] ?? $ro2['name'] ?? ''));
+                if (strcasecmp($rname, (string) $room->room_name) !== 0) continue;
+                $bulletText2 = trim((string) ($ro2['works_summary'] ?? ''));
+                if ($bulletText2 !== '') {
+                    $roomBullets = array_values(array_filter(
+                        array_map(fn ($l) => preg_replace('/^[-•]\s*/', '', trim($l)),
+                                  preg_split('/\r?\n/', $bulletText2)),
+                        fn ($l) => $l !== ''
+                    ));
+                }
+                break;
+            }
+        @endphp
+        @if($room->av_requirements || $room->av_equipment_list || count($roomBullets) > 0)
         <div class="room-section-hdr" style="color:#3730A3;">📺 AV Scope</div>
+        @if(count($roomBullets) > 0)
+        <ul style="padding-left:1.25rem;margin:.25rem 0 .75rem;font-size:.875rem;color:#374151;line-height:1.5;">
+            @foreach($roomBullets as $b)
+                <li style="margin-bottom:.2rem;">{{ $b }}</li>
+            @endforeach
+        </ul>
+        @endif
         <table class="field-table">
-            @if($room->av_requirements)
+            @if($room->av_requirements && count($roomBullets) === 0)
             <tr><td>AV Requirements</td><td>{{ $room->av_requirements }}</td></tr>
             @endif
             @if($room->av_equipment_list)
