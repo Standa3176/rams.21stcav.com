@@ -286,13 +286,90 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
                 </svg>
             </button>
-            <div class="min-w-0">
+            <div class="min-w-0 flex-1">
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide"
                    x-text="'Step ' + currentStep + ' — ' + stepTitle"></p>
                 <p class="font-bold text-gray-900 text-lg leading-tight truncate"
                    x-text="currentRoom?.name || 'Room'"></p>
             </div>
+            {{-- Kit drawer toggle — shows planned AV works + quote kit anywhere
+                 in the wizard so engineers don't have to back out. --}}
+            <button type="button"
+                    @click="kitDrawerOpen = true"
+                    class="w-10 h-10 bg-white rounded-full flex items-center justify-center
+                           shadow-sm hover:bg-gray-50 transition-colors flex-shrink-0 min-h-[44px]"
+                    aria-label="Show planned kit for this room">
+                <svg class="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+            </button>
         </div>
+
+        {{-- ── KIT DRAWER (overlays all 8 steps) ─────────────────── --}}
+        <div x-show="kitDrawerOpen" x-cloak
+             x-transition.opacity
+             @click="kitDrawerOpen = false"
+             class="fixed inset-0 z-40 bg-black/50"></div>
+
+        <aside x-show="kitDrawerOpen" x-cloak
+               x-transition:enter="transition transform ease-out duration-200"
+               x-transition:enter-start="translate-x-full"
+               x-transition:enter-end="translate-x-0"
+               x-transition:leave="transition transform ease-in duration-150"
+               x-transition:leave-start="translate-x-0"
+               x-transition:leave-end="translate-x-full"
+               class="fixed top-0 right-0 bottom-0 z-50 w-[88%] max-w-md bg-white shadow-2xl
+                      flex flex-col">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                <div class="min-w-0">
+                    <p class="text-xs uppercase tracking-wide text-gray-500 font-semibold">Planned for this room</p>
+                    <p class="font-bold text-gray-900 truncate" x-text="currentRoom?.name || 'Room'"></p>
+                </div>
+                <button type="button"
+                        @click="kitDrawerOpen = false"
+                        class="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center min-h-[44px]"
+                        aria-label="Close">
+                    <svg class="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto px-4 py-4 space-y-4 text-sm">
+                <template x-if="currentRoom?._ctx?.av_requirements">
+                    <div>
+                        <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">Planned AV works</p>
+                        <p class="text-gray-800 leading-snug" x-text="currentRoom._ctx.av_requirements"></p>
+                    </div>
+                </template>
+                <template x-if="currentRoom?._ctx?.av_equipment_list">
+                    <div>
+                        <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">Quote kit</p>
+                        <p class="text-gray-800 leading-snug whitespace-pre-line"
+                           x-text="currentRoom._ctx.av_equipment_list"></p>
+                    </div>
+                </template>
+                <template x-if="currentRoom?._ctx?.checklist_lines?.length > 0">
+                    <div>
+                        <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">
+                            Reference checklist
+                            <template x-if="currentRoom._ctx.solution_type_name">
+                                <span class="text-gray-400 normal-case font-normal">— <span x-text="currentRoom._ctx.solution_type_name"></span></span>
+                            </template>
+                        </p>
+                        <ul class="list-disc pl-5 text-gray-800 space-y-1 leading-snug">
+                            <template x-for="(line, li) in currentRoom._ctx.checklist_lines" :key="li">
+                                <li x-text="line"></li>
+                            </template>
+                        </ul>
+                    </div>
+                </template>
+                <template x-if="!currentRoom?._ctx?.av_requirements && !currentRoom?._ctx?.av_equipment_list && !currentRoom?._ctx?.checklist_lines?.length">
+                    <p class="text-gray-500 italic">No planned kit recorded for this room.</p>
+                </template>
+            </div>
+        </aside>
 
         {{-- ── STEP 1: ROOM CONTEXT ────────────────────────────── --}}
         <x-survey.step-container :step="1">
@@ -839,6 +916,7 @@ function surveyWizard() {
         screen:          'rooms',  // 'rooms' | 'step'
         currentRoomIdx:  null,
         currentStep:     1,
+        kitDrawerOpen:   false,
         saving:          false,
         submitting:      false,
         lastSaved:       null,
