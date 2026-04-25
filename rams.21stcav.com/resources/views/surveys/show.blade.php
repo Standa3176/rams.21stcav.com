@@ -212,11 +212,11 @@
                             </div>
                         </template>
                         <template x-if="room._ctx.question_count > 0">
-                            <div>
-                                <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                                    Pre-install checklist (<span x-text="room._ctx.question_count"></span>)
-                                </p>
-                                <ul class="list-disc pl-4 mt-0.5 text-gray-700 space-y-0.5">
+                            <details>
+                                <summary class="text-[10px] font-semibold uppercase tracking-wide text-gray-500 cursor-pointer select-none">
+                                    Pre-install checklist (<span x-text="room._ctx.question_count"></span>) — tap to preview
+                                </summary>
+                                <ul class="list-disc pl-4 mt-1 text-gray-700 space-y-0.5">
                                     <template x-for="(q, qi) in room._ctx.questions" :key="qi">
                                         <li class="leading-snug">
                                             <span x-text="q.question"></span>
@@ -224,7 +224,7 @@
                                         </li>
                                     </template>
                                 </ul>
-                            </div>
+                            </details>
                         </template>
                     </div>
                 </template>

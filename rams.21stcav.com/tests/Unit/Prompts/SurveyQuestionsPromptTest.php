@@ -162,7 +162,41 @@ class SurveyQuestionsPromptTest extends TestCase
         $this->assertStringContainsString('6–10', $built);
     }
 
-    // ─── Test 8: prompt explicitly forbids vague references ──────────────────
+    // ─── Test 8a: prompt enforces a per-question word cap ────────────────────
+
+    /**
+     * The prompt must instruct the AI to keep each question short (<= 18 words,
+     * one sentence). Engineers tick on a tablet on-site; long contract-clause
+     * sentences are unreadable in that flow.
+     */
+    public function test_prompt_enforces_short_question_word_cap(): void
+    {
+        $prompt = (new SurveyQuestionsPrompt())->withContext([
+            'solution_type_slug' => 'general',
+            'checklist_lines'    => [],
+            'equipment'          => [['quantity' => 1, 'name' => 'NEC ME552']],
+            'works_overview'     => '',
+            'room_description'   => '',
+            'room_summary'       => '',
+        ]);
+
+        $built = $prompt->build();
+
+        $this->assertMatchesRegularExpression(
+            '/(18 words or fewer|max(?:imum)?\s+18\s+words|KEEP IT SHORT)/i',
+            $built,
+            'Prompt must impose a hard length cap on questions'
+        );
+
+        // Anti-padding rules
+        $this->assertMatchesRegularExpression(
+            '/(no nested clauses|no.*"prior to works commencing"|do not pad|no contract.*clause)/i',
+            $built,
+            'Prompt must explicitly ban padding boilerplate'
+        );
+    }
+
+    // ─── Test 9: prompt explicitly forbids vague references ──────────────────
 
     /**
      * The prompt must explicitly forbid vague phrasing like "the display"

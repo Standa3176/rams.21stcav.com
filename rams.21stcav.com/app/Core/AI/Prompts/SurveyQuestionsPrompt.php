@@ -138,6 +138,20 @@ INSTRUCTIONS:
        displaced (only relevant when scope mentions "existing" or upgrade)
 - Phrase questions as concrete yes/no checks an engineer can verify with eyes,
   a tape measure, or a voltage tester. Avoid open-ended design questions.
+- KEEP IT SHORT. Each question MUST be 18 words or fewer, one sentence, ending
+  with a question mark. Engineers tick these on a tablet on-site — they will
+  not read paragraphs. No nested clauses, no "and has been confirmed" tails,
+  no "prior to works commencing" boilerplate. If a check needs context, leave
+  it for the engineer's eyes — do not pad the sentence.
+  GOOD: "Wall solid enough for the 55\" Sharp MES52?"
+  GOOD: "Mains socket within 1m of each NEC ME552 mount point?"
+  GOOD: "Spare RJ45 port live for the Cisco Room Kit EQ?"
+  BAD:  "Has the wall area designated for each Sharp 55\" MultiSync MES52
+        Commercial Display been surveyed to confirm the substrate is capable
+        of bearing the combined weight of the display and Tiling Wall Mount
+        without additional noggins or reinforcement?"
+- Start each question with a verb (Is / Are / Has / Have / Does / Can) or a
+  noun phrase that reads as a check, not a contract clause.
 - Avoid duplicate questions — each question should add new information.
 - Do NOT invent equipment, scope, or site conditions not mentioned above.
 - Use British English spelling and AV industry terminology
