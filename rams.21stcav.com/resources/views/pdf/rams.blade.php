@@ -401,9 +401,36 @@ p { margin: 3pt 0; }
     $wasteNotes  = $rams->reviewed_data['programme']['waste_removal_notes'] ?? '';
     $wasteLabels = ['client' => 'Client', '21cav' => '21st Century AV Ltd', 'other' => 'Other'];
     $wasteLabel  = $wasteLabels[$wasteParty] ?? '';
-    // Permits
+    // Permits — explicit form entries first, then auto-derive from scope so the
+    // standalone section never contradicts the Method Statement (which calls
+    // out permits for ceiling penetrations, electrical isolations, etc.)
     $permitsRd      = $rams->reviewed_data['permits_required'] ?? [];
-    $requiredPermits = array_filter(is_array($permitsRd) ? $permitsRd : [], fn ($p) => ! empty($p['required']));
+    $requiredPermits = array_values(array_filter(is_array($permitsRd) ? $permitsRd : [], fn ($p) => ! empty($p['required'])));
+    if (empty($requiredPermits)) {
+        $scopeBlob = strtolower(implode(' ', [
+            (string) ($rams->reviewed_data['scope_of_works']    ?? ''),
+            (string) ($rams->reviewed_data['works_overview']    ?? ''),
+            (string) ($rams->reviewed_data['method_statement_notes'] ?? ''),
+        ]));
+        $derived = [];
+        if (preg_match('/(ceiling void|ceiling tile|above ceiling|plenum|cable tray|containment|riser|in-ceiling)/', $scopeBlob)) {
+            $derived[] = ['type' => 'Permit to Work — Ceiling Voids',
+                          'notes' => 'Required before accessing ceiling voids, risers, or restricted areas. Confirm asbestos register sign-off.'];
+        }
+        if (preg_match('/(mains|electrical|circuit|isolat|consumer unit|distribution board|rack power)/', $scopeBlob)) {
+            $derived[] = ['type' => 'Electrical Isolation Permit',
+                          'notes' => 'Required before any work on or near mains-voltage circuits. Lock-off and tag out for the duration of works.'];
+        }
+        if (preg_match('/(solder|heat shrink|hot work)/', $scopeBlob)) {
+            $derived[] = ['type' => 'Hot Works Permit',
+                          'notes' => 'Required if soldering or heat-shrink operations are performed on site.'];
+        }
+        if (preg_match('/(fire.?rated|fire stop|firebreak|compartment)/', $scopeBlob)) {
+            $derived[] = ['type' => 'Fixings into Fire-Rated Structures',
+                          'notes' => 'Client / building management approval required before any penetration of a fire-rated wall or partition.'];
+        }
+        $requiredPermits = $derived;
+    }
     // Material handling
     $matHandling = $rams->reviewed_data['material_handling'] ?? [];
     $mhItems     = is_array($matHandling['large_items'] ?? null) ? $matHandling['large_items'] : [];
@@ -567,7 +594,7 @@ p { margin: 3pt 0; }
     </tr>
     <tr>
         <td class="lbl">CLIENT CONTACT:</td>
-        <td class="val" colspan="3">{{ $clientContact ?: '—' }}</td>
+        <td class="val" colspan="3">{{ $clientContact ?: 'TBC at site induction' }}</td>
     </tr>
 </table>
 
@@ -1333,7 +1360,7 @@ p { margin: 3pt 0; }
 </table>
 <p class="note-text">All permits must be obtained and displayed on site before relevant works commence. Engineers must not start permit-controlled activities without a valid, signed permit.</p>
 @else
-<p class="body-para">No specific permits identified as required for this project. Standard safe-working practices apply. If site conditions change, the Project Manager must be notified and permits obtained as appropriate.</p>
+<p class="body-para">No project-specific permits have been pre-identified. Standard site requirements still apply: any permits called out in the Method Statement (e.g. permit-to-work for ceiling penetrations, electrical isolations) must be obtained from the site / client representative before the relevant activity commences.</p>
 @endif
 
 {{-- ════════════════════════════════════════════════════════════════════════
@@ -1474,7 +1501,7 @@ p { margin: 3pt 0; }
     </tr>
     <tr>
         <td class="e-lbl">Site Contact</td>
-        <td class="e-val">{{ $clientContact ?: ($siteContact ?: '—') }}</td>
+        <td class="e-val">{{ $clientContact ?: ($siteContact ?: 'TBC at site induction') }}</td>
         <td class="e-lbl">{{ $compShort }} Operations</td>
         <td class="e-val">{{ $phone }}</td>
     </tr>

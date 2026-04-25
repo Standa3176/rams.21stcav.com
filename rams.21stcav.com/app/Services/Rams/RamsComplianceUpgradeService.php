@@ -421,7 +421,7 @@ class RamsComplianceUpgradeService
                 'applies' => static fn (): bool
                     => ! $noRack
                     && self::containsPhrase($scopeBlob, ['rack', '19-inch', '19"', 'equipment cabinet', 'comms cabinet', 'server rack', 'av rack']),
-                'hazard'          => 'Rack installation — heavy equipment handling and securing',
+                'hazard'          => 'Rack Installation',
                 'persons_at_risk' => ['21CAV Staff', 'Client Staff'],
                 'pre_likelihood'  => 3,
                 'pre_severity'    => 3,
@@ -436,7 +436,7 @@ class RamsComplianceUpgradeService
             ],
             [
                 'applies' => static fn (): bool => true, // cable work is universal on AV installs
-                'hazard'          => 'Cable pulling and termination — strain injury and eye hazard',
+                'hazard'          => 'Cable Pulling & Termination',
                 'persons_at_risk' => ['21CAV Staff'],
                 'pre_likelihood'  => 3,
                 'pre_severity'    => 2,
@@ -454,7 +454,7 @@ class RamsComplianceUpgradeService
                 'applies' => static fn (): bool
                     => ! $noCeiling
                     && self::containsPhrase($scopeBlob, ['ceiling void', 'ceiling tile', 'above ceiling', 'cable tray', 'basket tray', 'ceiling cavity', 'plenum', 'ceiling access', 'overhead cable', 'drop rod', 'containment']),
-                'hazard'          => 'Working in ceiling voids — falling debris and dust inhalation',
+                'hazard'          => 'Working in Ceiling Voids',
                 'persons_at_risk' => ['21CAV Staff', 'Client Staff', 'Building Occupants'],
                 'pre_likelihood'  => 3,
                 'pre_severity'    => 3,
@@ -471,7 +471,7 @@ class RamsComplianceUpgradeService
             ],
             [
                 'applies' => static fn (): bool => true, // AV installs always involve LV connections
-                'hazard'          => 'Low voltage AV connections — electric shock and equipment damage',
+                'hazard'          => 'Low Voltage AV Connections',
                 'persons_at_risk' => ['21CAV Staff'],
                 'pre_likelihood'  => 2,
                 'pre_severity'    => 3,
@@ -487,7 +487,7 @@ class RamsComplianceUpgradeService
             ],
             [
                 'applies' => static fn (): bool => true, // wall fixings are universal — mount, bracket, anchor
-                'hazard'          => 'Fixings into walls and ceilings — structural damage and falling objects',
+                'hazard'          => 'Fixings into Walls & Ceilings',
                 'persons_at_risk' => ['21CAV Staff', 'Client Staff', 'Building Occupants'],
                 'pre_likelihood'  => 3,
                 'pre_severity'    => 3,
@@ -504,7 +504,7 @@ class RamsComplianceUpgradeService
             [
                 'applies' => static fn (): bool
                     => self::containsPhrase($scopeBlob, ['drill', 'fix', 'mount', 'bracket', 'anchor', 'masonry', 'plasterboard', 'wall mount']),
-                'hazard'          => 'Dust generation from drilling and cutting — respiratory and eye hazard',
+                'hazard'          => 'Dust from Drilling & Cutting',
                 'persons_at_risk' => ['21CAV Staff', 'Client Staff', 'Building Occupants'],
                 'pre_likelihood'  => 3,
                 'pre_severity'    => 2,
@@ -522,7 +522,7 @@ class RamsComplianceUpgradeService
                 'applies' => static fn (): bool
                     => ! $noCeiling
                     && self::containsPhrase($scopeBlob, ['ceiling void', 'ceiling tile', 'above ceiling', 'riser', 'plenum', 'cable tray', 'basket tray', 'containment', 'comms room', 'ceiling access', 'overhead']),
-                'hazard'          => 'Working near existing services — damage to fire, HVAC, or electrical systems',
+                'hazard'          => 'Working Near Existing Services',
                 'persons_at_risk' => ['21CAV Staff', 'Client Staff', 'Building Occupants'],
                 'pre_likelihood'  => 2,
                 'pre_severity'    => 4,
@@ -797,10 +797,48 @@ class RamsComplianceUpgradeService
 
         $detectedItems = [];
 
+        // Categories that never represent a physical item to lift / move.
+        // Warranty upgrades, service contracts, options, and customer-supplied
+        // lines pollute the table when they happen to contain a hardware
+        // keyword (e.g. "Sony 98″ display — 2-year warranty upgrade").
+        $nonPhysicalCategories = [
+            'warranty', 'option', 'options', 'service', 'services',
+            'service_contract', 'service_contracts', 'customer_supplied',
+            'carriage', 'delivery', 'training', 'project_management', 'pm',
+            'consumables', 'rams', 'method_statement', 'travel',
+        ];
+
+        // Phrase markers that always indicate a non-physical line even when
+        // the category field is missing (older records with no classifier).
+        $nonPhysicalPhrases = [
+            'warranty upgrade', 'warranty extension', 'extended warranty',
+            'service contract', 'support contract', 'maintenance contract',
+            'project management', 'commissioning', 'programming day',
+            'delivery & carriage', 'carriage', 'delivery only',
+            'training day', 'on-site training',
+        ];
+
+        $isNonPhysical = function (?string $category, string $description) use ($nonPhysicalCategories, $nonPhysicalPhrases): bool {
+            $cat = strtolower(trim((string) $category));
+            if ($cat !== '' && in_array(str_replace(['-', ' '], '_', $cat), $nonPhysicalCategories, true)) {
+                return true;
+            }
+            $desc = strtolower($description);
+            foreach ($nonPhysicalPhrases as $phrase) {
+                if (str_contains($desc, $phrase)) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
         // Scan quote line items
         foreach ((array) ($data['quote']['line_items'] ?? []) as $item) {
             $desc = strtolower(trim((string) ($item['description'] ?? '')));
             $qty  = (int) ($item['qty'] ?? 1);
+            if ($isNonPhysical($item['category'] ?? null, $desc)) {
+                continue;
+            }
             foreach ($heavyKeywords as $kw) {
                 if (str_contains($desc, $kw)) {
                     $detectedItems[] = [
@@ -816,6 +854,9 @@ class RamsComplianceUpgradeService
         // Scan scope items (new_install)
         foreach ((array) ($data['scope_items']['new_install'] ?? []) as $item) {
             $name = strtolower(trim((string) ($item['item_name'] ?? '')));
+            if ($isNonPhysical($item['category'] ?? null, $name)) {
+                continue;
+            }
             foreach ($heavyKeywords as $kw) {
                 if (str_contains($name, $kw)) {
                     $detectedItems[] = [
