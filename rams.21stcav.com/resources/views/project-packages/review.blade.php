@@ -571,6 +571,14 @@
             <span style="font-size:.78rem;color:var(--text-muted);">
                 Categorised lists — only Hardware feeds RAMS &amp; O&amp;M.
             </span>
+            <button type="button"
+                    id="cleanup-lines-btn"
+                    onclick="cleanupEquipmentLines(this)"
+                    class="btn btn-outline btn-sm"
+                    style="margin-left:auto;font-size:.78rem;white-space:nowrap;"
+                    title="Run AI to normalise part numbers and shorten descriptions across every line">
+                ✨ Tidy lines (AI)
+            </button>
         </div>
         <div class="review-section-body" style="padding:0;overflow:hidden;">
             @if(count($qtyMismatches) > 0)
@@ -1416,6 +1424,43 @@ function equipAutoGrow(el) {
     el.style.height = (el.scrollHeight + 2) + 'px';
 }
 
+// ─── AI line cleanup — normalises part numbers + shortens descriptions ───────
+async function cleanupEquipmentLines(btn) {
+    if (!btn) return;
+    if (!confirm('Run AI to tidy every line item?\n\nThis rewrites part numbers (e.g. all-caps + dashes) and shortens product descriptions across the whole equipment list. Unsaved edits will be overwritten by the saved (server-side) data, so save first if you have uncommitted changes.')) return;
+    const original = btn.textContent;
+    btn.disabled    = true;
+    btn.textContent = 'Tidying…';
+    try {
+        const resp = await fetch('{{ route('project-packages.cleanup-lines', $package) }}', {
+            method:  'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'Accept':       'application/json',
+            },
+        });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            alert(err.error ?? 'Cleanup failed. Please try again.');
+            return;
+        }
+        const data = await resp.json();
+        // Patch each row in place — find inputs by name="equipment[ID][...]".
+        for (const row of (data.rows ?? [])) {
+            const partEl = document.querySelector('textarea[name="equipment[' + row.id + '][part_number]"]');
+            const nameEl = document.querySelector('textarea[name="equipment[' + row.id + '][name]"]');
+            if (partEl) { partEl.value = row.part_number; equipAutoGrow(partEl); }
+            if (nameEl) { nameEl.value = row.name;        equipAutoGrow(nameEl); }
+        }
+        btn.textContent = '✓ Tidied ' + (data.updated ?? 0) + ' lines';
+        setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 2000);
+    } catch (e) {
+        alert('Network error during cleanup. Please try again.');
+        btn.textContent = original;
+        btn.disabled    = false;
+    }
+}
+
 // Initialise sizes + attach a safety listener to keep existing browsers happy
 // if someone clones a row and forgets the inline oninput.
 document.addEventListener('DOMContentLoaded', function () {
@@ -1426,6 +1471,81 @@ document.addEventListener('input', function (e) {
         equipAutoGrow(e.target);
     }
 });
+
+// ─── Dynamic Title/Section reorder ───────────────────────────────────────────
+// When the engineer changes a line's area input, slide the row under the
+// matching room-group header within the same category — no page refresh.
+document.addEventListener('change', function (e) {
+    const t = e.target;
+    if (!t || !t.matches || !t.matches('input[name^="equipment["][name$="[area]"]')) return;
+    moveEquipRowToArea(t);
+});
+
+function moveEquipRowToArea(areaInput) {
+    const row = areaInput.closest('tr[data-equip-row]');
+    if (!row) return;
+    const tbody = row.parentElement;
+    if (!tbody) return;
+    const newArea = (areaInput.value || '').trim() || 'General';
+
+    // Find or create the room-group header inside this tbody.
+    const headers = tbody.querySelectorAll('tr[data-room-row] td .eq-area-label');
+    let targetHeaderRow = null;
+    headers.forEach(span => {
+        if ((span.textContent || '').trim() === newArea) {
+            targetHeaderRow = span.closest('tr[data-room-row]');
+        }
+    });
+
+    // Drop any data-empty-row placeholder once we are about to populate the tbody.
+    const empty = tbody.querySelector('tr[data-empty-row]');
+    if (empty) empty.remove();
+
+    if (!targetHeaderRow) {
+        // Build a new room-header row that matches the existing markup so it
+        // looks identical to what Blade renders on first load.
+        targetHeaderRow = document.createElement('tr');
+        targetHeaderRow.setAttribute('data-room-row', '1');
+        targetHeaderRow.style.background = 'var(--bg)';
+        const td = document.createElement('td');
+        td.colSpan = 6;
+        td.style.cssText = 'font-weight:600;color:#0f5460;padding:.4rem .75rem;border-bottom:1px solid var(--border);';
+        const label = document.createElement('span');
+        label.className   = 'eq-area-label';
+        label.textContent = newArea;
+        td.appendChild(label);
+        targetHeaderRow.appendChild(td);
+        tbody.appendChild(targetHeaderRow);
+    }
+
+    // Insert the moved row immediately after the target header — and any
+    // already-grouped sibling rows that share the area, so the row sits at
+    // the bottom of its new group rather than mid-group.
+    let insertAfter = targetHeaderRow;
+    let next = targetHeaderRow.nextElementSibling;
+    while (next && next.matches('tr[data-equip-row]')) {
+        const nextArea = (next.querySelector('input[name$="[area]"]')?.value ?? '').trim() || 'General';
+        if (nextArea !== newArea) break;
+        insertAfter = next;
+        next = next.nextElementSibling;
+    }
+    if (row !== insertAfter) {
+        insertAfter.after(row);
+    }
+
+    // Clean up: any header row that no longer has an equipment row beneath it
+    // (before the next header / spacer) should be removed so empty groups
+    // don't pile up after repeated moves.
+    tbody.querySelectorAll('tr[data-room-row]').forEach(h => {
+        let n = h.nextElementSibling;
+        let hasRow = false;
+        while (n && !n.matches('tr[data-room-row]')) {
+            if (n.matches('tr[data-equip-row]')) { hasRow = true; break; }
+            n = n.nextElementSibling;
+        }
+        if (!hasRow) h.remove();
+    });
+}
 
 // ─── Save Review ──────────────────────────────────────────────────────────────
 // Serialise the main form and re-submit it via the hidden save form so we

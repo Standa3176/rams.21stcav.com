@@ -98,6 +98,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/project-packages/{package}/room-summary',        [ProjectPackageReviewController::class, 'generateRoomSummary'])->name('project-packages.room-summary');
     Route::post('/project-packages/{package}/generate-survey-rooms', [ProjectPackageReviewController::class, 'generateSurveyRooms'])->name('project-packages.generate-survey-rooms');
     Route::post('/project-packages/{package}/scope-of-works',    [ProjectPackageReviewController::class, 'generateScopeOfWorks'])->name('project-packages.scope-of-works');
+    Route::post('/project-packages/{package}/cleanup-lines',     [ProjectPackageReviewController::class, 'cleanupLines'])->name('project-packages.cleanup-lines');
     Route::post('/quote-import/{package}/re-extract',          [QuoteImportController::class, 'reextract'])->name('quote-import.reextract');
 
     // ── Projects ──────────────────────────────────────────────────────────

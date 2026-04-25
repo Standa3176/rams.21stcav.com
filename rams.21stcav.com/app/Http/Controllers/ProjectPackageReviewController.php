@@ -532,6 +532,97 @@ class ProjectPackageReviewController extends Controller
     }
 
     /**
+     * POST /project-packages/{package}/cleanup-lines
+     *
+     * AJAX — runs every equipment line through EquipmentLineCleanupPrompt
+     * to normalise part numbers and rewrite descriptions into the short,
+     * document-ready form ("Sony 50inch Bravia display"). Persists the
+     * cleaned values back to ProjectPackage->extracted_data and returns
+     * the updated rows so the caller can patch the form in place.
+     */
+    public function cleanupLines(ProjectPackage $package): JsonResponse
+    {
+        $this->authorizePackage($package);
+
+        $extracted = $package->extracted_data ?? [];
+        $equipment = (array) ($extracted['equipment'] ?? []);
+
+        if (empty($equipment)) {
+            return response()->json(['error' => 'No equipment lines to clean up.'], 422);
+        }
+
+        // Build the prompt input — index becomes the round-trip id.
+        $input = [];
+        foreach ($equipment as $i => $item) {
+            $input[] = [
+                'id'          => $i,
+                'quantity'    => $item['quantity']    ?? 1,
+                'part_number' => $item['part_number'] ?? '',
+                'name'        => $item['name']        ?? '',
+                'category'    => $item['category']    ?? 'hardware',
+            ];
+        }
+
+        try {
+            $result = app(\App\Core\AI\AIManager::class)->run(
+                new \App\Core\AI\Prompts\EquipmentLineCleanupPrompt(),
+                ['items' => $input],
+                config('ai.default', 'claude'),
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('cleanupLines: AI call failed', [
+                'package_id' => $package->id,
+                'error'      => $e->getMessage(),
+            ]);
+            return response()->json(['error' => 'AI cleanup failed. Please try again.'], 500);
+        }
+
+        $cleaned = (array) ($result['items'] ?? []);
+        if (empty($cleaned)) {
+            return response()->json(['error' => 'AI returned no items.'], 500);
+        }
+
+        // Index by id so we can pair regardless of returned order.
+        $byId = [];
+        foreach ($cleaned as $row) {
+            if (! is_array($row) || ! isset($row['id'])) {
+                continue;
+            }
+            $byId[(int) $row['id']] = $row;
+        }
+
+        $changedRows = [];
+        foreach ($equipment as $i => $item) {
+            $row = $byId[$i] ?? null;
+            if ($row === null) {
+                continue;
+            }
+            $newPart = trim((string) ($row['part_number'] ?? ''));
+            $newName = trim((string) ($row['name']        ?? ''));
+            if ($newPart !== '' || $newName !== '') {
+                $equipment[$i]['part_number'] = $newPart;
+                $equipment[$i]['name']        = $newName;
+                $changedRows[] = [
+                    'id'          => $i,
+                    'part_number' => $newPart,
+                    'name'        => $newName,
+                ];
+            }
+        }
+
+        $extracted['equipment'] = $equipment;
+        $package->update([
+            'extracted_data' => $extracted,
+            'equipment_list' => $equipment,
+        ]);
+
+        return response()->json([
+            'updated' => count($changedRows),
+            'rows'    => $changedRows,
+        ]);
+    }
+
+    /**
      * POST /project-packages/{package}/generate-survey-rooms
      *
      * Creates numbered survey rooms in the project's linked site survey.
