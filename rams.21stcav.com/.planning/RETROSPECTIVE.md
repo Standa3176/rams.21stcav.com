@@ -123,18 +123,100 @@ Living document — updated after each milestone.
 
 ---
 
+## Milestone: v1.2 — Installation Programme & Field Management
+
+**Shipped:** 2026-04-25
+**Phases:** 5 (12, 13, 14, 15, 16) | **Plans:** 21
+**Timeline:** 10 days (2026-04-13 phase-12 plan → 2026-04-23 phase-16 verification)
+**Commits in dev range:** 281 (`c0b37da..a92503c`); 95 `feat(...)` commits
+**Source LOC delta:** +45,200 / −13,579 across 348 files
+**Audit verdict:** `tech_debt` — 48/48 satisfied, 11/11 wiring + 5/5 E2E flows PASS
+
+### What Was Built
+
+1. **Auto-generated install programmes** — `InstallTaskGeneratorService::generate()` reads canonical `ProjectDataset` from `ProjectDataService::resolve()`, persists per-room × equipment-item `install_tasks`; PM confirm gate before activation; re-generation archives prior programme
+2. **Engineer assignment + scheduling UI** — bulk + per-task assignment; planned start/end dates; week-view table; conditional Gantt timeline (frappe-gantt) when programme spans >4 days; engineer-only field-view filter
+3. **Mobile field view** (`/projects/{project}/programme`) — sticky bar + clock chip + bottom tab-bar; tap-to-advance status with 400ms ring-green pulse; per-task photo capture with iOS HEIC server-side conversion (`HeicImageConverter::writeAsJpeg()`); per-task notes blur-saved; counters() Alpine helper for room/programme progress
+4. **Time tracking** — category-tagged `time_entries` (Installation / Commissioning / Testing / Other); 60s silent heartbeat (Axios interval, exponential retry, Page Visibility pause); `programme:close-stale-sessions` Artisan command (hourly cron, 2-hour safety net); retro-edit with atomic `time_entry_audits` row; owner/admin-only Actual Hours widget on project dashboard (4-row horizontal bar, pure CSS, no chart library)
+5. **Commissioning checklist + client sign-off** — `commissioning_items` per equipment × AVIXA category (7 categories); per-item AJAX save (4 distinct PATCH/POST routes, never single-form POST); HEIC photo evidence per item; `creagia/laravel-sign-pad` client signature with `devicePixelRatio` scaling for iOS Retina (human-verified 2026-04-22); snagging PDF via `DocumentArtifactStorage::TYPE_SNAGGING` with embedded signature; state machine advances `Project.status` from INSTALLING → COMMISSIONING via `canTransitionTo()` guard
+6. **Worksheet DOCX integration** — Section E (pre-install check answers per room) + dashboard generation trigger button (WORK-05 + WORK-06)
+
+### What Worked
+
+- **`ProjectDataService::resolve()` as the canonical seam** — Phase 12 made install-task generation read from the v1.0 4-tier merge, never `extracted_data` directly. Continued the v1.0 discipline; meant Phase 16 `CommissioningItemGenerator` reused the same source without ambiguity
+- **Per-item AJAX over single-form POST** — Phase 16's commissioning UI saves each status / note / photo as a separate request. When a basement-installed plant-room engineer's session drops mid-checklist, the work already saved stays saved. Single-form POST would have been catastrophically fragile here
+- **`devicePixelRatio` canvas scaling** — defended against documented signature_pad iOS Retina DPI corruption (GitHub issues #71, #153, #200, #362). Spike in Plan 16-02 explicitly tested it, then locked in Plan 16-05 with `Math.max(window.devicePixelRatio || 1, 1)` + `resize`/`orientationchange` listeners. Human-verified on real iPhone in one cycle
+- **Phase 14 → Phase 15 layered design** — Phase 14 shipped INST-04g (one-open-entry clock-in guard) early to fulfil its mobile field view SC; Phase 15 extended `time_entries` with `category` / `notes` / `closure_reason` via additive ALTER migration without breaking Phase 14's contract. Documented in 14-CONTEXT.md "Claude's Discretion"
+- **HEIC server-side conversion as a single seam** — `HeicImageConverter::writeAsJpeg()` (introduced in Phase 14, reused in Phase 16's `CommissioningPhotoService`) eliminated a class of silent-failure bugs (HEIC uploads succeed; GD render fails later)
+- **`DocumentArtifactStorage::TYPE_SNAGGING`** — Phase 16's new artifact type was intentionally excluded from `LEGACY_ROOTS` (no pre-H-07 history); kept the read/write path clean and locked the convention
+- **Fewer worktree conflicts than v1.0** — multi-wave parallel execution produced 0 worktree conflicts (vs. v1.0's 2). Suggests the v1.0 lessons (commit pattern, scope discipline) carried over
+
+### What Was Inefficient
+
+- **Same shared-REQUIREMENTS.md problem as v1.1** — file held both v1.1 NOTF-* and v1.2 INST-* requirements; the complete-milestone CLI's archive/delete logic doesn't handle the multi-milestone case. Required manual hand-holding (don't delete after v1.1 archive; do delete after v1.2 archive)
+- **Same milestone-CLI accomplishment-extraction garbage as v1.1** — the CLI pulled SUMMARY.md fragments that weren't one-liners (or were partial markdown) and treated them as accomplishments. MILESTONES.md required full manual rewrite both times
+- **CLI overwrote the manually-written v1.2-ROADMAP.md archive** — workaround was to back up to /tmp before running the CLI, then restore. Should be a documented step or the CLI should preserve user-authored archive files
+- **Phase 15 PLAN files were never committed during execution** — discovered as untracked at v1.2 archive time. `git add` of the 5 PLAN files was needed before the milestone commit. Likely an executor-agent omission
+- **REQUIREMENTS.md checkbox lag again** — same as v1.0 / v1.1; 25 INST-* + WORK-* boxes still `[ ]` at audit time despite VERIFICATION marking every one SATISFIED. Resolved at audit time but ideally these tick during execution
+- **Phase 12, 13, 15 missing VALIDATION.md `wave_0_complete: true`** — Nyquist contracts not closed; tracked as post-hoc debt
+- **Audit milestone surfaced shared-file taxonomy issue late** — discovered REQUIREMENTS.md was a v1.1+v1.2 combined file at v1.2 audit time, requiring the "do v1.1 first" plan. Earlier detection would have let v1.1 ship cleanly when its phases were marked Shipped in ROADMAP
+
+### Patterns Established
+
+- **`ProjectDataService::resolve()` as the only source for any install-* code path** — never read `extracted_data`, `reviewed_data`, `survey_data` directly. Repeats the v1.0 pattern with a sharper teeth: enforced in Phase 12 verification
+- **Per-item AJAX endpoints for any field-page checklist** — `PATCH /commissioning-items/{item}/status`, `PATCH .../notes`, `POST .../photo`, `POST .../fail-with-evidence`. Pattern reusable for any future phase that lets engineers fill out items in spotty signal
+- **`HeicImageConverter::writeAsJpeg()` is the single HEIC seam** — every photo upload service (`TaskPhotoService`, `CommissioningPhotoService`) delegates to it; never inline `imagick` calls
+- **`DocumentArtifactStorage::TYPE_*` constants** — every new artifact type registers a constant (TYPE_RAMS, TYPE_OM, TYPE_WORKSHEET, TYPE_CABLE, TYPE_SNAGGING); excluded from `LEGACY_ROOTS` if there's no pre-H-07 history
+- **Atomic transaction + lockForUpdate + canTransitionTo() guard for state-machine writes** — `CommissioningService::finalise()` pattern: `DB::transaction` → `lockForUpdate` → guard → write → commit. Future state transitions should mirror this
+- **`{Phase}-CONTEXT.md` "Claude's Discretion" section** — when a phase ships an early sliver of a future requirement (e.g., Phase 14's INST-04g for Phase 15), record it explicitly in CONTEXT.md so the dependency chain is visible at audit time
+- **Wave-0 RED test scaffold with Nyquist VALIDATION map** — Phases 14, 15, 16 each opened with a Plan -01 that wrote 16-22 RED tests + factories + a VALIDATION.md frontmatter. The pattern of "scaffold the assertions before writing production code" worked across all three; missing VALIDATION close-out is the wart
+
+### Key Lessons
+
+- **Split REQUIREMENTS.md per milestone before authoring next milestone's reqs** — combined files break the complete-milestone CLI's assumptions and force manual orchestration. Future projects should keep REQUIREMENTS.md per-milestone (`REQUIREMENTS-v1.3.md`) or add a separator the CLI understands
+- **The complete-milestone CLI is unreliable for non-current-milestone archival AND for current-milestone accomplishment extraction** — for any archive cycle, expect to manually rewrite v{X}-ROADMAP.md (back up first if you wrote it before running CLI) and the MILESTONES.md entry
+- **Tick REQUIREMENTS.md checkboxes during execution, not at audit** — three milestones, three audits with checkbox lag. Fix at the workflow level: add a hook in execute-phase that ticks the listed REQ-IDs from a plan's frontmatter when the SUMMARY.md is written
+- **Untracked PLAN.md files at archive time signal an executor-agent gap** — Phase 15's 5 PLAN files were never committed during execution. Worth investigating whether the executor's commit step is missing PLAN files in some flow
+- **Document scope reductions when they happen, not at archive** — v1.1 deferred phases 10/11 silently; v1.2 had no comparable scope cut but the milestone audit was the first moment the v1.1 reduction was recorded
+- **Operational debt deserves a dedicated bucket in PROJECT.md** — both v1.1 (Postmark cutover) and v1.2 (deployment-gated UAT) shipped with operational rather than implementation debt. PROJECT.md needs to track these distinctly so they don't get confused with incomplete code
+- **Wave-0 + VALIDATION.md is half the value if `wave_0_complete: true` never gets set** — the contract is authored, the tests exist, but the close-out flag never flips. Process gap, not a code gap
+
+### Cost Observations
+
+- Model mix: balanced profile (sonnet primary)
+- Sessions: estimated 8-12 across the 10-day window (research → plan → execute × 5 phases → verify → audit/archive)
+- Notable: Phase 16's research + UI design + signature spike + 87 green tests + iOS human-verify all completed in a single phase. The wave-based plan structure with explicit dependency declaration ("Wave 1 / Wave 2 / Wave 3") let parallel work happen safely
+- Notable: integration-checker agent was efficient at this scale — both v1.1 and v1.2 audits ran the agent once each, no re-runs needed
+
+---
+
 ## Cross-Milestone Trends
 
-| Metric | v1.0 | v1.1 |
-|--------|------|------|
-| Phases scoped | 7 | 4 |
-| Phases delivered | 7 | 2 (10/11 deferred) |
-| Plans | 29 | 9 |
-| Timeline (days) | 3 | 5 |
-| Commits in dev range | 212 | 83 |
-| Source LOC +/- | n/a | +24,441 / −12,814 |
-| Worktree conflicts | 2 | 0 |
-| REQUIREMENTS.md checkbox lag at audit | yes | yes (21 NOTF-*) |
-| Scope cuts mid-execution | 0 | 2 phases (10/11) |
-| Operational debt at ship | 1 (DATA-04 partial) | 1 (Postmark cutover) |
-| Audit verdict | n/a (no audit step in v1.0) | tech_debt (no blockers) |
+| Metric | v1.0 | v1.1 | v1.2 |
+|--------|------|------|------|
+| Phases scoped | 7 | 4 | 5 |
+| Phases delivered | 7 | 2 (10/11 deferred) | 5 |
+| Plans | 29 | 9 | 21 |
+| Timeline (days) | 3 | 5 | 10 |
+| Commits in dev range | 212 | 83 | 281 |
+| `feat(...)` commits | n/a | n/a | 95 |
+| Source LOC +/- | n/a | +24,441 / −12,814 | +45,200 / −13,579 |
+| Worktree conflicts | 2 | 0 | 0 |
+| REQUIREMENTS.md checkbox lag at audit | yes | yes (21 NOTF-*) | yes (25 INST-*/WORK-*) |
+| Scope cuts mid-execution | 0 | 2 phases (10/11) | 0 |
+| Operational debt at ship | 1 (DATA-04 partial) | 1 (Postmark cutover) | 2 (Phase 13/14 deployment-gated UAT) |
+| VALIDATION.md `wave_0_complete: true` | n/a | 0/2 phases | 2/5 phases (14, 16) |
+| Audit verdict | n/a (no audit step in v1.0) | tech_debt (no blockers) | tech_debt (no blockers) |
+| CLI manual-fix needed at archive | n/a | yes (full MILESTONES + ROADMAP rewrite) | yes (same; back up ROADMAP first) |
+
+---
+
+## Recurring Themes
+
+These show up in every milestone retrospective so far:
+
+1. **REQUIREMENTS.md checkboxes lag execution** — three for three. Workflow-level fix needed (auto-tick from SUMMARY frontmatter, or per-plan hygiene gate before phase complete)
+2. **Tooling assumes single-milestone REQUIREMENTS.md** — combined files (v1.1+v1.2) break complete-milestone CLI; v1.3+ should split before authoring
+3. **CLI accomplishment auto-extraction is unreliable** — pull SUMMARY one-liners that aren't proper one-liners; produces garbage every time. Treat MILESTONES.md entry as a manual write step
+4. **VALIDATION.md `wave_0_complete: false`** — Nyquist contracts authored at plan time but never closed during execution. Two phases out of seven across v1.1 + v1.2 actually closed it. Process gap
+5. **Operational debt vs implementation debt** — both warrant distinct tracking. Currently lumped together as "tech_debt" in audit; PROJECT.md ought to separate them

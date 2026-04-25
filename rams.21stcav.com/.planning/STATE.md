@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Installation Programme & Field Management
 status: verifying
-last_updated: "2026-04-25T10:25:41.363Z"
+last_updated: "2026-04-25T11:03:06.729Z"
 last_activity: 2026-04-25
 progress:
   total_phases: 5

@@ -74,14 +74,18 @@ One dataset powers every document. Engineers capture real-world data, quotes pro
 **Operational debt (post-ship):**
 - [ ] **NOTF-05g**: Production Postmark cutover — DNS records (SPF/DKIM/DMARC), `POSTMARK_API_KEY` in production `.env`, sender signature verification, first-send confirmation. Runbook at `milestones/v1.1-phases/09-email-notifications/POSTMARK-OPS-CHECKLIST.md`
 
-#### v1.2 — Installation Programme & Field Management (Phases 12–16)
-- [ ] **INST-01**: Auto-generate install task lists from project data (room x equipment driven)
-- [ ] **INST-02**: Task assignment to engineers with calendar view and Gantt timeline
-- [ ] **INST-03**: Responsive mobile field view — task checklist, clock in/out, photo capture
+#### v1.2 — Installation Programme & Field Management (Phases 12–16; SHIPPED 2026-04-25)
+- [x] **INST-01**: Auto-generate install task lists from project data (room x equipment driven) *(validated in Phase 12 — InstallTaskGeneratorService reads from ProjectDataService, PM confirm gate, re-generation archives prior programme)*
+- [x] **INST-02**: Task assignment to engineers with calendar view and Gantt timeline *(validated in Phase 13 — bulk assignment, conditional Gantt at >4 days, engineer-only filter)*
+- [x] **INST-03**: Responsive mobile field view — task checklist, clock in/out, photo capture *(validated in Phase 14 — `/projects/{project}/programme`, HEIC server-side conversion, AJAX status/notes saves, online-only)*
 - [x] **INST-04**: Time tracking per project/category with heartbeat-guarded sessions and dashboard actual hours *(validated in Phase 15 — actuals-only, budget comparison deferred)*
 - [x] **INST-05**: Commissioning checklist — per-equipment sign-off with photo evidence and client signature *(validated in Phase 16 — INST-05a through INST-05i all satisfied, iOS Retina DPI signature capture human-verified)*
-- [ ] **WORK-05**: Worksheet includes pre-install check question answers per room
-- [ ] **WORK-06**: Worksheet generation triggered from project dashboard
+- [x] **WORK-05**: Worksheet includes pre-install check question answers per room *(validated in Phase 12 — Section E renders SiteSurveyRoomQuestion answers via WorksheetDocxService)*
+- [x] **WORK-06**: Worksheet generation triggered from project dashboard *(validated in Phase 12 — `worksheets.generate-from-project` route + ProjectController button)*
+
+**Outstanding human UAT (deployment-gated, not implementation gaps):**
+- [ ] Phase 13: Gantt rendering + slide-over click + role-based filter — frappe-gantt is bundled but browser-based confirmation pending
+- [ ] Phase 14: iOS HEIC end-to-end upload — blocked on deploying app to a web-accessible environment for real-iPhone test
 
 #### v1.3 — Technical Drawings & Schematics (Phases 17–20)
 - [ ] **DRAW-01**: AI-generated system schematics from equipment and cable schedule data
@@ -122,13 +126,16 @@ One dataset powers every document. Engineers capture real-world data, quotes pro
 
 - **Shipped v1.0:** 7 phases, 29 plans — full RAMS pipeline from quote import through document generation
 - **Shipped v1.1:** 2 phases (08, 09), 9 plans — real-time project health dashboard + 6 queued email mailables with idempotency-first dispatch (Phases 10/11 deferred — Bitrix24 + multi-channel + quality scoring rolled to a future milestone)
-- **Codebase:** Laravel 12, PHP 8.2+, MySQL, Blade/Tailwind/Alpine.js, ~295 commits across v1.0 + v1.1
+- **Shipped v1.2:** 5 phases (12–16), 21 plans, 281 commits in dev range — full installation delivery loop from auto-generated task list → mobile field view → time tracking → commissioning sign-off with snagging PDF
+- **Codebase:** Laravel 12, PHP 8.2+, MySQL, Blade/Tailwind/Alpine.js, ~580+ commits across v1.0/v1.1/v1.2
 - **AI stack:** Claude (default) + OpenAI via AIManager abstraction — structured JSON only, cached
-- **Document generation:** PHPWord (DOCX worksheets/RAMS/O&M), PhpSpreadsheet (XLSX cable schedules), DomPDF/mPDF (PDF)
+- **Document generation:** PHPWord (DOCX worksheets/RAMS/O&M), PhpSpreadsheet (XLSX cable schedules), DomPDF/mPDF (PDF), `creagia/laravel-sign-pad` (client signature)
 - **Notification stack (v1.1):** 6 `ShouldQueue` mailables, Postmark transport packaged, `NotificationRecipientResolver` single source of truth, `RAMS_NOTIFICATION_BCC` global BCC, idempotency timestamps set BEFORE send
-- **Current state post-v1.1:** Document generators + survey system + dashboard health view + email notification triggers all live; Postmark production cutover gated by runbook (DNS + sender signature + first-send confirm)
-- **Tech debt:** DATA-04 confidence scoring (per-field source annotation) partially implemented; Phase 07 RED test stubs not greened; Phase 09 REVIEW WR-01..WR-04 polish items (error-truncation inconsistencies + narrow `failed()` try/catch gap); VALIDATION.md `wave_0_complete: false` for phases 08, 09, 12, 13, 15
-- **Next milestone focus:** v1.2 Installation Programme & Field Management (Phases 12–16, all complete — pending archive) → v1.3 Technical Drawings & Schematics (next planned)
+- **Field stack (v1.2):** `/projects/{project}/programme` mobile route, `HeicImageConverter::writeAsJpeg()` server-side HEIC conversion, `TimeEntryService` with 60s heartbeat + 2-hour stale-close cron, `commissioning_items` per AVIXA category with DPI-correct signature canvas, snagging PDF via `DocumentArtifactStorage::TYPE_SNAGGING`
+- **Current state post-v1.2:** Document generators + survey system + dashboard + notifications + full installation/commissioning loop all live; Postmark production cutover gated by runbook
+- **Tech debt:** DATA-04 confidence scoring partial; Phase 07 RED test stubs not greened; Phase 09 REVIEW WR-01..WR-04 polish; Phase 15 REVIEW WR-01 (TOCTOU race in stale-close) + WR-02 + IN-01..IN-06 cosmetics; VALIDATION.md `wave_0_complete: false` for phases 08, 09, 12, 13, 15
+- **Outstanding human UAT (deployment-gated):** Phase 13 Gantt browser confirmation, Phase 14 iOS HEIC end-to-end (both blocked on deploying to a web-accessible environment)
+- **Next milestone focus:** v1.3 Technical Drawings & Schematics (Phases 17–20) — AI-generated system schematics, rack elevations, floor plans, DWG/PDF export
 
 ## Constraints
 
@@ -171,4 +178,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-25 after v1.1 (Operations Dashboard & Notifications) milestone archive — 2 phases shipped, 6 queued mailables wired with idempotency-first dispatch, dashboard health view live; 10/11 deferred. v1.2 installation delivery loop is feature-complete on disk and queued for archive next.*
+*Last updated: 2026-04-25 after v1.2 (Installation Programme & Field Management) milestone archive — 5 phases shipped covering install task generation, scheduling, mobile field view, time tracking, and commissioning sign-off. Three milestones live (v1.0, v1.1, v1.2); v1.3 Technical Drawings & Schematics is next planned.*

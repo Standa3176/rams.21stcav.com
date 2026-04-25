@@ -18,52 +18,17 @@ See: `.planning/PROJECT.md` (updated 2026-04-13)
 |-----------|-------|--------|--------|
 | v1.0 | RAMS MVP | 01–07 | ✅ Shipped — [archive](milestones/v1.0-ROADMAP.md) |
 | v1.1 | Operations Dashboard & Notifications | 08–09 (10/11 deferred) | ✅ Shipped 2026-04-25 — [archive](milestones/v1.1-ROADMAP.md) |
-| v1.2 | Installation Programme & Field Management | 12–16 | ✅ Shipped (pending archive) |
-| v1.3 | Technical Drawings & Schematics | 17–20 | 📋 Planned |
+| v1.2 | Installation Programme & Field Management | 12–16 | ✅ Shipped 2026-04-25 — [archive](milestones/v1.2-ROADMAP.md) |
+| v1.3 | Technical Drawings & Schematics | 17–20 | 🚧 Next planned |
 | v1.4 | Client Portal & Project Visibility | 21–24 | 📋 Planned |
 | v1.5 | Financial & Proposal Engine | 25–28 | 📋 Planned |
 | v1.6 | Service & Inventory | 29–32 | 📋 Planned |
 
 ---
 
-## v1.2 Installation Programme & Field Management
-*"From commissioned install plan to signed-off handover"*
+## ✅ v1.2 Installation Programme & Field Management — SHIPPED 2026-04-25
 
-### Phase 12: Install Task Generation
-**Goal**: Generate structured install_tasks from reviewed project data grouped by room.
-**Status**: ✅ Complete
-
-### Phase 13: Task Assignment & Scheduling
-**Goal**: Assign install_tasks to engineers with scheduling, dependency, and capacity visibility.
-**Status**: ✅ Complete
-
-### Phase 14: Mobile Field View
-**Goal**: Engineer-facing mobile field view with per-task photo evidence, notes, HEIC conversion, and one-open-time-entry guard.
-**Status**: ✅ Complete
-
-### Phase 15: Time Tracking
-**Goal**: Clock in / clock out time_entries with category, heartbeat, stale-session recovery, retro-edit, and actual-hours widget.
-**Status**: ✅ Complete
-
-### Phase 16: Commissioning Checklist & Sign-off
-**Goal**: Per-equipment commissioning checklist with AVIXA categories, per-item photo evidence, and client digital signature. Completing the checklist generates a snagging PDF and advances project to Commissioning state.
-**Depends on**: Phase 14
-**Requirements**: INST-05, INST-05a, INST-05b, INST-05c, INST-05d, INST-05e, INST-05f, INST-05g, INST-05h, INST-05i
-**Success Criteria** (what must be TRUE):
-  1. `commissioning_items` table has all columns from REQUIREMENTS.md
-  2. Each item status update is saved via a separate AJAX request (no full-form POST)
-  3. Uploading a HEIC photo for a commissioning item stores it as JPEG
-  4. Client signature canvas renders at correct DPI on iOS Retina (devicePixelRatio scaling applied)
-  5. "Complete Commissioning" button is disabled until all items are pass/fail/na
-  6. Generating the snagging PDF produces a downloadable file embedding the signature image
-  7. On programme completion, `Project.status` advances to `STATUS_COMMISSIONING` via state machine
-**Plans**: 5 plans
-Plans:
-- [x] 16-01-PLAN.md — Wave 0 test scaffold (22 tests + 2 factories + VALIDATION map; Nyquist red baseline)
-- [x] 16-02-PLAN.md — Scaffold: composer require creagia/laravel-sign-pad + DPI spike + config/commissioning.php + 2 migrations + 2 models + exception + generator + sync service + InstallTaskObserver + DocumentArtifactStorage::TYPE_SNAGGING (Wave 1)
-- [x] 16-03-PLAN.md — Checklist UI + per-item AJAX: CommissioningController + CommissioningItemController + 3 FormRequests + CommissioningPhotoService + show/item-row/fail-sheet Blade views + 5 routes (Wave 2)
-- [x] 16-04-PLAN.md — Snagging PDF + signoff finalisation: CommissioningPdfService + CommissioningService + CommissioningSignoffController + FinaliseRequest + PDF Blade + 3 routes + D-16 atomic transaction + state-machine guard (Wave 2, parallel to 16-03)
-- [x] 16-05-PLAN.md — Signature canvas + Re-sync UI + checkpoint: signoff-sheet Blade with DPI scaling + resync-diff partial + CommissioningResyncController + iOS Retina human-verify (Wave 3)
+5 phases, 21 plans — full installation delivery loop from auto-generated task list → mobile field view → time tracking → commissioning sign-off with snagging PDF. See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full details.
 
 ---
 
