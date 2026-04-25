@@ -120,6 +120,41 @@
             </div>
         @endif
 
+        @if (!$readonly)
+            {{-- Submit panel — pinned at the top so engineers don't miss it
+                 once every room is complete. Only renders when allComplete. --}}
+            <div x-show="allComplete" x-cloak
+                 class="bg-brand-gold/10 border border-brand-gold rounded-2xl p-4 shadow-sm mb-4">
+                <p class="text-sm font-semibold text-gray-800 mb-2">
+                    ✅ All rooms complete — ready to submit
+                </p>
+                <label class="block text-xs font-semibold text-gray-700 mb-1">
+                    Your Name <span class="text-red-500">*</span>
+                </label>
+                <input type="text"
+                       x-model="surveyorName"
+                       placeholder="Full name for submission"
+                       class="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base
+                              focus:outline-none focus:ring-2 focus:ring-brand-teal min-h-[44px] mb-3">
+                <form method="POST" action="{{ route('survey.submit', $token) }}" id="submit-form-top"
+                      @submit.prevent="submitSurveyTop()">
+                    @csrf
+                    <input type="hidden" name="surveyor_name" :value="surveyorName">
+                    <input type="hidden" name="survey_date" value="{{ now()->format('Y-m-d') }}">
+                    <button type="submit"
+                            :disabled="submitting || !surveyorName.trim()"
+                            class="w-full py-4 rounded-2xl font-bold text-base min-h-[56px]
+                                   transition-colors shadow-md"
+                            :class="(surveyorName.trim() && !submitting)
+                                ? 'bg-brand-gold text-white hover:bg-amber-600'
+                                : 'bg-gray-200 text-gray-400 cursor-not-allowed'">
+                        <span x-show="!submitting">Submit Survey ✓</span>
+                        <span x-show="submitting">Submitting…</span>
+                    </button>
+                </form>
+            </div>
+        @endif
+
         {{-- Download printable PDF form — offline/manual completion fallback --}}
         <a href="{{ route('survey.download.form', ['token' => $token]) }}"
            target="_blank" rel="noopener"
@@ -232,36 +267,6 @@
         </template>
 
         @if (!$readonly)
-            <div x-show="allComplete" x-cloak class="bg-white rounded-2xl p-4 shadow-sm mb-3">
-                <label class="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Your Name <span class="text-red-500">*</span>
-                </label>
-                <input type="text"
-                       x-model="surveyorName"
-                       placeholder="Full name for submission"
-                       class="w-full border border-gray-300 rounded-xl px-3 py-3 text-base
-                              focus:outline-none focus:ring-2 focus:ring-brand-teal min-h-[44px]">
-            </div>
-
-            <div x-show="allComplete" x-cloak>
-                <form method="POST" action="{{ route('survey.submit', $token) }}" id="submit-form"
-                      @submit.prevent="submitSurvey()">
-                    @csrf
-                    <input type="hidden" name="surveyor_name" :value="surveyorName">
-                    <input type="hidden" name="survey_date" value="{{ now()->format('Y-m-d') }}">
-                    <button type="submit"
-                            :disabled="submitting || !surveyorName.trim()"
-                            class="w-full py-4 rounded-2xl font-bold text-base min-h-[56px]
-                                   transition-colors shadow-md"
-                            :class="(surveyorName.trim() && !submitting)
-                                ? 'bg-brand-gold text-white hover:bg-amber-600'
-                                : 'bg-gray-200 text-gray-400 cursor-not-allowed'">
-                        <span x-show="!submitting">Submit Survey ✓</span>
-                        <span x-show="submitting">Submitting…</span>
-                    </button>
-                </form>
-            </div>
-
             <div x-show="!allComplete"
                  class="mt-2 text-center text-xs text-gray-400 py-2">
                 Complete all rooms to unlock submission.
@@ -1286,10 +1291,10 @@ function surveyWizard() {
         },
 
         // ── Final submit ──────────────────────────────────────────────────────
-        async submitSurvey() {
+        async submitSurveyTop() {
             if (!this.surveyorName.trim()) return;
             this.submitting = true;
-            document.getElementById('submit-form').submit();
+            document.getElementById('submit-form-top').submit();
         },
     };
 }
