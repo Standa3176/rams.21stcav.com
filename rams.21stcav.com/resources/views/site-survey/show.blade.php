@@ -699,14 +699,23 @@
             @if($room->floor_type)
             <tr><td>Floor Type</td><td>{{ ucfirst($room->floor_type) }}</td></tr>
             @endif
+            @php
+                // Power/network availability now lives in the wizard ui_state
+                // (boolean toggles on Step 2). Fall back to the legacy DB column
+                // so old surveys keep rendering correctly.
+                $powerOn = $room->has_power ?? ($wizardUi['power_available']   ?? null);
+                $netOn   = $room->has_network ?? ($wizardUi['network_available'] ?? null);
+            @endphp
             <tr>
                 <td>Power</td>
                 <td>
-                    @if($room->has_power)
+                    @if($powerOn)
                         <span style="color:#065F46;font-weight:600;">✓ Present</span>
                         @if($room->power_outlet_count) — {{ $room->power_outlet_count }} outlets @endif
-                    @else
+                    @elseif($powerOn === false)
                         <span style="color:#991B1B;">✗ Not present</span>
+                    @else
+                        <span style="color:#9CA3AF;">— not captured</span>
                     @endif
                     @if($room->requires_additional_power)
                         <span style="background:#FEF3C7;color:#92400E;padding:.1rem .4rem;border-radius:3px;font-size:.75rem;margin-left:.4rem;">Additional needed</span>
@@ -716,11 +725,13 @@
             <tr>
                 <td>Network</td>
                 <td>
-                    @if($room->has_network)
+                    @if($netOn)
                         <span style="color:#065F46;font-weight:600;">✓ Present</span>
                         @if($room->network_port_count) — {{ $room->network_port_count }} ports @endif
-                    @else
+                    @elseif($netOn === false)
                         <span style="color:#991B1B;">✗ Not present</span>
+                    @else
+                        <span style="color:#9CA3AF;">— not captured</span>
                     @endif
                 </td>
             </tr>
