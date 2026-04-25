@@ -310,19 +310,20 @@
                      checklist guidance count. Hidden by default; chevron in
                      the card header expands. Read-only, informational. --}}
                 <template x-if="expandedRoomIdx === idx && room._ctx && (room._ctx.av_requirements || room._ctx.av_equipment_list || room._ctx.question_count > 0 || (room._ctx.checklist_lines && room._ctx.checklist_lines.length > 0) || (room._ctx.works_bullets && room._ctx.works_bullets.length > 0))">
-                    <div class="px-3 pb-3 pt-2 border-t border-gray-100 bg-gray-50/60 text-xs space-y-1.5">
+                    <div class="px-3 pb-3 pt-2.5 border-t border-gray-100 bg-gray-50/60 text-xs space-y-2">
                         {{-- INSTALL ACTIONS — collapsed by default --}}
                         <template x-if="room._ctx.works_bullets && room._ctx.works_bullets.length > 0">
-                            <details class="bg-white rounded-lg border border-gray-200">
-                                <summary class="px-3 py-2 cursor-pointer select-none flex items-center justify-between list-none">
-                                    <span class="font-semibold text-gray-700 flex items-center gap-1.5">
-                                        <span>📋</span>
+                            <details class="group bg-white rounded-xl border-2 border-brand-teal/30 shadow-sm overflow-hidden hover:border-brand-teal transition-colors">
+                                <summary class="px-3.5 py-3 cursor-pointer select-none flex items-center justify-between list-none bg-brand-teal/5 hover:bg-brand-teal/10 transition-colors min-h-[44px]">
+                                    <span class="font-bold text-brand-teal flex items-center gap-2 text-sm">
+                                        <span class="text-base">📋</span>
                                         <span>Install actions</span>
-                                        <span class="text-gray-400 font-normal">(<span x-text="room._ctx.works_bullets.length"></span>)</span>
+                                        <span class="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-full bg-brand-teal text-white text-[11px] font-bold tabular-nums"
+                                              x-text="room._ctx.works_bullets.length"></span>
                                     </span>
-                                    <span class="text-gray-400 group-open:rotate-180 transition-transform">▾</span>
+                                    <span class="text-brand-teal text-base group-open:rotate-180 transition-transform">▾</span>
                                 </summary>
-                                <ul class="list-disc pl-7 pr-3 pb-3 pt-0 text-gray-700 space-y-0.5 leading-snug">
+                                <ul class="list-disc pl-7 pr-3 pb-3 pt-2.5 text-gray-700 space-y-0.5 leading-snug">
                                     <template x-for="(b, bi) in room._ctx.works_bullets" :key="bi">
                                         <li x-text="b.replace(/^[-•]\s*/, '')"></li>
                                     </template>
@@ -331,32 +332,33 @@
                         </template>
                         {{-- PLANNED AV WORKS prose (only when no bullet list) --}}
                         <template x-if="room._ctx.av_requirements && (!room._ctx.works_bullets || room._ctx.works_bullets.length === 0)">
-                            <details class="bg-white rounded-lg border border-gray-200">
-                                <summary class="px-3 py-2 cursor-pointer select-none flex items-center justify-between list-none">
-                                    <span class="font-semibold text-gray-700 flex items-center gap-1.5">
-                                        <span>📋</span>
+                            <details class="group bg-white rounded-xl border-2 border-brand-teal/30 shadow-sm overflow-hidden hover:border-brand-teal transition-colors">
+                                <summary class="px-3.5 py-3 cursor-pointer select-none flex items-center justify-between list-none bg-brand-teal/5 hover:bg-brand-teal/10 transition-colors min-h-[44px]">
+                                    <span class="font-bold text-brand-teal flex items-center gap-2 text-sm">
+                                        <span class="text-base">📋</span>
                                         <span>Planned AV works</span>
                                     </span>
-                                    <span class="text-gray-400">▾</span>
+                                    <span class="text-brand-teal text-base group-open:rotate-180 transition-transform">▾</span>
                                 </summary>
-                                <p class="px-3 pb-3 text-gray-700 leading-snug" x-text="room._ctx.av_requirements"></p>
+                                <p class="px-3.5 pb-3 pt-2.5 text-gray-700 leading-snug" x-text="room._ctx.av_requirements"></p>
                             </details>
                         </template>
                         {{-- QUOTE KIT — rendered as a parsed list --}}
                         <template x-if="room._ctx.av_equipment_list">
-                            <details class="bg-white rounded-lg border border-gray-200">
-                                <summary class="px-3 py-2 cursor-pointer select-none flex items-center justify-between list-none">
-                                    <span class="font-semibold text-gray-700 flex items-center gap-1.5">
-                                        <span>📦</span>
+                            <details class="group bg-white rounded-xl border-2 border-brand-gold/40 shadow-sm overflow-hidden hover:border-brand-gold transition-colors">
+                                <summary class="px-3.5 py-3 cursor-pointer select-none flex items-center justify-between list-none bg-brand-gold/5 hover:bg-brand-gold/10 transition-colors min-h-[44px]">
+                                    <span class="font-bold text-brand-gold flex items-center gap-2 text-sm">
+                                        <span class="text-base">📦</span>
                                         <span>Quote kit</span>
-                                        <span class="text-gray-400 font-normal">(<span x-text="parseKitLines(room._ctx.av_equipment_list).length"></span>)</span>
+                                        <span class="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-full bg-brand-gold text-white text-[11px] font-bold tabular-nums"
+                                              x-text="parseKitLines(room._ctx.av_equipment_list).length"></span>
                                     </span>
-                                    <span class="text-gray-400">▾</span>
+                                    <span class="text-brand-gold text-base group-open:rotate-180 transition-transform">▾</span>
                                 </summary>
-                                <ul class="px-3 pb-3 pt-0 space-y-1 text-gray-800">
+                                <ul class="px-3.5 pb-3 pt-2 divide-y divide-gray-100 text-gray-800">
                                     <template x-for="(item, ki) in parseKitLines(room._ctx.av_equipment_list)" :key="ki">
-                                        <li class="flex items-start gap-2 leading-snug">
-                                            <span class="inline-flex items-center justify-center min-w-[28px] h-5 px-1.5 rounded bg-brand-teal/10 text-brand-teal text-[11px] font-bold tabular-nums"
+                                        <li class="flex items-start gap-2 leading-snug py-1.5">
+                                            <span class="inline-flex items-center justify-center min-w-[32px] h-6 px-2 rounded bg-brand-gold/15 text-brand-gold text-[11px] font-bold tabular-nums flex-shrink-0"
                                                   x-text="item.qty ? item.qty + '×' : '·'"></span>
                                             <span class="flex-1" x-text="item.name"></span>
                                         </li>
@@ -366,18 +368,18 @@
                         </template>
                         {{-- REFERENCE CHECKLIST --}}
                         <template x-if="room._ctx.checklist_lines && room._ctx.checklist_lines.length > 0">
-                            <details class="bg-white rounded-lg border border-gray-200">
-                                <summary class="px-3 py-2 cursor-pointer select-none flex items-center justify-between list-none">
-                                    <span class="font-semibold text-gray-700 flex items-center gap-1.5">
+                            <details class="group bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden hover:border-amber-400 transition-colors">
+                                <summary class="px-3.5 py-2.5 cursor-pointer select-none flex items-center justify-between list-none bg-amber-50/60 hover:bg-amber-50 transition-colors min-h-[44px]">
+                                    <span class="font-semibold text-amber-800 flex items-center gap-2 text-sm">
                                         <span>🔖</span>
                                         <span>Reference checklist</span>
                                         <template x-if="room._ctx.solution_type_name">
-                                            <span class="text-gray-400 font-normal">— <span x-text="room._ctx.solution_type_name"></span></span>
+                                            <span class="text-amber-600/80 font-normal text-xs">— <span x-text="room._ctx.solution_type_name"></span></span>
                                         </template>
                                     </span>
-                                    <span class="text-gray-400">▾</span>
+                                    <span class="text-amber-700 group-open:rotate-180 transition-transform">▾</span>
                                 </summary>
-                                <ul class="list-disc pl-7 pr-3 pb-3 text-gray-700 space-y-0.5 leading-snug">
+                                <ul class="list-disc pl-7 pr-3 pb-3 pt-2 text-gray-700 space-y-0.5 leading-snug">
                                     <template x-for="(line, li) in room._ctx.checklist_lines" :key="li">
                                         <li x-text="line"></li>
                                     </template>
@@ -386,16 +388,17 @@
                         </template>
                         {{-- PRE-INSTALL CHECKLIST --}}
                         <template x-if="room._ctx.question_count > 0">
-                            <details class="bg-white rounded-lg border border-gray-200">
-                                <summary class="px-3 py-2 cursor-pointer select-none flex items-center justify-between list-none">
-                                    <span class="font-semibold text-gray-700 flex items-center gap-1.5">
+                            <details class="group bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:border-gray-300 transition-colors">
+                                <summary class="px-3.5 py-2.5 cursor-pointer select-none flex items-center justify-between list-none bg-gray-50 hover:bg-gray-100 transition-colors min-h-[44px]">
+                                    <span class="font-semibold text-gray-700 flex items-center gap-2 text-sm">
                                         <span>✅</span>
                                         <span>Pre-install checklist</span>
-                                        <span class="text-gray-400 font-normal">(<span x-text="room._ctx.question_count"></span>)</span>
+                                        <span class="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-full bg-gray-300 text-gray-800 text-[11px] font-bold tabular-nums"
+                                              x-text="room._ctx.question_count"></span>
                                     </span>
-                                    <span class="text-gray-400">▾</span>
+                                    <span class="text-gray-500 group-open:rotate-180 transition-transform">▾</span>
                                 </summary>
-                                <ul class="list-disc pl-7 pr-3 pb-3 text-gray-700 space-y-0.5 leading-snug">
+                                <ul class="list-disc pl-7 pr-3 pb-3 pt-2 text-gray-700 space-y-0.5 leading-snug">
                                     <template x-for="(q, qi) in room._ctx.questions" :key="qi">
                                         <li>
                                             <span x-text="q.question"></span>
