@@ -560,6 +560,8 @@
     $wizardCons  = $wizardUi['constraints'] ?? [];
     $wizardSign  = $wizard['signoff'] ?? [];
     $wizardNotes = $wizard['notes'] ?? '';
+    $wizardVoice = $wizardUi['voice_note'] ?? '';
+    $wizardItems = $wizard['additional_items'] ?? [];
     $isComplete = !empty($room->is_completed);
     $hasData    = $room->av_requirements || $room->notes || $room->room_width_m || $room->ceiling_type;
     $hdrClass   = $isComplete ? 'room-view-hdr--complete' : ($hasData ? 'room-view-hdr--inprogress' : 'room-view-hdr--empty');
@@ -839,6 +841,38 @@
         @if($combinedNotes)
         <div class="room-section-hdr">📝 Notes</div>
         <p style="font-size:.875rem;color:#374151;white-space:pre-wrap;margin:0 0 .75rem;">{{ $combinedNotes }}</p>
+        @endif
+
+        {{-- ── Voice / dictation note ────────────────────── --}}
+        @if(trim((string) $wizardVoice) !== '')
+        <div class="room-section-hdr">🎙 Voice Note</div>
+        <p style="font-size:.875rem;color:#374151;white-space:pre-wrap;margin:0 0 .75rem;">{{ $wizardVoice }}</p>
+        @endif
+
+        {{-- ── Additional items requested by engineer ─────── --}}
+        @if(is_array($wizardItems) && count($wizardItems) > 0)
+        <div class="room-section-hdr">🛒 Additional Items Needed ({{ count($wizardItems) }})</div>
+        <table>
+            <tr>
+                <td style="font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;width:14%;">Qty</td>
+                <td style="font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;width:46%;">Item</td>
+                <td style="font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;">Note</td>
+            </tr>
+            @foreach($wizardItems as $item)
+                @php
+                    $qty  = is_array($item) ? ($item['qty'] ?? '') : '';
+                    $desc = is_array($item) ? trim((string) ($item['description'] ?? '')) : trim((string) $item);
+                    $note = is_array($item) ? trim((string) ($item['note'] ?? '')) : '';
+                @endphp
+                @if($desc !== '')
+                <tr>
+                    <td>{{ $qty !== '' ? $qty : '—' }}</td>
+                    <td>{{ $desc }}</td>
+                    <td style="white-space:pre-wrap;">{{ $note ?: '—' }}</td>
+                </tr>
+                @endif
+            @endforeach
+        </table>
         @endif
 
         {{-- ── Pre-install Checks (engineer answers) ──────── --}}

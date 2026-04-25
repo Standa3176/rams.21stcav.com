@@ -111,7 +111,74 @@
                 <div class="bg-emerald-400 h-full rounded-full transition-all duration-500"
                      :class="'w-[' + Math.round(rooms.length ? completedCount / rooms.length * 100 : 0) + '%]'"></div>
             </div>
+
+            {{-- Aggregate Additional Items burger — opens drawer listing every
+                 extra item across all rooms in one place for the office. --}}
+            <button type="button"
+                    @click="itemsDrawerOpen = true"
+                    class="mt-3 w-full flex items-center justify-between gap-2 px-3 py-2.5
+                           rounded-xl border border-gray-200 hover:bg-gray-50 min-h-[44px]
+                           text-sm font-semibold text-gray-700">
+                <span class="flex items-center gap-2">
+                    <svg class="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+                    </svg>
+                    🛒 Additional items needed
+                </span>
+                <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-brand-teal/10 text-brand-teal"
+                      x-text="allAdditionalItems.length"></span>
+            </button>
         </div>
+
+        {{-- Items drawer (rooms-list screen only) --}}
+        <div x-show="itemsDrawerOpen" x-cloak
+             x-transition.opacity
+             @click="itemsDrawerOpen = false"
+             class="fixed inset-0 z-40 bg-black/50"></div>
+        <aside x-show="itemsDrawerOpen" x-cloak
+               x-transition:enter="transition transform ease-out duration-200"
+               x-transition:enter-start="translate-x-full"
+               x-transition:enter-end="translate-x-0"
+               x-transition:leave="transition transform ease-in duration-150"
+               x-transition:leave-start="translate-x-0"
+               x-transition:leave-end="translate-x-full"
+               class="fixed top-0 right-0 bottom-0 z-50 w-[88%] max-w-md bg-white shadow-2xl flex flex-col">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                <p class="font-bold text-gray-900">🛒 Additional items — all rooms</p>
+                <button type="button"
+                        @click="itemsDrawerOpen = false"
+                        class="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center min-h-[44px]"
+                        aria-label="Close">
+                    <svg class="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto px-4 py-4 text-sm">
+                <template x-if="allAdditionalItems.length === 0">
+                    <p class="text-gray-500 italic">No additional items captured yet. Add them on Step 5 of any room.</p>
+                </template>
+                <template x-if="allAdditionalItems.length > 0">
+                    <ul class="space-y-3">
+                        <template x-for="(item, idx) in allAdditionalItems" :key="idx">
+                            <li class="border border-gray-200 rounded-xl p-3">
+                                <div class="flex items-start justify-between gap-2 mb-1">
+                                    <p class="font-semibold text-gray-900 leading-tight">
+                                        <span x-text="item.qty ? (item.qty + '× ') : ''"></span>
+                                        <span x-text="item.description"></span>
+                                    </p>
+                                </div>
+                                <p class="text-xs text-gray-500" x-text="'Room: ' + item.room"></p>
+                                <p x-show="item.note" class="text-xs text-gray-700 mt-1 leading-snug"
+                                   x-text="item.note"></p>
+                            </li>
+                        </template>
+                    </ul>
+                </template>
+            </div>
+        </aside>
 
         @if ($readonly)
             <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3 mb-4
@@ -708,6 +775,51 @@
         {{-- ── STEP 5: EQUIPMENT ───────────────────────────────── --}}
         <x-survey.step-container :step="5" label="Add each item of AV equipment">
             <x-survey.repeater-equipment />
+
+            {{-- Additional items needed — extras the engineer needs the office
+                 to source (cables, brackets, faceplates, etc). Aggregated
+                 across rooms in the Kit Info burger on the rooms list. --}}
+            <div class="bg-white rounded-2xl p-4 shadow-sm">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-sm font-bold text-gray-900">🛒 Additional Items Needed</h3>
+                    <button type="button"
+                            @click="addAdditionalItem()"
+                            class="px-3 py-2 rounded-xl bg-brand-teal text-white text-xs font-bold
+                                   hover:bg-[#0d6e77] min-h-[36px]">
+                        + Add
+                    </button>
+                </div>
+                <p class="text-xs text-gray-500 mb-3 leading-snug">
+                    Anything the office needs to source for this room beyond the quoted kit —
+                    cables, brackets, faceplates, consumables, tools.
+                </p>
+                <template x-if="!Array.isArray(currentRoom?.additional_items) || currentRoom.additional_items.length === 0">
+                    <p class="text-xs text-gray-400 italic">No additional items added.</p>
+                </template>
+                <template x-for="(item, ii) in (currentRoom?.additional_items ?? [])" :key="ii">
+                    <div class="border border-gray-200 rounded-xl p-3 mb-2 space-y-2">
+                        <div class="flex gap-2">
+                            <input type="text"
+                                   placeholder="Qty"
+                                   x-model="currentRoom.additional_items[ii].qty"
+                                   class="w-16 text-sm rounded-lg border-gray-300 focus:border-brand-teal focus:ring-brand-teal">
+                            <input type="text"
+                                   placeholder="Item description (e.g. 5m HDMI cable)"
+                                   maxlength="200"
+                                   x-model="currentRoom.additional_items[ii].description"
+                                   class="flex-1 text-sm rounded-lg border-gray-300 focus:border-brand-teal focus:ring-brand-teal">
+                            <button type="button"
+                                    @click="removeAdditionalItem(ii)"
+                                    class="px-3 rounded-lg text-rose-600 border border-rose-200 hover:bg-rose-50 text-xs font-bold min-w-[40px]">✕</button>
+                        </div>
+                        <input type="text"
+                               placeholder="Note (optional, e.g. why needed)"
+                               maxlength="200"
+                               x-model="currentRoom.additional_items[ii].note"
+                               class="w-full text-sm rounded-lg border-gray-300 focus:border-brand-teal focus:ring-brand-teal">
+                    </div>
+                </template>
+            </div>
         </x-survey.step-container>
 
         {{-- ── STEP 6: ACCESS & H&S ────────────────────────────── --}}
@@ -964,6 +1076,7 @@ function surveyWizard() {
         currentRoomIdx:  null,
         currentStep:     1,
         kitDrawerOpen:   false,
+        itemsDrawerOpen: false,
         saving:          false,
         submitting:      false,
         lastSaved:       null,
@@ -1157,7 +1270,10 @@ function surveyWizard() {
                     data = { infrastructure: r.infrastructure };
                     break;
                 case 5:
-                    data = { equipment: r.equipment ?? [] };
+                    data = {
+                        equipment:        r.equipment        ?? [],
+                        additional_items: r.additional_items ?? [],
+                    };
                     break;
                 case 6:
                     // working_at_height sent as normalization context — server clears
@@ -1229,6 +1345,31 @@ function surveyWizard() {
 
         removeEquipment(idx) {
             this.rooms[this.currentRoomIdx].equipment.splice(idx, 1);
+        },
+
+        // ── Additional items ──────────────────────────────────────────────────
+        addAdditionalItem() {
+            const r = this.rooms[this.currentRoomIdx];
+            if (!Array.isArray(r.additional_items)) r.additional_items = [];
+            r.additional_items.push({ qty: '', description: '', note: '' });
+        },
+
+        removeAdditionalItem(idx) {
+            const r = this.rooms[this.currentRoomIdx];
+            if (Array.isArray(r.additional_items)) r.additional_items.splice(idx, 1);
+        },
+
+        // Aggregate across all rooms — drives the rooms-list "Items" burger.
+        get allAdditionalItems() {
+            const out = [];
+            for (const r of (this.rooms || [])) {
+                for (const it of (r.additional_items ?? [])) {
+                    const desc = (it?.description ?? '').trim();
+                    if (desc === '') continue;
+                    out.push({ room: r.name || 'Unnamed', qty: it.qty || '', description: desc, note: it.note || '' });
+                }
+            }
+            return out;
         },
 
         // ── Pre-install checks ───────────────────────────────────────────────

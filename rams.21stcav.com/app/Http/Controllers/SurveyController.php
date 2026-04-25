@@ -600,6 +600,9 @@ class SurveyController extends Controller
 
             case 5:
                 $room['equipment'] = $this->normalizeEquipment($data['equipment'] ?? []);
+                if (array_key_exists('additional_items', $data)) {
+                    $room['additional_items'] = $this->normalizeAdditionalItems($data['additional_items']);
+                }
                 break;
 
             case 6:
@@ -678,14 +681,15 @@ class SurveyController extends Controller
         $signoff = is_array($room['signoff']  ?? null) ? $room['signoff']  : [];
         $ui      = is_array($room['ui_state'] ?? null) ? $room['ui_state'] : [];
         return [
-            'name'           => (string) ($room['name']  ?? ''),
-            'type'           => (string) ($room['type']  ?? ''),
-            'photos'         => (array)  ($room['photos'] ?? []),
-            'infrastructure' => $this->normalizeInfrastructure($room['infrastructure'] ?? []),
-            'equipment'      => $this->normalizeEquipment($room['equipment'] ?? []),
-            'risks'          => (array)  ($room['risks']  ?? []),
-            'notes'          => (string) ($room['notes']  ?? ''),
-            'constraints'    => $this->normalizeConstraints($room['constraints'] ?? []),
+            'name'             => (string) ($room['name']  ?? ''),
+            'type'             => (string) ($room['type']  ?? ''),
+            'photos'           => (array)  ($room['photos'] ?? []),
+            'infrastructure'   => $this->normalizeInfrastructure($room['infrastructure'] ?? []),
+            'equipment'        => $this->normalizeEquipment($room['equipment'] ?? []),
+            'risks'            => (array)  ($room['risks']  ?? []),
+            'notes'            => (string) ($room['notes']  ?? ''),
+            'constraints'      => $this->normalizeConstraints($room['constraints'] ?? []),
+            'additional_items' => $this->normalizeAdditionalItems($room['additional_items'] ?? []),
             'signoff'        => [
                 'engineer_name'      => (string) ($signoff['engineer_name']      ?? ''),
                 'engineer_confirmed' => (bool)   ($signoff['engineer_confirmed'] ?? false),
@@ -755,6 +759,31 @@ class SurveyController extends Controller
             fn ($item) => array_intersect_key((array) $item, $allowed),
             $equipment
         ));
+    }
+
+    /**
+     * Normalise additional-items list. Each row is {qty, description, note};
+     * empty rows (no description) are dropped so they don't pollute the
+     * stored payload or aggregate burger view.
+     */
+    private function normalizeAdditionalItems(array $items): array
+    {
+        $out = [];
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+            $desc = trim((string) ($item['description'] ?? ''));
+            if ($desc === '') {
+                continue;
+            }
+            $out[] = [
+                'qty'         => (string) ($item['qty']  ?? ''),
+                'description' => $desc,
+                'note'        => trim((string) ($item['note'] ?? '')),
+            ];
+        }
+        return $out;
     }
 
     /**
