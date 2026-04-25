@@ -701,10 +701,15 @@
             @endif
             @php
                 // Power/network availability now lives in the wizard ui_state
-                // (boolean toggles on Step 2). Fall back to the legacy DB column
-                // so old surveys keep rendering correctly.
-                $powerOn = $room->has_power ?? ($wizardUi['power_available']   ?? null);
-                $netOn   = $room->has_network ?? ($wizardUi['network_available'] ?? null);
+                // (boolean toggles on Step 2). Wizard answer wins when present
+                // because the legacy DB column defaults to false on creation
+                // and never gets touched by the public-link flow.
+                $powerOn = array_key_exists('power_available',   $wizardUi)
+                    ? (bool) $wizardUi['power_available']
+                    : $room->has_power;
+                $netOn   = array_key_exists('network_available', $wizardUi)
+                    ? (bool) $wizardUi['network_available']
+                    : $room->has_network;
             @endphp
             <tr>
                 <td>Power</td>
