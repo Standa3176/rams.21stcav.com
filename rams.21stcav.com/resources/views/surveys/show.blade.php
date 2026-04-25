@@ -310,52 +310,86 @@
                      checklist guidance count. Hidden by default; chevron in
                      the card header expands. Read-only, informational. --}}
                 <template x-if="expandedRoomIdx === idx && room._ctx && (room._ctx.av_requirements || room._ctx.av_equipment_list || room._ctx.question_count > 0 || (room._ctx.checklist_lines && room._ctx.checklist_lines.length > 0) || (room._ctx.works_bullets && room._ctx.works_bullets.length > 0))">
-                    <div class="px-4 pb-3 pt-2 border-t border-gray-100 bg-gray-50/60 text-xs space-y-2">
+                    <div class="px-3 pb-3 pt-2 border-t border-gray-100 bg-gray-50/60 text-xs space-y-1.5">
+                        {{-- INSTALL ACTIONS — collapsed by default --}}
                         <template x-if="room._ctx.works_bullets && room._ctx.works_bullets.length > 0">
-                            <div>
-                                <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Install actions</p>
-                                <ul class="list-disc pl-4 mt-0.5 text-gray-700 space-y-0.5">
-                                    <template x-for="(b, bi) in room._ctx.works_bullets" :key="bi">
-                                        <li class="leading-snug" x-text="b.replace(/^[-•]\s*/, '')"></li>
-                                    </template>
-                                </ul>
-                            </div>
-                        </template>
-                        <template x-if="room._ctx.av_requirements && (!room._ctx.works_bullets || room._ctx.works_bullets.length === 0)">
-                            <div>
-                                <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Planned AV works</p>
-                                <p class="text-gray-700 mt-0.5 leading-snug" x-text="room._ctx.av_requirements"></p>
-                            </div>
-                        </template>
-                        <template x-if="room._ctx.checklist_lines && room._ctx.checklist_lines.length > 0">
-                            <div>
-                                <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                                    Reference checklist
-                                    <template x-if="room._ctx.solution_type_name">
-                                        <span class="text-gray-400 normal-case font-normal">— <span x-text="room._ctx.solution_type_name"></span></span>
-                                    </template>
-                                </p>
-                                <ul class="list-disc pl-4 mt-0.5 text-gray-700 space-y-0.5">
-                                    <template x-for="(line, li) in room._ctx.checklist_lines" :key="li">
-                                        <li class="leading-snug" x-text="line"></li>
-                                    </template>
-                                </ul>
-                            </div>
-                        </template>
-                        <template x-if="room._ctx.av_equipment_list">
-                            <div>
-                                <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Quote kit</p>
-                                <p class="text-gray-700 mt-0.5 leading-snug whitespace-pre-line" x-text="room._ctx.av_equipment_list"></p>
-                            </div>
-                        </template>
-                        <template x-if="room._ctx.question_count > 0">
-                            <details>
-                                <summary class="text-[10px] font-semibold uppercase tracking-wide text-gray-500 cursor-pointer select-none">
-                                    Pre-install checklist (<span x-text="room._ctx.question_count"></span>) — tap to preview
+                            <details class="bg-white rounded-lg border border-gray-200">
+                                <summary class="px-3 py-2 cursor-pointer select-none flex items-center justify-between list-none">
+                                    <span class="font-semibold text-gray-700 flex items-center gap-1.5">
+                                        <span>📋</span>
+                                        <span>Install actions</span>
+                                        <span class="text-gray-400 font-normal">(<span x-text="room._ctx.works_bullets.length"></span>)</span>
+                                    </span>
+                                    <span class="text-gray-400 group-open:rotate-180 transition-transform">▾</span>
                                 </summary>
-                                <ul class="list-disc pl-4 mt-1 text-gray-700 space-y-0.5">
+                                <ul class="list-disc pl-7 pr-3 pb-3 pt-0 text-gray-700 space-y-0.5 leading-snug">
+                                    <template x-for="(b, bi) in room._ctx.works_bullets" :key="bi">
+                                        <li x-text="b.replace(/^[-•]\s*/, '')"></li>
+                                    </template>
+                                </ul>
+                            </details>
+                        </template>
+                        {{-- PLANNED AV WORKS prose (only when no bullet list) --}}
+                        <template x-if="room._ctx.av_requirements && (!room._ctx.works_bullets || room._ctx.works_bullets.length === 0)">
+                            <details class="bg-white rounded-lg border border-gray-200">
+                                <summary class="px-3 py-2 cursor-pointer select-none flex items-center justify-between list-none">
+                                    <span class="font-semibold text-gray-700 flex items-center gap-1.5">
+                                        <span>📋</span>
+                                        <span>Planned AV works</span>
+                                    </span>
+                                    <span class="text-gray-400">▾</span>
+                                </summary>
+                                <p class="px-3 pb-3 text-gray-700 leading-snug" x-text="room._ctx.av_requirements"></p>
+                            </details>
+                        </template>
+                        {{-- QUOTE KIT --}}
+                        <template x-if="room._ctx.av_equipment_list">
+                            <details class="bg-white rounded-lg border border-gray-200">
+                                <summary class="px-3 py-2 cursor-pointer select-none flex items-center justify-between list-none">
+                                    <span class="font-semibold text-gray-700 flex items-center gap-1.5">
+                                        <span>📦</span>
+                                        <span>Quote kit</span>
+                                    </span>
+                                    <span class="text-gray-400">▾</span>
+                                </summary>
+                                <p class="px-3 pb-3 text-gray-700 leading-snug whitespace-pre-line"
+                                   x-text="room._ctx.av_equipment_list"></p>
+                            </details>
+                        </template>
+                        {{-- REFERENCE CHECKLIST --}}
+                        <template x-if="room._ctx.checklist_lines && room._ctx.checklist_lines.length > 0">
+                            <details class="bg-white rounded-lg border border-gray-200">
+                                <summary class="px-3 py-2 cursor-pointer select-none flex items-center justify-between list-none">
+                                    <span class="font-semibold text-gray-700 flex items-center gap-1.5">
+                                        <span>🔖</span>
+                                        <span>Reference checklist</span>
+                                        <template x-if="room._ctx.solution_type_name">
+                                            <span class="text-gray-400 font-normal">— <span x-text="room._ctx.solution_type_name"></span></span>
+                                        </template>
+                                    </span>
+                                    <span class="text-gray-400">▾</span>
+                                </summary>
+                                <ul class="list-disc pl-7 pr-3 pb-3 text-gray-700 space-y-0.5 leading-snug">
+                                    <template x-for="(line, li) in room._ctx.checklist_lines" :key="li">
+                                        <li x-text="line"></li>
+                                    </template>
+                                </ul>
+                            </details>
+                        </template>
+                        {{-- PRE-INSTALL CHECKLIST --}}
+                        <template x-if="room._ctx.question_count > 0">
+                            <details class="bg-white rounded-lg border border-gray-200">
+                                <summary class="px-3 py-2 cursor-pointer select-none flex items-center justify-between list-none">
+                                    <span class="font-semibold text-gray-700 flex items-center gap-1.5">
+                                        <span>✅</span>
+                                        <span>Pre-install checklist</span>
+                                        <span class="text-gray-400 font-normal">(<span x-text="room._ctx.question_count"></span>)</span>
+                                    </span>
+                                    <span class="text-gray-400">▾</span>
+                                </summary>
+                                <ul class="list-disc pl-7 pr-3 pb-3 text-gray-700 space-y-0.5 leading-snug">
                                     <template x-for="(q, qi) in room._ctx.questions" :key="qi">
-                                        <li class="leading-snug">
+                                        <li>
                                             <span x-text="q.question"></span>
                                             <span x-show="q.answered" class="text-emerald-600">✓</span>
                                         </li>
