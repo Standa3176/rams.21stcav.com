@@ -392,6 +392,51 @@
                 </div>
             </div>
 
+            {{-- Pre-install checks — interactive yes/no/other for each AI question.
+                 Source of truth: site_survey_room_questions table. Each tap
+                 fires a POST to /survey/{token}/rooms/{room}/questions/{q}. --}}
+            <template x-if="(currentRoom?._ctx?.questions ?? []).length > 0">
+                <div class="bg-white rounded-2xl p-4 shadow-sm">
+                    <p class="text-sm font-semibold text-gray-700 mb-2.5">
+                        Pre-install Checks
+                        <span class="text-xs text-gray-500 font-normal ml-1">
+                            (<span x-text="currentRoom._ctx.questions.filter(q => q.answer).length"></span>
+                            / <span x-text="currentRoom._ctx.questions.length"></span> answered)
+                        </span>
+                    </p>
+                    <div class="space-y-3">
+                        <template x-for="(q, qi) in currentRoom._ctx.questions" :key="q.id">
+                            <div class="border border-gray-200 rounded-xl p-3">
+                                <p class="text-sm text-gray-800 leading-snug mb-2" x-text="q.question"></p>
+                                <div class="grid grid-cols-3 gap-1.5">
+                                    <template x-for="opt in ['yes','no','other']" :key="opt">
+                                        <button type="button"
+                                                @click="answerCheck(q, opt)"
+                                                :class="q.answer === opt
+                                                    ? (opt === 'yes' ? 'bg-emerald-600 text-white border-emerald-600'
+                                                      : opt === 'no'  ? 'bg-rose-600 text-white border-rose-600'
+                                                                       : 'bg-amber-500 text-white border-amber-500')
+                                                    : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'"
+                                                class="py-2 rounded-lg border text-sm font-medium uppercase
+                                                       min-h-[40px] transition-colors"
+                                                x-text="opt"></button>
+                                    </template>
+                                </div>
+                                <template x-if="q.answer === 'other'">
+                                    <textarea rows="2"
+                                              :value="q.other_text ?? ''"
+                                              @blur="saveCheckOtherText(q, $event.target.value)"
+                                              placeholder="Add detail…"
+                                              maxlength="2000"
+                                              class="mt-2 w-full text-sm rounded-lg border-gray-300
+                                                     focus:border-amber-500 focus:ring-amber-500"></textarea>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+
         </x-survey.step-container>
 
         {{-- ── STEP 2: QUICK CAPTURE ───────────────────────────── --}}
@@ -1059,6 +1104,53 @@ function surveyWizard() {
 
         removeEquipment(idx) {
             this.rooms[this.currentRoomIdx].equipment.splice(idx, 1);
+        },
+
+        // ── Pre-install checks ───────────────────────────────────────────────
+        async answerCheck(q, value) {
+            if (!q || !q.id) return;
+            const prev = q.answer;
+            q.answer = value;                        // optimistic
+            if (value !== 'other') q.other_text = '';
+            const roomId = this.currentRoom?._ui?.room_id;
+            if (!roomId) return;
+            try {
+                await fetch(
+                    '/survey/' + this.token + '/rooms/' + roomId + '/questions/' + q.id,
+                    {
+                        method:  'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept':       'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        },
+                        body: JSON.stringify({ answer: value }),
+                    }
+                );
+            } catch (_) { q.answer = prev; }
+        },
+
+        async saveCheckOtherText(q, value) {
+            if (!q || !q.id) return;
+            const next = (value ?? '').trim();
+            if ((q.other_text ?? '') === next) return;
+            q.other_text = next;
+            const roomId = this.currentRoom?._ui?.room_id;
+            if (!roomId) return;
+            try {
+                await fetch(
+                    '/survey/' + this.token + '/rooms/' + roomId + '/questions/' + q.id,
+                    {
+                        method:  'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept':       'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        },
+                        body: JSON.stringify({ other_text: next }),
+                    }
+                );
+            } catch (_) {}
         },
 
         // ── Photo upload ──────────────────────────────────────────────────────

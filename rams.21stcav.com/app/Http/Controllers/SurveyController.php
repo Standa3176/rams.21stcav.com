@@ -336,8 +336,11 @@ class SurveyController extends Controller
                     'av_equipment_list'  => (string) ($dbRoom->av_equipment_list ?? ''),
                     'question_count'     => $questions->count(),
                     'questions'          => $questions->map(fn ($q) => [
-                        'question' => (string) $q->question,
-                        'answered' => $q->answer !== null && $q->answer !== '',
+                        'id'         => $q->id,
+                        'question'   => (string) $q->question,
+                        'answer'     => $q->answer,           // 'yes' | 'no' | 'other' | null
+                        'other_text' => (string) ($q->other_text ?? ''),
+                        'answered'   => $q->answer !== null && $q->answer !== '',
                     ])->values()->toArray(),
                     // Solution-type reference checklist — what the office
                     // master checklist says an engineer should verify for
