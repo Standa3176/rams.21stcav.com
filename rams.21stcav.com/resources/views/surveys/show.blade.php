@@ -200,13 +200,12 @@
                     </div>
 
                     <button @click="selectRoom(idx)"
-                            :disabled="{{ json_encode($readonly) }}"
                             class="flex-shrink-0 flex items-center gap-1 px-4 py-2.5 rounded-xl
                                    text-sm font-bold min-h-[44px] transition-colors"
                             :class="room._ui.is_completed
                                 ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                 : 'bg-brand-teal text-white hover:bg-[#0d6e77]'">
-                        <span x-text="room._ui.is_completed ? 'Review' : 'Start'"></span>
+                        <span x-text="(@json($readonly) || room._ui.is_completed) ? 'Review' : 'Start'"></span>
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24"
                              stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
@@ -376,6 +375,18 @@
                 </template>
             </div>
         </aside>
+
+        {{-- View-only banner shown after submission. The wizard area below
+             shows captured data with pointer-events disabled so engineers
+             can review what they sent without being able to edit. --}}
+        @if ($readonly)
+            <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3 mb-4
+                        text-amber-800 text-sm font-medium text-center">
+                Viewing submitted survey — data is read-only.
+            </div>
+        @endif
+
+        <div :class="@json($readonly) ? 'pointer-events-none select-text' : ''">
 
         {{-- ── STEP 1: ROOM CONTEXT ────────────────────────────── --}}
         <x-survey.step-container :step="1">
@@ -885,14 +896,16 @@
 
         </x-survey.step-container>
 
+        </div>{{-- /:class pointer-events when readonly --}}
+
     </div>{{-- /screen:step --}}
 
 </main>
 
 {{-- ═══════════════════════════════════════════════════════════
-     STICKY BOTTOM NAV (Steps 1–7)
+     STICKY BOTTOM NAV (Steps 1–7) — hidden in readonly mode
 ════════════════════════════════════════════════════════════ --}}
-<div x-show="screen === 'step' && currentStep < 8"
+<div x-show="screen === 'step' && currentStep < 8 && !readonly"
      class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-200
             px-4 py-3 pb-6 z-30">
     <div class="max-w-xl mx-auto flex gap-3">
@@ -908,6 +921,34 @@
                 :class="saving ? 'opacity-60 cursor-wait' : ''">
             <span x-show="!saving">Next →</span>
             <span x-show="saving">Saving…</span>
+        </button>
+    </div>
+</div>
+
+{{-- ═══════════════════════════════════════════════════════════
+     READ-ONLY NAV (Steps 1–8) — visible only after submission so
+     reviewers can step through without triggering save logic.
+════════════════════════════════════════════════════════════ --}}
+<div x-show="screen === 'step' && readonly"
+     class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-200
+            px-4 py-3 pb-6 z-30">
+    <div class="max-w-xl mx-auto flex gap-3">
+        <button @click="prevStep()"
+                class="flex-none w-24 py-3.5 border-2 border-gray-300 rounded-2xl font-semibold
+                       text-gray-700 text-sm min-h-[50px] hover:bg-gray-50 transition-colors">
+            ← Back
+        </button>
+        <button x-show="currentStep < 8"
+                @click="currentStep = Math.min(currentStep + 1, 8); window.scrollTo(0,0);"
+                class="flex-1 py-3.5 bg-brand-teal text-white rounded-2xl font-bold text-sm
+                       min-h-[50px] hover:bg-[#0d6e77] transition-colors">
+            Next →
+        </button>
+        <button x-show="currentStep === 8"
+                @click="screen = 'rooms'; window.scrollTo(0,0);"
+                class="flex-1 py-3.5 bg-gray-700 text-white rounded-2xl font-bold text-sm
+                       min-h-[50px] hover:bg-gray-800 transition-colors">
+            Back to rooms
         </button>
     </div>
 </div>
