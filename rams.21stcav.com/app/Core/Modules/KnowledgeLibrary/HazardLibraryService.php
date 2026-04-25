@@ -221,9 +221,19 @@ class HazardLibraryService
                 $baseline->push($match);
             } else {
                 $controls = $fallbackControls[$keyword] ?? [];
+                // Title-case but keep connector words ("and", "in", "on", "of",
+                // "the") in lower case — Laravel's Str::title() capitalises
+                // every word, producing "Noise And Vibration" / "Working In
+                // Occupied Premises" which doesn't match the reference style.
+                $titled = Str::title($keyword);
+                $titled = preg_replace_callback(
+                    '/\s(And|In|On|Of|The|For|To|At)\b/',
+                    fn ($m) => ' ' . strtolower($m[1]),
+                    $titled
+                );
                 $baseline->push((object) [
                     'id'              => null,
-                    'name'            => Str::title($keyword),
+                    'name'            => $titled,
                     'description'     => null,
                     'controls'        => $controls,
                     'pre_likelihood'  => 3,

@@ -841,10 +841,12 @@ class RamsComplianceUpgradeService
             }
             foreach ($heavyKeywords as $kw) {
                 if (str_contains($desc, $kw)) {
+                    $method = self::suggestHandlingMethod((string) ($item['description'] ?? ''), $qty);
+                    if ($method === null) break;     // sub-kg control panel, skip
                     $detectedItems[] = [
                         'item'            => $item['description'] ?? '',
                         'qty'             => $qty,
-                        'handling_method' => self::suggestHandlingMethod($kw, $qty),
+                        'handling_method' => $method,
                     ];
                     break;
                 }
@@ -859,10 +861,12 @@ class RamsComplianceUpgradeService
             }
             foreach ($heavyKeywords as $kw) {
                 if (str_contains($name, $kw)) {
+                    $method = self::suggestHandlingMethod((string) ($item['item_name'] ?? ''), (int) ($item['qty'] ?? 1));
+                    if ($method === null) break;
                     $detectedItems[] = [
                         'item'            => $item['item_name'] ?? '',
                         'qty'             => (int) ($item['qty'] ?? 1),
-                        'handling_method' => self::suggestHandlingMethod($kw),
+                        'handling_method' => $method,
                     ];
                     break;
                 }
@@ -874,10 +878,12 @@ class RamsComplianceUpgradeService
             foreach ((array) ($room['equipment'] ?? []) as $eq) {
                 $type = strtolower(trim((string) ($eq['type'] ?? '')));
                 if (in_array($type, ['display', 'projector', 'speaker', 'dsp', 'switcher'], true)) {
+                    $method = self::suggestHandlingMethod($type);
+                    if ($method === null) continue;
                     $detectedItems[] = [
                         'item'            => ucfirst($type) . ' (' . ($room['name'] ?? 'Room') . ')',
                         'qty'             => 1,
-                        'handling_method' => self::suggestHandlingMethod($type),
+                        'handling_method' => $method,
                     ];
                 }
             }
@@ -912,36 +918,97 @@ class RamsComplianceUpgradeService
     }
 
     /**
-     * Suggest a handling method based on equipment keyword.
+     * Suggest a handling method based on the item's full description.
+     *
+     * Keyword-only matching produced "98″ display" and "10.1″ room scheduling
+     * touch screen" with the same 2-person team lift instruction — wrong on
+     * both ends. The description gives us the inch size and the device class
+     * (display vs control panel vs speaker), so we can size the team and
+     * select the right control.
+     *
+     * Returns null when the description is a small control panel / scheduler
+     * that does not warrant a manual-handling row at all; the caller treats
+     * null as "skip this row".
      */
-    private static function suggestHandlingMethod(string $keyword, int $qty = 1): string
+    private static function suggestHandlingMethod(string $description, int $qty = 1): ?string
     {
-        return match (true) {
-            str_contains($keyword, 'display'),
-            str_contains($keyword, 'screen'),
-            str_contains($keyword, 'monitor'),
-            str_contains($keyword, 'tv')
-                => 'Team lift (2 persons minimum). Use screen protection during transit. Do not lay face-down.',
+        $desc = strtolower($description);
 
-            str_contains($keyword, 'projector'),
-            str_contains($keyword, 'ceiling')
-                => 'Team lift for ceiling installation. Secure to access equipment before releasing.',
+        // Extract inch size — "98″", "98\"", "98 inch", "98-inch", "10.1″".
+        // Returns float (10.1) or null when no inch number found.
+        $inches = null;
+        if (preg_match('/(\d+(?:\.\d+)?)\s*(?:″|"|\\\\"|\xE2\x80\xB3|inch|in\b|-inch)/u', $desc, $m)) {
+            $inches = (float) $m[1];
+        }
 
-            str_contains($keyword, 'rack')
-                => 'Use equipment trolley for transport. Team lift for rack positioning. Secure before loading.',
+        // Small touch / scheduling / control panels are NOT a manual-handling
+        // concern — they are sub-2 kg single-hand items. Skip them entirely
+        // even though the description contains "screen".
+        $isSmallPanel = $inches !== null && $inches <= 14
+            && (str_contains($desc, 'scheduling') || str_contains($desc, 'touch panel')
+                || str_contains($desc, 'booking panel') || str_contains($desc, 'control panel'));
+        if ($isSmallPanel) {
+            return null;
+        }
 
-            str_contains($keyword, 'amplifier'),
-            str_contains($keyword, 'amp'),
-            str_contains($keyword, 'dsp')
-                => 'Single person lift acceptable if under 20 kg. Check weight before lifting.',
+        // Displays / TVs / large screens — team size scales with inch size.
+        if (str_contains($desc, 'display') || str_contains($desc, ' tv ') || str_contains($desc, 'television')
+            || (str_contains($desc, 'screen') && $inches !== null && $inches >= 32)) {
+            if ($inches !== null && $inches >= 85) {
+                return 'Team lift — minimum 4 persons for ' . rtrim(rtrim((string) $inches, '0'), '.') . '″ size class. '
+                     . 'Use lifting handles or strap kit. Two persons take the front, two the rear; do not pivot on edges. '
+                     . 'Use screen protection during transit. Do not lay face-down.';
+            }
+            if ($inches !== null && $inches >= 65) {
+                return 'Team lift — minimum 3 persons recommended for ' . rtrim(rtrim((string) $inches, '0'), '.') . '″. '
+                     . 'Two persons may lift if using a panel-lift trolley. Use screen protection during transit. Do not lay face-down.';
+            }
+            return 'Team lift (2 persons minimum). Use screen protection during transit. Do not lay face-down.';
+        }
 
-            str_contains($keyword, 'speaker')
-                => $qty > 2
-                    ? 'Multiple units — stage near install positions. Team lift for ceiling/high-level installs.'
-                    : 'Single person lift for wall/shelf mount. Team lift for ceiling installation.',
+        // Wall mounts / brackets — only the heavy XL display brackets warrant
+        // a team lift; small panel mounts (e.g. multisurface kit for a 10.1″)
+        // are sub-1 kg and need no special handling row.
+        if (str_contains($desc, 'mount') || str_contains($desc, 'bracket')) {
+            if (str_contains($desc, 'multisurface') || str_contains($desc, 'small panel')
+                || (str_contains($desc, 'mount') && str_contains($desc, '10.1'))) {
+                return null;  // sub-1 kg, single hand
+            }
+            if (str_contains($desc, 'x-large') || str_contains($desc, 'xl ') || str_contains($desc, 'fusion')
+                || str_contains($desc, 'large')) {
+                return 'Team lift (2 persons minimum) — heavy display bracket. Pre-stage at install location to avoid double handling.';
+            }
+            return 'Single person lift for tilting/fixed wall mount. Check weight before lifting.';
+        }
 
-            default => 'Assess weight before lifting. Team lift for items over 20 kg.',
-        };
+        // Projectors and ceiling-mounted gear.
+        if (str_contains($desc, 'projector')) {
+            return 'Team lift for ceiling installation. Secure to access equipment (podium / tower) before releasing.';
+        }
+
+        // Rack / cabinet hardware.
+        if (str_contains($desc, 'rack')) {
+            return 'Use equipment trolley for transport. Team lift for rack positioning. Secure to floor or wall before loading equipment.';
+        }
+
+        // Audio amps and DSPs — typically 5–15 kg, single person.
+        if (str_contains($desc, 'amplifier') || str_contains($desc, ' amp ') || str_contains($desc, 'dsp')) {
+            return 'Single person lift acceptable if under 20 kg. Check weight before lifting.';
+        }
+
+        // Ceiling speakers — light per unit, but ceiling install needs access
+        // equipment, not a team lift.
+        if (str_contains($desc, 'ceiling') && str_contains($desc, 'speaker')) {
+            return 'Single-hand lift per unit. Use podium / tower for ceiling installation; do not lift from a step ladder above shoulder height.';
+        }
+
+        if (str_contains($desc, 'speaker')) {
+            return $qty > 2
+                ? 'Multiple units — stage near install positions. Team lift only when fitting at high level.'
+                : 'Single person lift for wall/shelf mount. Team lift only for ceiling-mounted installs.';
+        }
+
+        return 'Assess weight before lifting. Team lift for items over 20 kg.';
     }
 
     // =========================================================================
