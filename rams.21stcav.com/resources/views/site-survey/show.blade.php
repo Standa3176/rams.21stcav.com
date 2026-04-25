@@ -545,6 +545,21 @@
 
 @foreach ($rooms as $room)
 @php
+    // Wizard payload for this room — captured via the public survey wizard.
+    // Stored as JSON on the parent survey under survey_data.rooms[idx]; we
+    // align by the loop index because createFromProject persists rooms in
+    // the same order in both stores.
+    $wizard = $survey->survey_data['rooms'][$loop->index] ?? [];
+    $wizardInfra = $wizard['infrastructure'] ?? [];
+    $wizardPower = $wizardInfra['power'] ?? [];
+    $wizardNet   = $wizardInfra['network'] ?? [];
+    $wizardCable = $wizardInfra['cable_routes'] ?? [];
+    $wizardRisks = $wizard['risks'] ?? [];
+    $wizardEqui  = $wizard['equipment'] ?? [];
+    $wizardUi    = $wizard['ui_state'] ?? [];
+    $wizardCons  = $wizardUi['constraints'] ?? [];
+    $wizardSign  = $wizard['signoff'] ?? [];
+    $wizardNotes = $wizard['notes'] ?? '';
     $isComplete = !empty($room->is_completed);
     $hasData    = $room->av_requirements || $room->notes || $room->room_width_m || $room->ceiling_type;
     $hdrClass   = $isComplete ? 'room-view-hdr--complete' : ($hasData ? 'room-view-hdr--inprogress' : 'room-view-hdr--empty');
@@ -804,9 +819,159 @@
         @endif
 
         {{-- ── Notes ─────────────────────────────────────── --}}
-        @if($room->notes)
+        @php $combinedNotes = trim((string) ($room->notes ?? '')) ?: trim((string) $wizardNotes); @endphp
+        @if($combinedNotes)
         <div class="room-section-hdr">📝 Notes</div>
-        <p style="font-size:.875rem;color:#374151;white-space:pre-wrap;margin:0 0 .75rem;">{{ $room->notes }}</p>
+        <p style="font-size:.875rem;color:#374151;white-space:pre-wrap;margin:0 0 .75rem;">{{ $combinedNotes }}</p>
+        @endif
+
+        {{-- ── Pre-install Checks (engineer answers) ──────── --}}
+        @if($room->questions->isNotEmpty())
+        @php
+            $answeredCount = $room->questions->whereNotNull('answer')->count();
+            $totalCount    = $room->questions->count();
+        @endphp
+        <div class="room-section-hdr">✅ Pre-install Checks ({{ $answeredCount }}/{{ $totalCount }} answered)</div>
+        <table>
+            @foreach($room->questions->sortBy('sort_order') as $q)
+                @php
+                    $a = strtolower((string) $q->answer);
+                    $bg = $a === 'yes' ? '#10B981' : ($a === 'no' ? '#EF4444' : ($a === 'other' ? '#F59E0B' : '#9CA3AF'));
+                    $label = $a !== '' ? strtoupper($a) : 'UNANSWERED';
+                @endphp
+                <tr>
+                    <td style="width:65%;font-size:.84rem;line-height:1.35;">{{ $q->question }}</td>
+                    <td style="width:35%;">
+                        <span style="background:{{ $bg }};color:#fff;padding:.18rem .55rem;border-radius:10px;
+                                     font-size:.7rem;font-weight:700;letter-spacing:.04em;">{{ $label }}</span>
+                        @if($a === 'other' && trim((string) $q->other_text) !== '')
+                            <div style="margin-top:.35rem;font-size:.78rem;color:#374151;white-space:pre-wrap;">{{ $q->other_text }}</div>
+                        @endif
+                    </td>
+                </tr>
+            @endforeach
+        </table>
+        @endif
+
+        {{-- ── Captured infrastructure (wizard) ───────────── --}}
+        @php
+            $hasInfra = !empty($wizardPower['socket_locations']) || isset($wizardPower['spare_capacity'])
+                     || !empty($wizardPower['distance_to_screen']) || !empty($wizardNet['ports_available'])
+                     || !empty($wizardNet['switch_location']) || isset($wizardNet['vlan_required'])
+                     || !empty($wizardCable['route_type']) || !empty($wizardCable['estimated_distance']);
+        @endphp
+        @if($hasInfra)
+        <div class="room-section-hdr">⚡ Captured Infrastructure</div>
+        <table>
+            @if(!empty($wizardPower['socket_locations']))
+                <tr><td>Power · Socket locations</td><td>{{ $wizardPower['socket_locations'] }}</td></tr>
+            @endif
+            @if(!empty($wizardPower['distance_to_screen']))
+                <tr><td>Power · Distance to screen</td><td>{{ $wizardPower['distance_to_screen'] }} m</td></tr>
+            @endif
+            @if(array_key_exists('spare_capacity', $wizardPower))
+                <tr><td>Power · Spare capacity</td><td>{{ $wizardPower['spare_capacity'] ? 'Yes' : 'No' }}</td></tr>
+            @endif
+            @if(!empty($wizardNet['ports_available']))
+                <tr><td>Network · Ports available</td><td>{{ $wizardNet['ports_available'] }}</td></tr>
+            @endif
+            @if(!empty($wizardNet['switch_location']))
+                <tr><td>Network · Switch location</td><td>{{ $wizardNet['switch_location'] }}</td></tr>
+            @endif
+            @if(array_key_exists('vlan_required', $wizardNet))
+                <tr><td>Network · VLAN required</td><td>{{ $wizardNet['vlan_required'] ? 'Yes' : 'No' }}</td></tr>
+            @endif
+            @if(!empty($wizardCable['route_type']))
+                <tr><td>Cable · Route type</td><td>{{ $wizardCable['route_type'] }}</td></tr>
+            @endif
+            @if(!empty($wizardCable['estimated_distance']))
+                <tr><td>Cable · Estimated distance</td><td>{{ $wizardCable['estimated_distance'] }} m</td></tr>
+            @endif
+        </table>
+        @endif
+
+        {{-- ── Captured equipment (wizard) ───────────────── --}}
+        @if(is_array($wizardEqui) && count($wizardEqui) > 0)
+        <div class="room-section-hdr">🎛 Captured Equipment ({{ count($wizardEqui) }})</div>
+        <table>
+            <tr>
+                <td style="font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;">Type</td>
+                <td style="font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;">Status</td>
+                <td style="font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;">Location</td>
+            </tr>
+            @foreach($wizardEqui as $item)
+                <tr>
+                    <td>{{ $item['type'] ?? '—' }}</td>
+                    <td>{{ $item['status'] ?? '—' }}</td>
+                    <td>{{ $item['location'] ?? '—' }}</td>
+                </tr>
+            @endforeach
+        </table>
+        @endif
+
+        {{-- ── Risks captured by engineer ─────────────────── --}}
+        @php
+            $risk = is_array($wizardRisks) && isset($wizardRisks[0]) && is_array($wizardRisks[0]) ? $wizardRisks[0] : [];
+            $hasRisk = !empty($risk['working_height']) || !empty($risk['access_equipment'])
+                    || !empty($risk['out_of_hours']) || !empty($risk['permits_required'])
+                    || !empty($risk['manual_handling_risk']);
+        @endphp
+        @if($hasRisk)
+        <div class="room-section-hdr">⚠️ Risks</div>
+        <table>
+            @if(!empty($risk['working_height']))
+                <tr><td>Working height</td><td>{{ $risk['working_height'] }} m</td></tr>
+            @endif
+            @if(!empty($risk['access_equipment']))
+                <tr><td>Access equipment</td><td>{{ $risk['access_equipment'] }}</td></tr>
+            @endif
+            @if(!empty($risk['out_of_hours']))
+                <tr><td>Out of hours</td><td>Yes</td></tr>
+            @endif
+            @if(!empty($risk['permits_required']))
+                <tr><td>Permits required</td><td>Yes</td></tr>
+            @endif
+            @if(!empty($risk['manual_handling_risk']))
+                <tr><td>Manual handling risk</td><td>Yes</td></tr>
+            @endif
+        </table>
+        @endif
+
+        {{-- ── Constraints (UI-only capture) ──────────────── --}}
+        @php
+            $consHas = collect(['obstructions','noise_restrictions','client_constraints','programme_constraints'])
+                ->contains(fn($k) => trim((string) ($wizardCons[$k] ?? '')) !== '');
+        @endphp
+        @if($consHas)
+        <div class="room-section-hdr">🚧 Constraints</div>
+        <table>
+            @foreach([
+                'obstructions'          => 'Obstructions',
+                'noise_restrictions'    => 'Noise restrictions',
+                'client_constraints'    => 'Client constraints',
+                'programme_constraints' => 'Programme constraints',
+            ] as $k => $label)
+                @if(trim((string) ($wizardCons[$k] ?? '')) !== '')
+                    <tr><td>{{ $label }}</td><td style="white-space:pre-wrap;">{{ $wizardCons[$k] }}</td></tr>
+                @endif
+            @endforeach
+        </table>
+        @endif
+
+        {{-- ── Signoff ─────────────────────────────────────── --}}
+        @if(!empty($wizardSign['engineer_name']) || !empty($wizardSign['engineer_confirmed']))
+        <div class="room-section-hdr">✍️ Signoff</div>
+        <table>
+            @if(!empty($wizardSign['engineer_name']))
+                <tr><td>Engineer</td><td>{{ $wizardSign['engineer_name'] }}</td></tr>
+            @endif
+            @if(!empty($wizardSign['engineer_confirmed']))
+                <tr><td>Confirmed</td><td>Yes</td></tr>
+            @endif
+            @if(!empty($wizardSign['signed_at']))
+                <tr><td>Signed at</td><td>{{ \Carbon\Carbon::parse($wizardSign['signed_at'])->format('d M Y H:i') }}</td></tr>
+            @endif
+        </table>
         @endif
 
         {{-- ── Photos ─────────────────────────────────────── --}}
