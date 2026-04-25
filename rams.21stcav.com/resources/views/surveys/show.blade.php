@@ -112,88 +112,7 @@
                      :class="'w-[' + Math.round(rooms.length ? completedCount / rooms.length * 100 : 0) + '%]'"></div>
             </div>
 
-            {{-- Aggregate drawer toggles — Description / Kit / Additional Items.
-                 Each opens a slide-over drawer summarising that aspect across
-                 every room in one place, so the office and the engineer can
-                 scan project-wide context without expanding each card. --}}
-            <div class="mt-3 grid grid-cols-3 gap-2">
-                <button type="button"
-                        @click="descriptionDrawerOpen = true"
-                        class="flex items-center justify-center gap-1 px-2 py-2.5 rounded-xl
-                               border border-gray-200 hover:bg-gray-50 min-h-[44px]
-                               text-xs font-semibold text-gray-700">
-                    <span class="text-base">📋</span>
-                    <span>Description</span>
-                </button>
-                <button type="button"
-                        @click="kitDrawerOpen = true"
-                        class="flex items-center justify-center gap-1 px-2 py-2.5 rounded-xl
-                               border border-gray-200 hover:bg-gray-50 min-h-[44px]
-                               text-xs font-semibold text-gray-700">
-                    <span class="text-base">📦</span>
-                    <span>Kit</span>
-                </button>
-                <button type="button"
-                        @click="itemsDrawerOpen = true"
-                        class="flex items-center justify-center gap-1 px-2 py-2.5 rounded-xl
-                               border border-gray-200 hover:bg-gray-50 min-h-[44px]
-                               text-xs font-semibold text-gray-700">
-                    <span class="text-base">🛒</span>
-                    <span>Items</span>
-                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand-teal/10 text-brand-teal"
-                          x-text="allAdditionalItems.length"></span>
-                </button>
-            </div>
         </div>
-
-        {{-- Items drawer (rooms-list screen only) --}}
-        <div x-show="itemsDrawerOpen" x-cloak
-             x-transition.opacity
-             @click="itemsDrawerOpen = false"
-             class="fixed inset-0 z-40 bg-black/50"></div>
-        <aside x-show="itemsDrawerOpen" x-cloak
-               x-transition:enter="transition transform ease-out duration-200"
-               x-transition:enter-start="translate-x-full"
-               x-transition:enter-end="translate-x-0"
-               x-transition:leave="transition transform ease-in duration-150"
-               x-transition:leave-start="translate-x-0"
-               x-transition:leave-end="translate-x-full"
-               class="fixed top-0 right-0 bottom-0 z-50 w-[88%] max-w-md bg-white shadow-2xl flex flex-col">
-            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-                <p class="font-bold text-gray-900">🛒 Additional items — all rooms</p>
-                <button type="button"
-                        @click="itemsDrawerOpen = false"
-                        class="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center min-h-[44px]"
-                        aria-label="Close">
-                    <svg class="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24"
-                         stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
-            <div class="flex-1 overflow-y-auto px-4 py-4 text-sm">
-                <template x-if="allAdditionalItems.length === 0">
-                    <p class="text-gray-500 italic">No additional items captured yet. Add them on Step 5 of any room.</p>
-                </template>
-                <template x-if="allAdditionalItems.length > 0">
-                    <ul class="space-y-3">
-                        <template x-for="(item, idx) in allAdditionalItems" :key="idx">
-                            <li class="border border-gray-200 rounded-xl p-3">
-                                <div class="flex items-start justify-between gap-2 mb-1">
-                                    <p class="font-semibold text-gray-900 leading-tight">
-                                        <span x-text="item.qty ? (item.qty + '× ') : ''"></span>
-                                        <span x-text="item.description"></span>
-                                    </p>
-                                </div>
-                                <p class="text-xs text-gray-500" x-text="'Room: ' + item.room"></p>
-                                <p x-show="item.note" class="text-xs text-gray-700 mt-1 leading-snug"
-                                   x-text="item.note"></p>
-                            </li>
-                        </template>
-                    </ul>
-                </template>
-            </div>
-        </aside>
 
         @if ($readonly)
             <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3 mb-4
@@ -444,27 +363,29 @@
                 <p class="font-bold text-gray-900 text-lg leading-tight truncate"
                    x-text="currentRoom?.name || 'Room'"></p>
             </div>
-            {{-- Description + Kit drawer toggles — separated so engineers can
-                 jump to the planned scope or the kit list without scanning a
-                 mixed drawer. Both work from any wizard step. --}}
-            <div class="flex items-center gap-1.5 flex-shrink-0">
+            {{-- Description + Kit drawer toggles — branded so engineers can
+                 spot them at a glance: teal for AV works description, gold
+                 for the quote kit list. Both work from any wizard step. --}}
+            <div class="flex items-center gap-2 flex-shrink-0">
                 <button type="button"
                         @click="descriptionDrawerOpen = true"
-                        class="h-10 px-2.5 bg-white rounded-full flex items-center gap-1
-                               shadow-sm hover:bg-gray-50 transition-colors min-h-[44px]"
-                        aria-label="Show planned description for this room"
-                        title="Description">
-                    <span class="text-base">📋</span>
-                    <span class="text-xs font-semibold text-gray-700 hidden sm:inline">Desc</span>
+                        class="h-11 px-3 rounded-xl flex items-center gap-1.5
+                               bg-brand-teal text-white shadow-md hover:bg-[#0d6e77]
+                               transition-colors min-h-[44px] font-bold text-sm"
+                        aria-label="Show AV works description for this room"
+                        title="AV Works Description">
+                    <span class="text-base leading-none">📋</span>
+                    <span>AV Works</span>
                 </button>
                 <button type="button"
                         @click="kitDrawerOpen = true"
-                        class="h-10 px-2.5 bg-white rounded-full flex items-center gap-1
-                               shadow-sm hover:bg-gray-50 transition-colors min-h-[44px]"
+                        class="h-11 px-3 rounded-xl flex items-center gap-1.5
+                               bg-brand-gold text-white shadow-md hover:bg-amber-600
+                               transition-colors min-h-[44px] font-bold text-sm"
                         aria-label="Show kit list for this room"
-                        title="Kit">
-                    <span class="text-base">📦</span>
-                    <span class="text-xs font-semibold text-gray-700 hidden sm:inline">Kit</span>
+                        title="Kit List">
+                    <span class="text-base leading-none">📦</span>
+                    <span>Kit List</span>
                 </button>
             </div>
         </div>
@@ -1285,7 +1206,6 @@ function surveyWizard() {
         currentStep:     1,
         kitDrawerOpen:         false,
         descriptionDrawerOpen: false,
-        itemsDrawerOpen:       false,
         saving:          false,
         submitting:      false,
         lastSaved:       null,
