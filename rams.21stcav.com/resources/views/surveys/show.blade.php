@@ -296,13 +296,14 @@
                  in the wizard so engineers don't have to back out. --}}
             <button type="button"
                     @click="kitDrawerOpen = true"
-                    class="w-10 h-10 bg-white rounded-full flex items-center justify-center
+                    class="h-10 px-3 bg-white rounded-full flex items-center gap-1.5
                            shadow-sm hover:bg-gray-50 transition-colors flex-shrink-0 min-h-[44px]"
                     aria-label="Show planned kit for this room">
                 <svg class="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24"
                      stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
                 </svg>
+                <span class="text-sm font-semibold text-gray-700">Kit Info</span>
             </button>
         </div>
 
