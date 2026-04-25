@@ -687,12 +687,29 @@ class ProjectPackageReviewController extends Controller
         $data = $request->validate([
             'area'             => ['required', 'string', 'max:150'],
             'qty'              => ['required', 'integer', 'min:1', 'max:99'],
+            // Optional comma-separated list of explicit room names. When
+            // supplied, the engineers/PM gets actual names (Nutmeg, Project
+            // Room, Cardamon) rather than numbered "Area 1 / Area 2 / Area 3".
+            // Names override qty: count is derived from the list length so
+            // the rest of the pipeline keeps working.
+            'names'            => ['nullable', 'string', 'max:1000'],
             // Current form values sent by JS so we don't need a prior save:
             'current_overview'      => ['nullable', 'string'],
             'current_works_summary' => ['nullable', 'string'],
             'current_description'   => ['nullable', 'string'],
             'current_solution_type_id' => ['nullable', 'integer'],
         ]);
+
+        // Parse explicit names list (overrides qty when present).
+        $explicitNames = [];
+        if (! empty($data['names'])) {
+            $explicitNames = array_values(array_filter(
+                array_map('trim', preg_split('/[,\n]+/', (string) $data['names'])),
+                fn ($n) => $n !== ''
+            ));
+            // Drop duplicates while preserving order
+            $explicitNames = array_values(array_unique($explicitNames));
+        }
 
         $project = $package->project;
         if (! $project) {
@@ -713,7 +730,16 @@ class ProjectPackageReviewController extends Controller
         }
 
         $area = $data['area'];
-        $qty  = $data['qty'];
+        // When explicit names are given, count drives qty; otherwise use the form qty.
+        $qty  = ! empty($explicitNames) ? count($explicitNames) : $data['qty'];
+
+        // Resolve the actual room name for the i-th generated room.
+        $resolveName = function (int $i) use ($area, $qty, $explicitNames): string {
+            if (! empty($explicitNames)) {
+                return $explicitNames[$i - 1] ?? "{$area} {$i}";
+            }
+            return $qty === 1 ? $area : "{$area} {$i}";
+        };
 
         // ── 1. Persist the room qty setting so the review page remembers it ──
         $extractedData = $package->extracted_data ?? [];
@@ -775,7 +801,7 @@ class ProjectPackageReviewController extends Controller
         ));
         for ($i = 1; $i <= $qty; $i++) {
             $roomOverviews[] = [
-                'room'             => $qty === 1 ? $area : "{$area} {$i}",
+                'room'             => $resolveName($i),
                 'overview'         => $sourceOverview,
                 'works_summary'    => $sourceWorksSummary,
                 'summary'          => '',
@@ -801,7 +827,7 @@ class ProjectPackageReviewController extends Controller
                 $perRoomQty = max(1, (int) floor($origQty / $qty));
                 for ($i = 1; $i <= $qty; $i++) {
                     $copy             = $item;
-                    $copy['area']     = $qty === 1 ? $area : "{$area} {$i}";
+                    $copy['area']     = $resolveName($i);
                     $copy['quantity'] = $perRoomQty;
                     $expanded[]       = $copy;
                 }

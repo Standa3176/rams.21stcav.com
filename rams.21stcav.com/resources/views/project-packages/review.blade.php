@@ -701,7 +701,7 @@
                                     <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;">
                                         <span class="eq-area-label">{{ $roomName }}</span>
                                         @if($catKey === 'hardware')
-                                        <div style="display:flex;align-items:center;gap:.4rem;font-weight:400;">
+                                        <div style="display:flex;align-items:center;gap:.4rem;font-weight:400;flex-wrap:wrap;">
                                             <label style="font-size:.78rem;color:#6B7280;white-space:nowrap;">Total Rooms:</label>
                                             <input type="number"
                                                    name="room_qtys[{{ $roomName }}]"
@@ -709,6 +709,11 @@
                                                    min="1" max="99"
                                                    class="room-gen-qty"
                                                    style="width:55px;padding:.25rem .35rem;border:1px solid #d1d5db;border-radius:4px;font-size:.82rem;font-weight:400;">
+                                            <input type="text"
+                                                   class="room-gen-names"
+                                                   placeholder="Or names: Nutmeg, Project Room, Cardamon"
+                                                   title="Optional. Comma-separated room names; overrides Total Rooms when provided so each generated room gets the right name (e.g. Nutmeg, Project Room, Cardamon) instead of numbered duplicates."
+                                                   style="min-width:280px;flex:1;padding:.25rem .5rem;border:1px solid #d1d5db;border-radius:4px;font-size:.82rem;font-weight:400;">
                                             <button type="button"
                                                     class="btn btn-teal btn-sm"
                                                     onclick="generateSurveyRooms('{{ addslashes($roomName) }}', this)"
@@ -2009,17 +2014,28 @@ function syncRoomNameToEquipment(input) {
 
 // ─── Generate survey rooms for a hardware area ────────────────────────────────
 function generateSurveyRooms(area, btn) {
-    const row   = btn.closest('tr');
-    const input = row ? row.querySelector('.room-gen-qty') : null;
-    const qty   = parseInt((input ? input.value : null) || 1, 10);
+    const row       = btn.closest('tr');
+    const input     = row ? row.querySelector('.room-gen-qty')   : null;
+    const namesInp  = row ? row.querySelector('.room-gen-names') : null;
+    const namesRaw  = (namesInp ? namesInp.value : '').trim();
+    // Names list (when given) overrides qty so each room gets a real name.
+    const namesList = namesRaw === ''
+        ? []
+        : Array.from(new Set(namesRaw.split(/[,\n]+/).map(s => s.trim()).filter(s => s.length > 0)));
+    const qty       = namesList.length > 0
+        ? namesList.length
+        : parseInt((input ? input.value : null) || 1, 10);
 
     if (isNaN(qty) || qty < 1) {
-        alert('Please enter a valid room count (1 or more).');
+        alert('Please enter a valid room count (1 or more) or a names list.');
         return;
     }
 
+    const previewLabel = namesList.length > 0
+        ? `${qty} room(s): ${namesList.join(', ')}`
+        : `${qty} room(s)`;
     if (! confirm(
-        `This will replace any existing "${area}" rooms in the linked survey with ${qty} new room(s).\n\nContinue?`
+        `This will replace any existing "${area}" rooms in the linked survey with ${previewLabel}.\n\nContinue?`
     )) {
         return;
     }
@@ -2055,6 +2071,7 @@ function generateSurveyRooms(area, btn) {
         body: JSON.stringify({
             area,
             qty,
+            names:                    namesList.join(','),
             current_overview:         currentOverview,
             current_works_summary:    currentWorksSummary,
             current_solution_type_id: currentSolutionTypeId ? parseInt(currentSolutionTypeId) : null,

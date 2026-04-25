@@ -112,23 +112,38 @@
                      :class="'w-[' + Math.round(rooms.length ? completedCount / rooms.length * 100 : 0) + '%]'"></div>
             </div>
 
-            {{-- Aggregate Additional Items burger — opens drawer listing every
-                 extra item across all rooms in one place for the office. --}}
-            <button type="button"
-                    @click="itemsDrawerOpen = true"
-                    class="mt-3 w-full flex items-center justify-between gap-2 px-3 py-2.5
-                           rounded-xl border border-gray-200 hover:bg-gray-50 min-h-[44px]
-                           text-sm font-semibold text-gray-700">
-                <span class="flex items-center gap-2">
-                    <svg class="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24"
-                         stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
-                    </svg>
-                    🛒 Additional items needed
-                </span>
-                <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-brand-teal/10 text-brand-teal"
-                      x-text="allAdditionalItems.length"></span>
-            </button>
+            {{-- Aggregate drawer toggles — Description / Kit / Additional Items.
+                 Each opens a slide-over drawer summarising that aspect across
+                 every room in one place, so the office and the engineer can
+                 scan project-wide context without expanding each card. --}}
+            <div class="mt-3 grid grid-cols-3 gap-2">
+                <button type="button"
+                        @click="descriptionDrawerOpen = true"
+                        class="flex items-center justify-center gap-1 px-2 py-2.5 rounded-xl
+                               border border-gray-200 hover:bg-gray-50 min-h-[44px]
+                               text-xs font-semibold text-gray-700">
+                    <span class="text-base">📋</span>
+                    <span>Description</span>
+                </button>
+                <button type="button"
+                        @click="kitDrawerOpen = true"
+                        class="flex items-center justify-center gap-1 px-2 py-2.5 rounded-xl
+                               border border-gray-200 hover:bg-gray-50 min-h-[44px]
+                               text-xs font-semibold text-gray-700">
+                    <span class="text-base">📦</span>
+                    <span>Kit</span>
+                </button>
+                <button type="button"
+                        @click="itemsDrawerOpen = true"
+                        class="flex items-center justify-center gap-1 px-2 py-2.5 rounded-xl
+                               border border-gray-200 hover:bg-gray-50 min-h-[44px]
+                               text-xs font-semibold text-gray-700">
+                    <span class="text-base">🛒</span>
+                    <span>Items</span>
+                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand-teal/10 text-brand-teal"
+                          x-text="allAdditionalItems.length"></span>
+                </button>
+            </div>
         </div>
 
         {{-- Items drawer (rooms-list screen only) --}}
@@ -384,22 +399,135 @@
                 <p class="font-bold text-gray-900 text-lg leading-tight truncate"
                    x-text="currentRoom?.name || 'Room'"></p>
             </div>
-            {{-- Kit drawer toggle — shows planned AV works + quote kit anywhere
-                 in the wizard so engineers don't have to back out. --}}
-            <button type="button"
-                    @click="kitDrawerOpen = true"
-                    class="h-10 px-3 bg-white rounded-full flex items-center gap-1.5
-                           shadow-sm hover:bg-gray-50 transition-colors flex-shrink-0 min-h-[44px]"
-                    aria-label="Show planned kit for this room">
-                <svg class="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24"
-                     stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
-                </svg>
-                <span class="text-sm font-semibold text-gray-700">Kit Info</span>
-            </button>
+            {{-- Description + Kit drawer toggles — separated so engineers can
+                 jump to the planned scope or the kit list without scanning a
+                 mixed drawer. Both work from any wizard step. --}}
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+                <button type="button"
+                        @click="descriptionDrawerOpen = true"
+                        class="h-10 px-2.5 bg-white rounded-full flex items-center gap-1
+                               shadow-sm hover:bg-gray-50 transition-colors min-h-[44px]"
+                        aria-label="Show planned description for this room"
+                        title="Description">
+                    <span class="text-base">📋</span>
+                    <span class="text-xs font-semibold text-gray-700 hidden sm:inline">Desc</span>
+                </button>
+                <button type="button"
+                        @click="kitDrawerOpen = true"
+                        class="h-10 px-2.5 bg-white rounded-full flex items-center gap-1
+                               shadow-sm hover:bg-gray-50 transition-colors min-h-[44px]"
+                        aria-label="Show kit list for this room"
+                        title="Kit">
+                    <span class="text-base">📦</span>
+                    <span class="text-xs font-semibold text-gray-700 hidden sm:inline">Kit</span>
+                </button>
+            </div>
         </div>
 
-        {{-- ── KIT DRAWER (overlays all 8 steps) ─────────────────── --}}
+        {{-- ── DESCRIPTION DRAWER ────────────────────────────────────
+             Step screen → current room's planned works / install actions /
+             reference checklist.
+             Rooms screen → project-wide rollup of every room's description. --}}
+        <div x-show="descriptionDrawerOpen" x-cloak
+             x-transition.opacity
+             @click="descriptionDrawerOpen = false"
+             class="fixed inset-0 z-40 bg-black/50"></div>
+
+        <aside x-show="descriptionDrawerOpen" x-cloak
+               x-transition:enter="transition transform ease-out duration-200"
+               x-transition:enter-start="translate-x-full"
+               x-transition:enter-end="translate-x-0"
+               x-transition:leave="transition transform ease-in duration-150"
+               x-transition:leave-start="translate-x-0"
+               x-transition:leave-end="translate-x-full"
+               class="fixed top-0 right-0 bottom-0 z-50 w-[88%] max-w-md bg-white shadow-2xl
+                      flex flex-col">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                <div class="min-w-0">
+                    <p class="text-xs uppercase tracking-wide text-gray-500 font-semibold">📋 Description</p>
+                    <p class="font-bold text-gray-900 truncate"
+                       x-text="screen === 'step' ? (currentRoom?.name || 'Room') : 'All rooms'"></p>
+                </div>
+                <button type="button"
+                        @click="descriptionDrawerOpen = false"
+                        class="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center min-h-[44px]"
+                        aria-label="Close">
+                    <svg class="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto px-4 py-4 space-y-4 text-sm">
+                {{-- WIZARD CONTEXT — current room only --}}
+                <template x-if="screen === 'step'">
+                    <div class="space-y-4">
+                        <template x-if="(currentRoom?._ctx?.works_bullets ?? []).length > 0">
+                            <div>
+                                <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">Install actions</p>
+                                <ul class="list-disc pl-5 text-gray-800 space-y-1 leading-snug">
+                                    <template x-for="(b, bi) in currentRoom._ctx.works_bullets" :key="bi">
+                                        <li x-text="b.replace(/^[-•]\s*/, '')"></li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </template>
+                        <template x-if="currentRoom?._ctx?.av_requirements && (!currentRoom?._ctx?.works_bullets || currentRoom._ctx.works_bullets.length === 0)">
+                            <div>
+                                <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">Planned AV works</p>
+                                <p class="text-gray-800 leading-snug" x-text="currentRoom._ctx.av_requirements"></p>
+                            </div>
+                        </template>
+                        <template x-if="currentRoom?._ctx?.checklist_lines?.length > 0">
+                            <div>
+                                <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">
+                                    Reference checklist
+                                    <template x-if="currentRoom._ctx.solution_type_name">
+                                        <span class="text-gray-400 normal-case font-normal">— <span x-text="currentRoom._ctx.solution_type_name"></span></span>
+                                    </template>
+                                </p>
+                                <ul class="list-disc pl-5 text-gray-800 space-y-1 leading-snug">
+                                    <template x-for="(line, li) in currentRoom._ctx.checklist_lines" :key="li">
+                                        <li x-text="line"></li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </template>
+                        <template x-if="!currentRoom?._ctx?.av_requirements && !currentRoom?._ctx?.checklist_lines?.length && (!currentRoom?._ctx?.works_bullets || currentRoom._ctx.works_bullets.length === 0)">
+                            <p class="text-gray-500 italic">No description recorded for this room.</p>
+                        </template>
+                    </div>
+                </template>
+                {{-- ROOMS-LIST CONTEXT — every room rolled up --}}
+                <template x-if="screen === 'rooms'">
+                    <div class="space-y-4">
+                        <template x-for="(room, idx) in rooms" :key="room._ui.room_id">
+                            <div class="border border-gray-200 rounded-xl p-3">
+                                <p class="font-semibold text-gray-900 mb-1.5"
+                                   x-text="room.name || 'Unnamed room'"></p>
+                                <template x-if="(room._ctx?.works_bullets ?? []).length > 0">
+                                    <ul class="list-disc pl-5 text-gray-700 space-y-0.5 leading-snug text-xs">
+                                        <template x-for="(b, bi) in room._ctx.works_bullets" :key="bi">
+                                            <li x-text="b.replace(/^[-•]\s*/, '')"></li>
+                                        </template>
+                                    </ul>
+                                </template>
+                                <template x-if="(!room._ctx?.works_bullets || room._ctx.works_bullets.length === 0) && room._ctx?.av_requirements">
+                                    <p class="text-xs text-gray-700 leading-snug" x-text="room._ctx.av_requirements"></p>
+                                </template>
+                                <template x-if="(!room._ctx?.works_bullets || room._ctx.works_bullets.length === 0) && !room._ctx?.av_requirements">
+                                    <p class="text-xs text-gray-400 italic">No description.</p>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </aside>
+
+        {{-- ── KIT DRAWER ─────────────────────────────────────────────
+             Step screen → current room's quote kit list.
+             Rooms screen → every room's quote kit grouped by room. --}}
         <div x-show="kitDrawerOpen" x-cloak
              x-transition.opacity
              @click="kitDrawerOpen = false"
@@ -416,8 +544,9 @@
                       flex flex-col">
             <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
                 <div class="min-w-0">
-                    <p class="text-xs uppercase tracking-wide text-gray-500 font-semibold">Planned for this room</p>
-                    <p class="font-bold text-gray-900 truncate" x-text="currentRoom?.name || 'Room'"></p>
+                    <p class="text-xs uppercase tracking-wide text-gray-500 font-semibold">📦 Kit</p>
+                    <p class="font-bold text-gray-900 truncate"
+                       x-text="screen === 'step' ? (currentRoom?.name || 'Room') : 'All rooms'"></p>
                 </div>
                 <button type="button"
                         @click="kitDrawerOpen = false"
@@ -429,47 +558,36 @@
                     </svg>
                 </button>
             </div>
-            <div class="flex-1 overflow-y-auto px-4 py-4 space-y-4 text-sm">
-                <template x-if="(currentRoom?._ctx?.works_bullets ?? []).length > 0">
+            <div class="flex-1 overflow-y-auto px-4 py-4 text-sm">
+                {{-- WIZARD CONTEXT — current room only --}}
+                <template x-if="screen === 'step'">
                     <div>
-                        <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">Install actions for this room</p>
-                        <ul class="list-disc pl-5 text-gray-800 space-y-1 leading-snug">
-                            <template x-for="(b, bi) in currentRoom._ctx.works_bullets" :key="bi">
-                                <li x-text="b.replace(/^[-•]\s*/, '')"></li>
-                            </template>
-                        </ul>
+                        <template x-if="currentRoom?._ctx?.av_equipment_list">
+                            <p class="text-gray-800 leading-snug whitespace-pre-line"
+                               x-text="currentRoom._ctx.av_equipment_list"></p>
+                        </template>
+                        <template x-if="!currentRoom?._ctx?.av_equipment_list">
+                            <p class="text-gray-500 italic">No kit recorded for this room.</p>
+                        </template>
                     </div>
                 </template>
-                <template x-if="currentRoom?._ctx?.av_requirements">
-                    <div>
-                        <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">Planned AV works</p>
-                        <p class="text-gray-800 leading-snug" x-text="currentRoom._ctx.av_requirements"></p>
+                {{-- ROOMS-LIST CONTEXT — every room's kit, grouped --}}
+                <template x-if="screen === 'rooms'">
+                    <div class="space-y-3">
+                        <template x-for="(room, idx) in rooms" :key="room._ui.room_id">
+                            <div class="border border-gray-200 rounded-xl p-3">
+                                <p class="font-semibold text-gray-900 mb-1.5"
+                                   x-text="room.name || 'Unnamed room'"></p>
+                                <template x-if="room._ctx?.av_equipment_list">
+                                    <p class="text-xs text-gray-700 leading-snug whitespace-pre-line"
+                                       x-text="room._ctx.av_equipment_list"></p>
+                                </template>
+                                <template x-if="!room._ctx?.av_equipment_list">
+                                    <p class="text-xs text-gray-400 italic">No kit.</p>
+                                </template>
+                            </div>
+                        </template>
                     </div>
-                </template>
-                <template x-if="currentRoom?._ctx?.av_equipment_list">
-                    <div>
-                        <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">Quote kit</p>
-                        <p class="text-gray-800 leading-snug whitespace-pre-line"
-                           x-text="currentRoom._ctx.av_equipment_list"></p>
-                    </div>
-                </template>
-                <template x-if="currentRoom?._ctx?.checklist_lines?.length > 0">
-                    <div>
-                        <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">
-                            Reference checklist
-                            <template x-if="currentRoom._ctx.solution_type_name">
-                                <span class="text-gray-400 normal-case font-normal">— <span x-text="currentRoom._ctx.solution_type_name"></span></span>
-                            </template>
-                        </p>
-                        <ul class="list-disc pl-5 text-gray-800 space-y-1 leading-snug">
-                            <template x-for="(line, li) in currentRoom._ctx.checklist_lines" :key="li">
-                                <li x-text="line"></li>
-                            </template>
-                        </ul>
-                    </div>
-                </template>
-                <template x-if="!currentRoom?._ctx?.av_requirements && !currentRoom?._ctx?.av_equipment_list && !currentRoom?._ctx?.checklist_lines?.length && (currentRoom?._ctx?.works_bullets ?? []).length === 0">
-                    <p class="text-gray-500 italic">No planned kit recorded for this room.</p>
                 </template>
             </div>
         </aside>
@@ -1106,8 +1224,9 @@ function surveyWizard() {
         screen:          'rooms',  // 'rooms' | 'step'
         currentRoomIdx:  null,
         currentStep:     1,
-        kitDrawerOpen:   false,
-        itemsDrawerOpen: false,
+        kitDrawerOpen:         false,
+        descriptionDrawerOpen: false,
+        itemsDrawerOpen:       false,
         saving:          false,
         submitting:      false,
         lastSaved:       null,
