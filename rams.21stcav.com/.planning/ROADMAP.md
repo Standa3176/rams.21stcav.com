@@ -16,9 +16,9 @@ See: `.planning/PROJECT.md` (updated 2026-04-13)
 
 | Milestone | Theme | Phases | Status |
 |-----------|-------|--------|--------|
-| v1.0 | RAMS MVP | 01–07 | ✅ Shipped |
-| v1.1 | Operations Dashboard & Notifications | 08–11 | ✅ Shipped |
-| v1.2 | Installation Programme & Field Management | 12–16 | 🚧 In progress |
+| v1.0 | RAMS MVP | 01–07 | ✅ Shipped — [archive](milestones/v1.0-ROADMAP.md) |
+| v1.1 | Operations Dashboard & Notifications | 08–09 (10/11 deferred) | ✅ Shipped 2026-04-25 — [archive](milestones/v1.1-ROADMAP.md) |
+| v1.2 | Installation Programme & Field Management | 12–16 | ✅ Shipped (pending archive) |
 | v1.3 | Technical Drawings & Schematics | 17–20 | 📋 Planned |
 | v1.4 | Client Portal & Project Visibility | 21–24 | 📋 Planned |
 | v1.5 | Financial & Proposal Engine | 25–28 | 📋 Planned |

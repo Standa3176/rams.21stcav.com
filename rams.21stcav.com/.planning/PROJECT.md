@@ -49,18 +49,30 @@ One dataset powers every document. Engineers capture real-world data, quotes pro
 
 ### Active
 
-#### v1.1 — Operations Dashboard & Notifications (Phases 08–11)
-- [x] **DASH-01**: Real-time project status dashboard with health indicators across all active projects *(validated in Phase 08)*
-- [ ] **DASH-02**: Overdue survey, generation pending, and blocked project alerts
+#### v1.1 — Operations Dashboard & Notifications (Phases 08–09; SHIPPED 2026-04-25)
+
+*Originally scoped as Phases 08–11; only 08 and 09 were executed. Phases 10 (Bitrix24/CRM push) and 11 (multi-channel notifications + quality scoring) were never built and are deferred. See `milestones/v1.1-ROADMAP.md`.*
+
+**Shipped:**
+- [x] **DASH-01**: Real-time project status dashboard with health indicators across all active projects *(validated in Phase 08 — red/amber/green priority rules, overdue indicator, status-summary chips, install-programme widget, Alpine.js client filter)*
+- [x] **NOTF-01**: Email notification when document generation completes *(validated in Phase 09 — 4 typed *ReadyMail × idempotency timestamps × DocumentArtifactStorage attachments)*
+- [x] **NOTF-02**: Email notification when external survey is submitted *(validated in Phase 09 — existing path refactored to NotificationRecipientResolver, latent is_admin / Project::with('user') bugs fixed)*
+- [x] **NOTF-03**: RAMS review-needed email dispatched after extraction *(added during v1.1 — RamsReviewNeededMail wired into ExtractRamsDraftJob)*
+- [x] **NOTF-04**: Document generation failure alert to admins *(added during v1.1 — DocumentGenerationFailedMail from each Build*Job::failed())*
+- [x] **NOTF-05**: Notification transport, recipients, and operational guarantees *(added during v1.1 — NotificationRecipientResolver, role-based admin lookup, Postmark transport packaged, RAMS_NOTIFICATION_BCC, ShouldQueue + try/catch defensive pattern)*
+
+**Deferred to a future milestone (originally scoped as Phases 10/11, never built):**
+- [ ] **DASH-02**: Overdue survey, generation pending, and blocked project alerts *(partially covered by DASH-01 overdue indicator; remaining work is dedicated alert UI)*
 - [ ] **DASH-03**: Admin view of AI usage, token consumption, and generation costs
-- [ ] **NOTF-01**: Email notification when document generation completes
-- [ ] **NOTF-02**: Email notification when external survey is submitted
 - [ ] **QUAL-01**: RAMS document quality score shown to engineer before download
 - [ ] **QUAL-02**: Data confidence indicators per room/equipment (surface DATA-04 partial implementation)
 - [ ] **BIT-01**: OAuth 2.0 connection to Bitrix24 workspace
 - [ ] **BIT-02**: Project creation in Bitrix24 on RAMS project creation
 - [ ] **BIT-03**: Document links pushed to Bitrix24 deal/task on generation
 - [ ] **BIT-04**: Survey submission triggers Bitrix24 task update
+
+**Operational debt (post-ship):**
+- [ ] **NOTF-05g**: Production Postmark cutover — DNS records (SPF/DKIM/DMARC), `POSTMARK_API_KEY` in production `.env`, sender signature verification, first-send confirmation. Runbook at `milestones/v1.1-phases/09-email-notifications/POSTMARK-OPS-CHECKLIST.md`
 
 #### v1.2 — Installation Programme & Field Management (Phases 12–16)
 - [ ] **INST-01**: Auto-generate install task lists from project data (room x equipment driven)
@@ -109,12 +121,14 @@ One dataset powers every document. Engineers capture real-world data, quotes pro
 ## Context
 
 - **Shipped v1.0:** 7 phases, 29 plans — full RAMS pipeline from quote import through document generation
-- **Codebase:** Laravel 12, PHP 8.2+, MySQL, Blade/Tailwind/Alpine.js, ~212 commits
+- **Shipped v1.1:** 2 phases (08, 09), 9 plans — real-time project health dashboard + 6 queued email mailables with idempotency-first dispatch (Phases 10/11 deferred — Bitrix24 + multi-channel + quality scoring rolled to a future milestone)
+- **Codebase:** Laravel 12, PHP 8.2+, MySQL, Blade/Tailwind/Alpine.js, ~295 commits across v1.0 + v1.1
 - **AI stack:** Claude (default) + OpenAI via AIManager abstraction — structured JSON only, cached
 - **Document generation:** PHPWord (DOCX worksheets/RAMS/O&M), PhpSpreadsheet (XLSX cable schedules), DomPDF/mPDF (PDF)
-- **Current state post-v1.0:** All core document generators shipped, site survey system fully operational with AI pre-install questions, QuoteWerks SQL import working, content pack enriching RAMS quality
-- **Tech debt:** DATA-04 confidence scoring (per-field source annotation) partially implemented — designed in ProjectDataService but no UI surface yet; Phase 07 RED test stubs not greened
-- **Next milestone focus:** v1.1 Operations Dashboard & Notifications (Phases 08–11), then v1.2 Install & Field Management through to v1.6 Service & Inventory — 6 milestones, 25 phases planned
+- **Notification stack (v1.1):** 6 `ShouldQueue` mailables, Postmark transport packaged, `NotificationRecipientResolver` single source of truth, `RAMS_NOTIFICATION_BCC` global BCC, idempotency timestamps set BEFORE send
+- **Current state post-v1.1:** Document generators + survey system + dashboard health view + email notification triggers all live; Postmark production cutover gated by runbook (DNS + sender signature + first-send confirm)
+- **Tech debt:** DATA-04 confidence scoring (per-field source annotation) partially implemented; Phase 07 RED test stubs not greened; Phase 09 REVIEW WR-01..WR-04 polish items (error-truncation inconsistencies + narrow `failed()` try/catch gap); VALIDATION.md `wave_0_complete: false` for phases 08, 09, 12, 13, 15
+- **Next milestone focus:** v1.2 Installation Programme & Field Management (Phases 12–16, all complete — pending archive) → v1.3 Technical Drawings & Schematics (next planned)
 
 ## Constraints
 
@@ -157,4 +171,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-23 after Phase 16 (Commissioning Checklist & Sign-Off) completion — installation delivery loop closed end-to-end (task list → mobile field view → time tracking → commissioning sign-off with snagging PDF).*
+*Last updated: 2026-04-25 after v1.1 (Operations Dashboard & Notifications) milestone archive — 2 phases shipped, 6 queued mailables wired with idempotency-first dispatch, dashboard health view live; 10/11 deferred. v1.2 installation delivery loop is feature-complete on disk and queued for archive next.*
