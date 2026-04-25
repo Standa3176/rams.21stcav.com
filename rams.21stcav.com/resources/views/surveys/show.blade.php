@@ -409,6 +409,16 @@
                 </button>
             </div>
             <div class="flex-1 overflow-y-auto px-4 py-4 space-y-4 text-sm">
+                <template x-if="projectBullets.length > 0">
+                    <div>
+                        <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">Project install actions (all rooms)</p>
+                        <ul class="list-disc pl-5 text-gray-800 space-y-1 leading-snug">
+                            <template x-for="(b, bi) in projectBullets" :key="bi">
+                                <li x-text="b"></li>
+                            </template>
+                        </ul>
+                    </div>
+                </template>
                 <template x-if="currentRoom?._ctx?.av_requirements">
                     <div>
                         <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">Planned AV works</p>
@@ -437,7 +447,7 @@
                         </ul>
                     </div>
                 </template>
-                <template x-if="!currentRoom?._ctx?.av_requirements && !currentRoom?._ctx?.av_equipment_list && !currentRoom?._ctx?.checklist_lines?.length">
+                <template x-if="!currentRoom?._ctx?.av_requirements && !currentRoom?._ctx?.av_equipment_list && !currentRoom?._ctx?.checklist_lines?.length && projectBullets.length === 0">
                     <p class="text-gray-500 italic">No planned kit recorded for this room.</p>
                 </template>
             </div>
@@ -1091,6 +1101,9 @@ function surveyWizard() {
         // rooms: canonical fields (name, type, photos, infrastructure, equipment, risks, notes)
         //        + _ui block (UI-only fields: room_id, is_completed, work_type, quick_notes, etc.)
         rooms: @json($rooms),
+
+        // Project-level install-action bullets (from office review screen).
+        projectBullets: @json($projectBullets ?? []),
 
         // ── Init — set up debounced autosave on toggle / selection changes
         //          so engineers don't lose Step 2 toggles or Step 1 work_type

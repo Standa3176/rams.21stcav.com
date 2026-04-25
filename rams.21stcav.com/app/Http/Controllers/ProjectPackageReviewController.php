@@ -532,6 +532,57 @@ class ProjectPackageReviewController extends Controller
     }
 
     /**
+     * POST /project-packages/{package}/works-bullets
+     *
+     * AJAX — converts the supplied free-form AV scope narrative into a list
+     * of clean, install-action bullet points. The caller (the review screen)
+     * passes whatever is currently in the Scope of Works / Works Overview
+     * textarea so the engineer doesn't need to save first.
+     *
+     * Returns the bullets as a newline-separated string so the textarea
+     * binding stays simple.
+     */
+    public function generateWorksBullets(Request $request, ProjectPackage $package): JsonResponse
+    {
+        $this->authorizePackage($package);
+
+        $text = trim((string) $request->input('text', ''));
+        if ($text === '') {
+            return response()->json(['error' => 'Paste or generate a scope narrative first.'], 422);
+        }
+
+        try {
+            $result = app(\App\Core\AI\AIManager::class)->run(
+                new \App\Core\AI\Prompts\WorksBulletsPrompt(),
+                [
+                    'text'         => $text,
+                    'project_name' => (string) ($package->project_name ?? ''),
+                ],
+                config('ai.default', 'claude'),
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('generateWorksBullets: AI failed', [
+                'package_id' => $package->id,
+                'error'      => $e->getMessage(),
+            ]);
+            return response()->json(['error' => 'AI generation failed. Please try again.'], 500);
+        }
+
+        $bullets = array_values(array_filter(
+            array_map(
+                fn ($b) => trim((string) $b),
+                (array) ($result['bullets'] ?? [])
+            ),
+            fn ($b) => $b !== ''
+        ));
+
+        return response()->json([
+            'bullets' => $bullets,
+            'text'    => implode("\n", $bullets),
+        ]);
+    }
+
+    /**
      * POST /project-packages/{package}/cleanup-lines
      *
      * AJAX — runs every equipment line through EquipmentLineCleanupPrompt
@@ -905,6 +956,10 @@ class ProjectPackageReviewController extends Controller
         $raw['method_statement_notes'] = trim((string) ($raw['method_statement_notes'] ?? ''));
         $raw['scope_of_works']         = trim((string) ($raw['scope_of_works']         ?? ''));
         $raw['works_overview']         = trim((string) ($raw['works_overview']         ?? ''));
+        // Works bullets — newline-separated bullet points, used in site
+        // surveys, RAMS additional info and worksheet covers. Stored as a
+        // single string so the form can keep one editable textarea.
+        $raw['works_bullets']          = trim((string) ($raw['works_bullets']          ?? ''));
 
         // ── Programme & Personnel ─────────────────────────────────────────────────
         $prog = $raw['programme'] ?? [];

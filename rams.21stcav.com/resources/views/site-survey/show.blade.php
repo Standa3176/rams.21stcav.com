@@ -504,6 +504,28 @@
     @endif
 </div>
 
+{{-- Project install-action bullets — generated on the office review screen
+     by AI converting scope prose to a clean checklist. Read-only here. --}}
+@php
+    $package = $survey->project?->latestPackage;
+    $rd = (array) ($package?->reviewed_data  ?? []);
+    $ed = (array) ($package?->extracted_data ?? []);
+    $bulletText = trim((string) ($rd['works_bullets'] ?? $ed['works_bullets'] ?? ''));
+    $projectBullets = $bulletText !== ''
+        ? array_values(array_filter(array_map('trim', preg_split('/\r?\n/', $bulletText)), fn ($l) => $l !== ''))
+        : [];
+@endphp
+@if(count($projectBullets) > 0)
+<div class="section-block" style="margin-bottom:1.25rem;">
+    <h2 class="section-heading">Project install actions</h2>
+    <ul style="padding-left:1.25rem;margin:.25rem 0 0;font-size:.875rem;color:#374151;line-height:1.5;">
+        @foreach($projectBullets as $b)
+            <li style="margin-bottom:.25rem;">{{ $b }}</li>
+        @endforeach
+    </ul>
+</div>
+@endif
+
 {{-- Site Conditions --}}
 @if($survey->site_risks || $survey->access_constraints || $survey->h_and_s_notes)
 <div class="section-block" style="margin-bottom:1.25rem;">

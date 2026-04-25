@@ -70,11 +70,30 @@ class SurveyController extends Controller
 
         $rooms = $this->buildAlpineRooms($survey, $payload, $token);
 
+        // Project-level install-action bullets (generated on the office review
+        // screen). Surfaced on the rooms list and inside the Kit Info drawer
+        // so engineers see the full project scope as a checklist anywhere in
+        // the wizard.
+        $projectBullets = [];
+        if ($survey->project_id) {
+            $package = \App\Models\Project::with('latestPackage')->find($survey->project_id)?->latestPackage;
+            $rd = (array) ($package?->reviewed_data  ?? []);
+            $ed = (array) ($package?->extracted_data ?? []);
+            $bulletText = trim((string) ($rd['works_bullets'] ?? $ed['works_bullets'] ?? ''));
+            if ($bulletText !== '') {
+                $projectBullets = array_values(array_filter(
+                    array_map('trim', preg_split('/\r?\n/', $bulletText)),
+                    fn ($l) => $l !== ''
+                ));
+            }
+        }
+
         return view('surveys.show', [
-            'survey'   => $survey,
-            'token'    => $token,
-            'rooms'    => $rooms,
-            'readonly' => $survey->isSubmitted(),
+            'survey'         => $survey,
+            'token'          => $token,
+            'rooms'          => $rooms,
+            'readonly'       => $survey->isSubmitted(),
+            'projectBullets' => $projectBullets,
         ]);
     }
 
