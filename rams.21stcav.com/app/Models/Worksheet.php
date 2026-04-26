@@ -5,7 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 /**
  * Worksheet model — tracks one worksheet generation run per project.
@@ -46,9 +48,28 @@ class Worksheet extends Model
         'error_message',
         'generated_data',
         'filename',
+        'access_token',
         'completion_email_sent_at',
         'failed_email_sent_at',
     ];
+
+    // ── Boot: auto-generate UUID access_token on creation ────────────────────
+
+    /**
+     * Mirrors the SiteSurvey precedent: every newly-created worksheet gains a
+     * UUID `access_token` so the public client sign-off URL is immediately
+     * shareable (no follow-up step required by the project manager).
+     */
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        static::creating(function (Worksheet $worksheet): void {
+            if (empty($worksheet->access_token)) {
+                $worksheet->access_token = (string) Str::uuid();
+            }
+        });
+    }
 
     // ── Casts ─────────────────────────────────────────────────────────────────
 
@@ -73,7 +94,44 @@ class Worksheet extends Model
         return $this->belongsTo(Project::class);
     }
 
+    /**
+     * All client sign-off events captured via the public sign-off page,
+     * newest first. Append-only — see WorksheetSignoff for the schema.
+     */
+    public function signoffs(): HasMany
+    {
+        return $this->hasMany(WorksheetSignoff::class)->orderBy('signed_at', 'desc');
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * The most-recent client sign-off, or null when the worksheet is unsigned.
+     * Drives the green banner on the public page and the embedded signature
+     * inside the regenerated DOCX.
+     */
+    public function latestSignoff(): ?WorksheetSignoff
+    {
+        return $this->signoffs()->first();
+    }
+
+    /**
+     * True once at least one client sign-off has been recorded.
+     */
+    public function isSigned(): bool
+    {
+        return $this->signoffs()->exists();
+    }
+
+    /**
+     * Public no-auth URL the project manager shares with the client. The
+     * route name is registered on routes/web.php — Laravel resolves it at
+     * call time so the model can reference it before the route file loads.
+     */
+    public function publicUrl(): string
+    {
+        return route('public-worksheet.show', ['token' => $this->access_token]);
+    }
 
     /**
      * Returns true once the DOCX has been built (generation complete).
