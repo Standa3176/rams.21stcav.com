@@ -76,16 +76,24 @@ class WorksheetGeneratorService
         $data = $this->projectDataService->resolve($project);
 
         // ── Content pack context ─────────────────────────────────────────────
-        $roomDescriptions = [];
+        // Per-room: prefer works_summary (install-action bullets, populated
+        // by the RAMS auto-bullets pipeline + project-review Convert button)
+        // over description prose. The bullets read as engineer instructions
+        // and replace the generic templated work paragraph on the worksheet.
+        $roomDescriptions = [];   // prose fallback per room
+        $roomBullets      = [];   // bullet list per room (preferred)
         $worksOverview    = '';
         $package = $project->latestPackage ?? null;
         if ($package !== null) {
             foreach ((array) ($package->reviewed_data['room_overviews'] ?? []) as $ov) {
                 if (! is_array($ov)) continue;
                 $name = strtolower(trim((string) ($ov['room'] ?? '')));
-                $desc = trim((string) ($ov['description'] ?? ''));
-                if ($name !== '' && $desc !== '') {
-                    $roomDescriptions[$name] = $desc;
+                $desc = trim((string) ($ov['description']    ?? ''));
+                $bull = trim((string) ($ov['works_summary'] ?? ''));
+                if ($name === '') continue;
+                if ($desc !== '') $roomDescriptions[$name] = $desc;
+                if ($bull !== '' && (str_starts_with($bull, '- ') || str_contains($bull, "\n- "))) {
+                    $roomBullets[$name] = $bull;
                 }
             }
             $worksOverview = trim((string) ($package->reviewed_data['works_overview'] ?? ''));
@@ -448,16 +456,33 @@ class WorksheetGeneratorService
             $tools = $this->deriveToolsRequired($subsystems);
 
             // ── J. Room works description ────────────────────────────────────
-            $sourceDescription = $roomDescriptions[strtolower(trim($roomName))] ?? '';
-            $roomWorksDesc = $this->buildRoomWorksDescription(
-                $roomName, $classified['install_hardware'], $subsystems, $isSurveyed, $sourceDescription
-            );
+            // Prefer the per-room install-action bullets when available — they
+            // tell the engineer what to do, not just "install N items covering
+            // Display, Audio and Network". Falls back to the templated
+            // paragraph when no bullets are populated.
+            $roomKey       = strtolower(trim($roomName));
+            $bulletText    = $roomBullets[$roomKey] ?? '';
+            $roomBulletList = [];
+            if ($bulletText !== '') {
+                foreach (preg_split('/\r?\n/', $bulletText) ?: [] as $ln) {
+                    $ln = trim($ln);
+                    if ($ln === '') continue;
+                    $roomBulletList[] = preg_replace('/^[-•]\s*/', '', $ln);
+                }
+            }
+            $sourceDescription = $roomDescriptions[$roomKey] ?? '';
+            $roomWorksDesc = ! empty($roomBulletList)
+                ? ''  // bullets render in their own list block; no prose paragraph
+                : $this->buildRoomWorksDescription(
+                    $roomName, $classified['install_hardware'], $subsystems, $isSurveyed, $sourceDescription
+                );
 
             $rooms[] = [
                 'name'                      => $roomName,
                 'floor'                     => $room['floor'] ?? null,
                 'is_surveyed'               => $isSurveyed,
                 'room_works_description'    => $normalizer->normalize($roomWorksDesc),
+                'works_summary_bullets'     => $roomBulletList,
                 'equipment'                 => $classified['install_hardware'],
                 'subsystems'                => $subsystems,
                 'category_summary'          => $categorySummary,

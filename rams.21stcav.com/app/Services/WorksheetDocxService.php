@@ -188,9 +188,20 @@ class WorksheetDocxService
         $section->addTextBreak(1);
 
         // ── Engineer work summary ────────────────────────────────────────────
+        // Prefer per-room install-action bullets when present — they tell the
+        // engineer what is actually being installed in this room. Falls back
+        // to the templated prose paragraph only when no bullets are available.
         $this->heading($section, 'ENGINEER WORK SUMMARY');
+        $bullets   = (array) ($room['works_summary_bullets'] ?? []);
         $worksDesc = trim((string) ($room['room_works_description'] ?? ''));
-        if ($worksDesc !== '') {
+        if (! empty($bullets)) {
+            foreach ($bullets as $b) {
+                $line = trim((string) $b);
+                if ($line === '') continue;
+                $section->addListItem($this->t($line), 0,
+                    ['size' => 10, 'color' => self::DARK], 'listBullet');
+            }
+        } elseif ($worksDesc !== '') {
             $section->addText($this->t($worksDesc),
                 ['size' => 10, 'color' => self::DARK], ['lineHeight' => 1.4, 'spaceAfter' => 80]);
         } else {
