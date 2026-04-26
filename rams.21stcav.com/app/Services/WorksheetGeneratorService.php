@@ -89,7 +89,13 @@ class WorksheetGeneratorService
             foreach ((array) ($package->reviewed_data['room_overviews'] ?? []) as $i => $ov) {
                 if (! is_array($ov)) continue;
                 $name = strtolower(trim((string) ($ov['room'] ?? '')));
-                $desc = trim((string) ($ov['description']    ?? ''));
+                // Some projects store the per-room prose in `overview` rather
+                // than `description` (depending on which review screen was
+                // used). Read whichever has content so the auto-bullets
+                // backfill always has source text to convert.
+                $desc = trim((string) (
+                    $ov['description'] ?? $ov['overview'] ?? $ov['scope'] ?? ''
+                ));
                 $bull = trim((string) ($ov['works_summary'] ?? ''));
                 if ($name === '') continue;
                 $roomOverviewIdx[$name] = $i;
