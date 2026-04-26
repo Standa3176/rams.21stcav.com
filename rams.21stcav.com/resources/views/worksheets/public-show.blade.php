@@ -259,9 +259,135 @@
 
         ul.bullets { margin: 0 0 .35rem 1.15rem; padding: 0; }
         ul.bullets li { margin: .15rem 0; font-size: .9rem; color: #374151; }
+
+        /* ── Top WORKSHEET ribbon (distinguishes from Site Survey link) ─── */
+        .doc-ribbon {
+            background: #FBBF24;
+            color: #0B3C45;
+            padding: .35rem 1rem;
+            text-align: center;
+            font-size: .72rem;
+            font-weight: 800;
+            letter-spacing: .14em;
+            text-transform: uppercase;
+        }
+
+        /* ── Collapsible room cards ──────────────────────────────────────── */
+        .room-summary {
+            list-style: none;
+            cursor: pointer;
+            padding: .9rem 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: .65rem;
+            user-select: none;
+            background: #F9FAFB;
+            border-radius: 8px;
+            margin: -1.1rem -1.2rem .85rem;
+            border-bottom: 1px solid #E5E7EB;
+        }
+        .room-summary::-webkit-details-marker { display: none; }
+        .room-summary::marker { display: none; }
+        details[open] > .room-summary { background: #ECFEFF; border-color: #67E8F9; }
+        .room-chevron {
+            color: #178A95; font-size: .85rem; flex-shrink: 0;
+            transition: transform 200ms ease;
+        }
+        details[open] > .room-summary .room-chevron { transform: rotate(90deg); }
+        .room-summary-name { flex: 1; font-weight: 700; color: #0B3C45; font-size: 1rem; }
+        .photo-count-pill {
+            background: #178A95; color: #fff;
+            padding: .15rem .55rem; border-radius: 14px;
+            font-size: .68rem; font-weight: 700;
+        }
+        .photo-count-pill.zero { background: #EF4444; }
+
+        /* ── In-room hamburger drawers (Tier-1 polish) ───────────────────── */
+        .room-drawer {
+            background: #fff;
+            border: 1.5px solid;
+            border-radius: 10px;
+            margin-bottom: .65rem;
+            overflow: hidden;
+        }
+        .room-drawer.teal  { border-color: rgba(23,138,149,.35); }
+        .room-drawer.gold  { border-color: rgba(251,191,36,.5); }
+        .room-drawer.amber { border-color: rgba(245,158,11,.4); }
+
+        .room-drawer summary {
+            list-style: none;
+            cursor: pointer;
+            padding: .7rem 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            user-select: none;
+            min-height: 44px;
+            font-size: .9rem;
+            font-weight: 700;
+            transition: background 120ms ease;
+        }
+        .room-drawer summary::-webkit-details-marker { display: none; }
+        .room-drawer summary::marker { display: none; }
+        .room-drawer.teal  summary { background: rgba(23,138,149,.06); color: #0B3C45; }
+        .room-drawer.gold  summary { background: rgba(251,191,36,.08); color: #92400E; }
+        .room-drawer.amber summary { background: rgba(245,158,11,.08); color: #92400E; }
+        .room-drawer summary:hover { filter: brightness(.97); }
+        .room-drawer summary .chev {
+            font-size: 1.1rem; transition: transform 200ms ease;
+            color: #178A95;
+        }
+        .room-drawer.gold summary .chev,
+        .room-drawer.amber summary .chev { color: #D97706; }
+        .room-drawer[open] summary .chev { transform: rotate(180deg); }
+        .room-drawer-body { padding: .85rem 1rem; }
+        .room-drawer-body ul.kit-rows {
+            list-style: none; padding: 0; margin: 0;
+        }
+        .room-drawer-body ul.kit-rows li {
+            display: flex; align-items: flex-start; gap: .5rem;
+            padding: .35rem 0;
+            border-bottom: 1px dashed #E5E7EB;
+            font-size: .88rem;
+        }
+        .room-drawer-body ul.kit-rows li:last-child { border-bottom: none; }
+        .qty-pill {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 28px; height: 22px; padding: 0 .35rem;
+            background: rgba(251,191,36,.18); color: #92400E;
+            border-radius: 4px;
+            font-size: .72rem; font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            flex-shrink: 0;
+        }
+        .room-drawer-body ol.steps,
+        .room-drawer-body ul.actions {
+            margin: 0; padding-left: 1.3rem;
+        }
+        .room-drawer-body ol.steps li,
+        .room-drawer-body ul.actions li {
+            font-size: .88rem; color: #374151; margin: .35rem 0;
+            line-height: 1.45;
+        }
+
+        /* Photo upload tiles per room — placeholder UI for now (next batch) */
+        .photo-tray { margin-top: .85rem; padding-top: .85rem; border-top: 1px dashed #E5E7EB; }
+        .photo-tray-title {
+            font-size: .72rem; font-weight: 800; letter-spacing: .06em;
+            text-transform: uppercase; color: #178A95; margin-bottom: .55rem;
+        }
+        .photo-warn {
+            background: #FEF3C7; color: #92400E;
+            border: 1px solid #FBBF24; border-radius: 6px;
+            padding: .55rem .75rem; font-size: .82rem; font-weight: 600;
+        }
     </style>
 </head>
 <body>
+
+    {{-- Top ribbon — distinguishes the WORKSHEET link from the SITE SURVEY
+         link. Engineers and clients now see at a glance which document this is. --}}
+    <div class="doc-ribbon">📋 WORKSHEET — Engineer Job Card &amp; Sign-Off</div>
 
     <header class="ws-header">
         <div class="ws-header__inner">
@@ -323,103 +449,99 @@
                 <p class="muted">No room data is available yet — please contact your project manager.</p>
             </div>
         @else
-            @foreach($rooms as $room)
+            <p class="muted" style="font-size:.85rem;margin-bottom:.85rem;">
+                Tap each space to expand. Use the drawers inside to switch between AV
+                works summary, kit list, and install steps. Photos required per space
+                before sign-off.
+            </p>
+            @foreach($rooms as $idx => $room)
                 @php
-                    $isSurveyed   = $room['is_surveyed'] ?? false;
                     $equipment    = $room['equipment'] ?? [];
+                    $bullets      = (array) ($room['works_summary_bullets'] ?? []);
                     $installSteps = trim((string) ($room['install_steps'] ?? ''));
-                    $cableRoute   = trim((string) ($room['cable_route_desc'] ?? ''));
+                    $stepLines    = $installSteps !== ''
+                        ? array_values(array_filter(array_map(
+                              fn ($s) => preg_replace('/^\s*(?:\d+[\.\)]|[-•])\s*/', '', trim($s)),
+                              preg_split('/\r?\n/', $installSteps)
+                          ), fn ($s) => $s !== ''))
+                        : [];
+                    $photoCount   = 0; // wired in next batch
                 @endphp
 
-                <div class="card">
-                    <div class="room-name">{{ $room['name'] ?? 'Unknown Room' }}</div>
+                <details class="card" {{ $idx === 0 ? 'open' : '' }}>
+                    <summary class="room-summary">
+                        <span class="room-chevron">▶</span>
+                        <span class="room-summary-name">{{ $room['name'] ?? 'Unknown Room' }}</span>
+                        <span class="photo-count-pill {{ $photoCount === 0 ? 'zero' : '' }}">
+                            📷 {{ $photoCount }}
+                        </span>
+                    </summary>
 
-                    {{-- Equipment --}}
-                    <div class="section-hdr">Equipment</div>
-                    @if(empty($equipment))
-                        <p class="muted" style="font-size:.88rem;">No equipment listed for this room.</p>
-                    @else
-                        <table class="field-table">
-                            <thead>
-                                <tr>
-                                    <th>Item</th>
-                                    <th style="width:18%;">Qty</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($equipment as $item)
-                                    <tr>
-                                        <td>{{ $item['name'] ?? $item['description'] ?? '—' }}</td>
-                                        <td>{{ $item['quantity'] ?? 1 }}</td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
+                    {{-- AV WORKS drawer (teal) --}}
+                    @if(! empty($bullets))
+                        <details class="room-drawer teal">
+                            <summary>
+                                <span>📋 AV Works ({{ count($bullets) }})</span>
+                                <span class="chev">▾</span>
+                            </summary>
+                            <div class="room-drawer-body">
+                                <ul class="actions">
+                                    @foreach($bullets as $b)
+                                        <li>{{ preg_replace('/^[-•]\s*/', '', trim((string) $b)) }}</li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        </details>
                     @endif
 
-                    {{-- Install Steps --}}
-                    <div class="section-hdr">Install Steps</div>
-                    @if($installSteps !== '')
-                        <div class="pre" style="font-size:.9rem;color:#374151;">{{ $installSteps }}</div>
-                    @else
-                        <p class="muted" style="font-size:.88rem;">Steps will be confirmed on-site.</p>
+                    {{-- KIT LIST drawer (gold) --}}
+                    @if(! empty($equipment))
+                        <details class="room-drawer gold">
+                            <summary>
+                                <span>📦 Kit List ({{ count($equipment) }})</span>
+                                <span class="chev">▾</span>
+                            </summary>
+                            <div class="room-drawer-body">
+                                <ul class="kit-rows">
+                                    @foreach($equipment as $item)
+                                        <li>
+                                            <span class="qty-pill">{{ $item['quantity'] ?? $item['qty'] ?? 1 }}×</span>
+                                            <span style="flex:1;">{{ $item['name'] ?? $item['description'] ?? '—' }}</span>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        </details>
                     @endif
 
-                    {{-- Cable Routes --}}
-                    <div class="section-hdr">Cable Routes</div>
-                    @if($cableRoute !== '')
-                        <p style="font-size:.9rem;color:#374151;">{{ $cableRoute }}</p>
-                    @else
-                        <p class="muted" style="font-size:.88rem;">Not surveyed</p>
+                    {{-- INSTALL STEPS drawer (amber) --}}
+                    @if(! empty($stepLines))
+                        <details class="room-drawer amber">
+                            <summary>
+                                <span>✅ Install Steps ({{ count($stepLines) }})</span>
+                                <span class="chev">▾</span>
+                            </summary>
+                            <div class="room-drawer-body">
+                                <ol class="steps">
+                                    @foreach($stepLines as $step)
+                                        <li>{{ $step }}</li>
+                                    @endforeach
+                                </ol>
+                            </div>
+                        </details>
                     @endif
 
-                    {{-- Power & Network --}}
-                    <div class="section-hdr">Power &amp; Network</div>
-                    <table class="field-table">
-                        <tbody>
-                            <tr>
-                                <td class="label">Power outlets</td>
-                                <td>
-                                    @if(isset($room['power_outlet_count']) && $room['power_outlet_count'] !== null)
-                                        {{ $room['power_outlet_count'] }}
-                                    @else
-                                        <span class="muted">Not surveyed</span>
-                                    @endif
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class="label">Additional power required</td>
-                                <td>
-                                    @if(isset($room['requires_additional_power']) && $room['requires_additional_power'] !== null)
-                                        {{ $room['requires_additional_power'] ? 'Yes' : 'No' }}
-                                    @else
-                                        <span class="muted">Not surveyed</span>
-                                    @endif
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class="label">Network ports</td>
-                                <td>
-                                    @if(isset($room['network_port_count']) && $room['network_port_count'] !== null)
-                                        {{ $room['network_port_count'] }}
-                                    @else
-                                        <span class="muted">Not surveyed</span>
-                                    @endif
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class="label">Existing cabling</td>
-                                <td>
-                                    @if(isset($room['existing_cabling']) && $room['existing_cabling'] !== null && $room['existing_cabling'] !== '')
-                                        {{ $room['existing_cabling'] }}
-                                    @else
-                                        <span class="muted">Not surveyed</span>
-                                    @endif
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+                    {{-- Photo tray placeholder (full upload UI ships in next batch).
+                         Engineers must capture photos for every space before client sign-off. --}}
+                    <div class="photo-tray">
+                        <div class="photo-tray-title">📷 Photos for this space</div>
+                        <div class="photo-warn">
+                            Photos required — upload UI ships in the next deploy.
+                            For now, capture photos with the on-site survey link or your phone
+                            and reference the count when signing.
+                        </div>
+                    </div>
+                </details>
             @endforeach
         @endif
 
