@@ -185,7 +185,8 @@ class WorksheetGeneratorService
         // ── Build enriched rooms ─────────────────────────────────────────────
         $rooms = $this->buildRooms(
             $resolvedRooms, $data['project'],
-            $roomDescriptions, $worksOverview, $preInstallAnswers
+            $roomDescriptions, $worksOverview, $preInstallAnswers,
+            $roomBullets
         );
 
         // ── Pass B: blockers are rebuilt from source on every generation so
@@ -441,6 +442,7 @@ class WorksheetGeneratorService
         array  $roomDescriptions  = [],
         string $worksOverview     = '',
         array  $preInstallAnswers = [],
+        array  $roomBullets       = [],
     ): array {
         $rooms = [];
 
