@@ -24,6 +24,7 @@ class RamsComplianceUpgradeService
     public static function upgrade(array $ramsData): array
     {
         $ramsData = self::upgradeScopeOfWorks($ramsData);
+        $ramsData = self::ensurePerRoomBullets($ramsData);
         $ramsData = self::addPpeMatrix($ramsData);
         $ramsData = self::addAccessEquipmentDetail($ramsData);
         $ramsData = self::fillMissingHazardControls($ramsData);
@@ -38,6 +39,91 @@ class RamsComplianceUpgradeService
         $ramsData = self::cleanTextArtifacts($ramsData);
 
         return $ramsData;
+    }
+
+    /**
+     * Ensure every per-room overview has an install-action bullet list.
+     *
+     * §4 Scope of Works renders works_summary (bullets) when present and
+     * falls back to overview (raw quote prose) when not. Manual conversion
+     * was a Convert-to-bullets click on each project review screen. This
+     * step does the same job at RAMS generation time so the operator never
+     * has to think about it — sales-style hedging ("other larger sizes are
+     * available") and first-person prose ("I have also added the…") gets
+     * normalised before it lands in a compliance document.
+     *
+     * AI cache is SHA-256 keyed on prompt content, so re-renders of the
+     * same room cost zero tokens. A room is considered already converted
+     * when works_summary contains "- " bullet markers.
+     */
+    private static function ensurePerRoomBullets(array $data): array
+    {
+        $rooms = $data['room_overviews'] ?? [];
+        if (! is_array($rooms) || empty($rooms)) {
+            return $data;
+        }
+
+        $needsConversion = [];
+        foreach ($rooms as $i => $room) {
+            if (! is_array($room)) continue;
+            $existing = trim((string) ($room['works_summary'] ?? ''));
+            $overview = trim((string) (
+                $room['overview']    ?? $room['description'] ?? $room['scope'] ?? ''
+            ));
+            // Skip rooms that already have bullet output.
+            if ($existing !== '' && (str_starts_with($existing, '- ') || str_contains($existing, "\n- "))) {
+                continue;
+            }
+            // Skip rooms with no source prose to convert.
+            if ($overview === '' || strlen($overview) < 40) {
+                continue;
+            }
+            $needsConversion[$i] = [
+                'room'     => (string) ($room['room'] ?? $room['room_name'] ?? $room['name'] ?? ''),
+                'overview' => $overview,
+                'summary'  => $existing,
+            ];
+        }
+
+        if (empty($needsConversion)) {
+            return $data;
+        }
+
+        // Resolve the summariser via the container so tests can swap it for
+        // a fixture without touching the AI provider.
+        try {
+            $summariser = app(\App\Services\RoomOverviewSummaryService::class);
+            $results    = $summariser->summarize(array_values($needsConversion));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('RamsComplianceUpgrade: per-room bullet conversion failed', [
+                'error' => $e->getMessage(),
+            ]);
+            return $data;  // never block PDF generation
+        }
+
+        // Pair results back to rooms by name (order is not guaranteed by
+        // the AI response). Fall back to positional pairing if name match
+        // fails for any reason.
+        $byName = [];
+        foreach ((array) $results as $r) {
+            if (! is_array($r)) continue;
+            $name = strtolower(trim((string) ($r['room'] ?? '')));
+            if ($name !== '') $byName[$name] = $r;
+        }
+
+        $idx = 0;
+        foreach ($needsConversion as $roomIdx => $row) {
+            $name   = strtolower($row['room']);
+            $result = $byName[$name] ?? array_values($results)[$idx] ?? null;
+            $idx++;
+            if (! is_array($result)) continue;
+            $bullets = trim((string) ($result['summary'] ?? ''));
+            if ($bullets === '') continue;
+            $rooms[$roomIdx]['works_summary'] = $bullets;
+        }
+
+        $data['room_overviews'] = $rooms;
+        return $data;
     }
 
     // =========================================================================

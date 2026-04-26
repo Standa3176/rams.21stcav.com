@@ -740,41 +740,59 @@ p { margin: 3pt 0; }
 @endif
 
 @if(! empty($roomOverviews) && is_array($roomOverviews))
-    {{-- Per-room scope paragraphs from reviewed data --}}
+    {{-- Per-room scope paragraphs from reviewed data.
+         Prefers works_summary (install-action bullets — populated by the
+         RamsComplianceUpgrade pipeline or by the project-review Convert-to-
+         bullets button) and falls back to the raw overview prose only when
+         no bullets are available. --}}
     @foreach($roomOverviews as $roomOv)
         @php
             // 'room' is the canonical key in reviewed_data room_overviews
-            $rvName = $roomOv['room'] ?? ($roomOv['room_name'] ?? ($roomOv['name'] ?? ''));
-            $rvDesc = $roomOv['overview']  ?? ($roomOv['description'] ?? ($roomOv['scope'] ?? ''));
-            // Strip markdown bold markers and limit to first paragraph of survey text
-            $rvDesc = preg_replace('/\*\*([^*]+)\*\*/', '$1', $rvDesc ?? '');
-            // Strip leading colon/space artifact that appears when overview text begins with ":Room Name"
-            $rvDesc = ltrim(trim($rvDesc), ': ');
+            $rvName    = $roomOv['room'] ?? ($roomOv['room_name'] ?? ($roomOv['name'] ?? ''));
+            $rvBullets = trim((string) ($roomOv['works_summary'] ?? ''));
+            $rvDesc    = $roomOv['overview']  ?? ($roomOv['description'] ?? ($roomOv['scope'] ?? ''));
 
-            // When the overview text begins with the room name on its own first line,
-            // drop that line — the renderer already emits "<strong>{name}:</strong>"
-            // just before the description, so keeping the first line produces a
-            // duplicated-heading artifact like:
-            //   **VC Room (22) - Primary Left:** VC Room (22) - Primary Left VC Room 22 ...
-            // Canonicalise both sides (strip non-alphanumerics) before comparing so
-            // punctuation drift (missing closing paren, curly apostrophes, spacing)
-            // doesn't prevent the strip.
-            $rvDescLines = preg_split('/\r?\n/', trim($rvDesc)) ?: [];
-            if (count($rvDescLines) >= 2) {
-                $firstLine     = trim($rvDescLines[0]);
-                $canonFirst    = strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $firstLine));
-                $canonRoomName = strtolower((string) preg_replace('/[^a-z0-9]+/i', '', (string) $rvName));
-                if ($canonFirst !== '' && $canonFirst === $canonRoomName) {
-                    array_shift($rvDescLines);
-                    $rvDesc = implode("\n", $rvDescLines);
+            // Parse bullet list when works_summary contains "- " markers.
+            $rvBulletLines = [];
+            if ($rvBullets !== '' && (str_starts_with($rvBullets, '- ') || str_contains($rvBullets, "\n- "))) {
+                foreach (preg_split('/\r?\n/', $rvBullets) ?: [] as $ln) {
+                    $ln = trim($ln);
+                    if ($ln === '') continue;
+                    $rvBulletLines[] = preg_replace('/^[-•]\s*/', '', $ln);
                 }
             }
 
-            $rvDescParas = array_filter(array_map('trim', preg_split('/\n{2,}/', trim($rvDesc))));
-            $rvDesc = reset($rvDescParas) ?: '';
+            // Prose fallback — only computed if there are no bullets.
+            if (empty($rvBulletLines)) {
+                $rvDesc = preg_replace('/\*\*([^*]+)\*\*/', '$1', $rvDesc ?? '');
+                $rvDesc = ltrim(trim($rvDesc), ': ');
+
+                $rvDescLines = preg_split('/\r?\n/', trim($rvDesc)) ?: [];
+                if (count($rvDescLines) >= 2) {
+                    $firstLine     = trim($rvDescLines[0]);
+                    $canonFirst    = strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $firstLine));
+                    $canonRoomName = strtolower((string) preg_replace('/[^a-z0-9]+/i', '', (string) $rvName));
+                    if ($canonFirst !== '' && $canonFirst === $canonRoomName) {
+                        array_shift($rvDescLines);
+                        $rvDesc = implode("\n", $rvDescLines);
+                    }
+                }
+
+                $rvDescParas = array_filter(array_map('trim', preg_split('/\n{2,}/', trim($rvDesc))));
+                $rvDesc = reset($rvDescParas) ?: '';
+            } else {
+                $rvDesc = '';
+            }
         @endphp
-        @if($rvName || $rvDesc)
-        <p class="body-para"><strong>{{ $rvName }}:</strong>{{ $rvName && $rvDesc ? ' ' : '' }}{{ $rvDesc }}</p>
+        @if(! empty($rvBulletLines))
+            <p class="body-para" style="margin-bottom: 2pt;"><strong>{{ $rvName }}:</strong></p>
+            <ul class="blist" style="margin-top: 0; margin-bottom: 8pt;">
+                @foreach($rvBulletLines as $b)
+                    <li>{{ $b }}</li>
+                @endforeach
+            </ul>
+        @elseif($rvName || $rvDesc)
+            <p class="body-para"><strong>{{ $rvName }}:</strong>{{ $rvName && $rvDesc ? ' ' : '' }}{{ $rvDesc }}</p>
         @endif
     @endforeach
 @elseif($scopeOfWorks)
