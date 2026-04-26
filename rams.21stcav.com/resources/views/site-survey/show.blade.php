@@ -395,7 +395,9 @@
             type="survey"
             :id="$survey->id"
             label="Site Survey" />
-        <a href="{{ route('site-surveys.index') }}" class="btn btn-outline btn-sm">&#8592; All Surveys</a>
+        @if(auth()->user()?->isAdmin())
+            <a href="{{ route('site-surveys.index') }}" class="btn btn-outline btn-sm">&#8592; All Surveys</a>
+        @endif
     </div>
 </div>
 

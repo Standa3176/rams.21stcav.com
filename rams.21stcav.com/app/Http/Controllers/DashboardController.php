@@ -38,8 +38,15 @@ class DashboardController extends Controller
      * computes a per-project health map, and exposes the summary stats the
      * existing dashboard blade template consumes.
      */
-    public function index(): View
+    public function index(): View|\Illuminate\Http\RedirectResponse
     {
+        // The dashboard fetches every non-archived project (cross-user) and
+        // surfaces admin-area CTAs. Non-admin engineers should not land here.
+        // Redirect them to the projects page where their own work lives.
+        if (! auth()->user()?->isAdmin()) {
+            return redirect()->route('projects.index');
+        }
+
         Log::info('DashboardController: loading dashboard', [
             'user_id' => auth()->id(),
         ]);

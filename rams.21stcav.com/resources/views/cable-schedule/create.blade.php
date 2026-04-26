@@ -6,7 +6,9 @@
 
 <div class="page-header">
     <h1 class="page-title">New Cable Schedule</h1>
-    <a href="{{ route('cable-schedules.index') }}" class="btn btn-outline btn-sm">← Back</a>
+    @if(auth()->user()?->isAdmin())
+        <a href="{{ route('cable-schedules.index') }}" class="btn btn-outline btn-sm">← Back</a>
+    @endif
 </div>
 
 <div class="alert alert-info">

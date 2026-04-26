@@ -23,8 +23,12 @@
         </a>
         @endif
 
+        {{-- Admin-only tabs match the sidebar nav gating: non-admin users
+             do not see RAMS / Site Surveys / Import tiles anywhere. --}}
+        @php $tabBarIsAdmin = auth()->user()?->isAdmin(); @endphp
+
         {{-- RAMS --}}
-        @if (\Illuminate\Support\Facades\Route::has('rams.index'))
+        @if ($tabBarIsAdmin && \Illuminate\Support\Facades\Route::has('rams.index'))
         <a href="{{ route('rams.index') }}"
            class="mobile-tab-bar__item {{ str_starts_with($current, 'rams') ? 'active' : '' }}"
            aria-label="RAMS">
@@ -42,7 +46,7 @@
         @endif
 
         {{-- Site Surveys --}}
-        @if (\Illuminate\Support\Facades\Route::has('site-surveys.index'))
+        @if ($tabBarIsAdmin && \Illuminate\Support\Facades\Route::has('site-surveys.index'))
         <a href="{{ route('site-surveys.index') }}"
            class="mobile-tab-bar__item {{ str_starts_with($current, 'site-surveys') ? 'active' : '' }}"
            aria-label="Surveys">
@@ -57,7 +61,7 @@
         @endif
 
         {{-- Quote Import --}}
-        @if (\Illuminate\Support\Facades\Route::has('quote-import.create'))
+        @if ($tabBarIsAdmin && \Illuminate\Support\Facades\Route::has('quote-import.create'))
         <a href="{{ route('quote-import.create') }}"
            class="mobile-tab-bar__item {{ str_starts_with($current, 'quote-import') ? 'active' : '' }}"
            aria-label="Import">

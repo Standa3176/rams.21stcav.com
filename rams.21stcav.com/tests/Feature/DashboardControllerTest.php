@@ -27,9 +27,20 @@ class DashboardControllerTest extends TestCase
         $response->assertRedirect('/login');
     }
 
+    public function test_non_admin_redirected_to_projects(): void
+    {
+        // Non-admin engineers should land on /projects, not the cross-user
+        // dashboard which surfaces admin-area CTAs and other users' projects.
+        $user = User::factory()->create();   // default role = 'user'
+
+        $response = $this->actingAs($user)->get('/dashboard');
+
+        $response->assertRedirect(route('projects.index'));
+    }
+
     public function test_authenticated_gets_200(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['role' => 'admin']);  // dashboard is admin-only — non-admins are redirected
 
         $response = $this
             ->actingAs($user)
@@ -40,7 +51,7 @@ class DashboardControllerTest extends TestCase
 
     public function test_view_receives_required_variables(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['role' => 'admin']);  // dashboard is admin-only — non-admins are redirected
 
         $response = $this
             ->actingAs($user)
@@ -52,7 +63,7 @@ class DashboardControllerTest extends TestCase
 
     public function test_all_projects_shown_excludes_archived(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['role' => 'admin']);  // dashboard is admin-only — non-admins are redirected
 
         $active = Project::factory()->create([
             'status'  => Project::STATUS_ENGINEERING,

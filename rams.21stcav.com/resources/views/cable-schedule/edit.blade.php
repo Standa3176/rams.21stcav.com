@@ -13,7 +13,9 @@
             :id="$schedule->id"
             label="Cable Schedule"
             :visible="in_array($schedule->status, [\App\Models\CableSchedule::STATUS_DRAFT, \App\Models\CableSchedule::STATUS_FINAL])" />
-        <a href="{{ route('cable-schedules.index') }}" class="btn btn-outline btn-sm">← Back to list</a>
+        @if(auth()->user()?->isAdmin())
+            <a href="{{ route('cable-schedules.index') }}" class="btn btn-outline btn-sm">← Back to list</a>
+        @endif
     </div>
 </div>
 
