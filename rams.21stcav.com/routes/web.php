@@ -76,6 +76,17 @@ Route::patch('survey/{token}/photos/{photo}',          [PublicSurveyController::
 Route::get ('worksheet/{token}',      [PublicWorksheetController::class, 'show']) ->name('public-worksheet.show');
 Route::post('worksheet/{token}/sign', [PublicWorksheetController::class, 'sign']) ->name('public-worksheet.sign')->middleware('throttle:10,1');
 
+// Photo upload/serve/delete on the public worksheet link. Engineers attach
+// photos per room before requesting client acceptance. UUID gate + per-photo
+// worksheet ownership check prevents cross-worksheet enumeration.
+Route::post  ('worksheet/{token}/rooms/{room_name}/photos', [PublicWorksheetController::class, 'uploadPhoto'])
+    ->name('public-worksheet.photos.upload')->middleware('throttle:30,1')
+    ->where('room_name', '.*');
+Route::get   ('worksheet/{token}/photos/{photo}', [PublicWorksheetController::class, 'servePhoto'])
+    ->name('public-worksheet.photos.serve');
+Route::delete('worksheet/{token}/photos/{photo}', [PublicWorksheetController::class, 'deletePhoto'])
+    ->name('public-worksheet.photos.delete')->middleware('throttle:30,1');
+
 /*
 |--------------------------------------------------------------------------
 | RAMS Generator — authenticated routes

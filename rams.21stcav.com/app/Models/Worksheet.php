@@ -108,6 +108,33 @@ class Worksheet extends Model
             ->orderBy('id', 'desc');
     }
 
+    /**
+     * Photos uploaded against this worksheet via the public sign-off link.
+     * Engineers attach one or more photos per room before requesting client
+     * acceptance. Photo objects are scoped per-room via room_name.
+     */
+    public function photos(): HasMany
+    {
+        return $this->hasMany(WorksheetPhoto::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    /**
+     * Photo count per room name (lower-cased trimmed key) — drives the
+     * room summary badge on the public worksheet view.
+     *
+     * @return array<string, int>
+     */
+    public function photoCountsByRoom(): array
+    {
+        $counts = [];
+        foreach ($this->photos as $p) {
+            $key = strtolower(trim((string) $p->room_name));
+            if ($key === '') continue;
+            $counts[$key] = ($counts[$key] ?? 0) + 1;
+        }
+        return $counts;
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /**

@@ -465,7 +465,10 @@
                               preg_split('/\r?\n/', $installSteps)
                           ), fn ($s) => $s !== ''))
                         : [];
-                    $photoCount   = 0; // wired in next batch
+                    $roomKey      = strtolower(trim((string) ($room['name'] ?? '')));
+                    $photoCount   = $photoCounts[$roomKey] ?? 0;
+                    $roomPhotos   = $worksheet->photos
+                        ->filter(fn ($p) => strtolower(trim((string) $p->room_name)) === $roomKey);
                 @endphp
 
                 <details class="card" {{ $idx === 0 ? 'open' : '' }}>
@@ -531,15 +534,37 @@
                         </details>
                     @endif
 
-                    {{-- Photo tray placeholder (full upload UI ships in next batch).
-                         Engineers must capture photos for every space before client sign-off. --}}
-                    <div class="photo-tray">
-                        <div class="photo-tray-title">📷 Photos for this space</div>
-                        <div class="photo-warn">
-                            Photos required — upload UI ships in the next deploy.
-                            For now, capture photos with the on-site survey link or your phone
-                            and reference the count when signing.
+                    {{-- Photo tray — engineers must capture at least one photo per
+                         space before requesting client sign-off. --}}
+                    <div class="photo-tray" data-photo-tray data-room-key="{{ $roomKey }}">
+                        <div class="photo-tray-title">📷 Photos for this space (<span data-photo-count>{{ $photoCount }}</span>)</div>
+                        <div class="photo-thumbs" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.6rem;">
+                            @foreach($roomPhotos as $p)
+                                <div style="position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;background:#F3F4F6;flex-shrink:0;">
+                                    <a href="{{ route('public-worksheet.photos.serve', ['token' => $token, 'photo' => $p->id]) }}"
+                                       target="_blank">
+                                        <img src="{{ route('public-worksheet.photos.serve', ['token' => $token, 'photo' => $p->id]) }}"
+                                             alt="{{ $p->caption ?? '' }}"
+                                             loading="lazy"
+                                             style="width:100%;height:100%;object-fit:cover;">
+                                    </a>
+                                    <button type="button"
+                                            onclick="deleteWorksheetPhoto({{ $p->id }}, '{{ $token }}', this)"
+                                            title="Remove"
+                                            style="position:absolute;top:2px;right:2px;width:20px;height:20px;border:0;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:.7rem;line-height:1;cursor:pointer;">✕</button>
+                                </div>
+                            @endforeach
                         </div>
+                        <label class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:.4rem;cursor:pointer;">
+                            📷 Add photo
+                            <input type="file" accept="image/*" capture="environment" style="display:none;"
+                                   onchange="uploadWorksheetPhoto(this, '{{ $token }}', '{{ addslashes($room['name'] ?? '') }}')">
+                        </label>
+                        @if($photoCount === 0)
+                            <div class="photo-warn" style="margin-top:.55rem;">
+                                ⚠ No photos captured yet — capture at least one before requesting sign-off.
+                            </div>
+                        @endif
                     </div>
                 </details>
             @endforeach
@@ -701,6 +726,52 @@
                 document.getElementById('signature_image').value = '';
             });
         })();
+
+        // ── Photo upload (per-room) ─────────────────────────────────────────
+        async function uploadWorksheetPhoto(input, token, roomName) {
+            const file = input.files && input.files[0];
+            if (!file) return;
+            const fd = new FormData();
+            fd.append('photo', file);
+            const url = '/worksheet/' + encodeURIComponent(token)
+                      + '/rooms/'    + encodeURIComponent(roomName)
+                      + '/photos';
+            try {
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                               'Accept': 'application/json' },
+                    body: fd,
+                });
+                if (!resp.ok) {
+                    alert('Upload failed. ' + (resp.statusText || 'Please try again.'));
+                    input.value = '';
+                    return;
+                }
+                // Simplest UX: reload the page so the new thumbnail + count + warning
+                // state all update together. The page is short and fast.
+                window.location.reload();
+            } catch (e) {
+                alert('Network error. Please try again.');
+                input.value = '';
+            }
+        }
+
+        async function deleteWorksheetPhoto(photoId, token, btn) {
+            if (!confirm('Remove this photo?')) return;
+            const url = '/worksheet/' + encodeURIComponent(token) + '/photos/' + photoId;
+            try {
+                const resp = await fetch(url, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                               'Accept': 'application/json' },
+                });
+                if (!resp.ok) { alert('Delete failed.'); return; }
+                window.location.reload();
+            } catch (e) {
+                alert('Network error.');
+            }
+        }
     </script>
 
 </body>

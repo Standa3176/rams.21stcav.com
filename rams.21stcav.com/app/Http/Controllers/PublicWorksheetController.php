@@ -41,12 +41,101 @@ class PublicWorksheetController extends Controller
     public function show(string $token): View
     {
         $worksheet = $this->resolveWorksheet($token);
-        $worksheet->load('signoffs');
+        $worksheet->load('signoffs', 'photos');
 
         return view('worksheets.public-show', [
-            'worksheet'     => $worksheet,
-            'token'         => $token,
-            'latestSignoff' => $worksheet->latestSignoff(),
+            'worksheet'      => $worksheet,
+            'token'          => $token,
+            'latestSignoff'  => $worksheet->latestSignoff(),
+            'photoCounts'    => $worksheet->photoCountsByRoom(),
+        ]);
+    }
+
+    // ─── Photo upload / serve ────────────────────────────────────────────────
+
+    /**
+     * POST /worksheet/{token}/rooms/{room_name}/photos
+     *
+     * Accept a photo upload from the public worksheet link and persist it
+     * scoped to a specific room. Engineers must capture photos per room
+     * before requesting client sign-off.
+     */
+    public function uploadPhoto(Request $request, string $token, string $roomName): \Illuminate\Http\JsonResponse
+    {
+        $worksheet = $this->resolveWorksheet($token);
+
+        $request->validate([
+            'photo'   => ['required', 'file', 'image', 'max:10240'],
+            'caption' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        $file = $request->file('photo');
+        $extension = match ($file->getMimeType()) {
+            'image/jpeg'      => 'jpg',
+            'image/png'       => 'png',
+            'image/webp'      => 'webp',
+            'image/gif'       => 'gif',
+            'image/heic',
+            'image/heif'      => 'heic',
+            default           => 'jpg',
+        };
+        $basename = \Illuminate\Support\Str::uuid() . '.' . $extension;
+        $directory = "worksheet-photos/{$worksheet->id}";
+        $storedPath = "{$directory}/{$basename}";
+        \Illuminate\Support\Facades\Storage::disk('local')->putFileAs($directory, $file, $basename);
+
+        $sortOrder = ($worksheet->photos()->where('room_name', $roomName)->max('sort_order') ?? 0) + 1;
+        $photo = $worksheet->photos()->create([
+            'room_name'     => $roomName,
+            'filename'      => $storedPath,
+            'original_name' => $file->getClientOriginalName(),
+            'mime_type'     => $file->getMimeType() ?? 'image/jpeg',
+            'caption'       => $request->input('caption'),
+            'sort_order'    => $sortOrder,
+        ]);
+
+        return response()->json([
+            'id'       => $photo->id,
+            'filename' => $photo->filename,
+            'caption'  => $photo->caption,
+            'url'      => route('public-worksheet.photos.serve', ['token' => $token, 'photo' => $photo->id]),
+        ]);
+    }
+
+    /**
+     * DELETE /worksheet/{token}/photos/{photo}
+     *
+     * Remove a photo from a room. Token + ownership double-checked so a
+     * leaked URL can't blow away photos on a different worksheet.
+     */
+    public function deletePhoto(string $token, int $photoId): \Illuminate\Http\JsonResponse
+    {
+        $worksheet = $this->resolveWorksheet($token);
+        $photo     = $worksheet->photos()->where('id', $photoId)->firstOrFail();
+
+        \Illuminate\Support\Facades\Storage::disk('local')->delete($photo->storagePath());
+        $photo->delete();
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * GET /worksheet/{token}/photos/{photo}
+     *
+     * Stream a photo file. Token-gated and verified to belong to the
+     * matching worksheet to prevent cross-worksheet enumeration.
+     */
+    public function servePhoto(string $token, int $photoId): \Symfony\Component\HttpFoundation\Response
+    {
+        $worksheet = $this->resolveWorksheet($token);
+        $photo     = $worksheet->photos()->where('id', $photoId)->firstOrFail();
+
+        $path = $photo->absolutePath();
+        abort_unless(file_exists($path), 404);
+
+        return response()->file($path, [
+            'Content-Type'        => $photo->mime_type ?? 'image/jpeg',
+            'Content-Disposition' => 'inline; filename="' . $photo->original_name . '"',
         ]);
     }
 
