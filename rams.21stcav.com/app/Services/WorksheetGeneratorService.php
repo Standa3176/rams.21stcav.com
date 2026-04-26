@@ -86,7 +86,16 @@ class WorksheetGeneratorService
         $worksOverview    = '';
         $package = $project->latestPackage ?? null;
         if ($package !== null) {
-            foreach ((array) ($package->reviewed_data['room_overviews'] ?? []) as $i => $ov) {
+            // Some packages haven't been through the review screen yet, so
+            // reviewed_data is empty and the canonical data lives in
+            // extracted_data. Fall back transparently — once we backfill
+            // bullets we still write them back to whichever store the
+            // data originally lived in.
+            $sourceKey = ! empty($package->reviewed_data['room_overviews'])
+                ? 'reviewed_data'
+                : 'extracted_data';
+            $sourceRoomOverviews = (array) ($package->{$sourceKey}['room_overviews'] ?? []);
+            foreach ($sourceRoomOverviews as $i => $ov) {
                 if (! is_array($ov)) continue;
                 $name = strtolower(trim((string) ($ov['room'] ?? '')));
                 // Some projects store the per-room prose in `overview` rather
@@ -131,12 +140,14 @@ class WorksheetGeneratorService
                         if ($rname === '' || $bull === '') continue;
                         if (! str_starts_with($bull, '- ') && ! str_contains($bull, "\n- ")) continue;
                         $roomBullets[$rname] = $bull;
-                        // Persist back to the package so future worksheets +
-                        // RAMS + O&M all read the same canonical bullets.
+                        // Persist back to whichever store the room data
+                        // originally lived in (reviewed or extracted) so
+                        // future worksheets + RAMS + O&M read the same
+                        // canonical bullets.
                         if (isset($roomOverviewIdx[$rname])) {
-                            $reviewed = $package->reviewed_data ?? [];
-                            $reviewed['room_overviews'][$roomOverviewIdx[$rname]]['works_summary'] = $bull;
-                            $package->reviewed_data = $reviewed;
+                            $store = $package->{$sourceKey} ?? [];
+                            $store['room_overviews'][$roomOverviewIdx[$rname]]['works_summary'] = $bull;
+                            $package->{$sourceKey} = $store;
                         }
                     }
                     $package->save();
