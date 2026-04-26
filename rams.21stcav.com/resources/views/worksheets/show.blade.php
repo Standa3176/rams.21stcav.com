@@ -146,29 +146,6 @@
     </div>
 </div>
 
-{{-- Client Sign-Off Link — public token URL the PM shares with the client.
-     The token is generated automatically when the worksheet is created.
-     Mirrors the engineer link banner on the site survey page. --}}
-@if($worksheet->access_token)
-    @php
-        $clientUrl   = route('public-worksheet.show', ['token' => $worksheet->access_token]);
-        $latestSign  = $worksheet->signoffs()->latest('signed_at')->first();
-    @endphp
-    <div style="background:#E0F2F1;border:1px solid #B2DFDB;border-radius:8px;padding:.75rem 1rem;margin:.75rem 0 1rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
-        <span style="font-weight:700;color:#0B3C45;white-space:nowrap;">📱 Client Link:</span>
-        <span style="flex:1;min-width:280px;font-family:monospace;font-size:.85rem;color:#0B3C45;word-break:break-all;" id="client-worksheet-link">{{ $clientUrl }}</span>
-        <button type="button"
-                onclick="(function(b){navigator.clipboard.writeText(document.getElementById('client-worksheet-link').textContent.trim()).then(()=>{const t=b.textContent;b.textContent='✓ Copied';setTimeout(()=>b.textContent=t,1500);});})(this)"
-                class="btn-teal btn-sm"
-                style="white-space:nowrap;">Copy Link</button>
-        @if($latestSign)
-            <span style="background:#10B981;color:#fff;padding:.2rem .55rem;border-radius:14px;font-size:.72rem;font-weight:700;letter-spacing:.04em;">
-                ✓ Signed {{ optional($latestSign->signed_at)->format('d M Y') }}
-            </span>
-        @endif
-    </div>
-@endif
-
 {{-- Status bar --}}
 <div class="card card-sm" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.25rem;">
     <div>
@@ -193,7 +170,9 @@
     </div>
 @endif
 
-{{-- Client Sign-Off Link --}}
+{{-- Client Sign-Off Link — guarded for legacy worksheets that pre-date the
+     access_token migration. publicUrl() throws when the token is null. --}}
+@if($worksheet->access_token)
 <div class="card card-sm" style="margin-bottom:1.25rem;" x-data="{ url: '{{ $worksheet->publicUrl() }}', copied: false }">
     <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:.4rem;">
         Client Sign-Off Link
@@ -215,6 +194,7 @@
         </div>
     @endif
 </div>
+@endif
 
 {{-- Room accordion --}}
 @php
