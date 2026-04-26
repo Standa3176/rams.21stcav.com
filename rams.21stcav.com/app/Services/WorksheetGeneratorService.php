@@ -459,6 +459,19 @@ class WorksheetGeneratorService
             // ── A. Classify every line item (labour/cable/existing splits) ───
             $classified = $this->classifyItems($allItems);
 
+            // Skip phantom rooms — quote-extraction artefacts (e.g. "ROOM
+            // BOOKING PANELS", "Professional Services") that linger in the
+            // package's rooms list after every line has been re-areaed to
+            // a real room. A room with no install hardware AND no cables
+            // AND no retained items should not appear on the worksheet.
+            if (
+                empty($classified['install_hardware'])
+                && empty($classified['cable_consumable'])
+                && empty($classified['existing_reuse'])
+            ) {
+                continue;
+            }
+
             // ── A2. Apply friendly-name resolver so bare SKUs become readable.
             $classified['install_hardware'] = array_map(
                 fn (array $i) => $i + ['name' => $friendly->resolve($i)],
