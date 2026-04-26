@@ -170,6 +170,29 @@
     </div>
 @endif
 
+{{-- Client Sign-Off Link --}}
+<div class="card card-sm" style="margin-bottom:1.25rem;" x-data="{ url: '{{ $worksheet->publicUrl() }}', copied: false }">
+    <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:.4rem;">
+        Client Sign-Off Link
+    </div>
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+        <input type="text" :value="url" readonly
+               style="flex:1;min-width:260px;font-size:.82rem;padding:.45rem .65rem;border:1px solid var(--border);border-radius:6px;background:#fafbfc;"
+               @click="$event.target.select()">
+        <button type="button" class="btn-outline btn-sm"
+                @click="navigator.clipboard.writeText(url); copied = true; setTimeout(() => copied = false, 1500);"
+                x-text="copied ? '✓ Copied' : 'Copy'"></button>
+        <a :href="url" target="_blank" class="btn-outline btn-sm">Open ↗</a>
+    </div>
+    @if($worksheet->isSigned())
+        @php $sig = $worksheet->latestSignoff(); @endphp
+        <div style="margin-top:.5rem;font-size:.78rem;color:#065F46;">
+            ✓ Signed by {{ $sig->client_name }} on {{ $sig->signed_at->format('d M Y H:i') }}
+            @if($sig->signed_with_comments) <span style="color:#92400E;font-weight:600;">(signed with comments)</span>@endif
+        </div>
+    @endif
+</div>
+
 {{-- Room accordion --}}
 @php
     $rooms = $worksheet->generated_data['rooms'] ?? [];

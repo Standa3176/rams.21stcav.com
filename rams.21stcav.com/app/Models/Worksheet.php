@@ -100,7 +100,12 @@ class Worksheet extends Model
      */
     public function signoffs(): HasMany
     {
-        return $this->hasMany(WorksheetSignoff::class)->orderBy('signed_at', 'desc');
+        // Order by signed_at desc with id desc as tie-breaker — two sign-offs
+        // recorded inside the same second (e.g. resignoff during a test or a
+        // browser double-submit) must still resolve to a deterministic latest.
+        return $this->hasMany(WorksheetSignoff::class)
+            ->orderBy('signed_at', 'desc')
+            ->orderBy('id', 'desc');
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

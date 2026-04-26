@@ -16,6 +16,7 @@ use App\Http\Controllers\RamsController;
 use App\Http\Controllers\RamsReviewController;
 use App\Http\Controllers\ProjectPackageReviewController;
 use App\Http\Controllers\PublicSurveyController;
+use App\Http\Controllers\PublicWorksheetController;
 use App\Http\Controllers\SiteSurveyController;
 use App\Http\Controllers\SurveyController;
 use Illuminate\Support\Facades\Auth;
@@ -61,6 +62,19 @@ Route::post('survey/{token}/rooms/{room}/questions/{question}', [PublicSurveyCon
     ->middleware('throttle:120,1');
 Route::get('survey/{token}/photos/{photo}',            [PublicSurveyController::class, 'servePhoto'])     ->name('survey.photos.serve');
 Route::patch('survey/{token}/photos/{photo}',          [PublicSurveyController::class, 'updatePhoto'])    ->name('survey.photos.update')   ->middleware('throttle:60,1');
+
+/*
+|--------------------------------------------------------------------------
+| Public Worksheet Sign-Off Routes — no authentication required
+|
+| Clients access these via the UUID token embedded in the URL. The token is
+| generated automatically when a Worksheet is created. Mirrors the site-survey
+| public link pattern; sign-off is append-only (resignoff appends a new row).
+|--------------------------------------------------------------------------
+*/
+
+Route::get ('worksheet/{token}',      [PublicWorksheetController::class, 'show']) ->name('public-worksheet.show');
+Route::post('worksheet/{token}/sign', [PublicWorksheetController::class, 'sign']) ->name('public-worksheet.sign')->middleware('throttle:10,1');
 
 /*
 |--------------------------------------------------------------------------
