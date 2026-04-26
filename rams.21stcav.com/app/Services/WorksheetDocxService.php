@@ -64,23 +64,39 @@ class WorksheetDocxService
             $this->renderWarningsPanel($coverSection, $warnings);
         }
 
+        // Track temporary PNG paths written for signature embedding so we can
+        // clean them up after the writer flushes (PhpWord copies the bytes
+        // into the docx zip during save() — the source file is no longer
+        // needed after that).
+        $tmpSignaturePaths = [];
+
         // ── One section per room ─────────────────────────────────────────────
         foreach ($rooms as $room) {
             $section = $phpWord->addSection($this->sectionProps());
-            $this->buildRoom($section, $room);
+            $this->buildRoom($section, $room, $worksheet, $tmpSignaturePaths);
         }
 
         // ── Save ─────────────────────────────────────────────────────────────
         $filename = 'worksheet_' . $worksheet->id . '_' . now()->format('Ymd_His') . '.docx';
         $fullPath = $this->artifacts->writePath(DocumentArtifactStorage::TYPE_WORKSHEET, $filename);
 
-        $writer = IOFactory::createWriter($phpWord, 'Word2007');
-        $writer->save($fullPath);
+        try {
+            $writer = IOFactory::createWriter($phpWord, 'Word2007');
+            $writer->save($fullPath);
 
-        $this->validateDocx($fullPath);
+            $this->validateDocx($fullPath);
 
-        $worksheet->update(['filename' => $filename]);
-        Log::info('WorksheetDocxService: DOCX saved', ['worksheet_id' => $worksheet->id, 'filename' => $filename]);
+            $worksheet->update(['filename' => $filename]);
+            Log::info('WorksheetDocxService: DOCX saved', ['worksheet_id' => $worksheet->id, 'filename' => $filename]);
+        } finally {
+            // Clean up signature tmp PNG files. Best-effort: never let
+            // cleanup errors mask a write failure.
+            foreach ($tmpSignaturePaths as $tmp) {
+                if (is_string($tmp) && $tmp !== '' && file_exists($tmp)) {
+                    @unlink($tmp);
+                }
+            }
+        }
     }
 
     // ── Cover Header ─────────────────────────────────────────────────────────
@@ -175,7 +191,7 @@ class WorksheetDocxService
 
     // ── Room Section ─────────────────────────────────────────────────────────
 
-    private function buildRoom($section, array $room): void
+    private function buildRoom($section, array $room, ?Worksheet $worksheet = null, array &$tmpSignaturePaths = []): void
     {
         $roomName = $room['name'] ?? 'Unknown Room';
         $isSurveyed = $room['is_surveyed'] ?? false;
@@ -353,21 +369,131 @@ class WorksheetDocxService
         }
 
         // ── Engineer Notes / Snags / Sign-Off ────────────────────────────────
+        $this->addEngineerSignOff($section, $worksheet, $tmpSignaturePaths);
+    }
+
+    /**
+     * Render the ENGINEER SIGN-OFF block for a room.
+     *
+     * When the worksheet has at least one client sign-off recorded via the
+     * public sign-off page, the block embeds the latest signature image
+     * (PNG) plus the client name, signed_at timestamp, signed-with-comments
+     * flag and any outstanding-items text. When unsigned, the original
+     * 6-row empty form table is rendered verbatim (regression-guarded by
+     * existing worksheet feature tests).
+     *
+     * @param  array<int,string> $tmpSignaturePaths  collects PNG temp paths
+     *                                              the caller deletes after save()
+     */
+    private function addEngineerSignOff($section, ?Worksheet $worksheet, array &$tmpSignaturePaths): void
+    {
         $this->heading($section, 'ENGINEER SIGN-OFF');
-        $soTable = $section->addTable(['borderSize' => 6, 'borderColor' => self::MID, 'cellMargin' => 80]);
-        $soFields = [
-            ['Engineer Name', ''],
-            ['Date', ''],
-            ['Snags / Notes', ''],
-            ['Engineer Signature', ''],
-            ['Client Name', ''],
-            ['Client Signature', ''],
-        ];
-        foreach ($soFields as [$label, $val]) {
-            $row = $soTable->addRow($label === 'Snags / Notes' ? 600 : 400);
-            $row->addCell(3000, ['bgColor' => self::GREY])->addText($label, ['bold' => true, 'size' => 9, 'color' => '4B5563']);
-            $row->addCell(6000)->addText($this->t($val), ['size' => 10, 'color' => self::DARK]);
+
+        $signoff = $worksheet?->latestSignoff();
+
+        if ($signoff === null) {
+            // Unsigned worksheet — keep the original empty 6-row form table
+            // exactly as it was pre-260426-gvm. Do NOT change cell widths,
+            // row heights, or label order — engineers may have on-site
+            // print-and-sign workflows that rely on this layout.
+            $soTable = $section->addTable(['borderSize' => 6, 'borderColor' => self::MID, 'cellMargin' => 80]);
+            $soFields = [
+                ['Engineer Name', ''],
+                ['Date', ''],
+                ['Snags / Notes', ''],
+                ['Engineer Signature', ''],
+                ['Client Name', ''],
+                ['Client Signature', ''],
+            ];
+            foreach ($soFields as [$label, $val]) {
+                $row = $soTable->addRow($label === 'Snags / Notes' ? 600 : 400);
+                $row->addCell(3000, ['bgColor' => self::GREY])->addText($label, ['bold' => true, 'size' => 9, 'color' => '4B5563']);
+                $row->addCell(6000)->addText($this->t($val), ['size' => 10, 'color' => self::DARK]);
+            }
+            return;
         }
+
+        // Signed — render the populated table including the embedded PNG.
+        $soTable = $section->addTable(['borderSize' => 6, 'borderColor' => self::MID, 'cellMargin' => 80]);
+
+        $rows = [
+            ['Client Name',       $signoff->client_name],
+            ['Signed At',         $signoff->signed_at?->format('d M Y H:i') ?? ''],
+            ['Signed With Notes', $signoff->signed_with_comments ? 'Yes' : 'No'],
+            ['Outstanding Items', trim((string) ($signoff->comments ?? '')) !== ''
+                                    ? (string) $signoff->comments
+                                    : '—'],
+        ];
+
+        foreach ($rows as [$label, $val]) {
+            // Row height: give comments a roomier cell (multi-line snag list).
+            $row = $soTable->addRow($label === 'Outstanding Items' ? 600 : 400);
+            $row->addCell(3000, ['bgColor' => self::GREY])
+                ->addText($label, ['bold' => true, 'size' => 9, 'color' => '4B5563']);
+            $row->addCell(6000)
+                ->addText($this->t((string) $val), ['size' => 10, 'color' => self::DARK]);
+        }
+
+        // Client Signature row — embed the signature PNG.
+        $sigRow = $soTable->addRow(900);
+        $sigRow->addCell(3000, ['bgColor' => self::GREY])
+            ->addText('Client Signature', ['bold' => true, 'size' => 9, 'color' => '4B5563']);
+        $sigCell = $sigRow->addCell(6000);
+
+        $tmpPath = $this->writeSignatureToTempFile($signoff->signature_png_base64);
+        if ($tmpPath !== null) {
+            $tmpSignaturePaths[] = $tmpPath;
+            try {
+                $sigCell->addImage($tmpPath, [
+                    'width'  => 200,
+                    'height' => 80,
+                ]);
+            } catch (\Throwable $e) {
+                // Defensive: a malformed PNG should not crash regeneration —
+                // fall back to a textual marker so the row still renders.
+                Log::warning('WorksheetDocxService: signature image embed failed', [
+                    'worksheet_id' => $worksheet->id,
+                    'error'        => $e->getMessage(),
+                ]);
+                $sigCell->addText('[Signature on file]', ['size' => 10, 'color' => self::DARK]);
+            }
+        } else {
+            $sigCell->addText('[Signature on file]', ['size' => 10, 'color' => self::DARK]);
+        }
+    }
+
+    /**
+     * Decode a base64 PNG string into a temp file. Returns the absolute path,
+     * or null when the input is empty / invalid.
+     */
+    private function writeSignatureToTempFile(?string $base64): ?string
+    {
+        if ($base64 === null || trim($base64) === '') {
+            return null;
+        }
+
+        $bytes = base64_decode($base64, true);
+        if ($bytes === false || $bytes === '') {
+            return null;
+        }
+
+        $tmp = tempnam(sys_get_temp_dir(), 'wsig_');
+        if ($tmp === false) {
+            return null;
+        }
+        // Append .png so PhpWord can detect the type from the filename.
+        $tmpPng = $tmp . '.png';
+        if (! @rename($tmp, $tmpPng)) {
+            // rename failed — fall back to the original tempnam name with PNG bytes.
+            $tmpPng = $tmp;
+        }
+
+        if (file_put_contents($tmpPng, $bytes) === false) {
+            @unlink($tmpPng);
+            return null;
+        }
+
+        return $tmpPng;
     }
 
     private function roomWorkChecklist(array $room): array
