@@ -82,21 +82,65 @@ class WorksheetGeneratorService
         // and replace the generic templated work paragraph on the worksheet.
         $roomDescriptions = [];   // prose fallback per room
         $roomBullets      = [];   // bullet list per room (preferred)
+        $roomOverviewIdx  = [];   // package room_overviews keyed by lower(name) for write-back
         $worksOverview    = '';
         $package = $project->latestPackage ?? null;
         if ($package !== null) {
-            foreach ((array) ($package->reviewed_data['room_overviews'] ?? []) as $ov) {
+            foreach ((array) ($package->reviewed_data['room_overviews'] ?? []) as $i => $ov) {
                 if (! is_array($ov)) continue;
                 $name = strtolower(trim((string) ($ov['room'] ?? '')));
                 $desc = trim((string) ($ov['description']    ?? ''));
                 $bull = trim((string) ($ov['works_summary'] ?? ''));
                 if ($name === '') continue;
+                $roomOverviewIdx[$name] = $i;
                 if ($desc !== '') $roomDescriptions[$name] = $desc;
                 if ($bull !== '' && (str_starts_with($bull, '- ') || str_contains($bull, "\n- "))) {
                     $roomBullets[$name] = $bull;
                 }
             }
             $worksOverview = trim((string) ($package->reviewed_data['works_overview'] ?? ''));
+
+            // Backfill missing bullets at worksheet-generation time so we
+            // never fall through to the generic "Install N items covering
+            // X, Y and Z" paragraph when prose is available. The AI cache
+            // makes repeat calls free; failures log and skip silently.
+            $needBullets = [];
+            foreach ($roomDescriptions as $name => $prose) {
+                if (! isset($roomBullets[$name]) && strlen($prose) >= 40) {
+                    $needBullets[$name] = $prose;
+                }
+            }
+            if (! empty($needBullets)) {
+                try {
+                    $summariser = app(\App\Services\RoomOverviewSummaryService::class);
+                    $payload    = [];
+                    foreach ($needBullets as $name => $prose) {
+                        $payload[] = ['room' => $name, 'overview' => $prose, 'summary' => ''];
+                    }
+                    $results = $summariser->summarize($payload);
+                    foreach ((array) $results as $r) {
+                        if (! is_array($r)) continue;
+                        $rname = strtolower(trim((string) ($r['room'] ?? '')));
+                        $bull  = trim((string) ($r['summary'] ?? ''));
+                        if ($rname === '' || $bull === '') continue;
+                        if (! str_starts_with($bull, '- ') && ! str_contains($bull, "\n- ")) continue;
+                        $roomBullets[$rname] = $bull;
+                        // Persist back to the package so future worksheets +
+                        // RAMS + O&M all read the same canonical bullets.
+                        if (isset($roomOverviewIdx[$rname])) {
+                            $reviewed = $package->reviewed_data ?? [];
+                            $reviewed['room_overviews'][$roomOverviewIdx[$rname]]['works_summary'] = $bull;
+                            $package->reviewed_data = $reviewed;
+                        }
+                    }
+                    $package->save();
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning(
+                        'WorksheetGenerator: bullet backfill failed',
+                        ['error' => $e->getMessage()]
+                    );
+                }
+            }
         }
 
         // ── Pre-install check answers ────────────────────────────────────────
