@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Installation Programme & Field Management
 status: verifying
-last_updated: "2026-04-25T11:03:06.729Z"
-last_activity: 2026-04-25
+last_updated: "2026-04-26T11:30:00.000Z"
+last_activity: 2026-04-26
 progress:
   total_phases: 5
   completed_phases: 5
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-04-13)
 Phase: 16
 Plan: Not started
 Status: Phase complete — ready for /gsd-verify-work
-Last activity: 2026-04-25
+Last activity: 2026-04-26 — Completed quick task 260426-gvm: Public worksheet sign-off link mirroring site survey UUID-token pattern
 
 ## Milestone v1.0 Complete
 
@@ -58,3 +58,4 @@ Tag: `v1.0`
 | 260414-j5p | 2026-04-14 | Add start/end times, waste removal, permits, material handling, CDM, COSHH, welfare, toolbox talk to RAMS | ✅ Done | c428316 |
 | 260414-jli | 2026-04-14 | Add scope traceability, client responsibilities expanded, exclusions, decommissioning, commissioning criteria to RAMS | ✅ Done | f33b8b9 |
 | 260415-en6 | 2026-04-15 | Fix site survey gaps: PM email, cable routes, rack room, projection/network/sign-off fields | ✅ Done | d47d653 |
+| 260426-gvm | 2026-04-26 | Public worksheet sign-off link (UUID-token, single-signature acceptance, optional outstanding-items comments, append-only signoffs, DOCX signature embed) | ✅ Done | e31f58d |
