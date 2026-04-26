@@ -158,14 +158,36 @@ SITE SURVEY DATA FOR THIS ROOM:
 {$surveyBlock}{$descriptionBlock}{$overviewBlock}
 
 INSTRUCTIONS:
-- List the install steps for this room as a numbered sequence (3–5 steps maximum).
-- Base steps ONLY on the equipment and survey data provided above — do not invent items, cable types, or equipment not listed.
-- Be concise and practical. Each step should be one sentence.
-- Include mounting, cabling, connection, and commissioning actions only if the equipment above requires them.
-- If no survey data is available, write steps based on the equipment list alone.
+- List the install steps for this room as a numbered sequence (8–12 steps for a
+  typical room; scale up to 14 only when the kit list is large or complex).
+- Reference equipment by SHORT, SPECIFIC name in each step that applies to a
+  particular item (e.g. "Sony 98″ BZ53L display", "Cisco Room Kit EQ codec",
+  "Crestron 1Beyond P20 PTZ camera"). Do NOT use vague phrases like "the
+  display", "the codec", "the audio system".
+- Cover the install in this logical order, omitting any phase the equipment
+  list does not require:
+    1. ARRIVAL / SITE READY — confirm room access, kit on site, scope agreed.
+    2. CONTAINMENT / FIRST FIX — trunking, conduit, fire-stop where called for.
+    3. CABLE PULL — name the runs (HDMI, Cat6, speaker, control) and the
+       endpoints in this room.
+    4. STRUCTURAL FIXING — wall / ceiling fixings, including substrate
+       verification and bracket installation.
+    5. EQUIPMENT MOUNT — display, codec, camera, speakers, panels, sensors.
+    6. TERMINATION & CONNECTION — connectors, patching, power-on sequence.
+    7. CONFIGURATION — IP / DSP / control programming where applicable.
+    8. INTEGRATION & TEST — VC test call, signal path, audio levels,
+       BYOD presentation.
+    9. HANDOVER — labels, as-built notes, client sign-off.
+- Each step ONE sentence, ≤25 words. British English. Imperative voice
+  ("Mount the Sony 98″ display…"), not gerund ("Mounting the display…").
+- Base steps ONLY on the equipment and survey data above — do not invent
+  items, cable types, or rooms that are not listed.
+- If no survey data is available, write steps from the equipment list alone
+  and add a closing step "Confirm fixings, cable routes, and power/network
+  drops on arrival before first fix."
 
 Return ONLY valid JSON with this exact shape:
-{ "install_steps": "1. Step one\n2. Step two\n3. Step three" }
+{ "install_steps": "1. Step one\n2. Step two\n3. Step three\n…" }
 PROMPT;
     }
 }

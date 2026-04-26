@@ -85,8 +85,11 @@ class WorksheetPromptTest extends TestCase
         $prompt = WorksheetPrompt::forRoom($room, $this->makeProjectMeta());
         $built  = $prompt->build();
 
-        $this->assertStringContainsString(
-            'Base steps ONLY on the equipment and survey data provided above — do not invent items, cable types, or equipment not listed.',
+        // Assert the "do not invent" rule is present in some form. Exact
+        // wording shifts as the prompt evolves; the contract we lock is
+        // the no-invention guarantee.
+        $this->assertMatchesRegularExpression(
+            '/Base steps ONLY.*do not invent/is',
             $built
         );
     }
