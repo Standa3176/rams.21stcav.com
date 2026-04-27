@@ -18,6 +18,7 @@
         "mpdf/mpdf": "^8.3",
         "phpoffice/phpword": "^1.4",
         "smalot/pdfparser": "^2.12",
+        "spatie/browsershot": "^5.3",
         "spatie/pdf-to-text": "^1.54",
         "symfony/http-client": "^8.0",
         "symfony/postmark-mailer": "^8.0"
@@ -89,6 +90,7 @@
             "dompdf/dompdf": "Core engine required by barryvdh/laravel-dompdf (pinned to same major version)",
             "mpdf/mpdf": "O&M Manual PDF export — full CSS support needed for complex document layout",
             "smalot/pdfparser": "Primary PDF text extractor (PHP-native, no system binary) — PdfTextExtractorService",
+            "spatie/browsershot": "Headless Chromium PDF renderer for RAMS/O&M/Site Survey via PdfRenderService — chrome-headless-shell on AlmaLinux 8",
             "spatie/pdf-to-text": "Fallback PDF extractor (uses pdftotext binary) — used when smalot/pdfparser returns empty text"
         }
     },
