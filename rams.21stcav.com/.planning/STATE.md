@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-04-13)
 Phase: 16
 Plan: Not started
 Status: Phase complete — ready for /gsd-verify-work
-Last activity: 2026-04-26 — Completed quick task 260426-gvm: Public worksheet sign-off link mirroring site survey UUID-token pattern
+Last activity: 2026-04-27 — Completed quick task 260427-qvr: Migrate PDF rendering to Browsershot (Needs Review — production smoke-test pending)
 
 ## Milestone v1.0 Complete
 
@@ -59,3 +59,4 @@ Tag: `v1.0`
 | 260414-jli | 2026-04-14 | Add scope traceability, client responsibilities expanded, exclusions, decommissioning, commissioning criteria to RAMS | ✅ Done | f33b8b9 |
 | 260415-en6 | 2026-04-15 | Fix site survey gaps: PM email, cable routes, rack room, projection/network/sign-off fields | ✅ Done | d47d653 |
 | 260426-gvm | 2026-04-26 | Public worksheet sign-off link (UUID-token, single-signature acceptance, optional outstanding-items comments, append-only signoffs, DOCX signature embed) | ✅ Done | e31f58d |
+| 260427-qvr | 2026-04-27 | Migrate PDF rendering to Browsershot (RAMS + O&M + Site Survey via single PdfRenderService, pdf:smoke-test command, deployment runbook for chrome symlink + queue-worker user fix + chown). Existing dompdf/mpdf retained for rollback. | ⚠️ Needs Review | 92c95da |
