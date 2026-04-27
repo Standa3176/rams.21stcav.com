@@ -4,17 +4,26 @@ namespace App\Services;
 
 use App\Models\OmManual;
 use App\Models\RamsDocument;
-use Dompdf\Dompdf;
-use Dompdf\Options;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
- * Renders RAMS and O&M documents to PDF using DomPDF directly from
- * Blade HTML templates, bypassing the lossy PhpWord→DomPDF chain.
+ * Renders RAMS and O&M documents to PDF via Browsershot (chrome-headless-shell).
+ *
+ * Previously used Dompdf directly — that produced brittle output and
+ * duplicated render code with SurveyPdfService. Now both pipelines share
+ * one engine via PdfRenderService.
+ *
+ * Outputs land under storage/app/documents/{rams,om-manuals}/ via the
+ * H-07 DocumentArtifactStorage convention so legacy/current path resolution
+ * stays consistent with the DOCX writers.
  */
 class PdfService
 {
+    public function __construct(
+        private readonly PdfRenderService        $renderer,
+        private readonly DocumentArtifactStorage $artifacts,
+    ) {}
+
     // ── Public methods ────────────────────────────────────────────────────────
 
     /**
@@ -22,16 +31,13 @@ class PdfService
      */
     public function buildRams(RamsDocument $rams): string
     {
-        if (! view()->exists('pdf.rams')) {
-            throw new \RuntimeException('PDF template missing: resources/views/pdf/rams.blade.php');
-        }
+        $filename = $this->filenameFor('rams', $rams->id, $rams->project_name ?? 'rams');
+        $path     = $this->artifacts->writePath(DocumentArtifactStorage::TYPE_RAMS, $filename);
 
-        $html = view('pdf.rams', [
+        return $this->renderer->fromBlade('pdf.rams', [
             'rams' => $rams,
             'data' => $rams->generated_data ?? [],
-        ])->render();
-
-        return $this->renderToFile($html, 'rams', $rams->id, $rams->project_name);
+        ], $path);
     }
 
     /**
@@ -39,40 +45,28 @@ class PdfService
      */
     public function buildOmManual(OmManual $manual): string
     {
-        $html = view('pdf.om-manual', [
+        $filename = $this->filenameFor('om-manuals', $manual->id, $manual->project_name ?? 'om-manual');
+        $path     = $this->artifacts->writePath(DocumentArtifactStorage::TYPE_OM, $filename);
+
+        return $this->renderer->fromBlade('pdf.om-manual', [
             'manual' => $manual,
             'data'   => $manual->generated_data ?? [],
-        ])->render();
-
-        return $this->renderToFile($html, 'om-manuals', $manual->id, $manual->project_name);
+        ], $path);
     }
 
     // ── Private ───────────────────────────────────────────────────────────────
 
-    private function renderToFile(string $html, string $subfolder, int $id, string $projectName): string
+    /**
+     * Build the legacy filename pattern ({subfolder}_{id}_{slug}_{ymd}.pdf) so
+     * existing email/download flows that reference the filename keep working.
+     */
+    private function filenameFor(string $subfolder, int $id, string $projectName): string
     {
-        $options = new Options();
-        $options->set('defaultFont', 'DejaVu Sans');
-        $options->set('isRemoteEnabled', false);
-        $options->set('isPhpEnabled', false);
-
-        $dompdf = new Dompdf($options);
-        $dompdf->loadHtml($html, 'UTF-8');
-        $dompdf->setPaper('A4', 'portrait');
-        $dompdf->render();
-
-        $filename = implode('_', [
+        return implode('_', [
             $subfolder,
             $id,
-            Str::slug($projectName),
+            Str::slug($projectName) ?: 'untitled',
             now()->format('Ymd'),
         ]) . '.pdf';
-
-        $diskPath = "{$subfolder}/{$filename}";
-
-        // Storage::disk('local')->put() creates parent directories automatically
-        Storage::disk('local')->put($diskPath, $dompdf->output());
-
-        return Storage::disk('local')->path($diskPath);
     }
 }
