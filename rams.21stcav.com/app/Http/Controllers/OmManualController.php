@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Core\Modules\OMManual\OmManualGeneratorService;
 use App\Exceptions\AIGenerationException;
 use App\Jobs\BuildOmManualJob;
+use App\Models\Device;
 use App\Models\OmManual;
 use App\Models\Project;
 use App\Models\ProjectPackage;
@@ -271,6 +272,110 @@ class OmManualController extends Controller
         ]);
 
         return back()->with('success', 'Equipment list saved.');
+    }
+
+    // ── editDevices (asset register form) ────────────────────────────────────
+
+    /**
+     * Render the per-device editor for the OM's project — one row per
+     * `devices` table entry with editable serial / IP / VLAN / port /
+     * firmware / asset tag / MAC fields.
+     */
+    public function editDevices(OmManual $omManual): View
+    {
+        $this->authorize('update', $omManual);
+
+        $project = $omManual->project;
+        $devices = $project
+            ? $project->devices()
+                ->orderBy('room_name')
+                ->orderBy('description')
+                ->orderBy('id')
+                ->get()
+            : collect();
+
+        return view('om-manual.edit-devices', [
+            'manual'  => $omManual,
+            'devices' => $devices,
+        ]);
+    }
+
+    // ── updateDevices (bulk-save asset register) ─────────────────────────────
+
+    /**
+     * Bulk-update the device rows for the OM's project. Only updates rows
+     * that belong to the OM's project (any device id submitted that doesn't
+     * match is silently ignored — defends against tampered form input).
+     *
+     * If the "regenerate" submit button was used, the OM build job is
+     * dispatched after the save so the user lands back with a queued doc.
+     */
+    public function updateDevices(Request $request, OmManual $omManual): RedirectResponse
+    {
+        $this->authorize('update', $omManual);
+
+        if ($omManual->project_id === null) {
+            return back()->with('error', 'This O&M Manual is not linked to a project — devices cannot be edited here.');
+        }
+
+        $payload = $request->validate([
+            'devices'                       => ['nullable', 'array'],
+            'devices.*.serial_number'       => ['nullable', 'string', 'max:120'],
+            'devices.*.mac_address'         => ['nullable', 'string', 'max:64'],
+            'devices.*.ip_address'          => ['nullable', 'string', 'max:64'],
+            'devices.*.vlan'                => ['nullable', 'string', 'max:32'],
+            'devices.*.port'                => ['nullable', 'string', 'max:64'],
+            'devices.*.firmware_version'    => ['nullable', 'string', 'max:64'],
+            'devices.*.asset_tag'           => ['nullable', 'string', 'max:120'],
+            'regenerate'                    => ['nullable', 'string'],
+        ]);
+
+        $rows    = $payload['devices'] ?? [];
+        $updated = 0;
+
+        foreach ($rows as $deviceId => $fields) {
+            $device = Device::where('project_id', $omManual->project_id)
+                ->whereKey((int) $deviceId)
+                ->first();
+            if ($device === null) {
+                continue;
+            }
+
+            $device->fill([
+                'serial_number'    => $this->trimOrNull($fields['serial_number']    ?? null),
+                'mac_address'      => $this->trimOrNull($fields['mac_address']      ?? null),
+                'ip_address'       => $this->trimOrNull($fields['ip_address']       ?? null),
+                'vlan'             => $this->trimOrNull($fields['vlan']             ?? null),
+                'port'             => $this->trimOrNull($fields['port']             ?? null),
+                'firmware_version' => $this->trimOrNull($fields['firmware_version'] ?? null),
+                'asset_tag'        => $this->trimOrNull($fields['asset_tag']        ?? null),
+            ])->save();
+            $updated++;
+        }
+
+        if (! empty($payload['regenerate'])) {
+            $omManual->update([
+                'status'        => OmManual::STATUS_GENERATING,
+                'error_message' => null,
+            ]);
+
+            app(WorkerMonitorService::class)->ensureRunning();
+            BuildOmManualJob::dispatch($omManual->id);
+
+            return redirect()
+                ->route('om-manuals.edit-devices', $omManual)
+                ->with('success', "Saved {$updated} device(s). O&M generation re-queued — the new PDF will reflect the updated values once the job completes.");
+        }
+
+        return redirect()
+            ->route('om-manuals.edit-devices', $omManual)
+            ->with('success', "Saved {$updated} device(s).");
+    }
+
+    private function trimOrNull(mixed $v): ?string
+    {
+        $s = trim((string) ($v ?? ''));
+        return $s === '' ? null : $s;
     }
 
     // ── generate (Pass 2) ─────────────────────────────────────────────────────

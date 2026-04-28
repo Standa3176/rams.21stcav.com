@@ -268,6 +268,9 @@ Route::middleware('auth')->group(function () {
         ->name('om-manuals.generate-from-project');
     Route::get('om-manuals/{omManual}/edit',         [OmManualController::class, 'edit'])        ->name('om-manuals.edit');
     Route::put('om-manuals/{omManual}',              [OmManualController::class, 'update'])      ->name('om-manuals.update');
+    // Asset register / per-device edit form (serial / IP / VLAN / port / firmware / tag / MAC).
+    Route::get('om-manuals/{omManual}/devices',      [OmManualController::class, 'editDevices']) ->name('om-manuals.edit-devices');
+    Route::put('om-manuals/{omManual}/devices',      [OmManualController::class, 'updateDevices'])->name('om-manuals.update-devices');
     Route::post('om-manuals/{omManual}/generate',        [OmManualController::class, 'generate'])        ->name('om-manuals.generate');
     Route::post('om-manuals/{omManual}/retry-generation',[OmManualController::class, 'retryGeneration']) ->name('om-manuals.retry-generation');
     Route::get('om-manuals/{omManual}/download',         [OmManualController::class, 'download'])        ->name('om-manuals.download');

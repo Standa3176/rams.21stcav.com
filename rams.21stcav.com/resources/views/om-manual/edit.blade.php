@@ -12,6 +12,9 @@
             @endif
         </h1>
         <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+            @if ($manual->project_id)
+                <a href="{{ route('om-manuals.edit-devices', $manual) }}" class="btn btn-teal btn-sm">📋 Manage Asset Data</a>
+            @endif
             <a href="{{ route('documents.revisions.view', ['type' => 'om', 'id' => $manual->id]) }}" class="btn btn-outline btn-sm">↻ History</a>
             <x-document-edit-drawer
                 type="om"

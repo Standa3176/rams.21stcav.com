@@ -4,6 +4,7 @@ namespace App\Core\Modules\OMManual;
 
 use App\Core\AI\AIManager;
 use App\Core\AI\Prompts\OmManualPrompt;
+use App\Core\AI\Prompts\OmRoomOverviewPrompt;
 use App\Core\AI\Prompts\QuoteExtractionPrompt;
 use App\Core\Modules\Projects\ProjectDataService;
 use App\Core\Modules\Projects\ProjectService;
@@ -13,7 +14,10 @@ use App\Models\Project;
 use App\Models\ProjectPackage;
 use App\Models\User;
 use App\Services\EquipmentLineParserService;
+use App\Services\EquipmentNormaliserService;
 use App\Services\EquipmentNormalizerService;
+use App\Services\ManufacturerSupportResolverService;
+use App\Services\OmManualValidationService;
 use App\Services\PdfTextExtractorService;
 use App\Services\QuoteLineExtractorService;
 use Illuminate\Support\Facades\DB;
@@ -50,12 +54,19 @@ class OmManualGeneratorService
     private const NON_PHYSICAL_ROOMS = [
         'licencing', 'licensing', 'cabling', 'cables', 'professional services',
         'support services', 'consumables', 'services', 'options', 'delivery', 'carriage',
+        'additional', 'ancillaries', 'ancillary', 'accessories', 'miscellaneous', 'misc',
+        'sundries', 'general items', 'fixings', 'unistrut', 'unallocated',
     ];
 
     private const LABOUR_OR_DOCUMENT_KEYWORDS = [
         'install', 'installation', 'commission', 'commissioning', 'programming', 'configuration',
         'project management', 'survey', 'travel', 'labour', 'training', 'handover', 'design',
         'engineering', 'support', 'drawing', 'document', 'manual', 'additional',
+        // Phase 8 fix — logistics / shipping lines should never appear as
+        // "installed equipment" in the OM. QuoteWerks sometimes assigns a
+        // delivery line to a meeting room, so room-name filtering alone
+        // doesn't catch it.
+        'delivery', 'shipment', 'shipping', 'carriage', 'freight',
     ];
 
     private const CABLE_OR_CONSUMABLE_KEYWORDS = [
@@ -63,6 +74,24 @@ class OmManualGeneratorService
         'fibre', 'fiber', 'usb cable', 'displayport cable', '305m', '100m', '50m',
         'reel', 'drum', 'consumable', 'fixing', 'screw', 'bolt', 'anchor', 'tie',
         'velcro', 'tape', 'label',
+        // Structural fixings & ancillaries (not maintainable AV items)
+        'unistrut', 'lindapter', 'square washer', 'spring nut', 'threaded rod',
+        'end cap', 'm8 nut', 'm8 lindapter', 'm8 square', 'm8 spring', 'm8 threaded',
+        'extension lead', 'surge protected', '4 gang', 'gang surge',
+    ];
+
+    /**
+     * Passive parts that share keywords with active devices (e.g. "Camera Shelf",
+     * "Logitech Camera Splitter", "Logitech Rally Camera power Adapter") but are
+     * not network-capable and don't need active maintenance. Used to gate both
+     * isNetworkCapable() and buildMaintenanceSchedule() so accessories don't
+     * inherit camera/audio/network maintenance plans.
+     */
+    private const NON_NETWORK_PARTS = [
+        'shelf', 'splitter', 'adapter', 'mount', 'joiner', 'coupler',
+        'bracket', 'rail', 'plate', 'tilt', 'extension lead',
+        'unistrut', 'lindapter', 'washer', 'spring nut', 'threaded rod',
+        'mic pod', 'tv mount', 'cat coupler',
     ];
 
     private const EXISTING_REUSE_KEYWORDS = [
@@ -71,12 +100,15 @@ class OmManualGeneratorService
     ];
 
     public function __construct(
-        private readonly ProjectService             $projectService,
-        private readonly ProjectDataService         $projectDataService,
-        private readonly PdfTextExtractorService    $pdfExtractor,
-        private readonly QuoteLineExtractorService  $lineExtractor,
-        private readonly EquipmentNormalizerService $normalizer,
-        private readonly EquipmentLineParserService $lineParser,
+        private readonly ProjectService                    $projectService,
+        private readonly ProjectDataService                $projectDataService,
+        private readonly PdfTextExtractorService           $pdfExtractor,
+        private readonly QuoteLineExtractorService         $lineExtractor,
+        private readonly EquipmentNormalizerService        $normalizer,
+        private readonly EquipmentLineParserService        $lineParser,
+        private readonly OmManualValidationService         $validator,
+        private readonly ManufacturerSupportResolverService $manufacturerResolver,
+        private readonly EquipmentNormaliserService        $equipmentNormaliser,
     ) {}
 
     // ── Pass 1: PDF extraction ────────────────────────────────────────────────
@@ -248,10 +280,16 @@ class OmManualGeneratorService
             }
         }
 
-        // Merge descriptions into each room entry.
+        // Merge descriptions into each room entry. Phase 1 added 'narrative'
+        // as the canonical key for the per-room overview the validator
+        // checks; we populate both 'description' (legacy template / back-compat)
+        // and 'narrative' (Tier 1 spec) from the same source so existing
+        // room_overviews data unblocks generation without a data migration.
         $rooms = array_map(function (array $room) use ($descriptionsByRoom): array {
-            $name = $room['name'] ?? '';
-            $room['description'] = $descriptionsByRoom[$name] ?? '';
+            $name        = $room['name'] ?? '';
+            $description = $descriptionsByRoom[$name] ?? '';
+            $room['description'] = $description;
+            $room['narrative']   = $description;
             return $room;
         }, $rooms);
 
@@ -261,6 +299,11 @@ class OmManualGeneratorService
             $scopeOfWorks = trim((string) ($linkedPackage->extracted_data['scope_of_works'] ?? ''));
         }
 
+        // Phase 6 — appendices flow through the generator data pipeline.
+        // Drawings populate Section 3 (register) and Appendix A; user guides
+        // populate Appendix B. The Phase 1 validator enforces ≥ 1 drawing.
+        $appendices  = $this->buildAppendixSections($project);
+
         return [
             'project_name'   => $data['project']['name'] ?? '',
             'project_ref'    => $data['project']['quote_reference'] ?? $data['project']['ref'] ?? '',
@@ -268,7 +311,57 @@ class OmManualGeneratorService
             'site_address'   => $data['project']['site_address'] ?? '',
             'notes'          => $data['survey']['h_and_s_notes'] ?? '',
             'scope_of_works' => $scopeOfWorks,
+            // Phase 1+4 — auto-populated date fields the validator requires.
+            // document_date is always today; handover_date is pulled from
+            // projects.handover_date (Phase 4 column) and is the gate that
+            // forces the user to set it before generation can proceed.
+            'document_date'  => now()->format('d M Y'),
+            'handover_date'  => $project->handover_date?->format('d M Y') ?? '',
             'rooms'          => $rooms,
+            'drawings'       => $appendices['drawings'],
+            'user_guides'    => $appendices['user_guides'],
+        ];
+    }
+
+    /**
+     * Phase 6 — pull appendix records (drawings + user guides) from the
+     * project relationship and shape them for the generator data pipeline.
+     * Each row is a plain array (date pre-formatted) so it survives JSON
+     * encoding into OmManual::generated_data.
+     *
+     * @return array{drawings: array<int, array<string, string>>, user_guides: array<int, array<string, string>>}
+     */
+    private function buildAppendixSections(Project $project): array
+    {
+        $drawings = $project->appendices()
+            ->where('type', \App\Models\Appendix::TYPE_DRAWING)
+            ->orderBy('reference_number')
+            ->get()
+            ->map(fn ($d) => [
+                'reference_number' => (string) ($d->reference_number ?? ''),
+                'title'            => (string) $d->title,
+                'revision'         => (string) ($d->revision ?? ''),
+                'date'             => $d->date?->format('d M Y') ?? '',
+                'file_path'        => (string) ($d->file_path ?? ''),
+            ])
+            ->values()
+            ->all();
+
+        $userGuides = $project->appendices()
+            ->where('type', \App\Models\Appendix::TYPE_USER_GUIDE)
+            ->orderBy('title')
+            ->get()
+            ->map(fn ($g) => [
+                'title'            => (string) $g->title,
+                'reference_number' => (string) ($g->reference_number ?? ''),
+                'file_path'        => (string) ($g->file_path ?? ''),
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'drawings'    => $drawings,
+            'user_guides' => $userGuides,
         ];
     }
 
@@ -280,7 +373,12 @@ class OmManualGeneratorService
      *
      * The controller / DocxService is responsible for building the .docx.
      *
+     * Tier 1 — Phase 1: validates the canonical context BEFORE the AI call
+     * and BEFORE any rendering. If required fields are missing the call
+     * aborts with OmManualValidationException and no AI tokens are spent.
+     *
      * @throws AIGenerationException
+     * @throws \App\Exceptions\OmManualValidationException
      */
     public function generateContent(OmManual $manual, User $user, ?string $provider = null): array
     {
@@ -290,6 +388,10 @@ class OmManualGeneratorService
 
         $prompt  = OmManualPrompt::forContent();
         $context = $this->buildContentContext($manual);
+
+        // Tier 1 NO-TBC POLICY — fail fast on missing required fields so weak
+        // documents never reach the AI / DOCX / PDF render stages.
+        $this->validator->validateOmData($context);
 
         $generated = AIManager::run($prompt, $context, $provider);
 
@@ -343,6 +445,17 @@ class OmManualGeneratorService
         // canonical room/equipment context to avoid sparse AI output.
         $deterministic = $this->buildDeterministicSections($context);
 
+        // Wire-up phase — devices table is the single source of truth for
+        // serial / IP / VLAN / port / firmware / asset tag. Seed on first
+        // generation so the asset register + Network table have rows to
+        // edit, then enrich both data structures with whatever has been
+        // populated so the rendered OM reflects the latest device data.
+        if ($manual->project !== null) {
+            $this->seedDevicesIfMissing($manual->project, $deterministic['rooms_summary']);
+            $deterministic['rooms_summary']   = $this->enrichRoomsWithDevices($manual->project, $deterministic['rooms_summary']);
+            $deterministic['network_devices'] = $this->enrichNetworkDevicesWithDevices($manual->project, $deterministic['network_devices']);
+        }
+
         $generated['rooms_summary']         = $deterministic['rooms_summary'];
         $generated['operation_sections']    = $deterministic['operation_sections'];
         $generated['maintenance_schedule']  = $deterministic['maintenance_schedule'];
@@ -355,6 +468,20 @@ class OmManualGeneratorService
         $generated['existing_reuse']        = $deterministic['existing_reuse'];
         $generated['equipment_installed']   = $deterministic['equipment_installed'];
         $generated['asset_register']        = $deterministic['asset_register'];
+
+        // Phase 6 — appendices: copied straight from the validated context
+        // so the template reads from $data instead of querying relationships
+        // at render time (snapshot is reproducible from generated_data alone).
+        $generated['drawings']              = is_array($context['drawings']    ?? null) ? $context['drawings']    : [];
+        $generated['user_guides']           = is_array($context['user_guides'] ?? null) ? $context['user_guides'] : [];
+
+        // Tier 1 (option C) — three new client-facing additions:
+        //   - Quick Start Guide (front-of-doc, deterministic)
+        //   - Common Tasks per room (within Section 4, platform-detected)
+        //   - Per-room "How the System Works" narratives (AI, ≤120 words)
+        $generated['quick_start']      = $this->buildQuickStartContent($deterministic['rooms_summary']);
+        $generated['common_tasks']     = $this->buildCommonTasksPerRoom($deterministic['rooms_summary']);
+        $generated['system_overviews'] = $this->buildSystemOverviewNarratives($deterministic['rooms_summary'], $provider);
 
         if ($manual->project !== null) {
             $this->projectService->logDocument(
@@ -473,8 +600,16 @@ class OmManualGeneratorService
                 'client_name'    => $extractedData['client_name']  ?? $manual->client_name  ?? '',
                 'site_address'   => $extractedData['site_address'] ?? $manual->site_address ?? '',
                 'notes'          => $extractedData['notes']        ?? '',
-                'scope_of_works' => trim((string) ($extractedData['scope_of_works'] ?? '')),  // NEW
+                'scope_of_works' => trim((string) ($extractedData['scope_of_works'] ?? '')),
+                // Phase 1+4 — date fields the validator checks. document_date
+                // is always today; handover_date carries through if the cached
+                // extracted_data captured one, else empty (forces validator
+                // gate so the user populates it).
+                'document_date'  => $extractedData['document_date'] ?? now()->format('d M Y'),
+                'handover_date'  => $extractedData['handover_date'] ?? '',
                 'rooms'          => $extractedData['rooms'],
+                'drawings'       => $extractedData['drawings']      ?? [],
+                'user_guides'    => $extractedData['user_guides']   ?? [],
             ];
         }
 
@@ -513,12 +648,20 @@ class OmManualGeneratorService
         ]];
 
         return [
-            'project_name' => $manual->project_name ?? 'AV Installation',
-            'project_ref'  => $manual->project_ref  ?? '',
-            'client_name'  => $manual->client_name  ?? '',
-            'site_address' => $manual->site_address ?? '',
-            'notes'        => '',
-            'rooms'        => $rooms,
+            'project_name'  => $manual->project_name ?? 'AV Installation',
+            'project_ref'   => $manual->project_ref  ?? '',
+            'client_name'   => $manual->client_name  ?? '',
+            'site_address'  => $manual->site_address ?? '',
+            'notes'         => '',
+            // Phase 1+6 — date / appendix fields the validator checks.
+            // Legacy PDF-uploaded OMs have no project link, so handover_date
+            // and drawings stay empty; the validator gate stops generation
+            // unless those fields are supplied via extracted_data.
+            'document_date' => now()->format('d M Y'),
+            'handover_date' => '',
+            'rooms'         => $rooms,
+            'drawings'      => [],
+            'user_guides'   => [],
         ];
     }
 
@@ -662,6 +805,12 @@ class OmManualGeneratorService
                 }
 
                 $eq = $this->mapContextEquipmentItem($eqRaw);
+
+                // Phase 3 — clean description + attach taxonomy flags
+                // (category / is_networked / is_wireless) before any
+                // downstream classification or rendering.
+                $eq = $this->equipmentNormaliser->normalise($eq);
+
                 $classification = $this->classifyOmItem($eq);
 
                 if ($classification === 'install_hardware') {
@@ -673,11 +822,20 @@ class OmManualGeneratorService
                         $manufacturers[$brand][] = $eq['description'];
                     }
 
-                    if ($this->isNetworkCapable($eq['description'] . ' ' . $eq['name'])) {
+                    // Phase 3 — prefer the normaliser's authoritative is_networked
+                    // flag over keyword matching. Falls back to legacy detection
+                    // if the normaliser hasn't classified the item.
+                    $isNetworkDevice = array_key_exists('is_networked', $eq)
+                        ? (bool) $eq['is_networked']
+                        : $this->isNetworkCapable($eq['description'] . ' ' . $eq['name']);
+
+                    if ($isNetworkDevice) {
                         $networkDevices[] = [
                             'room'         => $roomName,
                             'drawing_ref'  => $drawingRef,
                             'device'       => $eq['description'],
+                            'category'     => $eq['category']     ?? null,
+                            'is_wireless'  => $eq['is_wireless']  ?? false,
                             'hostname'     => '',
                             'ip_address'   => '',
                             'vlan'         => '',
@@ -707,6 +865,11 @@ class OmManualGeneratorService
                     'floor'       => $room['floor'] ?? null,
                     'drawing_ref' => $drawingRef,
                     'equipment'   => $installedForRoom,
+                    // Phase 8 fix — pass through the per-room narrative
+                    // (sourced from package room_overviews + Phase 1 mirror)
+                    // so the Section 1 Executive Summary template can render
+                    // each room's overview block.
+                    'narrative'   => trim((string) ($room['narrative'] ?? $room['description'] ?? '')),
                 ];
             }
         }
@@ -867,16 +1030,28 @@ class OmManualGeneratorService
                 continue;
             }
             $lower = strtolower($name);
-            if ($this->containsAny($lower, ['display', 'screen', 'monitor', 'samsung', 'qm', 'qe'])) {
+
+            // Passive accessories (mounts, splitters, adapters, shelves, plates,
+            // cable couplers) get visual-inspection-only maintenance — they
+            // share keywords with active devices but aren't operationally
+            // serviced. This gate runs before brand/category branches so
+            // "Camera Shelf" doesn't inherit camera maintenance, "Logitech
+            // Camera Splitter" doesn't get test-call checks, etc.
+            if ($this->containsAny($lower, self::NON_NETWORK_PARTS)) {
+                $schedule[] = ['frequency' => 'Quarterly', 'item' => $name, 'task' => 'Visual inspection and operational function check.', 'responsible_party' => 'FM / AV Support'];
+                continue;
+            }
+
+            if ($this->containsAny($lower, ['display', 'screen', 'monitor', 'samsung', 'sony', 'iiyama', 'commercial display', 'qm', 'qe'])) {
                 $schedule[] = ['frequency' => 'Monthly', 'item' => $name, 'task' => 'Clean display surface and check image quality/uniformity.', 'responsible_party' => 'FM / AV Support'];
                 $schedule[] = ['frequency' => '6-Monthly', 'item' => $name, 'task' => 'Review firmware level and apply approved updates.', 'responsible_party' => 'AV Support'];
-            } elseif ($this->containsAny($lower, ['codec', 'room kit', 'camera', 'navigator', 'ptz'])) {
+            } elseif ($this->containsAnyWord($lower, ['codec', 'room kit', 'camera', 'navigator', 'ptz', 'rally bar', 'rally camera', 'cam550'])) {
                 $schedule[] = ['frequency' => 'Monthly', 'item' => $name, 'task' => 'Run test call and verify camera framing/mic pickup.', 'responsible_party' => 'AV Support'];
                 $schedule[] = ['frequency' => '6-Monthly', 'item' => $name, 'task' => 'Review conferencing software/firmware and backup configuration.', 'responsible_party' => 'AV Support'];
-            } elseif ($this->containsAny($lower, ['dsp', 'q-sys', 'biamp', 'amplifier', 'lea', 'speaker', 'microphone', 'shure'])) {
+            } elseif ($this->containsAnyWord($lower, ['dsp', 'q-sys', 'biamp', 'amplifier', 'lea', 'speaker', 'microphone', 'shure', 'tesira', 'parle', 'tcm-x'])) {
                 $schedule[] = ['frequency' => 'Quarterly', 'item' => $name, 'task' => 'Verify audio path, levels, and device health status.', 'responsible_party' => 'AV Support'];
                 $schedule[] = ['frequency' => '6-Monthly', 'item' => $name, 'task' => 'Confirm firmware/configuration backup and update records.', 'responsible_party' => 'AV Support'];
-            } elseif ($this->containsAny($lower, ['switch', 'netgear', 'network'])) {
+            } elseif ($this->containsAny($lower, ['switch', 'netgear', 'network interface', 'audio network'])) {
                 $schedule[] = ['frequency' => 'Monthly', 'item' => $name, 'task' => 'Check link status, error counters, and port utilisation.', 'responsible_party' => 'Client IT'];
                 $schedule[] = ['frequency' => '6-Monthly', 'item' => $name, 'task' => 'Apply approved firmware updates during maintenance window.', 'responsible_party' => 'Client IT'];
             } else {
@@ -947,57 +1122,74 @@ class OmManualGeneratorService
     private function isNetworkCapable(string $text): bool
     {
         $lower = strtolower($text);
-        return $this->containsAny($lower, [
-            'cisco', 'codec', 'room kit', 'camera', 'navigator', 'touch panel',
+
+        // Passive parts (mounts, splitters, adapters, shelves, plates, cable
+        // couplers) often share keywords with networked devices but are not
+        // themselves networkable. Exclude them up-front.
+        if ($this->containsAny($lower, self::NON_NETWORK_PARTS)) {
+            return false;
+        }
+
+        return $this->containsAnyWord($lower, [
+            'cisco', 'codec', 'room kit', 'navigator', 'touch panel', 'tap',
             'dsp', 'q-sys', 'biamp', 'shure', 'mxw', 'netgear', 'switch',
-            'lea', 'extron', 'crestron',
+            'lea', 'extron', 'crestron', 'logitech', 'rally bar', 'rally camera',
+            'cam550', 'ptz', 'iiyama', 'commercial display', 'audio network',
+            'tesira', 'parle', 'tcm-x', 'nuc',
         ]);
     }
 
     private function networkNoteForDevice(string $device): string
     {
         $lower = strtolower($device);
-        if ($this->containsAny($lower, ['codec', 'room kit', 'cisco'])) {
+        if ($this->containsAnyWord($lower, ['codec', 'room kit', 'cisco', 'rally bar', 'tap', 'nuc'])) {
             return 'Requires reliable LAN connectivity and platform registration.';
         }
-        if ($this->containsAny($lower, ['shure', 'mxw', 'microphone'])) {
-            return 'Requires stable network for wireless mic management and control.';
+        // Phase 8 fix — Biamp Parle / TCM-X are WIRED Tesira-network ceiling
+        // microphones, not wireless RF mics. Match these BEFORE the generic
+        // microphone bucket so the previous "wireless mic management" string
+        // no longer leaks into the OM for them.
+        if ($this->containsAnyWord($lower, ['parle', 'tcm-x'])) {
+            return 'Wired Tesira-network ceiling microphone — record AVB reservation and retain DSP configuration backup.';
         }
-        if ($this->containsAny($lower, ['dsp', 'q-sys', 'biamp', 'lea'])) {
+        if ($this->containsAnyWord($lower, ['shure', 'mxw'])) {
+            return 'Wireless microphone receiver — IT to register on management network and update firmware policy.';
+        }
+        if ($this->containsAnyWord($lower, ['microphone'])) {
+            return 'Microphone endpoint — Client IT to assign IP/VLAN if applicable.';
+        }
+        if ($this->containsAnyWord($lower, ['dsp', 'q-sys', 'biamp', 'lea', 'tesira'])) {
             return 'Record static reservation/hostname and retain configuration backup.';
         }
-        if ($this->containsAny($lower, ['switch', 'netgear'])) {
+        if ($this->containsAnyWord($lower, ['switch', 'netgear'])) {
             return 'Client IT to manage firmware, VLAN policy, and port security.';
         }
         return 'Client IT to assign IP/VLAN and record credential ownership.';
     }
 
+    /**
+     * Build the manufacturer-support section by resolving each detected brand
+     * through ManufacturerSupportResolverService. The resolver is the single
+     * source of truth (Phase 2 — NO TBC POLICY): if it can't find a usable
+     * record for a brand, it throws and OM generation aborts.
+     *
+     * @throws \RuntimeException If any inferred brand has no usable support details.
+     */
     private function buildManufacturerSupport(array $manufacturers): array
     {
-        $catalog = [
-            'Samsung' => ['uk_phone' => '0330 726 7864', 'support_portal' => 'https://www.samsung.com/uk/support/', 'support_email' => '', 'warranty' => 'Manufacturer standard commercial display warranty.'],
-            'Cisco'   => ['uk_phone' => '0800 086 8165', 'support_portal' => 'https://www.cisco.com/c/en_uk/support/index.html', 'support_email' => '', 'warranty' => 'Manufacturer hardware/software warranty per service contract.'],
-            'Q-SYS'   => ['uk_phone' => '+44 20 8752 8600', 'support_portal' => 'https://support.qsys.com/', 'support_email' => 'support@qsys.com', 'warranty' => 'Manufacturer limited warranty; retain commissioning backups.'],
-            'Shure'   => ['uk_phone' => '01923 816500', 'support_portal' => 'https://www.shure.com/en-GB/support', 'support_email' => 'service@shure.de', 'warranty' => 'Manufacturer limited warranty (region and product dependent).'],
-            'LEA'     => ['uk_phone' => 'TBC', 'support_portal' => 'https://leaprofessional.com/support/', 'support_email' => 'support@leaprofessional.com', 'warranty' => 'Manufacturer limited warranty.'],
-            'Chief'   => ['uk_phone' => 'TBC', 'support_portal' => 'https://www.legrandav.com/support', 'support_email' => '', 'warranty' => 'Manufacturer warranty for mounting hardware.'],
-            'Netgear' => ['uk_phone' => 'TBC', 'support_portal' => 'https://www.netgear.com/support/', 'support_email' => '', 'warranty' => 'Manufacturer warranty subject to product registration.'],
-            'Extron'  => ['uk_phone' => '+44 20 8239 1122', 'support_portal' => 'https://www.extron.com/company/contactus.aspx', 'support_email' => '', 'warranty' => 'Manufacturer support and warranty per product family.'],
-            'Crestron'=> ['uk_phone' => '+44 121 241 3780', 'support_portal' => 'https://www.crestron.com/Support', 'support_email' => '', 'warranty' => 'Manufacturer warranty terms apply for supported products.'],
-            'Unicol'  => ['uk_phone' => '+44 18 6586 7300', 'support_portal' => 'https://www.unicol.com/contact', 'support_email' => '', 'warranty' => 'Manufacturer warranty for brackets/stands.'],
-        ];
-
         $rows = [];
         foreach ($manufacturers as $brand => $items) {
-            $profile = $catalog[$brand] ?? ['uk_phone' => 'TBC', 'support_portal' => 'Support details TBC', 'support_email' => '', 'warranty' => 'Support details to be confirmed.'];
+            // Resolver throws on no-match — bubble up so generation aborts.
+            $details = $this->manufacturerResolver->resolve($brand);
+
             $rows[] = [
-                'brand'              => $brand,
-                'equipment_installed'=> implode(', ', array_slice(array_values(array_unique($items)), 0, 5)),
-                'uk_phone'           => $profile['uk_phone'],
-                'support_portal'     => $profile['support_portal'],
-                'support_email'      => $profile['support_email'],
-                'warranty'           => $profile['warranty'],
-                'notes'              => ['Escalate via 21st Century AV for installation-period support coordination.'],
+                'brand'               => $brand,
+                'equipment_installed' => implode(', ', array_slice(array_values(array_unique($items)), 0, 5)),
+                'uk_phone'            => $details['support_phone'] ?? '',
+                'support_portal'      => $details['support_url']   ?? '',
+                'support_email'       => $details['support_email'] ?? '',
+                'warranty'            => $this->formatWarrantyMessage($details['warranty_years'] ?? null),
+                'notes'               => ['Escalate via 21st Century AV for installation-period support coordination.'],
             ];
         }
 
@@ -1005,17 +1197,43 @@ class OmManualGeneratorService
         return $rows;
     }
 
+    /**
+     * Pull warranty period from the resolver's result. Falls back to the
+     * generic "per manufacturer terms" line when years are unknown — never
+     * outputs "TBC".
+     */
     private function buildWarrantySummary(array $manufacturers): array
     {
         $rows = [];
         foreach (array_keys($manufacturers) as $brand) {
+            try {
+                $details = $this->manufacturerResolver->resolve($brand);
+                $period  = $details['warranty_years'] !== null
+                    ? $details['warranty_years'] . ' years'
+                    : 'Per manufacturer terms';
+            } catch (\Throwable $e) {
+                // buildManufacturerSupport will have already thrown for this brand
+                // if its record is missing — but defensively use a non-TBC default
+                // here so a transient resolver failure during summary doesn't
+                // emit "TBC" into the output.
+                $period = 'Per manufacturer terms';
+            }
+
             $rows[] = [
                 'equipment' => $brand . ' installed equipment',
-                'period'    => 'Per manufacturer terms',
+                'period'    => $period,
                 'notes'     => 'Start date typically from commissioning/handover.',
             ];
         }
         return $rows;
+    }
+
+    private function formatWarrantyMessage(?int $years): string
+    {
+        if ($years !== null && $years > 0) {
+            return "Manufacturer warranty: {$years} years from commissioning/handover.";
+        }
+        return 'Manufacturer warranty per product family — confirm cover before service.';
     }
 
     private function inferManufacturer(string $manufacturer, string $text): string
@@ -1025,21 +1243,30 @@ class OmManualGeneratorService
             return $manufacturer;
         }
         $lower = strtolower($text);
+        // Word-boundary matching prevents short brand keywords (e.g. 'lea') from
+        // matching as substrings of unrelated words (e.g. 'extension lead'). Order
+        // is significant — earlier entries win on tie.
         $map = [
-            'samsung' => 'Samsung',
-            'cisco' => 'Cisco',
-            'q-sys' => 'Q-SYS',
-            'qsys' => 'Q-SYS',
-            'shure' => 'Shure',
-            'lea' => 'LEA',
-            'chief' => 'Chief',
-            'netgear' => 'Netgear',
-            'extron' => 'Extron',
+            'logitech' => 'Logitech',
+            'samsung'  => 'Samsung',
+            'sony'     => 'Sony',
+            'iiyama'   => 'iiyama',
+            'biamp'    => 'Biamp',
+            'cisco'    => 'Cisco',
+            'q-sys'    => 'Q-SYS',
+            'qsys'     => 'Q-SYS',
+            'shure'    => 'Shure',
+            'lea'      => 'LEA',
+            'chief'    => 'Chief',
+            'netgear'  => 'Netgear',
+            'extron'   => 'Extron',
             'crestron' => 'Crestron',
-            'unicol' => 'Unicol',
+            'unicol'   => 'Unicol',
+            'bose'     => 'Bose',
+            'bosch'    => 'Bosch',
         ];
         foreach ($map as $needle => $brand) {
-            if (str_contains($lower, $needle)) {
+            if (preg_match('/\b' . preg_quote($needle, '/') . '\b/i', $lower) === 1) {
                 return $brand;
             }
         }
@@ -1157,5 +1384,385 @@ class OmManualGeneratorService
             }
         }
         return false;
+    }
+
+    /**
+     * Word-boundary variant of containsAny — matches each needle only when it
+     * appears as a whole word in the haystack. Use this for short brand or
+     * product keywords (e.g. 'lea', 'tap', 'biamp', 'shure') where a substring
+     * match would create false positives — e.g. 'lea' inside 'extension lead'.
+     */
+    private function containsAnyWord(string $haystack, array $needles): bool
+    {
+        foreach ($needles as $n) {
+            if ($n === '') {
+                continue;
+            }
+            if (preg_match('/\b' . preg_quote($n, '/') . '\b/i', $haystack) === 1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Tier 1 (option C) data builders — Quick Start, Common Tasks,
+    // and AI per-room "How the System Works" narratives.
+    // ════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Quick Start Guide — single-page front-matter block. Deterministic;
+     * adapts the "join a call" line to the detected conferencing platform.
+     *
+     * @param array $roomsSummary  Output of buildDeterministicSections.
+     * @return array{
+     *   platform_label:string,
+     *   start_steps:array<int,string>,
+     *   join_steps:array<int,string>,
+     *   present_steps:array<int,string>,
+     *   support_label:string
+     * }
+     */
+    private function buildQuickStartContent(array $roomsSummary): array
+    {
+        $platform = $this->detectPrimaryPlatform($roomsSummary);
+        $isTeams  = $platform === 'teams_rooms_logitech';
+
+        $platformLabel = $isTeams
+            ? 'Microsoft Teams Rooms (Logitech)'
+            : 'Configured conferencing platform';
+
+        return [
+            'platform_label' => $platformLabel,
+            'start_steps' => [
+                'Tap the touch controller on the table to wake the system.',
+                'Wait for the home screen — the display(s) will switch on automatically.',
+                'The room is ready when the controller shows the calendar / "Meet now" view.',
+            ],
+            'join_steps' => $isTeams
+                ? [
+                    'On the touch controller, tap the meeting name in the calendar list.',
+                    'Tap "Join" — camera and microphone activate automatically.',
+                    'Adjust volume on the controller if needed; speak normally.',
+                ]
+                : [
+                    'On the touch controller, select the meeting from the calendar list.',
+                    'Tap "Join" — camera and microphone activate automatically.',
+                    'Adjust volume on the controller if needed; speak normally.',
+                ],
+            'present_steps' => [
+                'Connect your laptop to the table cable (HDMI or USB-C).',
+                'On the touch controller, tap "Share content".',
+                'Your screen appears on the room display(s).',
+                'When finished, unplug the cable or tap "Stop sharing".',
+            ],
+            'support_label' => '21st Century AV Service Desk — 01189 977770 (Mon–Fri 09:00–17:30) — info@21stcenturyav.com',
+        ];
+    }
+
+    /**
+     * Common Tasks per room — task-based workflows for the most frequent
+     * end-user actions. Platform-aware: when a room is detected as a
+     * Logitech Teams Rooms install, steps reference the Tap controller's
+     * Teams UI; otherwise generic instructions are emitted.
+     *
+     * Each task carries a `[IMAGE: …]` placeholder the template renders as
+     * a hint for screenshot insertion (out of scope to render real images).
+     *
+     * @param array $roomsSummary
+     * @return array<int, array{room_name:string, platform:string, tasks:array<int, array<string,mixed>>}>
+     */
+    private function buildCommonTasksPerRoom(array $roomsSummary): array
+    {
+        $blocks = [];
+
+        foreach ($roomsSummary as $room) {
+            $roomName = (string) ($room['name'] ?? 'Room');
+            $platform = $this->detectRoomPlatform((array) ($room['equipment'] ?? []));
+            $isTeams  = $platform === 'teams_rooms_logitech';
+
+            $platformLabel = $isTeams
+                ? 'Microsoft Teams Rooms (Logitech)'
+                : 'Conferencing platform configured for this room';
+
+            $tasks = [
+                [
+                    'name'  => 'Start a meeting',
+                    'image' => '[IMAGE: tap_home_screen]',
+                    'steps' => $isTeams ? [
+                        'On the Tap controller, tap "Meet now".',
+                        'Tap "Start meeting" — camera and mic activate automatically.',
+                        'Once the meeting opens, share the join link from the controller if external attendees are needed.',
+                    ] : [
+                        'On the touch controller, open the conferencing app.',
+                        'Tap "Start meeting" — camera and mic activate.',
+                        'Share the join link with external attendees if required.',
+                    ],
+                ],
+                [
+                    'name'  => 'Present from your laptop',
+                    'image' => '[IMAGE: tap_share_content]',
+                    'steps' => [
+                        'Plug your laptop into the table cable (HDMI or USB-C).',
+                        'On the touch controller, tap "Share content".',
+                        'Select the source — your laptop screen appears on the room display(s).',
+                        'When finished, tap "Stop sharing" or unplug the cable.',
+                    ],
+                ],
+                [
+                    'name'  => 'Adjust volume',
+                    'image' => '[IMAGE: tap_volume]',
+                    'steps' => [
+                        'On the touch controller, locate the speaker / volume icon.',
+                        'Press "+" or "−" until the level is comfortable.',
+                    ],
+                ],
+                [
+                    'name'  => 'End a meeting',
+                    'image' => '[IMAGE: tap_leave_meeting]',
+                    'steps' => $isTeams ? [
+                        'On the Tap controller, tap the red "Leave" button.',
+                        'Confirm "Leave meeting".',
+                        'The system returns to the home screen automatically.',
+                    ] : [
+                        'On the touch controller, tap "Leave" or "End".',
+                        'Confirm if prompted.',
+                        'The system returns to the home screen.',
+                    ],
+                ],
+            ];
+
+            $blocks[] = [
+                'room_name' => $roomName,
+                'platform'  => $platformLabel,
+                'tasks'     => $tasks,
+            ];
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * Per-room "How the System Works" narratives via AI (≤120 words each).
+     *
+     * Falls back to a deterministic template when the AI call fails — the
+     * template never renders empty narratives. Caching is handled by
+     * AIManager (SHA-256 of the built prompt), so re-running the generator
+     * with unchanged equipment doesn't burn tokens.
+     *
+     * @param array       $roomsSummary
+     * @param string|null $provider     AI provider override ('claude' / 'openai').
+     * @return array<int, array{room_name:string, narrative:string}>
+     */
+    private function buildSystemOverviewNarratives(array $roomsSummary, ?string $provider = null): array
+    {
+        $out = [];
+
+        foreach ($roomsSummary as $room) {
+            $roomName = (string) ($room['name'] ?? 'Room');
+
+            $equipmentNames = array_values(array_filter(array_map(
+                static fn (array $eq) => trim((string) ($eq['description'] ?? $eq['name'] ?? '')),
+                (array) ($room['equipment'] ?? [])
+            ), static fn ($n) => $n !== ''));
+
+            $context = [
+                'room'      => $roomName,
+                'equipment' => $equipmentNames,
+            ];
+
+            $narrative = $this->fallbackRoomOverview($roomName, $equipmentNames);
+            try {
+                $result = AIManager::run(new OmRoomOverviewPrompt(), $context, $provider);
+                $candidate = trim((string) ($result['narrative'] ?? ''));
+                if ($candidate !== '') {
+                    $narrative = $candidate;
+                }
+            } catch (\Throwable $e) {
+                Log::warning('OmRoomOverview AI call failed, using deterministic fallback', [
+                    'room'  => $roomName,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            $out[] = [
+                'room_name' => $roomName,
+                'narrative' => $narrative,
+            ];
+        }
+
+        return $out;
+    }
+
+    private function fallbackRoomOverview(string $roomName, array $equipmentNames): string
+    {
+        if (empty($equipmentNames)) {
+            return "AV system installed in {$roomName}. Operated via the room controller; "
+                 . 'detailed component list is in Section 2.';
+        }
+
+        $headline = array_slice($equipmentNames, 0, 3);
+        $more     = max(0, count($equipmentNames) - 3);
+        $list     = implode(', ', $headline);
+        $tail     = $more > 0 ? " plus {$more} further item(s)" : '';
+
+        return "AV system installed in {$roomName} comprising {$list}{$tail}. "
+             . 'Operated via the room controller for video conferencing and laptop presentation; '
+             . 'speech reinforcement and far-end audio are mixed by the in-room DSP. '
+             . 'Full equipment list is in Section 2.';
+    }
+
+    /**
+     * Look across all rooms and pick the most likely conferencing platform
+     * for the project. Used by the Quick Start (front-of-doc) so the
+     * "join a call" steps match the most common platform on site.
+     */
+    private function detectPrimaryPlatform(array $roomsSummary): string
+    {
+        foreach ($roomsSummary as $room) {
+            if ($this->detectRoomPlatform((array) ($room['equipment'] ?? [])) === 'teams_rooms_logitech') {
+                return 'teams_rooms_logitech';
+            }
+        }
+        return 'generic';
+    }
+
+    /**
+     * Per-room platform detection. Returns 'teams_rooms_logitech' when the
+     * room contains a Logitech Tap controller alongside a Logitech Rally
+     * Bar / Camera or NUC — the canonical Teams Rooms (MTR) signature.
+     */
+    private function detectRoomPlatform(array $equipment): string
+    {
+        $haystack = strtolower(implode(' | ', array_map(
+            static fn (array $eq) => (string) ($eq['description'] ?? $eq['name'] ?? ''),
+            $equipment
+        )));
+
+        $hasTap   = $this->containsAnyWord($haystack, ['logitech tap', 'tap controller', 'tap cat5e']);
+        $hasRally = $this->containsAnyWord($haystack, ['rally bar', 'rally camera', 'rally conference camera']);
+        $hasNuc   = $this->containsAnyWord($haystack, ['nuc', 'teams base system', 'teams rooms']);
+
+        if ($hasTap && ($hasRally || $hasNuc)) {
+            return 'teams_rooms_logitech';
+        }
+        return 'generic';
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Wire-up phase — Asset Register + Network table backed by devices table.
+    // Seeding is idempotent (firstOrCreate per equipment line); enrichment
+    // matches by (project_id, room_name, lower-case description) so changes
+    // to model strings don't break the join.
+    // ════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Ensure each equipment line on the project has a corresponding row in
+     * the devices table. Idempotent — only creates rows that don't already
+     * exist for the (project, room, description) tuple.
+     */
+    private function seedDevicesIfMissing(Project $project, array $roomsSummary): void
+    {
+        foreach ($roomsSummary as $room) {
+            $roomName = trim((string) ($room['name'] ?? 'General'));
+            foreach ((array) ($room['equipment'] ?? []) as $eq) {
+                $description = trim((string) ($eq['description'] ?? ''));
+                if ($description === '') {
+                    continue;
+                }
+                \App\Models\Device::firstOrCreate(
+                    [
+                        'project_id'  => $project->id,
+                        'room_name'   => $roomName,
+                        'description' => $description,
+                    ],
+                    [
+                        'model'        => trim((string) ($eq['model']        ?? '')) ?: null,
+                        'manufacturer' => trim((string) ($eq['manufacturer'] ?? '')) ?: null,
+                        'part_no'      => trim((string) ($eq['part_no']      ?? '')) ?: null,
+                        'qty'          => (int) ($eq['qty'] ?? 1),
+                    ]
+                );
+            }
+        }
+    }
+
+    /**
+     * Enrich rooms_summary equipment items with the device row's serial /
+     * IP / VLAN / port / firmware / asset tag / MAC, where populated. Matches
+     * by (project_id, lower-case room_name, lower-case description). Items
+     * with no matching device are returned unchanged.
+     */
+    private function enrichRoomsWithDevices(Project $project, array $roomsSummary): array
+    {
+        $devices = $this->loadDevicesByMatchKey($project);
+        if ($devices->isEmpty()) {
+            return $roomsSummary;
+        }
+
+        foreach ($roomsSummary as &$room) {
+            $roomName = trim((string) ($room['name'] ?? ''));
+            foreach ((array) ($room['equipment'] ?? []) as &$eq) {
+                $key = $this->deviceMatchKey($roomName, (string) ($eq['description'] ?? ''));
+                $hit = $devices->get($key);
+                if ($hit === null) {
+                    continue;
+                }
+                $eq['serial_number']    = (string) ($hit->serial_number    ?? '');
+                $eq['mac_address']      = (string) ($hit->mac_address      ?? '');
+                $eq['ip_address']       = (string) ($hit->ip_address       ?? '');
+                $eq['vlan']             = (string) ($hit->vlan             ?? '');
+                $eq['port']             = (string) ($hit->port             ?? '');
+                $eq['firmware_version'] = (string) ($hit->firmware_version ?? '');
+                $eq['asset_tag']        = (string) ($hit->asset_tag        ?? '');
+            }
+            unset($eq);
+        }
+        unset($room);
+
+        return $roomsSummary;
+    }
+
+    /**
+     * Enrich network_devices entries with IP / VLAN / Port / MAC from the
+     * devices table. network_devices entries are keyed by (room, device).
+     */
+    private function enrichNetworkDevicesWithDevices(Project $project, array $networkDevices): array
+    {
+        $devices = $this->loadDevicesByMatchKey($project);
+        if ($devices->isEmpty()) {
+            return $networkDevices;
+        }
+
+        foreach ($networkDevices as &$nd) {
+            $key = $this->deviceMatchKey((string) ($nd['room'] ?? ''), (string) ($nd['device'] ?? ''));
+            $hit = $devices->get($key);
+            if ($hit === null) {
+                continue;
+            }
+            $nd['ip_address']  = (string) ($hit->ip_address  ?? '');
+            $nd['vlan']        = (string) ($hit->vlan        ?? '');
+            $nd['port']        = (string) ($hit->port        ?? '');
+            $nd['mac_address'] = (string) ($hit->mac_address ?? '');
+        }
+        unset($nd);
+
+        return $networkDevices;
+    }
+
+    /**
+     * Single load of all the project's devices, indexed by match key for
+     * O(1) lookup during enrichment.
+     */
+    private function loadDevicesByMatchKey(Project $project): \Illuminate\Support\Collection
+    {
+        return $project->devices()->get()->keyBy(
+            fn ($d) => $this->deviceMatchKey((string) ($d->room_name ?? ''), (string) ($d->description ?? ''))
+        );
+    }
+
+    private function deviceMatchKey(string $roomName, string $description): string
+    {
+        return strtolower(trim($roomName)) . '|' . strtolower(trim($description));
     }
 }

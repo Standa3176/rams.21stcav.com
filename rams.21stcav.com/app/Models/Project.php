@@ -110,6 +110,9 @@ class Project extends Model
         'completed_at',
         'archived_at',
         'notes',
+        // Phase 4 — Tier 1 OM lifecycle dates
+        'handover_date',
+        'defects_liability_end',
     ];
 
     protected $casts = [
@@ -121,6 +124,9 @@ class Project extends Model
         'handover_started_at'      => 'datetime',
         'completed_at'             => 'datetime',
         'archived_at'              => 'datetime',
+        // Phase 4 — Tier 1 OM lifecycle dates (date-only, no time component)
+        'handover_date'            => 'date',
+        'defects_liability_end'    => 'date',
     ];
 
     // ── Relationships ─────────────────────────────────────────────────────────
@@ -173,6 +179,28 @@ class Project extends Model
     public function worksheets(): HasMany
     {
         return $this->hasMany(Worksheet::class);
+    }
+
+    // ── Phase 4 — Tier 1 OM data model relationships ─────────────────────────
+
+    public function devices(): HasMany
+    {
+        return $this->hasMany(Device::class);
+    }
+
+    public function appendices(): HasMany
+    {
+        return $this->hasMany(Appendix::class);
+    }
+
+    public function commissioningTests(): HasMany
+    {
+        return $this->hasMany(CommissioningTest::class);
+    }
+
+    public function trainingRecords(): HasMany
+    {
+        return $this->hasMany(TrainingRecord::class);
     }
 
     public function installProgrammes(): HasMany

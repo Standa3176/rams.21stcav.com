@@ -13,38 +13,13 @@ body {
     color: #1A1A2E;
     line-height: 1.4;
     margin: 0;
-    padding: 20mm 0 18mm 0; /* space for fixed header/footer */
+    padding: 0;
 }
-@page { size: A4 portrait; margin: 0; }
+/* Body margin space for the running header/footer is set by Browsershot's
+   PDF margins (see PdfService::buildRams), not via CSS @page — Chromium's
+   running header/footer is supplied as a separate HTML doc to Puppeteer. */
+@page { size: A4 portrait; }
 .page-wrap { margin: 0 18mm; }
-
-/* ── Running header (pages 2+) ───────────────────────────────────────────── */
-.page-header {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    padding: 4mm 18mm 3mm 18mm;
-    border-bottom: 1pt solid #1B7A7A;
-    font-size: 8.5pt;
-}
-.page-header table { width: 100%; border-collapse: collapse; }
-.page-header td { border: 0; padding: 0; vertical-align: bottom; }
-.ph-left  { text-align: left; font-weight: 700; color: #1B7A7A; }
-.ph-right { text-align: right; color: #555; white-space: nowrap; }
-.page-number::before { content: "Page " counter(page); }
-
-/* ── Running footer ──────────────────────────────────────────────────────── */
-.page-footer {
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
-    padding: 2mm 18mm 4mm 18mm;
-    border-top: 0.75pt solid #1B7A7A;
-    font-size: 7.5pt;
-    color: #666;
-}
-.page-footer table { width: 100%; border-collapse: collapse; }
-.page-footer td { border: 0; padding: 0; vertical-align: top; }
-.pf-left  { text-align: left; }
-.pf-right { text-align: right; white-space: nowrap; font-style: italic; }
 
 /* ── Cover ───────────────────────────────────────────────────────────────── */
 .cover-company-name {
@@ -80,6 +55,7 @@ body {
 /* ── Cover info tables ───────────────────────────────────────────────────── */
 .cover-table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     margin-bottom: 12pt;
     border: 0.75pt solid #BBBBBB;
@@ -89,11 +65,12 @@ body {
     vertical-align: middle;
     font-size: 9pt;
     border: 0.5pt solid #CCCCCC;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 .cover-table .lbl {
     font-weight: 700;
     color: #1B7A7A;
-    width: 28%;
     background-color: #F4FBFB;
 }
 .cover-table .val {
@@ -495,25 +472,12 @@ p { margin: 3pt 0; }
     ];
 @endphp
 
-{{-- ════ Running page header (fixed, pages 2+) ════════════════════════════ --}}
-<div class="page-header">
-    <table>
-        <tr>
-            <td class="ph-left">{{ $company }} &nbsp;|&nbsp; RAMS &nbsp;|&nbsp; {{ $ref }}{{ $client ? ' | ' . $client : '' }}</td>
-            <td class="ph-right"><span class="page-number"></span></td>
-        </tr>
-    </table>
-</div>
-
-{{-- ════ Running page footer (fixed) ══════════════════════════════════════ --}}
-<div class="page-footer">
-    <table>
-        <tr>
-            <td class="pf-left">{{ $address }} &nbsp;|&nbsp; {{ $phone }} &nbsp;|&nbsp; {{ $website }}</td>
-            <td class="pf-right">CONFIDENTIAL &ndash; For Authorised Persons Only</td>
-        </tr>
-    </table>
-</div>
+{{-- Running header + footer used to be inline `position: fixed` divs that
+     dompdf rendered on every page. Chromium only paints fixed elements once
+     (page 1) and breaks page numbering, so we now pass the running header
+     and footer HTML to Browsershot via PdfRenderService options — Chromium
+     repeats them on every page natively, with `<span class="pageNumber">` /
+     `<span class="totalPages">` placeholders filled in by Puppeteer. --}}
 
 <div class="page-wrap">
 
@@ -528,6 +492,10 @@ p { margin: 3pt 0; }
 
 {{-- Cover Table 1: CLIENT | SITE | PROJECT REFERENCE | ROOMS | DATE | WORKING HOURS --}}
 <table class="cover-table">
+    <colgroup>
+        <col style="width:26%;">
+        <col style="width:74%;">
+    </colgroup>
     <tr>
         <td class="lbl">CLIENT:</td>
         <td class="val">{{ $client ?: '—' }}</td>
@@ -580,10 +548,16 @@ p { margin: 3pt 0; }
 
 {{-- Cover Table 2: PREPARED BY / TELEPHONE / CLIENT CONTACT with REVISION / STATUS --}}
 <table class="cover-table">
+    <colgroup>
+        <col style="width:26%;">
+        <col style="width:30%;">
+        <col style="width:18%;">
+        <col style="width:26%;">
+    </colgroup>
     <tr>
-        <td class="lbl" style="width:26%;">PREPARED BY:</td>
-        <td class="val" style="width:34%;">{{ $docAuthor ?: $company }}</td>
-        <td class="lbl" style="width:18%;">REVISION:</td>
+        <td class="lbl">PREPARED BY:</td>
+        <td class="val">{{ $docAuthor ?: $company }}</td>
+        <td class="lbl">REVISION:</td>
         <td class="val" style="white-space:nowrap;">{{ $revision }}</td>
     </tr>
     <tr>
@@ -601,28 +575,32 @@ p { margin: 3pt 0; }
 {{-- Cover Table 3: PERSONNEL (dates already shown in Table 1 above) --}}
 @if($docAuthor || $leadEngineer || $additionalEngs || $programmer)
 <table class="cover-table">
+    <colgroup>
+        <col style="width:26%;">
+        <col style="width:74%;">
+    </colgroup>
     @if($docAuthor)
     <tr>
-        <td class="lbl" style="width:30%;">PROJECT MANAGER:</td>
-        <td class="val" colspan="3">{{ $docAuthor }}</td>
+        <td class="lbl">PROJECT MANAGER:</td>
+        <td class="val">{{ $docAuthor }}</td>
     </tr>
     @endif
     @if($leadEngineer)
     <tr>
         <td class="lbl">LEAD ENGINEER:</td>
-        <td class="val" colspan="3">{{ $leadEngineer }}</td>
+        <td class="val">{{ $leadEngineer }}</td>
     </tr>
     @endif
     @if($additionalEngs)
     <tr>
         <td class="lbl">ENGINEERS:</td>
-        <td class="val" colspan="3">{{ $additionalEngs }}</td>
+        <td class="val">{{ $additionalEngs }}</td>
     </tr>
     @endif
     @if($programmer)
     <tr>
         <td class="lbl">PROGRAMMER:</td>
-        <td class="val" colspan="3">{{ $programmer }}</td>
+        <td class="val">{{ $programmer }}</td>
     </tr>
     @endif
 </table>
