@@ -522,7 +522,8 @@ p { margin: 3pt 0; }
         <td class="lbl">DATE:</td>
         <td class="val">{{ $docDate }}</td>
     </tr>
-    @if($plannedStart || $plannedEnd)
+    {{-- Start / End Date + Time — always rendered so the form-set values
+         reach the cover. "—" placeholder shown when data is missing. --}}
     <tr>
         <td class="lbl">START DATE:</td>
         <td class="val">
@@ -537,7 +538,6 @@ p { margin: 3pt 0; }
             @if($plannedEndTime) &nbsp; {{ $plannedEndTime }}@endif
         </td>
     </tr>
-    @endif
     @if($workingHours)
     <tr>
         <td class="lbl">WORKING HOURS:</td>
@@ -572,39 +572,43 @@ p { margin: 3pt 0; }
     </tr>
 </table>
 
-{{-- Cover Table 3: PERSONNEL (dates already shown in Table 1 above) --}}
-@if($docAuthor || $leadEngineer || $additionalEngs || $programmer)
+{{-- Cover Table 3: PERSONNEL & VEHICLES — always rendered so the form-set
+     values reach the cover. "—" placeholder shown when data is missing. --}}
+@php
+    $coverVehSrc = $project['site_vehicles'] ?? ($data['site_vehicles'] ?? null);
+    if (is_string($coverVehSrc)) { $coverVehSrc = preg_split('/\r?\n/', $coverVehSrc) ?: []; }
+    $coverVehiclesList = array_values(array_filter(
+        array_map('trim', (array) ($coverVehSrc ?? [])),
+        fn (string $v) => $v !== ''
+    ));
+    $coverVehiclesDisplay = ! empty($coverVehiclesList) ? implode(', ', $coverVehiclesList) : '—';
+@endphp
 <table class="cover-table">
     <colgroup>
         <col style="width:26%;">
         <col style="width:74%;">
     </colgroup>
-    @if($docAuthor)
     <tr>
         <td class="lbl">PROJECT MANAGER:</td>
-        <td class="val">{{ $docAuthor }}</td>
+        <td class="val">{{ $docAuthor ?: '—' }}</td>
     </tr>
-    @endif
-    @if($leadEngineer)
     <tr>
         <td class="lbl">LEAD ENGINEER:</td>
-        <td class="val">{{ $leadEngineer }}</td>
+        <td class="val">{{ $leadEngineer ?: '—' }}</td>
     </tr>
-    @endif
-    @if($additionalEngs)
     <tr>
         <td class="lbl">ENGINEERS:</td>
-        <td class="val">{{ $additionalEngs }}</td>
+        <td class="val">{{ $additionalEngs ?: '—' }}</td>
     </tr>
-    @endif
-    @if($programmer)
     <tr>
         <td class="lbl">PROGRAMMER:</td>
-        <td class="val">{{ $programmer }}</td>
+        <td class="val">{{ $programmer ?: '—' }}</td>
     </tr>
-    @endif
+    <tr>
+        <td class="lbl">VEHICLE REGS:</td>
+        <td class="val">{{ $coverVehiclesDisplay }}</td>
+    </tr>
 </table>
-@endif
 
 
 {{-- ════════════════════════════════════════════════════════════════════════
@@ -1031,16 +1035,45 @@ p { margin: 3pt 0; }
 
 {{-- 6.1 Team Requirements --}}
 <div class="sec-subheading">6.1 Team Requirements &amp; Competencies</div>
+@php
+    // Build a working team list. Prefer the structured $team array (built by
+    // RamsBuilderService when reviewed_data has been populated), but fall
+    // back to $project fields when it's empty — covers the case where the
+    // RAMS was generated before the team-array path existed, or where the
+    // engineer typed names into the simple-string fields on the form.
+    $teamForRender = is_array($team ?? null) ? $team : [];
+    if (empty($teamForRender)) {
+        $pmName  = trim((string) ($project['project_manager'] ?? ''));
+        $leName  = trim((string) ($project['lead_engineer']   ?? ''));
+        $progStr = trim((string) ($project['programmer']      ?? ''));
+        $addStr  = trim((string) ($project['additional_engineers'] ?? ''));
+        if ($pmName !== '') {
+            $teamForRender[] = ['role' => 'Project Manager', 'name' => $pmName];
+        }
+        if ($leName !== '') {
+            $teamForRender[] = ['role' => 'Lead Engineer', 'name' => $leName];
+        }
+        foreach (preg_split('/[,;]+/', $addStr) ?: [] as $eng) {
+            $eng = trim($eng);
+            if ($eng !== '') {
+                $teamForRender[] = ['role' => 'Engineer', 'name' => $eng];
+            }
+        }
+        if ($progStr !== '') {
+            $teamForRender[] = ['role' => 'Programmer', 'name' => $progStr];
+        }
+    }
+@endphp
 <table class="std-table">
     <thead>
         <tr>
-            <th style="width:28%;">Role</th>
+            <th style="width:34%;">Role</th>
             <th style="width:8%;">Qty</th>
             <th>Requirements</th>
         </tr>
     </thead>
     <tbody>
-    @if(! empty($team))
+    @if(! empty($teamForRender))
         @php
             $reqMap = [
                 'lead av engineer' => 'Qualified AV installation engineer. CSCS/ECS Card required. Competent with display installation, structured cabling, Biamp DSP configuration, and AV commissioning. IPAF/PASMA required if working at height.',
@@ -1050,27 +1083,35 @@ p { margin: 3pt 0; }
                 'project manager'  => 'SMSTS or equivalent. CSCS Card. First Aid at Work certificate. Responsible for site management and client liaison.',
                 'programmer'       => 'AV programmer competent in control system configuration and DSP programming. CSCS Card.',
             ];
+            // Aggregate by role and collect names so the table reads
+            // "Lead Engineer — Simon Pittaway" instead of bare "Lead Engineer".
             $roleGroups = [];
-            foreach ($team as $member) {
-                $role = trim((string)($member['role'] ?? 'Engineer'));
-                $roleGroups[$role] = ($roleGroups[$role] ?? 0) + 1;
+            foreach ($teamForRender as $member) {
+                $role = trim((string) ($member['role'] ?? 'Engineer'));
+                $name = trim((string) ($member['name'] ?? ''));
+                if (! isset($roleGroups[$role])) {
+                    $roleGroups[$role] = ['qty' => 0, 'names' => []];
+                }
+                $roleGroups[$role]['qty']++;
+                if ($name !== '') {
+                    $roleGroups[$role]['names'][] = $name;
+                }
             }
         @endphp
-        @foreach($roleGroups as $role => $qty)
+        @foreach($roleGroups as $role => $info)
+        @php
+            $names = array_values(array_unique($info['names']));
+            $label = $names ? $role . ' — ' . implode(', ', $names) : $role;
+        @endphp
         <tr>
-            <td>{{ $role }}</td>
-            <td style="text-align:center;">{{ $qty }}</td>
+            <td>{{ $label }}</td>
+            <td style="text-align:center;">{{ $info['qty'] }}</td>
             <td>{{ $reqMap[strtolower($role)] ?? 'Qualified AV installation engineer. CSCS Card.' }}</td>
         </tr>
         @endforeach
     @else
-        {{-- Default team when no team data --}}
-        @php
-            $pmName = ($project['project_manager'] ?? '') ?: '';
-            $leName = ($project['lead_engineer']   ?? '') ?: '';
-        @endphp
         <tr>
-            <td>Lead AV Engineer{{ $leName ? ' — ' . $leName : '' }}</td>
+            <td>Lead AV Engineer</td>
             <td style="text-align:center;">1</td>
             <td>Qualified AV installation engineer. CSCS/ECS Card required. Competent with display installation, structured cabling, Biamp DSP configuration, and AV commissioning. IPAF/PASMA required if working at height.</td>
         </tr>
@@ -1082,6 +1123,41 @@ p { margin: 3pt 0; }
     @endif
     </tbody>
 </table>
+
+{{-- 6.1.1 Site Vehicles & Registrations — only if any provided --}}
+@php
+    $vehSrc = $project['site_vehicles'] ?? ($data['site_vehicles'] ?? null);
+    if (is_string($vehSrc)) { $vehSrc = preg_split('/\r?\n/', $vehSrc) ?: []; }
+    $vehiclesList = array_values(array_filter(
+        array_map('trim', (array) ($vehSrc ?? [])),
+        fn (string $v) => $v !== ''
+    ));
+@endphp
+@if(! empty($vehiclesList))
+<div class="sec-subheading" style="margin-top:8pt;">Site Vehicles &amp; Registrations</div>
+<table class="std-table">
+    <thead>
+        <tr>
+            <th style="width:34%;">Vehicle Registration</th>
+            <th>Notes</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach($vehiclesList as $entry)
+            @php
+                $reg = $entry; $note = '';
+                if (str_contains($entry, ' - ')) {
+                    [$reg, $note] = explode(' - ', $entry, 2);
+                }
+            @endphp
+            <tr>
+                <td>{{ trim($reg) }}</td>
+                <td>{{ trim($note) }}</td>
+            </tr>
+        @endforeach
+    </tbody>
+</table>
+@endif
 
 {{-- 6.2 Tools & Equipment --}}
 <div class="sec-subheading">6.2 Tools &amp; Equipment</div>

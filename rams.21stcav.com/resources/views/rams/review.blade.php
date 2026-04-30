@@ -4,11 +4,11 @@
 
 @push('styles')
 <style>
-/* ── RAMS review page polish ─────────────────────────────────────────── */
+/* ── RAMS review page — clean modern dashboard ─────────────────── */
 .rams-hero {
-    background: linear-gradient(135deg, #EBF6F7 0%, #F7FBFC 60%, #FFFFFF 100%);
-    border: 1px solid var(--teal-mid);
-    border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
     padding: 1.1rem 1.25rem;
     margin-bottom: 1rem;
     display: flex;
@@ -18,7 +18,13 @@
     gap: 1rem;
 }
 .rams-hero-title { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
-.rams-hero-title h1 { font-size: 1.4rem; margin: 0; color: var(--sidebar-bg); letter-spacing: -0.01em; }
+.rams-hero-title h1 {
+    font-size: 1.4rem; margin: 0;
+    color: var(--text);
+    letter-spacing: -.015em;
+    font-weight: 700;
+    line-height: 1.2;
+}
 .rams-hero-meta {
     font-size: .8rem; color: var(--text-muted);
     display: flex; gap: .75rem; flex-wrap: wrap; margin-top: .25rem;
@@ -26,79 +32,94 @@
 .rams-hero-meta strong { color: var(--text); font-weight: 600; }
 .rams-hero-actions { display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; }
 
-/* Status pill in hero */
+/* Status pill */
 .status-pill {
     display: inline-flex; align-items: center; gap: .35rem;
-    padding: .18rem .6rem; border-radius: 999px;
-    font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+    padding: .2rem .65rem; border-radius: 999px;
+    font-size: .7rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .04em;
 }
 .status-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; }
-.status-pill--completed { background: #D1FAE5; color: #065F46; }
-.status-pill--completed::before { background: #10B981; }
+.status-pill--completed { background: var(--success-light); color: #166534; }
+.status-pill--completed::before { background: var(--success); }
 .status-pill--approved  { background: #DBEAFE; color: #1E3A8A; }
-.status-pill--approved::before  { background: #3B82F6; }
-.status-pill--awaiting  { background: #FEF3C7; color: #92400E; }
-.status-pill--awaiting::before  { background: #F59E0B; }
+.status-pill--approved::before  { background: #2563EB; }
+.status-pill--awaiting  { background: var(--warning-light); color: #92400E; }
+.status-pill--awaiting::before  { background: var(--warning); }
 .status-pill--generating{ background: #EDE9FE; color: #5B21B6; }
-.status-pill--generating::before{ background: #8B5CF6; }
-.status-pill--failed    { background: #FEE2E2; color: #991B1B; }
-.status-pill--failed::before    { background: #EF4444; }
-.status-pill--uploaded  { background: #F3F4F6; color: #374151; }
-.status-pill--uploaded::before  { background: #6B7280; }
+.status-pill--generating::before{ background: #7C3AED; }
+.status-pill--failed    { background: var(--danger-light); color: #991B1B; }
+.status-pill--failed::before    { background: var(--danger); }
+.status-pill--uploaded  { background: var(--bg-deep); color: var(--text-muted); }
+.status-pill--uploaded::before  { background: var(--text-muted); }
 
-/* Header action buttons — colored variants */
+/* Regen action */
 .btn-regen {
     display:inline-flex; align-items:center; gap:.35rem;
-    padding:.35rem .75rem; border-radius: var(--radius-sm);
-    background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A;
+    padding:.4rem .8rem; border-radius: var(--radius-sm);
+    background: var(--warning-light); color: #92400E;
+    border: 1px solid #FDE68A;
     font-size: .8125rem; font-weight: 600; cursor: pointer;
-    transition: background 150ms ease;
+    transition: background var(--transition);
 }
-.btn-regen:hover    { background: #FDE68A; text-decoration: none; color: #78350F; }
-.btn-regen form     { margin: 0; display: inline; }
+.btn-regen:hover { background: #FDE68A; text-decoration: none; color: #78350F; }
+.btn-regen form { margin: 0; display: inline; }
 
 /* Tab navigation */
 .rams-tabs {
-    display: flex; gap: .25rem; flex-wrap: wrap;
-    background: #FFFFFF; border: 1px solid var(--border); border-radius: var(--radius);
-    padding: .3rem; margin-bottom: 1.1rem;
-    box-shadow: var(--shadow-xs);
+    display: flex; gap: 1.5rem; flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1.25rem;
 }
 .rams-tab {
-    display: inline-flex; align-items: center; gap: .4rem;
-    padding: .55rem 1rem; border-radius: calc(var(--radius-sm) + 2px);
-    background: transparent; color: var(--text-muted); border: none;
-    font-size: .875rem; font-weight: 600; cursor: pointer;
-    transition: background 150ms ease, color 150ms ease;
+    display: inline-flex; align-items: center; gap: .5rem;
+    padding: .75rem 0;
+    border: none; background: transparent;
+    color: var(--text-muted);
+    font-size: .875rem; font-weight: 500;
+    cursor: pointer;
+    position: relative;
+    transition: color var(--transition);
     white-space: nowrap;
+    margin-bottom: -1px;
 }
-.rams-tab:hover { background: var(--teal-light); color: var(--teal); }
-.rams-tab.is-active {
-    background: var(--teal); color: #fff;
-    box-shadow: 0 1px 3px rgba(23,138,149,.3);
+.rams-tab:hover { color: var(--text); }
+.rams-tab.is-active { color: var(--teal); font-weight: 600; }
+.rams-tab.is-active::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 2px;
+    background: var(--teal);
 }
 .rams-tab-count {
     display: inline-flex; align-items: center; justify-content: center;
-    min-width: 20px; height: 18px; padding: 0 .35rem;
-    background: rgba(0,0,0,.08); color: inherit;
-    border-radius: 999px; font-size: .68rem; font-weight: 700;
+    min-width: 20px; height: 20px; padding: 0 .4rem;
+    background: var(--surface-deep); color: var(--text-muted);
+    border-radius: 999px;
+    font-size: .68rem; font-weight: 700;
 }
-.rams-tab.is-active .rams-tab-count { background: rgba(255,255,255,.25); color: #fff; }
+.rams-tab.is-active .rams-tab-count { background: var(--teal); color: #fff; }
 
-/* Section heading upgraded with teal accent bar */
+/* Section heading */
 .section-heading {
-    font-size: 1rem; font-weight: 700; color: var(--sidebar-bg);
-    margin-top: 1.25rem; margin-bottom: .75rem;
-    padding-left: .65rem; border-left: 3px solid var(--teal);
+    font-size: 1rem; font-weight: 600;
+    color: var(--text);
+    margin-top: 1.25rem;
+    margin-bottom: .85rem;
+    padding-bottom: .5rem;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: -.01em;
     line-height: 1.2;
 }
 .section-heading:first-child { margin-top: 0; }
 
-/* Save bar at bottom of form (always visible regardless of active tab) */
+/* Save bar */
 .rams-save-bar {
     margin-top: 1.25rem; padding: .9rem 1rem;
-    background: linear-gradient(to right, var(--teal-light), #FFFFFF);
-    border: 1px solid var(--teal-mid); border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
     display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; justify-content: flex-end;
 }
 .rams-save-bar-label {
@@ -237,9 +258,25 @@
     @endif
 
     <div class="alert alert-info" style="background:#EBF6F7;border:1px solid var(--teal-mid);color:var(--sidebar-bg);">
-        <strong>💡 Tip:</strong> Edit project fields across the tabs below, then click <strong>Save &amp; Download</strong> at the bottom.
+        <strong>💡 Tip:</strong> Edit project fields across the tabs below, then click <strong>Save Changes</strong> at the bottom.
+        You'll be asked whether to regenerate the document — choose <strong>Yes</strong> to rebuild the DOCX/PDF with your latest data.
         Hazards and the method statement are AI-generated and read-only — use <strong>✎ Edit via chat</strong> above if you need to change them.
     </div>
+
+    {{-- ── Hidden regen form, submitted by JS when user confirms regen prompt --}}
+    <form id="rams-regen-after-save" method="POST" action="{{ route('rams.regenerate', $rams) }}" style="display:none;">
+        @csrf
+    </form>
+
+    @if (session('rams_regen_prompt'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                if (window.confirm('Changes saved.\n\nRegenerate the RAMS document now? You will be taken to the project page where the new document will be generating.')) {
+                    document.getElementById('rams-regen-after-save').submit();
+                }
+            });
+        </script>
+    @endif
 
     {{-- ── Diff styles ─────────────────────────────────────────────────────── --}}
     <style>
@@ -389,6 +426,19 @@
                     <input id="programmer" name="programmer" type="text"
                            class="form-control"
                            value="{{ old('programmer', $project['programmer'] ?? '') }}">
+                </div>
+                <div class="form-group" style="grid-column: span 2;">
+                    <label class="form-label" for="site_vehicles">Site Vehicles &amp; Registrations</label>
+                    @php
+                        $vehiclesValue = old('site_vehicles', $project['site_vehicles'] ?? '');
+                        if (is_array($vehiclesValue)) { $vehiclesValue = implode("\n", $vehiclesValue); }
+                    @endphp
+                    <textarea id="site_vehicles" name="site_vehicles" rows="3"
+                              class="form-control"
+                              placeholder="One vehicle per line — e.g. AB12 CDE - Crew van">{{ $vehiclesValue }}</textarea>
+                    <small style="display:block;color:#666;font-size:.78rem;margin-top:.2rem;">
+                        Required for site security / parking permits. One vehicle per line, format <code>REG - Notes</code>.
+                    </small>
                 </div>
             </div>
 
@@ -865,11 +915,11 @@
 
             {{-- ══════════ Sticky save bar — visible across all form tabs ══════════ --}}
             <div class="rams-save-bar">
-                <span class="rams-save-bar-label">Saves all tabs. <strong>Save &amp; Download</strong> writes changes and re-generates the DOCX.</span>
+                <span class="rams-save-bar-label">Saves all tabs. After saving you'll be asked whether to regenerate the document.</span>
                 <a href="{{ route('rams.download', $rams) }}" class="btn btn-outline btn-sm">↓ Current DOCX</a>
                 <a href="{{ route('rams.download-pdf', $rams) }}" class="btn btn-outline btn-sm"
                    onclick="triggerFileDownload(this.href); return false;">↓ Current PDF</a>
-                <button type="submit" class="btn btn-teal">↓ Save &amp; Download .docx</button>
+                <button type="submit" class="btn btn-teal">💾 Save Changes</button>
             </div>
         </form>
     </div>

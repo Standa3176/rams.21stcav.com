@@ -425,6 +425,13 @@ class RamsController extends Controller
             'lead_engineer'        => $validated['lead_engineer']        ?? '',
             'additional_engineers' => $validated['additional_engineers'] ?? '',
             'programmer'           => $validated['programmer']           ?? '',
+            // Site vehicles — split textarea into a clean array, persisted
+            // into generated_data so the PDF / DOCX render layer can pick it up
+            // immediately (without round-tripping through RamsBuilderService).
+            'site_vehicles'        => array_values(array_filter(
+                array_map('trim', preg_split('/\r?\n/', (string) ($request->input('site_vehicles') ?? '')) ?: []),
+                fn (string $s) => $s !== '',
+            )),
             // Programme dates & times — pass through to PDF cover table
             'planned_start_date' => $validated['planned_start_date'] ?? ($generatedData['project']['planned_start_date'] ?? ''),
             'planned_start_time' => $validated['planned_start_time'] ?? '',
@@ -442,6 +449,22 @@ class RamsController extends Controller
             'waste_removal_party' => $validated['waste_removal_party'] ?? '',
             'waste_removal_notes' => $validated['waste_removal_notes'] ?? '',
             'welfare_notes'       => $validated['welfare_notes']       ?? '',
+        ]);
+
+        // Mirror personnel + vehicle fields into reviewed_data['project'] so a
+        // later regenerate (which rebuilds via RamsBuilderService::buildFromReview)
+        // sees the same values the user just entered. Without this mirror, the
+        // regenerated PDF renders blanks for engineers, programmer and vehicles.
+        $vehiclesArr = array_values(array_filter(
+            array_map('trim', preg_split('/\r?\n/', (string) ($request->input('site_vehicles') ?? '')) ?: []),
+            fn (string $s) => $s !== '',
+        ));
+        $reviewedData['project'] = array_merge($reviewedData['project'] ?? [], [
+            'project_manager'      => $validated['project_manager']      ?? '',
+            'lead_engineer'        => $validated['lead_engineer']        ?? '',
+            'additional_engineers' => $validated['additional_engineers'] ?? '',
+            'programmer'           => $validated['programmer']           ?? '',
+            'site_vehicles'        => $vehiclesArr,
         ]);
 
         // Build permits array — preserve all types with their state
@@ -522,13 +545,27 @@ class RamsController extends Controller
         // ── Apply Tier 1 compliance upgrade before persist + render ────────
         $generatedData = \App\Services\Rams\RamsComplianceUpgradeService::upgrade($generatedData);
 
+        // Mirror personnel + vehicle + programme date fields into form_data so
+        // a later regenerate (BuildRamsDocumentJob → RamsDataBuilderService::buildFromForm)
+        // sees the same values the user entered here. The display patch service
+        // also uses form_data as a last-resort fallback.
+        $formData = $rams->form_data ?? [];
+        $formData = array_merge($formData, [
+            'project_manager'      => $validated['project_manager']      ?? ($formData['project_manager']      ?? ''),
+            'lead_engineer'        => $validated['lead_engineer']        ?? ($formData['lead_engineer']        ?? ''),
+            'additional_engineers' => $validated['additional_engineers'] ?? ($formData['additional_engineers'] ?? ''),
+            'programmer'           => $validated['programmer']           ?? ($formData['programmer']           ?? ''),
+            'site_vehicles'        => $vehiclesArr,
+        ]);
+
         try {
-            $filePath = DB::transaction(function () use ($rams, $validated, $projectRefInput, $generatedData, $reviewedData): string {
+            $filePath = DB::transaction(function () use ($rams, $validated, $projectRefInput, $generatedData, $reviewedData, $formData): string {
                 $rams->update([
                     'project_name'   => $validated['project_name'],
                     'project_ref'    => $projectRefInput ?? $rams->project_ref,
                     'client_name'    => $validated['client_name'],
                     'site_address'   => $validated['site_address'],
+                    'form_data'      => $formData,
                     'generated_data' => $generatedData,
                     'reviewed_data'  => $reviewedData,
                 ]);
@@ -571,11 +608,15 @@ class RamsController extends Controller
             return back()->with('error', 'The document could not be regenerated. Please try again.');
         }
 
-        return response()->download(
-            $filePath,
-            $rams->filename,
-            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
-        );
+        // Save-and-prompt UX: instead of streaming a DOCX download, redirect
+        // back to the review page with a flash flag so the front-end can prompt
+        // the user to kick off a full regenerate. The current DOCX/PDF links on
+        // the page already serve the freshly-saved file via $rams->filename.
+        unset($filePath); // not used in the save-and-prompt response
+        return redirect()
+            ->route('rams.review', $rams)
+            ->with('success', 'Changes saved.')
+            ->with('rams_regen_prompt', $rams->id);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
