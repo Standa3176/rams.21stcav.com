@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Installation Programme & Field Management
 status: verifying
-last_updated: "2026-04-26T11:30:00.000Z"
-last_activity: 2026-04-26
+last_updated: "2026-04-30T21:02:26.359Z"
+last_activity: 2026-04-30
 progress:
   total_phases: 5
   completed_phases: 5
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-04-13)
 Phase: 16
 Plan: Not started
 Status: Phase complete — ready for /gsd-verify-work
-Last activity: 2026-04-27 — Completed quick task 260427-qvr: Migrate PDF rendering to Browsershot (Needs Review — production smoke-test pending)
+Last activity: 2026-04-30 — Completed quick task 260430-um1: fix install programme 0 tasks (port area-tag distribution from WorksheetGeneratorService into InstallTaskGeneratorService)
 
 ## Milestone v1.0 Complete
 
@@ -60,3 +60,4 @@ Tag: `v1.0`
 | 260415-en6 | 2026-04-15 | Fix site survey gaps: PM email, cable routes, rack room, projection/network/sign-off fields | ✅ Done | d47d653 |
 | 260426-gvm | 2026-04-26 | Public worksheet sign-off link (UUID-token, single-signature acceptance, optional outstanding-items comments, append-only signoffs, DOCX signature embed) | ✅ Done | e31f58d |
 | 260427-qvr | 2026-04-27 | Migrate PDF rendering to Browsershot (RAMS + O&M + Site Survey via single PdfRenderService, pdf:smoke-test command, deployment runbook for chrome symlink + queue-worker user fix + chown). Existing dompdf/mpdf retained for rollback. | ⚠️ Needs Review | 92c95da |
+| 260430-um1 | 2026-04-30 | Fix install programme 0 tasks — port two-strategy room/equipment distribution (area-tag grouping + flat-equipment fallback with NON_PHYSICAL_ROOMS guard) into InstallTaskGeneratorService. Verified locally on 3 projects (3/43/31 tasks generated). | ✅ Done | c479364 |
