@@ -59,6 +59,17 @@ class InstallTaskGeneratorServiceTest extends TestCase
         ];
     }
 
+    private function resolvedDataWith(array $rooms, array $equipment = [], array $rawEquipment = []): array
+    {
+        return [
+            'project'        => ['id' => 1, 'name' => 'Test Project'],
+            'rooms'          => $rooms,
+            'equipment'      => $equipment,
+            '_raw_equipment' => $rawEquipment,
+            'meta'           => ['has_survey' => false],
+        ];
+    }
+
     // ── filterHardware tests ──────────────────────────────────────────────────
 
     /** @test */
@@ -289,6 +300,160 @@ class InstallTaskGeneratorServiceTest extends TestCase
     }
 
     // ── InstallProgrammeService::createForProject() tests ────────────────────
+
+    // ── generate() distribution tests (QUICK-260430-UM1) ─────────────────────
+    //
+    // These tests cover the case where ProjectDataService::resolve() returns
+    // bare-name rooms (equipment => []) and the actual equipment lives at
+    // $data['_raw_equipment'] (with area tags) or $data['equipment'] (flat).
+    // The pre-existing tests above pre-populate room equipment directly, so
+    // they exercise the "rooms already enriched" path. The 4 tests below
+    // exercise the area-tag and flat-distribution code paths.
+
+    /** @test */
+    public function generate_distributes_flat_equipment_by_area_tag(): void
+    {
+        // Strategy 1: ≥30% of items have an `area` tag — group by area.
+        $rooms = [
+            ['room_name' => 'Boardroom',  'equipment' => []],
+            ['room_name' => 'Reception',  'equipment' => []],
+        ];
+
+        $rawEquipment = [
+            ['name' => 'Display A',     'category' => 'hardware', 'area' => 'Boardroom'],
+            ['name' => 'Switcher B',    'category' => 'hardware', 'area' => 'Boardroom'],
+            ['name' => 'Display C',     'category' => 'hardware', 'area' => 'Reception'],
+            ['name' => 'Mount Bracket', 'category' => 'hardware'], // no area → "General"
+        ];
+
+        $project   = Project::factory()->create();
+        $pds       = $this->makeProjectDataService($this->resolvedDataWith($rooms, [], $rawEquipment));
+        $generator = $this->makeGenerator($pds);
+
+        $programme = InstallProgramme::create([
+            'project_id'   => $project->id,
+            'generated_by' => null,
+            'status'       => InstallProgramme::STATUS_DRAFT,
+            'generated_at' => now(),
+        ]);
+
+        $generator->generate($programme);
+
+        // 4 hardware items → 4 tasks (Display A, Switcher B in Boardroom; Display C in
+        // Reception; Mount Bracket in General).
+        $this->assertSame(4, $programme->tasks()->count());
+
+        $byRoom = $programme->tasks()->get()->groupBy('room_name')->map->count();
+        $this->assertSame(2, $byRoom['Boardroom']);
+        $this->assertSame(1, $byRoom['Reception']);
+        $this->assertSame(1, $byRoom['General']);
+    }
+
+    /** @test */
+    public function generate_filters_non_physical_area_tag_under_strategy_one(): void
+    {
+        // Strategy 1: a "Professional Services" area tag must NOT become a task.
+        $rawEquipment = [
+            ['name' => 'Display A',          'category' => 'hardware', 'area' => 'Boardroom'],
+            ['name' => 'Display B',          'category' => 'hardware', 'area' => 'Boardroom'],
+            ['name' => 'On-site Engineering','category' => 'services', 'area' => 'Professional Services'],
+            ['name' => 'Project Mgmt Day',   'category' => 'option',   'area' => 'Professional Services'],
+        ];
+
+        $rooms = [
+            ['room_name' => 'Boardroom',             'equipment' => []],
+            ['room_name' => 'Professional Services', 'equipment' => []],
+        ];
+
+        $project   = Project::factory()->create();
+        $pds       = $this->makeProjectDataService($this->resolvedDataWith($rooms, [], $rawEquipment));
+        $generator = $this->makeGenerator($pds);
+
+        $programme = InstallProgramme::create([
+            'project_id'   => $project->id,
+            'generated_by' => null,
+            'status'       => InstallProgramme::STATUS_DRAFT,
+            'generated_at' => now(),
+        ]);
+
+        $generator->generate($programme);
+
+        $this->assertSame(2, $programme->tasks()->count());
+        $roomNames = $programme->tasks()->pluck('room_name')->unique()->values()->all();
+        $this->assertSame(['Boardroom'], $roomNames);
+    }
+
+    /** @test */
+    public function generate_distributes_flat_equipment_by_location_match(): void
+    {
+        // Strategy 2: $_raw_equipment is empty so we fall through to equipment
+        // and match items by `location` to resolved-room names. Items without
+        // a location land in a synthetic "General" room.
+        $rooms = [
+            ['room_name' => 'Boardroom', 'equipment' => []],
+            ['room_name' => 'Reception', 'equipment' => []],
+        ];
+
+        $equipment = [
+            ['name' => 'Display A', 'category' => 'hardware', 'location' => 'Boardroom'],
+            ['name' => 'Display C', 'category' => 'hardware', 'location' => 'Reception'],
+            ['name' => 'Spare PSU', 'category' => 'hardware', 'location' => ''], // unmapped → General
+        ];
+
+        $project   = Project::factory()->create();
+        $pds       = $this->makeProjectDataService($this->resolvedDataWith($rooms, $equipment, []));
+        $generator = $this->makeGenerator($pds);
+
+        $programme = InstallProgramme::create([
+            'project_id'   => $project->id,
+            'generated_by' => null,
+            'status'       => InstallProgramme::STATUS_DRAFT,
+            'generated_at' => now(),
+        ]);
+
+        $generator->generate($programme);
+
+        $this->assertSame(3, $programme->tasks()->count());
+
+        $byRoom = $programme->tasks()->get()->groupBy('room_name')->map->count();
+        $this->assertSame(1, $byRoom['Boardroom']);
+        $this->assertSame(1, $byRoom['Reception']);
+        $this->assertSame(1, $byRoom['General']);
+    }
+
+    /** @test */
+    public function generate_filters_non_physical_room_under_strategy_two(): void
+    {
+        // Resolved rooms include a non-physical pseudo-room. The flat-equipment
+        // location matches the pseudo-room name. No tasks must be generated.
+        $rooms = [
+            ['room_name' => 'Professional Services', 'equipment' => []],
+        ];
+
+        $equipment = [
+            ['name' => 'On-site Engineering', 'category' => 'hardware', 'location' => 'Professional Services'],
+        ];
+
+        $project   = Project::factory()->create();
+        $pds       = $this->makeProjectDataService($this->resolvedDataWith($rooms, $equipment, []));
+        $generator = $this->makeGenerator($pds);
+
+        $programme = InstallProgramme::create([
+            'project_id'   => $project->id,
+            'generated_by' => null,
+            'status'       => InstallProgramme::STATUS_DRAFT,
+            'generated_at' => now(),
+        ]);
+
+        $generator->generate($programme);
+
+        // The pseudo-room is filtered out; the equipment becomes "unmapped"
+        // and lands in General. The General row IS created (it's a real synthetic
+        // physical room, not a pseudo-category). However, since the equipment
+        // here is genuinely hardware-flagged, we expect 1 task in General.
+        // The crucial assertion: NO task carries room_name = 'Professional Services'.
+        $this->assertSame(0, $programme->tasks()->where('room_name', 'Professional Services')->count());
+    }
 
     /** @test */
     public function createForProject_creates_draft_programme_with_tasks(): void
