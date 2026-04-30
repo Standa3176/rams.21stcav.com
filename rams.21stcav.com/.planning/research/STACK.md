@@ -1,207 +1,361 @@
-# Technology Stack — v1.2 Installation Programme & Field Management
+# Technology Stack — v1.3 Technical Drawings & Schematics
 
 **Project:** RAMS Platform (rams.21stcav.com)
-**Researched:** 2026-04-13
-**Scope:** Additions ONLY for v1.2. Existing stack (Laravel 12, PHP 8.2+, MySQL, Alpine.js, Tailwind,
-PHPWord, DomPDF, mPDF, PhpSpreadsheet) is validated and must not be re-researched or changed.
+**Milestone:** v1.3 Technical Drawings & Schematics (Phases 17–20)
+**Researched:** 2026-04-30
+**Overall confidence:** MEDIUM-HIGH
 
 ---
 
-## What the Existing Stack Already Covers (Reuse Without Change)
+## Scope of This Document
 
-| v1.2 Capability | Existing Mechanism — Reuse As-Is |
-|---|---|
-| Photo capture from mobile browser | `<input type="file" accept="image/*" capture="environment">` on HTML file input — triggers device camera natively on iOS Safari and Android Chrome. Already proven in site survey photo upload. No new library needed. |
-| File storage for commissioning photos | `storage/app/private/` + `Storage::disk('local')->put()` — identical to survey photo pattern already shipped. |
-| Auth and engineer identity | Laravel Breeze users table. Engineers are already users. Task assignment = foreign key to `users.id`. No auth changes. |
-| Queue-based job dispatch | Database queue driver, `GenerateInstallTasksJob` follows `BuildRamsDocumentJob` pattern exactly. |
-| DOCX for programme documents | `phpoffice/phpword ^1.4` — already installed. Any generated install programme report reuses `DocxBuilderService`. |
-| PDF for sign-off sheets | `barryvdh/laravel-dompdf ^3.1` — already installed. Embeds base64 PNG signature via `<img src="data:image/png;base64,...">` — DomPDF supports inline data URIs. |
-| Project data as task input | `ProjectDataService` 4-tier canonical merge — `InstallTaskGeneratorService` reads rooms × equipment exactly as `WorksheetBuilderService` does. |
-| Budget vs actual time | Plain SQL `SUM()` aggregate over a `time_entries` table — no package. |
-| Calendar/schedule UI (simple) | Blade + Alpine.js for basic date display. Gantt view requires one new JS library (see below). |
+Stack additions for v1.3 only. The existing stack (Laravel 12 / PHP 8.2 / MySQL / Blade+Tailwind+Alpine.js / PhpWord / PhpSpreadsheet / spatie/browsershot ^5.3 / Claude+OpenAI via AIManager / ProjectDataService / DocumentArtifactStorage) is LOCKED and not re-researched here. Recommendations focus on:
+
+1. **Schematic engine** — auto-generated signal-flow + rack elevations from canonical project data
+2. **Canvas drawing library** — in-app floor plan tool
+3. **DXF/DWG export** — feasibility only (nice-to-have for v1.3)
+4. **PDF/SVG export** — reuse Browsershot pipeline
+5. **AV stencil/symbol library** — buy vs build
 
 ---
 
-## New Additions Required
+## Top-Line Recommendations (TL;DR)
 
-### JS Dependencies
+| Concern | Recommendation | License | Why |
+|---------|----------------|---------|-----|
+| Schematic engine | **D2 CLI** ^0.7.1 + dot fallback for free-graph signal flow; **server-rendered Blade SVG** for rack elevations | MPL-2.0 | Text→SVG, server-side, no Node/browser dep at gen time, deterministic, reproducible from canonical data |
+| Canvas library | **Konva.js** ^10.2.5 | MIT | Vanilla JS (matches Alpine.js stack, no React), purpose-built for floor plans, JSON-serialisable scene state |
+| DXF export | **DXFighter** (PHP, BSD-3) — server-side from canvas JSON state | BSD-3-Clause | Pure PHP, no Node child process, but unmaintained — vendor it; flag as stretch goal |
+| DWG export | **Skip for v1.3.** All viable libs are GPL (LibreDWG) or paid (Teigha) | — | License risk + scope creep; AutoCAD opens DXF natively |
+| PDF/SVG export | **Existing Browsershot ^5.3** pipeline + Blade view rendering Konva-replay or D2-emitted SVG | MIT | Already wired, queue-compatible, DocumentArtifactStorage-aware |
+| AV stencils | **Hybrid:** ship a small in-house SVG symbol set (~25 shapes) following AVIXA conventions; D2 sprites for system schematics | Internal | No OSS AVIXA-compliant set exists; AVIXA standard is descriptive, not a vector library |
 
-| Library | Version | Install | Purpose | Why This One |
-|---|---|---|---|---|
-| `signature_pad` | `^5.1.3` | `npm install signature_pad` | HTML5 canvas signature capture for commissioning sign-off (INST-05) | Zero external dependencies. Works on iOS Safari and Android Chrome touch and stylus input. Outputs base64 PNG or SVG. Actively maintained — v5.1.3 published December 2025. No Composer counterpart needed: store the base64 string in a MySQL TEXT column, embed in DomPDF as a data URI. |
-| `frappe-gantt` | `^1.2.2` | `npm install frappe-gantt` | Gantt/calendar timeline for task scheduling (INST-02) | MIT licence (DHTMLX Gantt GPL is incompatible with commercial internal use). Vanilla JS, zero dependencies, ~50 kB minified. Works directly in a Blade partial via an Alpine.js `x-init` wrapper — no React or Vue required. v1.0 released after a year of stabilisation; v1.2.2 is the current stable release (March 2026). Use for read + drag-to-reschedule only. |
-| `dexie` | `^4.4.2` | `npm install dexie` | IndexedDB wrapper for offline checklist state (INST-03) | The standard IndexedDB abstraction in 2026 — 100k+ dependent projects on npm, v4.4.2 published April 2026. Provides a clean async/Promise API over raw IndexedDB. Needed so engineers can tick checklist items offline (no mobile data). Dexie persists state to IndexedDB; Alpine.js `$store` reads from it for reactive display. On reconnect, Alpine detects `navigator.onLine` and Axios POSTs the pending queue to a `/field/sync` endpoint. |
-| `vite-plugin-pwa` | `^1.1.0` | `npm install -D vite-plugin-pwa` | Service worker + web manifest for offline-capable field view (INST-03) | Zero-config Workbox-backed PWA for Vite. Required for the field view to load at all when an engineer has no mobile data — without a registered service worker, the HTML, CSS, and JS bundle will not be available offline. Plugs into `vite.config.js` alongside the existing `laravel-vite-plugin`. v1.1.0 is the current release (2025). Scope the service worker to `/field/*` routes only — do not make the entire RAMS platform offline-capable. |
+**Anti-recommendations (DO NOT add):**
+- TLDraw — React-only, conflicts with Alpine.js stack; bundle weight unjustified
+- Excalidraw — React-only + hand-drawn aesthetic too informal for AV deliverables
+- PlantUML — GPL-3.0, license risk for closed-source internal tool
+- LibreDWG — GPLv3, license risk
+- Mermaid via headless-chromium round-trip — duplicates Browsershot infrastructure for inferior diagram quality
+- drawio embed-mode iframe as the primary editor — overkill, adds postMessage complexity, multi-MB bundle
 
-**Full install command:**
+---
+
+## 1. Schematic Engine
+
+### Comparison
+
+| Engine | Run Mode | Output | License | AV Stencils | Verdict |
+|--------|----------|--------|---------|-------------|---------|
+| **D2** ^0.7.1 | Go CLI (server) OR `d2.wasm` (browser) | SVG, PNG, PDF | MPL-2.0 | None native; sprite system supports custom SVG | ✓ **Pick** for signal flow |
+| **Mermaid** ^11 | Browser JS (~500 kB) or Node SSR via headless-chromium | SVG | MIT | None; flowchart shapes only | ✗ Not deterministic enough; SSR duplicates Browsershot |
+| **DrawIO** (jgraph) | Browser iframe + postMessage | XML, SVG, PNG, PDF | Apache-2.0 | 1000+ shapes incl. AV community libs | ✗ Editor-first, not auto-gen-first; iframe overhead |
+| **Graphviz/dot** | Server CLI (binary) | SVG, PNG, PDF | EPL-1.0 | None | ⚠ Fallback only — ugly defaults, weak label control |
+| **PlantUML** | Java JAR (server) | SVG, PNG | **GPL-3.0** | None | ✗ License blocker for closed-source |
+| **Custom SVG** | PHP Blade-rendered | SVG | Internal | We define | ✓ **Pick** for rack elevations |
+
+### 1.1 D2 — chosen for signal flow
+
+**Verified facts (HIGH confidence):**
+- Latest stable: **v0.7.1** (released 2025-08-19 per GitHub releases). No newer stable as of research date — pin `v0.7.1` in install script.
+- License: **MPL-2.0** — file-level copyleft. Compatible with closed-source internal use; we don't redistribute or modify D2 source files.
+- Supports nested grids (good if we wanted rack elevations there — we won't, see §1.2).
+- Output: SVG, PNG, PDF directly from CLI. No browser required at generation time.
+- Sprites: custom SVG shapes loaded via `shape: image; icon: ./mic.svg`.
+
+**Run model:**
 ```bash
-npm install signature_pad frappe-gantt dexie
-npm install -D vite-plugin-pwa
+# Install once on server (admin task, not in deploy)
+curl -fsSL https://d2lang.com/install.sh | sh -s -- --version v0.7.1
+# Render at job time
+d2 --layout=elk input.d2 output.svg
 ```
 
-### Composer Dependencies
+The Go binary is self-contained, ~30 MB, lives at `/usr/local/bin/d2`. No `pdftoppm`/`tesseract`-style apt dependency chain — single static binary.
 
-**No new Composer packages are needed for v1.2.**
+**Integration with existing pipeline:**
+1. New `SchematicBuilderService` reads `ProjectDataService::canonical($project)` to extract equipment + cable list.
+2. `SchematicTextEmitter` emits D2 source (`source -> dest: cable_label`), persisted to disk under TYPE_DRAWING artifact subdir.
+3. `BuildSchematicJob` shells out to `d2` binary via `Symfony\Process` — same pattern as existing OCR `pdftotext` shell-out in `PdfOcrExtractorService`.
+4. SVG written through `DocumentArtifactStorage::writePath(TYPE_DRAWING, ...)` (new constant — see §6).
+5. PDF version: feed SVG into a Blade wrapper, render via existing Browsershot call (§4).
 
-| v1.2 Feature | Backend Implementation | Package Needed? |
-|---|---|---|
-| Task list generation (INST-01) | `InstallTaskGeneratorService` reads `ProjectDataService` output, writes to `install_tasks` table | None — plain Eloquent |
-| Engineer assignment (INST-02) | Foreign key `install_tasks.assigned_user_id -> users.id` | None — existing users |
-| Clock in/out time tracking (INST-04) | `time_entries` table (`project_id`, `user_id`, `clocked_in_at`, `clocked_out_at`, `category`) with `TimeTrackingService` | None — plain timestamps |
-| Budget vs actual (INST-04) | `TimeTrackingService::getBudgetComparison()` — SQL `SUM(TIMESTAMPDIFF(...))` grouped by category | None |
-| Commissioning sign-off storage (INST-05) | `commissioning_sign_offs` table with `signature_data TEXT` column | None |
-| Sign-off PDF generation (INST-05) | `barryvdh/laravel-dompdf` already installed — embed base64 PNG as data URI | None — already installed |
-| Offline sync endpoint (INST-03) | Standard Laravel controller + JSON batch — no real-time infrastructure | None |
-| Worksheet pre-install answers (WORK-05) | Extend existing `WorksheetBuilderService` to read `survey_rooms.pre_install_answers` | None |
+### 1.2 Rack elevations — server-rendered Blade SVG
 
-### Server-Level Requirements
+D2's nested grid is technically capable but a poor fit for rack elevations:
+- Rack U-positions are pixel-precise and rigid (1U = 44.45 mm)
+- Connections aren't relevant in a rack diagram (just stacked boxes with labels)
+- We need front/rear views, ventilation hashing, blanking panels — schematic-engine ergonomics fight this
 
-| Requirement | Status | Notes |
-|---|---|---|
-| HTTPS | Required — not new | Service workers are blocked by browsers on HTTP. The production server must already serve over HTTPS for auth to be secure. No new infrastructure. |
-| `storage/app/private/` writable | Already met | Commissioning photos use the same private storage path as survey photos. No new disk config. |
-| Queue worker | Already running | Task generation job reuses the existing `database` queue driver and worker process. No new queue infrastructure. |
-| No new PHP extensions | Confirmed | No OCR, no binary conversion, no new system packages required for v1.2. |
+**Recommendation:** A pure Blade SVG view (`resources/views/drawings/rack-elevation.blade.php`) consuming a `RackElevationData` DTO. Each U-block is a `<rect>` positioned by `top = (totalU - startU) * unitHeight`. ~150 lines of Blade. Renders to PDF via Browsershot, exports to SVG via direct file write.
+
+**Why not D2 for both:**
+- Reusing Browsershot for the rack view costs ~0 effort and gives us full CSS layout control
+- Two engines for two intrinsically different drawing types is fine — same pattern as DOCX (PhpWord) vs XLSX (PhpSpreadsheet) we already accept
+
+### Rationale
+
+D2 is text-driven, server-rendered, deterministic, MPL-2.0 (closed-source-internal-friendly), and outputs SVG natively — a perfect match for canonical-data-driven generation. Mermaid would force us to either add a Node.js SSR layer or render in-browser (breaks the "queue-generated artifact" pattern). PlantUML's GPL is a hard blocker. DrawIO is fundamentally an editor, not a generator. Graphviz works but produces aesthetically poor output for AV system schematics — we keep it as a documented fallback.
 
 ---
 
-## Architecture Integration Points
+## 2. Canvas Drawing Library — Floor Plan Tool
 
-### Offline field view — scope boundary (critical)
+### Comparison
 
-The offline capability applies to ONE route prefix only: `/field/{project}/*` (the engineer mobile checklist view). It does NOT make the entire RAMS admin platform offline-capable.
+| Library | Latest | Framework | License | Bundle | Persistence | Verdict |
+|---------|--------|-----------|---------|--------|-------------|---------|
+| **Konva.js** | ^10.2.5 | Vanilla JS (with optional React/Vue/Svelte/Angular bindings) | MIT | ~155 kB min+gz | `Konva.Node::toJSON()` → MySQL JSON column | ✓ **Pick** |
+| **Fabric.js** | ^6.4.3 (v7 rolling) | Vanilla JS (TS-rewritten in v6) | MIT | ~180 kB min+gz | `canvas.toJSON()` → MySQL JSON | ⚠ Solid alt; less floor-plan precedent |
+| **TLDraw** | ^4.5.10 | **React-only** | Apache-2.0 (SDK) / TLDraw watermark on free tier | ~600+ kB | tldraw store snapshot | ✗ React conflict |
+| **Excalidraw** | `@excalidraw/excalidraw` ^0.18 | **React-only** | MIT | ~400+ kB | scene JSON | ✗ React + hand-drawn aesthetic |
+| **jsPlumb Community** | 6.x (archived 2023) | Vanilla JS | MIT/GPL2 | ~80 kB | XML/JSON | ✗ Connection-focused, not free drawing; archived |
 
-`vite.config.js` configuration:
+### Konva.js — chosen
 
-```js
-VitePWA({
-    strategies: 'generateSW',
-    registerType: 'autoUpdate',
-    workbox: {
-        navigateFallback: '/field/offline',
-        navigateFallbackAllowlist: [/^\/field/],  // scope to /field/* only
-        runtimeCaching: [
-            {
-                urlPattern: /^\/field\/.*\/sync/,
-                handler: 'NetworkOnly',  // sync endpoint must never be cached
-            },
-        ],
-    },
-    manifest: {
-        name: '21CAV Field View',
-        short_name: 'Field',
-        start_url: '/field',
-        display: 'standalone',
-    },
-})
+**Verified facts (HIGH confidence):**
+- Latest: **v10.2.5** (~April 2026 per npm)
+- License: **MIT** — fully OSS, closed-source-internal compatible
+- Vanilla JS first; React/Vue/Svelte/Angular bindings exist but optional. We use the vanilla `Konva` global from `import Konva from 'konva'`, then wrap interactions in Alpine.js components — no framework conflict.
+- Documented [Interactive Building Map demo](https://konvajs.org/docs/sandbox/Interactive_Building_Map.html) is essentially our floor-plan use case.
+- Layer/group/shape model maps cleanly to: walls layer + equipment layer + annotations layer. Equipment shapes are `Konva.Group` instances with custom data attrs (`equipment_id`, `room_id`).
+- Scene serialises to JSON via `stage.toJSON()` — ready for storage in a `floor_plans.canvas_json` MySQL JSON column.
+
+**Persistence shape (planning only — concrete schema in roadmap):**
+```
+floor_plans
+├── id
+├── project_id (FK projects)
+├── room_id (FK rooms, nullable for whole-site plan)
+├── canvas_json (LONGTEXT — Konva scene)
+├── thumbnail_path (path within DocumentArtifactStorage::TYPE_DRAWING)
+├── version (int — bumped on save)
+├── created_by, created_at, updated_at
 ```
 
-Failing to scope the service worker to `/field/*` would cause stale-cache issues for the admin dashboard and document generation pipeline.
+**Integration with existing stack:**
+- Drawing UI: `resources/views/floor-plans/edit.blade.php` — Alpine.js component holds Konva stage instance. Save POSTs `canvas_json` to a `FloorPlanController@update` endpoint.
+- Auto-place equipment: server-side service reads `canvas_json`, parses room boundary polygon, places equipment groups based on `ProjectDataService` room equipment list. Returns updated `canvas_json` for client to re-render.
+- Render to PDF: server-side Blade view loads `canvas_json` via a small JS shim that reconstructs the Konva stage in headless Chrome (Browsershot already executes JS). Wait selector on `window.appReady === true`, then snapshot.
 
-### Offline write-back pattern
+**Bundle considerations:** ~155 kB min+gz is acceptable for an editor-only screen. Use Vite code-splitting so the floor-plan editor chunk only loads on `/floor-plans/*` routes — does not bloat dashboard or project pages.
 
-```
-Engineer opens /field/{project}/tasks
-  → app shell and task data cached by service worker
-  → Engineer ticks items while offline
-  → Dexie writes ticked state to IndexedDB (key: task ID)
-  → Alpine.js watches navigator.onLine
-  → On reconnect: reads pending Dexie queue, POSTs to /field/{project}/sync via Axios
-  → Laravel controller processes batch, updates install_task_progress table
-  → Dexie clears pending queue
-```
+### Rationale
 
-This avoids a full sync framework (no RxDB, no Laravel Echo, no Livewire, no broadcast channels — none are warranted at this scale and internal-tooling context).
-
-### Signature capture flow
-
-1. Commissioning Blade page loads, Alpine.js mounts `signature_pad` on a `<canvas>` element via `x-init`.
-2. On form submit, Alpine serialises canvas to base64 PNG: `pad.toDataURL('image/png')`.
-3. Hidden input carries the base64 string in a standard form POST.
-4. Laravel controller validates (non-empty string, starts with `data:image/png;base64,`) and stores in `commissioning_sign_offs.signature_data TEXT`.
-5. A queued job generates the sign-off PDF via DomPDF, embedding the data URI: `<img src="{{ $signatureData }}" style="max-width: 300px;">` — DomPDF supports inline data URIs without additional packages.
-
-### Gantt chart integration
-
-Frappe Gantt is a vanilla JS library with no build-time requirements beyond a standard `npm install`. Import as an ES module via Vite. Task data is injected server-side as a JSON Blade variable to avoid a separate API call on page load:
-
-```blade
-<div x-data="ganttView()" x-init="init()">
-    <div id="gantt-container"></div>
-</div>
-<script>
-    const rawTasks = @json($tasks);  // server-rendered
-    function ganttView() {
-        return {
-            init() {
-                const gantt = new Gantt('#gantt-container', rawTasks, {
-                    on_date_change: (task, start, end) => {
-                        axios.patch(`/install-tasks/${task.id}`, { start, end });
-                    },
-                    view_mode: 'Week',
-                });
-            }
-        }
-    }
-</script>
-```
-
-Date changes on drag emit an Axios PATCH to the task resource endpoint.
-
-### Task generation (INST-01) — no new package
-
-`InstallTaskGeneratorService::generateForProject(Project $project): void`
-
-1. Calls `ProjectDataService::getCanonicalData($project)` — existing 4-tier merge.
-2. Iterates rooms × equipment items.
-3. Inserts into `install_tasks` table (project_id, room, equipment_item, category, status, estimated_minutes).
-4. Dispatched as `GenerateInstallTasksJob` from the project dashboard controller — same pattern as `BuildRamsDocumentJob`.
+Konva.js is the only mainstream MIT-licensed canvas library that (a) is genuinely vanilla-JS-first, (b) has a documented floor-plan demo, and (c) serialises scenes to JSON cleanly. TLDraw and Excalidraw are React-only — adopting them would mean shipping React just for one screen, conflicting with our Alpine.js+Blade architecture and adding ~600 kB of framework code for a single editor. Fabric.js is a credible alternative (also MIT, vanilla, similar size) but Konva has stronger floor-plan/seat-map precedent in its docs and a slightly cleaner shape API. jsPlumb is archived and primarily a connection-line library, not a free-draw canvas.
 
 ---
 
-## What NOT to Add
+## 3. DXF / DWG Export
 
-| Rejected Option | Reason |
-|---|---|
-| Livewire | Adds a second reactive framework alongside Alpine.js. Unjustified complexity for forms and checklists that Alpine already handles well. |
-| Laravel Echo / Pusher / Reverb | Real-time multi-user is explicitly out of scope (PROJECT.md). No websocket infrastructure needed. |
-| Full-app PWA (all routes) | Only `/field/*` needs offline capability. Service worker scoped globally would cache stale AI-generated data and admin views unintentionally. |
-| NativePHP or Capacitor | Native mobile app is explicitly out of scope (PROJECT.md). Mobile browser is the target. |
-| DHTMLX Gantt | GPL licence — incompatible with commercial internal tooling without a paid licence. Frappe Gantt is MIT. |
-| React or Vue | No SPA framework warranted. Existing Blade + Alpine.js is sufficient. Adding a second reactive framework fragments the codebase. |
-| `creagia/laravel-sign-pad` (Composer) | Wraps `signature_pad` with Blade components and optional OpenSSL PDF certification. The overhead is not justified — the raw `signature_pad` npm package wires cleanly with Alpine.js and DomPDF handles PDF embedding already. |
-| `maatwebsite/excel` | Not needed — time tracking aggregates and task exports are simple enough for direct Eloquent queries + PhpSpreadsheet (already installed). |
-| Any real-time broadcast / WebSockets | Explicitly out of scope. Clock in/out and task updates are sequential single-user actions — a standard HTTP POST per event is correct. |
-| Laravel Sanctum or Passport tokens for mobile | Engineers authenticate via the existing session-based Breeze auth — the mobile field view is a server-rendered Blade page, not a separate mobile API client. No token-based auth needed. |
+### DXF (target — feasible)
 
----
+| Library | Side | License | Maint | Verdict |
+|---------|------|---------|-------|---------|
+| **DXFighter** (`enjoping/DXFighter`) | PHP server | BSD-3-Clause | **Unmaintained** (author: "no active dev") | ⚠ Workable; vendor it |
+| `digitalfotografen/DXFwriter` | PHP server | unclear | Stale | ✗ |
+| `KOYU-Tech/DXF-Creator-for-PHP` | PHP server | unclear | Stale | ✗ |
+| `dxf-writer` (npm) | Node/browser | MIT | Active | Alt if PHP route fails — adds Node child process |
+| `@tarikjabiri/dxf` (npm) | Node/browser | MIT | Active | Best JS DXF lib if forced to Node |
 
-## Confidence Assessment
+**Recommendation:** DXF export is a **stretch goal for v1.3** — only attempt if Phase 19 schedule allows. Implementation path:
+1. Server-side: `DxfExportService` reads Konva `canvas_json`, walks layers, emits DXF via DXFighter (BSD-3 — vendor a specific commit since upstream is unmaintained).
+2. Test only against AutoCAD LT 2024+ and BricsCAD trial (the 21CAV team's known consumers).
+3. Output written through `DocumentArtifactStorage` under TYPE_DRAWING with `.dxf` extension.
 
-| Area | Level | Basis |
-|---|---|---|
-| `signature_pad` | HIGH | npm v5.1.3 confirmed, published December 2025. GitHub active. Mobile touch compatibility documented. Canvas → base64 → DomPDF data URI path is a proven integration pattern. |
-| `frappe-gantt` | HIGH | npm v1.2.2, published March 2026. MIT licence confirmed on GitHub. Vanilla JS confirmed — no framework dependency. v1.0 stability milestone reached. |
-| `dexie` | HIGH | npm v4.4.2, published April 2026. 100k+ dependent projects. IndexedDB + Alpine.js integration documented with community examples. |
-| `vite-plugin-pwa` | HIGH | npm v1.1.0 confirmed. Compatible with `laravel-vite-plugin` — community-confirmed pattern on Laracasts. Workbox integration documented. |
-| No new Composer packages | HIGH | All v1.2 backend features map to existing Laravel patterns + already-installed packages. Verified by mapping each feature to existing code. |
-| Mobile photo capture without new library | HIGH | HTML `capture="environment"` is a W3C standard. Proven by existing survey photo upload in this codebase. No new code needed. |
-| Offline scope boundary configuration | MEDIUM | `vite-plugin-pwa` with `navigateFallbackAllowlist` for route scoping is documented but requires careful configuration. Needs implementation attention — incorrectly scoped service workers cause hard-to-debug caching bugs. |
+Flag for the planner: DXFighter is unmaintained. Vendor it (commit it into `app/Vendor/DXFighter/`) rather than depending on Packagist updates that won't come.
+
+### DWG — skip
+
+- **LibreDWG**: GPLv3 — file-level copyleft. Linking from a closed-source PHP service is a **hard license blocker**.
+- **Teigha (ODA)**: Paid. ODA membership starts at thousands USD/year. Out of scope.
+- **No middle ground exists.**
+
+**Verdict:** DXF is our realistic ceiling for v1.3. AutoCAD opens DXF natively, so DWG export buys us nothing the customer can't already consume. **Confirmed: DXF is the ceiling.**
 
 ---
 
-## Sources
+## 4. PDF / SVG Export — Reuse Browsershot
 
-- signature_pad npm: https://www.npmjs.com/package/signature_pad
-- signature_pad GitHub: https://github.com/szimek/signature_pad
-- frappe-gantt npm: https://www.npmjs.com/package/frappe-gantt
-- frappe-gantt v1 release: https://frappe.io/blog/product-updates/gantt-v1-is-out
-- Best JS Gantt libraries 2026: https://dhtmlx.com/blog/top-8-javascript-gantt-chart-libraries-2026/
-- dexie npm: https://www.npmjs.com/package/dexie
-- dexie GitHub: https://github.com/dexie/Dexie.js
-- IndexedDB with Alpine.js (community example): https://www.raymondcamden.com/2023/11/26/using-indexeddb-with-alpinejs
-- Offline-first frontend 2025: https://blog.logrocket.com/offline-first-frontend-apps-2025-indexeddb-sqlite/
-- vite-plugin-pwa npm: https://www.npmjs.com/package/vite-plugin-pwa
-- vite-plugin-pwa docs: https://vite-pwa-org.netlify.app/
-- HTML capture attribute: https://www.amitmerchant.com/capturing-images-and-videos-from-the-camera-of-mobile-devices-using-html/
+**Verdict: yes, ride the existing pipeline.** No new packages needed.
+
+### How it works per drawing type
+
+| Drawing | Source | PDF path | SVG path |
+|---------|--------|----------|----------|
+| **System schematic** | D2 CLI emits SVG | Wrap SVG in Blade `<img>`/inline → Browsershot → PDF | D2-emitted SVG written direct to disk |
+| **Rack elevation** | Blade SVG view | Browsershot (existing) | Render Blade-as-string → save `.svg` |
+| **Floor plan** | Konva `canvas_json` | Blade view boots Konva headlessly → Browsershot waits for `window.konvaReady === true` → PDF | Konva stage `toCanvas()` then serialise; or have the headless page eval `stage.toSVG()` (Konva supports SVG export) and dump to disk |
+
+### Caveats for canvas content under Browsershot
+
+- **Wait for ready signal.** Browsershot defaults to fixed-time waits unless we use `setOption('waitUntil', 'networkidle0')` or a custom selector. For Konva floor plans, set a `window.appReady = true` flag after the stage hydrates from JSON, then `->waitForFunction('window.appReady')`.
+- **Font availability.** Drawing labels use the Figtree font already loaded by `app.blade.php`. Browsershot passes through CSS @font-face — no extra config.
+- **Headless Chrome JS heap.** Large floor plans (200+ shapes) may need `--js-flags=--max-old-space-size=512`. Add to Browsershot setNodeArguments call only if profiling shows OOM.
+- **Vector PDF quality.** Browsershot/Chrome emits proper vector PDFs (not rasterised) when the input is SVG. Confirmed in our existing site-survey/RAMS PDFs (post 260427-qvr migration).
+
+### Queue compatibility
+
+All drawing generation jobs follow the existing pattern:
+```
+BuildSchematicJob, BuildRackElevationJob, BuildFloorPlanPdfJob
+extends ShouldQueue, timeout=300, tries=2
+status: pending → generating → completed | failed
+artifact path resolved via DocumentArtifactStorage
+```
+
+No queue-config changes needed.
+
+### DocumentArtifactStorage extension
+
+Add a new type constant alongside existing TYPE_RAMS / TYPE_OM / TYPE_WORKSHEET / TYPE_CABLE / TYPE_SNAGGING:
+
+```php
+public const TYPE_DRAWING = 'drawing'; // sub-dir: documents/drawings/
+```
+
+Stores: `schematic-{project_ref}.svg`, `schematic-{project_ref}.pdf`, `rack-{rack_id}.svg`, `floor-plan-{room_id}.pdf`, etc. Existing legacy-path fallback in `readPath()` requires no change for new type (no legacy artifacts exist).
+
+**O&M Manual integration:** OmManualDocxService gains an "Appendix C: Drawings" section. PhpWord supports inline images via `addImage()` — feed PNG conversions of the SVGs (Browsershot can also emit PNG from the same SVG inputs in one shot).
+
+---
+
+## 5. AV-Domain Stencil/Symbol Library
+
+### Existing options surveyed
+
+| Source | License | Format | Verdict |
+|--------|---------|--------|---------|
+| **AVIXA Architectural Drawing Symbols Standard** | Free standard PDF | PDF spec — descriptive, not a usable vector lib | Reference standard, not a deliverable asset |
+| **Drawio-AV-Design** ([Fe-Lit/Drawio-AV-Design](https://github.com/Fe-Lit/Drawio-AV-Design)) | MIT | drawio XML stencils | Decent starting point for a few specific devices; not general AV |
+| **krrkrr/draw-io-av-templates** | (verify per repo) | drawio XML | Smaller/less curated |
+| **NetZoom Visio stencils** | Commercial | Visio VSS | Out — paid + Visio-locked |
+| **D-Tools / SymbolLogic** | Commercial AV CAD | proprietary | Out — paid |
+| **AVSnap** | Freeware (not OSS) | proprietary | License unclear; not redistributable |
+| **noun-project / iconscout architecture icons** | Mixed (per-icon) | SVG | Generic, not AV-specific |
+
+### Recommendation: hybrid build
+
+**No OSS AVIXA-compliant SVG library exists.** What does exist:
+1. AVIXA publishes a **descriptive standard** — symbol shapes documented in a PDF spec, not a vector library.
+2. The [Fe-Lit/Drawio-AV-Design](https://github.com/Fe-Lit/Drawio-AV-Design) MIT library covers ~10–15 specific commercial devices (Luminex, Blackmagic, AJA) — not a general AV symbol set.
+
+**Plan:**
+- **In-house SVG symbol pack** at `resources/svg/av-symbols/{display,mic,dsp,amp,switcher,camera,speaker,...}.svg`. Target ~25 shapes for v1.3 covering 90% of 21CAV's standard equipment categories. Each shape ~1–5 kB — total <100 kB.
+- Symbols follow AVIXA conventions where they exist (mic = circle with diaphragm slash, speaker = trapezoid, etc.).
+- D2 schematics reference these via `shape: image; icon: file:///app/resources/svg/av-symbols/display.svg`.
+- Floor-plan Konva tool ships a stencil palette pulling the same SVGs via `Konva.Image.fromURL()`.
+- Optionally seed-import a curated subset from Drawio-AV-Design (MIT — attribution-compatible) for any device-specific stencils that match 21CAV inventory.
+
+**Decision:** **Build, don't buy.** Total effort estimated at ~1 day of an illustrator/design pass + a `<EquipmentSymbol>` Blade component for previews. Pays back across all three drawing types (schematic, floor plan, O&M illustrations) and is reusable for future client portal v1.4.
+
+---
+
+## 6. Installation Summary
+
+### Server-side (one-time)
+
+```bash
+# D2 binary (production server provisioning)
+curl -fsSL https://d2lang.com/install.sh | sh -s -- --version v0.7.1
+# Verify
+d2 --version  # expects: v0.7.1
+```
+
+ELK is fetched on first ELK-layout invocation; no extra install needed. Bundled dot/dagre layouts ship inside the D2 binary.
+
+### Composer (optional — DXF stretch only)
+
+```bash
+# Only if DXF export is in scope for the milestone
+# Recommended: vendor the lib at app/Vendor/DXFighter/ to insulate from upstream abandonment
+# (Author has marked the project as not actively developed)
+```
+
+### npm (Vite-bundled front-end)
+
+```bash
+npm install konva@^10.2.5
+# No new dev deps — Vite + Tailwind + Alpine already configured
+```
+
+### No additions to existing list
+
+- **No React, no Vue** — both rejected (TLDraw/Excalidraw out)
+- **No Mermaid** — D2 covers schematic needs better
+- **No PlantUML** — GPL blocker
+- **No drawio embed** — postMessage iframe complexity not justified
+- **No LibreDWG / Teigha** — license blocker / paid
+- **No node-canvas / Puppeteer (separate)** — Browsershot already wraps Puppeteer
+
+---
+
+## 7. Alternatives Considered (and why rejected)
+
+| Category | Recommended | Alternative | Why Not |
+|----------|-------------|-------------|---------|
+| Schematic | D2 CLI | Mermaid SSR | Adds Node.js infra, duplicates Browsershot capability, weaker styling control |
+| Schematic | D2 CLI | drawio iframe | Editor-first not generator-first; iframe bundle multi-MB; postMessage complexity |
+| Schematic | D2 CLI | PlantUML | GPL-3.0 license blocker for closed-source internal app |
+| Schematic | D2 CLI | Custom SVG only | Reinvents layout algorithm; D2 gives free dot/elk graph layout |
+| Rack | Custom Blade SVG | D2 nested grids | D2 grid layout fights pixel-precise U-positions |
+| Canvas | Konva.js | TLDraw | React-only, ~600 kB+, conflicts with Alpine.js |
+| Canvas | Konva.js | Excalidraw | React-only + hand-drawn look unsuitable for client deliverables |
+| Canvas | Konva.js | Fabric.js | Equally valid; Konva edges out on floor-plan precedent + cleaner shape API |
+| Canvas | Konva.js | jsPlumb | Archived 2023; connection-focused not free-draw |
+| DXF | DXFighter (vendored) | Node `dxf-writer` child process | Adds Node runtime to PHP server for one feature |
+| DWG | Skip | LibreDWG | GPLv3 hard blocker |
+| DWG | Skip | Teigha | Paid, expensive |
+| Stencils | In-house SVG set | NetZoom/D-Tools | Paid + Visio-locked |
+| Stencils | In-house SVG set | AVSnap | Freeware not OSS, redistribution unclear |
+
+---
+
+## 8. Confidence Assessment & Open Risks
+
+| Area | Confidence | Notes |
+|------|------------|-------|
+| D2 v0.7.1 + MPL-2.0 + CLI install | HIGH | Verified via official GitHub releases page |
+| Konva v10.2.5 + MIT + vanilla JS | HIGH | Verified via npm + official docs floor-plan demo |
+| Browsershot reusability for canvas content | HIGH | Browsershot already executes JS; pattern proven in existing codebase post-260427-qvr |
+| DXFighter health | LOW | Author publicly marks it inactive; vendoring required if used |
+| AV stencil OSS availability | MEDIUM | Searched thoroughly; no AVIXA-compliant OSS SVG set found. AVIXA standard is descriptive only |
+| TLDraw React-only assertion | HIGH | Confirmed via tldraw.dev — "Infinite Canvas SDK for React" |
+| Excalidraw React-only assertion | HIGH | Confirmed via npm @excalidraw/excalidraw peer deps |
+| PlantUML GPL-3.0 | HIGH | Long-standing public fact, license unchanged |
+| LibreDWG GPL-3.0 | HIGH | FSF project, license verified |
+
+### Open risks to flag for roadmap
+
+1. **DXFighter abandonment** — if DXF export is committed to v1.3, vendor the library and own a small PHP file. Estimate +0.5 day.
+2. **D2 ELK layout determinism** — D2 changed default layouts across minor versions. Pin exactly v0.7.1 and snapshot-test schematic SVGs in CI to catch upstream drift if we ever upgrade.
+3. **Browsershot waiting strategy for Konva** — first floor-plan PDF generation may need 2–3 iterations to land the right `waitForFunction` selector. Budget Phase 18 review wave for this.
+4. **AVIXA-compliance audit** — if a client RFP later requires strict AVIXA symbol compliance, the in-house pack needs a formal review pass against the AVIXA standard PDF. Add as v1.4 backlog item.
+
+---
+
+## 9. Sources
+
+### High-confidence (official docs / repos)
+
+- [D2 GitHub releases](https://github.com/terrastruct/d2/releases) — v0.7.1 confirmed
+- [D2 install docs](https://github.com/terrastruct/d2/blob/master/docs/INSTALL.md) — CLI install path
+- [D2 grid diagrams](https://d2lang.com/tour/grid-diagrams/) — nested grid capability
+- [Konva.js npm](https://www.npmjs.com/package/konva) — v10.2.5
+- [Konva floor plan demo](https://konvajs.org/docs/sandbox/Interactive_Building_Map.html) — purpose-built precedent
+- [Konva framework bindings](https://konvajs.org/docs/guides/why-konva.html) — vanilla-first confirmed
+- [Spatie Browsershot docs](https://spatie.be/docs/browsershot/v4/introduction) — JS execution + PDF capability
+- [LibreDWG GNU project](https://www.gnu.org/software/libredwg/) — GPLv3 license confirmed
+
+### Medium-confidence (verified via repo inspection)
+
+- [DXFighter GitHub](https://github.com/enjoping/DXFighter) — BSD-3, marked inactive by author
+- [Drawio-AV-Design GitHub](https://github.com/Fe-Lit/Drawio-AV-Design) — MIT, last updated 2025-09-30
+- [Fabric.js npm](https://www.npmjs.com/package/fabric) — v6.4.3 (research date) / v7.x rolling
+- [TLDraw npm](https://www.npmjs.com/package/tldraw) — v4.5.10, React peer dep
+- [@excalidraw/excalidraw npm](https://www.npmjs.com/package/@excalidraw/excalidraw) — React peer dep
+
+### Reference
+
+- [AVIXA Symbols Standard](https://www.avixa.org/standards/audio-video-and-control-architectural-drawing-symbols) — descriptive standard (not a library)
+- [DrawIO embed mode](https://www.drawio.com/doc/faq/embed-mode) — Apache-2.0, iframe + postMessage
+- [jsPlumb community-edition repo](https://github.com/jsplumb/community-edition) — archived 2023

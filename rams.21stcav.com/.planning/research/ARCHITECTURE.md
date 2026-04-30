@@ -1,425 +1,681 @@
-# Architecture Patterns — v1.2 Installation Programme & Field Management
+# Architecture — v1.3 Technical Drawings & Schematics
 
-**Domain:** Field installation task management integrated into existing Laravel 12 AV operations platform
-**Researched:** 2026-04-13
-**Milestone:** v1.2 — INST-01 through INST-05, WORK-05, WORK-06
-
----
-
-## How v1.2 Sits in the Existing Architecture
-
-The platform already has a clean read-only canonical data layer:
-
-```
-ProjectDataService.resolve(Project) → array
-  reviewed_data > quotewerks_sql > extracted_data > defaults
-  survey data enriches 'rooms' key only
-```
-
-Every v1.0 generator (Worksheet, O&M, RAMS, Cable Schedule) reads from this service and never touches raw package data directly. v1.2 follows the same contract exactly: `InstallTaskGeneratorService` and `CommissioningService` are the two new consumers of `ProjectDataService`.
-
-The v1.2 data is **persistent field state**, not generated documents. This is the key architectural distinction from v1.0:
-
-| v1.0 Pattern | v1.2 Pattern |
-|--------------|--------------|
-| Generate a DOCX snapshot once | Persist live task state updated by engineers in the field |
-| Status on the document model (pending to generating to draft to final) | Status on individual task records (pending to in_progress to complete to signed_off) |
-| Read-only output; regenerate if data changes | Mutable state; engineers write to task/time/commissioning records |
-| Queue job writes generated_data JSON | No queue job; task generation is synchronous (fast, no AI call) |
+**Project:** RAMS Platform — AV Operations System
+**Milestone:** v1.3 (Phases 17–20)
+**Researched:** 2026-04-30
+**Scope:** Integration architecture only. The existing Laravel 12 / MVC + Service / Browsershot / Alpine.js / DocumentArtifactStorage / queue stack is LOCKED. This document describes how schematic, rack-elevation, floor-plan, and drawing-export capabilities slot into that stack without breaking the canonical 4-tier merge contract.
 
 ---
 
-## New Data Models
+## 1. Recommended Architecture (one-paragraph)
 
-### `install_programmes` (one per project)
-
-Top-level container for a project's install plan. Analogous to the `Worksheet` model — one record per project, tracks generation status.
-
-```
-id
-project_id          FK → projects
-generated_by        FK → users (who triggered generation)
-status              enum: draft | active | completed | archived
-generated_at        timestamp
-activated_at        timestamp (when moved from draft to active — tasks become editable)
-completed_at        timestamp nullable
-notes               text nullable
-timestamps
-softDeletes
-```
-
-Why a container model: allows regeneration (draft a new programme without losing active task state), gives a clear anchor for relationships, and mirrors the Worksheet/OmManual/RamsDocument pattern already in place.
-
-### `install_tasks` (many per programme, organised by room then equipment)
-
-The core task unit. Generated from `ProjectDataService.resolve()` rooms and equipment, one task per equipment item per room, plus configurable additional tasks (e.g. "Cable route installation", "Rack build").
-
-```
-id
-install_programme_id   FK → install_programmes
-room_name              string (denormalised from package data — no FK to survey room)
-room_ref               string nullable
-equipment_name         string
-equipment_category     string (hardware, infrastructure, etc.)
-task_type              enum: install | configure | cable | test | commission
-title                  string (human-readable, auto-generated)
-description            text nullable (from room overview / works_summary in reviewed_data)
-sort_order             integer (room order x 100 + item order)
-status                 enum: pending | assigned | in_progress | complete | blocked | skipped
-blocked_reason         text nullable
-assigned_to            FK → users nullable
-assigned_at            timestamp nullable
-started_at             timestamp nullable
-completed_at           timestamp nullable
-sign_off_required      boolean default true
-timestamps
-softDeletes
-```
-
-**Why denormalise room_name instead of FK to SiteSurveyRoom:** The task list is generated from ProjectDataService which resolves rooms from reviewed_data (package), not from the SiteSurveyRoom table. The room in reviewed_data may not perfectly match the SiteSurveyRoom.room_name. A string copy is the same pattern used throughout the existing generators (WorksheetGeneratorService copies room name as a string). If the survey room needs linking later, it can be added as a nullable `site_survey_room_id` FK in a later migration.
-
-### `install_task_assignments` (optional pivot — defer unless multi-engineer needed)
-
-For simple single-engineer assignment the `assigned_to` FK on `install_tasks` is sufficient. Add this pivot table only if multiple engineers per task is required. Evaluate during INST-02 (calendar view phase).
-
-```
-id
-install_task_id   FK → install_tasks
-user_id           FK → users
-role              string nullable (lead | support)
-assigned_at       timestamp
-timestamps
-```
-
-### `time_entries` (many per project, per user)
-
-Clock in/out records. Linked at project level with optional task FK for finer granularity. This matches the real-world pattern where engineers clock in to the project, not to a specific equipment task.
-
-```
-id
-project_id         FK → projects
-user_id            FK → users
-install_task_id    FK → install_tasks nullable (optional finer tracking)
-category           enum: travel | installation | cabling | commissioning | survey | management | other
-clocked_in_at      timestamp
-clocked_out_at     timestamp nullable (null = currently clocked in)
-duration_minutes   integer nullable (computed on clock-out, stored for query efficiency)
-notes              text nullable
-timestamps
-softDeletes
-```
-
-**Clock-out computation:** Compute `duration_minutes = TIMESTAMPDIFF(MINUTE, clocked_in_at, clocked_out_at)` and store on clock-out. Storing avoids recalculation on every budget-vs-actual query.
-
-**Single active clock-in guard:** Enforce at service level — `TimeTrackingService::clockIn()` checks for any open entry (clocked_out_at IS NULL) for the user before creating a new one.
-
-### `commissioning_records` (one per install_task where sign_off_required)
-
-Per-equipment sign-off record. Attached to the task on completion.
-
-```
-id
-install_task_id       FK → install_tasks (unique index — one record per task)
-completed_by          FK → users
-completed_at          timestamp
-photo_paths           json nullable (array of storage paths, same pattern as SiteSurveyPhoto)
-notes                 text nullable
-client_name           string nullable
-client_signature_path string nullable (PNG stored in storage/app/private/commissioning/)
-client_signed_at      timestamp nullable
-timestamps
-```
-
-**Photo storage:** Use `storage/app/private/commissioning/{project_id}/{task_id}/` following the existing `storage/app/private/` convention. No public disk exposure — download routes serve via signed URLs or streamed file responses.
+Drawings are first-class artifacts produced from the same canonical project dataset that powers RAMS / O&M / Worksheet / Cable Schedule. A new `project_drawings` table stores **(a) auto-generated source state** (regenerable, tracks which canonical revision it was generated from) and **(b) optional user-edited canvas overrides** in the same row. Generators follow the existing pattern — thin controller → orchestration service → builder/renderer service that **reads only from `ProjectDataService::resolve()`**. PDF export rides the existing `PdfRenderService::fromBlade()` pipeline (Browsershot → chrome-headless-shell). Editing is browser-side (Konva.js, vanilla — no React) loaded as a separate Vite entry only on `/projects/{project}/drawings/*` routes so the rest of the platform's Alpine.js footprint is unaffected. DOCX handover via `OmManualDocxService` consumes a flattened **PNG snapshot** of each drawing (PhpWord cannot embed SVG reliably). All long-running renders are queued as `BuildDrawing*Job` classes following the four existing `Build*Job` patterns exactly (status state machine, idempotent notification timestamp, `failed()` admin alert).
 
 ---
 
-## Integration with ProjectDataService and reviewed_data
+## 2. Data Model — Where Drawings Live
 
-### Task Generation Flow
+### 2.1 Core Table: `project_drawings`
 
-`InstallTaskGeneratorService` is a direct consumer of `ProjectDataService`, following the same pattern as `WorksheetGeneratorService`:
+A single polymorphic-ish table holds every drawing kind (schematic, rack, floor plan). Per-project granularity is the wrong level — most projects have several rooms, each with its own floor plan and possibly its own rack. Per-drawing (with parent FK to `project_id` and optional `site_survey_room_id` / `rack_index`) keeps queries simple and matches how the existing `worksheets`, `cable_schedules`, and `om_manuals` tables relate.
+
+```
+project_drawings
+├── id (PK)
+├── project_id (FK projects, indexed)
+├── site_survey_room_id (FK, NULLABLE — set for floor plans + per-room schematics)
+├── kind (ENUM: 'schematic' | 'rack' | 'floor_plan')
+├── rack_label (string NULL — e.g. "Comms Rack 1" — set when kind=rack)
+├── version (integer, default 1)
+├── superseded_by_id (FK self NULL — points to the replacement when regenerated)
+│
+├── source_data (JSON)      — INPUT snapshot from ProjectDataService.resolve()
+│                             at generation time. Lets us detect "does the
+│                             source equipment list still match the drawing?"
+│
+├── generated_svg (LONGTEXT NULL) — auto-generated SVG (D2 → svg or our own
+│                                   builder → svg). Always regenerable from
+│                                   source_data; nullable so a fully-manual
+│                                   floor plan can exist with NULL here.
+│
+├── canvas_state (JSON NULL)      — Konva scene graph for user edits. NULL
+│                                   until the user opens the editor and saves.
+│                                   Once non-null, this is the source-of-truth
+│                                   for rendering. Auto-regen still archives
+│                                   the previous row (see §2.3).
+│
+├── thumbnail_png_path (string NULL) — relative path on the `documents` disk
+│                                      under `drawings/thumbnails/` for list
+│                                      views. Cheap PNG, ~200×150.
+│
+├── status (ENUM: 'draft' | 'generating' | 'ready' | 'failed')
+├── error_message (text NULL)
+├── filename (string NULL — stored PDF/SVG/PNG export filename)
+├── completion_email_sent_at (timestamp NULL)  -- mirrors NOTF-01 idempotency
+├── failed_email_sent_at (timestamp NULL)      -- mirrors NOTF-04 idempotency
+├── generated_by (FK users NULL)
+├── timestamps (created_at, updated_at)
+└── deleted_at (SoftDeletes — same as RamsDocument, OmManual, Worksheet)
+```
+
+**Why one table over per-kind tables:** Three near-identical models (`ProjectSchematic`, `ProjectRackDrawing`, `ProjectFloorPlan`) would duplicate the status state machine, idempotency timestamps, soft-delete handling, and policy logic. The kind-specific differences are just "which fields drive the auto-generation" — that belongs in the builder/renderer service, not the model. This matches the H-07 ethos of *one* `DocumentArtifactStorage` over four bespoke disk layouts.
+
+**Why JSON columns for `source_data` / `canvas_state`:** MySQL 8 has indexable JSON. Drawings store inherently structured-but-evolving data (Konva scene graphs change shape with each Konva release; we don't want a migration per shape type). Same pattern as `ramsDocuments.reviewed_data` + `omManuals.generated_data`.
+
+### 2.2 Source-of-Truth Resolution Order (mirrors ProjectDataService 4-tier idea)
+
+When the renderer needs to draw the artifact:
+
+```
+canvas_state IS NOT NULL  →  render from canvas_state (user-edited)
+canvas_state IS NULL      →  render from generated_svg (auto)
+generated_svg IS NULL     →  re-run auto-generation from source_data first
+source_data is stale      →  warn UI; do not auto-regenerate without consent
+```
+
+This mirrors `reviewed_data > survey_data > quotewerks_sql > extracted_data` exactly: the highest-priority, most-recently-edited tier wins, and lower tiers are fallbacks. **Critically, a user-edited drawing is never silently overwritten** — the regenerate flow must explicitly archive the old row (see §2.3).
+
+### 2.3 Versioning — Archive Pattern (mirrors InstallProgrammeService)
+
+Phase 12 set the precedent: when an install programme is regenerated, the old one's status moves to `archived` and the row stays in the table for audit. v1.3 follows the same pattern:
 
 ```php
-// InstallTaskGeneratorService::generate(InstallProgramme): void
-$data  = $this->projectDataService->resolve($programme->project);
-$rooms = $data['rooms'];
+// Pseudocode for ProjectDrawingService::regenerate(Project, kind, ?roomId)
+$existing = ProjectDrawing::where('project_id', ...)
+    ->where('kind', $kind)
+    ->where('site_survey_room_id', $roomId)
+    ->whereIn('status', ['draft', 'ready'])
+    ->latest('version')
+    ->first();
 
-foreach ($rooms as $sortIndex => $room) {
-    $equipment = $this->filterHardware($room['equipment'] ?? []);
-    foreach ($equipment as $itemIndex => $item) {
-        InstallTask::create([
-            'install_programme_id' => $programme->id,
-            'room_name'            => $room['room_name'] ?? $room['name'],
-            'equipment_name'       => $item['name'],
-            'equipment_category'   => $item['category'] ?? 'hardware',
-            'task_type'            => 'install',
-            'title'                => 'Install ' . $item['name'],
-            'description'          => $room['works_summary'] ?? $room['overview'] ?? null,
-            'sort_order'           => ($sortIndex * 100) + $itemIndex,
-            'status'               => InstallTask::STATUS_PENDING,
+$new = $existing
+    ? $existing->replicate(['canvas_state', 'thumbnail_png_path', 'filename'])
+    : new ProjectDrawing();
+
+$new->version = ($existing?->version ?? 0) + 1;
+$new->source_data = $projectDataService->resolve($project);
+// ... auto-build generated_svg from source_data
+$new->save();
+
+if ($existing) {
+    $existing->update(['superseded_by_id' => $new->id]);
+}
+```
+
+**Critical rule (PITFALLS-bound):** When `$existing->canvas_state` is non-null (user has edited), the regen flow **must prompt** the user — "this will discard your manual edits unless you transfer them. Continue / cancel". This mirrors the install-programme regen UX (PM confirm gate), not a silent overwrite. The rule lives in the *service*, not the controller, so Job-driven regens see it too.
+
+### 2.4 Migration Safety
+
+- **Nullable-first:** All v1.3 columns are added as NULL with backfill defaults — no downtime, no broken existing pipelines.
+- **Forward-only:** No data backfill needed for old projects (they simply have no drawings — the empty state is the default).
+- **Polymorphic note:** We deliberately do *not* use Laravel polymorphic relations (`drawables_type` / `drawables_id`). The kind discriminator (`kind`) is enough; polymorphic FKs cannot be enforced at the DB level and add eager-loading complexity that gives nothing back here.
+- **Confidence:** HIGH — pattern is identical to the proven nullable-first migrations of v1.2 (`commissioning_items`, `time_entries`, `install_tasks`).
+
+---
+
+## 3. Service Layer — Generators Fit ProjectDataService
+
+### 3.1 New Services (live under `app/Services/Drawings/`)
+
+The `app/Services/{Domain}/` sub-namespace pattern (already used: `app/Services/OandM/`, `app/Services/Cable/`, `app/Services/Survey/`, `app/Services/Rams/`, `app/Services/Worksheet/`) is the right home — keeps the flat-namespace `app/Services/` from getting a dozen new top-level entries.
+
+```
+app/Services/Drawings/
+├── DrawingService.php                  -- orchestration (createForProject,
+│                                          regenerate, archiveExisting, etc.)
+│                                          MIRRORS InstallProgrammeService.
+│
+├── SchematicGeneratorService.php       -- consumes ProjectDataService.resolve()
+│                                          → builds D2 source string → invokes
+│                                          d2 CLI (or in-process Mermaid) →
+│                                          captures SVG → writes to
+│                                          ProjectDrawing.generated_svg.
+│                                          NO AI call.
+│
+├── RackElevationGeneratorService.php   -- consumes equipment list, filters by
+│                                          rack-mounted flag + U-height,
+│                                          generates SVG via direct
+│                                          server-side rendering (no D2 — racks
+│                                          are simpler, custom SVG builder is
+│                                          cheaper than learning a DSL).
+│                                          NO AI call.
+│
+├── FloorPlanInitialStateService.php    -- consumes survey rooms + equipment,
+│                                          produces initial Konva scene graph
+│                                          (background grid + equipment chips
+│                                          stacked at room origin). User
+│                                          drags into position. NO auto-render
+│                                          to SVG until user saves.
+│
+├── DrawingExportRendererService.php    -- single entrypoint for "drawing X →
+│                                          PDF" via PdfRenderService::fromBlade
+│                                          and "drawing X → PNG snapshot" via
+│                                          a Browsershot screenshot pass for
+│                                          DOCX embedding.
+│
+└── DrawingDataResolverService.php      -- TIGHT WRAPPER around
+                                          ProjectDataService::resolve() that
+                                          reshapes the canonical dataset into
+                                          drawing-specific shapes (signal-flow
+                                          adjacency for schematics, U-stacks
+                                          for racks, room-grouped chips for
+                                          floor plans). Read-only. Does not
+                                          merge any new data sources.
+```
+
+**Cardinal rule (carries the DATA-03 contract forward):** Every drawing builder reads the canonical dataset *only* through `DrawingDataResolverService` → `ProjectDataService::resolve()`. **No drawing service ever touches `extracted_data`, `reviewed_data`, `survey_data`, or `quotewerks_sql` directly.** This matches `RamsBuilderService`, `WorksheetGeneratorService`, `OmManualDocxService`, `CableScheduleGeneratorService`, and `InstallTaskGeneratorService` — all consume `ProjectDataService` only. Extending the rule to v1.3 closes the door on a pattern drift.
+
+**Why a thin `DrawingDataResolverService` wrapper rather than each generator calling `ProjectDataService` directly:** The schematic builder needs *signal-flow adjacency* (source equipment → cable → destination equipment), which is a derived shape, not a raw `ProjectDataService` key. Reshaping logic doesn't belong in a builder (which should be a pure renderer); it doesn't belong in `ProjectDataService` (whose contract is "all generators consume the same shape"). A drawings-specific resolver is the right home — it can call `$projectDataService->resolve($project)` and then produce schematic-shaped / rack-shaped / floor-plan-shaped views over the canonical data without polluting the canonical dataset with renderer concerns.
+
+### 3.2 Auto-Generate vs User-Edit Boundary
+
+| Drawing kind | Initial state | User can edit? | Re-derive on equipment change? |
+|---|---|---|---|
+| **Schematic** (Phase 17) | Auto-generated SVG from D2 source | YES (override via canvas_state) | YES, but archives prior version. PROMPT if canvas_state is non-null. |
+| **Rack elevation** (Phase 18) | Auto-generated SVG from equipment list | LOW priority — rack layouts rarely need drag edits, but possible | YES (auto-regen non-destructive when canvas_state is null). |
+| **Floor plan** (Phase 19) | Initial Konva scene graph (room outline + equipment chips at origin) | YES — primary mode (drag-to-place is the whole point) | NO — floor plans are inherently user-edited. Equipment additions surface as a "new equipment available — add to floor plan?" prompt, not an auto-place. |
+
+This mapping is exactly the pattern Phase 12 codified (`InstallTaskGeneratorService` → re-generation archives prior; PM confirm gate before activation). **Zero new patterns in v1.3** — just three new applications of an already-shipped pattern.
+
+### 3.3 Service Wiring (existing-vs-new)
+
+Each generator service is constructor-injected with `ProjectDataService` (and where needed, the `DocumentArtifactStorage`, `PdfRenderService`, `AIManager` for Phase 17 layout heuristics — see Phase 17 note below). Bound as singletons in `AppServiceProvider` if they accumulate request-scoped state (mirrors `ProjectDataService`'s memoisation pattern).
+
+**AI usage (Phase 17 only, optional):** `AIManager::run(SchematicLayoutPrompt, $context)` may be used for *layout heuristic* hints (signal-flow grouping order, e.g. "audio chain first, video chain second") — never to *invent* equipment or connections. This honours the v1.0 constraint: AI formats, never invents. If AI fails, fall back to a deterministic ordering (alphabetical-by-room, then category). The static-fallback pattern is identical to `MethodStatementService::getDefaultFiveStage()`.
+
+---
+
+## 4. Render Pipeline — Schematic Generation Strategy
+
+### 4.1 Decision Matrix
+
+| Strategy | Schematics (17) | Rack (18) | Floor plans (19) |
+|---|---|---|---|
+| **A. Server-side text-to-diagram** (D2 / Mermaid CLI) → SVG → Blade → Browsershot → PDF | **CHOSEN** | Not chosen | Not chosen |
+| **B. Server-side custom SVG builder** (PHP code emits SVG strings) | Backup if D2 binary unavailable | **CHOSEN** | Not chosen |
+| **C. Browser canvas (Konva)** → save scene graph → headless-render PDF | Edit-mode override only | Edit-mode override only | **CHOSEN** |
+
+### 4.2 Phase-by-Phase Render Pipeline
+
+#### Phase 17 — Schematics (text-to-diagram)
+
+- **Generation:** `SchematicGeneratorService` consumes `DrawingDataResolverService::adjacencyForProject($project)` → builds a D2 source string (text, ~50 lines for a typical project) → shells out to the `d2` CLI binary (`d2 in.d2 out.svg`) → reads SVG → writes to `ProjectDrawing.generated_svg`. **Stateless, sub-second**, no headless browser needed for the SVG step.
+- **Why D2 over Mermaid:** D2 is Go-native and produces SVG without a headless browser; Mermaid's official CLI uses Puppeteer (which means another Chrome process at render time on top of the one Browsershot already runs). D2 is also designed for "system architecture diagrams" — exactly the AV signal-flow shape — and has better edge routing for dense node clusters.
+- **Why not custom-PHP-emits-SVG:** Edge routing for a 30-node schematic is a non-trivial graph algorithm. We are not in the business of writing Sugiyama layered layouts in PHP. D2 has solved this.
+- **PDF export:** `resources/views/pdf/drawings/schematic.blade.php` embeds the SVG inline (Browsershot renders inline `<svg>` cleanly). `PdfRenderService::fromBlade('pdf.drawings.schematic', [...], $writePath)` delegates to Browsershot, which is already proven for RAMS/O&M/Survey.
+- **Edit override:** If `canvas_state` is non-null, the schematic Blade view loads Konva client-side and replaces the static SVG with the edited scene graph. PDF render then uses Browsershot's `waitUntilNetworkIdle()` to capture the post-Konva-render canvas as PDF — same exact pattern as the existing `PdfRenderService` flow, just with one extra `wait` option.
+- **Confidence:** HIGH for D2 SVG generation; MEDIUM for the edit-override Browsershot wait pattern (will need a Phase 17 spike to confirm Konva→PDF round-trip is faithful).
+
+#### Phase 18 — Rack Elevations (custom SVG builder)
+
+- **Generation:** `RackElevationGeneratorService` filters equipment for `rack_mounted=true` + `u_height`, sorts top-to-bottom, builds a flat SVG via PHP string construction (~300 LOC). A rack elevation is a single column of stacked rectangles with labels — the simplest possible diagram type. D2 is overkill; Konva is overkill.
+- **Why not D2:** D2's strength is *graph-shaped* diagrams (nodes + edges). Racks are *list-shaped* (sequence of U-blocks). A 100-line PHP `SvgBuilder` helper is faster than learning D2's grid syntax for this case.
+- **Why not Konva:** Editing a rack means *swapping U-positions* — easier as a drag-and-drop list than a free-form canvas. Phase 18 does not need full canvas; it needs a list-reorder UI. **Phase 18 is the smallest UI footprint of the four.**
+- **PDF export:** Same `PdfRenderService::fromBlade('pdf.drawings.rack', [...])` path.
+- **Confidence:** HIGH — custom SVG for a fixed layout shape is a solved problem.
+
+#### Phase 19 — Floor Plans (browser canvas, Konva.js)
+
+- **Generation:** `FloorPlanInitialStateService` produces an initial Konva scene graph: room outline rectangle (from survey room dimensions if captured, otherwise a default) + equipment chips stacked at origin awaiting drag-to-place. **No SVG generated server-side initially** — `generated_svg` stays NULL until the user's first save triggers a server-side SVG snapshot (or we simply render directly from `canvas_state` JSON every time).
+- **Why Konva over TLDraw / Excalidraw:**
+  - TLDraw is React-only. Adopting React solely for floor plans contradicts the locked decision in v1.2 STACK.md ("No SPA framework warranted. Existing Blade + Alpine.js is sufficient. Adding a second reactive framework fragments the codebase.")
+  - Excalidraw is also React-based and is more aimed at hand-drawn whiteboarding than precise floor plans.
+  - Konva is **vanilla JS**, ~140 KB minified, embeds inside an Alpine.js component without bringing React into the bundle. Established (active maintenance), MIT, has snap-to-grid + custom shape support — exactly what a floor plan editor needs.
+- **PDF export:** Server renders a hidden Blade view that includes the Konva runtime + the scene graph JSON; Browsershot loads it, waits for `Konva.stage.toDataURL()` to resolve via a `window.__drawingReady = true` signal, then captures as PDF. Same Browsershot binary, same `PdfRenderService` shape — **the wait-for-JS-render pattern is the only new bit**, and that's a 5-line addition to `PdfRenderService` (see §4.3).
+- **DOCX export (for O&M handover):** Browsershot's `screenshot()` captures the same hidden page as PNG → embedded via PhpWord `addImage($pngPath)`.
+- **Confidence:** HIGH for Konva itself; MEDIUM for the Browsershot-waits-for-Konva pattern (Phase 19 spike will confirm).
+
+#### Phase 20 — Drawing Export
+
+- Phase 20 is **purely a pipeline phase** — no new data, no new generators, only export formats and DocumentArtifactStorage wiring (see §6).
+
+### 4.3 Required PdfRenderService Extension (one tiny addition)
+
+`PdfRenderService::fromBlade()` today renders Blade → HTML → Browsershot → PDF (synchronous). Phases 17 (edit override) + 19 (Konva canvas) need Browsershot to **wait for client-side JS** to finish before snapshotting. Add an optional flag:
+
+```php
+// New option: 'waitForJs' (bool, default false)
+//   When true, Browsershot uses ->waitUntilNetworkIdle() and then
+//   ->waitForFunction('window.__drawingReady === true') before snapshot.
+//   The Blade view is responsible for setting window.__drawingReady = true
+//   after Konva (or any other client renderer) has finished drawing.
+$shot->waitUntilNetworkIdle()
+     ->waitForFunction('window.__drawingReady === true');
+```
+
+This is a five-line addition; it does not change any existing call site (default `false`). Existing RAMS / O&M / Survey PDF renders are unaffected.
+
+### 4.4 What Lives Server-Side vs Browser-Side
+
+| Concern | Server | Browser |
+|---|---|---|
+| Auto-generate schematic SVG | YES (D2 CLI) | — |
+| Auto-generate rack SVG | YES (custom builder) | — |
+| Auto-generate floor plan initial state | YES (Konva JSON, sent to client) | — |
+| User edits / drag-to-place | — | YES (Konva) |
+| Save canvas state | (receives POST) | YES (Axios, debounced blur-save) |
+| Render to PDF | YES (Browsershot, `PdfRenderService`) | — |
+| Render to PNG (for DOCX embed) | YES (Browsershot screenshot) | — |
+| Render to SVG (Phase 20 export) | YES (server captures Konva `stage.toSVG()` via Browsershot eval) | — |
+
+---
+
+## 5. Frontend Integration — Drawing Tool Placement
+
+### 5.1 Routes
+
+```
+GET  /projects/{project}/drawings                                -- index (all kinds)
+GET  /projects/{project}/drawings/{drawing}                      -- view (read-only PDF preview)
+GET  /projects/{project}/drawings/{drawing}/edit                 -- editor (Konva loaded here ONLY)
+POST /projects/{project}/drawings/{drawing}/canvas               -- AJAX save canvas_state
+POST /projects/{project}/drawings/regenerate                     -- enqueue BuildDrawingJob
+GET  /projects/{project}/drawings/{drawing}/download/{format}    -- pdf|svg|png|dxf
+```
+
+Authenticated only. Policy: `ProjectDrawingPolicy` mirroring `RamsDocumentPolicy` (admins all, owners own). **No public-token routes for v1.3** — drawings are internal-engineer + O&M-handover, not site-survey-style external.
+
+### 5.2 Alpine.js + Konva Coexistence (the key frontend decision)
+
+The platform-wide JS bundle is Alpine.js + axios + signature_pad + frappe-gantt + dexie (v1.2). Adding Konva globally would push every page to ~140 KB more bundle for a feature 95% of admin users never touch.
+
+**Solution: separate Vite entry, lazy-loaded only on `/drawings/edit` routes.**
+
+```js
+// vite.config.js — extend the existing input array
+export default defineConfig({
+    plugins: [
+        laravel({
+            input: [
+                'resources/css/app.css',
+                'resources/js/app.js',
+                'resources/js/drawings.js',   // <-- NEW, only loaded on drawing edit pages
+            ],
+            refresh: true,
+        }),
+    ],
+});
+```
+
+```blade
+{{-- resources/views/projects/drawings/edit.blade.php --}}
+@vite(['resources/css/app.css', 'resources/js/drawings.js'])
+```
+
+```js
+// resources/js/drawings.js — separate bundle
+import Konva from 'konva';
+import './drawings/floor-plan-editor.js';
+import './drawings/schematic-editor.js';
+import './drawings/rack-editor.js';
+window.Konva = Konva;
+```
+
+```html
+<div x-data="floorPlanEditor()" x-init="mount($refs.stage)">
+    <div x-ref="stage" class="konva-stage"></div>
+</div>
+```
+
+The Konva component is a vanilla-JS module that Alpine wraps via `x-data` + `$refs`. **No React, no second reactive framework, no SPA route.** Same pattern as v1.2's frappe-gantt integration (proven shipped).
+
+### 5.3 Save UX (debounced auto-save)
+
+v1.2 codified the field-view AJAX-save pattern (worksheet edits, programme edits, time entries). v1.3 follows it:
+
+- User drags equipment chip → Konva fires `dragend` → debounced (500 ms) Axios `POST /drawings/{id}/canvas` with the full `stage.toJSON()`.
+- Server validates JSON shape (size cap ~500 KB), updates `canvas_state` + bumps `updated_at`, returns 204.
+- Visible save indicator ("Saved 2s ago") — same pattern as worksheet-edit drawer.
+
+**No explicit save button.** No "are you sure you want to leave" modals. Match the worksheet-edit UX users already trust.
+
+### 5.4 Mobile / Tablet
+
+- Konva supports touch events natively (tap, pinch-zoom, two-finger pan) — no extra library.
+- Same audience as v1.2 field view: engineers on iPad / Android tablets during install. Editor must be at minimum *viewable* on tablet; full edit on tablet is a nice-to-have (drag is fine; precision placement is harder without a stylus, but acceptable for a "verify the auto-placed layout looks right" workflow).
+- Floor plan editor's grid snap (Konva built-in) reduces the precision-placement-on-touch pain.
+- **Out of scope for v1.3:** native iOS app, Apple Pencil tilt support — explicit per PROJECT.md.
+
+---
+
+## 6. Export Pipeline Integration
+
+### 6.1 New DocumentArtifactStorage Type
+
+Extend `DocumentArtifactStorage` with one new constant:
+
+```php
+public const TYPE_DRAWING = 'drawings';
+
+// Update LEGACY_ROOTS — TYPE_DRAWING has no legacy (new table, post-H-07).
+// Same shape as TYPE_SNAGGING (also no legacy entry).
+// Update types() to include TYPE_DRAWING.
+```
+
+**Why one type, not three:** Drawings are still *one* artifact category. Sub-pathing inside the disk (`drawings/schematics/`, `drawings/racks/`, `drawings/floor-plans/`) is a *filename convention*, not a separate disk type. Three TYPE_* constants would just cause typos (`TYPE_DRAWING_RACK` vs `TYPE_DRAWING_RACKS`) without buying anything. Filename convention:
+
+```
+drawings/{kind}-{drawingId}-v{version}-{ulid}.{format}
+
+e.g.
+drawings/schematic-42-v1-01HW...AB.pdf
+drawings/rack-43-v2-01HW...CD.svg
+drawings/floor-plan-44-v1-01HW...EF.png
+```
+
+`thumbnail_png_path` lives at `drawings/thumbnails/{kind}-{drawingId}.png`.
+
+### 6.2 Export Formats
+
+| Format | Path | Notes |
+|---|---|---|
+| **PDF** | `PdfRenderService::fromBlade('pdf.drawings.{kind}', [...], $artifacts->writePath(TYPE_DRAWING, $filename))` | Single must-have format. Re-uses Browsershot already in the stack. |
+| **SVG** | Server reads `generated_svg` (or invokes Browsershot `evaluate('Konva.stages[0].toSVG()')` for canvas-state drawings) → writes via `$artifacts->writePath(TYPE_DRAWING, $filename)`. | Must-have for clients who want vector source. |
+| **PNG** | Browsershot `screenshot()` of the same Blade view used for PDF. | Used for DOCX embed (O&M handover) + thumbnails. |
+| **DXF/DWG** | **NICE-TO-HAVE only.** Recommend deferring to a v1.3.x patch milestone — DXF is a non-trivial format and PHP/JS OSS support is thin (`mljs/dxf-parser` is read-only; writing DXF requires either a paid lib or a Python sidecar via `ezdxf`). Floor plans → DXF is the only realistic candidate (rack/schematic → DXF makes little CAD sense). Mark as Phase 20 stretch, ship without it if it slips. | LOW confidence — research has not found a strong OSS PHP DXF *writer*. |
+
+### 6.3 OmManualDocxService Integration (drawings in handover)
+
+`OmManualDocxService` already builds DOCX via PhpWord. PhpWord's `addImage()` supports raster (PNG/JPEG) cleanly; SVG is technically supported in PhpWord 1.4+ but **renders inconsistently across Word/Word Online/LibreOffice** (verified pain point — Microsoft Word SVG ticket history).
+
+**Recommended pattern:** flatten every drawing to PNG at handover time and embed the PNG. Resolution: 1920px-wide PNG is enough for an A4 drawing page.
+
+```php
+// In OmManualDocxService — new section after equipment list.
+$drawings = $project->drawings()->where('status', 'ready')->get();
+
+foreach ($drawings as $drawing) {
+    $pngPath = $artifacts->readPath(
+        DocumentArtifactStorage::TYPE_DRAWING,
+        $this->ensurePngForHandover($drawing)  // generates from canvas_state if missing
+    );
+    if ($pngPath) {
+        $section->addImage($pngPath, [
+            'width'  => 600,    // pt, fits A4 portrait with margins
+            'height' => 'auto',
+            'wrappingStyle' => 'square',
         ]);
+        $section->addText($drawing->title());
+        $section->addPageBreak();  // each drawing on its own page
     }
-    // Cable task per room if cable_route_desc is set
-    // Test task per room (always)
 }
 ```
 
-`reviewed_data['room_overviews'][].works_summary` flows through `ProjectDataService → rooms[].works_summary` already (confirmed in `ProjectContextResolver::resolveRooms()`). The task generator reads it from there, not directly from the package — this preserves the single canonical read path.
+`ensurePngForHandover()` is idempotent — generates the PNG once per drawing version, caches under `drawings/handover-png/{drawingId}-v{version}.png`. **OmManualDocxService never reaches into `project_drawings.canvas_state` directly** — it goes through a small helper method on the `ProjectDrawing` model or a `DrawingExportRendererService::renderPng($drawing)` call. Honors the read-only-canonical-source rule.
 
-### Fields from ProjectDataService Used by Task Generation
+**Tech-debt watch:** If a Word version eventually renders SVG cleanly across the board, switch the handover pipeline to SVG-embed for crisper print output. Until then, PNG is the safe bet.
 
-| Field in resolved data | Used for |
-|-----------------------------|---------|
-| `rooms[].room_name` | `install_tasks.room_name` |
-| `rooms[].equipment[]` (hardware only) | One task per item |
-| `rooms[].equipment[].name` | `install_tasks.equipment_name` |
-| `rooms[].equipment[].category` | `install_tasks.equipment_category` |
-| `rooms[].works_summary` | `install_tasks.description` (pre-fill) |
-| `rooms[].cable_route_desc` | Triggers cable-run task creation per room |
-| `project.name`, `project.ref` | Programme header data |
+### 6.4 Client Portal (v1.4) — Forward Compatibility
 
-No new fields are needed in `ProjectDataService` for v1.2. The existing resolved data is sufficient.
+v1.4 adds a branded client portal (PORT-02: client document access — RAMS, O&M, drawings, certificates). v1.3's storage layout is **portal-ready by design**:
 
-### reviewed_data is Not Modified
-
-v1.2 does not write to `project_packages.reviewed_data`. Tasks are derived from it at generation time, then live independently in `install_tasks`. If the package data is updated and a new programme is generated, old task records are preserved (programme status → archived) and new ones are created under a new programme. This matches the existing worksheet regeneration model.
+- Drawings live under `DocumentArtifactStorage::TYPE_DRAWING` — same access pattern as RAMS/O&M.
+- A new `ProjectDrawingPolicy::viewByPortalToken(string $token, ProjectDrawing $drawing)` method can be bolted on without touching the table schema.
+- PDF export is the v1.4-portal-friendly format (browsers render natively; no Konva runtime needed in the portal bundle).
+- **Recommendation:** v1.3 should ship with the `access_token` column **added** (nullable, similar to `worksheets.access_token` in Phase 16's `2026_04_26_000001_add_access_token_to_worksheets_table.php`). Even if v1.3 doesn't expose token routes, having the column means v1.4 needs zero schema changes. Cheap insurance.
 
 ---
 
-## Service Layer Design
+## 7. Queue + Async Strategy
 
-### New Services
+### 7.1 Sync vs Queued Decision Matrix
 
-**`InstallTaskGeneratorService`** — generates tasks from ProjectDataService data
-- `generate(InstallProgramme): void` — creates all task records in one DB transaction
-- `filterHardware(array): array` — same exclusion logic as WorksheetGeneratorService (cables, consumables, services, options excluded)
-- Called synchronously from controller — no queue needed (no AI call, fast DB inserts)
+| Operation | Sync or Queue | Reason |
+|---|---|---|
+| Auto-generate schematic SVG (D2) | **Sync** (sub-second) | Same as `InstallTaskGeneratorService::generate()` — fast enough that a job queue adds latency without benefit. |
+| Auto-generate rack SVG (custom) | **Sync** (millisecond range) | Pure PHP string construction. |
+| Build initial floor-plan Konva state | **Sync** (fast) | Just shapes Konva JSON from canonical data. |
+| Save user-edited canvas_state (AJAX) | **Sync** | Standard form-handling controller; sub-100 ms. |
+| Render drawing → PDF | **Queue** (`BuildDrawingPdfJob`) | Browsershot is 2–5 s. Same threshold the existing 4 `Build*Job` classes use. |
+| Render drawing → PNG (for handover) | **Queue** (or piggyback on `BuildOmManualJob`) | 1–3 s. Same justification. |
+| Render drawing → SVG (post-edit) | **Sync** if `generated_svg` already populated (instant); **Queue** if requires Browsershot SVG export from canvas | Conditional — easy to handle in the controller. |
+| Bulk regenerate after equipment-list change | **Queue** (one job per drawing) | Plays nice with retry policy + admin failure alert pattern. |
 
-**`TimeTrackingService`** — clock in/out business logic
-- `clockIn(User, Project, string $category, ?int $taskId): TimeEntry`
-- `clockOut(User): TimeEntry`
-- `activeEntry(User): ?TimeEntry` — returns open entry for clock-out UI state
-- `budgetVsActual(Project): array` — aggregates `duration_minutes` by category
+### 7.2 Job Classes (mirror the existing four exactly)
 
-**`CommissioningService`** — task completion and sign-off
-- `completeTask(InstallTask, User, array $photoFiles, string $notes): CommissioningRecord`
-- `attachClientSignature(CommissioningRecord, string $signatureDataUri): void` — converts canvas data URI to PNG, stores to private disk
-- `programmeProgress(InstallProgramme): array` — stats (total, complete, blocked, pending counts)
+```
+app/Jobs/BuildSchematicJob.php       -- mirrors BuildOmManualJob shape exactly:
+                                        $tries=2, $timeout=300; status state
+                                        machine generating→ready→failed; the
+                                        completion_email_sent_at + failed_email_sent_at
+                                        idempotency timestamps; the failed() admin alert.
 
-**`InstallProgrammeService`** — high-level orchestration (analogous to OmManualService)
-- `createForProject(Project, User): InstallProgramme` — creates programme record, calls generator
-- `activate(InstallProgramme): void` — transitions draft to active
-- `checkCompletion(InstallProgramme): void` — transitions to completed when all tasks signed off, then advances project lifecycle
+app/Jobs/BuildRackElevationJob.php   -- ditto
 
-### Modified Components (Minimal)
+app/Jobs/BuildFloorPlanPdfJob.php    -- ditto. Note "Pdf" in the name because
+                                        the floor plan canvas already exists;
+                                        the job specifically renders to PDF
+                                        (or PNG for handover).
 
-**`Project` model** — add two new relationships:
-```php
-public function installProgrammes(): HasMany
-{
-    return $this->hasMany(InstallProgramme::class);
-}
-
-public function activeInstallProgramme()
-{
-    return $this->hasOne(InstallProgramme::class)
-        ->where('status', InstallProgramme::STATUS_ACTIVE)
-        ->latestOfMany();
-}
+app/Jobs/RegenerateDrawingsJob.php   -- bulk regenerate dispatcher: queries
+                                        ProjectDrawing for the project, fans out
+                                        one of the above three jobs per
+                                        drawing. Used after a quote
+                                        re-import or an equipment-list edit.
 ```
 
-No other existing services or models are modified. `ProjectDataService` remains read-only and unchanged.
+**Each job gets:**
+- `$tries = 2` (matches existing 4 Build*Jobs)
+- `$timeout = 300` (matches `BuildOmManualJob`; PDF render dominates)
+- Idempotent status flips (status set BEFORE work to claim the job, set AFTER to confirm completion)
+- `completion_email_sent_at` set BEFORE the mail send (per D-14 / NOTF-01 pattern)
+- `failed()` method dispatches `DocumentGenerationFailedMail` to admins (per NOTF-04)
+
+**Dispatch points:**
+- User clicks "Regenerate schematic" → controller dispatches `BuildSchematicJob`.
+- Quote re-imported → `ExtractQuoteJob::handle()` end → check if any drawings exist → dispatch `RegenerateDrawingsJob` (UI prompt: "your quote was re-imported; review your drawings").
+- O&M generation triggered (`BuildOmManualJob`) → ensure each ready drawing has a fresh handover PNG; if not, the OmManualDocxService blocks waiting on a sync `DrawingExportRendererService::renderPng()` per drawing (acceptable: O&M itself is a queued job; another 5 s of work inside it doesn't change the user-visible experience).
+
+### 7.3 Notifications (mirror Phase 09 / NOTF-* exactly)
+
+Add three new mailables — same shape as `RamsReadyMail`, `OmManualReadyMail`, `WorksheetReadyMail`, `CableScheduleReadyMail`:
+
+```
+app/Mail/SchematicReadyMail.php
+app/Mail/RackElevationReadyMail.php
+app/Mail/FloorPlanReadyMail.php
+```
+
+Or **one** generic `DrawingReadyMail($drawing)` whose subject + body templates branch on `$drawing->kind` — matches the "kind discriminator on a single table" approach in §2.1. Recommend the single mailable to keep mail count down.
+
+`NotificationRecipientResolver::resolveProjectRecipient($drawing->project)` reused as-is. `RAMS_NOTIFICATION_BCC` reused as-is. **Zero new notification infrastructure.**
 
 ---
 
-## Controller and Route Pattern
+## 8. Build Order Recommendation Across Phases 17–20
 
-Follow existing thin-controller convention:
+### 8.1 The Shared-Infrastructure-First Principle
 
-```
-InstallProgrammeController   — programme CRUD, generate action, field view
-InstallTaskController        — task list, status updates, assignment
-TimeEntryController          — clock in/out, time log view, budget summary
-CommissioningController      — task completion, photo upload, signature capture
-```
+The four phases (17 schematic / 18 rack / 19 floor plan / 20 export) share:
 
-All routes under `auth` middleware. No public (token-only) routes needed for v1.2 — engineers use standard authenticated sessions on mobile browsers.
+- The `project_drawings` table (§2)
+- The `DrawingService` orchestrator + `DrawingDataResolverService` (§3)
+- The `DocumentArtifactStorage::TYPE_DRAWING` constant (§6)
+- The `ProjectDrawingPolicy` (§5)
+- The `BuildDrawing*Job` shape (§7)
+- The new `PdfRenderService` `waitForJs` option (§4.3)
+- Project model `hasMany` drawings relation (§9)
 
-Route structure:
-```
-GET|POST  /projects/{project}/install-programme          → programme view and generate
-GET       /projects/{project}/install-programme/field    → mobile field view
-POST      /projects/{project}/time/clock-in              → TimeEntryController
-POST      /projects/{project}/time/clock-out             → TimeEntryController
-GET       /projects/{project}/time                       → time log and budget view
-GET|POST  /tasks/{task}/commissioning                    → sign-off form
-POST      /commissioning/{record}/signature              → client signature capture
-```
+**Bake this all in Phase 17.** The cost to do it earliest is small (one migration + one model + one orchestrator service + one policy + one storage constant + one route group). The cost to bolt it on after Phase 18/19 doubles because each phase's controllers / services would need rewiring.
 
----
+### 8.2 Recommended Order
 
-## Mobile Field View Architecture
+**Phase 17 — Schematics + Foundations**
+1. Migration: `create_project_drawings_table` (all columns from §2 — even fields Phase 18/19 need).
+2. Model: `ProjectDrawing` (full shape; floor-plan-specific behaviour stubs throw "implemented in Phase 19").
+3. `DocumentArtifactStorage::TYPE_DRAWING` constant + tests.
+4. `DrawingDataResolverService::adjacencyForProject()` (only — rack + floor methods stubbed).
+5. `SchematicGeneratorService` + D2 binary integration + unit tests against fixture quotes.
+6. `BuildSchematicJob` + `DrawingReadyMail`.
+7. Routes: `/projects/{project}/drawings` index + schematic show/regenerate.
+8. `PdfRenderService::fromBlade()` `waitForJs` option (additive, no breaking change).
+9. Konva is **not** loaded in Phase 17 — schematic edit override is Phase 17.5 / pushed back unless time permits. Phase 17 ships *auto-only* schematics if needed.
 
-No native app. Responsive Blade + Tailwind + Alpine.js, matching the existing public survey pattern (`PublicSurveyController`, `survey.blade.php`).
+**Phase 18 — Rack Elevations**
+1. Extend `DrawingDataResolverService` with `rackStackForProject($project)`.
+2. `RackElevationGeneratorService` + custom `SvgBuilder` helper.
+3. `BuildRackElevationJob`.
+4. Edit UI: simple Alpine drag-reorder list (no Konva needed for racks).
+5. Routes: rack show/regenerate.
 
-**Key mobile UX patterns from existing survey code:**
-- Full-width forms, large tap targets using Tailwind responsive classes
-- Photo upload via `<input type="file" accept="image/*" capture="environment">` — triggers camera directly on mobile browsers
-- Form state managed with Alpine.js `x-data`, same as existing survey room forms
+**Phase 19 — Floor Plans (Konva)**
+1. Add `resources/js/drawings.js` Vite entry + Konva dependency.
+2. `FloorPlanInitialStateService` (canonical data → Konva scene graph).
+3. Floor plan editor Blade view + Alpine wrapper around Konva.
+4. AJAX `POST /drawings/{id}/canvas` for canvas_state save.
+5. `BuildFloorPlanPdfJob` (uses `PdfRenderService` with `waitForJs=true`).
+6. Mobile/tablet touch-event smoke test.
 
-**Signature capture:** Use `<canvas>` with Alpine.js `x-ref` to bind a signature pad. Canvas strokes convert to data URI on submit, POSTed as a hidden field, stored as PNG by `CommissioningService::attachClientSignature()`. This is a confirmed working pattern in the Laravel/Alpine.js ecosystem.
+**Phase 20 — Drawing Export Pipeline**
+1. SVG export for canvas-state drawings (Browsershot `evaluate(stage.toSVG())`).
+2. PNG export hook for OmManualDocxService handover.
+3. `OmManualDocxService` patch — append "Drawings" section, embed PNGs.
+4. ZIP-bundle download endpoint (all drawings for project as a single ZIP — nice-to-have for handover).
+5. **DXF/DWG: spike only.** Confirm no PHP-native writer exists; document the gap; defer to a v1.3.x patch.
+6. `RegenerateDrawingsJob` bulk regen entry-point; controller hook on quote re-import.
 
-**Clock in/out UI:** Single sticky button at top of field view. Alpine.js tracks active state via a Blade variable seeded from `TimeTrackingService::activeEntry()`. Axios POST on tap, response updates button label and class without page reload. Same pattern as existing Axios usage in `resources/js/bootstrap.js`.
+### 8.3 Cross-Phase Sequencing Rules
 
-**Progressive enhancement:** The field view must function without JavaScript for core task checklist reading (accessibility and connectivity edge cases). Axios/Alpine.js enhance clock-in and photo preview only.
-
----
-
-## Component Boundaries
-
-```
-Project (existing)
-  └─ InstallProgramme  (new — active/draft/archived per project)
-       └─ InstallTask[]  (new — many per programme, grouped by room)
-            └─ CommissioningRecord  (new — one per task)
-
-User (existing)
-  ├─ TimeEntry[]  (new — many per user, linked to project + optionally task)
-  └─ InstallTask.assigned_to  (new nullable FK)
-```
-
-`Project` has many `InstallProgramme` records (one active, others archived). `InstallProgramme` has many `InstallTask` records. `InstallTask` has one `CommissioningRecord`. `TimeEntry` belongs to `User` and `Project`, optionally to `InstallTask`.
-
----
-
-## End-to-End Data Flow
-
-```
-1. PM triggers "Generate Install Programme" on project dashboard
-   InstallProgrammeController::generate()
-   InstallProgrammeService::createForProject()   → creates InstallProgramme (status=draft)
-   InstallTaskGeneratorService::generate()
-     ProjectDataService::resolve($project)        [READ ONLY — no write]
-     Creates InstallTask records per room/equipment in one transaction
-   Programme status → active
-   Redirect to task list
-
-2. Engineer opens field view on mobile (authenticated browser session)
-   InstallProgrammeController::fieldView()        loads tasks grouped by room
-   Blade renders checklist, clock in/out button seeded from TimeTrackingService::activeEntry()
-
-3. Engineer clocks in
-   POST /projects/{id}/time/clock-in
-   TimeTrackingService::clockIn()                 validates no open entry, creates TimeEntry
-
-4. Engineer completes task, captures photos
-   POST /tasks/{id}/commissioning
-   CommissioningService::completeTask()           stores photos, creates CommissioningRecord
-   InstallTask.status → complete
-   InstallProgrammeService::checkCompletion()     checks if all tasks done
-
-5. Client signature
-   POST /commissioning/{record}/signature
-   CommissioningService::attachClientSignature()  stores PNG from canvas data URI
-   CommissioningRecord.client_signed_at = now()
-
-6. Engineer clocks out
-   POST /projects/{id}/time/clock-out
-   TimeTrackingService::clockOut()                sets clocked_out_at, computes duration_minutes
-
-7. PM views time budget
-   TimeEntryController::summary()
-   TimeTrackingService::budgetVsActual($project)  aggregates duration_minutes by category
-```
+- **Phase 17 ships first because it's the only one with auto-generation that needs no canvas runtime.** This proves the data model, storage type, job shape, and notification flow on the simplest case.
+- **Phase 19 is the riskiest** (Konva integration, Browsershot wait-for-JS, mobile testing). Schedule a Phase 19 spike day 1 to verify Browsershot can capture a Konva canvas to PDF before committing to the full plan.
+- **Phase 20 cannot start until 17 + 18 + 19 are at least to draft** (it's a pipeline phase that needs at least one drawing kind to render).
+- **Phase 18 can run in parallel with Phase 17** if engineering bandwidth allows (different builders, different services, no shared code beyond the table+model already shipped in Phase 17).
 
 ---
 
-## Suggested Build Order
+## 9. Integration Points — What Existing Code Touches
 
-**Phase 12 — Programme and Task Model Foundation**
-Everything in v1.2 depends on these models.
-- Migrations: `install_programmes`, `install_tasks`
-- `InstallProgramme` model, `InstallTask` model with status constants (follow Worksheet model pattern exactly)
-- `Project` model additions: `installProgrammes()`, `activeInstallProgramme()`
-- `InstallTaskGeneratorService` reading from `ProjectDataService`
-- `InstallProgrammeService::createForProject()` and `activate()`
-- `InstallProgrammeController` — generate, index, show (admin table view, desktop)
-- Unit tests: task generation from mocked ProjectDataService output
+### 9.1 Must-Touch (mandatory edits to existing files)
 
-**Phase 13 — Task Assignment and Calendar View**
-Depends on Phase 12.
-- Assignment UI: dropdown per task linked to users table
-- `assigned_to` FK already in `install_tasks` from Phase 12
-- Calendar/week view: Tailwind grid table, no JS calendar library needed at MVP
-- `InstallTaskController::assign()` endpoint
+| File | Edit | Phase |
+|---|---|---|
+| `app/Models/Project.php` | Add `drawings(): HasMany` relation. | 17 |
+| `app/Services/DocumentArtifactStorage.php` | Add `TYPE_DRAWING` constant + update `types()`. Update tests in `tests/Unit/Services/DocumentArtifactStorageTest.php`. | 17 |
+| `app/Services/PdfRenderService.php` | Add optional `waitForJs` flag (5-line addition; default `false` keeps every existing call site identical). | 17 |
+| `vite.config.js` | Add `resources/js/drawings.js` entry. | 19 |
+| `app/Services/OmManualDocxService.php` | Append a "Drawings" section that iterates ready drawings + embeds each PNG. | 20 |
+| `app/Jobs/ExtractQuoteJob.php` | After successful re-import: if any drawings exist for project, dispatch `RegenerateDrawingsJob`. (Or guard in the controller and leave the job alone — preferable.) | 20 |
+| `app/Providers/AppServiceProvider.php` | Bind new policies + (if memoising) any new singletons. | 17 |
+| `routes/web.php` | Add `Route::resource('projects.drawings', ProjectDrawingController::class)` + auxiliary edit/regenerate/download routes. | 17 |
+| `app/Services/NotificationRecipientResolver.php` | **No changes.** Reused as-is (the whole point of Phase 09's design). | — |
+| `config/rams.php` (`notifications.bcc`) | **No changes.** Reused. | — |
+| `app/Core/Modules/Projects/ProjectDataService.php` | **No changes.** Drawings consume its output; do not extend its contract. | — |
 
-**Phase 14 — Mobile Field View and Task Completion**
-Depends on Phase 12. Can parallel-track with Phase 13.
-- Migration: `commissioning_records`
-- `CommissioningRecord` model
-- `CommissioningService::completeTask()` with photo storage
-- Responsive field view Blade template (mobile-first Tailwind)
-- Photo upload: `<input capture="environment">` + server-side storage
-- Task status updates (complete, blocked) via Axios
-- `CommissioningController`
+### 9.2 Nice-to-Touch (housekeeping, not blocking)
 
-**Phase 15 — Time Tracking**
-Depends on Phase 12 (project FK). Largely independent of Phases 13/14.
-- Migration: `time_entries`
-- `TimeEntry` model
-- `TimeTrackingService` — clock in/out with open-entry guard
-- `TimeEntryController` — clock in/out endpoints, time log view, budget summary
-- Mobile clock in/out button added to Phase 14 field view
+| File | Why |
+|---|---|
+| `resources/views/projects/show.blade.php` | Add a "Drawings" tab + "Regenerate" button. Same pattern as the existing "Worksheets" + "RAMS" tabs. |
+| `resources/views/dashboard.blade.php` | Add drawing-status chip alongside RAMS/O&M/Worksheet chips. Same pattern as v1.1 DASH-01. |
+| `app/Services/ProjectHealthService.php` | If drawings exist + status=failed, surface as red. Same pattern as RAMS/O&M failure surfacing. |
 
-**Phase 16 — Client Signature and Programme Completion**
-Depends on Phase 14 (CommissioningRecord model).
-- Canvas signature pad (Alpine.js x-ref, data URI submit)
-- `CommissioningService::attachClientSignature()`
-- `InstallProgrammeService::checkCompletion()` → project lifecycle transition to STATUS_COMMISSIONING
-- Commissioning completion view (summary of all sign-offs, client name, timestamps)
+### 9.3 Touch-Free Boundaries (intentional non-targets)
 
----
+**Do NOT touch** these — preserving them is part of the v1.3 contract:
 
-## Integration Risks and Pitfalls
+- `ProjectDataService` — its merge contract is locked. Extending it for drawings would re-open the "every generator resolves its own data" anti-pattern.
+- The four existing generators (`RamsBuilderService`, `OmManualDocxService`, `WorksheetGeneratorService`, `CableScheduleGeneratorService`) — drawings consume *their inputs*, not *their outputs*.
+- The four existing `Build*Job` classes — drawings get their own `BuildDrawing*Job` siblings.
+- `ExtractQuoteJob` and the extraction pipeline — drawings sit downstream; quote import does not need to know they exist (use a controller hook on re-import success instead).
+- `routes/web.php` for survey + quote-import + RAMS routes — additive only.
+- The `creagia/laravel-sign-pad` integration — drawings have no signature requirement (drawings are not signed; only commissioning/worksheets are).
 
-**Room name matching between tasks and survey rooms:** Task generator uses room names from `ProjectDataService` (reviewed_data). Survey rooms are stored with their own `room_name` in `site_survey_rooms`. These may not match exactly. Do not attempt a FK join at generation time. If a link is needed later for displaying survey photos next to a task, add a nullable `site_survey_room_id` in a later migration and match by fuzzy string at that point.
+### 9.4 New Files Inventory (estimate for sizing)
 
-**Regenerating tasks when project data changes:** If reviewed_data is updated after a programme is active, tasks are stale. Show a visual warning ("Package data has changed since programme was generated — regenerate?") rather than auto-regenerating, which would destroy assigned/in-progress task state.
+| Category | New Files | Approx LOC |
+|---|---|---|
+| Migration | `2026_05_xx_create_project_drawings_table.php` | ~80 |
+| Model | `app/Models/ProjectDrawing.php` | ~250 |
+| Policy | `app/Policies/ProjectDrawingPolicy.php` | ~80 |
+| Services | `app/Services/Drawings/{Drawing,Schematic,RackElevation,FloorPlanInitialState,DrawingExportRenderer,DrawingDataResolver}Service.php` | ~1500 total |
+| Jobs | `app/Jobs/Build{Schematic,RackElevation,FloorPlanPdf}Job.php` + `RegenerateDrawingsJob.php` | ~600 total |
+| Controllers | `app/Http/Controllers/ProjectDrawingController.php` | ~250 |
+| Form Requests | `app/Http/Requests/Drawing{Save,Regenerate}Request.php` | ~120 |
+| Mailables | `app/Mail/DrawingReadyMail.php` (single, kind-discriminated) | ~80 |
+| Blade views | `resources/views/projects/drawings/{index,show,edit}.blade.php`, `resources/views/pdf/drawings/{schematic,rack,floor-plan}.blade.php`, `resources/views/emails/drawing-ready.blade.php` | ~700 total |
+| JS | `resources/js/drawings.js` + `resources/js/drawings/{floor-plan,schematic,rack}-editor.js` | ~800 total |
+| Tests | unit + feature for each service + each job + each controller | ~2000 total |
 
-**Orphaned clock-in entries:** If an engineer forgets to clock out, the open entry blocks future clock-ins. Add a scheduled Artisan command that auto-closes entries older than 24 hours with a `notes = 'auto-closed by system'` flag. `TimeTrackingService::clockIn()` should surface a clear error message if an open entry exists rather than silently failing.
-
-**Photo storage path collisions:** Use `{project_id}/{task_id}/{uuid}.jpg` as path structure. Never use user-supplied filenames. Follow the existing pattern from `SiteSurveyPhoto` where photos are stored to private disk with UUID names.
-
-**Mobile session persistence:** Engineers on mobile may lose session mid-task if the device sleeps. The clock-in state is a DB query (`TimeTrackingService::activeEntry()`), not session state — this is correct by design. The field view re-reads active entry state on each page load. No localStorage dependency.
-
-**Project lifecycle transition on programme completion:** When all tasks are signed off, `InstallProgrammeService::checkCompletion()` must call `$project->canTransitionTo(Project::STATUS_COMMISSIONING)` before transitioning. The existing state machine on `Project::canTransitionTo()` must be respected — do not bypass it.
-
-**Hardware filter duplication:** `WorksheetGeneratorService` and `InstallTaskGeneratorService` both need the same hardware exclusion logic (cables, consumables, services, options). In Phase 12 this can be duplicated deliberately. After both services exist, extract to a shared trait or static helper class in Phase 16 or as part of a cleanup pass — do not create a shared dependency upfront that couples the two services.
+**Rough total: ~6500 LOC across ~30 files.** Comparable in size to v1.2 Phase 14 (mobile field view) which was ~5800 LOC across ~25 files. Estimate: **3 plans for Phase 17, 2 for Phase 18, 3 for Phase 19, 2 for Phase 20 = 10 plans across 4 phases.**
 
 ---
 
-## Confidence Assessment
+## 10. Anti-Patterns to Forbid
 
-| Area | Confidence | Basis |
-|------|------------|-------|
-| Integration with ProjectDataService | HIGH | Read service code directly; rooms and equipment shape confirmed |
-| Model structure and relationships | HIGH | Follows confirmed Worksheet, SiteSurveyRoom, SiteSurveyPhoto patterns |
-| Task generation flow | HIGH | Direct analogue to WorksheetGeneratorService — same read path, no AI call |
-| Mobile field view (Blade + Alpine.js) | HIGH | Existing public survey view confirms approach; signature pad pattern confirmed |
-| Time tracking schema | MEDIUM | Standard pattern; clock-in guard logic is application-level, not framework |
-| Gantt/calendar view (Phase 13) | MEDIUM | Simple Tailwind table is safe at MVP; interactive drag-drop Gantt needs JS library decision deferred |
-| Client signature PNG from data URI | MEDIUM | Canvas data URI is confirmed; PHP GD base64_decode + imagecreatefromstring is standard |
+| Anti-Pattern | Why It's Bad | What to Do Instead |
+|---|---|---|
+| Adding `drawings_data JSON` column to the `projects` table | Stale-data risk identical to the pre-DATA-01 era when each generator merged its own dataset; collides with soft-delete + version history. | Dedicated `project_drawings` table with foreign key — same shape as RAMS/O&M/worksheets. |
+| Generators reading `extracted_data` / `reviewed_data` directly | Breaks DATA-03's contract (locked). Drawings would drift from the canonical dataset within one quote re-import. | Always go through `ProjectDataService` (via `DrawingDataResolverService` reshape). |
+| Adopting React for floor plans | Fragments the codebase. Contradicts v1.2 STACK.md decision. | Konva is vanilla — wrap in Alpine.js, ship in a separate Vite bundle. |
+| Loading Konva globally in `app.js` | Adds ~140 KB to every admin page bundle for a feature 95% of pages don't need. | Separate Vite entry (`drawings.js`), `@vite()` only on edit pages. |
+| Auto-overwriting user-edited drawings on regenerate | Engineers will lose edits silently and stop trusting the auto-regen. | Archive prior version (mirror Phase 12 install programme regen) + UI confirm prompt. |
+| Embedding SVG directly into PhpWord `addImage()` for handover | Word's SVG support is inconsistent across versions/platforms. Renders differently in Word vs Word Online vs LibreOffice. | Flatten to PNG at handover time; cache the PNG per drawing version. |
+| Synchronous PDF render inside controller actions | A 3-second Browsershot blocks the request thread; doesn't match the existing 4 generator patterns. | `BuildDrawing*Job` queue dispatch + status state machine + completion email. |
+| One `TYPE_DRAWING_SCHEMATIC` / `TYPE_DRAWING_RACK` / `TYPE_DRAWING_FLOORPLAN` per kind in `DocumentArtifactStorage` | Three constants for one logical category. Causes typos. | Single `TYPE_DRAWING`; sub-kind lives in the filename convention. |
+| Storing thumbnails in the same column as the source SVG | Thumbnails are lossy + low-res; mixing them with source throws away one or the other on read. | Separate `thumbnail_png_path` column pointing to the disk. |
+| Touching `ProjectDataService` to add drawing-shaped methods | Pollutes the canonical dataset contract with renderer-specific reshaping. | Reshape in `DrawingDataResolverService`, which calls `ProjectDataService::resolve()`. |
+| Public-token routes for drawings in v1.3 | Drawings are internal + handover; v1.3 has no external-recipient flow. | Defer to v1.4 client portal (PORT-02). Add `access_token` column nullable in v1.3 to make v1.4 a zero-schema-change phase. |
 
 ---
 
-## Sources
+## 11. Scalability Considerations (Internal-Tool Scale)
 
-- Codebase: `app/Core/Modules/Projects/ProjectDataService.php` — 4-tier merge and rooms output shape confirmed
-- Codebase: `app/Services/WorksheetGeneratorService.php` — task-generation analogue pattern confirmed
-- Codebase: `app/Services/ProjectContextResolver.php` — room_overviews and works_summary shape confirmed
-- Codebase: `app/Models/Project.php` — lifecycle state machine and transition guards confirmed
-- Codebase: `app/Models/Worksheet.php`, `app/Models/SiteSurveyRoom.php` — model conventions confirmed
-- [Signature Pad with Alpine.js — Salfade](https://salfade.com/tutorials/signature-pad-with-alpinejs)
-- [Laravel Signature Pad Example — ItSolutionstuff](https://www.itsolutionstuff.com/post/laravel-signature-pad-example-tutorialexample.html)
-- [Time Tracking Table Design Discussion — Laracasts](https://laracasts.com/discuss/channels/laravel/time-tracking-table-design)
+The platform is a single-tenant internal tool for 21st Century AV. Order-of-magnitude bounds (mirroring v1.2 STACK.md philosophy):
+
+| Concern | At 100 projects | At 1000 projects | At 10k projects |
+|---|---|---|---|
+| `project_drawings` row count | ~300 (3/proj avg) | ~3000 | ~30k — still under MySQL JSON-index pain threshold |
+| Storage on `documents` disk | ~1 GB (3 MB/drawing avg) | ~10 GB | ~100 GB — provision filesystem accordingly |
+| Browsershot concurrent renders | 1–2 queue workers fine | 2–4 workers; consider dedicated render queue | 4+ workers; possibly separate render server |
+| Konva client-side perf | Trivial | Trivial | Per-drawing perf (single-room floor plan) is constant |
+
+**Bottom line:** v1.3 has no scalability concerns for the foreseeable life of the platform. Same architectural call as v1.2.
+
+---
+
+## 12. Confidence Assessment
+
+| Area | Level | Basis |
+|---|---|---|
+| `project_drawings` table shape | HIGH | Mirrors RamsDocument + InstallProgramme + OmManual table shapes (proven through three milestones). |
+| `app/Services/Drawings/` sub-namespace | HIGH | Matches the four sub-namespaces already in use (`OandM/`, `Rams/`, `Cable/`, `Worksheet/`). |
+| ProjectDataService consumption pattern | HIGH | DATA-03 is locked; every existing generator follows it; v1.3 generators do likewise. |
+| D2 for schematic SVG | HIGH | Server-side native binary, SVG output — no headless browser, no Node runtime. Matches the constraint that Browsershot is the only headless browser we want to keep on the box. |
+| Konva for floor plans (vs React-based TLDraw / Excalidraw) | HIGH | Vanilla JS lib, ~140 KB, MIT, mature. Honors the v1.2 "no React" decision. |
+| Browsershot waits for Konva client-side render | MEDIUM | Pattern is well-documented for Puppeteer (`page.waitForFunction(...)`); Browsershot exposes the same API via `waitForFunction`. Phase 19 spike will confirm round-trip fidelity for canvas → PDF on the AlmaLinux + chrome-headless-shell production combination. |
+| Custom SVG builder for racks | HIGH | Trivial graphics shape. PHP string construction is faster than learning a DSL for this case. |
+| PNG-flatten-for-DOCX-handover (vs SVG-embed) | MEDIUM | PhpWord 1.4+ ships SVG support but real-world Word rendering of SVG is inconsistent. PNG is the proven safe path; if Word's SVG support firms up, switch later. |
+| DXF/DWG export feasibility | LOW | Research has not surfaced a robust OSS PHP DXF *writer*. Recommend deferring DWG/DXF and shipping v1.3 with PDF + SVG + PNG only. Mark DXF as a v1.3.x stretch / Python sidecar candidate. |
+| Single `TYPE_DRAWING` constant (vs three) | HIGH | Mirrors the H-07 collapse of four bespoke directory layouts into one disk + one type registry. |
+| Job shape (status state machine + idempotency timestamps + failed() admin alert) | HIGH | Identical to all four existing `Build*Job` classes — no new pattern. |
+| `DrawingReadyMail` single mailable (vs three) | MEDIUM | Could go either way. Single is simpler; three matches the existing mailable count more uniformly. Recommend single + kind discriminator; reverse if a Phase 17 plan finds the templating awkward. |
+| Phase 19 the riskiest of the four | HIGH | Konva + Browsershot + AlmaLinux production combo has not been done in this codebase before. Spike is mandatory. |
+
+---
+
+## 13. Sources
+
+- Existing codebase analysis:
+  - `app/Services/DocumentArtifactStorage.php` (TYPE_* registry pattern)
+  - `app/Services/PdfRenderService.php` (Browsershot wrapper, AlmaLinux config)
+  - `app/Services/InstallProgrammeService.php` (regenerate-archives-prior pattern)
+  - `app/Services/InstallTaskGeneratorService.php` (sync generation, ProjectDataService consumer)
+  - `app/Jobs/BuildOmManualJob.php` (status + idempotency + failed() pattern)
+  - `app/Core/Modules/Projects/ProjectDataService.php` (DATA-03 contract)
+  - `app/Models/Project.php` (existing relations, lifecycle)
+  - `vite.config.js` (Vite entry pattern for v1.2 frappe-gantt)
+  - `.planning/PROJECT.md` (v1.3 scope + constraints)
+- Diagram-engine evaluation:
+  - [D2 Documentation FAQ](https://d2lang.com/tour/faq/)
+  - [D2 GitHub (terrastruct/d2)](https://github.com/terrastruct/d2)
+  - [Mermaid vs D2 comparison (AaronJBecker.com)](https://aaronjbecker.com/posts/mermaid-vs-d2-comparing-text-to-diagram-tools/)
+  - [Mermaid CLI (uses Puppeteer headless Chrome)](https://github.com/mermaid-js/mermaid-cli)
+- Canvas library evaluation:
+  - [Top 5 JavaScript Whiteboard & Canvas Libraries (byby.dev)](https://byby.dev/js-whiteboard-libs)
+  - [Excalidraw vs Tldraw 2026 (OpenAlternative.co)](https://openalternative.co/compare/excalidraw/vs/tldraw)
+  - [Tldraw alternatives (AlternativeTo)](https://alternativeto.net/software/tldraw/)
+- Existing v1.2 stack pattern: `.planning/research/STACK.md` (frappe-gantt as Alpine.js wrapper precedent)
+
+---
+
+*Last updated: 2026-04-30 — v1.3 milestone research, Phase 17–20 architecture integration*
