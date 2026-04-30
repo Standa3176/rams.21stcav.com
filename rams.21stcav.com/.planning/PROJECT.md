@@ -33,17 +33,28 @@ One dataset powers every document. Engineers capture real-world data, quotes pro
 - ✓ AI content pack — single Claude call generates room scope narratives for RAMS enrichment — v1.0
 - ✓ Dynamic AI-generated pre-install check questions per survey room (Phase 07) — v1.0
 
-## Current Milestone: v1.2 Installation Programme & Field Management
+## Current Milestone: v1.3 Technical Drawings & Schematics
 
-**Goal:** Transform the platform from document generator into a live installation delivery system — auto-generated task lists from project data, engineer assignment, mobile-responsive field view, time tracking, and commissioning sign-off.
+**Goal:** Generate AV technical drawings — schematics, rack elevations, and floor plans — from the same canonical project data that powers RAMS, O&M, and worksheets. Internal engineers view drawings on tablets/print during install; clients receive them as part of the O&M Manual handover.
 
 **Target features:**
-- Auto-generate install task lists (room × equipment driven)
-- Task assignment to engineers with calendar view
-- Mobile-responsive field view — checklist, clock in/out, photo capture
-- Time tracking — budget vs actual per project/category
-- Commissioning checklist — per-equipment sign-off, photo evidence, client signature
-- Worksheet enhancements — pre-install answers included, triggered from dashboard
+- Auto-generated system schematics (signal flow) from equipment + cable schedule data
+- Auto-generated rack elevations from equipment list with U-height + ventilation data
+- In-app floor plan drawing tool — engineers draw room layout, auto-place equipment per room
+- Drawing export — PDF immediate (must-have), SVG (must-have), DXF/DWG (nice-to-have)
+- Drawings included in O&M Manual handover via existing OmManualDocxService
+
+**Audience:**
+- Internal engineers — printed PDF + on-tablet view during install
+- Client deliverable — drawings included in O&M Manual handover
+
+**Constraint carried from v1.0/v1.2:** AI is not allowed for inventing drawings — drawings derive from canonical project data only. AI may assist with layout heuristics (e.g. signal-flow grouping) but never to generate equipment that wasn't in the quote.
+
+**Open questions (research phase):**
+- Best OSS schematic engine — D2 vs DrawIO/diagrams.net vs Mermaid vs custom SVG
+- Best OSS canvas drawing library for floor plans — TLDraw vs Konva.js vs Fabric.js vs Excalidraw
+- DXF/DWG export feasibility within Laravel ecosystem (which OSS lib, license, browser vs server render)
+- AV stencil library availability vs build-our-own
 
 ---
 
@@ -86,12 +97,6 @@ One dataset powers every document. Engineers capture real-world data, quotes pro
 **Outstanding human UAT (deployment-gated, not implementation gaps):**
 - [ ] Phase 13: Gantt rendering + slide-over click + role-based filter — frappe-gantt is bundled but browser-based confirmation pending
 - [ ] Phase 14: iOS HEIC end-to-end upload — blocked on deploying app to a web-accessible environment for real-iPhone test
-
-#### v1.3 — Technical Drawings & Schematics (Phases 17–20)
-- [ ] **DRAW-01**: AI-generated system schematics from equipment and cable schedule data
-- [ ] **DRAW-02**: Rack elevation generation from equipment lists with U-height and ventilation data
-- [ ] **DRAW-03**: Floor plan upload with auto-placed equipment per room
-- [ ] **DRAW-04**: Drawing export — PDF immediate, DWG for CAD tools (AutoCAD/Vectorworks)
 
 #### v1.4 — Client Portal & Project Visibility (Phases 21–24)
 - [ ] **PORT-01**: Branded client portal per project/site with secure access
@@ -178,4 +183,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-25 after v1.2 (Installation Programme & Field Management) milestone archive — 5 phases shipped covering install task generation, scheduling, mobile field view, time tracking, and commissioning sign-off. Three milestones live (v1.0, v1.1, v1.2); v1.3 Technical Drawings & Schematics is next planned.*
+*Last updated: 2026-04-30 — milestone v1.3 Technical Drawings & Schematics started. Three milestones live (v1.0, v1.1, v1.2). v1.3 covers schematics, rack elevations, floor plans (in-app drawing tool), and drawing export across phases 17–20.*

@@ -1,31 +1,31 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Installation Programme & Field Management
-status: verifying
-last_updated: "2026-04-30T21:02:26.359Z"
+milestone: v1.3
+milestone_name: Technical Drawings & Schematics
+status: defining_requirements
+last_updated: "2026-04-30T21:30:00.000Z"
 last_activity: 2026-04-30
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 21
-  completed_plans: 21
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-13)
+See: .planning/PROJECT.md (updated 2026-04-30)
 
 **Core value:** One dataset powers every document.
-**Current focus:** Phase 16 — commissioning-checklist-signoff
+**Current focus:** Defining v1.3 requirements
 
 ## Current Position
 
-Phase: 16
-Plan: Not started
-Status: Phase complete — ready for /gsd-verify-work
-Last activity: 2026-04-30 — Completed quick task 260430-um1: fix install programme 0 tasks (port area-tag distribution from WorksheetGeneratorService into InstallTaskGeneratorService)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-30 — Milestone v1.3 started; PROJECT.md updated with goal + 4-phase outline (Schematics, Rack Elevations, Floor Plans drawing tool, Drawing Export)
 
 ## Milestone v1.0 Complete
 
