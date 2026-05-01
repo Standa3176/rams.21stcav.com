@@ -52,6 +52,18 @@
             height: auto;
             width: auto;
         }
+        /*
+         * Force SVG text to a guaranteed-system font on the production AlmaLinux
+         * server. D2's SVG output references specific fonts (e.g. Source Sans
+         * Pro) that aren't installed on most servers, so chrome-headless-shell
+         * falls back and miscalculates glyph widths — visible as letters spaced
+         * apart ("S ig na lFlow"). Overriding font-family on every text/tspan
+         * forces Chrome to use a font it definitely has metrics for.
+         */
+        .schematic-svg-wrap svg text,
+        .schematic-svg-wrap svg tspan {
+            font-family: Arial, Helvetica, 'Liberation Sans', 'DejaVu Sans', sans-serif !important;
+        }
         .schematic-empty {
             font-size: 12pt;
             color: #6b7280;

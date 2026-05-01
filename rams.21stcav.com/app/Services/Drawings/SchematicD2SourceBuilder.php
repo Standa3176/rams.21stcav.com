@@ -111,11 +111,20 @@ class SchematicD2SourceBuilder
                 'name' => (string) ($device['name'] ?? ''),
             ];
 
-            $rawLabel = trim(($device['manufacturer'] ?? '').' '.($device['name'] ?? ''));
-            if ($rawLabel === '') {
-                $rawLabel = $rawId;
-            }
-            $label = $this->sanitiseLabel($rawLabel);
+            // Three-line label: Manufacturer / generic name / model — same
+            // convention real-world AV schematics use (e.g. "Crestron / Receiver
+            // / AM-3200-GV"). Sanitise EACH PART individually first
+            // (sanitiseLabel collapses control chars including \n), then join
+            // with literal \n which D2's double-quoted parser renders as a
+            // line break.
+            $manufacturer = $this->sanitiseLabel((string) ($device['manufacturer'] ?? ''));
+            $name = $this->sanitiseLabel((string) ($device['name'] ?? ''));
+            $model = $this->sanitiseLabel((string) ($device['model'] ?? ''));
+            $labelParts = array_values(array_filter(
+                [trim($manufacturer), trim($name), trim($model)],
+                fn (string $p) => $p !== ''
+            ));
+            $label = $labelParts ? implode('\n', $labelParts) : $this->sanitiseLabel($rawId);
 
             $symbol = $this->resolveSymbol((string) ($device['name'] ?? ''), $device['signal_role'] ?? null);
             $iconPath = rtrim($symbolPack, '/\\').DIRECTORY_SEPARATOR.$symbol;

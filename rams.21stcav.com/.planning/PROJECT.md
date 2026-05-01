@@ -126,6 +126,7 @@ One dataset powers every document. Engineers capture real-world data, quotes pro
 - Native mobile app — responsive web sufficient; mobile field view (v1.2) covers field use
 - Real-time multi-user collaboration — single-user editing per session matches workflow
 - Payment processing — invoicing/payments handled externally by accounts team
+- **Engineering-grade schematic fidelity (deferred to v2.0)** — port-level routing (per-device port lists, port-to-port edges with port labels), sub-room location grouping ("Behind Screen"/"Ceiling"/"Table" zones within one room), custom device card templates with red-bordered manufacturer/model/port-rail layout (XTEN-AV / D-Tools / Stardraw style). Requires a Device port catalog seeded from manufacturer spec sheets — not derivable from QuoteWerks data alone. v1.3 ships AVIXA-icon-style auto-generation as a "passable basic" baseline; the engineering-grade version is its own v2.0 milestone.
 
 ## Context
 
