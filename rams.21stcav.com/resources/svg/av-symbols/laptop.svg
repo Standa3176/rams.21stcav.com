@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" stroke="currentColor" fill="none" stroke-width="2">
+  <polygon points="20,55 80,55 88,75 12,75"/>
+  <rect x="22" y="22" width="56" height="35" rx="2"/>
+  <rect x="28" y="28" width="44" height="25"/>
+  <line x1="40" y1="65" x2="60" y2="65"/>
+</svg>
+<!-- AVIXA D401.01-aligned. Phase 17 v1. -->

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" stroke="currentColor" fill="none" stroke-width="2">
+  <rect x="40" y="15" width="20" height="40" rx="10"/>
+  <line x1="45" y1="25" x2="55" y2="25"/>
+  <line x1="45" y1="35" x2="55" y2="35"/>
+  <line x1="45" y1="45" x2="55" y2="45"/>
+  <path d="M30,55 a20,20 0 0 0 40,0"/>
+  <line x1="50" y1="75" x2="50" y2="90"/>
+  <line x1="40" y1="90" x2="60" y2="90"/>
+</svg>
+<!-- AVIXA D401.01-aligned. Phase 17 v1. -->

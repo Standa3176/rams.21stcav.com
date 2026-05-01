@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" stroke="currentColor" fill="none" stroke-width="2">
+  <rect x="10" y="25" width="80" height="50" rx="2"/>
+  <text x="50" y="45" font-family="sans-serif" font-size="12" text-anchor="middle" stroke="none" fill="currentColor">DSP</text>
+  <polyline points="15,60 25,55 35,65 45,50 55,65 65,55 75,60 85,55"/>
+</svg>
+<!-- AVIXA D401.01-aligned. Phase 17 v1. -->

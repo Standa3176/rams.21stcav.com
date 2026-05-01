@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" stroke="currentColor" fill="none" stroke-width="2">
+  <rect x="5" y="40" width="90" height="20" rx="2"/>
+  <circle cx="15" cy="50" r="3"/>
+  <circle cx="27" cy="50" r="3"/>
+  <circle cx="39" cy="50" r="3"/>
+  <circle cx="51" cy="50" r="3"/>
+  <circle cx="63" cy="50" r="3"/>
+  <circle cx="75" cy="50" r="3"/>
+  <circle cx="87" cy="50" r="3"/>
+  <text x="50" y="75" font-family="sans-serif" font-size="10" text-anchor="middle" stroke="none" fill="currentColor">PDU</text>
+</svg>
+<!-- AVIXA D401.01-aligned. Phase 17 v1. -->

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" stroke="currentColor" fill="none" stroke-width="2">
+  <polygon points="25,35 75,35 75,55 70,60 30,60 25,55"/>
+  <line x1="35" y1="42" x2="35" y2="50"/>
+  <line x1="42" y1="42" x2="42" y2="50"/>
+  <line x1="49" y1="42" x2="49" y2="50"/>
+  <line x1="56" y1="42" x2="56" y2="50"/>
+  <line x1="63" y1="42" x2="63" y2="50"/>
+  <text x="50" y="80" font-family="sans-serif" font-size="9" text-anchor="middle" stroke="none" fill="currentColor">RJ45</text>
+</svg>
+<!-- AVIXA D401.01-aligned. Phase 17 v1. -->

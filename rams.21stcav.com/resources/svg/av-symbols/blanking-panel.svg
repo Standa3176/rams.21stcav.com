@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" stroke="currentColor" fill="currentColor" stroke-width="2">
+  <rect x="10" y="40" width="80" height="20" fill="currentColor" stroke="currentColor"/>
+  <circle cx="18" cy="50" r="2" fill="none" stroke="#fff" stroke-width="1"/>
+  <circle cx="82" cy="50" r="2" fill="none" stroke="#fff" stroke-width="1"/>
+</svg>
+<!-- AVIXA D401.01-aligned. Phase 17 v1. -->
