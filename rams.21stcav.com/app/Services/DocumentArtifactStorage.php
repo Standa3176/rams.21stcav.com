@@ -30,15 +30,27 @@ class DocumentArtifactStorage
     /** Filesystems.php disk name. */
     public const DISK = 'documents';
 
-    public const TYPE_RAMS      = 'rams';
-    public const TYPE_OM        = 'om-manuals';
+    public const TYPE_RAMS = 'rams';
+
+    public const TYPE_OM = 'om-manuals';
+
     public const TYPE_WORKSHEET = 'worksheets';
-    public const TYPE_CABLE     = 'cable-schedules';
+
+    public const TYPE_CABLE = 'cable-schedules';
+
     // TYPE_SNAGGING (Phase 16) has NO pre-H-07 legacy history — only current
     // documents disk lookup. Deliberately absent from LEGACY_ROOTS so a
     // missing snagging PDF returns null instead of silently resolving to a
     // fake legacy path that never had data in it (B-02 guard).
-    public const TYPE_SNAGGING  = 'snagging';
+    public const TYPE_SNAGGING = 'snagging';
+
+    // TYPE_DRAWING (Phase 17) — same rationale as TYPE_SNAGGING: no
+    // pre-H-07 legacy history (drawings ship after H-07 landed). Single
+    // constant for all three drawing kinds (schematic / rack / floor_plan)
+    // — sub-kind lives in the filename convention
+    // (drawings/{kind}-{drawingId}-v{version}-{ulid}.{format}) so we don't
+    // multiply storage type constants per discriminator.
+    public const TYPE_DRAWING = 'drawings';
 
     /**
      * Legacy absolute-path roots, relative to storage_path(). Used ONLY for
@@ -48,10 +60,10 @@ class DocumentArtifactStorage
      * NB: TYPE_SNAGGING is intentionally NOT listed — see constant docblock.
      */
     private const LEGACY_ROOTS = [
-        self::TYPE_RAMS      => 'app/rams',
-        self::TYPE_OM        => 'app/om-manuals',
+        self::TYPE_RAMS => 'app/rams',
+        self::TYPE_OM => 'app/om-manuals',
         self::TYPE_WORKSHEET => 'app/private/worksheets',
-        self::TYPE_CABLE     => 'app/private/cable-schedules',
+        self::TYPE_CABLE => 'app/private/cable-schedules',
     ];
 
     /**
@@ -59,7 +71,7 @@ class DocumentArtifactStorage
      * subdirectory is created on demand so callers don't need to mkdir.
      *
      * @throws InvalidArgumentException when $type is not one of the TYPE_*
-     *                                   constants.
+     *                                  constants.
      */
     public function writePath(string $type, string $filename): string
     {
@@ -68,6 +80,7 @@ class DocumentArtifactStorage
         if (! $disk->exists($type)) {
             $disk->makeDirectory($type);
         }
+
         return $disk->path("{$type}/{$filename}");
     }
 
@@ -92,7 +105,7 @@ class DocumentArtifactStorage
         // never a real pre-H-07 location (B-02).
         $legacyRel = self::LEGACY_ROOTS[$type] ?? null;
         if ($legacyRel !== null) {
-            $legacy = storage_path($legacyRel . '/' . $filename);
+            $legacy = storage_path($legacyRel.'/'.$filename);
             if (is_file($legacy)) {
                 return $legacy;
             }
@@ -125,7 +138,7 @@ class DocumentArtifactStorage
         // entry (e.g. TYPE_SNAGGING) skip the legacy branch entirely.
         $legacyRel = self::LEGACY_ROOTS[$type] ?? null;
         if ($legacyRel !== null) {
-            $legacy = storage_path($legacyRel . '/' . $filename);
+            $legacy = storage_path($legacyRel.'/'.$filename);
             if (is_file($legacy)) {
                 @unlink($legacy);
             }
@@ -141,6 +154,7 @@ class DocumentArtifactStorage
             self::TYPE_WORKSHEET,
             self::TYPE_CABLE,
             self::TYPE_SNAGGING,
+            self::TYPE_DRAWING,
         ];
     }
 

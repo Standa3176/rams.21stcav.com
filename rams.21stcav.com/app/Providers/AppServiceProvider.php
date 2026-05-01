@@ -3,9 +3,13 @@
 namespace App\Providers;
 
 use App\Core\Modules\Projects\ProjectDataService;
+use App\Models\InstallTask;
 use App\Models\OmManual;
+use App\Models\ProjectDrawing;
 use App\Models\RamsDocument;
+use App\Observers\InstallTaskObserver;
 use App\Policies\OmManualPolicy;
+use App\Policies\ProjectDrawingPolicy;
 use App\Policies\RamsDocumentPolicy;
 use App\Services\PdfOcrExtractorService;
 use App\Services\PdfTextExtractorService;
@@ -16,6 +20,7 @@ use Illuminate\Queue\Events\Looping;
 use Illuminate\Queue\Events\WorkerStopping;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 use Smalot\PdfParser\Config;
 use Smalot\PdfParser\Parser;
@@ -28,21 +33,21 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(Parser::class, function () {
-            $config = new Config();
+            $config = new Config;
             $config->setIgnoreEncryption(true);
 
             return new Parser([], $config);
         });
 
         $this->app->bind(PdfTextExtractorService::class, function () {
-            return new PdfTextExtractorService(app(Parser::class), new PdfOcrExtractorService());
+            return new PdfTextExtractorService(app(Parser::class), new PdfOcrExtractorService);
         });
 
         $this->app->singleton(ProjectDataService::class);
 
         // Harden file replacement on Windows to avoid intermittent
         // Blade compile failures: rename(...): Access is denied (code 5).
-        $this->app->singleton('files', fn () => new WindowsSafeFilesystem());
+        $this->app->singleton('files', fn () => new WindowsSafeFilesystem);
     }
 
     /**
@@ -55,14 +60,15 @@ class AppServiceProvider extends ServiceProvider
         // convention (ModelPolicy → Model), we register explicitly for clarity
         // and to make the relationship visible at a glance.
         Gate::policy(RamsDocument::class, RamsDocumentPolicy::class);
-        Gate::policy(OmManual::class,     OmManualPolicy::class);
+        Gate::policy(OmManual::class, OmManualPolicy::class);
+        Gate::policy(ProjectDrawing::class, ProjectDrawingPolicy::class);
 
         // ── Phase 16: commissioning generation trigger (D-03) ────────────────
         // Observer fires CommissioningItemGenerator::generate() when the
         // LAST install_task in a programme flips to STATUS_COMPLETE. Guard
         // logic lives in the observer (wasChanged + remaining count) so
         // mid-flight completions never trigger generation.
-        \App\Models\InstallTask::observe(\App\Observers\InstallTaskObserver::class);
+        InstallTask::observe(InstallTaskObserver::class);
 
         // ── Worker heartbeat — write on every queue loop + job completion ────
         // Fixes the observability gap behind the "clicked regenerate, nothing
@@ -71,9 +77,9 @@ class AppServiceProvider extends ServiceProvider
         // WorkerMonitorService::isRunning() fell back to worker.log mtime and
         // went stale the moment the worker idled. These hooks keep the file
         // continuously fresh while any queue:work loop is running.
-        Event::listen(Looping::class,       fn () => app(WorkerMonitorService::class)->writeHeartbeat());
-        Event::listen(JobProcessed::class,  fn () => app(WorkerMonitorService::class)->writeHeartbeat());
-        Event::listen(WorkerStopping::class,fn () => app(WorkerMonitorService::class)->clearHeartbeat());
+        Event::listen(Looping::class, fn () => app(WorkerMonitorService::class)->writeHeartbeat());
+        Event::listen(JobProcessed::class, fn () => app(WorkerMonitorService::class)->writeHeartbeat());
+        Event::listen(WorkerStopping::class, fn () => app(WorkerMonitorService::class)->clearHeartbeat());
 
         // ── Phase 14: libheif delegate health check ───────────────────────────
         // Warn at boot if imagick is loaded but libheif delegate is missing.
@@ -82,15 +88,15 @@ class AppServiceProvider extends ServiceProvider
         // and 14-RESEARCH.md Pitfall 1 (libheif delegate trap).
         if (extension_loaded('imagick') && class_exists(\Imagick::class)) {
             try {
-                $formats = (new \Imagick())->queryFormats('HEI*');
+                $formats = (new \Imagick)->queryFormats('HEI*');
                 if (empty($formats)) {
-                    \Illuminate\Support\Facades\Log::warning(
+                    Log::warning(
                         'AppServiceProvider: imagick loaded but HEIC delegate missing. '
                         .'HEIC uploads will fail. Install libheif-dev and recompile ImageMagick.'
                     );
                 }
             } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning(
+                Log::warning(
                     'AppServiceProvider: imagick extension check failed: '.$e->getMessage()
                 );
             }

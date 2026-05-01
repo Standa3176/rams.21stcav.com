@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Project extends Model
@@ -13,14 +14,21 @@ class Project extends Model
     use HasFactory, SoftDeletes;
     // ── Lifecycle states ──────────────────────────────────────────────────────
 
-    const STATUS_QUOTE_IMPORTED   = 'quote_imported';
-    const STATUS_SURVEY_PENDING   = 'survey_pending';
-    const STATUS_ENGINEERING      = 'engineering';
-    const STATUS_INSTALLING       = 'installing';
-    const STATUS_COMMISSIONING    = 'commissioning';
-    const STATUS_HANDOVER         = 'handover';
-    const STATUS_COMPLETED        = 'completed';
-    const STATUS_ARCHIVED         = 'archived';
+    const STATUS_QUOTE_IMPORTED = 'quote_imported';
+
+    const STATUS_SURVEY_PENDING = 'survey_pending';
+
+    const STATUS_ENGINEERING = 'engineering';
+
+    const STATUS_INSTALLING = 'installing';
+
+    const STATUS_COMMISSIONING = 'commissioning';
+
+    const STATUS_HANDOVER = 'handover';
+
+    const STATUS_COMPLETED = 'completed';
+
+    const STATUS_ARCHIVED = 'archived';
 
     /** Ordered lifecycle progression. */
     const LIFECYCLE = [
@@ -41,12 +49,12 @@ class Project extends Model
     const TRANSITIONS = [
         self::STATUS_QUOTE_IMPORTED => [self::STATUS_SURVEY_PENDING],
         self::STATUS_SURVEY_PENDING => [self::STATUS_ENGINEERING],
-        self::STATUS_ENGINEERING    => [self::STATUS_INSTALLING],
-        self::STATUS_INSTALLING     => [self::STATUS_COMMISSIONING],
-        self::STATUS_COMMISSIONING  => [self::STATUS_HANDOVER],
-        self::STATUS_HANDOVER       => [self::STATUS_COMPLETED],
-        self::STATUS_COMPLETED      => [self::STATUS_ARCHIVED],
-        self::STATUS_ARCHIVED       => [], // reopen handled separately
+        self::STATUS_ENGINEERING => [self::STATUS_INSTALLING],
+        self::STATUS_INSTALLING => [self::STATUS_COMMISSIONING],
+        self::STATUS_COMMISSIONING => [self::STATUS_HANDOVER],
+        self::STATUS_HANDOVER => [self::STATUS_COMPLETED],
+        self::STATUS_COMPLETED => [self::STATUS_ARCHIVED],
+        self::STATUS_ARCHIVED => [], // reopen handled separately
     ];
 
     /**
@@ -56,11 +64,11 @@ class Project extends Model
      */
     const TRANSITIONS_BACKWARD = [
         self::STATUS_SURVEY_PENDING => [self::STATUS_QUOTE_IMPORTED],
-        self::STATUS_ENGINEERING    => [self::STATUS_SURVEY_PENDING],
-        self::STATUS_INSTALLING     => [self::STATUS_ENGINEERING],
-        self::STATUS_COMMISSIONING  => [self::STATUS_INSTALLING],
-        self::STATUS_HANDOVER       => [self::STATUS_COMMISSIONING],
-        self::STATUS_COMPLETED      => [self::STATUS_HANDOVER],
+        self::STATUS_ENGINEERING => [self::STATUS_SURVEY_PENDING],
+        self::STATUS_INSTALLING => [self::STATUS_ENGINEERING],
+        self::STATUS_COMMISSIONING => [self::STATUS_INSTALLING],
+        self::STATUS_HANDOVER => [self::STATUS_COMMISSIONING],
+        self::STATUS_COMPLETED => [self::STATUS_HANDOVER],
     ];
 
     // ── Display labels & colours ──────────────────────────────────────────────
@@ -68,23 +76,23 @@ class Project extends Model
     const STATUS_LABELS = [
         self::STATUS_QUOTE_IMPORTED => 'Quote Imported',
         self::STATUS_SURVEY_PENDING => 'Survey Pending',
-        self::STATUS_ENGINEERING    => 'Engineering',
-        self::STATUS_INSTALLING     => 'Installing',
-        self::STATUS_COMMISSIONING  => 'Commissioning',
-        self::STATUS_HANDOVER       => 'Handover',
-        self::STATUS_COMPLETED      => 'Completed',
-        self::STATUS_ARCHIVED       => 'Archived',
+        self::STATUS_ENGINEERING => 'Engineering',
+        self::STATUS_INSTALLING => 'Installing',
+        self::STATUS_COMMISSIONING => 'Commissioning',
+        self::STATUS_HANDOVER => 'Handover',
+        self::STATUS_COMPLETED => 'Completed',
+        self::STATUS_ARCHIVED => 'Archived',
     ];
 
     const STATUS_COLOURS = [
         self::STATUS_QUOTE_IMPORTED => '#6c757d',  // grey
         self::STATUS_SURVEY_PENDING => '#fd7e14',  // orange
-        self::STATUS_ENGINEERING    => '#0d6efd',  // blue
-        self::STATUS_INSTALLING     => '#6f42c1',  // purple
-        self::STATUS_COMMISSIONING  => '#20c997',  // teal-green
-        self::STATUS_HANDOVER       => '#007B8A',  // brand teal
-        self::STATUS_COMPLETED      => '#28a745',  // green
-        self::STATUS_ARCHIVED       => '#adb5bd',  // light grey
+        self::STATUS_ENGINEERING => '#0d6efd',  // blue
+        self::STATUS_INSTALLING => '#6f42c1',  // purple
+        self::STATUS_COMMISSIONING => '#20c997',  // teal-green
+        self::STATUS_HANDOVER => '#007B8A',  // brand teal
+        self::STATUS_COMPLETED => '#28a745',  // green
+        self::STATUS_ARCHIVED => '#adb5bd',  // light grey
     ];
 
     // ── Eloquent config ───────────────────────────────────────────────────────
@@ -116,17 +124,17 @@ class Project extends Model
     ];
 
     protected $casts = [
-        'reopened_at'              => 'datetime',
-        'survey_started_at'        => 'datetime',
-        'engineering_started_at'   => 'datetime',
-        'installation_started_at'  => 'datetime',
+        'reopened_at' => 'datetime',
+        'survey_started_at' => 'datetime',
+        'engineering_started_at' => 'datetime',
+        'installation_started_at' => 'datetime',
         'commissioning_started_at' => 'datetime',
-        'handover_started_at'      => 'datetime',
-        'completed_at'             => 'datetime',
-        'archived_at'              => 'datetime',
+        'handover_started_at' => 'datetime',
+        'completed_at' => 'datetime',
+        'archived_at' => 'datetime',
         // Phase 4 — Tier 1 OM lifecycle dates (date-only, no time component)
-        'handover_date'            => 'date',
-        'defects_liability_end'    => 'date',
+        'handover_date' => 'date',
+        'defects_liability_end' => 'date',
     ];
 
     // ── Relationships ─────────────────────────────────────────────────────────
@@ -208,11 +216,24 @@ class Project extends Model
         return $this->hasMany(InstallProgramme::class)->orderBy('created_at', 'desc');
     }
 
-    public function activeInstallProgramme(): \Illuminate\Database\Eloquent\Relations\HasOne
+    public function activeInstallProgramme(): HasOne
     {
         return $this->hasOne(InstallProgramme::class)
-                    ->where('status', InstallProgramme::STATUS_ACTIVE)
-                    ->latestOfMany();
+            ->where('status', InstallProgramme::STATUS_ACTIVE)
+            ->latestOfMany();
+    }
+
+    /**
+     * v1.3 / Phase 17 — every drawing kind (schematic / rack / floor_plan).
+     * Filter by kind at the call site, e.g.
+     *   $project->drawings()->where('kind', ProjectDrawing::KIND_SCHEMATIC)
+     *
+     * Plan 03's index page filters out superseded revisions via
+     *   ->whereNull('superseded_by_id') so only current versions show.
+     */
+    public function drawings(): HasMany
+    {
+        return $this->hasMany(ProjectDrawing::class);
     }
 
     /**
