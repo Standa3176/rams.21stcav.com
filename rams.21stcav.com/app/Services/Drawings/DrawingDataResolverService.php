@@ -29,6 +29,27 @@ use Illuminate\Support\Facades\Log;
  */
 class DrawingDataResolverService
 {
+    // Same exclusion lists as InstallTaskGeneratorService / WorksheetGeneratorService —
+    // cables/consumables/services aren't device-nodes on a signal-flow schematic
+    // (cables become EDGES via the cables array; the rest are billing line items).
+    private const EXCLUDED_CATEGORIES = [
+        'cables',
+        'consumables',
+        'services',
+        'option',
+    ];
+
+    private const EXCLUDED_KEYWORDS = [
+        'cable',
+        'cat5',
+        'cat6',
+        'hdmi',
+        'usb-a to usb-b',
+        'install',
+        'commission',
+        'project management',
+    ];
+
     public function __construct(
         private readonly ProjectDataService $projectDataService,
     ) {}
@@ -81,7 +102,7 @@ class DrawingDataResolverService
             return [[
                 'room_id' => null,
                 'room_name' => 'Project schematic',
-                'devices' => $this->reshapeDevices($equipment, $signalRoleByPart),
+                'devices' => $this->reshapeDevices($this->filterHardware($equipment), $signalRoleByPart),
                 'cables' => $this->reshapeCables($cables),
             ]];
         }
@@ -97,7 +118,7 @@ class DrawingDataResolverService
             $out[] = [
                 'room_id' => $roomId,
                 'room_name' => $roomName,
-                'devices' => $this->reshapeDevices($roomEquipment, $signalRoleByPart),
+                'devices' => $this->reshapeDevices($this->filterHardware($roomEquipment), $signalRoleByPart),
                 'cables' => $this->reshapeCables($roomCables),
             ];
         }
@@ -134,6 +155,36 @@ class DrawingDataResolverService
         }
 
         return $map;
+    }
+
+    /**
+     * Drop non-hardware line items (cables, consumables, services, options)
+     * before they become device-nodes on the schematic. Cables flow into
+     * the schematic as EDGES via $data['cables'] — they must not also appear
+     * as nodes. Mirrors InstallTaskGeneratorService::filterHardware().
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<int, array<string, mixed>>
+     */
+    private function filterHardware(array $items): array
+    {
+        return array_values(array_filter($items, function (array $item): bool {
+            $category = strtolower(trim((string) ($item['category'] ?? $item['item_type'] ?? '')));
+
+            if ($category !== '' && in_array($category, self::EXCLUDED_CATEGORIES, true)) {
+                return false;
+            }
+
+            // Keyword fallback when category is blank or doesn't match
+            $needle = strtolower((string) ($item['name'] ?? $item['description'] ?? ''));
+            foreach (self::EXCLUDED_KEYWORDS as $kw) {
+                if ($needle !== '' && str_contains($needle, $kw)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }));
     }
 
     /**
