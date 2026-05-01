@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Mail\DocumentGenerationFailedMail;
 use App\Mail\DrawingReadyMail;
 use App\Models\ProjectDrawing;
+use App\Services\Drawings\SchematicGeneratorService;
 use App\Services\NotificationRecipientResolver;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -13,15 +14,15 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
 
 /**
  * Async schematic generation job.
  *
- * Plan 17-01 placeholder: writes a stub SVG so Plans 02/03 can be planned
- * and tested end-to-end. Plan 17-02 Task 2 REPLACES the placeholder body
- * with the real D2-driven SchematicGeneratorService call. The mail
- * dispatch + failed() hook below stay UNCHANGED across that handover.
+ * Plan 17-02 Task 2 wired this job to the real D2-driven
+ * SchematicGeneratorService — the Plan 17-01 placeholder SVG block has
+ * been removed. The mail dispatch + failed() hook below stay UNCHANGED
+ * from Plan 17-01. Plan 17-03 Task 1 will insert a thumbnail render block
+ * AFTER the generator call and BEFORE the completion email send.
  *
  * Status transitions:
  *   draft|generating → ready    (success)
@@ -46,7 +47,7 @@ class BuildSchematicJob implements ShouldQueue
     // HANDLE
     // =========================================================================
 
-    public function handle(): void
+    public function handle(SchematicGeneratorService $generator): void
     {
         $drawing = ProjectDrawing::find($this->drawingId);
 
@@ -70,30 +71,24 @@ class BuildSchematicJob implements ShouldQueue
         ]);
 
         try {
-            // ── Plan 17-01 placeholder body — Plan 17-02 REPLACES this block ──
-            // Plan 02 Task 2 will inject SchematicGeneratorService into handle()
-            // and call $generator->generate($drawing); the mail dispatch +
-            // failed() hook below stay untouched across that handover.
-            $placeholderSvg = '<?xml version="1.0" encoding="UTF-8"?>'
-                .'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">'
-                .'<text x="20" y="100" font-family="sans-serif" font-size="14">'
-                .'Phase 17 Plan 02 will implement schematic generation'
-                .'</text></svg>';
-
-            $filename = sprintf(
-                'schematic-%d-v%d-%s.svg',
-                $drawing->id,
-                $drawing->version,
-                strtolower((string) Str::ulid()),
-            );
-
-            $drawing->update([
-                'generated_svg' => $placeholderSvg,
-                'filename' => $filename,
-                'status' => ProjectDrawing::STATUS_READY,
-                'error_message' => null,
-            ]);
-            // ── End Plan 17-01 placeholder body ──────────────────────────────
+            // ── Plan 17-02 REAL generator (replaces Plan 17-01 placeholder) ──
+            // SchematicGeneratorService::generate() consumes the canonical
+            // adjacency from DrawingDataResolverService, builds D2 source
+            // via SchematicD2SourceBuilder, shells out to the D2 CLI, and
+            // sets generated_svg + filename + status=READY itself. The
+            // surrounding mail dispatch and failed() hook below stay
+            // UNCHANGED from Plan 17-01.
+            //
+            // ── Plan 17-03 thumbnail-render insertion point ──────────────
+            // Plan 17-03 Task 1 will insert a Browsershot thumbnail render
+            // block immediately AFTER $generator->generate() succeeds and
+            // BEFORE the completion email dispatch below. Disjoint from the
+            // generator call — generator owns generated_svg / filename /
+            // status; thumbnail block will own thumbnail_png_path. Leave
+            // this comment marker so the Plan 03 executor can grep for the
+            // exact insertion point.
+            $generator->generate($drawing);
+            // ── End Plan 17-02 generator block ───────────────────────────
 
             Log::info('BuildSchematicJob: completed successfully', [
                 'drawing_id' => $this->drawingId,
