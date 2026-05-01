@@ -12,13 +12,13 @@ use App\Services\DocumentEdits\DocumentEditAdapterInterface;
 class DocumentEditParsingPromptFactory
 {
     /**
-     * @param list<array{code: string, message: string}> $priorErrors
+     * @param  list<array{code: string, message: string}>  $priorErrors
      */
     public function make(
         DocumentEditAdapterInterface $adapter,
-        string  $userMessage,
-        ?array  $documentPayload,
-        array   $priorErrors    = [],
+        string $userMessage,
+        ?array $documentPayload,
+        array $priorErrors = [],
         ?string $priorRawOutput = null,
     ): DocumentEditParsingPrompt {
         // Optional adapter capability — not part of the interface so older adapters
@@ -29,13 +29,13 @@ class DocumentEditParsingPromptFactory
             : [];
 
         return new DocumentEditParsingPrompt(
-            documentType:      $adapter->documentType(),
-            userMessage:       trim($userMessage),
+            documentType: $adapter->documentType(),
+            userMessage: trim($userMessage),
             allowedOperations: $adapter->allowedOperations(),
-            operationSchemas:  $schemas,
-            payloadSnapshot:   $this->safeSnapshot($adapter->documentType(), $documentPayload),
-            priorErrors:       $priorErrors,
-            priorRawOutput:    $priorRawOutput,
+            operationSchemas: $schemas,
+            payloadSnapshot: $this->safeSnapshot($adapter->documentType(), $documentPayload),
+            priorErrors: $priorErrors,
+            priorRawOutput: $priorRawOutput,
         );
     }
 
@@ -47,15 +47,18 @@ class DocumentEditParsingPromptFactory
      */
     private function safeSnapshot(string $documentType, ?array $payload): array
     {
-        if ($payload === null) return [];
+        if ($payload === null) {
+            return [];
+        }
 
         return match ($documentType) {
             'worksheet' => $this->worksheetSnapshot($payload),
-            'rams'      => $this->ramsSnapshot($payload),
-            'survey'    => $this->surveySnapshot($payload),
-            'om'        => $this->omSnapshot($payload),
-            'cable'     => $this->cableSnapshot($payload),
-            default     => [],
+            'rams' => $this->ramsSnapshot($payload),
+            'survey' => $this->surveySnapshot($payload),
+            'om' => $this->omSnapshot($payload),
+            'cable' => $this->cableSnapshot($payload),
+            'drawing' => $this->drawingSnapshot($payload),
+            default => [],
         };
     }
 
@@ -64,25 +67,26 @@ class DocumentEditParsingPromptFactory
         $rooms = [];
         foreach ((array) ($p['rooms'] ?? []) as $r) {
             $rooms[] = [
-                'name'             => (string) ($r['name'] ?? ''),
-                'tools_count'      => count((array) ($r['tools'] ?? [])),
+                'name' => (string) ($r['name'] ?? ''),
+                'tools_count' => count((array) ($r['tools'] ?? [])),
                 'install_steps_count' => is_array($r['install_steps'] ?? null) ? count($r['install_steps']) : 0,
-                'categories'       => array_values(array_keys((array) ($r['subsystems'] ?? []))),
+                'categories' => array_values(array_keys((array) ($r['subsystems'] ?? []))),
             ];
         }
+
         return [
-            'project_name'     => (string) ($p['project']['name'] ?? ''),
-            'rooms'            => $rooms,
-            'blockers_count'   => count((array) ($p['blockers'] ?? [])),
+            'project_name' => (string) ($p['project']['name'] ?? ''),
+            'rooms' => $rooms,
+            'blockers_count' => count((array) ($p['blockers'] ?? [])),
         ];
     }
 
     private function ramsSnapshot(array $p): array
     {
         return [
-            'project_name'       => (string) ($p['generated_data']['project']['name'] ?? ''),
-            'project_ref'        => (string) ($p['generated_data']['project']['ref']  ?? ''),
-            'exclusions_count'   => count((array) ($p['reviewed_data']['exclusions'] ?? [])),
+            'project_name' => (string) ($p['generated_data']['project']['name'] ?? ''),
+            'project_ref' => (string) ($p['generated_data']['project']['ref'] ?? ''),
+            'exclusions_count' => count((array) ($p['reviewed_data']['exclusions'] ?? [])),
             'client_responsibilities_count' => count((array) ($p['reviewed_data']['client_responsibilities_expanded'] ?? [])),
         ];
     }
@@ -92,21 +96,22 @@ class DocumentEditParsingPromptFactory
         $rooms = [];
         foreach ((array) ($p['rooms'] ?? []) as $r) {
             $rooms[] = [
-                'id'        => $r['id'] ?? null,
+                'id' => $r['id'] ?? null,
                 'room_name' => (string) ($r['room_name'] ?? ''),
             ];
         }
+
         return [
             'project_name' => (string) ($p['survey']['project_name'] ?? ''),
-            'rooms'        => $rooms,
+            'rooms' => $rooms,
         ];
     }
 
     private function omSnapshot(array $p): array
     {
         return [
-            'project_name'            => (string) ($p['generated_data']['project']['name'] ?? ''),
-            'contacts_count'          => count((array) ($p['generated_data']['contacts'] ?? [])),
+            'project_name' => (string) ($p['generated_data']['project']['name'] ?? ''),
+            'contacts_count' => count((array) ($p['generated_data']['contacts'] ?? [])),
             'maintenance_items_count' => count((array) ($p['generated_data']['maintenance_schedule'] ?? [])),
         ];
     }
@@ -117,9 +122,26 @@ class DocumentEditParsingPromptFactory
         foreach ((array) ($p['items'] ?? []) as $i) {
             $items[] = ['cable_id' => (string) ($i['cable_id'] ?? '')];
         }
+
         return [
             'project_ref' => (string) ($p['project_ref'] ?? ''),
-            'items'       => $items,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * Drawing snapshot — Phase 17 DRAW-30 scaffolding. Deliberately
+     * conservative: no equipment lists, no PII, no cross-project ids.
+     * Mirrors the safe-subset approach in ramsSnapshot / omSnapshot.
+     */
+    private function drawingSnapshot(array $p): array
+    {
+        return [
+            'project_ref' => (string) ($p['project_ref'] ?? ''),
+            'kind' => (string) ($p['kind'] ?? ''),
+            'status' => (string) ($p['status'] ?? ''),
+            'version' => (int) ($p['version'] ?? 0),
+            'has_canvas_state' => (bool) ($p['has_canvas_state'] ?? false),
         ];
     }
 }

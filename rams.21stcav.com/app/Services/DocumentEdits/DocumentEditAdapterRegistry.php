@@ -3,6 +3,7 @@
 namespace App\Services\DocumentEdits;
 
 use App\Services\DocumentEdits\Adapters\CableEditAdapter;
+use App\Services\DocumentEdits\Adapters\DrawingEditAdapter;
 use App\Services\DocumentEdits\Adapters\OmEditAdapter;
 use App\Services\DocumentEdits\Adapters\RamsEditAdapter;
 use App\Services\DocumentEdits\Adapters\SurveyEditAdapter;
@@ -17,11 +18,12 @@ class DocumentEditAdapterRegistry
 {
     /** @var array<string, class-string<DocumentEditAdapterInterface>> */
     private const DEFAULT_MAP = [
-        'rams'      => RamsEditAdapter::class,
-        'survey'    => SurveyEditAdapter::class,
+        'rams' => RamsEditAdapter::class,
+        'survey' => SurveyEditAdapter::class,
         'worksheet' => WorksheetEditAdapter::class,
-        'om'        => OmEditAdapter::class,
-        'cable'     => CableEditAdapter::class,
+        'om' => OmEditAdapter::class,
+        'cable' => CableEditAdapter::class,
+        'drawing' => DrawingEditAdapter::class,
     ];
 
     /** @var array<string, DocumentEditAdapterInterface> */
@@ -47,6 +49,7 @@ class DocumentEditAdapterRegistry
         if (isset(self::DEFAULT_MAP[$type])) {
             $instance = app(self::DEFAULT_MAP[$type]);
             $this->adapters[$type] = $instance;
+
             return $instance;
         }
         throw new InvalidArgumentException("Unknown document type: {$type}");
