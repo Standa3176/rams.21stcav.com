@@ -97,6 +97,29 @@ class BuildSchematicJob implements ShouldQueue
                 'status' => 'ready',
             ]);
 
+            // ── Plan 17-03 thumbnail render (Warning 6 disjoint region) ─────────────
+            // After the generator writes generated_svg + sets STATUS_READY, render a
+            // PNG thumbnail via the centralised PdfRenderService::fromBladeAsPng path
+            // (Warning 8 — no inline Browsershot). Failure is non-fatal — the SVG is
+            // the primary artifact; a missing thumbnail just means the index card
+            // won't have a preview image until the next regeneration.
+            $drawing->refresh();
+            if ($drawing->status === ProjectDrawing::STATUS_READY) {
+                try {
+                    $renderer = app(\App\Services\Drawings\DrawingExportRendererService::class);
+                    $thumbPath = $renderer->renderPng($drawing, 400); // 400px-wide thumbnail
+                    $relative = 'drawings/'.basename($thumbPath);
+                    $drawing->update(['thumbnail_png_path' => $relative]);
+                } catch (\Throwable $thumbErr) {
+                    Log::warning('BuildSchematicJob: thumbnail render failed (non-fatal)', [
+                        'drawing_id' => $drawing->id,
+                        'error' => $thumbErr->getMessage(),
+                    ]);
+                    // Do NOT mark drawing as failed — the SVG is the primary artifact.
+                }
+            }
+            // ── End Plan 17-03 thumbnail block ──────────────────────────────────────
+
             // ── Idempotent completion email (NOTF-01) ────────────────────────
             // Copies BuildOmManualJob verbatim — D-14 timestamp-first idempotency.
             $drawing->refresh();

@@ -302,12 +302,24 @@ Route::middleware('auth')->group(function () {
     Route::post('om-manuals/{id}/restore', [OmManualController::class, 'restore'])->name('om-manuals.restore');
     Route::delete('om-manuals/{id}/force-destroy', [OmManualController::class, 'forceDestroy'])->name('om-manuals.force-destroy');
 
-    // ── v1.3 Phase 17 — Drawings (foundations) ────────────────────────────────
-    // Plan 17-01 wires the routes; Plan 03 fills the index Blade view + per-format
-    // download endpoints. Authorization (owner-or-admin) enforced via
-    // ProjectDrawingPolicy on show/update/delete.
+    // ── v1.3 Phase 17 — Drawings (foundations + render UI) ───────────────────
+    // Plan 17-01 wires the index/show/regenerate routes. Plan 17-03 adds the
+    // create-schematic, per-format download, and updateStatus routes — both
+    // literal-segment routes (download/{format}, create-schematic, status)
+    // are placed before any `{drawing}` wildcard so they are not captured by
+    // route model binding. Authorization enforced via ProjectDrawingPolicy.
     Route::get('projects/{project}/drawings', [ProjectDrawingController::class, 'index'])
         ->name('projects.drawings.index');
+    Route::post('projects/{project}/drawings/create-schematic',
+        [ProjectDrawingController::class, 'createSchematic'])
+        ->name('projects.drawings.create-schematic');
+    Route::get('projects/{project}/drawings/{drawing}/download/{format}',
+        [ProjectDrawingController::class, 'download'])
+        ->where('format', 'pdf|svg|png')
+        ->name('projects.drawings.download');
+    Route::put('projects/{project}/drawings/{drawing}/status',
+        [ProjectDrawingController::class, 'updateStatus'])
+        ->name('projects.drawings.update-status');
     Route::get('projects/{project}/drawings/{drawing}', [ProjectDrawingController::class, 'show'])
         ->name('projects.drawings.show');
     Route::post('projects/{project}/drawings/{drawing}/regenerate', [ProjectDrawingController::class, 'regenerate'])

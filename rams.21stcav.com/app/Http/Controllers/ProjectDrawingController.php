@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\ProjectDrawing;
+use App\Services\Drawings\DrawingExportRendererService;
 use App\Services\Drawings\DrawingService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * v1.3 / Phase 17 — drawings list / regenerate / show shell.
@@ -88,5 +90,42 @@ class ProjectDrawingController extends Controller
         return redirect()
             ->route('projects.drawings.index', $project)
             ->with('status', 'Drawing regeneration queued.');
+    }
+
+    /**
+     * Per-format download endpoint (DRAW-27). Format whitelist enforced —
+     * cannot smuggle 'php' / 'exe' or other suffixes. Cross-project access
+     * blocked by project_id match check (T-17.03-03).
+     */
+    public function download(
+        Project $project,
+        ProjectDrawing $drawing,
+        string $format,
+    ): BinaryFileResponse {
+        $this->authorize('view', $drawing);
+
+        if ($drawing->project_id !== $project->id) {
+            abort(404);
+        }
+        if (! in_array($format, ['pdf', 'svg', 'png'], true)) {
+            abort(404);
+        }
+
+        $renderer = app(DrawingExportRendererService::class);
+        $path = match ($format) {
+            'pdf' => $renderer->renderPdf($drawing),
+            'svg' => $renderer->renderSvg($drawing),
+            'png' => $renderer->renderPng($drawing),
+        };
+
+        $filename = sprintf(
+            '%s-%s-%s.%s',
+            $drawing->kind,
+            $project->ref ?? (string) $project->id,
+            $drawing->revisionLabel(),
+            $format,
+        );
+
+        return response()->download($path, $filename);
     }
 }
