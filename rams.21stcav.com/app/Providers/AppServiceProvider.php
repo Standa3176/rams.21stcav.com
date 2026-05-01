@@ -45,6 +45,15 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(ProjectDataService::class);
 
+        // SchematicD2SourceBuilder takes an `array $config` that Laravel's
+        // auto-resolver can't fill. Inject the drawings config explicitly
+        // so SchematicGeneratorService can typehint the builder normally.
+        $this->app->singleton(\App\Services\Drawings\SchematicD2SourceBuilder::class, function ($app) {
+            return new \App\Services\Drawings\SchematicD2SourceBuilder(
+                (array) $app['config']->get('drawings', [])
+            );
+        });
+
         // Harden file replacement on Windows to avoid intermittent
         // Blade compile failures: rename(...): Access is denied (code 5).
         $this->app->singleton('files', fn () => new WindowsSafeFilesystem);
