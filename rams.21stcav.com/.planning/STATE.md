@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Installation Programme & Field Management — SHIPPED 2026-04-25
 status: executing
-last_updated: "2026-05-01T15:27:37.927Z"
-last_activity: 2026-05-01 -- Phase 17 planning complete
+last_updated: "2026-05-01T15:48:29.010Z"
+last_activity: 2026-05-01
 progress:
-  total_phases: 4
+  total_phases: 1
   completed_phases: 0
   total_plans: 3
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 33
 ---
 
 ## Project Reference
@@ -18,25 +18,25 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-30)
 
 **Core value:** One dataset powers every document.
-**Current focus:** v1.3 Technical Drawings & Schematics — roadmap created (Phases 17–20). Ready to plan Phase 17.
+**Current focus:** Phase 17 — System Schematics + Shared Foundations
 
 ## Current Position
 
-Phase: Phase 17 — System Schematics + Shared Foundations (not started)
-Plan: —
+Phase: 17 (System Schematics + Shared Foundations) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-05-01 -- Phase 17 planning complete
+Last activity: 2026-05-01
 
 ## Milestone Progress (v1.3)
 
 | Phase | Plans | Status |
 |-------|-------|--------|
-| 17. System Schematics + Shared Foundations | 0/3 | Not started |
+| 17. System Schematics + Shared Foundations | 1/3 | In progress |
 | 18. Rack Elevations | 0/2 | Not started |
 | 19. Floor Plans (Konva) | 0/3 | Not started |
 | 20. Drawing Export + O&M + DXF stretch | 0/2 | Not started |
 
-**Total:** 0/10 plans, 0/4 phases (0%)
+**Total:** 1/10 plans, 0/4 phases (10%)
 
 ## Performance Metrics
 
@@ -48,11 +48,13 @@ Last activity: 2026-05-01 -- Phase 17 planning complete
 | Plans estimated | 10 |
 | Granularity | standard |
 | Completed milestones | v1.0 + v1.1 + v1.2 |
+| Phase 17 P01 | 12min | 3 tasks | 19 files |
 
 ## Accumulated Context
 
 ### Key Decisions (v1.3)
 
+- **Plan 17-01 LANDED** (2026-05-01) — shared drawings foundations now live: project_drawings table, ProjectDrawing model + policy, TYPE_DRAWING storage type, DrawingService (createForProject/generateInitial/regenerate/archivePrior), BuildSchematicJob skeleton with full handle()+failed() bodies, DrawingReadyMail single mailable, DrawingEditAdapter scaffolding, PdfRenderService::waitForJs option + new fromBladeAsPng method.
 - **Phase 17 owns shared foundations** — `project_drawings` table, `ProjectDrawing` model + policy, `DocumentArtifactStorage::TYPE_DRAWING`, `BuildSchematicJob` + base job pattern, `DrawingReadyMail` (single mailable + kind discriminator), `PdfRenderService::waitForJs` extension, `DrawingEditAdapter` (extends existing DocumentEdits). Phases 18/19/20 become pure additions.
 - **One `project_drawings` table, kind discriminator** — over three near-identical models (mirrors H-07 collapse to one `DocumentArtifactStorage`).
 - **Konva.js (vanilla, MIT) over React canvas libs** — TLDraw / Excalidraw rejected (React-only conflicts with Alpine.js stack; ~600 KB framework cost for one screen).
