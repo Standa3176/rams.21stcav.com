@@ -101,40 +101,50 @@ No new framework, no React, no PlantUML, no LibreDWG.
 
 ## Traceability
 
-*This section is filled by the roadmapper agent — each requirement maps to exactly one phase.*
+*Each requirement maps to exactly one phase. Plan column populated by `/gsd-plan-phase`. Validated column populated by `/gsd-verify-phase`.*
 
 | REQ-ID | Phase | Plan | Validated |
 |--------|-------|------|-----------|
-| DRAW-01 | — | — | — |
-| DRAW-02 | — | — | — |
-| DRAW-03 | — | — | — |
-| DRAW-04 | — | — | — |
-| DRAW-05 | — | — | — |
-| DRAW-06 | — | — | — |
-| DRAW-07 | — | — | — |
-| DRAW-08 | — | — | — |
-| DRAW-09 | — | — | — |
-| DRAW-10 | — | — | — |
-| DRAW-11 | — | — | — |
-| DRAW-12 | — | — | — |
-| DRAW-13 | — | — | — |
-| DRAW-14 | — | — | — |
-| DRAW-15 | — | — | — |
-| DRAW-16 | — | — | — |
-| DRAW-17 | — | — | — |
-| DRAW-18 | — | — | — |
-| DRAW-19 | — | — | — |
-| DRAW-20 | — | — | — |
-| DRAW-21 | — | — | — |
-| DRAW-22 | — | — | — |
-| DRAW-23 | — | — | — |
-| DRAW-24 | — | — | — |
-| DRAW-25 | — | — | — |
-| DRAW-26 | — | — | — |
-| DRAW-27 | — | — | — |
-| DRAW-28 | — | — | — |
-| DRAW-29 | — | — | — |
-| DRAW-30 | — | — | — |
+| DRAW-01 | Phase 17 | — | — |
+| DRAW-02 | Phase 17 | — | — |
+| DRAW-03 | Phase 17 | — | — |
+| DRAW-04 | Phase 17 | — | — |
+| DRAW-05 | Phase 17 | — | — |
+| DRAW-06 | Phase 17 | — | — |
+| DRAW-07 | Phase 18 | — | — |
+| DRAW-08 | Phase 18 | — | — |
+| DRAW-09 | Phase 18 | — | — |
+| DRAW-10 | Phase 18 | — | — |
+| DRAW-11 | Phase 18 | — | — |
+| DRAW-12 | Phase 18 | — | — |
+| DRAW-13 | Phase 18 | — | — |
+| DRAW-14 | Phase 19 | — | — |
+| DRAW-15 | Phase 19 | — | — |
+| DRAW-16 | Phase 19 | — | — |
+| DRAW-17 | Phase 19 | — | — |
+| DRAW-18 | Phase 19 | — | — |
+| DRAW-19 | Phase 19 | — | — |
+| DRAW-20 | Phase 19 | — | — |
+| DRAW-21 | Phase 20 | — | — |
+| DRAW-22 | Phase 17 | — | — |
+| DRAW-23 | Phase 20 | — | — |
+| DRAW-24 | Phase 17 | — | — |
+| DRAW-25 | Phase 17 | — | — |
+| DRAW-26 | Phase 17 | — | — |
+| DRAW-27 | Phase 17 | — | — |
+| DRAW-28 | Phase 20 | — | — |
+| DRAW-29 | Phase 20 | — | — |
+| DRAW-30 | Phase 17 | — | — |
+
+**Coverage check:** 30/30 v1.3 requirements mapped. No orphans, no duplicates.
+
+| Phase | Requirements |
+|-------|--------------|
+| Phase 17 | DRAW-01, DRAW-02, DRAW-03, DRAW-04, DRAW-05, DRAW-06, DRAW-22, DRAW-24, DRAW-25, DRAW-26, DRAW-27, DRAW-30 (12) |
+| Phase 18 | DRAW-07, DRAW-08, DRAW-09, DRAW-10, DRAW-11, DRAW-12, DRAW-13 (7) |
+| Phase 19 | DRAW-14, DRAW-15, DRAW-16, DRAW-17, DRAW-18, DRAW-19, DRAW-20 (7) |
+| Phase 20 | DRAW-21, DRAW-23, DRAW-28, DRAW-29 (4) |
+| **Total** | **30** |
 
 ---
 
@@ -146,4 +156,4 @@ No new framework, no React, no PlantUML, no LibreDWG.
 
 ---
 
-*v1.3 requirements ready for roadmap creation*
+*v1.3 requirements mapped to phases — ready for `/gsd-plan-phase 17`*
