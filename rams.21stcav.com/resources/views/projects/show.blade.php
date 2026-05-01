@@ -2,22 +2,389 @@
 
 @section('title', $project->name)
 
+@push('styles')
+    {{-- Opt this page into the Vite bundle so Alpine + Tailwind utilities are available.
+         layouts/app.blade.php uses inline design-token CSS by default and does NOT
+         include @vite — pages opt in via the styles stack. Matches the pattern used
+         by commissioning/show.blade.php and install-programmes/field.blade.php. --}}
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <style>
+        /* Hide Alpine x-cloak elements until Alpine boots. */
+        [x-cloak] { display: none !important; }
+
+        /* ═══════════════════════════════════════════════════════════════
+           PROJECT SHOW VIEW — modern dashboard
+        ═══════════════════════════════════════════════════════════════ */
+
+        .page-header .page-title {
+            font-size: 1.5rem;
+            line-height: 2rem;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: -.015em;
+            margin: 0.25rem 0 0.35rem;
+        }
+
+        /* Main tabbed workspace cards */
+        .psv__main > .section-block {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-xs);
+            padding: 1.5rem 1.5rem;
+            margin: 0;
+        }
+        .psv__main > .section-block .section-card__header {
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.7rem;
+            margin-bottom: 1rem;
+        }
+        .psv__main > .section-block .section-card__title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text);
+            letter-spacing: -.01em;
+        }
+
+        /* Right sticky panel cards */
+        .psv__sticky > .section-block {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-xs);
+            padding: 1.1rem 1.25rem;
+            margin: 0;
+        }
+        .psv__sticky > .section-block .section-card__header {
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.55rem;
+            margin-bottom: 0.85rem;
+        }
+        .psv__sticky > .section-block .section-card__title {
+            font-size: .7rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: .07em;
+        }
+
+        /* Workflow card */
+        .psv__workflow > .section-block {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-xs);
+            padding: 1.25rem 1.5rem;
+        }
+        .psv__workflow > .section-block .section-card__header {
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.6rem;
+            margin-bottom: 1rem;
+        }
+        .psv__workflow > .section-block .section-card__title {
+            font-size: .7rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: .07em;
+        }
+
+        /* Table-row hover */
+        .psv__main table tbody tr { transition: background-color var(--transition); }
+        .psv__main table tbody tr:hover { background-color: var(--surface-soft); }
+
+        /* Project ref / breadcrumb */
+        .psv-ref {
+            font-family: var(--font-mono);
+            font-size: .8125rem;
+            color: var(--text-muted);
+            letter-spacing: .02em;
+        }
+
+        /* Workflow stepper — pill steps with progress bar */
+        .psv-stepper {
+            display: flex;
+            gap: .5rem;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            padding-bottom: .25rem;
+            margin-bottom: 1rem;
+        }
+        .psv-stepper::-webkit-scrollbar { height: 6px; }
+        .psv-stepper::-webkit-scrollbar-track { background: var(--bg-deep); border-radius: 3px; }
+        .psv-stepper::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+        .psv-step {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            padding: .45rem .9rem .45rem .55rem;
+            border-radius: 999px;
+            font-size: .8125rem;
+            font-weight: 500;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text-muted);
+            white-space: nowrap;
+            transition: all var(--transition);
+            flex-shrink: 0;
+        }
+        .psv-step__num {
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .7rem;
+            font-weight: 600;
+            background: var(--surface-deep);
+            color: var(--text-muted);
+        }
+        .psv-step.is-current {
+            border-color: var(--teal);
+            background: var(--teal);
+            color: #fff;
+            font-weight: 600;
+        }
+        .psv-step.is-current .psv-step__num {
+            background: rgba(255,255,255,.25);
+            color: #fff;
+        }
+        .psv-step.is-done {
+            border-color: var(--success);
+            background: var(--success-light);
+            color: #166534;
+        }
+        .psv-step.is-done .psv-step__num {
+            background: var(--success);
+            color: #fff;
+        }
+
+        /* Workflow progress bar */
+        .psv-progress {
+            display: flex;
+            align-items: center;
+            gap: .85rem;
+            margin-top: 0.25rem;
+        }
+        .psv-progress__label {
+            font-size: .75rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .psv-progress__track {
+            flex: 1;
+            height: 6px;
+            background: var(--surface-deep);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .psv-progress__fill {
+            height: 100%;
+            background: var(--teal);
+            border-radius: 3px;
+            transition: width 400ms ease;
+        }
+
+        /* Document tabs (inside workspace card) */
+        .psv-tabs {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 1.25rem;
+        }
+        .psv-tab {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            padding: .75rem 0;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            font-size: .875rem;
+            font-weight: 500;
+            cursor: pointer;
+            position: relative;
+            transition: color var(--transition);
+            white-space: nowrap;
+        }
+        .psv-tab:hover { color: var(--text); }
+        .psv-tab.is-active {
+            color: var(--teal);
+            font-weight: 600;
+        }
+        .psv-tab.is-active::after {
+            content: '';
+            position: absolute;
+            left: 0; right: 0; bottom: -1px;
+            height: 2px;
+            background: var(--teal);
+        }
+        .psv-tab-count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 20px; height: 20px;
+            padding: 0 .4rem;
+            border-radius: 999px;
+            font-size: .68rem;
+            font-weight: 700;
+            background: var(--surface-deep);
+            color: var(--text-muted);
+        }
+        .psv-tab.is-active .psv-tab-count {
+            background: var(--teal);
+            color: #fff;
+        }
+
+        /* Status badge weight */
+        .psv .status-badge { font-weight: 500; }
+    </style>
+@endpush
+
 @section('content')
 
 @php
+    // ── Setup ────────────────────────────────────────────────────────────────
     $isAdmin            = auth()->user()?->isAdmin();
     $lifecycle          = \App\Models\Project::LIFECYCLE;
     $currentIdx         = array_search($project->status, $lifecycle);
     $primaryPackage     = $project->latestPackage ?: $project->packages()->latest()->first();
     $headerAwaitingRams = $project->ramsDocuments
                               ->where('status', \App\Models\RamsDocument::STATUS_AWAITING_REVIEW)
-                              ->sortByDesc('id')
-                              ->first();
+                              ->sortByDesc('id')->first();
+    $generatingRams     = $project->ramsDocuments
+                              ->whereIn('status', [
+                                  \App\Models\RamsDocument::STATUS_GENERATING,
+                                  \App\Models\RamsDocument::STATUS_APPROVED_FOR_GENERATION,
+                              ])->first();
+    $hasCompletedRams   = $project->ramsDocuments
+                              ->whereIn('status', [
+                                  \App\Models\RamsDocument::STATUS_COMPLETED,
+                                  \App\Models\RamsDocument::STATUS_FOR_REVIEW,
+                                  \App\Models\RamsDocument::STATUS_DRAFT,
+                              ])->isNotEmpty();
+    $generatingOm       = $project->omManuals->where('status', \App\Models\OmManual::STATUS_GENERATING)->first();
+    $hasCompletedOm     = $project->omManuals
+                              ->whereIn('status', [\App\Models\OmManual::STATUS_DRAFT, \App\Models\OmManual::STATUS_FINAL])
+                              ->isNotEmpty();
+
+    $countRams       = $project->ramsDocuments->count();
+    $countWorksheet  = $project->worksheets->count();
+    $countSurvey     = $project->siteSurveys->count();
+    $countOm         = $project->omManuals->count();
+    $countCable      = $project->cableSchedules->count();
+    $countInstall    = $project->installProgrammes->count();
+    $countQuotes     = $project->projectQuotes->count();
+    // Phase 17 v1.3 — Drawings count (current revisions only; superseded
+    // versions excluded so the badge never inflates with archived rows).
+    $countDrawings   = $project->drawings()->whereNull('superseded_by_id')->count();
+
+    $linkedByType = collect($linkedRecords)->keyBy('type');
+
+    $quoteRamsMap = $project->ramsDocuments
+        ->filter(fn ($r) => ! empty($r->form_data['original_filename'] ?? null))
+        ->groupBy(fn ($r) => $r->form_data['original_filename'])
+        ->map(fn ($g) => $g->sortByDesc('id')->first());
+
+    $ramsVersionMap = $project->ramsDocuments
+        ->sortBy('created_at')->values()
+        ->mapWithKeys(fn ($doc, $i) => [$doc->id => $i + 1]);
+
+    // ── Next Step decision ───────────────────────────────────────────────────
+    $nextStep = null;
+    if ($headerAwaitingRams) {
+        $nextStep = [
+            'icon'  => '✎',
+            'title' => 'Review & Generate RAMS',
+            'desc'  => 'A RAMS extraction is ready — confirm the parsed scope, then generate the document.',
+            'cta'   => 'Review & Generate',
+            'href'  => route('rams.quote-review.show', $headerAwaitingRams),
+            'tab'   => 'rams',
+        ];
+    } elseif ($generatingRams || $generatingOm) {
+        $nextStep = [
+            'icon'  => '⏳',
+            'title' => 'Generation in progress',
+            'desc'  => 'A document is being built in the background. The page refreshes automatically when it is ready.',
+            'cta'   => null,
+            'tab'   => $generatingRams ? 'rams' : 'om',
+        ];
+    } elseif (! $primaryPackage) {
+        $nextStep = [
+            'icon'  => '↑',
+            'title' => 'Upload Quote PDF',
+            'desc'  => 'Seed this project with equipment, rooms, and works data by uploading the QuoteWerks PDF.',
+            'cta'   => 'Upload Quote',
+            'href'  => route('quote-import.create', ['project_id' => $project->id]),
+            'tab'   => 'quotes',
+        ];
+    } elseif ($primaryPackage->status !== \App\Models\ProjectPackage::STATUS_REVIEWED) {
+        $nextStep = [
+            'icon'  => '✎',
+            'title' => 'Review Project Data',
+            'desc'  => 'Confirm the parsed scope, equipment, and rooms — this is the canonical source for every document.',
+            'cta'   => 'Review Project Data',
+            'href'  => route('project-packages.review.show', $primaryPackage),
+            'tab'   => 'data',
+        ];
+    } elseif ($countSurvey === 0) {
+        $nextStep = [
+            'icon'  => '📍',
+            'title' => 'Create Site Survey',
+            'desc'  => 'Generate a shareable survey link so the on-site engineer can capture site conditions.',
+            'cta'   => 'Create Survey',
+            'href'  => route('site-surveys.from-project', $project),
+            'tab'   => 'surveys',
+        ];
+    } elseif ($countRams === 0) {
+        $nextStep = [
+            'icon'  => '🛡',
+            'title' => 'Generate RAMS Document',
+            'desc'  => 'Project data is reviewed. Generate the RAMS for this job.',
+            'cta'   => 'Create RAMS',
+            'form_action' => route('rams.from-project', $project),
+            'tab'   => 'rams',
+        ];
+    } elseif ($countWorksheet === 0) {
+        $nextStep = [
+            'icon'  => '📋',
+            'title' => 'Generate Worksheet',
+            'desc'  => 'Build the engineer\'s job card for the install team.',
+            'cta'   => 'Generate Worksheet',
+            'form_action' => route('worksheets.generate-from-project', $project),
+            'tab'   => 'worksheets',
+        ];
+    } elseif ($countOm === 0) {
+        $nextStep = [
+            'icon'  => '📘',
+            'title' => 'Generate O&M Manual',
+            'desc'  => 'Build the handover documentation for the client.',
+            'cta'   => 'Generate O&M',
+            'form_action' => route('om-manuals.generate-from-project', $project),
+            'tab'   => 'om',
+        ];
+    }
+
+    $defaultTab = $nextStep['tab'] ?? 'surveys';
+
+    $outputs = [
+        ['key' => 'rams',       'icon' => '🛡',  'label' => 'RAMS',              'count' => $countRams,      'tab' => 'rams'],
+        ['key' => 'worksheet',  'icon' => '📋',  'label' => 'Worksheet',         'count' => $countWorksheet, 'tab' => 'worksheets'],
+        ['key' => 'survey',     'icon' => '📍',  'label' => 'Survey',            'count' => $countSurvey,    'tab' => 'surveys'],
+        ['key' => 'om',         'icon' => '📘',  'label' => 'O&M',               'count' => $countOm,        'tab' => 'om'],
+        ['key' => 'cable',      'icon' => '⚡', 'label' => 'Cable Schedule',     'count' => $countCable,     'tab' => 'cable'],
+        ['key' => 'install',    'icon' => '📅',  'label' => 'Install Programme', 'count' => $countInstall,   'tab' => 'install'],
+    ];
 @endphp
 
 <x-app-shell>
 
-{{-- ── Page Header ──────────────────────────────────────────────────────────── --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+{{-- HEADER                                                                     --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
 <x-page-header
     :title="$project->name"
     :subtitle="$project->client_name . ($project->site_address ? ' · ' . $project->site_address : '')"
@@ -27,1181 +394,1205 @@
         ['label' => $project->name],
     ]">
     <x-slot name="actions">
-        @if ($headerAwaitingRams)
-            <x-actions.primary-button :href="route('rams.quote-review.show', $headerAwaitingRams)">
-                ✎ Review &amp; Generate
-            </x-actions.primary-button>
-        @elseif ($primaryPackage)
-            <x-actions.primary-button :href="route('project-packages.review.show', $primaryPackage)">
-                ✎ Edit Project Data
-            </x-actions.primary-button>
-        @else
-            <x-actions.primary-button :href="route('quote-import.create', ['project_id' => $project->id])">
+        {{-- Phase 17 v1.3 — Drawings link (DRAW-06 / DRAW-27 entry point).
+             Visible when at least one drawing exists OR a primary package
+             exists (engineers can generate the first schematic). Count
+             reflects current revisions only (superseded excluded). --}}
+        @if ($countDrawings > 0 || $primaryPackage)
+            <a href="{{ route('projects.drawings.index', $project) }}"
+               class="inline-flex items-center gap-2 border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium px-4 py-2 rounded-lg text-sm transition-colors">
+                <span aria-hidden="true">📐</span>
+                <span>Drawings</span>
+                @if ($countDrawings > 0)
+                    <span class="ml-1 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold rounded-full bg-teal-100 text-teal-700 border border-teal-200">
+                        {{ $countDrawings }}
+                    </span>
+                @endif
+            </a>
+        @endif
+
+        @if ($primaryPackage)
+            <a href="{{ route('project-packages.review.show', $primaryPackage) }}"
+               class="inline-flex items-center gap-2 border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium px-4 py-2 rounded-lg text-sm transition-colors">
+                <span aria-hidden="true">✎</span>
+                <span>Edit Project Data</span>
+            </a>
+        @endif
+
+        @if ($nextStep && ! empty($nextStep['cta']) && ! empty($nextStep['href']))
+            <a href="{{ $nextStep['href'] }}"
+               class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-medium px-5 py-2.5 rounded-lg text-sm shadow-sm hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm transition-all duration-150">
+                {{ $nextStep['cta'] }}
+            </a>
+        @elseif ($nextStep && ! empty($nextStep['cta']) && ! empty($nextStep['form_action']))
+            <form method="POST" action="{{ $nextStep['form_action'] }}" class="m-0">
+                @csrf
+                <button type="submit"
+                        class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-medium px-5 py-2.5 rounded-lg text-sm shadow-sm hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm transition-all duration-150">
+                    {{ $nextStep['cta'] }}
+                </button>
+            </form>
+        @elseif (! $primaryPackage)
+            <a href="{{ route('quote-import.create', ['project_id' => $project->id]) }}"
+               class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-medium px-5 py-2.5 rounded-lg text-sm shadow-sm hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm transition-all duration-150">
                 ↑ Upload Quote
-            </x-actions.primary-button>
+            </a>
         @endif
     </x-slot>
 </x-page-header>
 
-{{-- ── Project Summary ──────────────────────────────────────────────────────── --}}
-<x-summary-card title="Project Overview">
-    <div class="kv-grid">
-        <div>
-            <div class="kv-item__label">Client</div>
-            <div class="kv-item__value">{{ $project->client_name }}</div>
-        </div>
-        <div>
-            <div class="kv-item__label">Site</div>
-            <div class="kv-item__value">{{ $project->site_address ?? '—' }}</div>
-        </div>
-        <div>
-            <div class="kv-item__label">Reference</div>
-            <div class="kv-item__value">{{ $project->ref ?? '—' }}</div>
-        </div>
-        <div>
-            <div class="kv-item__label">Status</div>
-            <div class="kv-item__value"><x-status-badge :status="$project->status" /></div>
-        </div>
-        <div>
-            <div class="kv-item__label">Last Updated</div>
-            <div class="kv-item__value">{{ $project->updated_at->diffForHumans() }}</div>
-        </div>
+{{-- Reopen banner --}}
+@if ($project->canReopen())
+<x-workflow.blocking-banner title="Project can be Reopened" severity="info">
+    This project has been completed or archived. Provide a reason to reopen it and resume work.
+    <div class="mt-3">
+        <form method="POST" action="{{ route('projects.reopen', $project) }}" class="m-0">
+            @csrf
+            <div class="flex flex-wrap items-end gap-2">
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-xs font-semibold text-gray-700 mb-1" for="reopen_reason">
+                        Reason for Reopening <span class="text-red-600">*</span>
+                    </label>
+                    <input id="reopen_reason" name="reopen_reason" type="text"
+                           class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                           placeholder="e.g. Customer requested additional works" required>
+                </div>
+                <div class="shrink-0">
+                    <button type="submit"
+                            class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-2 rounded-md text-sm">
+                        Reopen
+                    </button>
+                </div>
+            </div>
+        </form>
     </div>
-</x-summary-card>
-
-{{-- ── Actual Hours widget (Phase 15 D-13) ─────────────────────────────────── --}}
-@if (! empty($canSeeActualHours) && $actualHours !== null)
-    @include('projects._actual-hours-widget')
+</x-workflow.blocking-banner>
 @endif
 
-{{-- ── Lifecycle progress bar ───────────────────────────────────────────────── --}}
-<x-section-card>
-    <div class="lifecycle-bar">
-        @foreach ($lifecycle as $i => $step)
-            @php
-                $stepLabel  = \App\Models\Project::STATUS_LABELS[$step];
-                $stepColour = \App\Models\Project::STATUS_COLOURS[$step];
-                $isActive   = $step === $project->status;
-                $isPast     = $i < $currentIdx;
-            @endphp
-            <div class="lifecycle-step">
-                {{-- Dynamic state colours require inline styles; values are PHP-computed --}}
-                <div style="
-                    padding:.3rem .75rem;
-                    border-radius:3px;
-                    font-size:.75rem;
-                    font-weight:{{ $isActive ? '700' : '500' }};
-                    background:{{ $isActive ? $stepColour : ($isPast ? $stepColour.'22' : '#f4f6f8') }};
-                    color:{{ $isActive ? '#fff' : ($isPast ? $stepColour : '#aaa') }};
-                    border:1px solid {{ $isActive ? $stepColour : ($isPast ? $stepColour.'44' : '#ddd') }};
-                    white-space:nowrap;">{{ $stepLabel }}</div>
-                @if (! $loop->last)
-                    <div class="lifecycle-step__connector"></div>
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+{{-- 2-COLUMN LAYOUT                                                            --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+<div class="psv grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-6 items-start">
+
+    {{-- ─────────────────── MAIN COLUMN ─────────────────── --}}
+    <div class="psv__main flex flex-col gap-6 min-w-0">
+
+        {{-- ── Next Step Card (PRIMARY FOCUS) ─────────────────────────────── --}}
+        @if ($nextStep)
+        <section class="relative bg-gradient-to-r from-teal-50 to-cyan-50 border-2 border-teal-300 rounded-xl p-7 shadow-md ring-1 ring-teal-200/50 flex items-start gap-5 mb-2" role="region" aria-label="Next Step">
+            <div class="flex-none w-14 h-14 bg-teal-600 text-white rounded-full flex items-center justify-center text-2xl shadow-sm ring-4 ring-teal-100" aria-hidden="true">
+                {{ $nextStep['icon'] }}
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="text-xs font-bold uppercase tracking-wider text-teal-700 mb-1">Next Step</div>
+                <h3 class="text-xl font-bold text-gray-900 leading-tight">{{ $nextStep['title'] }}</h3>
+                <p class="text-sm text-gray-600 mt-1.5 max-w-prose leading-relaxed">{{ $nextStep['desc'] }}</p>
+            </div>
+            <div class="flex-none flex items-center">
+                @if (! empty($nextStep['cta']) && ! empty($nextStep['href']))
+                    <a href="{{ $nextStep['href'] }}"
+                       class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold px-6 py-3 rounded-lg text-base shadow-md hover:shadow-lg hover:-translate-y-px active:translate-y-0 active:shadow-md transition-all duration-150 whitespace-nowrap">
+                        {{ $nextStep['cta'] }} →
+                    </a>
+                @elseif (! empty($nextStep['cta']) && ! empty($nextStep['form_action']))
+                    <form method="POST" action="{{ $nextStep['form_action'] }}" class="m-0">
+                        @csrf
+                        <button type="submit"
+                                class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold px-6 py-3 rounded-lg text-base shadow-md hover:shadow-lg hover:-translate-y-px active:translate-y-0 active:shadow-md transition-all duration-150 whitespace-nowrap">
+                            {{ $nextStep['cta'] }} →
+                        </button>
+                    </form>
                 @endif
             </div>
-        @endforeach
-    </div>
-</x-section-card>
+        </section>
+        @endif
 
-{{-- ── Main grid ────────────────────────────────────────────────────────────── --}}
-<div class="proj-show-grid">
-
-    {{-- ────────────────────────────────────────────────────────────────────── --}}
-    {{-- LEFT COLUMN                                                             --}}
-    {{-- ────────────────────────────────────────────────────────────────────── --}}
-    <div>
-
-        {{-- ── Lifecycle Action ─────────────────────────────────────────────── --}}
-        @if (! $project->isArchived())
-        <x-section-card title="Lifecycle Action">
-            <div class="actions">
-                @if ($nextStatus)
+        {{-- ── Workflow Progress (TERTIARY: reference state, not action) ─── --}}
+        <div class="psv__workflow">
+        <x-section-card title="Project Workflow">
+            <x-slot name="actions">
+                @if (! $project->isArchived() && $nextStatus)
                     @php $nextLabel = \App\Models\Project::STATUS_LABELS[$nextStatus]; @endphp
-                    <form method="POST" action="{{ route('projects.transition', $project) }}" class="form-bare">
+                    <form method="POST" action="{{ route('projects.transition', $project) }}" class="m-0">
                         @csrf
                         <input type="hidden" name="to_status" value="{{ $nextStatus }}">
-                        <button type="submit" class="btn btn-teal"
+                        <button type="submit"
+                                class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm"
                                 onclick="return confirm('Advance project to {{ $nextLabel }}?')">
                             Advance → {{ $nextLabel }}
                         </button>
                     </form>
                 @endif
-                <form method="POST" action="{{ route('projects.archive', $project) }}" class="form-bare">
-                    @csrf
-                    <button type="submit" class="btn btn-outline btn-sm"
-                            onclick="return confirm('Archive this project?')">
-                        Archive
-                    </button>
-                </form>
-            </div>
-        </x-section-card>
-        @endif
-
-        {{-- ── Reopen Project ────────────────────────────────────────────────── --}}
-        @if ($project->canReopen())
-        <x-workflow.blocking-banner title="Project can be Reopened" severity="info">
-            This project has been completed or archived. Provide a reason to reopen it and resume work.
-            <div class="blocking-banner__cta">
-                <form method="POST" action="{{ route('projects.reopen', $project) }}" class="form-bare">
-                    @csrf
-                    <div class="reopen-form">
-                        <div class="form-group" style="margin-bottom:0; flex:1; min-width:200px;">
-                            <label class="form-label" for="reopen_reason">
-                                Reason for Reopening <span class="req">*</span>
-                            </label>
-                            <input id="reopen_reason" name="reopen_reason" type="text"
-                                   class="form-control"
-                                   placeholder="e.g. Customer requested additional works" required>
-                        </div>
-                        <div class="reopen-form__btn">
-                            <button type="submit" class="btn btn-outline btn-sm">Reopen</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </x-workflow.blocking-banner>
-        @endif
-
-        {{-- ── Quote History ──────────────────────────────────────────────────── --}}
-        @php
-            $quoteRamsMap = $project->ramsDocuments
-                ->filter(fn ($r) => ! empty($r->form_data['original_filename'] ?? null))
-                ->groupBy(fn ($r) => $r->form_data['original_filename'])
-                ->map(fn ($g) => $g->sortByDesc('id')->first());
-            $headerPackage = $project->latestPackage
-                ?: $project->packages()->latest()->first();
-        @endphp
-
-        <x-section-card title="Quote History ({{ $project->projectQuotes->count() }})" :flush="true">
-            <x-slot name="actions">
-                @if ($headerPackage)
-                    <x-actions.secondary-button :href="route('project-packages.review.show', $headerPackage)">
-                        ✎ Edit Project Data
-                    </x-actions.secondary-button>
+                @if (! $project->isArchived())
+                    <form method="POST" action="{{ route('projects.archive', $project) }}" class="m-0">
+                        @csrf
+                        <button type="submit"
+                                class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm"
+                                onclick="return confirm('Archive this project?')">
+                            Archive
+                        </button>
+                    </form>
                 @endif
-                <x-actions.secondary-button :href="route('quote-import.create', ['project_id' => $project->id])">
-                    ↑ Upload New Quote
-                </x-actions.secondary-button>
             </x-slot>
 
-            @if ($project->projectQuotes->isEmpty())
-                <x-empty-state title="No quotes uploaded yet"
-                    description="Upload a quote PDF to link it to this project."
-                    :href="route('quote-import.create', ['project_id' => $project->id])"
-                    action="Upload Quote"/>
-            @else
-                <table class="data-table data-table--sm">
-                    <thead>
-                        <tr>
-                            <th style="width:50px;">Ver.</th>
-                            <th>Original File</th>
-                            <th>Quote Ref</th>
-                            <th>Client</th>
-                            <th>Status</th>
-                            <th class="proj-cell--nowrap">Uploaded</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach ($project->projectQuotes->sortByDesc('version_number') as $pq)
-                        @php $linkedRams = $quoteRamsMap[$pq->original_filename] ?? null; @endphp
-                        <tr>
-                            <td class="tbl-ver-cell">v{{ $pq->version_number }}</td>
-                            <td>
-                                <span title="{{ $pq->original_filename }}" class="tbl-cell--mono">
-                                    {{ \Illuminate\Support\Str::limit($pq->original_filename, 45) }}
-                                </span>
-                            </td>
-                            <td>{{ $pq->quote_reference ?? '—' }}</td>
-                            <td class="proj-cell--muted">{{ $pq->client_name ?? '—' }}</td>
-                            <td>
-                                @if ($linkedRams)
-                                    <x-status-badge :status="$linkedRams->status" />
-                                @else
-                                    <span class="proj-cell--faint">—</span>
-                                @endif
-                            </td>
-                            <td class="proj-cell--faint proj-cell--nowrap">
-                                {{ $pq->created_at->format('d M Y') }}<br>
-                                <small>{{ $pq->created_at->format('H:i') }}</small>
-                            </td>
-                        </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            @endif
+            <div class="flex items-center gap-3 overflow-x-auto py-1">
+                @foreach ($lifecycle as $i => $step)
+                    @php
+                        $stepLabel  = \App\Models\Project::STATUS_LABELS[$step];
+                        $isActive   = $step === $project->status;
+                        $isPast     = $i < $currentIdx;
+                    @endphp
+                    @if ($isActive)
+                        <div class="flex-none inline-flex items-center gap-2 border-2 border-teal-600 text-teal-700 bg-white px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap">
+                            <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-teal-600 text-white text-xs">●</span>
+                            {{ $stepLabel }}
+                        </div>
+                    @elseif ($isPast)
+                        <div class="flex-none inline-flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap">
+                            <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white/25 text-white text-xs">✓</span>
+                            {{ $stepLabel }}
+                        </div>
+                    @else
+                        <div class="flex-none inline-flex items-center gap-2 bg-gray-100 text-gray-500 border border-gray-200 px-4 py-2 rounded-full text-sm whitespace-nowrap">
+                            <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white text-gray-500 border border-gray-300 text-xs">{{ $i + 1 }}</span>
+                            {{ $stepLabel }}
+                        </div>
+                    @endif
+
+                    @if (! $loop->last)
+                        <div class="flex-none w-3 h-px {{ $isPast ? 'bg-teal-600' : 'bg-gray-300' }}"></div>
+                    @endif
+                @endforeach
+            </div>
         </x-section-card>
+        </div>{{-- /psv__workflow --}}
 
-        {{-- ── Tab Strip: Overview / Project Data ─────────────────────────────── --}}
-        <div x-data="{ activeTab: 'overview' }">
+        {{-- ── Tabbed Workspace — wrapped in a teal-tinted zone to give the
+             page a single visible branded workspace. Inside the teal zone:
+              · Tabs strip = bg-teal-50 with thin teal-100 border (rounded card)
+              · Active tab = bg-white text-teal-700 border-teal-200 (lifts off the strip)
+              · Tables = bg-white rounded-lg border-gray-200 (clean reading surface)
+             Active tab is persisted in localStorage per-project so a page reload
+             after a Regen / Generate form submit restores the user's last tab
+             (fixes "I regen a worksheet and the page defaults to OM"). --}}
+        <div x-data="{
+                activeTab: (localStorage.getItem('psv-tab-{{ $project->id }}') || '{{ $defaultTab }}'),
+                q: '',
+                setTab(t) { this.activeTab = t; localStorage.setItem('psv-tab-{{ $project->id }}', t); }
+             }" class="ws bg-teal-50 p-4 rounded-xl">
 
-            <div class="proj-tabs">
-                <button @click="activeTab='overview'"
-                        class="proj-tab"
-                        :class="{ 'proj-tab--active': activeTab==='overview' }"
-                        role="tab" :aria-selected="activeTab==='overview'">
-                    Overview
-                </button>
-                <button @click="activeTab='data'"
-                        class="proj-tab"
-                        :class="{ 'proj-tab--active': activeTab==='data' }"
-                        role="tab" :aria-selected="activeTab==='data'">
-                    Project Data
-                </button>
+            {{-- Tab strip
+                 Tabs ordered to match project process flow:
+                 Survey → RAMS → Worksheet → Cable Schedule → O&M → Install Programme → Quotes → Project Data --}}
+            <div class="bg-teal-50 border border-teal-100 rounded-lg p-1 mb-3">
+                <div class="flex flex-wrap gap-1" role="tablist">
+                    @php
+                        $tabs = [
+                            ['key' => 'surveys',    'icon' => '📍', 'label' => 'Surveys',           'count' => $countSurvey],
+                            ['key' => 'rams',       'icon' => '🛡', 'label' => 'RAMS',              'count' => $countRams],
+                            ['key' => 'worksheets', 'icon' => '📋', 'label' => 'Worksheets',        'count' => $countWorksheet],
+                            ['key' => 'cable',      'icon' => '⚡','label' => 'Cable Schedule',    'count' => $countCable],
+                            ['key' => 'om',         'icon' => '📘', 'label' => 'O&M',               'count' => $countOm],
+                            ['key' => 'install',    'icon' => '📅', 'label' => 'Install Programme', 'count' => $countInstall],
+                            ['key' => 'quotes',     'icon' => '📄', 'label' => 'Quotes',            'count' => $countQuotes],
+                            ['key' => 'data',       'icon' => '📊', 'label' => 'Project Data',      'count' => null],
+                        ];
+                    @endphp
+                    @foreach ($tabs as $t)
+                        <button type="button" role="tab" class="ws-tab inline-flex items-center gap-2 px-4 py-2 text-sm whitespace-nowrap rounded-md transition-colors"
+                                @click="setTab('{{ $t['key'] }}')"
+                                :class="activeTab==='{{ $t['key'] }}'
+                                    ? 'bg-white text-teal-700 border border-teal-200 font-medium shadow-sm'
+                                    : 'text-gray-600 hover:bg-white hover:text-teal-700 border border-transparent'"
+                                :aria-selected="activeTab==='{{ $t['key'] }}'">
+                            <span aria-hidden="true">{{ $t['icon'] }}</span>
+                            <span>{{ $t['label'] }}</span>
+                            @if ($t['count'] !== null && $t['count'] > 0)
+                                <span class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold rounded-full"
+                                      :class="activeTab==='{{ $t['key'] }}' ? 'bg-teal-600 text-white' : 'bg-white text-gray-700 border border-gray-200'">
+                                    {{ $t['count'] }}
+                                </span>
+                            @endif
+                        </button>
+                    @endforeach
+                </div>
             </div>
 
-            {{-- Overview tab: Linked Records ──────────────────────────────── --}}
-            <div x-show="activeTab==='overview'" role="tabpanel">
+            {{-- Table container — clean white reading surface inside the teal zone --}}
+            <div class="bg-white rounded-lg border border-gray-200 p-6">
 
-                <x-section-card title="Linked Records" :flush="true">
-                    @foreach ($linkedRecords as $entry)
-                    <div class="linked-records__group">
+                {{-- Search/filter row --}}
+                <div class="flex flex-wrap gap-3 items-center mb-5">
+                    <div class="relative flex-1 max-w-sm">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true">🔍</span>
+                        <input type="text" x-model.debounce.150ms="q"
+                               class="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                               placeholder="Filter records by name or reference…">
+                    </div>
+                    <div class="ml-auto flex gap-2 items-center">
+                        <span x-show="activeTab==='surveys'" x-cloak>
+                            <a href="{{ route('site-surveys.from-project', $project) }}"
+                               class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">
+                                + New Survey
+                            </a>
+                        </span>
+                        <span x-show="activeTab==='worksheets'" x-cloak>
+                            <form method="POST" action="{{ route('worksheets.generate-from-project', $project) }}" class="m-0 inline-block">
+                                @csrf
+                                <button type="submit"
+                                        class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">
+                                    + Generate Worksheet
+                                </button>
+                            </form>
+                        </span>
+                        <span x-show="activeTab==='rams'" x-cloak>
+                            @if ($headerAwaitingRams)
+                                <a href="{{ route('rams.quote-review.show', $headerAwaitingRams) }}"
+                                   class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">
+                                    ✎ Review & Generate
+                                </a>
+                            @elseif ($generatingRams)
+                                <span class="inline-flex items-center gap-2 text-sm text-gray-500"><svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 11-6.219-8.56" stroke-linecap="round"/></svg><span>Processing…</span></span>
+                            @elseif ($primaryPackage && $primaryPackage->status === \App\Models\ProjectPackage::STATUS_REVIEWED)
+                                <form method="POST" action="{{ route('rams.from-project', $project) }}" class="m-0 inline-block"
+                                      onsubmit="return {{ $hasCompletedRams ? "confirm('Generate a new RAMS document from the current project data?')" : 'true' }};">
+                                    @csrf
+                                    <button type="submit"
+                                            class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">
+                                        + {{ $hasCompletedRams ? 'New Version' : 'Create RAMS' }}
+                                    </button>
+                                </form>
+                            @elseif ($primaryPackage)
+                                <a href="{{ route('project-packages.review.show', $primaryPackage) }}"
+                                   class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">
+                                    ✎ Review Quote Data
+                                </a>
+                            @else
+                                <a href="{{ route('rams.create', ['project_id' => $project->id]) }}"
+                                   class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">
+                                    + Create RAMS
+                                </a>
+                            @endif
+                        </span>
+                        <span x-show="activeTab==='om'" x-cloak>
+                            @if ($generatingOm)
+                                <span class="inline-flex items-center gap-2 text-sm text-gray-500"><svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 11-6.219-8.56" stroke-linecap="round"/></svg><span>Processing…</span></span>
+                            @elseif ($primaryPackage && $primaryPackage->status === \App\Models\ProjectPackage::STATUS_REVIEWED)
+                                <form method="POST" action="{{ route('om-manuals.generate-from-project', $project) }}" class="m-0 inline-block">
+                                    @csrf
+                                    <button type="submit"
+                                            class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">
+                                        + {{ $hasCompletedOm ? 'New Version' : 'Generate O&M' }}
+                                    </button>
+                                </form>
+                            @elseif ($primaryPackage)
+                                <a href="{{ route('project-packages.review.show', $primaryPackage) }}"
+                                   class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">
+                                    ✎ Review Quote Data
+                                </a>
+                            @else
+                                <a href="{{ route('om-manuals.create', ['project_id' => $project->id]) }}"
+                                   class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">
+                                    + New O&M
+                                </a>
+                            @endif
+                        </span>
+                        <span x-show="activeTab==='cable'" x-cloak>
+                            <form method="POST" action="{{ route('cable-schedules.generate-from-project', $project) }}" class="m-0 inline-block">
+                                @csrf
+                                <button type="submit"
+                                        class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">
+                                    + Generate Cable Schedule
+                                </button>
+                            </form>
+                        </span>
+                        <span x-show="activeTab==='install'" x-cloak>
+                            <form method="POST" action="{{ route('install-programmes.generate', $project) }}" class="m-0 inline-block">
+                                @csrf
+                                <button type="submit"
+                                        class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">
+                                    + Generate Install Programme
+                                </button>
+                            </form>
+                        </span>
+                        <span x-show="activeTab==='quotes'" x-cloak>
+                            <a href="{{ route('quote-import.create', ['project_id' => $project->id]) }}"
+                               class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">
+                                ↑ Upload New Quote
+                            </a>
+                        </span>
+                    </div>
+                </div>
 
-                        {{-- Section type header --}}
-                        <div class="lr-section-hdr">
-                            <span class="badge {{ $entry['badge_class'] }} lr-section-hdr__badge">{{ $entry['type'] }}</span>
-                        </div>
-
-                        {{-- Unified table — renders for both populated and empty states --}}
-                        <table class="data-table data-table--sm lr-table">
-                            <thead>
+                {{-- ───── Surveys panel ───── --}}
+                <div x-show="activeTab==='surveys'" x-cloak role="tabpanel">
+                    @if ($project->siteSurveys->isEmpty())
+                        <x-empty-state title="No site surveys yet"
+                            description="Create a survey to share a pre-filled form with your on-site engineer."
+                            :href="route('site-surveys.from-project', $project)"
+                            action="Create Survey"/>
+                    @else
+                        <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs uppercase tracking-wide text-gray-500 border-b border-gray-200">
                                 <tr>
-                                    <th>Reference / Name</th>
-                                    <th style="width:130px;">Status</th>
-                                    <th style="width:110px;" class="proj-cell--nowrap">Date</th>
-                                    <th style="width:200px;"></th>
+                                    <th class="py-2 px-3 font-medium">Survey</th>
+                                    <th class="py-2 px-3 font-medium w-32">Status</th>
+                                    <th class="py-2 px-3 font-medium w-28 whitespace-nowrap">Created</th>
+                                    <th class="py-2 px-3 font-medium">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                            @if ($entry['records']->isNotEmpty())
-                                @foreach ($entry['records'] as $record)
-                                <tr>
-                                    <td>
-                                        {{ \Illuminate\Support\Str::limit($record->project_name ?? $record->name ?? ('Record #' . $record->id), 55) }}
+                                @foreach ($project->siteSurveys->sortByDesc('created_at') as $survey)
+                                <tr data-name="{{ \Illuminate\Support\Str::lower('Site Survey #'.$survey->id.' '.($survey->surveyor_name ?? '')) }}"
+                                    class="border-b border-gray-100 last:border-0"
+                                    x-show="q === '' || $el.dataset.name.includes(q.toLowerCase())">
+                                    <td class="py-3 px-3">
+                                        <div class="font-medium text-gray-900">Site Survey #{{ $survey->id }}</div>
+                                        @if ($survey->surveyor_name)<div class="text-xs text-gray-500">By: {{ $survey->surveyor_name }}</div>@endif
+                                        @if ($survey->survey_date)<div class="text-xs text-gray-500">{{ $survey->survey_date->format('d M Y') }}</div>@endif
                                     </td>
-                                    <td>
-                                        @if (isset($record->status))
-                                            <x-status-badge :status="$record->status" />
-                                        @else
-                                            <span class="proj-cell--faint">—</span>
-                                        @endif
+                                    <td class="py-3 px-3">
+                                        <x-status-badge
+                                            :status="$survey->status ?? 'draft'"
+                                            :label="ucfirst($survey->status ?? 'draft') . ($survey->isSubmitted() ? ' · Submitted' : '')" />
                                     </td>
-                                    <td class="proj-cell--faint proj-cell--nowrap">
-                                        {{ $record->updated_at->diffForHumans() }}
+                                    <td class="py-3 px-3 text-gray-500 whitespace-nowrap">
+                                        <div>{{ $survey->created_at->format('d M Y') }}</div>
+                                        <div class="text-xs">{{ $survey->created_at->format('H:i') }}</div>
                                     </td>
-                                    <td class="proj-cell--nowrap lr-actions">
-                                        {{-- Regen: POST form --}}
-                                        @if (! empty($entry['regenerate_route_name']) && ($record->status ?? '') !== \App\Models\RamsDocument::STATUS_SUPERSEDED)
-                                            @php
-                                                // Some regen routes expect the project (e.g. survey supersede),
-                                                // others expect the record itself. Use regenerate_route_param if set.
-                                                $regenParam = $entry['regenerate_route_param'] ?? $record;
-                                            @endphp
-                                            <form method="POST" action="{{ route($entry['regenerate_route_name'], $regenParam) }}"
-                                                  class="form-bare form-bare--inline">
-                                                @csrf
-                                                <button type="submit" class="btn btn-outline btn-sm lr-btn">↻ Regen</button>
-                                            </form>
-                                        @endif
-                                        {{-- View --}}
-                                        @if (! empty($entry['route_name']))
-                                            <a href="{{ route($entry['route_name'], $record) }}"
-                                               class="btn btn-outline btn-sm lr-btn">View</a>
-                                        @endif
-                                        {{-- Copy Link (Survey only) --}}
-                                        @if (! empty($entry['copy_link']) && ! empty($record->access_token))
-                                            <button type="button" class="btn btn-teal btn-sm lr-btn"
-                                                    onclick="copyEngineerLink('{{ $record->publicUrl() }}', this)"
-                                                    title="{{ $record->publicUrl() }}">⎘ Copy Link</button>
-                                        @endif
-                                        {{-- Download --}}
-                                        @php
-                                            $hasDownloadFile = ! empty($record->filename) || ! empty($record->source_filename);
-                                            $isGenerating = ($record->status ?? '') === \App\Models\RamsDocument::STATUS_GENERATING;
-                                            $downloadLabel = '↓ DOCX';
-                                            if (! empty($record->source_filename) && empty($record->filename)) {
-                                                $ext = strtoupper(pathinfo($record->source_filename, PATHINFO_EXTENSION));
-                                                $downloadLabel = '↓ ' . ($ext ?: 'File');
-                                            }
-                                        @endphp
-                                        @if (! empty($entry['download_route_name']) && $hasDownloadFile && ! $isGenerating)
-                                            <a href="{{ route($entry['download_route_name'], $record) }}"
-                                               class="btn btn-teal btn-sm lr-btn"
-                                               target="_blank">{{ $downloadLabel }}</a>
-                                        @endif
-                                        {{-- Download PDF --}}
-                                        @if (! empty($entry['download_pdf_route_name']) && in_array($record->status ?? '', ['completed', 'for_review', 'approved']))
-                                            <a href="{{ route($entry['download_pdf_route_name'], $record) }}"
-                                               class="btn btn-outline btn-sm lr-btn"
-                                               target="_blank">↓ PDF</a>
-                                        @endif
-                                        {{-- Delete --}}
-                                        @if (! empty($entry['delete_route_name']))
-                                            <form method="POST" action="{{ route($entry['delete_route_name'], $record) }}"
-                                                  class="form-bare form-bare--inline"
-                                                  onsubmit="return confirm('Delete this {{ $entry['type'] }}?')">
-                                                @csrf @method('DELETE')
-                                                <button type="submit" class="btn btn-danger-outline btn-sm lr-btn">✕</button>
-                                            </form>
-                                        @endif
+                                    <td class="py-3 px-3">
+                                        {{-- Visible primary actions; secondary actions live in the 3-dot menu. --}}
+                                        <div class="flex flex-wrap gap-2 items-center">
+                                            <a href="{{ route('site-surveys.show', $survey) }}"
+                                               class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">View</a>
+                                            @if (! $survey->isCompleted())
+                                                <a href="{{ route('site-surveys.edit', $survey) }}"
+                                                   class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">Edit</a>
+                                                <form method="POST" action="{{ route('site-surveys.complete', $survey) }}" class="m-0 inline-block"
+                                                      onsubmit="return confirm('Mark this survey as completed?');">
+                                                    @csrf
+                                                    <button type="submit"
+                                                            class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">✓ Complete</button>
+                                                </form>
+                                            @endif
+                                            <a href="{{ route('site-surveys.show', $survey) }}?chat=1"
+                                               class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm" title="Edit content via AI chat">✎ AI Chat</a>
+
+                                            <x-row-actions-menu>
+                                                @if ($survey->access_token && ! $survey->isTokenExpired())
+                                                    <button type="button"
+                                                            class="row-actions-item"
+                                                            onclick="copyEngineerLink('{{ $survey->publicUrl() }}', this)">
+                                                        <span class="row-actions-item__icon" aria-hidden="true">⎘</span>
+                                                        <span>Copy public link</span>
+                                                    </button>
+                                                    <a href="{{ $survey->publicUrl() }}" target="_blank" class="row-actions-item">
+                                                        <span class="row-actions-item__icon" aria-hidden="true">↗</span>
+                                                        <span>Open public link</span>
+                                                    </a>
+                                                    <div class="row-actions-divider"></div>
+                                                @endif
+                                                <a href="{{ route('site-surveys.pdf', $survey) }}" target="_blank" class="row-actions-item">
+                                                    <span class="row-actions-item__icon" aria-hidden="true">↓</span>
+                                                    <span>Download PDF</span>
+                                                </a>
+                                                <div class="row-actions-divider"></div>
+                                                <form method="POST" action="{{ route('site-surveys.destroy', $survey) }}"
+                                                      onsubmit="return confirm('Delete this survey?');">
+                                                    @csrf @method('DELETE')
+                                                    <button type="submit" class="row-actions-item row-actions-item--danger">
+                                                        <span class="row-actions-item__icon" aria-hidden="true">🗑</span>
+                                                        <span>Delete survey</span>
+                                                    </button>
+                                                </form>
+                                            </x-row-actions-menu>
+                                        </div>
                                     </td>
                                 </tr>
                                 @endforeach
-                            @else
-                                {{-- Empty state — columns aligned with header --}}
-                                @php
-                                    $latestRecord       = $entry['records']->first();
-                                    $generatingStatuses = ['pending', 'generating'];
-                                    $doneStatuses       = ['draft', 'final'];
-                                @endphp
-                                <tr class="lr-empty-row">
-                                    <td class="proj-cell--faint lr-empty-ref">Not yet generated</td>
-                                    <td><span class="proj-cell--faint">—</span></td>
-                                    <td><span class="proj-cell--faint">—</span></td>
-                                    <td class="lr-actions">
-                                        @if (! empty($entry['generate_route']))
-                                            @if (! $latestRecord || $latestRecord->status === 'failed')
-                                                <form method="POST" action="{{ $entry['generate_route'] }}" class="form-bare form-bare--inline">
-                                                    @csrf
-                                                    <button type="submit" class="btn btn-teal btn-sm lr-btn"
-                                                            aria-label="Generate {{ $entry['type'] }}">
-                                                        {{ $entry['generate_label'] }}
-                                                    </button>
-                                                </form>
-                                            @elseif (in_array($latestRecord->status, $generatingStatuses))
-                                                @if (! empty($entry['status_route_name']))
-                                                <div x-data="{
-                                                        pollInterval: null,
-                                                        startPolling() {
-                                                            this.pollInterval = setInterval(() => {
-                                                                fetch('{{ route($entry['status_route_name'], $latestRecord) }}')
-                                                                    .then(r => r.json())
-                                                                    .then(data => {
-                                                                        if (['draft','final','failed'].includes(data.status)) {
-                                                                            clearInterval(this.pollInterval);
-                                                                            window.location.reload();
-                                                                        }
-                                                                    })
-                                                                    .catch(() => clearInterval(this.pollInterval));
-                                                            }, 4000);
-                                                        }
-                                                    }"
-                                                    x-init="startPolling()">
-                                                    <button type="button" class="btn btn-outline btn-sm lr-btn"
-                                                            disabled aria-disabled="true">
-                                                        <svg class="spin-icon" viewBox="0 0 24 24" fill="none"
-                                                             stroke="currentColor" stroke-width="2" aria-hidden="true">
-                                                            <path d="M21 12a9 9 0 11-6.219-8.56"/>
-                                                        </svg>
-                                                        Generating…
-                                                    </button>
-                                                </div>
-                                                @else
-                                                <button type="button" class="btn btn-outline btn-sm lr-btn" disabled>Generating…</button>
-                                                @endif
-                                            @elseif (in_array($latestRecord->status, $doneStatuses))
-                                                @if (! empty($entry['download_route_name']))
-                                                    <a href="{{ route($entry['download_route_name'], $latestRecord) }}"
-                                                       class="btn btn-teal btn-sm lr-btn" target="_blank">↓ Download</a>
-                                                @endif
-                                                @if (! empty($entry['route_name']))
-                                                    <a href="{{ route($entry['route_name'], $latestRecord) }}"
-                                                       class="btn btn-outline btn-sm lr-btn">View</a>
-                                                @endif
-                                            @endif
-                                        @elseif (! empty($entry['empty_action_route']) && ! empty($entry['empty_action_label']))
-                                            <a href="{{ $entry['empty_action_route'] }}" class="btn btn-outline btn-sm lr-btn">
-                                                {{ $entry['empty_action_label'] }}
-                                            </a>
-                                        @endif
-                                    </td>
-                                </tr>
-                            @endif
                             </tbody>
                         </table>
+                        </div>
+                    @endif
+                </div>
 
-                    </div>
-                    @endforeach
-                </x-section-card>
+                {{-- ───── RAMS panel ───── --}}
+                <div x-show="activeTab==='rams'" x-cloak role="tabpanel">
+                    @if ($project->ramsDocuments->isEmpty())
+                        @if ($primaryPackage && $primaryPackage->status === \App\Models\ProjectPackage::STATUS_REVIEWED)
+                            <x-empty-state title="No RAMS documents yet"
+                                description="Project data has been reviewed and is ready for RAMS generation."/>
+                        @elseif ($primaryPackage)
+                            <x-empty-state title="No RAMS documents yet"
+                                description="Review quote data to enable RAMS generation."
+                                :href="route('project-packages.review.show', $primaryPackage)"
+                                action="Review Quote Data"/>
+                        @else
+                            <x-empty-state title="No RAMS documents yet"
+                                description="Upload a quote first, then review it to enable RAMS generation."
+                                :href="route('quote-import.create', ['project_id' => $project->id])"
+                                action="Upload Quote"/>
+                        @endif
+                    @else
+                        @php $ramsSorted = $project->ramsDocuments->sortByDesc('created_at')->values(); @endphp
+                        <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs uppercase tracking-wide text-gray-500 border-b border-gray-200">
+                                <tr>
+                                    <th class="py-2 px-3 font-medium w-14">Ver.</th>
+                                    <th class="py-2 px-3 font-medium">Project / Ref</th>
+                                    <th class="py-2 px-3 font-medium w-32">Status</th>
+                                    <th class="py-2 px-3 font-medium w-28 whitespace-nowrap">Created</th>
+                                    <th class="py-2 px-3 font-medium">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($ramsSorted as $rams)
+                                    @php
+                                        $status     = $rams->status;
+                                        $sup        = $rams->isSuperseded();
+                                    @endphp
+                                    <tr data-name="{{ \Illuminate\Support\Str::lower(($rams->project_name ?? '').' '.($rams->project_ref ?? '')) }}"
+                                        class="border-b border-gray-100 last:border-0 {{ $sup ? 'opacity-50' : '' }}"
+                                        x-show="q === '' || $el.dataset.name.includes(q.toLowerCase())">
+                                        <td class="py-3 px-3 text-center font-semibold text-teal-600">v{{ $ramsVersionMap[$rams->id] ?? '—' }}</td>
+                                        <td class="py-3 px-3">
+                                            <div class="font-medium text-gray-900">{{ $rams->project_name ?: '—' }}</div>
+                                            @if ($rams->project_ref)<div class="text-xs text-gray-500">{{ $rams->project_ref }}</div>@endif
+                                            @if ($sup)<div class="text-xs text-red-600">Superseded</div>@endif
+                                        </td>
+                                        <td class="py-3 px-3"><x-status-badge :status="$status" /></td>
+                                        <td class="py-3 px-3 text-gray-500 whitespace-nowrap">
+                                            <div>{{ $rams->created_at->format('d M Y') }}</div>
+                                            <div class="text-xs">{{ $rams->created_at->format('H:i') }}</div>
+                                        </td>
+                                        <td class="py-3 px-3">
+                                            <div class="flex flex-wrap gap-2 items-center {{ $sup ? 'pointer-events-none' : '' }}">
+                                                @if ($status === \App\Models\RamsDocument::STATUS_AWAITING_REVIEW)
+                                                    <a href="{{ route('rams.quote-review.show', $rams) }}"
+                                                       class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">✎ Review</a>
 
-            </div>{{-- end overview tab panel --}}
+                                                @elseif ($status === \App\Models\RamsDocument::STATUS_APPROVED)
+                                                    <form method="POST" action="{{ route('rams.retry-generation', $rams) }}" class="m-0 inline-block">
+                                                        @csrf
+                                                        <button type="submit"
+                                                                class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">▶ Generate</button>
+                                                    </form>
 
-            {{-- Project Data tab ────────────────────────────────────────────── --}}
-            <div x-show="activeTab==='data'" role="tabpanel">
+                                                @elseif (in_array($status, [
+                                                    \App\Models\RamsDocument::STATUS_UPLOADED,
+                                                    \App\Models\RamsDocument::STATUS_APPROVED_FOR_GENERATION,
+                                                    \App\Models\RamsDocument::STATUS_GENERATING,
+                                                ], true))
+                                                    <span class="inline-flex items-center gap-2 text-sm text-gray-500"><svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 11-6.219-8.56" stroke-linecap="round"/></svg><span>Processing…</span></span>
 
-                <x-section-card title="Canonical Dataset">
-                    <p class="data-source-note">
+                                                @elseif ($status === \App\Models\RamsDocument::STATUS_COMPLETED && $rams->filename)
+                                                    <a href="{{ route('rams.review', $rams) }}"
+                                                       class="inline-flex items-center bg-gray-900 hover:bg-gray-800 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">View</a>
+                                                    <a href="{{ route('rams.review', $rams) }}?chat=1"
+                                                       class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm" title="Edit content via AI chat">✎ AI Chat</a>
+                                                    <x-row-actions-menu>
+                                                        <a href="{{ route('rams.download', $rams) }}" class="row-actions-item">
+                                                            <span class="row-actions-item__icon" aria-hidden="true">↓</span>
+                                                            <span>Download DOCX</span>
+                                                        </a>
+                                                        <a href="{{ route('rams.download-pdf', $rams) }}" class="row-actions-item"
+                                                           onclick="triggerFileDownload(this.href); return false;">
+                                                            <span class="row-actions-item__icon" aria-hidden="true">↓</span>
+                                                            <span>Download PDF</span>
+                                                        </a>
+                                                        <div class="row-actions-divider"></div>
+                                                        <form method="POST" action="{{ route('rams.retry-generation', $rams) }}"
+                                                              onsubmit="return confirm('Rebuild the DOCX from the approved data?');">
+                                                            @csrf
+                                                            <button type="submit" class="row-actions-item">
+                                                                <span class="row-actions-item__icon" aria-hidden="true">↻</span>
+                                                                <span>Regenerate document</span>
+                                                            </button>
+                                                        </form>
+                                                        <div class="row-actions-divider"></div>
+                                                        <form method="POST" action="{{ route('rams.destroy', $rams) }}"
+                                                              onsubmit="return confirm('Delete this RAMS document? Admins can restore it later.');">
+                                                            @csrf @method('DELETE')
+                                                            <button type="submit" class="row-actions-item row-actions-item--danger">
+                                                                <span class="row-actions-item__icon" aria-hidden="true">🗑</span>
+                                                                <span>Delete RAMS</span>
+                                                            </button>
+                                                        </form>
+                                                    </x-row-actions-menu>
+                                                    @php $ramsHasMenu = true; @endphp
+
+                                                @elseif ($status === \App\Models\RamsDocument::STATUS_FAILED)
+                                                    {{-- PRIMARY: Retry — failed rows have nothing else to act on --}}
+                                                    <span class="inline-flex items-center text-sm text-red-700 font-medium">⚠ Failed</span>
+                                                    @if (! empty($rams->reviewed_data))
+                                                        <form method="POST" action="{{ route('rams.retry-generation', $rams) }}" class="m-0 inline-block">
+                                                            @csrf
+                                                            <button type="submit"
+                                                                    class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">↻ Retry</button>
+                                                        </form>
+                                                    @else
+                                                        <form method="POST" action="{{ route('rams.retry-extraction', $rams) }}" class="m-0 inline-block">
+                                                            @csrf
+                                                            <button type="submit"
+                                                                    class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">↻ Retry</button>
+                                                        </form>
+                                                    @endif
+
+                                                @elseif ($rams->filename && in_array($status, [
+                                                    \App\Models\RamsDocument::STATUS_FOR_REVIEW,
+                                                    \App\Models\RamsDocument::STATUS_DRAFT,
+                                                ], true))
+                                                    <a href="{{ route('rams.review', $rams) }}"
+                                                       class="inline-flex items-center bg-gray-900 hover:bg-gray-800 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">View</a>
+                                                    <a href="{{ route('rams.review', $rams) }}?chat=1"
+                                                       class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm" title="Edit content via AI chat">✎ AI Chat</a>
+                                                    <x-row-actions-menu>
+                                                        <a href="{{ route('rams.download', $rams) }}" class="row-actions-item">
+                                                            <span class="row-actions-item__icon" aria-hidden="true">↓</span>
+                                                            <span>Download DOCX</span>
+                                                        </a>
+                                                        <a href="{{ route('rams.download-pdf', $rams) }}" class="row-actions-item"
+                                                           onclick="triggerFileDownload(this.href); return false;">
+                                                            <span class="row-actions-item__icon" aria-hidden="true">↓</span>
+                                                            <span>Download PDF</span>
+                                                        </a>
+                                                        <div class="row-actions-divider"></div>
+                                                        <form method="POST" action="{{ route('rams.retry-generation', $rams) }}"
+                                                              onsubmit="return confirm('Rebuild the DOCX from the approved data?');">
+                                                            @csrf
+                                                            <button type="submit" class="row-actions-item">
+                                                                <span class="row-actions-item__icon" aria-hidden="true">↻</span>
+                                                                <span>Regenerate document</span>
+                                                            </button>
+                                                        </form>
+                                                        <div class="row-actions-divider"></div>
+                                                        <form method="POST" action="{{ route('rams.destroy', $rams) }}"
+                                                              onsubmit="return confirm('Delete this RAMS document? Admins can restore it later.');">
+                                                            @csrf @method('DELETE')
+                                                            <button type="submit" class="row-actions-item row-actions-item--danger">
+                                                                <span class="row-actions-item__icon" aria-hidden="true">🗑</span>
+                                                                <span>Delete RAMS</span>
+                                                            </button>
+                                                        </form>
+                                                    </x-row-actions-menu>
+                                                    @php $ramsHasMenu = true; @endphp
+                                                @endif
+
+                                                @if (empty($ramsHasMenu))
+                                                    <x-row-actions-menu>
+                                                        <form method="POST" action="{{ route('rams.destroy', $rams) }}"
+                                                              onsubmit="return confirm('Delete this RAMS document? Admins can restore it later.');">
+                                                            @csrf @method('DELETE')
+                                                            <button type="submit" class="row-actions-item row-actions-item--danger">
+                                                                <span class="row-actions-item__icon" aria-hidden="true">🗑</span>
+                                                                <span>Delete RAMS</span>
+                                                            </button>
+                                                        </form>
+                                                    </x-row-actions-menu>
+                                                @endif
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                        </div>
+                    @endif
+                </div>
+
+                {{-- ───── Worksheets panel ───── --}}
+                <div x-show="activeTab==='worksheets'" x-cloak role="tabpanel">
+                    @if ($project->worksheets->isEmpty())
+                        <x-empty-state title="No worksheets yet"
+                            description="Generate a worksheet to share an engineer job card with photo upload and client sign-off."/>
+                    @else
+                        <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs uppercase tracking-wide text-gray-500 border-b border-gray-200">
+                                <tr>
+                                    <th class="py-2 px-3 font-medium">Worksheet</th>
+                                    <th class="py-2 px-3 font-medium w-32">Status</th>
+                                    <th class="py-2 px-3 font-medium w-28 whitespace-nowrap">Created</th>
+                                    <th class="py-2 px-3 font-medium">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($project->worksheets->sortByDesc('created_at') as $ws)
+                                <tr data-name="{{ \Illuminate\Support\Str::lower(($ws->project_name ?? '').' '.($ws->project_ref ?? '')) }}"
+                                    class="border-b border-gray-100 last:border-0"
+                                    x-show="q === '' || $el.dataset.name.includes(q.toLowerCase())">
+                                    <td class="py-3 px-3">
+                                        <div class="font-medium text-gray-900">{{ $ws->project_name ?: ('Worksheet #'.$ws->id) }}</div>
+                                        @if ($ws->project_ref)<div class="text-xs text-gray-500">{{ $ws->project_ref }}</div>@endif
+                                    </td>
+                                    <td class="py-3 px-3"><x-status-badge :status="$ws->status" :label="$ws->statusLabel()" /></td>
+                                    <td class="py-3 px-3 text-gray-500 whitespace-nowrap">
+                                        <div>{{ $ws->created_at->format('d M Y') }}</div>
+                                        <div class="text-xs">{{ $ws->created_at->format('H:i') }}</div>
+                                    </td>
+                                    <td class="py-3 px-3">
+                                        <div class="flex flex-wrap gap-2 items-center">
+                                            <a href="{{ route('worksheets.show', $ws) }}"
+                                               class="inline-flex items-center bg-gray-900 hover:bg-gray-800 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">View</a>
+                                            @if ($ws->isGenerated())
+                                                <a href="{{ route('worksheets.show', $ws) }}?chat=1"
+                                                   class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm" title="Edit content via AI chat">✎ AI Chat</a>
+                                            @endif
+
+                                            <x-row-actions-menu>
+                                                @if ($ws->access_token)
+                                                    <button type="button"
+                                                            class="row-actions-item"
+                                                            onclick="copyEngineerLink('{{ $ws->publicUrl() }}', this)">
+                                                        <span class="row-actions-item__icon" aria-hidden="true">⎘</span>
+                                                        <span>Copy public link</span>
+                                                    </button>
+                                                    <a href="{{ $ws->publicUrl() }}" target="_blank" class="row-actions-item">
+                                                        <span class="row-actions-item__icon" aria-hidden="true">↗</span>
+                                                        <span>Open public link</span>
+                                                    </a>
+                                                    <div class="row-actions-divider"></div>
+                                                @endif
+                                                @if ($ws->isGenerated())
+                                                    <a href="{{ route('worksheets.download', $ws) }}" target="_blank" class="row-actions-item">
+                                                        <span class="row-actions-item__icon" aria-hidden="true">↓</span>
+                                                        <span>Download DOCX</span>
+                                                    </a>
+                                                    <div class="row-actions-divider"></div>
+                                                @endif
+                                                <form method="POST" action="{{ route('worksheets.retry-generation', $ws) }}"
+                                                      onsubmit="return confirm('Rebuild this worksheet from the current project data?');">
+                                                    @csrf
+                                                    <button type="submit" class="row-actions-item">
+                                                        <span class="row-actions-item__icon" aria-hidden="true">↻</span>
+                                                        <span>Regenerate worksheet</span>
+                                                    </button>
+                                                </form>
+                                                <div class="row-actions-divider"></div>
+                                                <form method="POST" action="{{ route('worksheets.destroy', $ws) }}"
+                                                      onsubmit="return confirm('Delete this worksheet?');">
+                                                    @csrf @method('DELETE')
+                                                    <button type="submit" class="row-actions-item row-actions-item--danger">
+                                                        <span class="row-actions-item__icon" aria-hidden="true">🗑</span>
+                                                        <span>Delete worksheet</span>
+                                                    </button>
+                                                </form>
+                                            </x-row-actions-menu>
+                                        </div>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                        </div>
+                    @endif
+                </div>
+
+                {{-- ───── Cable Schedule panel ───── --}}
+                <div x-show="activeTab==='cable'" x-cloak role="tabpanel">
+                    @if ($project->cableSchedules->isEmpty())
+                        <x-empty-state title="No cable schedules yet"
+                            description="Generate a cable schedule once project data has been reviewed."/>
+                    @else
+                        <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs uppercase tracking-wide text-gray-500 border-b border-gray-200">
+                                <tr>
+                                    <th class="py-2 px-3 font-medium">Reference / Name</th>
+                                    <th class="py-2 px-3 font-medium w-32">Status</th>
+                                    <th class="py-2 px-3 font-medium w-28 whitespace-nowrap">Date</th>
+                                    <th class="py-2 px-3 font-medium">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($project->cableSchedules->sortByDesc('updated_at') as $cs)
+                                <tr data-name="{{ \Illuminate\Support\Str::lower(($cs->project_name ?? '').' '.($cs->name ?? '')) }}"
+                                    class="border-b border-gray-100 last:border-0"
+                                    x-show="q === '' || $el.dataset.name.includes(q.toLowerCase())">
+                                    <td class="py-3 px-3 text-gray-900">{{ \Illuminate\Support\Str::limit($cs->project_name ?? $cs->name ?? ('Record #'.$cs->id), 55) }}</td>
+                                    <td class="py-3 px-3">
+                                        @if (isset($cs->status))<x-status-badge :status="$cs->status" />@else<span class="text-gray-400">—</span>@endif
+                                    </td>
+                                    <td class="py-3 px-3 text-gray-500 whitespace-nowrap">{{ $cs->updated_at->diffForHumans() }}</td>
+                                    <td class="py-3 px-3">
+                                        <div class="flex flex-wrap gap-2 items-center">
+                                            <a href="{{ route('cable-schedules.edit', $cs) }}"
+                                               class="inline-flex items-center bg-gray-900 hover:bg-gray-800 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">View</a>
+                                            <a href="{{ route('cable-schedules.edit', $cs) }}?chat=1"
+                                               class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm" title="Edit content via AI chat">✎ AI Chat</a>
+
+                                            <x-row-actions-menu>
+                                                @if (! empty($cs->filename))
+                                                    <a href="{{ route('cable-schedules.download', $cs) }}" target="_blank" class="row-actions-item">
+                                                        <span class="row-actions-item__icon" aria-hidden="true">↓</span>
+                                                        <span>Download XLSX</span>
+                                                    </a>
+                                                    <div class="row-actions-divider"></div>
+                                                @endif
+                                                <form method="POST" action="{{ route('cable-schedules.retry-generation', $cs) }}">
+                                                    @csrf
+                                                    <button type="submit" class="row-actions-item">
+                                                        <span class="row-actions-item__icon" aria-hidden="true">↻</span>
+                                                        <span>Regenerate schedule</span>
+                                                    </button>
+                                                </form>
+                                                <div class="row-actions-divider"></div>
+                                                <form method="POST" action="{{ route('cable-schedules.destroy', $cs) }}"
+                                                      onsubmit="return confirm('Delete this cable schedule?');">
+                                                    @csrf @method('DELETE')
+                                                    <button type="submit" class="row-actions-item row-actions-item--danger">
+                                                        <span class="row-actions-item__icon" aria-hidden="true">🗑</span>
+                                                        <span>Delete schedule</span>
+                                                    </button>
+                                                </form>
+                                            </x-row-actions-menu>
+                                        </div>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                        </div>
+                    @endif
+                </div>
+
+                {{-- ───── O&M panel ───── --}}
+                <div x-show="activeTab==='om'" x-cloak role="tabpanel">
+                    @if ($project->omManuals->isEmpty())
+                        @if ($primaryPackage && $primaryPackage->status === \App\Models\ProjectPackage::STATUS_REVIEWED)
+                            <x-empty-state title="No O&M manuals yet"
+                                description="Project data is reviewed and ready for O&M generation."/>
+                        @elseif ($primaryPackage)
+                            <x-empty-state title="No O&M manuals yet"
+                                description="Review quote data to enable O&M generation."
+                                :href="route('project-packages.review.show', $primaryPackage)"
+                                action="Review Quote Data"/>
+                        @else
+                            <x-empty-state title="No O&M manuals yet"
+                                description="Upload a quote first to enable O&M generation."/>
+                        @endif
+                    @else
+                        <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs uppercase tracking-wide text-gray-500 border-b border-gray-200">
+                                <tr>
+                                    <th class="py-2 px-3 font-medium">Manual</th>
+                                    <th class="py-2 px-3 font-medium w-32">Status</th>
+                                    <th class="py-2 px-3 font-medium w-28 whitespace-nowrap">Created</th>
+                                    <th class="py-2 px-3 font-medium">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($project->omManuals->sortByDesc('created_at') as $manual)
+                                <tr data-name="{{ \Illuminate\Support\Str::lower(($manual->project_name ?? '').' '.($manual->project_ref ?? '')) }}"
+                                    class="border-b border-gray-100 last:border-0"
+                                    x-show="q === '' || $el.dataset.name.includes(q.toLowerCase())">
+                                    <td class="py-3 px-3">
+                                        <div class="font-medium text-gray-900">{{ $manual->project_name ?? 'O&M Manual #'.$manual->id }}</div>
+                                        @if ($manual->project_ref)<div class="text-xs text-gray-500">{{ $manual->project_ref }}</div>@endif
+                                    </td>
+                                    <td class="py-3 px-3"><x-status-badge :status="$manual->status" :label="$manual->statusLabel()" /></td>
+                                    <td class="py-3 px-3 text-gray-500 whitespace-nowrap">
+                                        <div>{{ $manual->created_at->format('d M Y') }}</div>
+                                        <div class="text-xs">{{ $manual->created_at->format('H:i') }}</div>
+                                    </td>
+                                    <td class="py-3 px-3">
+                                        <div class="flex flex-wrap gap-2 items-center">
+                                            @if ($manual->status === \App\Models\OmManual::STATUS_GENERATING)
+                                                <span class="inline-flex items-center gap-2 text-sm text-gray-500"><svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 11-6.219-8.56" stroke-linecap="round"/></svg><span>Processing…</span></span>
+                                            @elseif ($manual->status === \App\Models\OmManual::STATUS_FAILED)
+                                                {{-- PRIMARY: Retry — failed rows have nothing else to act on --}}
+                                                <span class="inline-flex items-center text-sm text-red-700 font-medium" title="{{ $manual->error_message }}">⚠ Failed</span>
+                                                @if (! empty($manual->extracted_data))
+                                                    <form method="POST" action="{{ route('om-manuals.retry-generation', $manual) }}" class="m-0 inline-block">
+                                                        @csrf
+                                                        <button type="submit"
+                                                                class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">↻ Retry</button>
+                                                    </form>
+                                                @endif
+                                            @elseif ($manual->isGenerated())
+                                                <a href="{{ route('om-manuals.edit', $manual) }}"
+                                                   class="inline-flex items-center bg-gray-900 hover:bg-gray-800 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">View</a>
+                                                <a href="{{ route('om-manuals.edit', $manual) }}?chat=1"
+                                                   class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm" title="Edit content via AI chat">✎ AI Chat</a>
+
+                                                <x-row-actions-menu>
+                                                    @if ($manual->project_id)
+                                                        <a href="{{ route('om-manuals.edit-devices', $manual) }}" class="row-actions-item">
+                                                            <span class="row-actions-item__icon" aria-hidden="true">📋</span>
+                                                            <span>Manage asset data</span>
+                                                        </a>
+                                                        <div class="row-actions-divider"></div>
+                                                    @endif
+                                                    <a href="{{ route('om-manuals.download', $manual) }}" class="row-actions-item">
+                                                        <span class="row-actions-item__icon" aria-hidden="true">↓</span>
+                                                        <span>Download DOCX</span>
+                                                    </a>
+                                                    <a href="{{ route('om-manuals.download-pdf', $manual) }}" class="row-actions-item">
+                                                        <span class="row-actions-item__icon" aria-hidden="true">↓</span>
+                                                        <span>Download PDF</span>
+                                                    </a>
+                                                    <div class="row-actions-divider"></div>
+                                                    <form method="POST" action="{{ route('om-manuals.retry-generation', $manual) }}"
+                                                          onsubmit="return confirm('Rebuild this O&M manual from the existing data?');">
+                                                        @csrf
+                                                        <button type="submit" class="row-actions-item">
+                                                            <span class="row-actions-item__icon" aria-hidden="true">↻</span>
+                                                            <span>Regenerate manual</span>
+                                                        </button>
+                                                    </form>
+                                                    <div class="row-actions-divider"></div>
+                                                    <form method="POST" action="{{ route('om-manuals.destroy', $manual) }}"
+                                                          onsubmit="return confirm('Delete this O&M manual?');">
+                                                        @csrf @method('DELETE')
+                                                        <button type="submit" class="row-actions-item row-actions-item--danger">
+                                                            <span class="row-actions-item__icon" aria-hidden="true">🗑</span>
+                                                            <span>Delete manual</span>
+                                                        </button>
+                                                    </form>
+                                                </x-row-actions-menu>
+                                                @php $omHasMenu = true; @endphp
+                                            @elseif ($manual->status === \App\Models\OmManual::STATUS_EXTRACTED)
+                                                <a href="{{ route('om-manuals.edit', $manual) }}"
+                                                   class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">✎ Review</a>
+                                            @else
+                                                <a href="{{ route('om-manuals.edit', $manual) }}"
+                                                   class="inline-flex items-center bg-gray-900 hover:bg-gray-800 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">View</a>
+                                            @endif
+                                            @if (empty($omHasMenu))
+                                                <x-row-actions-menu>
+                                                    <form method="POST" action="{{ route('om-manuals.destroy', $manual) }}"
+                                                          onsubmit="return confirm('Delete this O&M manual?');">
+                                                        @csrf @method('DELETE')
+                                                        <button type="submit" class="row-actions-item row-actions-item--danger">
+                                                            <span class="row-actions-item__icon" aria-hidden="true">🗑</span>
+                                                            <span>Delete manual</span>
+                                                        </button>
+                                                    </form>
+                                                </x-row-actions-menu>
+                                            @endif
+                                        </div>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                        </div>
+                    @endif
+                </div>
+
+                {{-- ───── Install Programme panel ───── --}}
+                <div x-show="activeTab==='install'" x-cloak role="tabpanel">
+                    @if ($project->installProgrammes->isEmpty())
+                        <x-empty-state title="No install programme yet"
+                            description="Generate an install programme to plan the on-site delivery schedule."/>
+                    @else
+                        <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs uppercase tracking-wide text-gray-500 border-b border-gray-200">
+                                <tr>
+                                    <th class="py-2 px-3 font-medium">Reference / Name</th>
+                                    <th class="py-2 px-3 font-medium w-32">Status</th>
+                                    <th class="py-2 px-3 font-medium w-28 whitespace-nowrap">Date</th>
+                                    <th class="py-2 px-3 font-medium">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($project->installProgrammes->sortByDesc('updated_at') as $ip)
+                                <tr data-name="{{ \Illuminate\Support\Str::lower(($ip->project_name ?? '').' '.($ip->name ?? '')) }}"
+                                    class="border-b border-gray-100 last:border-0"
+                                    x-show="q === '' || $el.dataset.name.includes(q.toLowerCase())">
+                                    <td class="py-3 px-3 text-gray-900">{{ \Illuminate\Support\Str::limit($ip->project_name ?? $ip->name ?? ('Record #'.$ip->id), 55) }}</td>
+                                    <td class="py-3 px-3">
+                                        @if (isset($ip->status))<x-status-badge :status="$ip->status" />@else<span class="text-gray-400">—</span>@endif
+                                    </td>
+                                    <td class="py-3 px-3 text-gray-500 whitespace-nowrap">{{ $ip->updated_at->diffForHumans() }}</td>
+                                    <td class="py-3 px-3">
+                                        <div class="flex flex-wrap gap-2 items-center">
+                                            <a href="{{ route('install-programmes.review', $ip) }}"
+                                               class="inline-flex items-center bg-gray-900 hover:bg-gray-800 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">View</a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                        </div>
+                    @endif
+                </div>
+
+                {{-- ───── Quotes panel ───── --}}
+                <div x-show="activeTab==='quotes'" x-cloak role="tabpanel">
+                    @if ($project->projectQuotes->isEmpty())
+                        <x-empty-state title="No quotes uploaded yet"
+                            description="Upload a quote PDF to link it to this project."
+                            :href="route('quote-import.create', ['project_id' => $project->id])"
+                            action="Upload Quote"/>
+                    @else
+                        <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs uppercase tracking-wide text-gray-500 border-b border-gray-200">
+                                <tr>
+                                    <th class="py-2 px-3 font-medium w-12">Ver.</th>
+                                    <th class="py-2 px-3 font-medium">Original File</th>
+                                    <th class="py-2 px-3 font-medium">Quote Ref</th>
+                                    <th class="py-2 px-3 font-medium">Client</th>
+                                    <th class="py-2 px-3 font-medium w-32">RAMS Status</th>
+                                    <th class="py-2 px-3 font-medium w-28 whitespace-nowrap">Uploaded</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($project->projectQuotes->sortByDesc('version_number') as $pq)
+                                @php $linkedRams = $quoteRamsMap[$pq->original_filename] ?? null; @endphp
+                                <tr data-name="{{ \Illuminate\Support\Str::lower(($pq->original_filename ?? '').' '.($pq->quote_reference ?? '')) }}"
+                                    class="border-b border-gray-100 last:border-0"
+                                    x-show="q === '' || $el.dataset.name.includes(q.toLowerCase())">
+                                    <td class="py-3 px-3 text-center font-semibold text-teal-600">v{{ $pq->version_number }}</td>
+                                    <td class="py-3 px-3">
+                                        <span title="{{ $pq->original_filename }}" class="font-mono text-xs text-gray-700">
+                                            {{ \Illuminate\Support\Str::limit($pq->original_filename, 45) }}
+                                        </span>
+                                    </td>
+                                    <td class="py-3 px-3 text-gray-700">{{ $pq->quote_reference ?? '—' }}</td>
+                                    <td class="py-3 px-3 text-gray-600">{{ $pq->client_name ?? '—' }}</td>
+                                    <td class="py-3 px-3">
+                                        @if ($linkedRams)<x-status-badge :status="$linkedRams->status" />@else<span class="text-gray-400">—</span>@endif
+                                    </td>
+                                    <td class="py-3 px-3 text-gray-500 whitespace-nowrap">
+                                        <div>{{ $pq->created_at->format('d M Y') }}</div>
+                                        <div class="text-xs">{{ $pq->created_at->format('H:i') }}</div>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                        </div>
+                    @endif
+                </div>
+
+                {{-- ───── Project Data panel ───── --}}
+                <div x-show="activeTab==='data'" x-cloak role="tabpanel">
+                    <p class="text-sm text-gray-600 mb-4">
                         Read-only view of the merged project data.
                         @if (! empty($canonicalData['meta']))
-                            Source: <strong>{{ $canonicalData['meta']['data_source'] ?? 'unknown' }}</strong>.
+                            Source: <span class="font-medium text-gray-900">{{ $canonicalData['meta']['data_source'] ?? 'unknown' }}</span>.
                             Overall confidence: {{ number_format(($canonicalData['meta']['confidence'] ?? 0) * 100, 0) }}%.
                         @endif
                     </p>
 
                     @if (! empty($canonicalData['equipment']))
-                        <h3 class="data-subheading">Equipment ({{ count($canonicalData['equipment']) }})</h3>
-                        <table class="data-table data-table--sm" style="margin-bottom:1.25rem;">
-                            <thead>
-                                <tr><th>Name</th><th>Qty</th><th>Area</th><th>Source</th><th>Confidence</th></tr>
+                        <h3 class="text-sm font-semibold text-gray-900 mb-2">Equipment ({{ count($canonicalData['equipment']) }})</h3>
+                        <div class="overflow-x-auto mb-5">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs uppercase tracking-wide text-gray-500 border-b border-gray-200">
+                                <tr>
+                                    <th class="py-2 px-3 font-medium">Name</th>
+                                    <th class="py-2 px-3 font-medium">Qty</th>
+                                    <th class="py-2 px-3 font-medium">Area</th>
+                                    <th class="py-2 px-3 font-medium">Source</th>
+                                    <th class="py-2 px-3 font-medium">Confidence</th>
+                                </tr>
                             </thead>
                             <tbody>
                             @foreach ($canonicalData['equipment'] as $item)
-                                <tr>
-                                    <td>{{ $item['name'] ?? '—' }}</td>
-                                    <td>{{ $item['quantity'] ?? '—' }}</td>
-                                    <td>{{ $item['area'] ?? '—' }}</td>
-                                    <td title="Source: {{ ucfirst(str_replace('_', ' ', $item['data_source'] ?? '')) }}">{{ $item['data_source'] ?? '—' }}</td>
-                                    <td @if (($item['confidence'] ?? 1) < 0.7) class="conf-low" @endif>
+                                <tr data-name="{{ \Illuminate\Support\Str::lower(($item['name'] ?? '').' '.($item['area'] ?? '')) }}"
+                                    class="border-b border-gray-100 last:border-0"
+                                    x-show="q === '' || $el.dataset.name.includes(q.toLowerCase())">
+                                    <td class="py-2 px-3 text-gray-900">{{ $item['name'] ?? '—' }}</td>
+                                    <td class="py-2 px-3 text-gray-700">{{ $item['quantity'] ?? '—' }}</td>
+                                    <td class="py-2 px-3 text-gray-700">{{ $item['area'] ?? '—' }}</td>
+                                    <td class="py-2 px-3 text-gray-600" title="Source: {{ ucfirst(str_replace('_', ' ', $item['data_source'] ?? '')) }}">{{ $item['data_source'] ?? '—' }}</td>
+                                    <td class="py-2 px-3 {{ ($item['confidence'] ?? 1) < 0.7 ? 'text-red-600 font-semibold' : 'text-gray-700' }}">
                                         {{ number_format(($item['confidence'] ?? 1) * 100, 0) }}%
                                     </td>
                                 </tr>
                             @endforeach
                             </tbody>
                         </table>
+                        </div>
                     @else
-                        <p class="proj-cell--muted data-table--sm">No equipment data available.</p>
+                        <p class="text-sm text-gray-500">No equipment data available.</p>
                     @endif
 
                     @if (! empty($canonicalData['rooms']))
-                        <h3 class="data-subheading">Rooms ({{ count($canonicalData['rooms']) }})</h3>
-                        <table class="data-table data-table--sm" style="margin-bottom:1.25rem;">
-                            <thead>
-                                <tr><th>Name</th><th>Source</th><th>Confidence</th></tr>
+                        <h3 class="text-sm font-semibold text-gray-900 mb-2">Rooms ({{ count($canonicalData['rooms']) }})</h3>
+                        <div class="overflow-x-auto mb-3">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs uppercase tracking-wide text-gray-500 border-b border-gray-200">
+                                <tr>
+                                    <th class="py-2 px-3 font-medium">Name</th>
+                                    <th class="py-2 px-3 font-medium">Source</th>
+                                    <th class="py-2 px-3 font-medium">Confidence</th>
+                                </tr>
                             </thead>
                             <tbody>
                             @foreach ($canonicalData['rooms'] as $room)
-                                <tr>
-                                    <td>{{ $room['name'] ?? '—' }}</td>
-                                    <td title="Source: {{ ucfirst(str_replace('_', ' ', $room['data_source'] ?? '')) }}">{{ $room['data_source'] ?? '—' }}</td>
-                                    <td @if (($room['confidence'] ?? 1) < 0.7) class="conf-low" @endif>
+                                <tr data-name="{{ \Illuminate\Support\Str::lower($room['name'] ?? '') }}"
+                                    class="border-b border-gray-100 last:border-0"
+                                    x-show="q === '' || $el.dataset.name.includes(q.toLowerCase())">
+                                    <td class="py-2 px-3 text-gray-900">{{ $room['name'] ?? '—' }}</td>
+                                    <td class="py-2 px-3 text-gray-600" title="Source: {{ ucfirst(str_replace('_', ' ', $room['data_source'] ?? '')) }}">{{ $room['data_source'] ?? '—' }}</td>
+                                    <td class="py-2 px-3 {{ ($room['confidence'] ?? 1) < 0.7 ? 'text-red-600 font-semibold' : 'text-gray-700' }}">
                                         {{ number_format(($room['confidence'] ?? 1) * 100, 0) }}%
                                     </td>
                                 </tr>
                             @endforeach
                             </tbody>
                         </table>
+                        </div>
                     @endif
 
-                    <p class="data-conf-note">Low confidence threshold: &lt;70%. Fields highlighted in red need review.</p>
-                </x-section-card>
+                    <p class="text-xs text-gray-500">Low confidence threshold: &lt;70%. Fields highlighted in red need review.</p>
+                </div>
 
-            </div>{{-- end project data tab panel --}}
+            </div>{{-- /panel --}}
+        </div>{{-- /ws --}}
 
-        </div>{{-- end tab wrapper --}}
+    </div>{{-- /psv__main --}}
 
-        {{-- ── RAMS Documents ─────────────────────────────────────────────────── --}}
-        @php
-            $latestPackage      = $project->latestPackage ?: $project->packages()->latest()->first();
-            $latestAwaitingRams = $project->ramsDocuments
-                ->where('status', \App\Models\RamsDocument::STATUS_AWAITING_REVIEW)
-                ->sortByDesc('id')->first();
-            $generatingRams     = $project->ramsDocuments
-                ->whereIn('status', [
-                    \App\Models\RamsDocument::STATUS_GENERATING,
-                    \App\Models\RamsDocument::STATUS_APPROVED_FOR_GENERATION,
-                ])->first();
-            $hasCompletedRams   = $project->ramsDocuments
-                ->whereIn('status', [
-                    \App\Models\RamsDocument::STATUS_COMPLETED,
-                    \App\Models\RamsDocument::STATUS_FOR_REVIEW,
-                    \App\Models\RamsDocument::STATUS_DRAFT,
-                ])->isNotEmpty();
-        @endphp
+    {{-- ─────────────────── ASIDE COLUMN (sticky) ─────────────────── --}}
+    <aside class="psv__aside min-w-0">
+        <div class="psv__sticky lg:sticky lg:top-4 flex flex-col gap-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
 
-        <x-section-card title="RAMS Documents ({{ $project->ramsDocuments->count() }})" :flush="true">
-            <x-slot name="actions">
-                @if ($latestAwaitingRams)
-                    <x-actions.secondary-button :href="route('rams.quote-review.show', $latestAwaitingRams)">
-                        ✎ Review &amp; Generate
-                    </x-actions.secondary-button>
-                @elseif ($generatingRams)
-                    <span class="section-state-note">Processing…</span>
-                @elseif ($hasCompletedRams)
-                    <form method="POST" action="{{ route('rams.from-project', $project) }}" class="form-bare"
-                          onsubmit="return confirm('Generate a new RAMS document from the current project data?');">
-                        @csrf
-                        <x-actions.secondary-button type="submit">+ New Version</x-actions.secondary-button>
-                    </form>
-                @elseif ($latestPackage && $latestPackage->status === \App\Models\ProjectPackage::STATUS_REVIEWED)
-                    <form method="POST" action="{{ route('rams.from-project', $project) }}" class="form-bare">
-                        @csrf
-                        <x-actions.secondary-button type="submit">+ Create RAMS</x-actions.secondary-button>
-                    </form>
-                @elseif ($latestPackage)
-                    <x-actions.secondary-button :href="route('project-packages.review.show', $latestPackage)">
-                        ✎ Edit Project Data
-                    </x-actions.secondary-button>
+            {{-- Project Summary --}}
+            <x-section-card title="Project Summary">
+                <dl class="space-y-3 text-sm">
+                    <div>
+                        <dt class="text-xs uppercase tracking-wide font-semibold text-gray-500 mb-0.5">Client</dt>
+                        <dd class="text-gray-900 break-words">{{ $project->client_name }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs uppercase tracking-wide font-semibold text-gray-500 mb-0.5">Site</dt>
+                        <dd class="text-gray-900 break-words">{{ $project->site_address ?? '—' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs uppercase tracking-wide font-semibold text-gray-500 mb-0.5">Reference</dt>
+                        <dd class="text-gray-900 break-words">{{ $project->ref ?? '—' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs uppercase tracking-wide font-semibold text-gray-500 mb-0.5">Status</dt>
+                        <dd><x-status-badge :status="$project->status" /></dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs uppercase tracking-wide font-semibold text-gray-500 mb-0.5">Last updated</dt>
+                        <dd class="text-gray-500">{{ $project->updated_at->diffForHumans() }}</dd>
+                    </div>
+                </dl>
+            </x-section-card>
+
+            {{-- Project Details --}}
+            <x-section-card title="Project Details">
+                <x-slot name="actions">
+                    <a href="{{ route('projects.edit', $project) }}"
+                       class="inline-flex items-center border border-gray-300 hover:bg-white text-gray-700 px-2.5 py-1 rounded-md text-xs">
+                        Edit
+                    </a>
+                </x-slot>
+                <dl class="space-y-3 text-sm">
+                    <div>
+                        <dt class="text-xs uppercase tracking-wide font-semibold text-gray-500 mb-0.5">Quote ref</dt>
+                        <dd class="text-gray-900 break-words">{{ $project->quote_reference ?? $project->ref ?? '—' }}</dd>
+                    </div>
+                    @if ($project->works_description)
+                        <div>
+                            <dt class="text-xs uppercase tracking-wide font-semibold text-gray-500 mb-0.5">Scope</dt>
+                            <dd class="text-gray-900 break-words">{{ $project->works_description }}</dd>
+                        </div>
+                    @endif
+                    @if ($project->notes)
+                        <div>
+                            <dt class="text-xs uppercase tracking-wide font-semibold text-gray-500 mb-0.5">Notes</dt>
+                            <dd class="text-gray-600 break-words">{{ $project->notes }}</dd>
+                        </div>
+                    @endif
+                    <div>
+                        <dt class="text-xs uppercase tracking-wide font-semibold text-gray-500 mb-0.5">Created</dt>
+                        <dd class="text-gray-900">{{ $project->created_at->format('d M Y') }}</dd>
+                    </div>
+                    @if ($project->reopened_at)
+                        <div>
+                            <dt class="text-xs uppercase tracking-wide font-semibold text-gray-500 mb-0.5">Reopened</dt>
+                            <dd class="text-gray-900">
+                                {{ $project->reopened_at->format('d M Y') }}
+                                <div class="text-xs text-gray-600 mt-0.5">{{ $project->reopen_reason }}</div>
+                            </dd>
+                        </div>
+                    @endif
+                </dl>
+            </x-section-card>
+
+            {{-- Activity Log --}}
+            <x-section-card title="Activity Log">
+                @if ($project->activityLog->isEmpty())
+                    <p class="text-sm text-gray-500">No activity recorded yet.</p>
                 @else
-                    <x-actions.secondary-button :href="route('rams.create', ['project_id' => $project->id])">
-                        + Create RAMS
-                    </x-actions.secondary-button>
-                @endif
-            </x-slot>
-
-            @if ($project->ramsDocuments->isEmpty())
-                @if ($latestPackage && $latestPackage->status === \App\Models\ProjectPackage::STATUS_REVIEWED)
-                    <x-empty-state title="No RAMS documents yet"
-                        description="Project data has been reviewed and is ready for RAMS generation."/>
-                @elseif ($latestPackage)
-                    <x-empty-state title="No RAMS documents yet"
-                        description="Review quote data to enable RAMS generation."
-                        :href="route('project-packages.review.show', $latestPackage)"
-                        action="Review Quote Data"/>
-                @else
-                    <x-empty-state title="No RAMS documents yet"
-                        description="Create a RAMS manually using the project details."
-                        :href="route('rams.create', ['project_id' => $project->id])"
-                        action="Create RAMS"/>
-                @endif
-            @else
-                @php
-                    $ramsSorted = $project->ramsDocuments->sortByDesc('created_at')->values();
-                    $versionMap = $project->ramsDocuments
-                        ->sortBy('created_at')
-                        ->values()
-                        ->mapWithKeys(fn ($doc, $i) => [$doc->id => $i + 1]);
-                @endphp
-                <table class="data-table data-table--sm">
-                    <thead>
-                        <tr>
-                            <th style="width:70px;">Ver.</th>
-                            <th>Project / Ref</th>
-                            <th>Status</th>
-                            <th class="proj-cell--nowrap">Created</th>
-                            <th style="min-width:180px;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach ($ramsSorted as $rams)
-                            @php
-                                $status     = $rams->status;
-                                $sup        = $rams->isSuperseded();
-                                $isPipeline = $rams->isPipelineStatus();
-                            @endphp
-                            <tr class="{{ $sup ? 'proj-row--superseded' : '' }}">
-                                <td class="tbl-ver-cell">v{{ $versionMap[$rams->id] ?? '—' }}</td>
-                                <td>
-                                    <strong>{{ $rams->project_name ?: '—' }}</strong>
-                                    @if ($rams->project_ref)
-                                        <br><small class="proj-cell--faint">{{ $rams->project_ref }}</small>
-                                    @endif
-                                    @if ($sup)
-                                        <br><small class="tbl-cell--superseded">Superseded</small>
-                                    @endif
-                                </td>
-                                <td>
-                                    <x-status-badge :status="$status" />
-                                </td>
-                                <td class="proj-cell--faint proj-cell--nowrap">
-                                    {{ $rams->created_at->format('d M Y') }}<br>
-                                    <small>{{ $rams->created_at->format('H:i') }}</small>
-                                </td>
-                                <td>
-                                    <div class="actions {{ $sup ? 'actions--disabled' : '' }}">
-                                        @if ($status === \App\Models\RamsDocument::STATUS_APPROVED)
-                                            <form method="POST" action="{{ route('rams.retry-generation', $rams) }}" class="form-bare">
-                                                @csrf
-                                                <button type="submit" class="btn btn-teal btn-sm">▶ Generate</button>
-                                            </form>
-
-                                        @elseif (in_array($status, [
-                                            \App\Models\RamsDocument::STATUS_UPLOADED,
-                                            \App\Models\RamsDocument::STATUS_APPROVED_FOR_GENERATION,
-                                            \App\Models\RamsDocument::STATUS_GENERATING,
-                                        ], true))
-                                            <span class="section-state-note">Processing…</span>
-
-                                        @elseif ($status === \App\Models\RamsDocument::STATUS_COMPLETED && $rams->filename)
-                                            <a href="{{ route('rams.download', $rams) }}" class="btn btn-outline btn-sm">↓ .docx</a>
-                                            <a href="{{ route('rams.download-pdf', $rams) }}"
-                                               class="btn btn-outline btn-sm"
-                                               onclick="triggerFileDownload(this.href); return false;">↓ PDF</a>
-                                            <form method="POST" action="{{ route('rams.retry-generation', $rams) }}" class="form-bare">
-                                                @csrf
-                                                <button type="submit" class="btn btn-outline btn-sm"
-                                                        onclick="return confirm('Rebuild the DOCX from the approved data?');">↺ Regen</button>
-                                            </form>
-
-                                        @elseif ($status === \App\Models\RamsDocument::STATUS_FAILED)
-                                            <span class="tbl-cell--error">⚠ Failed</span>
-                                            @if (! empty($rams->reviewed_data))
-                                                <form method="POST" action="{{ route('rams.retry-generation', $rams) }}" class="form-bare">
-                                                    @csrf
-                                                    <button type="submit" class="btn btn-outline btn-sm">↺ Retry</button>
-                                                </form>
-                                            @else
-                                                <form method="POST" action="{{ route('rams.retry-extraction', $rams) }}" class="form-bare">
-                                                    @csrf
-                                                    <button type="submit" class="btn btn-outline btn-sm">↺ Retry</button>
-                                                </form>
-                                            @endif
-
-                                        @elseif ($rams->filename && in_array($status, [
-                                            \App\Models\RamsDocument::STATUS_FOR_REVIEW,
-                                            \App\Models\RamsDocument::STATUS_DRAFT,
-                                        ], true))
-                                            <a href="{{ route('rams.download', $rams) }}" class="btn btn-outline btn-sm">↓ .docx</a>
-                                            <a href="{{ route('rams.download-pdf', $rams) }}"
-                                               class="btn btn-outline btn-sm"
-                                               onclick="triggerFileDownload(this.href); return false;">↓ PDF</a>
-                                            <form method="POST" action="{{ route('rams.retry-generation', $rams) }}" class="form-bare">
-                                                @csrf
-                                                <button type="submit" class="btn btn-outline btn-sm"
-                                                        onclick="return confirm('Rebuild the DOCX from the approved data?');">↺ Regen</button>
-                                            </form>
-                                        @endif
-
-                                        {{-- Delete (soft) --}}
-                                        <form method="POST"
-                                              action="{{ route('rams.destroy', $rams) }}"
-                                              class="form-bare"
-                                              onsubmit="return confirm('Delete this RAMS document? Admins can restore it later.');">
-                                            @csrf @method('DELETE')
-                                            <button type="submit" class="btn btn-danger-outline btn-sm" title="Delete">✕</button>
-                                        </form>
-                                    </div>
-                                </td>
-                            </tr>
+                    <ul class="space-y-2">
+                        @foreach ($project->activityLog->take(12) as $entry)
+                        <li class="flex gap-2 text-xs leading-snug border-b border-gray-200 last:border-0 pb-2 last:pb-0">
+                            <span class="text-gray-500 whitespace-nowrap shrink-0 w-20 tabular-nums">{{ $entry->created_at->format('d M H:i') }}</span>
+                            <span class="text-gray-700">{{ $entry->description }}</span>
+                        </li>
                         @endforeach
-                    </tbody>
-                </table>
-            @endif
-        </x-section-card>
-
-        {{-- ── O&M Manuals ─────────────────────────────────────────────────────── --}}
-        @php
-            $latestPackage  = $project->latestPackage ?: $project->packages()->latest()->first();
-            $generatingOm   = $project->omManuals->where('status', \App\Models\OmManual::STATUS_GENERATING)->first();
-            $hasCompletedOm = $project->omManuals
-                ->whereIn('status', [\App\Models\OmManual::STATUS_DRAFT, \App\Models\OmManual::STATUS_FINAL])
-                ->isNotEmpty();
-        @endphp
-
-        <x-section-card title="O&M Manuals ({{ $project->omManuals->count() }})" :flush="true">
-            <x-slot name="actions">
-                <x-actions.secondary-button :href="route('om-manuals.create', ['project_id' => $project->id])">
-                    + New O&M
-                </x-actions.secondary-button>
-                @if ($generatingOm)
-                    <span class="section-state-note">Processing…</span>
-                @elseif ($hasCompletedOm)
-                    <x-actions.secondary-button :href="route('quote-import.create', ['project_id' => $project->id])">
-                        + New Version
-                    </x-actions.secondary-button>
-                @elseif ($latestPackage && $latestPackage->status === \App\Models\ProjectPackage::STATUS_REVIEWED)
-                    <form method="POST" action="{{ route('om-manuals.generate-from-project', $project) }}" class="form-bare">
-                        @csrf
-                        <x-actions.secondary-button type="submit">+ Create O&M</x-actions.secondary-button>
-                    </form>
-                @elseif ($latestPackage)
-                    <x-actions.secondary-button :href="route('project-packages.review.show', $latestPackage)">
-                        Review Quote Data
-                    </x-actions.secondary-button>
+                    </ul>
                 @endif
-            </x-slot>
+            </x-section-card>
 
-            @if ($project->omManuals->isEmpty())
-                @if ($latestPackage && $latestPackage->status === \App\Models\ProjectPackage::STATUS_REVIEWED)
-                    <x-empty-state title="No O&M manuals yet"
-                        description="Project data is reviewed and ready for O&M generation."/>
-                @elseif ($latestPackage)
-                    <x-empty-state title="No O&M manuals yet"
-                        description="Review quote data to enable O&M generation."
-                        :href="route('project-packages.review.show', $latestPackage)"
-                        action="Review Quote Data"/>
-                @else
-                    <x-empty-state title="No O&M manuals yet"
-                        description="Upload a quote in Quote History to enable O&M generation."/>
-                @endif
-            @else
-                <table class="data-table data-table--sm">
-                    <thead>
-                        <tr>
-                            <th>Manual</th>
-                            <th>Status</th>
-                            <th class="proj-cell--nowrap">Created</th>
-                            <th style="min-width:200px;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach ($project->omManuals->sortByDesc('created_at') as $manual)
-                        <tr>
-                            <td>
-                                <strong>{{ $manual->project_name ?? 'O&M Manual #' . $manual->id }}</strong>
-                                @if ($manual->project_ref)
-                                    <br><small class="proj-cell--faint">{{ $manual->project_ref }}</small>
-                                @endif
-                            </td>
-                            <td>
-                                <x-status-badge :status="$manual->status" :label="$manual->statusLabel()" />
-                            </td>
-                            <td class="proj-cell--faint proj-cell--nowrap">
-                                {{ $manual->created_at->format('d M Y') }}<br>
-                                <small>{{ $manual->created_at->format('H:i') }}</small>
-                            </td>
-                            <td>
-                                <div class="actions">
-                                    @if ($manual->status === \App\Models\OmManual::STATUS_GENERATING)
-                                        <span class="section-state-note">Processing…</span>
+        </div>{{-- /sticky --}}
+    </aside>
 
-                                    @elseif ($manual->status === \App\Models\OmManual::STATUS_FAILED)
-                                        <span class="tbl-cell--error" title="{{ $manual->error_message }}">⚠ Failed</span>
-                                        @if (! empty($manual->extracted_data))
-                                            <form method="POST" action="{{ route('om-manuals.retry-generation', $manual) }}" class="form-bare">
-                                                @csrf
-                                                <button type="submit" class="btn btn-outline btn-sm">↺ Retry</button>
-                                            </form>
-                                        @endif
+</div>{{-- /psv --}}
 
-                                    @elseif ($manual->isGenerated())
-                                        <a href="{{ route('om-manuals.download', $manual) }}" class="btn btn-outline btn-sm">↓ .docx</a>
-                                        <a href="{{ route('om-manuals.download-pdf', $manual) }}" class="btn btn-outline btn-sm">↓ PDF</a>
-                                        <form method="POST" action="{{ route('om-manuals.retry-generation', $manual) }}" class="form-bare">
-                                            @csrf
-                                            <button type="submit" class="btn btn-outline btn-sm"
-                                                    onclick="return confirm('Rebuild this O&M manual from the existing data?');">↺ Regen</button>
-                                        </form>
+{{-- Danger zone (only when archived) --}}
+@if ($project->isArchived())
+<div class="bg-white rounded-xl border-l-4 border-red-600 border-y border-r border-gray-100 shadow-sm p-6 mt-6">
+    <h2 class="text-base font-semibold text-red-700 mb-2">Danger Zone</h2>
+    <p class="text-sm text-gray-600 mb-3">
+        Permanently delete this project and all associated data. This cannot be undone.
+    </p>
+    <form method="POST" action="{{ route('projects.destroy', $project) }}" class="m-0">
+        @csrf @method('DELETE')
+        <button type="submit"
+                class="inline-flex items-center bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-md text-sm font-medium"
+                onclick="return confirm('Permanently delete project &quot;{{ addslashes($project->name) }}&quot;? This cannot be undone.')">
+            Delete Project
+        </button>
+    </form>
+</div>
+@endif
 
-                                    @elseif ($manual->status === \App\Models\OmManual::STATUS_EXTRACTED)
-                                        <a href="{{ route('om-manuals.edit', $manual) }}" class="btn btn-teal btn-sm">✎ Review</a>
+{{-- Copy-to-clipboard for engineer/client links --}}
+<script>
+function copyEngineerLink(url, btn) {
+    const orig = btn.textContent;
+    const showSuccess = () => {
+        btn.textContent = '✓';
+        btn.style.background = '#059669';
+        btn.style.color = '#fff';
+        setTimeout(() => { btn.textContent = orig; btn.style.background = ''; btn.style.color = ''; }, 2500);
+    };
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(url).then(showSuccess).catch(() => {
+            fallbackCopyText(url); showSuccess();
+        });
+    } else {
+        fallbackCopyText(url); showSuccess();
+    }
+}
+function fallbackCopyText(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta);
+}
 
-                                    @else
-                                        <a href="{{ route('om-manuals.edit', $manual) }}" class="btn btn-outline btn-sm">View</a>
-                                    @endif
-
-                                    <form method="POST" action="{{ route('om-manuals.destroy', $manual) }}"
-                                          class="form-bare"
-                                          onsubmit="return confirm('Delete this O&M manual?');">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" class="btn btn-danger-outline btn-sm" title="Delete">✕</button>
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            @endif
-        </x-section-card>
-
-        {{-- ── Site Surveys ─────────────────────────────────────────────────────── --}}
-        @php $latestSurvey = $project->siteSurveys->sortByDesc('created_at')->first(); @endphp
-
-        <x-section-card title="Site Surveys ({{ $project->siteSurveys->count() }})" :flush="true">
-            <x-slot name="actions">
-                <x-actions.secondary-button :href="route('site-surveys.from-project', $project)">
-                    + Create Survey
-                </x-actions.secondary-button>
-            </x-slot>
-
-            @if ($project->siteSurveys->isEmpty())
-                <x-empty-state title="No site surveys yet"
-                    description="Create a survey to share a pre-filled form with your on-site engineer."
-                    :href="route('site-surveys.from-project', $project)"
-                    action="Create Survey"/>
-            @else
-                <table class="data-table data-table--sm">
-                    <thead>
-                        <tr>
-                            <th>Survey</th>
-                            <th>Status</th>
-                            <th class="proj-cell--nowrap">Created</th>
-                            <th style="min-width:220px;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach ($project->siteSurveys->sortByDesc('created_at') as $survey)
-                        <tr>
-                            <td>
-                                <strong>{{ 'Site Survey #' . $survey->id }}</strong>
-                                @if ($survey->surveyor_name)
-                                    <br><small class="proj-cell--faint">By: {{ $survey->surveyor_name }}</small>
-                                @endif
-                                @if ($survey->survey_date)
-                                    <br><small class="proj-cell--faint">{{ $survey->survey_date->format('d M Y') }}</small>
-                                @endif
-                            </td>
-                            <td>
-                                <x-status-badge
-                                    :status="$survey->status ?? 'draft'"
-                                    :label="ucfirst($survey->status ?? 'draft') . ($survey->isSubmitted() ? ' · Submitted' : '')" />
-                            </td>
-                            <td class="proj-cell--faint proj-cell--nowrap">
-                                {{ $survey->created_at->format('d M Y') }}<br>
-                                <small>{{ $survey->created_at->format('H:i') }}</small>
-                            </td>
-                            <td>
-                                <div class="actions">
-                                    @if ($survey->access_token && ! $survey->isTokenExpired())
-                                        <button type="button"
-                                                class="btn btn-outline btn-sm"
-                                                onclick="copyEngineerLink('{{ $survey->publicUrl() }}', this)"
-                                                title="{{ $survey->publicUrl() }}">
-                                            🔗 Copy Link
-                                        </button>
-                                    @endif
-                                    <a href="{{ route('site-surveys.show', $survey) }}" class="btn btn-outline btn-sm">👁 View</a>
-                                    @if (! $survey->isCompleted())
-                                        <a href="{{ route('site-surveys.edit', $survey) }}" class="btn btn-outline btn-sm">✎ Edit</a>
-                                        <form method="POST" action="{{ route('site-surveys.complete', $survey) }}"
-                                              class="form-bare"
-                                              onsubmit="return confirm('Mark this survey as completed?');">
-                                            @csrf
-                                            <button type="submit" class="btn btn-outline btn-sm">✓ Complete</button>
-                                        </form>
-                                    @endif
-                                    <form method="POST" action="{{ route('site-surveys.destroy', $survey) }}"
-                                          class="form-bare"
-                                          onsubmit="return confirm('Delete this survey?');">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" class="btn btn-danger-outline btn-sm" title="Delete">✕</button>
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            @endif
-        </x-section-card>
-
-        {{-- Copy-to-clipboard for engineer links --}}
-        <script>
-        function copyEngineerLink(url, btn) {
-            const orig = btn.textContent;
-            const showSuccess = () => {
-                btn.textContent = '✓ Copied!';
-                btn.style.background = '#059669';
-                setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 2500);
-            };
-            if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(url).then(showSuccess).catch(() => {
-                    fallbackCopyText(url); showSuccess();
-                });
-            } else {
-                fallbackCopyText(url); showSuccess();
-            }
-        }
-        function fallbackCopyText(text) {
-            const ta = document.createElement('textarea');
-            ta.value = text;
-            ta.style.position = 'fixed';
-            ta.style.left = '-9999px';
-            document.body.appendChild(ta);
-            ta.select();
-            try { document.execCommand('copy'); } catch(e) {}
-            document.body.removeChild(ta);
-        }
-        </script>
-
-        {{-- Cable Schedules are shown in the Linked Records table above --}}
-
-        {{-- ── Activity Log ──────────────────────────────────────────────────────── --}}
-        <x-section-card title="Activity Log">
-            @if ($project->activityLog->isEmpty())
-                <p class="proj-cell--muted">No activity recorded yet.</p>
-            @else
-                <ul class="activity-list">
-                    @foreach ($project->activityLog->take(20) as $entry)
-                    <li class="activity-item">
-                        <span class="activity-item__date">{{ $entry->created_at->format('d M Y H:i') }}</span>
-                        <span class="activity-item__desc">{{ $entry->description }}</span>
-                    </li>
-                    @endforeach
-                </ul>
-            @endif
-        </x-section-card>
-
-    </div>{{-- /left column --}}
-
-    {{-- ────────────────────────────────────────────────────────────────────── --}}
-    {{-- RIGHT COLUMN                                                            --}}
-    {{-- ────────────────────────────────────────────────────────────────────── --}}
-    <div>
-
-        {{-- Project Details --}}
-        <x-section-card title="Project Details">
-            <x-slot name="actions">
-                <x-actions.secondary-button :href="route('projects.edit', $project)">
-                    Edit
-                </x-actions.secondary-button>
-            </x-slot>
-
-            <dl class="details-list">
-                <dt>Status</dt>
-                <dd><x-status-badge :status="$project->status" /></dd>
-                <dt>Client</dt>
-                <dd>{{ $project->client_name }}</dd>
-                <dt>Site</dt>
-                <dd>{{ $project->site_address ?? '—' }}</dd>
-                <dt>Quote ref</dt>
-                <dd>{{ $project->quote_reference ?? $project->ref ?? '—' }}</dd>
-                @if ($project->works_description)
-                <dt>Scope</dt>
-                <dd>{{ $project->works_description }}</dd>
-                @endif
-                @if ($project->notes)
-                <dt>Notes</dt>
-                <dd class="proj-cell--muted">{{ $project->notes }}</dd>
-                @endif
-                <dt>Created</dt>
-                <dd>{{ $project->created_at->format('d M Y') }}</dd>
-                <dt>Updated</dt>
-                <dd class="proj-cell--faint">{{ $project->updated_at->diffForHumans() }}</dd>
-                @if ($project->reopened_at)
-                <dt>Reopened</dt>
-                <dd>
-                    {{ $project->reopened_at->format('d M Y') }}<br>
-                    <span class="proj-cell--muted details-list__reopen-reason">{{ $project->reopen_reason }}</span>
-                </dd>
-                @endif
-            </dl>
-        </x-section-card>
-
-        {{-- Document counts --}}
-        <x-section-card title="Documents">
-            <div class="doc-counts-grid">
-                <div class="doc-count-item">
-                    <div class="doc-count-item__label">Quotes</div>
-                    <div class="doc-count-item__value">{{ $project->projectQuotes->count() }}</div>
-                </div>
-                <div class="doc-count-item">
-                    <div class="doc-count-item__label">RAMS</div>
-                    <div class="doc-count-item__value">{{ $project->ramsDocuments->count() }}</div>
-                </div>
-                <div class="doc-count-item">
-                    <div class="doc-count-item__label">O&M</div>
-                    <div class="doc-count-item__value">{{ $project->omManuals->count() }}</div>
-                </div>
-                <div class="doc-count-item">
-                    <div class="doc-count-item__label">Surveys</div>
-                    <div class="doc-count-item__value">{{ $project->siteSurveys->count() }}</div>
-                </div>
-            </div>
-        </x-section-card>
-
-        {{-- Quick Actions --}}
-        @php $latestPackage = $project->latestPackage ?: $project->packages()->latest()->first(); @endphp
-        @if ($latestPackage)
-        <x-section-card title="Quick Actions">
-            <div class="quick-actions">
-                @if ($latestPackage->status === \App\Models\ProjectPackage::STATUS_REVIEWED)
-                    <form method="POST" action="{{ route('om-manuals.generate-from-project', $project) }}" class="form-bare">
-                        @csrf
-                        <x-actions.secondary-button type="submit" class="btn-full">
-                            + Create O&M Manual
-                        </x-actions.secondary-button>
-                    </form>
-                @else
-                    <x-actions.secondary-button :href="route('project-packages.review.show', $latestPackage)" class="btn-full">
-                        Review Quote Data
-                    </x-actions.secondary-button>
-                @endif
-            </div>
-        </x-section-card>
-        @endif
-
-        {{-- Danger zone: only shown when archived --}}
-        @if ($project->isArchived())
-        <div class="section-block danger-zone">
-            <h2 class="section-card__title danger-zone__title">Danger Zone</h2>
-            <p class="proj-cell--muted danger-zone__desc">
-                Permanently delete this project and all associated data. This cannot be undone.
-            </p>
-            <form method="POST" action="{{ route('projects.destroy', $project) }}" class="form-bare">
-                @csrf @method('DELETE')
-                <button type="submit" class="btn btn-danger btn-sm"
-                        onclick="return confirm('Permanently delete project &quot;{{ addslashes($project->name) }}&quot;? This cannot be undone.')">
-                    Delete Project
-                </button>
-            </form>
-        </div>
-        @endif
-
-    </div>{{-- /right column --}}
-
-</div>{{-- /proj-show-grid --}}
+</script>
 
 </x-app-shell>
-
-@push('styles')
-<style>
-/* ── Grid layout ─────────────────────────────────────────────────────────── */
-.proj-show-grid {
-    display: grid;
-    grid-template-columns: 1fr 320px;
-    gap: 1.25rem;
-    align-items: start;
-}
-
-/* ── Lifecycle bar ───────────────────────────────────────────────────────── */
-.lifecycle-bar {
-    display: flex;
-    align-items: center;
-    overflow-x: auto;
-    padding-bottom: .25rem;
-}
-.lifecycle-step             { display: flex; align-items: center; flex-shrink: 0; }
-.lifecycle-step__connector  { width: 18px; height: 1px; background: #ddd; flex-shrink: 0; }
-
-/* ── Tab strip ───────────────────────────────────────────────────────────── */
-.proj-tabs {
-    display: flex;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 1rem;
-}
-.proj-tab {
-    padding: .75rem 1rem;
-    border: none;
-    background: none;
-    cursor: pointer;
-    font-size: .9375rem;
-    font-weight: 500;
-    color: var(--text-muted);
-    border-bottom: 2px solid transparent;
-    transition: color var(--transition), border-color var(--transition);
-}
-.proj-tab--active { border-bottom-color: var(--teal); color: var(--teal); font-weight: 600; }
-.proj-tab:hover   { color: var(--teal); }
-
-/* ── Linked records ──────────────────────────────────────────────────────── */
-.linked-records__group              { border-bottom: 2px solid var(--border); }
-.linked-records__group:last-child   { border-bottom: none; }
-
-/* Section type header bar — brand gold */
-.lr-section-hdr {
-    display: flex;
-    align-items: center;
-    padding: .45rem 1.25rem;
-    background: #C9922A;
-    border-bottom: 1px solid #A87620;
-}
-.lr-section-hdr__badge {
-    font-size: .72rem;
-    font-weight: 800;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    padding: .2rem .6rem;
-    background: transparent;
-    border: none;
-    color: #1A1A1A;
-    box-shadow: none;
-}
-
-/* Table inside each group — no top border (header bar is the divider) */
-.lr-table thead th {
-    background: #fff;
-    font-size: .75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .05em;
-    color: var(--text-muted);
-    padding: .45rem 1rem;
-    border-bottom: 1px solid var(--border);
-}
-.lr-table tbody td { padding: .7rem 1rem; }
-
-/* Empty row */
-.lr-empty-row td   { color: var(--text-muted); }
-.lr-empty-ref      { font-style: italic; font-size: .84rem; }
-
-/* Action buttons — uniform min-width so they line up */
-.lr-actions        { white-space: nowrap; }
-.lr-btn            { min-width: 72px; text-align: center; }
-
-/* ── Table helpers ───────────────────────────────────────────────────────── */
-.data-table--sm         { font-size: .84rem; }
-.tbl-ver-cell           { text-align: center; font-weight: 700; color: var(--teal); }
-.tbl-cell--mono         { font-family: monospace; font-size: .78rem; }
-.tbl-cell--superseded   { color: var(--danger); font-size: .72rem; }
-.tbl-cell--error        { font-size: .78rem; color: #991b1b; }
-.proj-cell--muted       { color: var(--text-muted); }
-.proj-cell--faint       { color: var(--text-faint); font-size: .85rem; }
-.proj-cell--nowrap      { white-space: nowrap; }
-.proj-row--superseded   { opacity: .45; }
-
-/* ── Form bare (removes browser default form margin) ────────────────────── */
-.form-bare              { margin: 0; }
-.form-bare--inline      { display: inline-block; }
-
-/* ── Actions ─────────────────────────────────────────────────────────────── */
-.actions--disabled      { pointer-events: none; }
-
-/* ── Section state note (Processing…, info text) ─────────────────────────── */
-.section-state-note     { font-size: .78rem; color: var(--text-muted); font-style: italic; }
-
-/* ── Spinner ─────────────────────────────────────────────────────────────── */
-.spin-icon {
-    display: inline-block;
-    width: 14px; height: 14px;
-    vertical-align: middle;
-    margin-right: .25rem;
-    animation: spin 1s linear infinite;
-}
-@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-/* ── Canonical data ──────────────────────────────────────────────────────── */
-.data-source-note  { font-size: .8125rem; color: var(--text-muted); margin-bottom: 1rem; }
-.data-subheading   { font-size: .8125rem; font-weight: 600; color: var(--text); margin: 1rem 0 .5rem; }
-.data-conf-note    { font-size: .75rem; color: var(--text-faint); margin-top: .75rem; }
-.conf-low          { color: var(--danger); font-weight: 600; }
-
-/* ── Reopen form ─────────────────────────────────────────────────────────── */
-.reopen-form {
-    display: flex;
-    gap: .5rem;
-    align-items: flex-end;
-    flex-wrap: wrap;
-}
-.reopen-form__btn { flex-shrink: 0; }
-
-/* ── Project details list ────────────────────────────────────────────────── */
-.details-list {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: .4rem .75rem;
-    font-size: .85rem;
-}
-.details-list dt                    { color: var(--text-muted); font-weight: 600; }
-.details-list dd                    { color: var(--text); }
-.details-list__reopen-reason        { font-size: .8rem; }
-
-/* ── Document count grid ─────────────────────────────────────────────────── */
-.doc-counts-grid    { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
-.doc-count-item {
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: .65rem .75rem;
-    text-align: center;
-}
-.doc-count-item__label { font-size: .72rem; font-weight: 700; color: var(--teal); text-transform: uppercase; letter-spacing: .04em; }
-.doc-count-item__value { font-size: 1.3rem; font-weight: 700; color: var(--text); }
-
-/* ── Quick actions ───────────────────────────────────────────────────────── */
-.quick-actions { display: flex; flex-direction: column; gap: .5rem; }
-
-/* ── Danger zone ─────────────────────────────────────────────────────────── */
-.danger-zone            { border-left: 3px solid var(--danger); }
-.danger-zone__title     { color: var(--danger); margin-bottom: .5rem; }
-.danger-zone__desc      { font-size: .8rem; margin-bottom: .75rem; }
-
-/* ── Activity log ────────────────────────────────────────────────────────── */
-.activity-list          { list-style: none; padding: 0; margin: 0; }
-.activity-item {
-    display: flex;
-    gap: .75rem;
-    padding: .55rem 0;
-    border-bottom: 1px solid #f0f0f0;
-    font-size: .84rem;
-}
-.activity-item:last-child   { border-bottom: none; }
-.activity-item__date        { color: var(--text-muted); white-space: nowrap; padding-top: 1px; min-width: 110px; }
-.activity-item__desc        { color: var(--text); }
-
-/* ── Responsive ──────────────────────────────────────────────────────────── */
-@media (max-width: 900px) {
-    .proj-show-grid { grid-template-columns: 1fr; }
-}
-</style>
-@endpush
 
 @endsection

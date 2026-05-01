@@ -4,27 +4,30 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\ProjectDrawing;
+use App\Services\DocumentEdits\DocumentEditAdapterRegistry;
 use App\Services\Drawings\DrawingExportRendererService;
 use App\Services\Drawings\DrawingService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
- * v1.3 / Phase 17 — drawings list / regenerate / show shell.
+ * v1.3 / Phase 17 — drawings list / regenerate / show / download / create /
+ * update-status.
  *
- * Plan 17-01 lands the routes + the regenerate flow so Plan 02 can dispatch
- * BuildSchematicJob via this controller. Plan 03 fills the index Blade view
- * + per-format download endpoints; until then index() returns the view name
- * the frontend will eventually point at, but the resources/views/projects/
- * drawings/index.blade.php file is created by Plan 03.
+ * Plan 17-01 landed the routes + regenerate flow.
+ * Plan 17-03 fills index/show Blade views, adds createSchematic +
+ * updateStatus + per-format download endpoints. createSchematic uses
+ * DrawingService::generateInitial (NOT regenerate) so the first version is
+ * R0 and not R1-with-phantom-archived-sibling (Warning 9 fix). updateStatus
+ * routes through the DrawingEditAdapter so the same set_status allow-list
+ * applies to chat-driven and UI-driven edits.
  *
  * Authorization: ProjectDrawingPolicy (owner-or-admin) is enforced on
- * regenerate() and show(). The index page is project-scoped, so a
- * future-Phase-21 (client portal) policy will live there.
+ * regenerate(), show(), updateStatus(), download(). The index page is
+ * project-scoped (a future-Phase-21 client portal policy will live there).
  */
 class ProjectDrawingController extends Controller
 {
@@ -55,21 +58,99 @@ class ProjectDrawingController extends Controller
     }
 
     /**
-     * JSON status endpoint — used by Plan 03's polling UI to update the
-     * status badge after regenerate. Plan 03 may replace this with a full
-     * preview view; for Plan 01 / 02 boundaries we return JSON-only so the
-     * route is testable end-to-end without a view file.
+     * Per-drawing preview page — embedded SVG + status controls + per-format
+     * download links + regenerate button. Plan 03 replaces Plan 01's JSON
+     * stub now that the Blade view exists.
      */
-    public function show(Project $project, ProjectDrawing $drawing): JsonResponse
+    public function show(Project $project, ProjectDrawing $drawing): View
     {
         $this->authorize('view', $drawing);
 
-        return response()->json([
-            'id' => $drawing->id,
-            'kind' => $drawing->kind,
-            'status' => $drawing->status,
-            'version' => $drawing->version,
-            'filename' => $drawing->filename,
+        if ($drawing->project_id !== $project->id) {
+            abort(404);
+        }
+
+        return view('projects.drawings.show', [
+            'project' => $project,
+            'drawing' => $drawing,
+        ]);
+    }
+
+    /**
+     * Create + dispatch a v1 schematic (DRAW-06). Warning 9 fix: calls
+     * createForProject() THEN generateInitial() (NOT regenerate) — regenerate
+     * archives the just-created row and replicates a fresh one, which would
+     * waste a row, break revisioning, and produce a misleading "R1" instead
+     * of "R0" for the first version.
+     */
+    public function createSchematic(Request $request, Project $project): RedirectResponse
+    {
+        if (! $request->user()) {
+            abort(403);
+        }
+
+        $userId = (int) $request->user()->id;
+
+        // Step 1: create the row (status=DRAFT, no job dispatched).
+        $drawing = $this->drawingService->createForProject(
+            $project,
+            ProjectDrawing::KIND_SCHEMATIC,
+            null, // no specific room — Phase 17 v1 generates per-project schematic
+            $userId,
+        );
+
+        // Step 2: dispatch the build job WITHOUT archive-prior semantics
+        // (this is the FIRST version — there's nothing to archive). Calling
+        // regenerate() here would archive the just-created row and replicate
+        // a fresh one — Warning 9.
+        $this->drawingService->generateInitial($drawing, $userId);
+
+        return redirect()
+            ->route('projects.drawings.index', $project)
+            ->with('status', 'Schematic generation queued.');
+    }
+
+    /**
+     * DRAW-25 — workflow status update. Routed through the DrawingEditAdapter's
+     * `set_status` operation so the same allow-list (draft/for_review/approved)
+     * applied to chat-driven edits applies here too. Generating/ready/failed
+     * are job-controlled; superseded is regenerate-controlled — neither
+     * surfaces in the UI dropdown.
+     */
+    public function updateStatus(
+        Request $request,
+        Project $project,
+        ProjectDrawing $drawing,
+    ): RedirectResponse {
+        $this->authorize('update', $drawing);
+
+        if ($drawing->project_id !== $project->id) {
+            abort(404);
+        }
+
+        $registry = app(DocumentEditAdapterRegistry::class);
+        $adapter = $registry->for('drawing');
+
+        $payload = $adapter->loadPayload($drawing->id);
+        if ($payload === null) {
+            abort(404);
+        }
+
+        $result = $adapter->applyOperation($payload, [
+            'op' => 'set_status',
+            'value' => (string) $request->input('status', ''),
+        ]);
+
+        if (($result['ok'] ?? false) === true) {
+            $adapter->commitChanges($drawing->id, $result['payload'] ?? []);
+
+            return redirect()
+                ->route('projects.drawings.show', [$project, $drawing])
+                ->with('status', 'Status updated.');
+        }
+
+        return back()->withErrors([
+            'status' => $result['error'] ?? 'Status update rejected',
         ]);
     }
 
