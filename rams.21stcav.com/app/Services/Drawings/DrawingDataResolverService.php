@@ -114,11 +114,13 @@ class DrawingDataResolverService
         // packages / quote-only projects) but there IS equipment, return a
         // single synthetic room so the schematic still renders.
         if (empty($rooms) && ! empty($equipment)) {
+            $devs = $this->reshapeDevices($this->filterHardware($equipment), $signalRoleByPart);
+
             return [[
                 'room_id' => null,
                 'room_name' => 'Project schematic',
-                'devices' => $this->reshapeDevices($this->filterHardware($equipment), $signalRoleByPart),
-                'cables' => $this->reshapeCables($cables),
+                'devices' => $devs,
+                'cables' => $cables ? $this->reshapeCables($cables) : $this->synthesiseEdgesFromRoles($devs),
             ]];
         }
 
@@ -130,11 +132,22 @@ class DrawingDataResolverService
             $roomEquipment = $this->equipmentForRoom($equipment, $roomName, $room);
             $roomCables = $this->cablesForRoom($cables, $roomName, $roomId);
 
+            $devs = $this->reshapeDevices($this->filterHardware($roomEquipment), $signalRoleByPart);
+
+            // When the cable schedule has no rows for this room (typical for
+            // QuoteWerks-imported projects where cables are bundled into a
+            // single labour line item), synthesise edges from signal_role
+            // classification so the schematic shows useful flow instead of
+            // disconnected icons. NOT persisted — render-time only.
+            $cablesForRender = $roomCables
+                ? $this->reshapeCables($roomCables)
+                : $this->synthesiseEdgesFromRoles($devs);
+
             $out[] = [
                 'room_id' => $roomId,
                 'room_name' => $roomName,
-                'devices' => $this->reshapeDevices($this->filterHardware($roomEquipment), $signalRoleByPart),
-                'cables' => $this->reshapeCables($roomCables),
+                'devices' => $devs,
+                'cables' => $cablesForRender,
             ];
         }
 
@@ -336,6 +349,74 @@ class DrawingDataResolverService
         }
 
         return $out;
+    }
+
+    /**
+     * Synthesise an edge list from device signal_role classification when the
+     * project's cable schedule has no rows for this room. NOT persisted —
+     * render-time only. Heuristic, not invented data:
+     *   - sources flow toward processors (or destinations if no processor)
+     *   - processors flow toward all destinations
+     *   - sources flow direct to destinations only when there is no processor
+     *
+     * Auto-derived edges are tagged signal_type='video' (the most common
+     * signal in AV deliverables) and cable_id='AUTO-{n}' so they're visibly
+     * distinguishable from real cable schedule rows.
+     *
+     * @param  array<int, array{equipment_id: int|string, name: string, signal_role: string|null, ...}>  $devices
+     * @return array<int, array{cable_id: string, source_equipment_id: int|string, source_port: null, dest_equipment_id: int|string, dest_port: null, signal_type: string}>
+     */
+    private function synthesiseEdgesFromRoles(array $devices): array
+    {
+        $sources = [];
+        $processors = [];
+        $destinations = [];
+        foreach ($devices as $d) {
+            $role = $d['signal_role'] ?? null;
+            if ($role === \App\Models\Device::ROLE_SOURCE) {
+                $sources[] = $d;
+            } elseif ($role === \App\Models\Device::ROLE_PROCESSOR) {
+                $processors[] = $d;
+            } elseif ($role === \App\Models\Device::ROLE_DESTINATION) {
+                $destinations[] = $d;
+            }
+        }
+
+        $edges = [];
+        $n = 1;
+        $emit = function (array $src, array $dst) use (&$edges, &$n): void {
+            $edges[] = [
+                'cable_id' => 'AUTO-'.$n,
+                'source_equipment_id' => $src['equipment_id'],
+                'source_port' => null,
+                'dest_equipment_id' => $dst['equipment_id'],
+                'dest_port' => null,
+                'signal_type' => 'video',
+            ];
+            $n++;
+        };
+
+        if (! empty($processors)) {
+            // sources → first processor (single hub assumption)
+            foreach ($sources as $s) {
+                $emit($s, $processors[0]);
+            }
+            // every processor → every destination (fan-out)
+            foreach ($processors as $p) {
+                foreach ($destinations as $d) {
+                    $emit($p, $d);
+                }
+            }
+        } else {
+            // No processor: sources connect direct to destinations
+            foreach ($sources as $s) {
+                foreach ($destinations as $d) {
+                    $emit($s, $d);
+                }
+            }
+        }
+
+        return $edges;
     }
 
     /**
