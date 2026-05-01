@@ -151,6 +151,67 @@ class OmManualDocxService
         $s = $phpWord->addSection($this->sectionProps());
         $this->buildDocumentControlSection($s, $sectionNum, $manual);
 
+        // ── DRAW-26 — Phase 17 v1.3: Drawings section (PNG embed for Word compat) ──
+        // Uses DrawingExportRendererService::ensurePngForHandover() which is idempotent
+        // per-drawing-version. PhpWord's addImage handles raster cleanly; SVG support
+        // in PhpWord 1.4+ exists but is inconsistent across Word/Word Online/LibreOffice
+        // (per ARCHITECTURE.md §6.3). PNG is the safe path; switch to SVG embed if
+        // a future Word release firms up SVG handling.
+        //
+        // Blocker 3 fix: opens a FRESH PhpWord section (does NOT reuse $s from the
+        // Document Control block). Variable name $drawingsSection makes the diff
+        // self-documenting and prevents append-after-save issues. Project access
+        // via $manual->project — relation exists on App\Models\OmManual line 59
+        // (verified during plan revision).
+        $drawings = $manual->project?->drawings()
+            ->where('status', \App\Models\ProjectDrawing::STATUS_READY)
+            ->whereNull('superseded_by_id')
+            ->orderBy('kind')
+            ->orderBy('site_survey_room_id')
+            ->get() ?? collect();
+
+        if ($drawings->isNotEmpty()) {
+            $sectionNum++;
+            $drawingsSection = $phpWord->addSection($this->sectionProps());
+            $this->addHeading1($drawingsSection, $sectionNum.'.  Drawings', $sectionNum);
+
+            $renderer = app(\App\Services\Drawings\DrawingExportRendererService::class);
+
+            foreach ($drawings as $drawing) {
+                $pngPath = null;
+                try {
+                    $pngPath = $renderer->ensurePngForHandover($drawing);
+                } catch (\Throwable $e) {
+                    Log::warning(
+                        'OmManualDocxService: drawing PNG render failed (skipping)',
+                        [
+                            'drawing_id' => $drawing->id,
+                            'om_manual_id' => $manual->id,
+                            'error' => $e->getMessage(),
+                        ]
+                    );
+
+                    continue;
+                }
+                if (! $pngPath || ! is_file($pngPath)) {
+                    continue;
+                }
+
+                $drawingsSection->addText(
+                    $this->t($drawing->kindLabel().' — '.($drawing->room?->name ?? 'Whole project').' ('.$drawing->revisionLabel().')'),
+                    ['name' => 'Arial', 'size' => 12, 'bold' => true, 'color' => self::TEAL],
+                    ['spaceBefore' => 120, 'spaceAfter' => 80, 'alignment' => Jc::CENTER]
+                );
+                $drawingsSection->addImage($pngPath, [
+                    'width' => 500,            // points; fits A4 portrait with margins
+                    'height' => null,           // null preserves aspect
+                    'wrappingStyle' => 'square',
+                    'alignment' => Jc::CENTER,
+                ]);
+                $drawingsSection->addPageBreak();   // one drawing per page (DRAW-26)
+            }
+        }
+
         // ── Save ──────────────────────────────────────────────────────────────
         $filename = 'OM_'
             . preg_replace('/[^A-Za-z0-9_\-]/', '_', $manual->project_ref ?? 'manual')
