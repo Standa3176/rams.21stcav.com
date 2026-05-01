@@ -29,9 +29,14 @@ use Illuminate\Support\Facades\Log;
  */
 class DrawingDataResolverService
 {
-    // Same exclusion lists as InstallTaskGeneratorService / WorksheetGeneratorService —
-    // cables/consumables/services aren't device-nodes on a signal-flow schematic
-    // (cables become EDGES via the cables array; the rest are billing line items).
+    // Schematic-specific exclusion list. INTENTIONALLY broader than
+    // InstallTaskGeneratorService / WorksheetGeneratorService:
+    //   - Install programme / worksheet show brackets + caddies (real install
+    //     tasks the engineer performs).
+    //   - Signal-flow schematic does NOT — physical mounting hardware and
+    //     storage accessories carry no signal, so showing them as device
+    //     nodes is misleading.
+    // Cables/consumables/services are line-item-type items in every list.
     private const EXCLUDED_CATEGORIES = [
         'cables',
         'consumables',
@@ -39,15 +44,25 @@ class DrawingDataResolverService
         'option',
     ];
 
+    // Keyword fallback. Matches against name OR description (lowercased).
+    // Order doesn't matter — any match excludes the row from device nodes.
     private const EXCLUDED_KEYWORDS = [
+        // Cabling-type line items
         'cable',
         'cat5',
         'cat6',
         'hdmi',
         'usb-a to usb-b',
+        // Service-type line items
         'install',
         'commission',
         'project management',
+        // Physical mounting hardware (NOT signal devices) — schematic-specific
+        'mount',     // "Wall Mount Bracket", "Tilting Wall Mount", "Ceiling Mount", "VESA Mount"
+        'bracket',   // "XL Tiling Wall Bracket", "Shelf Bracket"
+        // Storage accessories (NOT signal devices) — schematic-specific
+        'caddy',     // "Caddy for up to 4 buttons"
+        'tray',      // "Button Tray", "ClickShare Tray"
     ];
 
     public function __construct(
