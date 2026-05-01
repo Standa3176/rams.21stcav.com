@@ -119,7 +119,12 @@ class SchematicD2SourceBuilder
 
             $symbol = $this->resolveSymbol((string) ($device['name'] ?? ''), $device['signal_role'] ?? null);
             $iconPath = rtrim($symbolPack, '/\\').DIRECTORY_SEPARATOR.$symbol;
-            $iconUri = 'file://'.str_replace('\\', '/', $iconPath);
+            // D2 v0.7 resolves `icon:` paths via its bundler. The bundler prepends
+            // the .d2 source file's directory to anything that looks like a relative
+            // path AND incorrectly handles `file://` URIs by treating them as
+            // relative — so we emit the plain absolute filesystem path with
+            // forward slashes (cross-platform safe).
+            $iconUri = str_replace('\\', '/', $iconPath);
 
             $lines[] = $nodeId.': "'.$label.'" {';
             $lines[] = '  shape: image';
