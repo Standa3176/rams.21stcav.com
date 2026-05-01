@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.3
-milestone_name: Technical Drawings & Schematics
-status: roadmap_ready
-last_updated: "2026-04-30T22:30:00.000Z"
-last_activity: 2026-04-30
+milestone: v1.2
+milestone_name: Installation Programme & Field Management — SHIPPED 2026-04-25
+status: executing
+last_updated: "2026-05-01T15:27:37.927Z"
+last_activity: 2026-05-01 -- Phase 17 planning complete
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 10
+  total_plans: 3
   completed_plans: 0
   percent: 0
 ---
@@ -24,8 +24,8 @@ See: .planning/PROJECT.md (updated 2026-04-30)
 
 Phase: Phase 17 — System Schematics + Shared Foundations (not started)
 Plan: —
-Status: Roadmap ready; awaiting `/gsd-plan-phase 17`
-Last activity: 2026-04-30 — v1.3 roadmap created. 4 phases derived from 30 DRAW-XX requirements (100% coverage). Phase 17 owns shared foundations (project_drawings table, model, policy, TYPE_DRAWING storage, BuildSchematicJob pattern, DrawingReadyMail, PdfRenderService::waitForJs extension, DrawingEditAdapter) so Phases 18–20 are pure additions.
+Status: Ready to execute
+Last activity: 2026-05-01 -- Phase 17 planning complete
 
 ## Milestone Progress (v1.3)
 
