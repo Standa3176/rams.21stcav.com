@@ -15,8 +15,8 @@
 - [x] **DRAW-02**: Schematic uses signal-type colour coding (audio / video / control / network / USB)
 - [x] **DRAW-03**: Cable IDs and port labels on the schematic match the cable schedule character-for-character
 - [x] **DRAW-04**: Schematic uses an AVIXA-style symbol library (sources, destinations, switchers, DSPs, amps, displays, control processors)
-- [ ] **DRAW-05**: User can edit an auto-generated schematic; manual edits are preserved on regenerate (lock-on-edit + archive-prior-version)
-- [ ] **DRAW-06**: User can export schematic as PDF and SVG
+- [x] **DRAW-05**: User can edit an auto-generated schematic; manual edits are preserved on regenerate (lock-on-edit + archive-prior-version)
+- [x] **DRAW-06**: User can export schematic as PDF and SVG
 
 ### Rack Elevations (Phase 18)
 
@@ -45,8 +45,8 @@
 - [ ] **DRAW-23**: Sheet numbering is configurable per project (default `AV-101`, `AV-201`, `AV-301` per drawing kind)
 - [x] **DRAW-24**: Each drawing supports revision tracking (R0, R1, R2…)
 - [x] **DRAW-25**: Each drawing has a status enum — draft / for review / approved / superseded
-- [ ] **DRAW-26**: Drawings are included in the O&M Manual handover via PNG embed (no SVG-in-DOCX)
-- [ ] **DRAW-27**: User can download an individual drawing as PDF, SVG, or PNG
+- [x] **DRAW-26**: Drawings are included in the O&M Manual handover via PNG embed (no SVG-in-DOCX)
+- [x] **DRAW-27**: User can download an individual drawing as PDF, SVG, or PNG
 - [ ] **DRAW-28**: User can download a ZIP bundle of all drawings for a project
 - [ ] **DRAW-29**: User can export floor plans as DXF for CAD handoff (architect/MEP coordination) — *STRETCH GOAL, ship if time allows*
 - [x] **DRAW-30**: User can edit/modify any drawing via AI chat ("Edit via Chat" pattern, mirroring existing RAMS/O&M/Worksheet adapters). Chat operations are constrained to layout, positioning, grouping, formatting, and styling — within canonical project data. AI cannot invent or add equipment/cables/rooms that aren't already in the project source data.
