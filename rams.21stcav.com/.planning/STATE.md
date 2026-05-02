@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Installation Programme & Field Management — SHIPPED 2026-04-25
+milestone: v1.3
+milestone_name: Technical Drawings & Schematics
 status: executing
-last_updated: "2026-05-02T19:23:52.645Z"
-last_activity: 2026-05-02 -- Phase 18 planning complete
+last_updated: "2026-05-02T22:00:00.000Z"
+last_activity: 2026-05-02 -- Phase 19 deferred to v2.0; v1.3 scope reduced to 3 phases (17 done, 18 + 20 remaining)
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 5
+  total_plans: 7
   completed_plans: 3
-  percent: 60
+  percent: 43
 ---
 
 ## Project Reference
@@ -31,21 +31,22 @@ Last activity: 2026-05-02 -- Phase 18 planning complete
 
 | Phase | Plans | Status |
 |-------|-------|--------|
-| 17. System Schematics + Shared Foundations | 3/3 | Awaiting verification |
+| 17. System Schematics + Shared Foundations | 3/3 | ✓ Complete |
 | 18. Rack Elevations | 0/2 | Not started |
-| 19. Floor Plans (Konva) | 0/3 | Not started |
-| 20. Drawing Export + O&M + DXF stretch | 0/2 | Not started |
+| 19. Floor Plans (Konva) | 0/0 | ⤳ Deferred to v2.0 backlog 999.1 (2026-05-02) |
+| 20. Drawing Export + O&M Integration | 0/2 | Not started |
 
-**Total:** 3/10 plans, 0/4 phases (30%)
+**Total:** 3/7 plans, 1/3 phases (43%) — Phase 19 deferred from v1.3 scope.
 
 ## Performance Metrics
 
 | Metric | Value |
 |--------|-------|
-| Requirements (v1.3) | 30 (DRAW-01..DRAW-30) |
-| Phases | 4 (Phases 17–20) |
-| Coverage | 30/30 mapped (100%) |
-| Plans estimated | 10 |
+| Requirements (v1.3 active) | 22 (DRAW-01..13, 21..28, 30) |
+| Requirements (v2.0 deferred) | 8 (DRAW-14..20, 29) |
+| Phases | 3 active (17, 18, 20) + 1 deferred (19) |
+| Coverage | 22/22 v1.3 mapped (100%) |
+| Plans estimated (v1.3) | 7 (3 done + 2 + 2) |
 | Granularity | standard |
 | Completed milestones | v1.0 + v1.1 + v1.2 |
 | Phase 17 P01 | 12min | 3 tasks | 19 files |
@@ -66,11 +67,12 @@ Last activity: 2026-05-02 -- Phase 18 planning complete
 - **Custom Blade SVG for racks** — racks are list-shaped not graph-shaped; D2 + Konva are overkill.
 - **DXF stretch goal only (Phase 20)**; DWG is out of scope (LibreDWG GPLv3 = hard blocker).
 
-### Open Decisions (carried into Phase 17 planning)
+### Open Decisions
 
-- **GAP-3** — Phase 19 mandatory Day-1 Browsershot+Konva PDF spike with documented fallback (`stage.toSVG()` client-side → embed SVG)
-- **GAP-4** — Schematic edit-override placement: foundationally Phase 17 (DRAW-05), but defers to Phase 19 if Phase 17 ships auto-only first
-- **GAP-5** — `Device` schema migration timing: `u_height` (decimal) + `requires_ventilation_gap_above/below` (boolean) must land before Phase 18 rack generator runs
+- **GAP-3** ~~Phase 19 mandatory Browsershot+Konva spike~~ — RESOLVED: Phase 19 deferred to v2.0 (2026-05-02). Spike no longer needed in v1.3.
+- **GAP-4** ~~Schematic edit-override Phase 19 placement~~ — RESOLVED: full Konva-based schematic editor deferred to v2.0 alongside floor plans. Phase 17 lock-on-edit prompt UX scaffolding stays as the v1.3 ceiling for DRAW-05.
+- **GAP-5** — `Device` schema migration timing: `u_height` (decimal) + `requires_ventilation_gap_above/below` (boolean) + `is_rack_mounted` must land in Phase 18 plan 18-01 before the rack editor runs.
+- **NEW (2026-05-02)** — Build-vs-buy spike for v2.0 should run when v1.3 ships. 1-week investigation: Lucidchart API / draw.io embed / XTEN-AV / D-Tools. Decides whether v2.0 is native build (~14 weeks) or vendor integration (~3-4 weeks). See memory `v2_engineering_grade_drawings_plan.md`.
 
 ### Blockers / Risks
 

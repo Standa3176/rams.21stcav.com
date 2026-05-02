@@ -34,16 +34,18 @@ See: `.planning/PROJECT.md` (updated 2026-04-30)
 
 ## 🚧 v1.3 Technical Drawings & Schematics (In Progress)
 
-**Milestone Goal:** Generate AV technical drawings — schematics, rack elevations, and floor plans — from the same canonical project data that powers RAMS, O&M, and worksheets. Internal engineers view drawings on tablets and print during install; clients receive them as part of the O&M Manual handover. Drawings derive from canonical project data only — AI may assist with layout but never invents equipment, cables, or rooms.
+**Milestone Goal:** Generate AV technical drawings — schematics + rack elevations — from the same canonical project data that powers RAMS, O&M, and worksheets. Internal engineers view drawings on tablets and print during install; clients receive them as part of the O&M Manual handover. Drawings derive from canonical project data only — AI may assist with layout but never invents equipment, cables, or rooms.
 
-**Phases:** 17–20 (4 phases, ~10 plans estimated)
+**Phases:** 17, 18, 20 (3 phases, ~7 plans estimated)
+
+> **Scope reduction (2026-05-02):** Phase 19 (Floor Plans / Konva) deferred to v2.0 backlog 999.1. Reason: the Konva canvas editor is the most likely throwaway when v2.0's build-vs-buy decision lands on the engineering-grade renderer (Lucidchart/draw.io integration OR native port-aware SVG). v2.0 needs to build floor plans properly with port catalog + zones anyway. DXF export (DRAW-29) moves with floor plans. v1.3 ships ~3-4 weeks sooner. See `.planning/phases/999.1-v2-engineering-grade-av-drawings/` and memory note `v2_engineering_grade_drawings_plan.md`.
 
 ### Phases
 
-- [x] **Phase 17: System Schematics + Shared Foundations** — Auto-generate per-room signal-flow SVG schematics via D2 CLI; lays the `project_drawings` table, model, policy, storage type, job pattern, and `waitForJs` PDF extension that Phases 18–20 depend on (completed 2026-05-01)
-- [ ] **Phase 18: Rack Elevations** — 1U-precise rack drawings from equipment list with U-height + ventilation data; drag-reorder editor + per-rack totals footer
-- [ ] **Phase 19: Floor Plans (Konva)** — In-browser canvas drawing tool with walls/doors/windows/equipment glyphs; anchor-wall auto-place; mandatory Day-1 Browsershot+Konva PDF spike with documented fallback
-- [ ] **Phase 20: Drawing Export Pipeline + O&M Integration** — Bound multi-page project PDF, drawing register, sheet numbering, revision tracking, status state machine; embeds drawings in O&M handover via PNG flatten; DXF for floor plans as stretch goal
+- [x] **Phase 17: System Schematics + Shared Foundations** — Auto-generate per-room signal-flow SVG schematics via D2 CLI; lays the `project_drawings` table, model, policy, storage type, job pattern, and `waitForJs` PDF extension that Phases 18 + 20 depend on (completed 2026-05-01)
+- [ ] **Phase 18: Rack Elevations** — 1U-precise rack drawings from equipment list with U-height + ventilation data; drag-reorder editor + per-rack totals footer; engineer always builds manually (no auto-place)
+- [ ] **Phase 20: Drawing Export Pipeline + O&M Integration** — Bound multi-page project PDF, drawing register, sheet numbering, revision tracking, status state machine; embeds drawings (schematic + rack only — floor plans deferred) in O&M handover via PNG flatten
+- ⤳ ~~Phase 19: Floor Plans (Konva)~~ — **deferred to v2.0 backlog 999.1**
 
 ## Phase Details
 
@@ -89,35 +91,22 @@ See: `.planning/PROJECT.md` (updated 2026-04-30)
   - `.planning/research/ARCHITECTURE.md` §4.2 Phase 18 render pipeline
   - `.planning/research/PITFALLS.md` CRIT-06 (U-height accuracy)
 
-### Phase 19: Floor Plans (Konva)
-**Goal**: Engineers can draw a per-room floor plan in the browser (walls, doors, windows, text), auto-place equipment glyphs by designating an anchor wall, and download each plan as PDF or SVG with dimension lines, scale bar, north arrow, and mount-height annotations. Day-1 Browsershot+Konva PDF spike is mandatory; a documented fallback (client-side `stage.toSVG()` → embed SVG) covers the spike-failure case.
-**Depends on**: Phase 17 (foundations + drawing edit-adapter pattern)
-**Requirements**: DRAW-14, DRAW-15, DRAW-16, DRAW-17, DRAW-18, DRAW-19, DRAW-20
-**Success Criteria** (what must be TRUE):
-  1. User can draw a room floor plan in-browser using wall, door, window, and text primitives with snap-to-grid at 50 mm / 100 mm / 250 mm
-  2. User can open a per-room canvas with an equipment glyph palette filtered to that room's equipment (from canonical project data) and auto-place equipment by designating an anchor wall
-  3. User can read every floor plan with dimension lines, a scale bar, a north arrow, and mount-height annotations on each equipment glyph
-  4. User can download each floor plan as PDF or SVG; tablet/iPad users can view (and verify auto-place) without the page zooming on touch
-  5. User canvas edits auto-save reliably across navigation, tab-close, and tab-background events (no lost work)
-**Plans**: 3 plans (estimated; Plan 1 includes the mandatory Day-1 spike)
-**UI hint**: yes
-**Canonical refs**:
-  - `.planning/research/SUMMARY.md`
-  - `.planning/research/STACK.md` §2 Canvas Drawing Library (Konva)
-  - `.planning/research/ARCHITECTURE.md` §5 Frontend Integration (Konva + Alpine + separate Vite entry)
-  - `.planning/research/PITFALLS.md` MOD-04 (auto-save), MOD-05 (canvas-JSON storage), MOD-06 (bundle bloat), MOD-07 (multi-device truth), MOD-08 (iPad touch), MOD-09 (HiDPI/Retina) + spike contingency note in `SUMMARY.md` GAP-3
+### ⤳ Phase 19: Floor Plans — DEFERRED to v2.0
+Floor plan drawing tool moved out of v1.3 scope on 2026-05-02 to avoid building Konva canvas + Browsershot+Konva PDF round-trip work that v2.0's engineering-grade renderer will replace. v2.0 needs to build floor plans properly with port catalog + sub-room zones anyway. DXF export (DRAW-29) moves with floor plans. See backlog 999.1 for the full v2.0 plan.
 
-### Phase 20: Drawing Export Pipeline + O&M Integration + DXF stretch
-**Goal**: Engineers can produce a single bound multi-page PDF per project (cover sheet + drawing register + paginated drawings) with configurable sheet numbering and standard title blocks; download all drawings as a ZIP bundle; and ship drawings inside the O&M Manual handover via PNG embed. Production hardening (dedicated drawings queue, smoke test, font loading, license audit) lands here. DXF export for floor plans is a stretch goal.
-**Depends on**: Phase 17 (foundations) + Phase 18 (at least one drawing kind to render) + Phase 19 (floor plans for the DXF stretch)
-**Requirements**: DRAW-21, DRAW-23, DRAW-28, DRAW-29
+**Requirements moved to v2.0:** DRAW-14, DRAW-15, DRAW-16, DRAW-17, DRAW-18, DRAW-19, DRAW-20, DRAW-29.
+
+### Phase 20: Drawing Export Pipeline + O&M Integration
+**Goal**: Engineers can produce a single bound multi-page PDF per project (cover sheet + drawing register + paginated drawings) with configurable sheet numbering and standard title blocks; download all drawings as a ZIP bundle; and ship drawings inside the O&M Manual handover via PNG embed. Production hardening (dedicated drawings queue, smoke test, font loading, license audit) lands here. *(DXF export deferred to v2.0 with floor plans.)*
+**Depends on**: Phase 17 (foundations) + Phase 18 (rack elevations as a second drawing kind to render)
+**Requirements**: DRAW-21, DRAW-23, DRAW-28
 **Success Criteria** (what must be TRUE):
-  1. User can download a single bound multi-page PDF per project that opens with a cover sheet, a drawing register table (sheet number / title / revision / date), and the paginated per-section drawings (floor plans → schematics → rack elevations)
-  2. User can configure sheet numbering per project (default `AV-101` floor plans, `AV-201` schematics, `AV-301` racks) and see the chosen numbers on every drawing's title block
+  1. User can download a single bound multi-page PDF per project that opens with a cover sheet, a drawing register table (sheet number / title / revision / date), and the paginated per-section drawings (schematics → rack elevations)
+  2. User can configure sheet numbering per project (default `AV-201` schematics, `AV-301` racks) and see the chosen numbers on every drawing's title block
   3. User can download a ZIP bundle of all of a project's drawings (PDF + SVG + PNG) in one action
   4. User who opens an O&M Manual sees a "Drawings" section with each ready drawing embedded as a high-resolution PNG, one drawing per page, matching the bound PDF
-  5. *(Stretch)* User can export floor plans as DXF for architect/MEP CAD handoff (AutoCAD LT 2024+ / BricsCAD verified); if the DXFighter spike fails the milestone ships without DXF and the gap is documented
-**Plans**: 2 plans (estimated; Plan 2 includes O&M integration, production hardening, and the DXF spike)
+  5. Production hardening: dedicated drawings queue (concurrency=1) + `pdf:smoke-test --drawings` + chrome-headless-shell version pin + `@font-face` + license audit
+**Plans**: 2 plans (estimated; Plan 2 includes O&M integration and production hardening)
 **UI hint**: yes
 **Canonical refs**:
   - `.planning/research/SUMMARY.md`
@@ -158,17 +147,27 @@ See: `.planning/PROJECT.md` (updated 2026-04-30)
 
 ### Phase 999.1: v2.0 Engineering-Grade AV Drawings (BACKLOG)
 
-**Goal:** Captured for future planning — produce Lucidchart/Visio-grade auto-generated AV schematics, with port-aware device cards, port-to-port cable routing, Konva canvas editor for engineer overrides, and AI generate-from-project + chat-edit operations. Companion outputs: rack elevations + floor plans at the same engineering-grade fidelity. Reference: Duke "Extron Concept" Lucidchart drawing the user shared.
+**Goal:** Captured for future planning — produce Lucidchart/Visio-grade auto-generated AV schematics, with port-aware device cards, port-to-port cable routing, Konva canvas editor for engineer overrides, and AI generate-from-project + chat-edit operations. Companion outputs: rack elevations + floor plans + DXF export at the same engineering-grade fidelity. Reference: Duke "Extron Concept" Lucidchart drawing the user shared.
 
-**Requirements:** TBD (full plan in `.claude/projects/.../memory/v2_engineering_grade_drawings_plan.md`)
+**Requirements absorbed from v1.3:**
+- DRAW-14, DRAW-15, DRAW-16, DRAW-17, DRAW-18, DRAW-19, DRAW-20 — Floor Plans (originally Phase 19, deferred 2026-05-02)
+- DRAW-29 — DXF export (originally Phase 20 stretch, moved with floor plans)
+- DRAW-05 functional schematic editor (Phase 17 ships scaffolding only — full editor needs port catalog)
+- DRAW-30 functional schematic chat (Phase 17 ships adapter scaffolding — functional impl needs editor)
 
-**Plans:** 3/3 plans complete
+**Requirements net-new for v2.0:**
+- Per-device port catalog (manufacturer specs)
+- Cable schedule with device-level FKs
+- Sub-room location zones (Behind Screen / Ceiling / Table)
+- Custom device card templates (manufacturer logo + model + port rails)
+- Multi-page schematic (system overview + per-subsystem)
 
 **Notes:**
+- Full plan in memory: `v2_engineering_grade_drawings_plan.md`
 - Run a 1-week build-vs-buy spike (Lucidchart API / draw.io embed / XTEN-AV / D-Tools) BEFORE committing to native build — could compress 14-19 weeks → 3-4 weeks of integration work
 - Wave 1 (port catalog + cable FKs) parallelisable across 2 sessions (~30% time saving)
 - Phase 23 (renderer) and Phase 25 (AI) cannot parallelise — depend on prior waves
-- v1.3 ships at "passable basic" — this milestone is the engineering-deliverable-grade upgrade
+- v1.3 ships at "passable basic" (schematics + racks + bound PDF + O&M handover) — this milestone is the engineering-deliverable-grade upgrade
 
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
@@ -181,6 +180,6 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 17. System Schematics + Shared Foundations | v1.3 | 3/3 | Complete    | 2026-05-02 |
 | 18. Rack Elevations | v1.3 | 0/2 | Not started | - |
-| 19. Floor Plans (Konva) | v1.3 | 0/3 | Not started | - |
-| 20. Drawing Export + O&M + DXF stretch | v1.3 | 0/2 | Not started | - |
-| 999.1. v2.0 Engineering-Grade AV Drawings | Backlog | 0/0 | Backlog | - |
+| 19. Floor Plans (Konva) | v1.3 → v2.0 | 0/0 | Deferred to backlog 999.1 | - |
+| 20. Drawing Export + O&M Integration | v1.3 | 0/2 | Not started | - |
+| 999.1. v2.0 Engineering-Grade AV Drawings (incl. floor plans + DXF) | Backlog | 0/0 | Backlog | - |

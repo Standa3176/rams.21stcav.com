@@ -35,26 +35,21 @@ One dataset powers every document. Engineers capture real-world data, quotes pro
 
 ## Current Milestone: v1.3 Technical Drawings & Schematics
 
-**Goal:** Generate AV technical drawings — schematics, rack elevations, and floor plans — from the same canonical project data that powers RAMS, O&M, and worksheets. Internal engineers view drawings on tablets/print during install; clients receive them as part of the O&M Manual handover.
+**Goal:** Generate AV technical drawings — schematics + rack elevations — from the same canonical project data that powers RAMS, O&M, and worksheets. Internal engineers view drawings on tablets/print during install; clients receive them as part of the O&M Manual handover.
 
 **Target features:**
 - Auto-generated system schematics (signal flow) from equipment + cable schedule data
-- Auto-generated rack elevations from equipment list with U-height + ventilation data
-- In-app floor plan drawing tool — engineers draw room layout, auto-place equipment per room
-- Drawing export — PDF immediate (must-have), SVG (must-have), DXF/DWG (nice-to-have)
+- Engineer-built rack elevations from equipment list with U-height + ventilation data (manual-build only — no auto-place)
+- Drawing export — bound multi-page PDF (must-have), SVG (must-have), PNG (must-have for O&M embed), per-drawing + ZIP bundle
 - Drawings included in O&M Manual handover via existing OmManualDocxService
+
+**Scope reduction (2026-05-02):** Floor plans (Phase 19 / Konva canvas editor) and DXF export deferred to v2.0 backlog 999.1. The Konva editor is the most likely throwaway when v2.0's engineering-grade upgrade lands — v2.0 needs to build floor plans properly with port catalog + sub-room zones anyway. v1.3 ships ~3-4 weeks sooner. v1.3 active scope = Phases 17 + 18 + 20 (3 phases, ~7 plans).
 
 **Audience:**
 - Internal engineers — printed PDF + on-tablet view during install
 - Client deliverable — drawings included in O&M Manual handover
 
 **Constraint carried from v1.0/v1.2:** AI is not allowed for inventing drawings — drawings derive from canonical project data only. AI may assist with layout heuristics (e.g. signal-flow grouping) but never to generate equipment that wasn't in the quote.
-
-**Open questions (research phase):**
-- Best OSS schematic engine — D2 vs DrawIO/diagrams.net vs Mermaid vs custom SVG
-- Best OSS canvas drawing library for floor plans — TLDraw vs Konva.js vs Fabric.js vs Excalidraw
-- DXF/DWG export feasibility within Laravel ecosystem (which OSS lib, license, browser vs server render)
-- AV stencil library availability vs build-our-own
 
 ---
 
@@ -141,7 +136,7 @@ One dataset powers every document. Engineers capture real-world data, quotes pro
 - **Current state post-v1.2:** Document generators + survey system + dashboard + notifications + full installation/commissioning loop all live; Postmark production cutover gated by runbook
 - **Tech debt:** DATA-04 confidence scoring partial; Phase 07 RED test stubs not greened; Phase 09 REVIEW WR-01..WR-04 polish; Phase 15 REVIEW WR-01 (TOCTOU race in stale-close) + WR-02 + IN-01..IN-06 cosmetics; VALIDATION.md `wave_0_complete: false` for phases 08, 09, 12, 13, 15
 - **Outstanding human UAT (deployment-gated):** Phase 13 Gantt browser confirmation, Phase 14 iOS HEIC end-to-end (both blocked on deploying to a web-accessible environment)
-- **Next milestone focus:** v1.3 Technical Drawings & Schematics (Phases 17–20) — AI-generated system schematics, rack elevations, floor plans, DWG/PDF export
+- **Current milestone:** v1.3 Technical Drawings & Schematics (Phases 17, 18, 20 — Phase 19 floor plans deferred to v2.0). Phase 17 schematic generation shipped 2026-05-02 (R0 confirmed working on live).
 
 ## Constraints
 
@@ -184,4 +179,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-30 — milestone v1.3 Technical Drawings & Schematics started. Three milestones live (v1.0, v1.1, v1.2). v1.3 covers schematics, rack elevations, floor plans (in-app drawing tool), and drawing export across phases 17–20.*
+*Last updated: 2026-05-02 — Phase 17 (Schematics) shipped; v1.3 scope reduced to Phases 17 + 18 + 20 after Phase 19 (Floor Plans / Konva) deferred to v2.0 backlog 999.1. Reason: Konva canvas editor is the most likely throwaway when v2.0's engineering-grade renderer lands; v2.0 will rebuild floor plans properly with port catalog + zones. v1.3 ships ~3-4 weeks sooner.*

@@ -28,16 +28,6 @@
 - [ ] **DRAW-12**: Rack elevation footer shows totals — weight, current draw, BTU, U-utilisation
 - [ ] **DRAW-13**: User can export rack elevation as PDF and SVG
 
-### Floor Plans (Phase 19)
-
-- [ ] **DRAW-14**: User can draw a floor plan in-app with wall, door, window, and text primitives (Konva-based canvas)
-- [ ] **DRAW-15**: Drawing tool offers snap-to-grid at 50 mm / 100 mm / 250 mm
-- [ ] **DRAW-16**: Each project room has its own canvas with an equipment glyph palette filtered to that room's equipment
-- [ ] **DRAW-17**: User can auto-place equipment by designating an anchor-wall (deterministic placement per equipment type)
-- [ ] **DRAW-18**: Floor plan renders dimension lines, scale bar, and north arrow
-- [ ] **DRAW-19**: Equipment glyphs show mount-height annotations
-- [ ] **DRAW-20**: User can export floor plan as PDF and SVG
-
 ### Drawing Export & Cross-cutting (Phase 20 + foundations in Phase 17)
 
 - [ ] **DRAW-21**: User can generate a single bound multi-page PDF per project (cover + drawing register + paginated per-section sheets)
@@ -48,7 +38,22 @@
 - [x] **DRAW-26**: Drawings are included in the O&M Manual handover via PNG embed (no SVG-in-DOCX)
 - [x] **DRAW-27**: User can download an individual drawing as PDF, SVG, or PNG
 - [ ] **DRAW-28**: User can download a ZIP bundle of all drawings for a project
-- [ ] **DRAW-29**: User can export floor plans as DXF for CAD handoff (architect/MEP coordination) — *STRETCH GOAL, ship if time allows*
+- [x] **DRAW-30**: User can edit/modify any drawing via AI chat ("Edit via Chat" pattern, mirroring existing RAMS/O&M/Worksheet adapters). Chat operations are constrained to layout, positioning, grouping, formatting, and styling — within canonical project data. AI cannot invent or add equipment/cables/rooms that aren't already in the project source data. *(Scaffolding only in Phase 17 — functional schematic chat deferred to v2.0 alongside engineering-grade renderer.)*
+
+### Deferred to v2.0 (backlog 999.1)
+
+The following requirements were originally scoped for v1.3 Phase 19 but moved to v2.0 to avoid building work that the engineering-grade upgrade will replace. The Konva floor-plan editor + Browsershot+Konva PDF round-trip have the highest throwaway risk if v2.0 takes the build-vs-buy "integrate with Lucidchart/draw.io" path; v2.0 also needs to build floor plans properly with port catalog + zones anyway. See `.planning/phases/999.1-v2-engineering-grade-av-drawings/` and the memory note `v2_engineering_grade_drawings_plan.md`.
+
+- ~~**DRAW-14**~~: Floor plan in-app drawing tool (Konva-based canvas) — **moved to v2.0**
+- ~~**DRAW-15**~~: Snap-to-grid 50/100/250 mm — **moved to v2.0**
+- ~~**DRAW-16**~~: Per-room canvas with equipment glyph palette — **moved to v2.0**
+- ~~**DRAW-17**~~: Anchor-wall auto-place — **moved to v2.0**
+- ~~**DRAW-18**~~: Floor plan dimension lines + scale bar + north arrow — **moved to v2.0**
+- ~~**DRAW-19**~~: Mount-height annotations — **moved to v2.0**
+- ~~**DRAW-20**~~: Floor plan PDF/SVG export — **moved to v2.0**
+- ~~**DRAW-29**~~: Floor plan DXF export (was Phase 20 stretch) — **moved to v2.0** (becomes part of v2.0 Phase 20 export pipeline naturally)
+- **DRAW-05** schematic editor (full Konva-based) — Phase 17 ships scaffolding only (lock-on-edit prompt UX); the functional editor was originally planned for Phase 19 alongside Konva. Now deferred to v2.0 alongside the port-aware schematic renderer.
+- **DRAW-30** functional schematic chat — Phase 17 ships adapter scaffolding; functional chat was originally planned for Phase 19 alongside the editor. Now deferred to v2.0.
 - [x] **DRAW-30**: User can edit/modify any drawing via AI chat ("Edit via Chat" pattern, mirroring existing RAMS/O&M/Worksheet adapters). Chat operations are constrained to layout, positioning, grouping, formatting, and styling — within canonical project data. AI cannot invent or add equipment/cables/rooms that aren't already in the project source data.
 
 ---
@@ -118,13 +123,13 @@ No new framework, no React, no PlantUML, no LibreDWG.
 | DRAW-11 | Phase 18 | — | — |
 | DRAW-12 | Phase 18 | — | — |
 | DRAW-13 | Phase 18 | — | — |
-| DRAW-14 | Phase 19 | — | — |
-| DRAW-15 | Phase 19 | — | — |
-| DRAW-16 | Phase 19 | — | — |
-| DRAW-17 | Phase 19 | — | — |
-| DRAW-18 | Phase 19 | — | — |
-| DRAW-19 | Phase 19 | — | — |
-| DRAW-20 | Phase 19 | — | — |
+| DRAW-14 | v2.0 backlog 999.1 | — | — |
+| DRAW-15 | v2.0 backlog 999.1 | — | — |
+| DRAW-16 | v2.0 backlog 999.1 | — | — |
+| DRAW-17 | v2.0 backlog 999.1 | — | — |
+| DRAW-18 | v2.0 backlog 999.1 | — | — |
+| DRAW-19 | v2.0 backlog 999.1 | — | — |
+| DRAW-20 | v2.0 backlog 999.1 | — | — |
 | DRAW-21 | Phase 20 | — | — |
 | DRAW-22 | Phase 17 | — | — |
 | DRAW-23 | Phase 20 | — | — |
@@ -133,25 +138,24 @@ No new framework, no React, no PlantUML, no LibreDWG.
 | DRAW-26 | Phase 17 | — | — |
 | DRAW-27 | Phase 17 | — | — |
 | DRAW-28 | Phase 20 | — | — |
-| DRAW-29 | Phase 20 | — | — |
-| DRAW-30 | Phase 17 | — | — |
+| DRAW-29 | v2.0 backlog 999.1 | — | — |
+| DRAW-30 | Phase 17 (scaffolding) + v2.0 (functional) | — | — |
 
-**Coverage check:** 30/30 v1.3 requirements mapped. No orphans, no duplicates.
+**Coverage check:** 30/30 requirements mapped. v1.3 active = 22 reqs across 3 phases. v2.0 deferred = 8 reqs (DRAW-14..20 + DRAW-29).
 
 | Phase | Requirements |
 |-------|--------------|
-| Phase 17 | DRAW-01, DRAW-02, DRAW-03, DRAW-04, DRAW-05, DRAW-06, DRAW-22, DRAW-24, DRAW-25, DRAW-26, DRAW-27, DRAW-30 (12) |
+| Phase 17 | DRAW-01, DRAW-02, DRAW-03, DRAW-04, DRAW-05 (scaffolding), DRAW-06, DRAW-22, DRAW-24, DRAW-25, DRAW-26, DRAW-27, DRAW-30 (scaffolding) (12) |
 | Phase 18 | DRAW-07, DRAW-08, DRAW-09, DRAW-10, DRAW-11, DRAW-12, DRAW-13 (7) |
-| Phase 19 | DRAW-14, DRAW-15, DRAW-16, DRAW-17, DRAW-18, DRAW-19, DRAW-20 (7) |
-| Phase 20 | DRAW-21, DRAW-23, DRAW-28, DRAW-29 (4) |
-| **Total** | **30** |
+| Phase 20 | DRAW-21, DRAW-23, DRAW-28 (3) |
+| **v1.3 total** | **22** |
+| v2.0 backlog 999.1 | DRAW-14, DRAW-15, DRAW-16, DRAW-17, DRAW-18, DRAW-19, DRAW-20, DRAW-29 (8) — plus DRAW-05 functional + DRAW-30 functional carry over |
 
 ---
 
 ## Open Decisions for Phase Planning
 
-- **GAP-3 — Phase 19 Konva+Browsershot spike** (Day-1 of Phase 19, with documented fallback: client-side `stage.toSVG()` save → embed SVG in Blade)
-- **GAP-4 — Schematic edit-override placement** — DRAW-05 is foundationally a Phase 17 requirement, but if Phase 17 ships auto-only first, the editor lands in Phase 19 (when Konva is loaded anyway)
+- **GAP-4 — Schematic edit-override placement** — DRAW-05 is foundationally a Phase 17 requirement; Phase 17 shipped scaffolding only (lock-on-edit prompt UX). The functional editor was originally planned for Phase 19 alongside Konva — now deferred to v2.0 where the engineering-grade schematic renderer will subsume it.
 - **GAP-5 — `Device` schema migration timing** — `u_height` (decimal) + `requires_ventilation_gap_above/below` (boolean) must land before Phase 18; nullable-first migration with backfill prompt during QuoteWerks-import-review
 
 ---
