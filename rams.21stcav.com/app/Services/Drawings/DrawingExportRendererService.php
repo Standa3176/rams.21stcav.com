@@ -164,19 +164,18 @@ class DrawingExportRendererService
     }
 
     /**
-     * Resolve the Blade view for a given drawing kind. Phase 17 only ships
-     * 'pdf.drawings.schematic' — rack and floor_plan throw with explicit
-     * phase pointers so the next phase implementer sees exactly where to plug in.
+     * Resolve the Blade view for a given drawing kind. Phase 18 Plan 03 lit
+     * up the rack arm. Floor plans deferred to v2.0 (CONTEXT.md 2026-05-02
+     * scope reduction) — the throw stays as a clear pointer for the future
+     * implementer.
      */
     private function bladeViewFor(ProjectDrawing $drawing): string
     {
         return match ($drawing->kind) {
             ProjectDrawing::KIND_SCHEMATIC => 'pdf.drawings.schematic',
-            ProjectDrawing::KIND_RACK => throw new RuntimeException(
-                'DrawingExportRendererService: rack drawings land in Phase 18 (pdf.drawings.rack)'
-            ),
+            ProjectDrawing::KIND_RACK => 'pdf.drawings.rack',
             ProjectDrawing::KIND_FLOOR_PLAN => throw new RuntimeException(
-                'DrawingExportRendererService: floor plans land in Phase 19 (pdf.drawings.floor-plan)'
+                'DrawingExportRendererService: floor plans land in v2.0 (pdf.drawings.floor-plan)'
             ),
             default => throw new RuntimeException(
                 "DrawingExportRendererService: unknown drawing kind '{$drawing->kind}'"
