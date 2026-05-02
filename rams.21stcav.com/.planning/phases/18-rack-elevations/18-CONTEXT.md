@@ -32,24 +32,28 @@ All major decisions are locked in `.planning/research/SUMMARY.md` + STACK.md §1
   - **Yes** — kind-specific auto-gen runs (schematic = existing R0 flow; rack = keyword classifier + AVIXA ordering; floor plan = anchor-wall placement, Phase 19)
   - **No** — empty drawing created with `canvas_state` initialised to a blank kind-specific scaffold; engineer builds manually
 - **Existing "+ Generate Schematic" button stays as a shortcut** — clicks default to picker → Signal Flow → Auto-gen yes (one-click flow preserved for engineers used to it).
-- **Picker UX itself is small** — Alpine.js modal with 3 kind cards + a Yes/No toggle per kind. ~1 plan-task of work, lives in Phase 18.
+- **Picker behaviour by kind:**
+  - **Signal Flow** — picker offers "Auto-generate from project data?" Yes / No toggle. Yes runs the existing Phase 17 auto-gen flow (R0-style). No creates a blank schematic for engineer to build.
+  - **Rack Elevation** — NO auto-generate option. Picker creates an empty rack and opens the rack editor directly. Engineer always builds the rack manually. (Auto-place keyword classifier + AVIXA ordering deferred to v1.3.x or v2.0 per user feedback.)
+  - **Floor Plan / Elevation** — handed off to Phase 19 (Konva canvas, blank by default).
+- **Picker UX itself is small** — Alpine.js modal with 3 kind cards. Schematic card has a Yes/No toggle; Rack and Floor Plan cards have a single "Create" action. ~1 plan-task of work.
 
 ### Rack-specific decisions
 
+- **Engineer always builds the rack manually** — no auto-place flow. Rack creation = empty 42U rack opens in the editor; engineer drags equipment from a palette into U-slots. AVIXA-default-ordering algorithm and keyword auto-classifier are NOT in v1.3 scope.
 - **Custom Blade SVG renderer** — `RackElevationRenderService` + private `SvgBuilder` helper (~150 LOC). D2/Konva are overkill for a stacked-list shape.
-- **Single `project_drawings` table reused** — `kind='rack'` discriminator. Mirrors Phase 17 schematic pattern. No new tables for the drawing record itself. Per-rack metadata (rack name / floor / nominal voltage) stored in `project_drawings.source_data` JSON.
-- **One `project_drawings` row per rack** (Gray Area A). N rack drawings → N entries in the drawings index. Phase 20's drawing register paginates per-rack.
+- **Single `project_drawings` table reused** — `kind='rack'` discriminator. Mirrors Phase 17 schematic pattern. No new tables for the drawing record itself. Per-rack metadata (rack name / floor / nominal voltage / rack height in U) stored in `project_drawings.source_data` JSON.
+- **One `project_drawings` row per rack** (Gray Area A resolved). N rack drawings → N entries in the drawings index. Phase 20's drawing register paginates per-rack.
 - **`Device` schema migration owns `u_height` (decimal, allows 1.5)** + `requires_ventilation_gap_above` (boolean) + `requires_ventilation_gap_below` (boolean) + `is_rack_mounted` (boolean). All default NULL. Surfaces "U-height unknown" warnings, never silent 1U guess (CRIT-06).
-- **Auto-place workflow (when picker = Yes)** — hybrid keyword classifier picks rack-mountable equipment from the project (switcher / amplifier / PDU / DSP / codec / receiver / control processor / network switch / patch panel = rack-mountable; display / speaker / mic / dongle / mount / bracket = NOT rack-mountable). AVIXA ordering applied: PDU bottom → switches → DSP → amps → patches/IO top. Engineer can override via UI after auto-place.
-- **Blank workflow (when picker = No)** — empty rack created with default 42U height. Engineer opens the rack editor, sees an equipment palette on the left (filtered to project's rack-mountable equipment via the keyword classifier), drags items into U-slots. Sortable.js + Alpine.js for drag mechanics. Same edit page handles both auto-placed and blank racks; the only difference is the initial state.
+- **Equipment palette filtering** — palette shows project equipment with `is_rack_mounted=true` first, all other equipment second (greyed but draggable). The `is_rack_mounted` field is engineer-set during quote review or by clicking a checkbox in the rack editor's palette ("This is rack-mounted equipment"). No automatic classification — engineer makes the call.
 - **Drag-reorder via Alpine.js + Sortable.js** — vanilla JS pattern, mirrors install programme task list. Each U-slot is a `<div>` drop zone; equipment row is draggable item with computed U-height span.
-- **U-position lock** — per-item lock toggle. Locked items don't move on regenerate / re-auto-place. Unlocked items reflow.
+- **U-position lock** — per-item lock toggle. Locked items don't move on regenerate / drag operations. Unlocked items reflow.
 - **Multi-rack per project** — engineer creates each rack via the picker. Each rack is independent (own drawing row, own status, own revisions). No cross-rack relationships.
 - **Hand-curated top-50 manufacturer JSON pack** for U-height / current / weight / BTU data. Devices outside the pack get "unknown" warnings + 1U placeholder for layout. AI extraction deferred to v2.0.
-- **`BuildRackElevationJob` mirrors `BuildSchematicJob` exactly** when auto-place runs. When blank, no job dispatched until the engineer hits "render" / "regenerate PDF" — at which point the job runs synchronously over the saved canvas state.
+- **NO `BuildRackElevationJob`** — rendering is synchronous when the engineer clicks "render" / "save". The rack canvas state is the source of truth; SVG generation happens server-side on save in <2s. PDF render via `PdfRenderService::fromBlade` happens on demand at download time. This differs from Phase 17 schematics (which use a queued job) — the rack flow has no AI/D2/heavy work to defer.
 - **Output formats** — PDF (via `PdfRenderService::fromBlade` + landscape A4 + `waitForJs: false`) + SVG (direct download from `project_drawings.generated_svg`) + PNG (via `PdfRenderService::fromBladeAsPng` for O&M handover in Phase 20).
-- **Lock-on-edit + archive-prior-version semantics** — reuse the Phase 17 pattern. Per-item U-position lock survives regenerate.
-- **Footer behaviour with partial data (Gray Area D)** — show available totals + asterisk on incomplete metrics. Example: "Weight: 28 kg* (4/7 known)", "Current: ?* (1/7 known)". Tooltip lists unclassified devices. Asterisk + ratio is honest about data quality.
+- **Lock-on-edit + archive-prior-version semantics** — reuse the Phase 17 pattern. Per-item U-position lock survives revision changes.
+- **Footer behaviour with partial data (Gray Area D resolved)** — show available totals + asterisk on incomplete metrics. Example: "Weight: 28 kg* (4/7 known)", "Current: ?* (1/7 known)". Tooltip lists unclassified devices. Asterisk + ratio is honest about data quality.
 
 ### Existing AV symbol pack reused
 
@@ -60,8 +64,8 @@ All major decisions are locked in `.planning/research/SUMMARY.md` + STACK.md §1
 - Rack frame default visual style (solid rectangle vs ventilated rails vs front-and-rear two-up view). RECOMMENDATION: solid rectangle with U-numbered rail on the left, simplest first. Two-up view → v2.0.
 - Default rack height — 21U / 27U / 42U starter. RECOMMENDATION: 42U baseline; engineer overrides per rack via a height field on rack create.
 - Page orientation — A4 portrait (rack tall) vs A4 landscape (multiple racks side-by-side). RECOMMENDATION: portrait per-rack; Phase 20 paginates multiple racks across multiple pages.
-- Keyword list for `is_rack_mounted` auto-classifier — RECOMMENDATION: copy from EXCLUDED_KEYWORDS in `DrawingDataResolverService` (mount/bracket/caddy/tray = NOT rack) plus positive keywords (switcher/amplifier/PDU/DSP/codec/receiver/control processor/network switch/patch panel = IS rack). Tunable via config/drawings.php.
 - Picker visual style — modal vs slide-over vs inline expansion. RECOMMENDATION: Alpine modal matching the existing regenerate-confirm modal pattern from Phase 17 Plan 3.
+- `is_rack_mounted` checkbox UX — engineer-set in quote review (existing project-package review page) OR inside the rack editor's palette. RECOMMENDATION: both — palette shows checkbox per equipment row so engineer can flip during rack-build; quote-review page also gets the column for bulk-set during quote import review.
 
 </decisions>
 
@@ -115,10 +119,12 @@ All major decisions are locked in `.planning/research/SUMMARY.md` + STACK.md §1
 User confirmed during this discussion:
 - Single "+ Create Drawing" button replaces per-kind buttons (UX from Lucidchart / Visio / draw.io)
 - Picker offers Signal Flow (Schematic) + Rack Elevation + Floor Plan / Elevation — three kinds
-- Each kind has an auto-generate-or-blank toggle on the picker. Default = Yes (auto-gen) for friendliness.
+- **Schematic kind keeps the auto-generate-or-blank toggle** (Phase 17 flow already shipped)
+- **Rack kind has NO auto-generate option** — engineer always builds the rack manually. Picker creates an empty rack and opens the editor directly.
 - "Connection" / port-level wiring drawing is explicitly deferred to v2.0 (backlog 999.1)
 - Engineering-grade fidelity (port-aware racks with rear views, manufacturer-specific port rails) deferred to v2.0
-- Phase 18 ships "passable basic" rack elevations: front-view 2D rectangles, U-numbered rail, totals footer, drag-reorder, multi-rack, picker
+- Phase 18 ships "passable basic" rack elevations: front-view 2D rectangles, U-numbered rail, totals footer, drag-reorder, multi-rack, unified picker entry point
+- Phase 18 = 2 plans (18-01 picker + schema + manufacturer pack; 18-03 rack editor with palette + drag + render)
 
 </specifics>
 
@@ -129,6 +135,9 @@ User confirmed during this discussion:
 - **PNG embed for O&M handover** — wired in Phase 20's OmManualDocxService extension (DRAW-26)
 - **Drawing register pagination of multiple racks** — Phase 20 (DRAW-21)
 - **Sheet numbering for racks** (e.g. AV-301, AV-302) — Phase 20 (DRAW-23)
+
+### To v1.3.x (post-v1.3 quick task) or v2.0
+- **Auto-place keyword classifier + AVIXA ordering for racks** — was in scope until user feedback; engineer always manually builds racks in v1.3. If engineers later request "auto-fill from project equipment", ship as a quick task that adds a "+ Auto-fill" button inside the rack editor (palette → bulk-add filtered by `is_rack_mounted=true` + applies AVIXA ordering to unlocked items). Estimated 1 day.
 
 ### To v2.0 / future milestones (per backlog 999.1)
 - **Connection diagram drawing kind** — port-level wiring with connector pinouts; needs port catalog from v2.0 Phase 21
