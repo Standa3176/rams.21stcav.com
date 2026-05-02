@@ -19,6 +19,7 @@
         "vite": "^7.0.7"
     },
     "dependencies": {
-        "frappe-gantt": "^1.2.2"
+        "frappe-gantt": "^1.2.2",
+        "sortablejs": "^1.15.6"
     }
 }

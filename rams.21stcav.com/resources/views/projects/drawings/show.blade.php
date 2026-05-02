@@ -34,6 +34,17 @@
         </div>
         <div class="flex items-center gap-3 flex-wrap justify-end">
             @include('projects.drawings._status-pill', ['drawing' => $drawing])
+            @if ($drawing->isRack())
+                {{-- Phase 18 Plan 03 — rack editor entry. Sits next to the
+                     existing Download / Regenerate buttons. The rendered SVG
+                     itself flows through the existing kind-agnostic render
+                     branch at line ~55 (Warning 9 fix — no second render
+                     branch added). --}}
+                <a href="{{ route('projects.drawings.edit', [$project, $drawing]) }}"
+                   class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white font-medium px-3 py-1.5 rounded-md text-sm">
+                    Edit Rack
+                </a>
+            @endif
             @if ($drawing->isReady())
                 <a href="{{ route('projects.drawings.download', [$project, $drawing, 'pdf']) }}"
                    class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">Download PDF</a>
