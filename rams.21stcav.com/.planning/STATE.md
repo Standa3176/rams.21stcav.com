@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Installation Programme & Field Management — SHIPPED 2026-04-25
-status: executing
-last_updated: "2026-05-02T21:36:00.000Z"
-last_activity: 2026-05-02 -- Phase 18 COMPLETE — Plan 18-03 LANDED (rack editor + Sortable.js + sync render)
+status: Phase 18 fully shipped (Plans 18-01 + 18-03); v1.3 next phase is 20.
+last_updated: "2026-05-02T21:49:59.274Z"
+last_activity: 2026-05-02
 progress:
-  total_phases: 4
+  total_phases: 3
   completed_phases: 2
   total_plans: 5
   completed_plans: 5
@@ -22,10 +22,10 @@ See: .planning/PROJECT.md (updated 2026-04-30)
 
 ## Current Position
 
-Phase: 18 (Rack Elevations) — COMPLETE
-Plan: 2 of 2 done — phase next is 20 (Drawing Export + O&M Integration)
+Phase: 999.1
+Plan: Not started
 Status: Phase 18 fully shipped (Plans 18-01 + 18-03); v1.3 next phase is 20.
-Last activity: 2026-05-02 -- Phase 18 COMPLETE — Plan 18-03 LANDED (rack editor + Sortable.js + sync render)
+Last activity: 2026-05-02
 
 ## Milestone Progress (v1.3)
 
