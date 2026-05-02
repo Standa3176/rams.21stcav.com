@@ -373,6 +373,12 @@ class DrawingDataResolverService
         $destinations = [];
         foreach ($devices as $d) {
             $role = $d['signal_role'] ?? null;
+            // Fall back to name-keyword heuristic when no Device row exists yet
+            // for this part_no (typical for quote-only projects — Device rows
+            // get created via install programme / worksheet / label-photo flows).
+            if ($role === null) {
+                $role = $this->inferRoleFromName((string) ($d['name'] ?? ''));
+            }
             if ($role === \App\Models\Device::ROLE_SOURCE) {
                 $sources[] = $d;
             } elseif ($role === \App\Models\Device::ROLE_PROCESSOR) {
@@ -417,6 +423,49 @@ class DrawingDataResolverService
         }
 
         return $edges;
+    }
+
+    /**
+     * Heuristic role inference from equipment name keywords. Only used when
+     * the Device row's signal_role is NULL (typical for quote-only projects
+     * where no Device rows exist yet). Returns null when no keywords match —
+     * the device renders as an unclassified node with no edges.
+     *
+     * Order matters: more specific keywords first ('control processor' before
+     * 'processor', 'video bar' / 'videobar' before generic 'bar').
+     */
+    private function inferRoleFromName(string $name): ?string
+    {
+        $n = strtolower($name);
+
+        // Destinations — output devices the user looks at / hears
+        foreach (['display', 'monitor', 'projector', 'screen', 'speaker', 'tv ', 'television'] as $kw) {
+            if (str_contains($n, $kw)) {
+                return \App\Models\Device::ROLE_DESTINATION;
+            }
+        }
+
+        // Processors — anything that switches, mixes, amplifies, or controls signal
+        foreach ([
+            'videobar', 'video bar', 'soundbar', 'sound bar',
+            'control processor', 'control system', 'codec', 'receiver',
+            'switcher', 'switch ', 'matrix', 'scaler', 'extender',
+            'mixer', 'dsp', 'amplifier', 'amp ', 'amp-',
+            'hub', 'engine', 'clickshare bar', 'clickshare button',
+        ] as $kw) {
+            if (str_contains($n, $kw)) {
+                return \App\Models\Device::ROLE_PROCESSOR;
+            }
+        }
+
+        // Sources — content originators
+        foreach (['dongle', 'transmitter', 'laptop', 'pc ', 'tablet', 'camera', 'mic', 'microphone'] as $kw) {
+            if (str_contains($n, $kw)) {
+                return \App\Models\Device::ROLE_SOURCE;
+            }
+        }
+
+        return null;
     }
 
     /**
