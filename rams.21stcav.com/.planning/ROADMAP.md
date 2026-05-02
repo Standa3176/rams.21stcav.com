@@ -1,7 +1,7 @@
 ---
 milestone: v1.3
 milestone_name: Technical Drawings & Schematics
-last_updated: "2026-04-30"
+last_updated: "2026-05-02"
 ---
 
 # Roadmap
@@ -40,7 +40,7 @@ See: `.planning/PROJECT.md` (updated 2026-04-30)
 
 ### Phases
 
-- [x] **Phase 17: System Schematics + Shared Foundations** — Auto-generate per-room signal-flow SVG schematics via D2 CLI; lays the `project_drawings` table, model, policy, storage type, job pattern, and `waitForJs` PDF extension that Phases 18–20 depend on (completed 2026-05-01)
+- [x] **Phase 17: System Schematics + Shared Foundations** — Auto-generate per-room signal-flow SVG schematics via D2 CLI; lays the `project_drawings` table, model, policy, storage type, job pattern, and `waitForJs` PDF extension that Phases 18–20 depend on (completed 2026-05-01)
 - [ ] **Phase 18: Rack Elevations** — 1U-precise rack drawings from equipment list with U-height + ventilation data; drag-reorder editor + per-rack totals footer
 - [ ] **Phase 19: Floor Plans (Konva)** — In-browser canvas drawing tool with walls/doors/windows/equipment glyphs; anchor-wall auto-place; mandatory Day-1 Browsershot+Konva PDF spike with documented fallback
 - [ ] **Phase 20: Drawing Export Pipeline + O&M Integration** — Bound multi-page project PDF, drawing register, sheet numbering, revision tracking, status state machine; embeds drawings in O&M handover via PNG flatten; DXF for floor plans as stretch goal
@@ -69,16 +69,18 @@ See: `.planning/PROJECT.md` (updated 2026-04-30)
   - `.planning/research/PITFALLS.md` CRIT-01 (Browsershot/React canvas), CRIT-02 (drift vs canonical), CRIT-05 (reversed signal flow)
 
 ### Phase 18: Rack Elevations
-**Goal**: Engineers can auto-generate 1U-precise rack elevations from rack-mounted equipment (with U-height + ventilation metadata), reorder items by drag, and download per-rack PDF/SVG with totals footer (weight, current, BTU, U-utilisation).
+**Goal**: Engineers can manually build 1U-precise rack elevations from rack-mounted equipment (with U-height + ventilation metadata) via a drag-into-U-slots editor, lock per-item U-positions, and download per-rack PDF/SVG with totals footer (weight, current, BTU, U-utilisation). A unified "+ Create Drawing" picker replaces the per-kind buttons on the drawings index. CRIT-06 enforced — devices outside the manufacturer JSON pack surface as "U-height unknown" warnings, never silent 1U guesses.
 **Depends on**: Phase 17 (foundations: `project_drawings` table, model, policy, `TYPE_DRAWING` storage, `BuildSchematicJob` pattern, `DrawingReadyMail`, edit-adapter pattern)
 **Requirements**: DRAW-07, DRAW-08, DRAW-09, DRAW-10, DRAW-11, DRAW-12, DRAW-13
 **Success Criteria** (what must be TRUE):
-  1. User can click "Generate Rack Elevation" and see a 1U-precise rack drawing with U-numbered side rail and equipment ordered to AVIXA convention (PDU bottom → switches → DSP → amps → patches/IO top)
-  2. User can drag-reorder equipment within a rack and lock items to specific U-positions; locks survive regeneration
-  3. User can manage multiple racks per project (no single-rack limit) — each rack renders on its own page
-  4. User can read per-rack totals (weight, current draw, BTU, U-utilisation) in the footer of every rack drawing
-  5. User can download each rack as PDF or SVG; missing U-heights surface as "U-height unknown" warnings, never as silent 1U guesses
-**Plans**: 2 plans (estimated)
+  1. User clicks "+ Create Drawing" on a project's drawings page, picks Rack Elevation, and lands in an editor with a 42U rack scaffold + U-numbered side rail (1 at bottom, 42 at top — AVIXA convention)
+  2. User can drag equipment from a palette (rack-mounted equipment grouped first, all other equipment greyed but draggable second) into U-slots; each item respects its U-height; user can lock per-item U-position so subsequent reorders skip locked items (DRAW-10)
+  3. User can manage multiple racks per project (no single-rack limit) — each rack is its own ProjectDrawing row with its own status, revision, and download endpoints (DRAW-11)
+  4. User reads per-rack totals (weight, current draw, BTU, U-utilisation) in the footer of every rack drawing — partial data shows asterisks + ratio (e.g. "Weight: 28 kg* (4/7 known)") with tooltip listing unclassified devices (DRAW-12)
+  5. User can download each rack as PDF (landscape A4 with title block) or SVG (direct write of generated_svg); items with no U-height in the manufacturer JSON pack render with a 1U placeholder AND a "U-height unknown" warning region (CRIT-06 — never a silent 1U guess) (DRAW-13)
+**Plans**: 2 plans
+- [ ] 18-01-picker-and-schema-PLAN.md — Device schema migration (u_height decimal, is_rack_mounted, ventilation gaps; all nullable) + hand-curated top-50 manufacturer JSON pack at resources/data/device-port-catalog.json + DeviceCatalogService reader + idempotent DeviceCatalogSeeder + unified "+ Create Drawing" Alpine picker modal (Schematic with Yes/No auto-gen toggle, Rack with single Create button, Floor Plan disabled with "Coming in Phase 19" tooltip) + ProjectDrawingController picker/createRack actions + DrawingService::generateInitial extended for kind=rack (synchronous, no job dispatched) + DrawingDataResolverService::rackStackForProject body. Wave 1 — foundation. Requirements: DRAW-08, DRAW-09, DRAW-11, DRAW-12.
+- [ ] 18-03-rack-editor-PLAN.md — RackElevationRenderService (synchronous custom Blade SVG, ~150 LOC, U-numbered rail + equipment rectangles + totals footer + CRIT-06 unknown-U-height warnings + htmlspecialchars XSS protection) + pdf/drawings/rack.blade.php (landscape A4 with title block) + DrawingExportRendererService::bladeViewFor extended for kind=rack + ProjectDrawingController::editRack + saveRackCanvas (AJAX, throttled, validated) + flipRackMountedFlag endpoints + Sortable.js drag-into-U-slots editor + per-item U-position lock + new resources/js/rack-editor.js Vite entry + sortablejs ^1.15.6 added to package.json + show.blade.php Edit Rack button. Wave 2 — depends on 18-01. Requirements: DRAW-07, DRAW-08, DRAW-09, DRAW-10, DRAW-11, DRAW-12, DRAW-13.
 **UI hint**: yes
 **Canonical refs**:
   - `.planning/research/SUMMARY.md`
