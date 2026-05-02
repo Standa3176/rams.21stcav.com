@@ -117,11 +117,11 @@ No new framework, no React, no PlantUML, no LibreDWG.
 | DRAW-05 | Phase 17 | — | — |
 | DRAW-06 | Phase 17 | — | — |
 | DRAW-07 | Phase 18 | — | — |
-| DRAW-08 | Phase 18 | — | — |
-| DRAW-09 | Phase 18 | — | — |
+| DRAW-08 | Phase 18 | 18-01 (schema) | — |
+| DRAW-09 | Phase 18 | 18-01 (palette ordering — partial) | — |
 | DRAW-10 | Phase 18 | — | — |
-| DRAW-11 | Phase 18 | — | — |
-| DRAW-12 | Phase 18 | — | — |
+| DRAW-11 | Phase 18 | 18-01 (multi-rack picker) | — |
+| DRAW-12 | Phase 18 | 18-01 (metadata schema feeds totals) | — |
 | DRAW-13 | Phase 18 | — | — |
 | DRAW-14 | v2.0 backlog 999.1 | — | — |
 | DRAW-15 | v2.0 backlog 999.1 | — | — |
