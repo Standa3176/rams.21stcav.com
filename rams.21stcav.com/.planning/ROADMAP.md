@@ -160,7 +160,7 @@ See: `.planning/PROJECT.md` (updated 2026-04-30)
 
 **Requirements:** TBD (full plan in `.claude/projects/.../memory/v2_engineering_grade_drawings_plan.md`)
 
-**Plans:** 0 plans (estimated 25-30 across 5 phases — Device Port Catalog, Port-FK Cable Schedule, Lucidchart-Style Renderer, Konva Editor, AI Generate + Chat Edit)
+**Plans:** 3/3 plans complete
 
 **Notes:**
 - Run a 1-week build-vs-buy spike (Lucidchart API / draw.io embed / XTEN-AV / D-Tools) BEFORE committing to native build — could compress 14-19 weeks → 3-4 weeks of integration work
@@ -177,7 +177,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 17. System Schematics + Shared Foundations | v1.3 | 3/3 | Complete   | 2026-05-01 |
+| 17. System Schematics + Shared Foundations | v1.3 | 3/3 | Complete    | 2026-05-02 |
 | 18. Rack Elevations | v1.3 | 0/2 | Not started | - |
 | 19. Floor Plans (Konva) | v1.3 | 0/3 | Not started | - |
 | 20. Drawing Export + O&M + DXF stretch | v1.3 | 0/2 | Not started | - |

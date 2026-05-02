@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Installation Programme & Field Management — SHIPPED 2026-04-25
 status: verifying
-last_updated: "2026-05-01T17:40:25.170Z"
-last_activity: 2026-05-01
+last_updated: "2026-05-02T10:39:23.865Z"
+last_activity: 2026-05-02
 progress:
-  total_phases: 1
+  total_phases: 2
   completed_phases: 1
   total_plans: 3
   completed_plans: 3
@@ -22,10 +22,10 @@ See: .planning/PROJECT.md (updated 2026-04-30)
 
 ## Current Position
 
-Phase: 17 (System Schematics + Shared Foundations) — EXECUTING
-Plan: 3 of 3
+Phase: 999.1
+Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-05-01
+Last activity: 2026-05-02
 
 ## Milestone Progress (v1.3)
 
