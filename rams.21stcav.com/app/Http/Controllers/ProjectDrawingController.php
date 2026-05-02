@@ -111,6 +111,77 @@ class ProjectDrawingController extends Controller
     }
 
     /**
+     * Phase 18 — create an empty rack drawing. SYNCHRONOUS flow: no job
+     * dispatched. Engineer always builds the rack manually in Plan 18-03's
+     * editor (CONTEXT.md "NO auto-place flow"). Redirects to the rack show
+     * page for immediate building.
+     *
+     * Rack label auto-increments per project (Rack 1, Rack 2, ...). Counts
+     * only non-superseded rack drawings so re-using a number after archive
+     * isn't possible.
+     */
+    public function createRack(Request $request, Project $project): RedirectResponse
+    {
+        if (! $request->user()) {
+            abort(403);
+        }
+
+        $userId = (int) $request->user()->id;
+
+        $existingRackCount = $project->drawings()
+            ->where('kind', ProjectDrawing::KIND_RACK)
+            ->whereNull('superseded_by_id')
+            ->count();
+
+        $defaultLabel = 'Rack '.($existingRackCount + 1);
+        $rackLabel = trim((string) $request->input('rack_label', '')) ?: $defaultLabel;
+
+        // Step 1: create the row (status=DRAFT, no job dispatched).
+        $drawing = $this->drawingService->createForProject(
+            $project,
+            ProjectDrawing::KIND_RACK,
+            null, // no specific room — rack is project-level
+            $userId,
+        );
+
+        // Step 2: stamp the rack_label BEFORE generateInitial so
+        // generateInitialRack() can read it into source_data.rack_meta.
+        $drawing->update(['rack_label' => $rackLabel]);
+
+        // Step 3: seed the rack scaffold synchronously. NO job dispatched —
+        // CONTEXT.md "NO BuildRackElevationJob — rack rendering is synchronous
+        // in Plan 18-03's editor."
+        $this->drawingService->generateInitial($drawing, $userId);
+
+        return redirect()
+            ->route('projects.drawings.show', [$project, $drawing])
+            ->with('status', "Rack '{$rackLabel}' created — drag equipment from the palette to build it.");
+    }
+
+    /**
+     * Phase 18 — unified "+ Create Drawing" picker. Single endpoint that
+     * dispatches to the kind-specific create action. Floor plans land in
+     * v2.0 (Phase 19 deferred from v1.3 scope 2026-05-02) — POSTing
+     * kind=floor_plan returns back() with a session 'kind' validation error
+     * so the picker modal surfaces it gracefully.
+     */
+    public function picker(Request $request, Project $project): RedirectResponse
+    {
+        $kind = (string) $request->input('kind', '');
+
+        return match ($kind) {
+            ProjectDrawing::KIND_SCHEMATIC => $this->createSchematic($request, $project),
+            ProjectDrawing::KIND_RACK => $this->createRack($request, $project),
+            ProjectDrawing::KIND_FLOOR_PLAN => back()->withErrors([
+                'kind' => 'Floor plans land in v2.0 — coming soon.',
+            ]),
+            default => back()->withErrors([
+                'kind' => 'Unknown drawing kind.',
+            ]),
+        };
+    }
+
+    /**
      * DRAW-25 — workflow status update. Routed through the DrawingEditAdapter's
      * `set_status` operation so the same allow-list (draft/for_review/approved)
      * applied to chat-driven edits applies here too. Generating/ready/failed

@@ -302,17 +302,25 @@ Route::middleware('auth')->group(function () {
     Route::post('om-manuals/{id}/restore', [OmManualController::class, 'restore'])->name('om-manuals.restore');
     Route::delete('om-manuals/{id}/force-destroy', [OmManualController::class, 'forceDestroy'])->name('om-manuals.force-destroy');
 
-    // ── v1.3 Phase 17 — Drawings (foundations + render UI) ───────────────────
+    // ── v1.3 Phase 17/18 — Drawings (foundations + render UI + picker) ──────
     // Plan 17-01 wires the index/show/regenerate routes. Plan 17-03 adds the
-    // create-schematic, per-format download, and updateStatus routes — both
-    // literal-segment routes (download/{format}, create-schematic, status)
-    // are placed before any `{drawing}` wildcard so they are not captured by
-    // route model binding. Authorization enforced via ProjectDrawingPolicy.
+    // create-schematic, per-format download, and updateStatus routes. Plan
+    // 18-01 adds the unified picker + create-rack routes. ALL literal-segment
+    // routes (picker, create-rack, create-schematic, download/{format},
+    // status) are placed BEFORE the `{drawing}` wildcard so they are not
+    // captured by route model binding. Authorization enforced via
+    // ProjectDrawingPolicy.
     Route::get('projects/{project}/drawings', [ProjectDrawingController::class, 'index'])
         ->name('projects.drawings.index');
+    Route::post('projects/{project}/drawings/picker',
+        [ProjectDrawingController::class, 'picker'])
+        ->name('projects.drawings.picker');
     Route::post('projects/{project}/drawings/create-schematic',
         [ProjectDrawingController::class, 'createSchematic'])
         ->name('projects.drawings.create-schematic');
+    Route::post('projects/{project}/drawings/create-rack',
+        [ProjectDrawingController::class, 'createRack'])
+        ->name('projects.drawings.create-rack');
     Route::get('projects/{project}/drawings/{drawing}/download/{format}',
         [ProjectDrawingController::class, 'download'])
         ->where('format', 'pdf|svg|png')

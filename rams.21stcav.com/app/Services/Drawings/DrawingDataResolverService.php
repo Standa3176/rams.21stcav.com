@@ -495,11 +495,105 @@ class DrawingDataResolverService
     }
 
     /**
-     * Stubbed for Phase 18. Implemented in Phase 18 Plan 01 (Rack Elevations).
+     * Phase 18 Plan 01 — Rack palette feed.
+     *
+     * Returns the project's hardware list reshaped into rack-palette rows,
+     * with each row enriched from the matching Device row's rack metadata
+     * (u_height / is_rack_mounted / ventilation flags). Plan 18-03's rack
+     * editor consumes this shape verbatim — see RackStackForProjectTest for
+     * the locked contract.
+     *
+     * Shape:
+     *   ['palette' => [
+     *      ['equipment_id' => string|int, 'name' => string, 'manufacturer' => string,
+     *       'part_no' => string, 'qty' => int, 'u_height' => float|null,
+     *       'is_rack_mounted' => bool|null,
+     *       'requires_ventilation_gap_above' => bool|null,
+     *       'requires_ventilation_gap_below' => bool|null],
+     *      ...
+     *   ]]
+     *
+     * Ordering: rack-mounted rows FIRST (is_rack_mounted === true), then all
+     * other rows. This is the DRAW-09 palette ordering — full AVIXA
+     * auto-place algorithm is deferred to v1.3.x / v2.0 per CONTEXT.md.
+     *
+     * Cables / consumables / services / mounts / brackets / caddies / trays
+     * are excluded by filterHardware() — they aren't rack-mountable equipment.
+     *
+     * Honours DATA-03: only consumes ProjectDataService::resolve(), never
+     * raw extracted_data / reviewed_data.
+     *
+     * @return array{palette: array<int, array<string, mixed>>}
      */
     public function rackStackForProject(Project $project): array
     {
-        throw new \RuntimeException('rackStackForProject implemented in Phase 18');
+        $data = $this->projectDataService->resolve($project);
+        $equipment = (array) ($data['equipment'] ?? []);
+
+        // Pre-load Device rack metadata keyed by normalised part_no so the
+        // palette in Plan 18-03 can show u_height / is_rack_mounted per item
+        // without N+1.
+        $deviceMeta = Device::query()
+            ->where('project_id', $project->id)
+            ->whereNotNull('part_no')
+            ->get([
+                'part_no',
+                'u_height',
+                'is_rack_mounted',
+                'requires_ventilation_gap_above',
+                'requires_ventilation_gap_below',
+            ]);
+
+        $metaByPart = [];
+        foreach ($deviceMeta as $d) {
+            $key = strtolower(trim((string) $d->part_no));
+            if ($key === '') {
+                continue;
+            }
+            $metaByPart[$key] = [
+                'u_height' => $d->u_height !== null ? (float) $d->u_height : null,
+                'is_rack_mounted' => $d->is_rack_mounted !== null ? (bool) $d->is_rack_mounted : null,
+                'requires_ventilation_gap_above' => $d->requires_ventilation_gap_above !== null ? (bool) $d->requires_ventilation_gap_above : null,
+                'requires_ventilation_gap_below' => $d->requires_ventilation_gap_below !== null ? (bool) $d->requires_ventilation_gap_below : null,
+            ];
+        }
+
+        // Filter mounts/brackets/cables/services out — same exclusion list as
+        // adjacencyForProject (mirrors filterHardware).
+        $rackMounted = [];
+        $other = [];
+        foreach ($this->filterHardware($equipment) as $idx => $item) {
+            $partNo = (string) ($item['part_no'] ?? '');
+            $key = strtolower(trim($partNo));
+            $meta = $metaByPart[$key] ?? [
+                'u_height' => null,
+                'is_rack_mounted' => null,
+                'requires_ventilation_gap_above' => null,
+                'requires_ventilation_gap_below' => null,
+            ];
+
+            $row = [
+                'equipment_id' => $item['id'] ?? $item['equipment_id'] ?? ($partNo !== '' ? $partNo : 'eq-'.$idx),
+                'name' => (string) ($item['name'] ?? $item['description'] ?? $item['part_description'] ?? ''),
+                'manufacturer' => (string) ($item['manufacturer'] ?? ''),
+                'part_no' => $partNo,
+                'qty' => (int) ($item['qty'] ?? 1),
+                'u_height' => $meta['u_height'],
+                'is_rack_mounted' => $meta['is_rack_mounted'],
+                'requires_ventilation_gap_above' => $meta['requires_ventilation_gap_above'],
+                'requires_ventilation_gap_below' => $meta['requires_ventilation_gap_below'],
+            ];
+
+            if ($meta['is_rack_mounted'] === true) {
+                $rackMounted[] = $row;
+            } else {
+                $other[] = $row;
+            }
+        }
+
+        return [
+            'palette' => array_merge($rackMounted, $other),
+        ];
     }
 
     /**

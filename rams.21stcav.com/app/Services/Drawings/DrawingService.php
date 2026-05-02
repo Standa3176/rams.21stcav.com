@@ -70,22 +70,39 @@ class DrawingService
     }
 
     /**
-     * Dispatch the build job for the very first version (no archive-prior).
-     * Use this immediately after createForProject() in the controller
-     * create-flow.
+     * Dispatch (or seed) the build for the very first version of a drawing —
+     * no archive-prior semantics. Called immediately after createForProject()
+     * in the controller create-flow.
      *
-     * Phase 17 only handles kind=schematic — rack and floor_plan throw with
-     * an explicit phase pointer so Plan 02/Phase 18/19 implementers see
-     * exactly where to plug in.
+     * Per-kind dispatch:
+     *   - kind=schematic — flips status=generating + dispatches BuildSchematicJob
+     *     (Phase 17 async pipeline).
+     *   - kind=rack      — Phase 18 SYNCHRONOUS flow: NO job dispatched. Status
+     *     stays DRAFT. Seeds source_data.rack_meta (42U baseline + 230V) and
+     *     an empty rack_items array so Plan 18-03's editor can render an
+     *     empty rack and let the engineer drag equipment in. CONTEXT.md D-13
+     *     locks "NO BuildRackElevationJob — there's no AI/D2/heavy work to
+     *     defer."
+     *   - kind=floor_plan — DEFERRED to v2.0 (Phase 19 dropped from v1.3 scope
+     *     2026-05-02). Throws with an explicit pointer.
      */
     public function generateInitial(ProjectDrawing $drawing, int $userId): ProjectDrawing
     {
-        if ($drawing->kind !== ProjectDrawing::KIND_SCHEMATIC) {
-            throw new \RuntimeException(
-                "DrawingService::generateInitial: kind '{$drawing->kind}' lands in Phase 18/19"
-            );
-        }
+        return match ($drawing->kind) {
+            ProjectDrawing::KIND_SCHEMATIC => $this->generateInitialSchematic($drawing, $userId),
+            ProjectDrawing::KIND_RACK => $this->generateInitialRack($drawing, $userId),
+            default => throw new \RuntimeException(
+                "DrawingService::generateInitial: kind '{$drawing->kind}' lands in v2.0 (Phase 19 floor plans deferred)"
+            ),
+        };
+    }
 
+    /**
+     * Phase 17 schematic flow — flip status to GENERATING and dispatch the
+     * async build job. Logic preserved verbatim from the pre-Phase-18 shape.
+     */
+    private function generateInitialSchematic(ProjectDrawing $drawing, int $userId): ProjectDrawing
+    {
         $drawing->update([
             'status' => ProjectDrawing::STATUS_GENERATING,
             'generated_by' => $userId,
@@ -93,7 +110,43 @@ class DrawingService
 
         BuildSchematicJob::dispatch($drawing->id);
 
-        Log::info('DrawingService: generateInitial dispatched', [
+        Log::info('DrawingService: generateInitial dispatched (schematic)', [
+            'drawing_id' => $drawing->id,
+            'kind' => $drawing->kind,
+        ]);
+
+        return $drawing;
+    }
+
+    /**
+     * Phase 18 rack flow — synchronous (no job dispatched). Status stays
+     * DRAFT until the engineer saves rack canvas state in Plan 18-03's
+     * editor (which then renders synchronously to STATUS_READY).
+     *
+     * Seeds an empty rack scaffold under source_data.rack_meta + rack_items
+     * so Plan 18-03 can read the shape without conditional logic. 42U + 230V
+     * defaults per CONTEXT.md "Claude's Discretion" (UK mains, engineer
+     * overrides per rack on edit).
+     */
+    private function generateInitialRack(ProjectDrawing $drawing, int $userId): ProjectDrawing
+    {
+        $existing = (array) ($drawing->source_data ?? []);
+
+        $drawing->update([
+            'status' => ProjectDrawing::STATUS_DRAFT,
+            'generated_by' => $userId,
+            'source_data' => array_merge($existing, [
+                'rack_meta' => [
+                    'rack_label' => $drawing->rack_label ?? 'Rack 1',
+                    'rack_height_u' => 42,
+                    'nominal_voltage_v' => 230,
+                    'floor' => null,
+                ],
+                'rack_items' => [],
+            ]),
+        ]);
+
+        Log::info('DrawingService: generateInitial empty rack created (sync flow)', [
             'drawing_id' => $drawing->id,
             'kind' => $drawing->kind,
         ]);
