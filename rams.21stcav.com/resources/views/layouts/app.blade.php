@@ -368,11 +368,12 @@
         .app-content.with-sidebar { margin-left: var(--sidebar-width); }
 
         /* ═══════════════════════════════════════════════════════════════
-           PAGE WRAPPER
+           PAGE WRAPPER — content fills to right of sidebar, no centering gap
+           (matches SCC v2 .main-col which has no max-width).
         ═══════════════════════════════════════════════════════════════ */
         .page-wrap {
-            max-width: var(--page-max);
-            margin: 0 auto;
+            max-width: none;
+            margin: 0;
             padding: 1.75rem 2rem;
         }
         .page-header {
