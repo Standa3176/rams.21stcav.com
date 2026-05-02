@@ -23,13 +23,16 @@
             <h1 class="text-2xl font-semibold mt-1">Drawings — {{ $project->name }}</h1>
             <p class="text-sm text-gray-500">Project ref: {{ $project->ref ?? '—' }}</p>
         </div>
-        <form method="POST" action="{{ route('projects.drawings.create-schematic', $project) }}">
-            @csrf
-            <button type="submit" class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-medium px-4 py-2 rounded-lg text-sm shadow-sm">
-                <span aria-hidden="true">＋</span>
-                <span>Generate Schematic</span>
-            </button>
-        </form>
+        {{-- Phase 18 Plan 01 — single + Create Drawing button replaces the
+             per-kind Phase 17 + Generate Schematic button. Dispatches an
+             Alpine event that opens the picker modal (3 kind cards). --}}
+        <button type="button"
+                x-data
+                @click="$dispatch('open-create-drawing')"
+                class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-medium px-4 py-2 rounded-lg text-sm shadow-sm">
+            <span aria-hidden="true">＋</span>
+            <span>Create Drawing</span>
+        </button>
     </div>
 
     @if (session('status'))
@@ -89,8 +92,47 @@
         </div>
     @endforelse
 
-    {{-- Phase 18 will list racks here, Phase 19 will list floor plans here. --}}
+    {{-- ───── Rack Elevations (Phase 18) ──────────────────────────── --}}
+    <h2 class="text-lg font-semibold mt-6 mb-3 text-gray-800">
+        Rack Elevations
+        @php($racks = $drawings->where('kind', \App\Models\ProjectDrawing::KIND_RACK))
+        <span class="text-sm text-gray-500 font-normal">({{ $racks->count() }})</span>
+    </h2>
 
+    @forelse ($racks as $drawing)
+        <div class="bg-white border border-gray-200 rounded-lg p-4 mb-3 flex items-center justify-between">
+            <div class="min-w-0">
+                <div class="font-medium text-gray-900 truncate">
+                    {{ $drawing->rack_label ?? 'Rack '.$drawing->id }}
+                </div>
+                <div class="text-xs text-gray-500">
+                    Revision {{ $drawing->revisionLabel() }}
+                    · Updated {{ $drawing->updated_at?->diffForHumans() }}
+                </div>
+            </div>
+            <div class="flex items-center gap-3 flex-wrap justify-end">
+                @include('projects.drawings._status-pill', ['drawing' => $drawing])
+
+                @if ($drawing->isReady())
+                    <a href="{{ route('projects.drawings.download', [$project, $drawing, 'pdf']) }}" class="text-sm text-teal-700 hover:underline">PDF</a>
+                    <a href="{{ route('projects.drawings.download', [$project, $drawing, 'svg']) }}" class="text-sm text-teal-700 hover:underline">SVG</a>
+                @endif
+
+                <a href="{{ route('projects.drawings.show', [$project, $drawing]) }}"
+                   class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1 rounded-md text-sm">
+                    Open
+                </a>
+            </div>
+        </div>
+    @empty
+        <div class="bg-gray-50 border border-dashed border-gray-300 rounded-lg p-6 text-center text-sm text-gray-500">
+            No rack elevations yet — click <span class="font-medium text-gray-700">Create Drawing</span> above to start.
+        </div>
+    @endforelse
+
+    {{-- Phase 19 floor-plan list deferred to v2.0 (CONTEXT.md 2026-05-02). --}}
+
+    @include('projects.drawings._create-drawing-modal', ['project' => $project])
     @include('projects.drawings._regenerate-confirm-modal', ['project' => $project])
 </div>
 @endsection
