@@ -17,11 +17,12 @@
         ═══════════════════════════════════════════════════════════════ */
 
         .page-header .page-title {
-            font-size: 1.5rem;
-            line-height: 2rem;
-            font-weight: 700;
-            color: var(--text);
-            letter-spacing: -.015em;
+            font-family: var(--font-display);
+            font-size: 1.85rem;
+            line-height: 1.15;
+            font-weight: 500;
+            color: var(--ink-900);
+            letter-spacing: -.02em;
             margin: 0.25rem 0 0.35rem;
         }
 
@@ -40,10 +41,22 @@
             margin-bottom: 1rem;
         }
         .psv__main > .section-block .section-card__title {
+            font-family: var(--font-display);
             font-size: 1rem;
             font-weight: 600;
-            color: var(--text);
+            color: var(--ink-900);
             letter-spacing: -.01em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .psv__main > .section-block .section-card__title::before {
+            content: '';
+            display: inline-block;
+            width: 3px;
+            height: 18px;
+            background: var(--teal-700);
+            border-radius: 2px;
         }
 
         /* Right sticky panel cards */
@@ -56,16 +69,27 @@
             margin: 0;
         }
         .psv__sticky > .section-block .section-card__header {
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid var(--ink-100);
             padding-bottom: 0.55rem;
             margin-bottom: 0.85rem;
         }
         .psv__sticky > .section-block .section-card__title {
-            font-size: .7rem;
+            font-size: .72rem;
             font-weight: 700;
-            color: var(--text-muted);
+            color: var(--teal-700);
             text-transform: uppercase;
-            letter-spacing: .07em;
+            letter-spacing: .10em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .psv__sticky > .section-block .section-card__title::before {
+            content: '';
+            display: inline-block;
+            width: 4px;
+            height: 14px;
+            background: var(--teal-700);
+            border-radius: 2px;
         }
 
         /* Workflow card */
@@ -77,16 +101,27 @@
             padding: 1.25rem 1.5rem;
         }
         .psv__workflow > .section-block .section-card__header {
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid var(--ink-100);
             padding-bottom: 0.6rem;
             margin-bottom: 1rem;
         }
         .psv__workflow > .section-block .section-card__title {
-            font-size: .7rem;
+            font-size: .72rem;
             font-weight: 700;
-            color: var(--text-muted);
+            color: var(--teal-700);
             text-transform: uppercase;
-            letter-spacing: .07em;
+            letter-spacing: .10em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .psv__workflow > .section-block .section-card__title::before {
+            content: '';
+            display: inline-block;
+            width: 4px;
+            height: 14px;
+            background: var(--teal-700);
+            border-radius: 2px;
         }
 
         /* Table-row hover */
