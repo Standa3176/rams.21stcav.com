@@ -59,19 +59,21 @@
             border-radius: 2px;
         }
 
-        /* Right sticky panel cards */
+        /* Right sticky panel cards — flush header bar with cream tint for weight */
         .psv__sticky > .section-block {
             background: var(--surface);
-            border: 1px solid var(--border);
+            border: 1px solid var(--ink-300);
             border-radius: var(--radius);
             box-shadow: var(--shadow-xs);
-            padding: 1.1rem 1.25rem;
+            padding: 0;
             margin: 0;
+            overflow: hidden;
         }
         .psv__sticky > .section-block .section-card__header {
-            border-bottom: 1px solid var(--ink-100);
-            padding-bottom: 0.55rem;
-            margin-bottom: 0.85rem;
+            background: var(--paper-2);
+            border-bottom: 1px solid var(--ink-200);
+            padding: .65rem 1.1rem;
+            margin: 0;
         }
         .psv__sticky > .section-block .section-card__title {
             font-size: .72rem;
@@ -91,19 +93,22 @@
             background: var(--teal-700);
             border-radius: 2px;
         }
+        .psv__sticky > .section-block .section-card__body { padding: 1rem 1.25rem; }
 
-        /* Workflow card */
+        /* Workflow card — same flush-header treatment as the right column */
         .psv__workflow > .section-block {
             background: var(--surface);
-            border: 1px solid var(--border);
+            border: 1px solid var(--ink-300);
             border-radius: var(--radius-lg);
             box-shadow: var(--shadow-xs);
-            padding: 1.25rem 1.5rem;
+            padding: 0;
+            overflow: hidden;
         }
         .psv__workflow > .section-block .section-card__header {
-            border-bottom: 1px solid var(--ink-100);
-            padding-bottom: 0.6rem;
-            margin-bottom: 1rem;
+            background: var(--paper-2);
+            border-bottom: 1px solid var(--ink-200);
+            padding: .65rem 1.25rem;
+            margin: 0;
         }
         .psv__workflow > .section-block .section-card__title {
             font-size: .72rem;
@@ -122,6 +127,63 @@
             height: 14px;
             background: var(--teal-700);
             border-radius: 2px;
+        }
+        .psv__workflow > .section-block .section-card__body { padding: 1.25rem 1.5rem; }
+
+        /* Workspace tab strip — flat horizontal nav (SCC v2 style) */
+        .ws { background: transparent; padding: 0; border-radius: 0; }
+        .ws-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0;
+            margin-bottom: 0;
+            border-bottom: 1px solid var(--ink-200);
+        }
+        .ws-tab {
+            background: transparent;
+            border: none;
+            padding: .65rem 1rem;
+            margin-bottom: -1px;
+            font-size: .8125rem;
+            font-weight: 500;
+            color: var(--ink-500);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: .45rem;
+            border-bottom: 2px solid transparent;
+            transition: color .12s, border-color .12s;
+            white-space: nowrap;
+        }
+        .ws-tab:hover { color: var(--ink-900); }
+        .ws-tab.is-active {
+            color: var(--teal-700);
+            border-bottom-color: var(--teal-700);
+            font-weight: 600;
+        }
+        .ws-tab__count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 20px;
+            height: 18px;
+            padding: 0 6px;
+            background: var(--ink-100);
+            color: var(--ink-700);
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1;
+        }
+        .ws-tab.is-active .ws-tab__count {
+            background: var(--teal-700);
+            color: #FFF;
+        }
+        /* Workspace body sits flush below the tab strip */
+        .ws > .bg-white {
+            border-top-left-radius: 0;
+            border-top-right-radius: 0;
+            border-top: none;
         }
 
         /* Table-row hover */
@@ -614,43 +676,34 @@
                 activeTab: (localStorage.getItem('psv-tab-{{ $project->id }}') || '{{ $defaultTab }}'),
                 q: '',
                 setTab(t) { this.activeTab = t; localStorage.setItem('psv-tab-{{ $project->id }}', t); }
-             }" class="ws bg-teal-50 p-4 rounded-xl">
+             }" class="ws">
 
-            {{-- Tab strip
-                 Tabs ordered to match project process flow:
-                 Survey → RAMS → Worksheet → Cable Schedule → O&M → Install Programme → Quotes → Project Data --}}
-            <div class="bg-teal-50 border border-teal-100 rounded-lg p-1 mb-3">
-                <div class="flex flex-wrap gap-1" role="tablist">
-                    @php
-                        $tabs = [
-                            ['key' => 'surveys',    'icon' => '📍', 'label' => 'Surveys',           'count' => $countSurvey],
-                            ['key' => 'rams',       'icon' => '🛡', 'label' => 'RAMS',              'count' => $countRams],
-                            ['key' => 'worksheets', 'icon' => '📋', 'label' => 'Worksheets',        'count' => $countWorksheet],
-                            ['key' => 'cable',      'icon' => '⚡','label' => 'Cable Schedule',    'count' => $countCable],
-                            ['key' => 'om',         'icon' => '📘', 'label' => 'O&M',               'count' => $countOm],
-                            ['key' => 'install',    'icon' => '📅', 'label' => 'Install Programme', 'count' => $countInstall],
-                            ['key' => 'quotes',     'icon' => '📄', 'label' => 'Quotes',            'count' => $countQuotes],
-                            ['key' => 'data',       'icon' => '📊', 'label' => 'Project Data',      'count' => null],
-                        ];
-                    @endphp
-                    @foreach ($tabs as $t)
-                        <button type="button" role="tab" class="ws-tab inline-flex items-center gap-2 px-4 py-2 text-sm whitespace-nowrap rounded-md transition-colors"
-                                @click="setTab('{{ $t['key'] }}')"
-                                :class="activeTab==='{{ $t['key'] }}'
-                                    ? 'bg-white text-teal-700 border border-teal-200 font-medium shadow-sm'
-                                    : 'text-gray-600 hover:bg-white hover:text-teal-700 border border-transparent'"
-                                :aria-selected="activeTab==='{{ $t['key'] }}'">
-                            <span aria-hidden="true">{{ $t['icon'] }}</span>
-                            <span>{{ $t['label'] }}</span>
-                            @if ($t['count'] !== null && $t['count'] > 0)
-                                <span class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold rounded-full"
-                                      :class="activeTab==='{{ $t['key'] }}' ? 'bg-teal-600 text-white' : 'bg-white text-gray-700 border border-gray-200'">
-                                    {{ $t['count'] }}
-                                </span>
-                            @endif
-                        </button>
-                    @endforeach
-                </div>
+            {{-- Tab strip — flat horizontal nav with bottom-border active state.
+                 No background tinting; the underline does the work. SCC v2 style. --}}
+            <div class="ws-tabs" role="tablist">
+                @php
+                    $tabs = [
+                        ['key' => 'surveys',    'label' => 'Surveys',           'count' => $countSurvey],
+                        ['key' => 'rams',       'label' => 'RAMS',              'count' => $countRams],
+                        ['key' => 'worksheets', 'label' => 'Worksheets',        'count' => $countWorksheet],
+                        ['key' => 'cable',      'label' => 'Cable Schedule',    'count' => $countCable],
+                        ['key' => 'om',         'label' => 'O&M',               'count' => $countOm],
+                        ['key' => 'install',    'label' => 'Install Programme', 'count' => $countInstall],
+                        ['key' => 'quotes',     'label' => 'Quotes',            'count' => $countQuotes],
+                        ['key' => 'data',       'label' => 'Project Data',      'count' => null],
+                    ];
+                @endphp
+                @foreach ($tabs as $t)
+                    <button type="button" role="tab" class="ws-tab"
+                            @click="setTab('{{ $t['key'] }}')"
+                            :class="activeTab==='{{ $t['key'] }}' ? 'is-active' : ''"
+                            :aria-selected="activeTab==='{{ $t['key'] }}'">
+                        <span class="ws-tab__label">{{ $t['label'] }}</span>
+                        @if ($t['count'] !== null && $t['count'] > 0)
+                            <span class="ws-tab__count">{{ $t['count'] }}</span>
+                        @endif
+                    </button>
+                @endforeach
             </div>
 
             {{-- Table container — clean white reading surface inside the teal zone --}}
