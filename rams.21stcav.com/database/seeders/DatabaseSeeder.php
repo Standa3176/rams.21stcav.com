@@ -21,5 +21,10 @@ class DatabaseSeeder extends Seeder
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
+
+        // Phase 18 Plan 01 — apply the manufacturer rack-metadata JSON pack.
+        // Idempotent: only updates Device rows whose part_no matches a pack
+        // entry, devices outside the pack stay with NULL u_height (CRIT-06).
+        $this->call(DeviceCatalogSeeder::class);
     }
 }

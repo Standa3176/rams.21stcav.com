@@ -35,6 +35,11 @@ class Device extends Model
         'manufacturer',
         'part_no',
         'signal_role',
+        // Phase 18 Plan 01 rack metadata (CRIT-06: nullable-first, no defaults)
+        'u_height',
+        'is_rack_mounted',
+        'requires_ventilation_gap_above',
+        'requires_ventilation_gap_below',
         'qty',
         'serial_number',
         'mac_address',
@@ -51,6 +56,11 @@ class Device extends Model
         'qty' => 'integer',
         'commissioning_date' => 'date',
         'warranty_expiry' => 'date',
+        // Phase 18 Plan 01 rack metadata casts
+        'u_height' => 'decimal:2',
+        'is_rack_mounted' => 'boolean',
+        'requires_ventilation_gap_above' => 'boolean',
+        'requires_ventilation_gap_below' => 'boolean',
     ];
 
     public function project(): BelongsTo
