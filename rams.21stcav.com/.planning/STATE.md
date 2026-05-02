@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Installation Programme & Field Management — SHIPPED 2026-04-25
 status: executing
-last_updated: "2026-05-02T22:00:00.000Z"
-last_activity: 2026-05-02 -- Phase 18 Plan 18-01 LANDED (picker + schema + manufacturer pack)
+last_updated: "2026-05-02T21:36:00.000Z"
+last_activity: 2026-05-02 -- Phase 18 COMPLETE — Plan 18-03 LANDED (rack editor + Sortable.js + sync render)
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 4
-  percent: 80
+  completed_plans: 5
+  percent: 100
 ---
 
 ## Project Reference
@@ -22,21 +22,21 @@ See: .planning/PROJECT.md (updated 2026-04-30)
 
 ## Current Position
 
-Phase: 18 (Rack Elevations) — EXECUTING
-Plan: 2 of 2 (next: 18-03 rack editor + palette + render)
-Status: Executing Phase 18 — Plan 18-01 landed
-Last activity: 2026-05-02 -- Phase 18 Plan 18-01 LANDED (picker + schema + manufacturer pack)
+Phase: 18 (Rack Elevations) — COMPLETE
+Plan: 2 of 2 done — phase next is 20 (Drawing Export + O&M Integration)
+Status: Phase 18 fully shipped (Plans 18-01 + 18-03); v1.3 next phase is 20.
+Last activity: 2026-05-02 -- Phase 18 COMPLETE — Plan 18-03 LANDED (rack editor + Sortable.js + sync render)
 
 ## Milestone Progress (v1.3)
 
 | Phase | Plans | Status |
 |-------|-------|--------|
 | 17. System Schematics + Shared Foundations | 3/3 | ✓ Complete |
-| 18. Rack Elevations | 1/2 | 🚧 In progress (18-01 done; 18-03 next) |
+| 18. Rack Elevations | 2/2 | ✓ Complete (18-01 + 18-03 done) |
 | 19. Floor Plans (Konva) | 0/0 | ⤳ Deferred to v2.0 backlog 999.1 (2026-05-02) |
 | 20. Drawing Export + O&M Integration | 0/2 | Not started |
 
-**Total:** 4/7 plans, 1/3 phases (57%) — Phase 19 deferred from v1.3 scope.
+**Total:** 5/7 plans, 2/3 phases (71%) — Phase 19 deferred from v1.3 scope.
 
 ## Performance Metrics
 
@@ -53,11 +53,13 @@ Last activity: 2026-05-02 -- Phase 18 Plan 18-01 LANDED (picker + schema + manuf
 | Phase 17 P02 | 13min | 3 tasks | 32 files |
 | Phase 17 P03 | 11min | 3 tasks | 12 files |
 | Phase 18 P01 | 65min | 3 tasks | 18 files |
+| Phase 18 P03 | 12min | 3 tasks | 15 files |
 
 ## Accumulated Context
 
 ### Key Decisions (v1.3)
 
+- **Plan 18-03 LANDED** (2026-05-02) — Phase 18 COMPLETE. RackElevationRenderService synchronous custom Blade SVG renderer (~340 LOC, measured 0.06s for full 42U/30-items vs 1s budget — Warning 8 fix); rack editor Blade view with Alpine + Sortable.js drag-into-U-slots palette + 42U scaffold + per-item lock toggle + cursor-walk lock-aware reorder algorithm in JS; AJAX saveRackCanvas endpoint validates JSON allow-list, runs render synchronously, flips status to ready (or failed on render exception); flipRackMountedFlag endpoint authorises against ProjectPolicy::update (project-scoped, owner-OR-admin) so it works BEFORE any rack drawing exists (Blocker 2 fix from checker iteration 2); pdf/drawings/rack.blade.php landscape A4 view; DrawingExportRendererService::bladeViewFor rack arm now returns 'pdf.drawings.rack' (PDF/SVG/PNG endpoints all light up); Sortable.js dependency in dedicated Vite entry (39 kB gzip 14 kB chunk separate from Alpine bundle); show.blade.php Edit Rack button next to Download buttons (existing kind-agnostic line-66 SVG render branch UNCHANGED — Warning 9 fix). NEW App\Policies\ProjectPolicy registered (Phase 17 didn't ship one; deviation Rule 2). 20 new test cases / 99 assertions: render kind guard, 42U rail, item placement, partial-data asterisks/ratios, CRIT-06 unknown-u_height warning, lock annotation, 1s render budget, XSS escape, edit-page render/404/403, save-canvas success/422/extra-key-drop/lock-roundtrip/cursor-walk-Warning-7, flipRackMounted update / pre-rack regression / non-owner 403. DRAW-07 / DRAW-08 / DRAW-09 (partial — palette ordering + bottom-up rendering, AVIXA auto-place algorithm deferred to v1.3.x or v2.0) / DRAW-10 / DRAW-11 / DRAW-12 / DRAW-13 covered. 11 drawings routes total (6 P17 + 2 P18-01 + 3 P18-03). 48 Drawings tests pass + 1 expected D2 skip on dev.
 - **Plan 18-01 LANDED** (2026-05-02) — Phase 18 foundations: devices.u_height + ventilation/is_rack_mounted columns (CRIT-06 nullable-first); 53-entry hand-curated manufacturer JSON pack at resources/data/device-port-catalog.json + DeviceCatalogService memoised reader + idempotent DeviceCatalogSeeder (whereRaw LOWER(TRIM) bound parameter — devices outside the pack stay NULL); DrawingService::generateInitial dispatches by kind via match (schematic = Phase 17 async, rack = synchronous + 42U + 230V scaffold, floor_plan deferred to v2.0); DrawingDataResolverService::rackStackForProject body filled with rack-mounted-first palette; ProjectDrawingController::picker + createRack actions; unified Alpine + Create Drawing modal replaces per-kind buttons (Floor Plan card disabled with "Coming in v2.0" tooltip). 24 new test cases / 72 assertions. DRAW-08 (schema), DRAW-09 (palette ordering — partial), DRAW-11 (multi-rack picker), DRAW-12 (metadata schema) covered.
 - **Plan 17-03 LANDED** (2026-05-01) — Drawings render UI + O&M handover wiring complete. DrawingExportRendererService delegates PNG to PdfRenderService::fromBladeAsPng (Warning 8 paid off — Phase 20 CRIT-03 hardening lands in one place). OmManualDocxService Drawings section opens fresh `$drawingsSection = $phpWord->addSection(...)` (Blocker 3 fix — no `$section` reuse). createSchematic uses generateInitial not regenerate (Warning 9 — first version is R0). BuildSchematicJob thumbnail block inserted disjoint from Plan 02's mail dispatch (Warning 6 preserved; DrawingReadyMail/completion_email_sent_at grep returns 6). pdf:smoke-test --drawings flag delivered. 6 drawings routes registered. DRAW-05 (UX scaffolding only) / DRAW-06 / DRAW-26 / DRAW-27 covered. Phase 17 complete (3/3 plans).
 - **Plan 17-02 LANDED** (2026-05-01) — D2-driven schematic generator: SchematicGeneratorService + SchematicD2SourceBuilder with full sanitiseLabel() escape (Warning 7), 25-symbol AVIXA-aligned SVG pack (~18 KB), config/drawings.php (D2 binary path + signal-type colour map), DrawingDataResolverService::adjacencyForProject body filled, BuildSchematicJob wired to real generator (placeholder removed; Plan 03 thumbnail-render marker left). 5 feature tests (4 pass deterministic, 1 skips when D2 binary missing on dev). DRAW-01/02/03/04/22 + CRIT-05 + Warning 7 mitigated.
@@ -88,9 +90,9 @@ Last activity: 2026-05-02 -- Phase 18 Plan 18-01 LANDED (picker + schema + manuf
 
 ## Session Continuity
 
-**Last session ended:** 2026-05-02 — Plan 18-01 (Picker + schema + manufacturer pack) completed: 4-column nullable rack-metadata migration on devices (CRIT-06 nullable-first); 53-entry resources/data/device-port-catalog.json + DeviceCatalogService (memoised, case-insensitive trimmed lookup) + idempotent DeviceCatalogSeeder; DrawingService::generateInitial match-by-kind (rack synchronous, no job, 42U + 230V scaffold); DrawingDataResolverService::rackStackForProject palette feed (rack-mounted first); ProjectDrawingController::picker + createRack actions with auto-incrementing rack labels; unified Alpine `_create-drawing-modal.blade.php` replaces per-kind buttons (Floor Plan disabled, Coming in v2.0); 24 new test cases / 72 assertions across migration / seeder / picker / service contracts; Schematics section preserved on index. 8 drawings routes registered (6 Phase 17 + picker + create-rack).
+**Last session ended:** 2026-05-02 — Plan 18-03 (rack editor + Sortable.js + sync render) completed: synchronous custom Blade SVG RackElevationRenderService (~340 LOC, 0.06s measured for 42U/30-items vs 1s budget); rack editor Blade view with Alpine + Sortable.js cursor-walk lock-aware reorder; AJAX saveRackCanvas endpoint (typed validate, sync render, status flip); flipRackMountedFlag at project-scope authorising against new App\Policies\ProjectPolicy (works pre-rack — Blocker 2 fix); pdf/drawings/rack.blade.php landscape A4; DrawingExportRendererService rack arm lit up; Sortable.js as dedicated Vite entry chunk; show.blade.php Edit Rack button (line-66 kind-agnostic SVG branch UNCHANGED). 20 new test cases / 99 assertions. Phase 18 COMPLETE.
 
-**Next session starts:** Plan 18-03 (rack editor + palette + render) — consume the locked rackStackForProject return shape + the synchronous DrawingService::generateInitialRack scaffold (42U + 230V seeded; rack_items=[]); build the drag-reorder palette via Alpine.js + Sortable.js (verify package.json — likely needs `npm i sortablejs`); render U-numbered rack rail server-side (custom Blade SVG); per-item U-position lock; "U-height unknown" warnings for devices outside the JSON pack (CRIT-06 surface, NOT silent 1U).
+**Next session starts:** Phase 20 (Drawing Export Pipeline + O&M Integration) — bound multi-page project PDF, drawing register, sheet numbering (AV-301, AV-302), revision tracking, embeds drawings (schematic + rack — floor plans deferred) in O&M handover via PNG flatten. DRAW-21, DRAW-23, DRAW-26 already partially scaffolded by Plan 17-03. Estimated 2 plans (~80-100 min total).
 
 ## Roadmap Overview
 

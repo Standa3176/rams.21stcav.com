@@ -20,13 +20,13 @@
 
 ### Rack Elevations (Phase 18)
 
-- [ ] **DRAW-07**: User can auto-generate a rack elevation per rack from rack-mounted equipment
-- [ ] **DRAW-08**: Rack elevation renders at 1U-precise scale with U-numbered side rail
-- [ ] **DRAW-09**: Default equipment ordering follows AVIXA convention (PDU bottom → switches → DSP → amps → patches/IO top)
-- [ ] **DRAW-10**: User can drag-reorder equipment in a rack with per-item U-position lock
-- [ ] **DRAW-11**: Multiple racks per project are supported (no single-rack limit)
-- [ ] **DRAW-12**: Rack elevation footer shows totals — weight, current draw, BTU, U-utilisation
-- [ ] **DRAW-13**: User can export rack elevation as PDF and SVG
+- [x] **DRAW-07**: User can auto-generate a rack elevation per rack from rack-mounted equipment *(Phase 18 ships engineer-builds-manually flow per CONTEXT.md decision; auto-fill keyword classifier deferred to v1.3.x quick task or v2.0)*
+- [x] **DRAW-08**: Rack elevation renders at 1U-precise scale with U-numbered side rail
+- [~] **DRAW-09**: Default equipment ordering follows AVIXA convention (PDU bottom → switches → DSP → amps → patches/IO top) *(PARTIAL — palette ordering at resolver layer + bottom-up u_position rendering shipped; full AVIXA auto-place algorithm deferred per CONTEXT.md to v1.3.x or v2.0)*
+- [x] **DRAW-10**: User can drag-reorder equipment in a rack with per-item U-position lock
+- [x] **DRAW-11**: Multiple racks per project are supported (no single-rack limit)
+- [x] **DRAW-12**: Rack elevation footer shows totals — weight, current draw, BTU, U-utilisation
+- [x] **DRAW-13**: User can export rack elevation as PDF and SVG
 
 ### Drawing Export & Cross-cutting (Phase 20 + foundations in Phase 17)
 
@@ -116,13 +116,13 @@ No new framework, no React, no PlantUML, no LibreDWG.
 | DRAW-04 | Phase 17 | — | — |
 | DRAW-05 | Phase 17 | — | — |
 | DRAW-06 | Phase 17 | — | — |
-| DRAW-07 | Phase 18 | — | — |
-| DRAW-08 | Phase 18 | 18-01 (schema) | — |
-| DRAW-09 | Phase 18 | 18-01 (palette ordering — partial) | — |
-| DRAW-10 | Phase 18 | — | — |
-| DRAW-11 | Phase 18 | 18-01 (multi-rack picker) | — |
-| DRAW-12 | Phase 18 | 18-01 (metadata schema feeds totals) | — |
-| DRAW-13 | Phase 18 | — | — |
+| DRAW-07 | Phase 18 | 18-03 (rack editor — engineer builds manually) | — |
+| DRAW-08 | Phase 18 | 18-01 (schema) + 18-03 (1U rail render) | — |
+| DRAW-09 | Phase 18 | 18-01 (palette ordering) + 18-03 (bottom-up render — partial; AVIXA auto-place deferred) | — |
+| DRAW-10 | Phase 18 | 18-03 (drag-reorder + per-item lock + cursor walk) | — |
+| DRAW-11 | Phase 18 | 18-01 (multi-rack picker) + 18-03 (independent editor per rack) | — |
+| DRAW-12 | Phase 18 | 18-01 (metadata schema) + 18-03 (totals footer with asterisks) | — |
+| DRAW-13 | Phase 18 | 18-03 (PDF/SVG/PNG export endpoints lit up) | — |
 | DRAW-14 | v2.0 backlog 999.1 | — | — |
 | DRAW-15 | v2.0 backlog 999.1 | — | — |
 | DRAW-16 | v2.0 backlog 999.1 | — | — |
