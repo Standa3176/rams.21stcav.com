@@ -5,11 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\Project;
 use App\Models\ProjectDrawing;
 use App\Services\DocumentEdits\DocumentEditAdapterRegistry;
+use App\Services\Drawings\DrawingDataResolverService;
 use App\Services\Drawings\DrawingExportRendererService;
 use App\Services\Drawings\DrawingService;
+use App\Services\Drawings\RackElevationRenderService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -279,5 +283,180 @@ class ProjectDrawingController extends Controller
         );
 
         return response()->download($path, $filename);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Phase 18 Plan 03 — rack editor + AJAX save + flip-rack-mounted endpoint
+    // ════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Phase 18 — rack editor page. Engineer drags equipment from a palette
+     * into U-slots; saves via AJAX. Synchronous render runs server-side on
+     * each save (no BuildRackElevationJob — CONTEXT.md "rack rendering is
+     * synchronous in Plan 18-03's editor").
+     *
+     * Route binds {drawing} via Eloquent. Policy gate enforces owner OR admin.
+     * Cross-project URL tampering blocked by project_id match check.
+     */
+    public function editRack(
+        Project $project,
+        ProjectDrawing $drawing,
+        DrawingDataResolverService $resolver,
+    ): View {
+        $this->authorize('update', $drawing);
+
+        if ($drawing->project_id !== $project->id) {
+            abort(404);
+        }
+        if (! $drawing->isRack()) {
+            abort(404, 'editRack only handles kind=rack drawings.');
+        }
+
+        $rackStack = $resolver->rackStackForProject($project);
+
+        // Group palette: is_rack_mounted=true first, then null/false (greyed
+        // but draggable). Mirrors the existing rackStackForProject ordering
+        // — kept explicit here so the palette template can iterate two arrays.
+        $rackMounted = [];
+        $other = [];
+        foreach ($rackStack['palette'] as $row) {
+            if (($row['is_rack_mounted'] ?? null) === true) {
+                $rackMounted[] = $row;
+            } else {
+                $other[] = $row;
+            }
+        }
+
+        return view('projects.drawings.rack-edit', [
+            'project' => $project,
+            'drawing' => $drawing,
+            'palette_rack_mounted' => $rackMounted,
+            'palette_other' => $other,
+        ]);
+    }
+
+    /**
+     * Phase 18 — AJAX save endpoint. Validates rack_items JSON shape, persists
+     * to source_data, runs RackElevationRenderService synchronously, flips
+     * status to READY. Failures persist status=failed + error_message and
+     * return 500 with the error string.
+     *
+     * Threat model T-18.03-01: validate rack_items as a typed list — no
+     * arbitrary keys, integer u_position, decimal u_height, string equipment
+     * id/name/part_no. Reject anything else BEFORE writing.
+     */
+    public function saveRackCanvas(
+        Request $request,
+        Project $project,
+        ProjectDrawing $drawing,
+        RackElevationRenderService $renderer,
+    ): JsonResponse {
+        $this->authorize('update', $drawing);
+
+        if ($drawing->project_id !== $project->id) {
+            abort(404);
+        }
+        if (! $drawing->isRack()) {
+            abort(422, 'saveRackCanvas only handles kind=rack drawings.');
+        }
+
+        $validated = $request->validate([
+            'rack_meta' => ['required', 'array'],
+            'rack_meta.rack_label' => ['required', 'string', 'max:120'],
+            'rack_meta.rack_height_u' => ['required', 'integer', 'min:1', 'max:99'],
+            'rack_meta.nominal_voltage_v' => ['nullable', 'integer', 'min:100', 'max:480'],
+            'rack_meta.floor' => ['nullable', 'string', 'max:60'],
+            'rack_items' => ['array'],
+            'rack_items.*.equipment_id' => ['required', 'string', 'max:120'],
+            'rack_items.*.name' => ['required', 'string', 'max:200'],
+            'rack_items.*.part_no' => ['nullable', 'string', 'max:120'],
+            'rack_items.*.u_position' => ['required', 'integer', 'min:1', 'max:99'],
+            'rack_items.*.u_height' => ['nullable', 'numeric', 'min:0.5', 'max:42'],
+            'rack_items.*.locked' => ['boolean'],
+            'rack_items.*.weight_kg' => ['nullable', 'numeric', 'min:0', 'max:9999'],
+            'rack_items.*.current_draw_a' => ['nullable', 'numeric', 'min:0', 'max:99'],
+            'rack_items.*.btu_per_hour' => ['nullable', 'integer', 'min:0', 'max:99999'],
+        ]);
+
+        $drawing->source_data = array_merge(
+            (array) ($drawing->source_data ?? []),
+            [
+                'rack_meta' => $validated['rack_meta'],
+                'rack_items' => $validated['rack_items'] ?? [],
+            ],
+        );
+        $drawing->rack_label = $validated['rack_meta']['rack_label'];
+
+        try {
+            $svg = $renderer->render($drawing);
+            $drawing->generated_svg = $svg;
+            $drawing->status = ProjectDrawing::STATUS_READY;
+            $drawing->error_message = null;
+        } catch (\Throwable $e) {
+            $drawing->status = ProjectDrawing::STATUS_FAILED;
+            $drawing->error_message = $e->getMessage();
+            Log::error('ProjectDrawingController: rack render failed', [
+                'drawing_id' => $drawing->id,
+                'error' => $e->getMessage(),
+            ]);
+            $drawing->save();
+
+            return response()->json([
+                'ok' => false,
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+
+        $drawing->save();
+
+        return response()->json([
+            'ok' => true,
+            'drawing_id' => $drawing->id,
+            'status' => $drawing->status,
+            'updated_at' => $drawing->updated_at?->toIso8601String(),
+        ]);
+    }
+
+    /**
+     * Phase 18 — engineer marks (or unmarks) an equipment item as rack-mounted
+     * from the palette OR from the project-package review page. CONTEXT.md:
+     * "engineer-set via a checkbox in the palette OR the project-package review
+     * page — NO automatic classification."
+     *
+     * Authorisation: owner OR admin on the PROJECT (not on any specific
+     * drawing). The Device-row mutation is conceptually project-owned. This
+     * endpoint must remain reachable BEFORE the engineer creates their first
+     * rack drawing — otherwise the palette-on-empty-rack flow would 404 and
+     * the project-package-review checkbox would have nowhere to POST.
+     *
+     * Bound parameter on the SQL — `whereRaw('LOWER(TRIM(part_no)) = ?',
+     * [$normalised])` (T-18.03-07).
+     */
+    public function flipRackMountedFlag(
+        Request $request,
+        Project $project,
+    ): JsonResponse {
+        $this->authorize('update', $project);
+
+        $partNo = (string) $request->input('part_no', '');
+        $isRackMounted = (bool) $request->input('is_rack_mounted', false);
+
+        if (trim($partNo) === '') {
+            return response()->json(['ok' => false, 'error' => 'part_no required'], 422);
+        }
+
+        $updated = \App\Models\Device::query()
+            ->where('project_id', $project->id)
+            ->whereRaw('LOWER(TRIM(part_no)) = ?', [strtolower(trim($partNo))])
+            ->update(['is_rack_mounted' => $isRackMounted]);
+
+        Log::info('ProjectDrawingController: flipped is_rack_mounted', [
+            'project_id' => $project->id,
+            'part_no' => $partNo,
+            'is_rack_mounted' => $isRackMounted,
+            'rows_updated' => $updated,
+        ]);
+
+        return response()->json(['ok' => true, 'updated' => $updated]);
     }
 }

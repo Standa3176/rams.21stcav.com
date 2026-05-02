@@ -321,6 +321,23 @@ Route::middleware('auth')->group(function () {
     Route::post('projects/{project}/drawings/create-rack',
         [ProjectDrawingController::class, 'createRack'])
         ->name('projects.drawings.create-rack');
+    // Phase 18 Plan 03 — flip-rack-mounted is project-scoped (no {drawing}
+    // segment) so it remains reachable BEFORE any rack drawing exists.
+    // Authorises against ProjectPolicy::update — Blocker 2 fix from checker.
+    Route::post('projects/{project}/drawings/flip-rack-mounted',
+        [ProjectDrawingController::class, 'flipRackMountedFlag'])
+        ->middleware('throttle:60,1')
+        ->name('projects.drawings.flip-rack-mounted');
+    // Phase 18 Plan 03 — rack editor + AJAX save (synchronous render).
+    // Both are placed BEFORE the {drawing} GET wildcard so literal segments
+    // ('edit', 'rack-canvas') aren't captured by route model binding.
+    Route::get('projects/{project}/drawings/{drawing}/edit',
+        [ProjectDrawingController::class, 'editRack'])
+        ->name('projects.drawings.edit');
+    Route::post('projects/{project}/drawings/{drawing}/rack-canvas',
+        [ProjectDrawingController::class, 'saveRackCanvas'])
+        ->middleware('throttle:60,1')
+        ->name('projects.drawings.rack-canvas');
     Route::get('projects/{project}/drawings/{drawing}/download/{format}',
         [ProjectDrawingController::class, 'download'])
         ->where('format', 'pdf|svg|png')
