@@ -152,6 +152,27 @@ See: `.planning/PROJECT.md` (updated 2026-04-30)
 
 ---
 
+## Backlog
+
+### Phase 999.1: v2.0 Engineering-Grade AV Drawings (BACKLOG)
+
+**Goal:** Captured for future planning — produce Lucidchart/Visio-grade auto-generated AV schematics, with port-aware device cards, port-to-port cable routing, Konva canvas editor for engineer overrides, and AI generate-from-project + chat-edit operations. Companion outputs: rack elevations + floor plans at the same engineering-grade fidelity. Reference: Duke "Extron Concept" Lucidchart drawing the user shared.
+
+**Requirements:** TBD (full plan in `.claude/projects/.../memory/v2_engineering_grade_drawings_plan.md`)
+
+**Plans:** 0 plans (estimated 25-30 across 5 phases — Device Port Catalog, Port-FK Cable Schedule, Lucidchart-Style Renderer, Konva Editor, AI Generate + Chat Edit)
+
+**Notes:**
+- Run a 1-week build-vs-buy spike (Lucidchart API / draw.io embed / XTEN-AV / D-Tools) BEFORE committing to native build — could compress 14-19 weeks → 3-4 weeks of integration work
+- Wave 1 (port catalog + cable FKs) parallelisable across 2 sessions (~30% time saving)
+- Phase 23 (renderer) and Phase 25 (AI) cannot parallelise — depend on prior waves
+- v1.3 ships at "passable basic" — this milestone is the engineering-deliverable-grade upgrade
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+---
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -160,3 +181,4 @@ See: `.planning/PROJECT.md` (updated 2026-04-30)
 | 18. Rack Elevations | v1.3 | 0/2 | Not started | - |
 | 19. Floor Plans (Konva) | v1.3 | 0/3 | Not started | - |
 | 20. Drawing Export + O&M + DXF stretch | v1.3 | 0/2 | Not started | - |
+| 999.1. v2.0 Engineering-Grade AV Drawings | Backlog | 0/0 | Backlog | - |
