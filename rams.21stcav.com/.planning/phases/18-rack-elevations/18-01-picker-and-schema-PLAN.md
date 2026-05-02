@@ -20,12 +20,16 @@ files_modified:
   - tests/Feature/Drawings/DeviceRackMetadataMigrationTest.php
   - tests/Feature/Drawings/DeviceCatalogSeederTest.php
   - tests/Feature/Drawings/DrawingPickerTest.php
+  - tests/Unit/Services/Drawings/DrawingServiceRackTest.php
+  - tests/Unit/Services/Drawings/RackStackForProjectTest.php
 autonomous: true
 requirements:
   - DRAW-08
   - DRAW-09
   - DRAW-11
   - DRAW-12
+requirements_notes:
+  - "DRAW-09 (partial — palette ordering only; AVIXA auto-ordering algorithm deferred per CONTEXT.md decision, lands in v1.3.x/v2.0)"
 
 must_haves:
   truths:
@@ -33,7 +37,7 @@ must_haves:
     - "Clicking + Create Drawing opens an Alpine modal with three kind cards: Signal Flow, Rack Elevation, Floor Plan"
     - "Signal Flow card has a Yes/No auto-generate toggle that defaults to Yes"
     - "Rack Elevation card has a single Create button (no auto-generate toggle); submitting creates an empty rack ProjectDrawing row with kind=rack and redirects to its show page"
-    - "Floor Plan card is visibly disabled with a Coming in Phase 19 tooltip and POSTing kind=floor_plan to the picker returns 422"
+    - "Floor Plan card is visibly disabled with a Coming in Phase 19 tooltip; POSTing kind=floor_plan to the picker redirects back with a 'kind' validation error in session (test asserts assertSessionHasErrors('kind'))"
     - "Devices table has u_height (decimal 4,2 nullable), is_rack_mounted (boolean nullable), requires_ventilation_gap_above (boolean nullable), requires_ventilation_gap_below (boolean nullable) columns — all default NULL"
     - "DeviceCatalogSeeder reads resources/data/device-port-catalog.json and upserts u_height/is_rack_mounted/current_draw_a/weight_kg/btu_per_hour onto Device rows by part_no — idempotent"
     - "Devices outside the JSON pack remain with NULL u_height (CRIT-06: never silent 1U guess)"
@@ -45,8 +49,8 @@ must_haves:
       provides: "Devices table schema additions for rack metadata"
       contains: "u_height"
     - path: "resources/data/device-port-catalog.json"
-      provides: "Top-50 manufacturer JSON pack with u_height/is_rack_mounted/current_draw_a/weight_kg/btu_per_hour per part_no"
-      min_lines: 200
+      provides: "Hand-curated top-50 manufacturer JSON pack with u_height/is_rack_mounted/current_draw_a/weight_kg/btu_per_hour per part_no"
+      min_lines: 350
     - path: "app/Services/Drawings/DeviceCatalogService.php"
       provides: "JSON pack reader + lookup by part_no (used by seeder + Plan 18-03 palette)"
       exports: ["lookupByPartNo", "all"]
@@ -62,6 +66,10 @@ must_haves:
       provides: "Asserts new device columns exist after migration"
     - path: "tests/Feature/Drawings/DrawingPickerTest.php"
       provides: "Asserts picker creates kind=rack rows and rejects floor_plan"
+    - path: "tests/Unit/Services/Drawings/DrawingServiceRackTest.php"
+      provides: "Service-level assertions for generateInitial(kind=rack): no job dispatch, status stays DRAFT, rack_meta scaffold correct"
+    - path: "tests/Unit/Services/Drawings/RackStackForProjectTest.php"
+      provides: "Locks the rackStackForProject return shape (palette key + per-row contract) Plan 18-03 consumes"
   key_links:
     - from: "resources/views/projects/drawings/index.blade.php"
       to: "resources/views/projects/drawings/_create-drawing-modal.blade.php"
@@ -91,7 +99,7 @@ Output:
   - JSON pack + service + seeder upserting rack metadata onto existing Device rows by part_no.
   - Alpine picker modal mirroring Phase 17 _regenerate-confirm-modal.blade.php pattern.
   - Refactored ProjectDrawingController with `picker` and `createRack` actions; `createSchematic` stays for Phase 17 compat.
-  - Tests asserting the migration, seeder idempotency, and picker behaviour.
+  - Tests asserting the migration, seeder idempotency, picker behaviour, AND the cross-plan service contracts (DrawingService kind=rack flow + rackStackForProject return shape) Plan 18-03 consumes.
 </objective>
 
 <execution_context>
@@ -275,7 +283,7 @@ Add the four new columns to `Device::$fillable`. Add casts:
 
 **Step 1.4 — Build the JSON pack at `resources/data/device-port-catalog.json`:**
 
-Hand-curate the top-50 devices used in 21CAV's recent quotes. Shape per entry:
+Hand-curate the top-50 devices used in 21CAV's recent quotes. **Acceptance is a minimum of 50 entries — this is locked per CONTEXT.md decision D-13 ("Hand-curated top-50 manufacturer JSON pack"). Do NOT ship fewer.** Shape per entry:
 ```json
 {
   "part_no": "AM-3200-GV",
@@ -303,7 +311,7 @@ Include AT LEAST these classes (look up actual specs from manufacturer datasheet
 
 Devices that mount on walls/ceilings get `is_rack_mounted: false` and `u_height: null` — that combination is meaningful (palette greys them out in Plan 18-03 but they remain selectable). Mounts/brackets get the same. Validate the JSON parses (`php -r 'json_decode(file_get_contents("resources/data/device-port-catalog.json"), true) ?: exit(1);'`).
 
-Aim for 50 entries. If the JSON file is approaching 200 lines, that's fine.
+**Target: 50 entries minimum, locked by CONTEXT.md.** If a SKU is no longer in 21CAV's recent quote pipeline (verify against the project_packages.equipment_list samples in storage), swap to a current equivalent and document the substitution in `18-01-SUMMARY.md` under a "JSON pack substitutions" subsection.
 
 **Step 1.5 — Build DeviceCatalogService:**
 
@@ -411,25 +419,27 @@ DO NOT add a backfill prompt to project-package-review (per CONTEXT.md "is_rack_
     - `Schema::hasColumn('devices', 'u_height')` true; same for the other three.
     - `php artisan db:seed --class=DeviceCatalogSeeder` exits 0; running twice is idempotent (no duplicates, same end state).
     - `php artisan test --filter='DeviceRackMetadataMigrationTest|DeviceCatalogSeederTest'` — all green.
-    - `resources/data/device-port-catalog.json` parses as JSON (validated via `php -r 'json_decode(file_get_contents("resources/data/device-port-catalog.json"), true) ?? exit(1);'`).
+    - `resources/data/device-port-catalog.json` parses as JSON AND contains AT LEAST 50 entries (verified via `php -r 'echo count(json_decode(file_get_contents("resources/data/device-port-catalog.json"), true)) >= 50 ? "OK" : exit(1);'`).
     - `app/Services/Drawings/DeviceCatalogService.php` exists, `lookupByPartNo` returns array for known parts and null for unknown.
     - DeviceCatalogService class is auto-loadable: `php artisan tinker --execute='echo get_class(app(\App\Services\Drawings\DeviceCatalogService::class));'` outputs the class name.
   </acceptance_criteria>
   <verify>
-    <automated>php artisan test --filter='DeviceRackMetadataMigrationTest|DeviceCatalogSeederTest' && php -r 'json_decode(file_get_contents("resources/data/device-port-catalog.json"), true) ?? exit(1); echo "JSON OK";'</automated>
+    <automated>php artisan test --filter='DeviceRackMetadataMigrationTest|DeviceCatalogSeederTest' && php -r 'exit(count(json_decode(file_get_contents("resources/data/device-port-catalog.json"), true)) >= 50 ? 0 : 1);' && echo "JSON OK with >= 50 entries"</automated>
   </verify>
   <done>
-    Devices table has 4 new nullable columns. JSON pack has ≥30 entries (top-50 target). DeviceCatalogService memoises lookups. Seeder is idempotent. CRIT-06 honoured (devices outside pack stay NULL).
+    Devices table has 4 new nullable columns. JSON pack has AT LEAST 50 entries (CONTEXT.md D-13 locked target). DeviceCatalogService memoises lookups. Seeder is idempotent. CRIT-06 honoured (devices outside pack stay NULL).
   </done>
 </task>
 
 <task type="auto">
-  <name>Task 2: Extend DrawingService for kind=rack + add createRack/picker controller actions</name>
+  <name>Task 2: Extend DrawingService for kind=rack + add createRack/picker controller actions + service-level tests</name>
   <files>
     - app/Services/Drawings/DrawingService.php
     - app/Services/Drawings/DrawingDataResolverService.php
     - app/Http/Controllers/ProjectDrawingController.php
     - routes/web.php
+    - tests/Unit/Services/Drawings/DrawingServiceRackTest.php
+    - tests/Unit/Services/Drawings/RackStackForProjectTest.php
   </files>
   <read_first>
     - app/Services/Drawings/DrawingService.php (current generateInitial throws for kind!=schematic — must extend)
@@ -437,6 +447,7 @@ DO NOT add a backfill prompt to project-package-review (per CONTEXT.md "is_rack_
     - app/Http/Controllers/ProjectDrawingController.php (current shape; mirror createSchematic for createRack)
     - app/Policies/ProjectDrawingPolicy.php (owner-OR-admin gate)
     - routes/web.php (Phase 17 drawings routes block — add picker + create-rack BEFORE the {drawing} wildcard)
+    - tests/Unit/Services/Drawings/SchematicGeneratorServiceTest.php (or nearest equivalent — mirror unit-test pattern under tests/Unit/Services/Drawings/)
   </read_first>
   <action>
 **Step 2.1 — Extend `DrawingService::generateInitial` to accept kind=rack:**
@@ -500,6 +511,55 @@ private function generateInitialRack(ProjectDrawing $drawing, int $userId): Proj
 
 42U baseline + 230V nominal per CONTEXT.md "Claude's Discretion" (UK mains; engineer overrides per rack on edit). Status stays DRAFT — Plan 18-03's editor flips it to READY on first save with rendered SVG.
 
+**Step 2.1.1 — Lock the rack-flow contract with a unit test (Blocker 3 fix):**
+
+Create `tests/Unit/Services/Drawings/DrawingServiceRackTest.php`. Mirror `tests/Unit/Services/Drawings/SchematicGeneratorServiceTest.php` if it exists, otherwise mirror any service-level test under `tests/Unit/Services/`. Use `RefreshDatabase` (these are unit-level service tests, but they hit Eloquent, so `RefreshDatabase` is required).
+
+Required assertions (one test per behaviour for clarity):
+```php
+public function test_generate_initial_for_rack_does_not_dispatch_any_job(): void
+{
+    \Illuminate\Support\Facades\Bus::fake();
+    $project = \App\Models\Project::factory()->create();
+    $drawing = \App\Models\ProjectDrawing::factory()->create([
+        'project_id' => $project->id,
+        'kind' => 'rack',
+        'status' => 'draft',
+    ]);
+
+    app(\App\Services\Drawings\DrawingService::class)
+        ->generateInitial($drawing, $project->user_id);
+
+    \Illuminate\Support\Facades\Bus::assertNothingDispatched();
+}
+
+public function test_generate_initial_for_rack_keeps_status_draft(): void
+{
+    // ... same fixture
+    $result = app(DrawingService::class)->generateInitial($drawing, $userId);
+    $this->assertSame('draft', $result->fresh()->status);
+}
+
+public function test_generate_initial_for_rack_seeds_42u_rack_meta(): void
+{
+    // ... same fixture
+    $result = app(DrawingService::class)->generateInitial($drawing, $userId)->fresh();
+    $this->assertSame(42, $result->source_data['rack_meta']['rack_height_u'] ?? null);
+    $this->assertSame(230, $result->source_data['rack_meta']['nominal_voltage_v'] ?? null);
+    $this->assertNull($result->source_data['rack_meta']['floor'] ?? 'X');
+}
+
+public function test_generate_initial_for_rack_seeds_empty_rack_items_array(): void
+{
+    // ... same fixture
+    $result = app(DrawingService::class)->generateInitial($drawing, $userId)->fresh();
+    $this->assertIsArray($result->source_data['rack_items'] ?? null);
+    $this->assertSame([], $result->source_data['rack_items']);
+}
+```
+
+These four assertions lock the behaviours Plan 18-03's `editRack` controller depends on at the service layer (independent of the controller path). Run `php artisan test --filter=DrawingServiceRackTest` — must be GREEN after Step 2.1 lands.
+
 **Step 2.2 — Fill `DrawingDataResolverService::rackStackForProject` body:**
 
 Replace the throw stub with:
@@ -531,7 +591,11 @@ public function rackStackForProject(\App\Models\Project $project): array
 
     // Filter mounts/brackets/cables/services out — same exclusion list as
     // adjacencyForProject (mirrors filterHardware).
-    $palette = [];
+    // Per Plan 18-03 contract: rack-mounted rows come FIRST, others second
+    // (palette ordering — DRAW-09 partial coverage; full AVIXA auto-place
+    // algorithm is deferred to v1.3.x/v2.0 per CONTEXT.md).
+    $rackMounted = [];
+    $other = [];
     foreach ($this->filterHardware($equipment) as $idx => $item) {
         $partNo = (string) ($item['part_no'] ?? '');
         $key = strtolower(trim($partNo));
@@ -541,7 +605,7 @@ public function rackStackForProject(\App\Models\Project $project): array
             'requires_ventilation_gap_above' => null,
             'requires_ventilation_gap_below' => null,
         ];
-        $palette[] = [
+        $row = [
             'equipment_id' => $item['id'] ?? $partNo ?: ('eq-'.$idx),
             'name' => (string) ($item['name'] ?? $item['description'] ?? ''),
             'manufacturer' => (string) ($item['manufacturer'] ?? ''),
@@ -552,15 +616,66 @@ public function rackStackForProject(\App\Models\Project $project): array
             'requires_ventilation_gap_above' => $meta['requires_ventilation_gap_above'],
             'requires_ventilation_gap_below' => $meta['requires_ventilation_gap_below'],
         ];
+        if ($meta['is_rack_mounted'] === true) {
+            $rackMounted[] = $row;
+        } else {
+            $other[] = $row;
+        }
     }
 
     return [
-        'palette' => $palette,
+        'palette' => array_merge($rackMounted, $other),
     ];
 }
 ```
 
-Returns `['palette' => array<row>]` — Plan 18-03's editor reads this and groups palette rows: `is_rack_mounted=true` first, others second. Honours DATA-03 (only consumes ProjectDataService::resolve()).
+Returns `['palette' => array<row>]` — Plan 18-03's editor reads this and groups palette rows further by `is_rack_mounted=true` first, others second. Honours DATA-03 (only consumes ProjectDataService::resolve()).
+
+**Step 2.2.1 — Lock the cross-plan return-shape contract (Blocker 4 fix):**
+
+Create `tests/Unit/Services/Drawings/RackStackForProjectTest.php`. This test is the contract Plan 18-03's `editRack` controller depends on. Use `RefreshDatabase`.
+
+Fixture: a project with three quote-import-style equipment items + matching Device rows:
+1. **Rack-mounted item** — name="Crestron AirMedia 3200", part_no="AM-3200-GV"; Device row with `is_rack_mounted=true, u_height=1.0`.
+2. **Non-rack item** — name="Sony FW-75BZ35L Display", part_no="FW-75BZ35L"; Device row with `is_rack_mounted=false, u_height=null`.
+3. **Cable line item** — name="HDMI 2.0 cable 5m", part_no="HDMI-CAB-5M"; this MUST be filtered out by `filterHardware()` (cable category).
+
+Assertions:
+```php
+$result = app(DrawingDataResolverService::class)->rackStackForProject($project);
+
+// 1. Top-level shape
+$this->assertIsArray($result);
+$this->assertArrayHasKey('palette', $result);
+$this->assertCount(2, $result['palette']); // cable filtered out
+
+// 2. Per-row contract — every row has these exact keys
+foreach ($result['palette'] as $row) {
+    $this->assertSame(
+        ['equipment_id', 'name', 'manufacturer', 'part_no', 'qty',
+         'u_height', 'is_rack_mounted',
+         'requires_ventilation_gap_above', 'requires_ventilation_gap_below'],
+        array_keys($row),
+        'palette row keys must match Plan 18-03 contract exactly',
+    );
+}
+
+// 3. Cable item excluded
+$partNos = array_column($result['palette'], 'part_no');
+$this->assertNotContains('HDMI-CAB-5M', $partNos);
+
+// 4. Ordering — rack-mounted FIRST, others SECOND
+$this->assertSame('AM-3200-GV', $result['palette'][0]['part_no']);
+$this->assertSame(true, $result['palette'][0]['is_rack_mounted']);
+$this->assertSame('FW-75BZ35L', $result['palette'][1]['part_no']);
+$this->assertSame(false, $result['palette'][1]['is_rack_mounted']);
+
+// 5. Type contract — u_height is float-or-null, booleans are bool-or-null
+$this->assertSame(1.0, $result['palette'][0]['u_height']);
+$this->assertNull($result['palette'][1]['u_height']);
+```
+
+Run `php artisan test --filter=RackStackForProjectTest` — GREEN after Step 2.2 lands. Plan 18-03 can rely on these guarantees without re-discovering them.
 
 **Step 2.3 — Add `createRack` and `picker` actions to ProjectDrawingController:**
 
@@ -602,7 +717,8 @@ public function createRack(Request $request, Project $project): RedirectResponse
 /**
  * Phase 18 — unified create-drawing picker. Single endpoint that dispatches
  * to the kind-specific create action. Floor plans are deferred to Phase 19
- * (returns 422 with explanatory message).
+ * (returns redirect with session 'kind' validation error — standard Laravel
+ * pattern; the picker modal surfaces it).
  */
 public function picker(Request $request, Project $project): RedirectResponse
 {
@@ -639,23 +755,25 @@ php artisan route:list --name=drawings
 ```
 Should list `projects.drawings.picker` and `projects.drawings.create-rack` alongside the existing 6 Phase 17 routes.
 
-Run existing Phase 17 tests to confirm zero regressions:
+Run existing Phase 17 tests + the two new unit tests to confirm zero regressions:
 ```bash
-php artisan test --filter='Drawings'
+php artisan test --filter='Drawings|DrawingServiceRackTest|RackStackForProjectTest'
 ```
   </action>
   <acceptance_criteria>
     - `php artisan route:list --name=drawings` lists `projects.drawings.picker` and `projects.drawings.create-rack`.
-    - `DrawingService::generateInitial` accepts kind=rack without throwing (verified by tinker or unit test in Task 3).
-    - `DrawingDataResolverService::rackStackForProject($project)` returns array with `'palette'` key (no longer throws RuntimeException).
+    - `DrawingService::generateInitial` accepts kind=rack without throwing (verified by `DrawingServiceRackTest`).
+    - `DrawingServiceRackTest` asserts: no job dispatched, status stays DRAFT, rack_meta.rack_height_u=42, rack_items=[].
+    - `DrawingDataResolverService::rackStackForProject($project)` returns `['palette' => [...]]` with rack-mounted rows first.
+    - `RackStackForProjectTest` asserts: top-level `palette` key, exact per-row key list, cable items filtered out, rack-mounted-first ordering, type contract on u_height/is_rack_mounted.
     - All Phase 17 tests still pass: `php artisan test --filter='Drawings'`.
     - `app/Services/Drawings/DrawingService.php` line count grew by reasonable amount; original schematic flow logic preserved verbatim.
   </acceptance_criteria>
   <verify>
-    <automated>php artisan route:list --name=drawings | grep -E 'projects\.drawings\.(picker|create-rack)' && php artisan test --filter='Drawings'</automated>
+    <automated>php artisan route:list --name=drawings | grep -E 'projects\.drawings\.(picker|create-rack)' && php artisan test --filter='Drawings|DrawingServiceRackTest|RackStackForProjectTest'</automated>
   </verify>
   <done>
-    DrawingService dispatches by kind. rackStackForProject body returns palette shape Plan 18-03 needs. picker/createRack routes registered. Phase 17 tests untouched.
+    DrawingService dispatches by kind. rackStackForProject body returns palette shape Plan 18-03 needs. picker/createRack routes registered. Phase 17 tests untouched. Cross-plan contracts (DrawingService rack flow + rackStackForProject return shape) locked by dedicated unit tests so Plan 18-03 doesn't re-discover them.
   </done>
 </task>
 
@@ -668,7 +786,7 @@ php artisan test --filter='Drawings'
   </files>
   <read_first>
     - resources/views/projects/drawings/_regenerate-confirm-modal.blade.php (Alpine modal pattern to mirror — x-data + open-event listener + form action)
-    - resources/views/projects/drawings/index.blade.php (current "Generate Schematic" form button — replace with picker trigger)
+    - resources/views/projects/drawings/index.blade.php (current "Generate Schematic" form button — replace with picker trigger; PRESERVE the existing Schematics section for Phase 17)
     - resources/views/projects/drawings/_status-pill.blade.php (CSS class pattern for badges)
     - app/Models/ProjectDrawing.php (KIND_* constants — Blade uses these)
   </read_first>
@@ -799,7 +917,7 @@ Replace the existing form-button at lines 26-32 with a single trigger button:
 </button>
 ```
 
-Add a Rack Elevations section BELOW the existing Schematics section (mirroring its shape), showing rack rows once created:
+**PRESERVE the existing Phase 17 Schematics section verbatim.** Add a Rack Elevations section BELOW it (mirroring its shape), showing rack rows once created:
 ```blade
 {{-- ───── Rack Elevations (Phase 18) ──────────────────────────── --}}
 <h2 class="text-lg font-semibold mt-6 mb-3 text-gray-800">
@@ -943,6 +1061,7 @@ Run `php artisan test --filter=DrawingPickerTest` — should be GREEN now that T
   <acceptance_criteria>
     - Visiting `/projects/{id}/drawings` shows ONE "+ Create Drawing" button (not three).
     - Clicking it opens an Alpine modal with three kind cards (visual check via grep — `_create-drawing-modal.blade.php` includes "Signal Flow", "Rack Elevation", "Floor Plan" + "Coming in Phase 19").
+    - Phase 17 Schematics section is preserved on the index page: `grep -n "Schematics" resources/views/projects/drawings/index.blade.php` returns >= 1 hit.
     - POST to `/projects/{id}/drawings/picker` with kind=rack creates a ProjectDrawing row, status=draft, rack_label="Rack 1", source_data.rack_meta.rack_height_u=42.
     - POST with kind=floor_plan returns a redirect with session errors (no rows created).
     - POST with kind=schematic + auto_generate=yes dispatches BuildSchematicJob (Phase 17 path preserved).
@@ -951,10 +1070,10 @@ Run `php artisan test --filter=DrawingPickerTest` — should be GREEN now that T
     - Index page still renders without errors when 0 racks exist (the empty-state row).
   </acceptance_criteria>
   <verify>
-    <automated>php artisan test --filter='DrawingPickerTest|Drawings'</automated>
+    <automated>php artisan test --filter='DrawingPickerTest|Drawings' && grep -q "Schematics" resources/views/projects/drawings/index.blade.php && echo "Schematics section preserved"</automated>
   </verify>
   <done>
-    Picker modal lives. Index page has one button. Rack rows render in their own section. Phase 17 schematic flow intact. Tests green.
+    Picker modal lives. Index page has one button. Phase 17 Schematics section preserved. Rack rows render in their own section. Phase 17 schematic flow intact. Tests green.
   </done>
 </task>
 
@@ -965,7 +1084,7 @@ Run `php artisan test --filter=DrawingPickerTest` — should be GREEN now that T
 
 | Boundary | Description |
 |----------|-------------|
-| Browser → Picker form POST | Authenticated engineer submits kind + auto_generate; controller validates kind against an allow-list (schematic / rack / floor_plan) — anything else returns back() with errors. Floor_plan rejected as 422 deliberately. |
+| Browser → Picker form POST | Authenticated engineer submits kind + auto_generate; controller validates kind against an allow-list (schematic / rack / floor_plan) — anything else returns back() with errors. Floor_plan rejected with session 'kind' error deliberately. |
 | Engineer → DeviceCatalogService JSON | The JSON pack is read-only at runtime, ships in repo (not user-uploadable) — no injection vector. JSON parse failures throw RuntimeException loudly. |
 | Seeder → DB | DeviceCatalogSeeder uses parametrised whereRaw('LOWER(TRIM(part_no)) = ?') — no user-controlled input flows into the SQL; the part_no values come from the in-repo JSON pack. |
 | Migration → DB | Schema-only DDL. Nullable-first columns; rollback path tested. No data backfill from user input. |
@@ -976,7 +1095,7 @@ Run `php artisan test --filter=DrawingPickerTest` — should be GREEN now that T
 |-----------|----------|-----------|-------------|-----------------|
 | T-18.01-01 | Tampering | ProjectDrawingController::picker | mitigate | Validate `kind` against ProjectDrawing::KIND_* allow-list (match expression — default returns back() with errors). Reject anything else BEFORE creating any drawing row. |
 | T-18.01-02 | Spoofing | createRack endpoint | mitigate | `if (! $request->user()) abort(403);` — Laravel auth middleware enforces user existence; controller asserts user is present. ProjectDrawingPolicy gates view/update/delete on the resulting row (owner OR admin). |
-| T-18.01-03 | Information Disclosure | rackStackForProject palette | mitigate | Routes through DrawingDataResolverService → ProjectDataService::resolve() (DATA-03 contract). Equipment list scoped to $project->id; no cross-project leakage. Tests in Plan 18-03 verify scope. |
+| T-18.01-03 | Information Disclosure | rackStackForProject palette | mitigate | Routes through DrawingDataResolverService → ProjectDataService::resolve() (DATA-03 contract). Equipment list scoped to $project->id; no cross-project leakage. RackStackForProjectTest verifies scope. |
 | T-18.01-04 | Tampering | Picker form CSRF | mitigate | @csrf token on every form in _create-drawing-modal.blade.php (Laravel default; matches existing Phase 17 forms). |
 | T-18.01-05 | XSS | rack_label render in index | mitigate | `{{ $drawing->rack_label }}` Blade-escaped (per CONTEXT.md security model). NEVER `{!! !!}` for user-controlled strings. |
 | T-18.01-06 | Denial-of-Service | Picker spam-create | accept | Rack creation is cheap (one Eloquent insert + one update; no job dispatched). At 1 req/sec sustained an engineer would create 3,600 rows in an hour — well within DB bounds for an internal tool. Project ownership scoping limits blast radius. |
@@ -996,12 +1115,13 @@ End-to-end smoke test (manual + automated):
    - Click it — modal opens with three kind cards.
    - Click "Create" on Rack card — redirects to /projects/{id}/drawings/{drawing} (rack show page; Plan 18-03 fills the editor).
    - Index reloads — Rack 1 listed under "Rack Elevations" section, status=Draft.
+   - Phase 17 Schematics section still visible on the same page.
 3. **Phase 17 regression:**
    - From the picker modal, "Signal Flow" card with Auto-generate=yes → still produces a schematic with status=generating; BuildSchematicJob dispatched.
 4. **CRIT-06 verification:**
    - Devices not in the JSON pack remain with u_height=null after seeder runs.
 5. **Test suite:**
-   - `php artisan test --filter='Drawings'` — all green (Phase 17 tests + new Phase 18 tests).
+   - `php artisan test --filter='Drawings|DrawingServiceRackTest|RackStackForProjectTest'` — all green (Phase 17 tests + new Phase 18 tests + new unit tests).
 6. **Route registry:**
    - `php artisan route:list --name=drawings` shows 8 routes (6 Phase 17 + 2 new: picker, create-rack).
 </verification>
@@ -1009,15 +1129,15 @@ End-to-end smoke test (manual + automated):
 <success_criteria>
 - [ ] Migration adds 4 nullable columns to devices (u_height decimal 4,2; is_rack_mounted bool; requires_ventilation_gap_above bool; requires_ventilation_gap_below bool).
 - [ ] Migration down() reversibly drops them.
-- [ ] resources/data/device-port-catalog.json has ≥30 entries with the documented shape.
+- [ ] resources/data/device-port-catalog.json has AT LEAST 50 entries (locked CONTEXT.md target — not a hedge) with the documented shape.
 - [ ] DeviceCatalogService::lookupByPartNo is case-insensitive trimmed and returns null for unknowns.
 - [ ] DeviceCatalogSeeder is idempotent and doesn't backfill devices outside the pack (CRIT-06 honoured).
-- [ ] DrawingService::generateInitial accepts kind=rack and creates an empty 42U rack scaffold in source_data — synchronous, no job dispatched.
-- [ ] DrawingDataResolverService::rackStackForProject returns ['palette' => […]] with per-row u_height/is_rack_mounted from Device + DATA-03-respecting equipment list.
+- [ ] DrawingService::generateInitial accepts kind=rack and creates an empty 42U rack scaffold in source_data — synchronous, no job dispatched. **DrawingServiceRackTest locks this contract** at the service layer.
+- [ ] DrawingDataResolverService::rackStackForProject returns ['palette' => […]] with per-row u_height/is_rack_mounted from Device + DATA-03-respecting equipment list. **RackStackForProjectTest locks the cross-plan return shape** Plan 18-03 consumes.
 - [ ] ProjectDrawingController gains createRack + picker actions; createSchematic preserved verbatim.
 - [ ] routes/web.php gains projects.drawings.picker + projects.drawings.create-rack BEFORE the {drawing} wildcard.
 - [ ] _create-drawing-modal.blade.php exists with 3 cards (Signal Flow toggle, Rack create, Floor Plan disabled).
-- [ ] index.blade.php has ONE "+ Create Drawing" button + a "Rack Elevations" section with empty-state.
+- [ ] index.blade.php has ONE "+ Create Drawing" button + a "Rack Elevations" section with empty-state + Phase 17 Schematics section preserved (grep verifies).
 - [ ] DrawingPickerTest covers: rack create, floor_plan reject, schematic dispatch, rack label increment.
 - [ ] Phase 17 test suite still green: `php artisan test --filter=Drawings`.
 - [ ] Threat model dispositions enacted in code (kind allow-list, CSRF, Blade escape, scoped queries).
@@ -1026,10 +1146,10 @@ End-to-end smoke test (manual + automated):
 <output>
 After completion, create `.planning/phases/18-rack-elevations/18-01-SUMMARY.md` summarising:
 - Migration filename + columns added.
-- JSON pack entry count + a few representative parts.
+- JSON pack entry count (must be >= 50) + a few representative parts. If any SKUs were substituted from the planned list (because they're no longer in 21CAV's recent quote pipeline), document each substitution under a "JSON pack substitutions" subsection.
 - DeviceCatalogService API surface.
 - Picker route names + how Phase 17 createSchematic is reached through it.
 - DrawingService + DrawingDataResolverService extension points (so Plan 18-03 reads them).
-- Test counts.
+- Test counts (DrawingServiceRackTest: 4 cases; RackStackForProjectTest: 5 assertions; DrawingPickerTest: 4 cases; etc).
 - Any deviation from this plan (with rationale).
 </output>
