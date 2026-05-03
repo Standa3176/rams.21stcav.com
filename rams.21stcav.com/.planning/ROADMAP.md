@@ -183,5 +183,5 @@ Plans:
 | 17. System Schematics + Shared Foundations | v1.3 | 3/3 | Complete    | 2026-05-02 |
 | 18. Rack Elevations | v1.3 | 2/2 | Complete    | 2026-05-02 |
 | 19. Floor Plans (Konva) | v1.3 → v2.0 | 0/0 | Deferred to backlog 999.1 | - |
-| 20. Drawing Export + O&M Integration | v1.3 | 2/2 | Complete   | 2026-05-03 |
+| 20. Drawing Export + O&M Integration | v1.3 | 2/2 | Complete    | 2026-05-03 |
 | 999.1. v2.0 Engineering-Grade AV Drawings (incl. floor plans + DXF) | Backlog | 0/0 | Backlog | - |

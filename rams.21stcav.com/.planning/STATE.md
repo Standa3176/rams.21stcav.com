@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Installation Programme & Field Management — SHIPPED 2026-04-25
-status: verifying
-last_updated: "2026-05-03T09:27:33.848Z"
+status: completed
+last_updated: "2026-05-03T12:26:42.365Z"
 last_activity: 2026-05-03
 progress:
   total_phases: 4
@@ -22,8 +22,8 @@ See: .planning/PROJECT.md (updated 2026-04-30)
 
 ## Current Position
 
-Phase: 20 (drawing-export-pipeline-o-m-integration) — COMPLETE
-Plan: 2 of 2 — DONE
+Phase: 999.1
+Plan: Not started
 Status: v1.3 milestone READY for /gsd-complete-milestone
 Last activity: 2026-05-03
 
