@@ -77,8 +77,14 @@
                             <tbody>
                                 @foreach ($roomDevices as $d)
                                     @php
-                                        $labelCount = \App\Models\DeviceLabelPhoto::where('device_id', $d->id)->count();
-                                        $confirmedCount = \App\Models\DeviceLabelPhoto::where('device_id', $d->id)->where('confirmed', true)->count();
+                                        $labelPhotos = class_exists(\App\Models\DeviceLabelPhoto::class)
+                                            ? \App\Models\DeviceLabelPhoto::where('device_id', $d->id)
+                                                ->orderByDesc('captured_at')
+                                                ->get()
+                                            : collect();
+                                        $labelCount = $labelPhotos->count();
+                                        $confirmedCount = $labelPhotos->where('confirmed', true)->count();
+                                        $maxThumbs = 3;
                                     @endphp
                                     <tr style="border-bottom:1px solid #EEE;">
                                         <td style="padding:8px; vertical-align:top;">
@@ -96,6 +102,27 @@
                                                     </span>
                                                 @endif
                                             </div>
+                                            @if ($labelCount > 0)
+                                                <div style="display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.4rem;">
+                                                    @foreach ($labelPhotos->take($maxThumbs) as $lp)
+                                                        @php $ai = $lp->ai_extracted ?? []; @endphp
+                                                        <a href="{{ \Illuminate\Support\Facades\Storage::url($lp->photo_path) }}"
+                                                           target="_blank" rel="noopener"
+                                                           title="Captured {{ optional($lp->captured_at)->format('d M Y H:i') ?? '—' }}{{ $lp->confirmed ? ' • confirmed' : ' • pending review' }}{{ ! empty($ai['serial_number']) ? ' • S/N '.$ai['serial_number'] : '' }}"
+                                                           style="display:inline-block;width:36px;height:36px;border-radius:4px;overflow:hidden;border:1px solid {{ $lp->confirmed ? '#86EFAC' : '#FCD34D' }};box-shadow:0 1px 2px rgba(0,0,0,.05);">
+                                                            <img src="{{ \Illuminate\Support\Facades\Storage::url($lp->photo_path) }}"
+                                                                 alt="" loading="lazy"
+                                                                 style="width:100%;height:100%;object-fit:cover;display:block;">
+                                                        </a>
+                                                    @endforeach
+                                                    @if ($labelCount > $maxThumbs)
+                                                        <span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:4px;border:1px dashed #CBD5E1;font-size:.7rem;color:#64748B;font-weight:600;"
+                                                              title="{{ $labelCount - $maxThumbs }} more photo{{ ($labelCount - $maxThumbs) > 1 ? 's' : '' }}">
+                                                            +{{ $labelCount - $maxThumbs }}
+                                                        </span>
+                                                    @endif
+                                                </div>
+                                            @endif
                                             <div style="font-size:.75rem; color:#888;">
                                                 {{ $d->model ?? '—' }}
                                                 @if ($d->qty && $d->qty > 1)
