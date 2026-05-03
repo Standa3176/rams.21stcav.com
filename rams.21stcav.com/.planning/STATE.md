@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Installation Programme & Field Management — SHIPPED 2026-04-25
 status: completed
-last_updated: "2026-05-03T12:26:42.365Z"
-last_activity: 2026-05-03
+last_updated: "2026-05-03T12:45:00.000Z"
+last_activity: 2026-05-03 -- Completed quick task 260503-ipc: UI polish across editable forms
 progress:
   total_phases: 4
   completed_phases: 3
@@ -126,3 +126,4 @@ Last activity: 2026-05-03
 | 260426-gvm | 2026-04-26 | Public worksheet sign-off link (UUID-token, single-signature acceptance, optional outstanding-items comments, append-only signoffs, DOCX signature embed) | ✅ Done | e31f58d |
 | 260427-qvr | 2026-04-27 | Migrate PDF rendering to Browsershot (RAMS + O&M + Site Survey via single PdfRenderService, pdf:smoke-test command, deployment runbook for chrome symlink + queue-worker user fix + chown). Existing dompdf/mpdf retained for rollback. | ⚠️ Needs Review | 92c95da |
 | 260430-um1 | 2026-04-30 | Fix install programme 0 tasks — port two-strategy room/equipment distribution (area-tag grouping + flat-equipment fallback with NON_PHYSICAL_ROOMS guard) into InstallTaskGeneratorService. Verified locally on 3 projects (3/43/31 tasks generated). | ✅ Done | c479364 |
+| 260503-ipc | 2026-05-03 | UI polish across 5 editable forms — section cards with teal headers + soft-red empty-field highlight via pure CSS (`:placeholder-shown` + `data-optional` opt-out). 9 files, 2 commits. CSS/Blade only — `git diff app/ routes/ database/ config/` = empty. Visual confirmation pending. | ⚠️ Needs Review | 2edc1ba |
