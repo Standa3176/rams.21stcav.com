@@ -75,6 +75,17 @@ class SiteSurveyRoom extends Model
         'client_present',
         'hs_flags',
         'constraints_data',
+        // Engineer-feedback room-level additions (quick task 260503-rgg)
+        'mounting_heights',
+        'work_at_height_methods',
+        'cable_routes',
+        'wall_construction',
+        'wall_needs_reinforcement',
+        'wall_needs_chase_out',
+        'wall_needs_conduit',
+        'table_info',
+        'floor_box_info',
+        'brackets_required',
     ];
 
     protected $casts = [
@@ -102,6 +113,17 @@ class SiteSurveyRoom extends Model
         'bg_noise_db'                => 'integer',
         'display_size_in'            => 'decimal:1',
         'rack_unit_space'            => 'integer',
+        // Engineer-feedback room-level additions (quick task 260503-rgg)
+        'mounting_heights'           => 'array',
+        'work_at_height_methods'     => 'array',
+        'cable_routes'               => 'array',
+        'wall_construction'          => 'array',
+        'wall_needs_reinforcement'   => 'boolean',
+        'wall_needs_chase_out'       => 'boolean',
+        'wall_needs_conduit'         => 'boolean',
+        'table_info'                 => 'array',
+        'floor_box_info'             => 'array',
+        'brackets_required'          => 'array',
     ];
 
     public function survey(): BelongsTo
