@@ -114,6 +114,92 @@
 
         </div>
 
+        {{-- ── Site Logistics — engineer-feedback site-level capture ──────
+             (quick task 260503-u2x) Captured once per visit on the rooms-list
+             screen; persists via stepSave step=0; mirrored to SiteSurvey DB
+             columns so RAMS pipeline (260503-tfb) sees the data immediately. --}}
+        <div class="bg-white rounded-2xl p-4 mb-4 shadow-sm">
+            <div class="flex items-center gap-2 mb-3">
+                <span class="text-base">🏢</span>
+                <h2 class="text-sm font-bold text-gray-900">Site Logistics</h2>
+                <span class="text-xs text-gray-500 ml-auto" x-show="!siteLogisticsSaving && siteLogisticsLastSaved" x-cloak>
+                    ✓ saved
+                </span>
+                <span class="text-xs text-amber-700" x-show="siteLogisticsSaving" x-cloak>saving…</span>
+            </div>
+            <p class="text-xs text-gray-500 mb-3 leading-snug">
+                Capture once per visit — feeds RAMS, install programme, and access planning.
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Comms Room Access</label>
+                    <select x-model="engineerFeedbackSite.comms_room_access_status"
+                            :disabled="readonly"
+                            class="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base
+                                   focus:outline-none focus:ring-2 focus:ring-brand-teal min-h-[44px]">
+                        <option value="">— Select —</option>
+                        <option value="yes">Yes — engineer needs permission</option>
+                        <option value="no">No — open access</option>
+                        <option value="outsourced">Outsourced (third-party)</option>
+                        <option value="unknown">Unknown</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Distance from Base (miles)</label>
+                    <input type="number" min="0" max="9999" step="0.1"
+                           x-model.number="engineerFeedbackSite.distance_from_base_miles"
+                           :disabled="readonly"
+                           placeholder="e.g. 47.5"
+                           class="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base
+                                  focus:outline-none focus:ring-2 focus:ring-brand-teal min-h-[44px]">
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Comms Room Access — Notes</label>
+                    <textarea x-model="engineerFeedbackSite.comms_room_access_notes"
+                              :disabled="readonly" rows="2" maxlength="2000"
+                              placeholder="e.g. Permit required 48h notice; key from FM desk Mon-Fri 9-5"
+                              class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm
+                                     focus:outline-none focus:ring-2 focus:ring-brand-teal"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Route / Travel Notes</label>
+                    <textarea x-model="engineerFeedbackSite.distance_from_base_notes"
+                              :disabled="readonly" rows="2" maxlength="2000"
+                              placeholder="e.g. M25 J7 then 12mi A23; allow 2h in rush hour"
+                              class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm
+                                     focus:outline-none focus:ring-2 focus:ring-brand-teal"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Parking Restraints</label>
+                    <textarea x-model="engineerFeedbackSite.parking_restraints"
+                              :disabled="readonly" rows="2" maxlength="2000"
+                              placeholder="e.g. No on-street parking, NCP £18/day; loading bay 8am-10am only"
+                              class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm
+                                     focus:outline-none focus:ring-2 focus:ring-brand-teal"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Site Access Notes</label>
+                    <textarea x-model="engineerFeedbackSite.site_access_notes"
+                              :disabled="readonly" rows="3" maxlength="3000"
+                              placeholder="e.g. Loading bay south side; goods lift 1.8×1.4×2.2m, 500kg; security pass from reception"
+                              class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm
+                                     focus:outline-none focus:ring-2 focus:ring-brand-teal"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Delivery Routes</label>
+                    <textarea x-model="engineerFeedbackSite.delivery_routes"
+                              :disabled="readonly" rows="3" maxlength="3000"
+                              placeholder="e.g. Deliveries to bay 4, 7am-11am; contact Site Manager 0207… 1h before arrival"
+                              class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm
+                                     focus:outline-none focus:ring-2 focus:ring-brand-teal"></textarea>
+                </div>
+            </div>
+        </div>
+
         @if ($readonly)
             <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3 mb-4
                         text-amber-800 text-sm font-medium text-center">
@@ -899,6 +985,356 @@
                 </div>
             </div>
 
+            {{-- ── Engineer Build-out Detail (quick task 260503-u2x) ─────────────
+                 Captures the 7 sub-sections needed for accurate RAMS auto-
+                 classification (working at height, dust+debris, hidden services,
+                 fixings/substrate, manual handling). Shown for ALL work types —
+                 engineer-feedback data is needed regardless of new_install vs
+                 upgrade/retrofit/fault. Auto-saves on Step 4 → Step 5 navigation
+                 and via deep-watch on the engineer_feedback object. --}}
+            <div class="space-y-4 pt-2 border-t border-gray-100 mt-4">
+
+                <div class="text-[11px] font-bold uppercase tracking-wide text-brand-teal mb-1">
+                    📐 Engineer Build-out Detail
+                </div>
+
+                {{-- (a) Mounting Heights ──────────────────────────────────────── --}}
+                <div class="bg-white rounded-2xl p-4 shadow-sm">
+                    <h3 class="text-sm font-bold text-gray-900 mb-3">📏 Mounting Heights</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        @foreach ([
+                            'screen_h_m'        => 'Screen height (m)',
+                            'camera_h_m'        => 'Camera height (m)',
+                            'booking_panel_h_m' => 'Booking panel height (m)',
+                            'speaker_h_m'       => 'Speaker height (m)',
+                        ] as $key => $label)
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 mb-1">{{ $label }}</label>
+                                <input type="number" min="0" max="99" step="0.01"
+                                       x-model.number="rooms[currentRoomIdx].engineer_feedback.mounting_heights.{{ $key }}"
+                                       placeholder=" "
+                                       class="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base
+                                              focus:outline-none focus:ring-2 focus:ring-brand-teal min-h-[44px]">
+                            </div>
+                        @endforeach
+                    </div>
+
+                    <div class="mt-3">
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-xs font-medium text-gray-500">Other Mounting Heights</label>
+                            <button type="button" @click="addMountingOther()"
+                                    class="px-3 py-1.5 rounded-lg bg-brand-teal/10 text-brand-teal text-xs font-bold hover:bg-brand-teal/20 min-h-[36px]">
+                                + Add
+                            </button>
+                        </div>
+                        <template x-if="(rooms[currentRoomIdx].engineer_feedback.mounting_heights.other || []).length === 0">
+                            <p class="text-xs text-gray-400 italic">No additional mounting heights — tap "Add" to record one (e.g. mic boom).</p>
+                        </template>
+                        <template x-for="(row, oi) in (rooms[currentRoomIdx].engineer_feedback.mounting_heights.other || [])" :key="oi">
+                            <div class="flex gap-2 mb-2">
+                                <input type="text" x-model="row.label" maxlength="150"
+                                       placeholder="e.g. Mic boom"
+                                       class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-brand-teal focus:ring-brand-teal">
+                                <input type="number" x-model.number="row.height_m" min="0" max="99" step="0.01"
+                                       placeholder="height (m)"
+                                       class="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-brand-teal focus:ring-brand-teal">
+                                <button type="button" @click="removeMountingOther(oi)"
+                                        class="px-3 rounded-lg text-rose-600 border border-rose-200 hover:bg-rose-50 text-xs font-bold min-w-[40px]">✕</button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                {{-- (b) Working at Height Methods ─────────────────────────────── --}}
+                <div class="bg-white rounded-2xl p-4 shadow-sm">
+                    <h3 class="text-sm font-bold text-gray-900 mb-3">🪜 Working at Height Methods</h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        @foreach ([
+                            'ladder'   => 'Ladder',
+                            'podium'   => 'Podium step',
+                            'tower'    => 'Mobile tower',
+                            'mewp'     => 'MEWP / cherry picker',
+                            'scaffold' => 'Scaffold',
+                            'na'       => 'N/A — ground only',
+                        ] as $val => $display)
+                            <button type="button"
+                                    @click="toggleWahMethod('{{ $val }}')"
+                                    :class="(rooms[currentRoomIdx].engineer_feedback.work_at_height_methods || []).includes('{{ $val }}')
+                                        ? 'border-amber-500 bg-amber-50 text-amber-700'
+                                        : 'border-gray-200 text-gray-600 hover:border-gray-300'"
+                                    class="py-3 px-2 rounded-xl border-2 text-sm font-medium text-center min-h-[44px] transition-colors">
+                                {{ $display }}
+                            </button>
+                        @endforeach
+                    </div>
+                </div>
+
+                {{-- (c) Cable Routes ──────────────────────────────────────────── --}}
+                <div class="bg-white rounded-2xl p-4 shadow-sm">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="text-sm font-bold text-gray-900">🔌 Cable Routes</h3>
+                        <button type="button" @click="addCableRoute()"
+                                class="px-3 py-1.5 rounded-lg bg-brand-teal text-white text-xs font-bold hover:bg-[#0d6e77] min-h-[36px]">
+                            + Add
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-500 mb-2 leading-snug">
+                        One row per cable category. Length captures total run including slack.
+                    </p>
+                    <template x-if="(rooms[currentRoomIdx].engineer_feedback.cable_routes || []).length === 0">
+                        <p class="text-xs text-gray-400 italic">No cable routes recorded — tap "Add" to record one.</p>
+                    </template>
+                    <template x-for="(row, ci) in (rooms[currentRoomIdx].engineer_feedback.cable_routes || [])" :key="ci">
+                        <div class="border border-gray-200 rounded-xl p-3 mb-2 space-y-2">
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-[11px] text-gray-500 mb-0.5">Category</label>
+                                    <select x-model="row.category"
+                                            class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:border-brand-teal focus:ring-brand-teal">
+                                        <option value="">— Select —</option>
+                                        <option value="ceiling_speakers">Ceiling speakers</option>
+                                        <option value="desk_cables">Desk cables</option>
+                                        <option value="mic_cables">Mic cables</option>
+                                        <option value="booking_panel_cables">Booking panel cables</option>
+                                        <option value="screen_cables">Screen cables</option>
+                                        <option value="rack_to_room">Rack to room</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] text-gray-500 mb-0.5">Length (m)</label>
+                                    <input type="number" x-model.number="row.length_m" min="0" max="9999" step="0.1"
+                                           placeholder=" "
+                                           class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:border-brand-teal focus:ring-brand-teal">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] text-gray-500 mb-0.5">From</label>
+                                    <input type="text" x-model="row.from" maxlength="255" placeholder="e.g. Rack room A"
+                                           class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:border-brand-teal focus:ring-brand-teal">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] text-gray-500 mb-0.5">To</label>
+                                    <input type="text" x-model="row.to" maxlength="255" placeholder="e.g. Display position"
+                                           class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:border-brand-teal focus:ring-brand-teal">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-gray-500 mb-0.5">Notes</label>
+                                <input type="text" x-model="row.notes" maxlength="500"
+                                       placeholder="e.g. Through ceiling void, drop into floor box"
+                                       class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:border-brand-teal focus:ring-brand-teal">
+                            </div>
+                            <div class="text-right">
+                                <button type="button" @click="removeCableRoute(ci)"
+                                        class="px-2 py-1 rounded-lg text-rose-600 text-xs font-bold border border-rose-200 hover:bg-rose-50">
+                                    Remove route
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                {{-- (d) Wall Construction & Prep ──────────────────────────────── --}}
+                <div class="bg-white rounded-2xl p-4 shadow-sm">
+                    <h3 class="text-sm font-bold text-gray-900 mb-3">🧱 Wall Construction &amp; Prep</h3>
+
+                    <p class="text-xs font-medium text-gray-500 mb-2">Wall construction (multi-select)</p>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+                        @foreach ([
+                            'ply_lined'    => 'Ply-lined',
+                            'solid'        => 'Solid',
+                            'plasterboard' => 'Plasterboard',
+                            'masonry'      => 'Masonry',
+                            'metal_stud'   => 'Metal stud',
+                            'concrete'     => 'Concrete',
+                        ] as $val => $display)
+                            <button type="button"
+                                    @click="toggleWallConstruction('{{ $val }}')"
+                                    :class="(rooms[currentRoomIdx].engineer_feedback.wall_construction || []).includes('{{ $val }}')
+                                        ? 'border-brand-teal bg-teal-50 text-brand-teal'
+                                        : 'border-gray-200 text-gray-600 hover:border-gray-300'"
+                                    class="py-3 px-2 rounded-xl border-2 text-sm font-medium text-center min-h-[44px] transition-colors">
+                                {{ $display }}
+                            </button>
+                        @endforeach
+                    </div>
+
+                    <p class="text-xs font-medium text-gray-500 mb-2">Wall preparation needed</p>
+                    <div class="space-y-2">
+                        @foreach ([
+                            'wall_needs_reinforcement' => 'Wall needs reinforcement',
+                            'wall_needs_chase_out'     => 'Wall needs chase-out / chasing',
+                            'wall_needs_conduit'       => 'Wall needs conduit run',
+                        ] as $key => $label)
+                            <button type="button"
+                                    @click="rooms[currentRoomIdx].engineer_feedback.{{ $key }} = !rooms[currentRoomIdx].engineer_feedback.{{ $key }}"
+                                    class="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-gray-50 min-h-[44px] text-left">
+                                <span class="flex-shrink-0 w-6 h-6 rounded-lg border-2 flex items-center justify-center"
+                                      :class="rooms[currentRoomIdx].engineer_feedback.{{ $key }}
+                                          ? 'bg-brand-teal border-brand-teal text-white'
+                                          : 'border-gray-300 bg-white'">
+                                    <svg x-show="rooms[currentRoomIdx].engineer_feedback.{{ $key }}" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                    </svg>
+                                </span>
+                                <span class="text-sm text-gray-700">{{ $label }}</span>
+                            </button>
+                        @endforeach
+                    </div>
+                </div>
+
+                {{-- (e) Table Info ────────────────────────────────────────────── --}}
+                <div class="bg-white rounded-2xl p-4 shadow-sm">
+                    <h3 class="text-sm font-bold text-gray-900 mb-3">🪑 Table Info</h3>
+                    <button type="button"
+                            @click="rooms[currentRoomIdx].engineer_feedback.table_info.has_grommets = !rooms[currentRoomIdx].engineer_feedback.table_info.has_grommets"
+                            class="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-gray-50 min-h-[44px] text-left mb-3">
+                        <span class="flex-shrink-0 w-6 h-6 rounded-lg border-2 flex items-center justify-center"
+                              :class="rooms[currentRoomIdx].engineer_feedback.table_info.has_grommets
+                                  ? 'bg-brand-teal border-brand-teal text-white'
+                                  : 'border-gray-300 bg-white'">
+                            <svg x-show="rooms[currentRoomIdx].engineer_feedback.table_info.has_grommets" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                        </span>
+                        <span class="text-sm text-gray-700">Table has grommets</span>
+                    </button>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Grommet count</label>
+                            <input type="number" min="0" max="99"
+                                   x-model.number="rooms[currentRoomIdx].engineer_feedback.table_info.grommet_count"
+                                   placeholder=" "
+                                   class="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-teal min-h-[44px]">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Grommet size</label>
+                            <select x-model="rooms[currentRoomIdx].engineer_feedback.table_info.grommet_size"
+                                    class="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-teal min-h-[44px]">
+                                <option value="">— Select —</option>
+                                <option value="small">Small</option>
+                                <option value="standard">Standard</option>
+                                <option value="large">Large</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Table notes</label>
+                        <input type="text" maxlength="500"
+                               x-model="rooms[currentRoomIdx].engineer_feedback.table_info.notes"
+                               placeholder="e.g. Solid oak, hidden raceway"
+                               class="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-teal min-h-[44px]">
+                    </div>
+                </div>
+
+                {{-- (f) Floor Box Info ────────────────────────────────────────── --}}
+                <div class="bg-white rounded-2xl p-4 shadow-sm">
+                    <h3 class="text-sm font-bold text-gray-900 mb-3">🔋 Floor Box Info</h3>
+                    <button type="button"
+                            @click="rooms[currentRoomIdx].engineer_feedback.floor_box_info.has_floor_box = !rooms[currentRoomIdx].engineer_feedback.floor_box_info.has_floor_box"
+                            class="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-gray-50 min-h-[44px] text-left mb-3">
+                        <span class="flex-shrink-0 w-6 h-6 rounded-lg border-2 flex items-center justify-center"
+                              :class="rooms[currentRoomIdx].engineer_feedback.floor_box_info.has_floor_box
+                                  ? 'bg-brand-teal border-brand-teal text-white'
+                                  : 'border-gray-300 bg-white'">
+                            <svg x-show="rooms[currentRoomIdx].engineer_feedback.floor_box_info.has_floor_box" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                        </span>
+                        <span class="text-sm text-gray-700">Room has floor box</span>
+                    </button>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Power outlets</label>
+                            <input type="number" min="0" max="99"
+                                   x-model.number="rooms[currentRoomIdx].engineer_feedback.floor_box_info.power_outlets"
+                                   placeholder=" "
+                                   class="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-teal min-h-[44px]">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Data outlets</label>
+                            <input type="number" min="0" max="99"
+                                   x-model.number="rooms[currentRoomIdx].engineer_feedback.floor_box_info.data_outlets"
+                                   placeholder=" "
+                                   class="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-teal min-h-[44px]">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Cable space</label>
+                            <select x-model="rooms[currentRoomIdx].engineer_feedback.floor_box_info.cable_space"
+                                    class="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-teal min-h-[44px]">
+                                <option value="">— Select —</option>
+                                <option value="tight">Tight</option>
+                                <option value="adequate">Adequate</option>
+                                <option value="spacious">Spacious</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Floor box notes</label>
+                        <input type="text" maxlength="500"
+                               x-model="rooms[currentRoomIdx].engineer_feedback.floor_box_info.notes"
+                               placeholder="e.g. 4-gang under boardroom table, lid 200mm × 300mm"
+                               class="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-teal min-h-[44px]">
+                    </div>
+                </div>
+
+                {{-- (g) Brackets Required ─────────────────────────────────────── --}}
+                <div class="bg-white rounded-2xl p-4 shadow-sm">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="text-sm font-bold text-gray-900">🔩 Brackets Required</h3>
+                        <button type="button" @click="addBracket()"
+                                class="px-3 py-1.5 rounded-lg bg-brand-teal text-white text-xs font-bold hover:bg-[#0d6e77] min-h-[36px]">
+                            + Add
+                        </button>
+                    </div>
+                    <template x-if="(rooms[currentRoomIdx].engineer_feedback.brackets_required || []).length === 0">
+                        <p class="text-xs text-gray-400 italic">No brackets recorded — tap "Add" to record one.</p>
+                    </template>
+                    <template x-for="(row, bi) in (rooms[currentRoomIdx].engineer_feedback.brackets_required || [])" :key="bi">
+                        <div class="border border-gray-200 rounded-xl p-3 mb-2 space-y-2">
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-[11px] text-gray-500 mb-0.5">Equipment</label>
+                                    <input type="text" x-model="row.equipment" maxlength="255"
+                                           placeholder='e.g. 75" display'
+                                           class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:border-brand-teal focus:ring-brand-teal">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] text-gray-500 mb-0.5">Bracket model</label>
+                                    <input type="text" x-model="row.model" maxlength="255"
+                                           placeholder="e.g. Vogels PFW6880"
+                                           class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:border-brand-teal focus:ring-brand-teal">
+                                </div>
+                            </div>
+                            <button type="button"
+                                    @click="row.pull_out = !row.pull_out"
+                                    class="flex items-center gap-2 w-full p-1 rounded-lg hover:bg-gray-50 min-h-[36px] text-left">
+                                <span class="flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center"
+                                      :class="row.pull_out ? 'bg-brand-teal border-brand-teal text-white' : 'border-gray-300 bg-white'">
+                                    <svg x-show="row.pull_out" class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                    </svg>
+                                </span>
+                                <span class="text-xs text-gray-700">Pull-out / articulating bracket</span>
+                            </button>
+                            <div>
+                                <label class="block text-[11px] text-gray-500 mb-0.5">Notes</label>
+                                <input type="text" x-model="row.notes" maxlength="500"
+                                       placeholder="e.g. VESA 600×400; check wall plate weight rating"
+                                       class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:border-brand-teal focus:ring-brand-teal">
+                            </div>
+                            <div class="text-right">
+                                <button type="button" @click="removeBracket(bi)"
+                                        class="px-2 py-1 rounded-lg text-rose-600 text-xs font-bold border border-rose-200 hover:bg-rose-50">
+                                    Remove bracket
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+            </div>{{-- /Engineer Build-out Detail --}}
+
         </x-survey.step-container>
 
         {{-- ── STEP 5: EQUIPMENT ───────────────────────────────── --}}
@@ -1219,7 +1655,17 @@ function surveyWizard() {
 
         // rooms: canonical fields (name, type, photos, infrastructure, equipment, risks, notes)
         //        + _ui block (UI-only fields: room_id, is_completed, work_type, quick_notes, etc.)
+        //        + engineer_feedback block (quick task 260503-u2x — Step 4 sub-sections)
         rooms: @json($rooms),
+
+        // Site-level engineer feedback (quick task 260503-u2x). Captured once
+        // per visit on the rooms-list screen, persists via stepSave step=0.
+        // Server seeds from SiteSurvey columns (post-completion source of truth)
+        // → falls back to canonical survey_data → falls back to defaults.
+        engineerFeedbackSite:    @json($engineerFeedbackSite),
+        siteLogisticsSaving:     false,
+        siteLogisticsLastSaved:  null,
+        _siteAutosaveTimer:      null,
 
         // Per-room expand state on the rooms list (collapsed by default so the
         // list stays scannable on mobile). Toggled by the chevron on each card.
@@ -1242,6 +1688,27 @@ function surveyWizard() {
                     this.$watch(`rooms.${idx}._ui.${f}`, () => this.debouncedAutosave());
                 });
             });
+
+            // Site-level engineer feedback (quick task 260503-u2x) — debounced
+            // autosave via stepSave step=0. Independent timer so typing in
+            // Site Logistics never collides with per-room Step 4 saves.
+            const siteFields = [
+                'comms_room_access_status', 'comms_room_access_notes',
+                'parking_restraints', 'distance_from_base_miles', 'distance_from_base_notes',
+                'site_access_notes', 'delivery_routes',
+            ];
+            siteFields.forEach(f => {
+                this.$watch(`engineerFeedbackSite.${f}`, () => this.debouncedAutosaveSite());
+            });
+
+            // Per-room engineer feedback — deep watch so changes anywhere in the
+            // nested object (toggling a multi-select chip, editing a cable_route
+            // row, etc.) trigger the existing debounced autosave. The Step 4
+            // payload includes engineer_feedback alongside infrastructure, so
+            // both ride the same stepSave call.
+            this.rooms.forEach((_, idx) => {
+                this.$watch(`rooms.${idx}.engineer_feedback`, () => this.debouncedAutosave(), { deep: true });
+            });
         },
 
         debouncedAutosave() {
@@ -1252,6 +1719,44 @@ function surveyWizard() {
                     this.autosave();
                 }
             }, 600);
+        },
+
+        // ── Site Logistics autosave (quick task 260503-u2x) ───────────────────
+        // Independent debounce + timer so typing in the rooms-list Site Logistics
+        // card doesn't collide with the per-room Step 4 autosave path.
+        debouncedAutosaveSite() {
+            if (this._siteAutosaveTimer) clearTimeout(this._siteAutosaveTimer);
+            this._siteAutosaveTimer = setTimeout(() => {
+                if (this.readonly) return;
+                this.autosaveSite();
+            }, 600);
+        },
+
+        async autosaveSite() {
+            if (this.readonly) return;
+            this.siteLogisticsSaving = true;
+            try {
+                const resp = await fetch('/survey/' + this.token + '/step-save', {
+                    method:  'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        'Accept':       'application/json',
+                    },
+                    body: JSON.stringify({
+                        room_index: 0,                           // sentinel — server ignores for step=0
+                        step:       0,
+                        data:       { engineer_feedback_site: this.engineerFeedbackSite },
+                    }),
+                });
+                if (!resp.ok) throw new Error('Save failed');
+                this.siteLogisticsLastSaved = new Date();
+            } catch (_) {
+                // Soft failure — site logistics is captured once per visit;
+                // engineer can re-fill if connectivity drops mid-edit.
+            } finally {
+                this.siteLogisticsSaving = false;
+            }
         },
 
         // ── Computed ──────────────────────────────────────────────────────────
@@ -1400,7 +1905,14 @@ function surveyWizard() {
                     data = { photos: r.photos };
                     break;
                 case 4:
-                    data = { infrastructure: r.infrastructure };
+                    // engineer_feedback rides alongside infrastructure on the
+                    // same Step 4 save (quick task 260503-u2x). Server normalizes
+                    // the shape via normalizeEngineerFeedback() and mirrors to
+                    // SiteSurveyRoom DB columns via writeEngineerFeedbackToColumns().
+                    data = {
+                        infrastructure:    r.infrastructure,
+                        engineer_feedback: r.engineer_feedback,
+                    };
                     break;
                 case 5:
                     data = {
@@ -1627,6 +2139,60 @@ function surveyWizard() {
             if (!this.surveyorName.trim()) return;
             this.submitting = true;
             document.getElementById('submit-form-top').submit();
+        },
+
+        // ── Engineer-feedback helpers (quick task 260503-u2x) ─────────────────
+        addMountingOther() {
+            const r = this.rooms[this.currentRoomIdx];
+            if (!Array.isArray(r.engineer_feedback.mounting_heights.other)) {
+                r.engineer_feedback.mounting_heights.other = [];
+            }
+            r.engineer_feedback.mounting_heights.other.push({ label: '', height_m: null });
+        },
+        removeMountingOther(idx) {
+            this.rooms[this.currentRoomIdx].engineer_feedback.mounting_heights.other.splice(idx, 1);
+        },
+
+        addCableRoute() {
+            const r = this.rooms[this.currentRoomIdx];
+            if (!Array.isArray(r.engineer_feedback.cable_routes)) {
+                r.engineer_feedback.cable_routes = [];
+            }
+            r.engineer_feedback.cable_routes.push({ category: '', from: '', to: '', length_m: null, notes: '' });
+        },
+        removeCableRoute(idx) {
+            this.rooms[this.currentRoomIdx].engineer_feedback.cable_routes.splice(idx, 1);
+        },
+
+        addBracket() {
+            const r = this.rooms[this.currentRoomIdx];
+            if (!Array.isArray(r.engineer_feedback.brackets_required)) {
+                r.engineer_feedback.brackets_required = [];
+            }
+            r.engineer_feedback.brackets_required.push({ equipment: '', model: '', pull_out: false, notes: '' });
+        },
+        removeBracket(idx) {
+            this.rooms[this.currentRoomIdx].engineer_feedback.brackets_required.splice(idx, 1);
+        },
+
+        toggleWahMethod(method) {
+            const r = this.rooms[this.currentRoomIdx];
+            if (!Array.isArray(r.engineer_feedback.work_at_height_methods)) {
+                r.engineer_feedback.work_at_height_methods = [];
+            }
+            const i = r.engineer_feedback.work_at_height_methods.indexOf(method);
+            if (i >= 0) r.engineer_feedback.work_at_height_methods.splice(i, 1);
+            else        r.engineer_feedback.work_at_height_methods.push(method);
+        },
+
+        toggleWallConstruction(material) {
+            const r = this.rooms[this.currentRoomIdx];
+            if (!Array.isArray(r.engineer_feedback.wall_construction)) {
+                r.engineer_feedback.wall_construction = [];
+            }
+            const i = r.engineer_feedback.wall_construction.indexOf(material);
+            if (i >= 0) r.engineer_feedback.wall_construction.splice(i, 1);
+            else        r.engineer_feedback.wall_construction.push(material);
         },
     };
 }

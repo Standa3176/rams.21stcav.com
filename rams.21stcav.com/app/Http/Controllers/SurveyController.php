@@ -70,11 +70,27 @@ class SurveyController extends Controller
 
         $rooms = $this->buildAlpineRooms($survey, $payload, $token);
 
+        // Seed Alpine state for the site-level engineer-feedback block (quick task
+        // 260503-u2x). DB column wins over canonical JSON when both are populated —
+        // the column is the post-completion source of truth (set on submit + on
+        // each stepSave step=0 mid-session). Coalesce to canonical JSON for
+        // in-flight wizard sessions before submit, then to defaults.
+        $engineerFeedbackSite = [
+            'comms_room_access_status' => $survey->comms_room_access_status ?? ($payload['engineer_feedback_site']['comms_room_access_status'] ?? ''),
+            'comms_room_access_notes'  => $survey->comms_room_access_notes  ?? ($payload['engineer_feedback_site']['comms_room_access_notes']  ?? ''),
+            'parking_restraints'       => $survey->parking_restraints       ?? ($payload['engineer_feedback_site']['parking_restraints']       ?? ''),
+            'distance_from_base_miles' => $survey->distance_from_base_miles ?? ($payload['engineer_feedback_site']['distance_from_base_miles'] ?? null),
+            'distance_from_base_notes' => $survey->distance_from_base_notes ?? ($payload['engineer_feedback_site']['distance_from_base_notes'] ?? ''),
+            'site_access_notes'        => $survey->site_access_notes        ?? ($payload['engineer_feedback_site']['site_access_notes']        ?? ''),
+            'delivery_routes'          => $survey->delivery_routes          ?? ($payload['engineer_feedback_site']['delivery_routes']          ?? ''),
+        ];
+
         return view('surveys.show', [
-            'survey'   => $survey,
-            'token'    => $token,
-            'rooms'    => $rooms,
-            'readonly' => $survey->isSubmitted(),
+            'survey'               => $survey,
+            'token'                => $token,
+            'rooms'                => $rooms,
+            'readonly'             => $survey->isSubmitted(),
+            'engineerFeedbackSite' => $engineerFeedbackSite,
         ]);
     }
 
@@ -97,20 +113,34 @@ class SurveyController extends Controller
 
         $validated = $request->validate([
             'room_index' => ['required', 'integer', 'min:0'],
-            'step'       => ['required', 'integer', 'between:1,8'],
+            // Step 0 = site-level engineer-feedback save (quick task 260503-u2x).
+            // Steps 1–8 = the existing per-room wizard step contributions.
+            'step'       => ['required', 'integer', 'between:0,8'],
             'data'       => ['required', 'array'],
         ]);
 
         $payload = $survey->survey_data ?? $this->initialPayload($survey);
         $idx     = $validated['room_index'];
 
-        if (! isset($payload['rooms'][$idx])) {
-            return response()->json(['error' => 'Invalid room index.'], 422);
-        }
-
         $stepError = $this->validateStep($validated['step'], $validated['data']);
         if ($stepError) {
             return response()->json(['error' => $stepError], 422);
+        }
+
+        // Step 0 — site-level engineer-feedback save. Does not target a room.
+        if ($validated['step'] === 0) {
+            $payload['engineer_feedback_site'] = $this->normalizeEngineerFeedbackSite(
+                $validated['data']['engineer_feedback_site'] ?? []
+            );
+            $survey->update(['survey_data' => $payload]);
+            // Mirror to DB columns so downstream services (RAMS pipeline 260503-tfb)
+            // see the data without re-parsing JSON.
+            $this->writeEngineerFeedbackSiteToColumns($survey, $payload['engineer_feedback_site']);
+            return response()->json(['saved' => true, 'at' => now()->toISOString()]);
+        }
+
+        if (! isset($payload['rooms'][$idx])) {
+            return response()->json(['error' => 'Invalid room index.'], 422);
         }
 
         $payload['rooms'][$idx] = $this->normalizeStepContribution(
@@ -120,6 +150,20 @@ class SurveyController extends Controller
         );
 
         $survey->update(['survey_data' => $payload]);
+
+        // Mirror per-room engineer_feedback to DB columns at every Step-4 save so
+        // downstream RamsBuilderService (260503-tfb) reads the live data without
+        // waiting for the engineer to mark the room complete. (quick task 260503-u2x)
+        if ($validated['step'] === 4) {
+            $dbRooms  = $survey->rooms()->orderBy('sort_order')->get();
+            $dbRoom   = $dbRooms->get($idx);
+            if ($dbRoom !== null) {
+                $this->writeEngineerFeedbackToColumns(
+                    $dbRoom,
+                    $payload['rooms'][$idx]['engineer_feedback'] ?? []
+                );
+            }
+        }
 
         return response()->json(['saved' => true, 'at' => now()->toISOString()]);
     }
@@ -140,6 +184,18 @@ class SurveyController extends Controller
         return [
             'project_id' => $survey->project_id,
             'rooms'      => $rooms,
+            // Site-level engineer-feedback canonical block (quick task 260503-u2x).
+            // Captured once per visit on the rooms-list screen via stepSave step=0,
+            // mirrored to SiteSurvey DB columns by writeEngineerFeedbackSiteToColumns.
+            'engineer_feedback_site' => [
+                'comms_room_access_status' => '',
+                'comms_room_access_notes'  => '',
+                'parking_restraints'       => '',
+                'distance_from_base_miles' => null,
+                'distance_from_base_notes' => '',
+                'site_access_notes'        => '',
+                'delivery_routes'          => '',
+            ],
         ];
     }
 
@@ -210,6 +266,40 @@ class SurveyController extends Controller
                 'working_at_height' => false,
                 'client_present'    => false,
                 'voice_note'        => null,
+            ],
+            // Engineer-feedback canonical block (quick task 260503-u2x — mirrors
+            // SiteSurveyRoom DB columns added in 260503-rgg). Captured in Step 4
+            // of the wizard. writeEngineerFeedbackToColumns() mirrors this onto
+            // the SiteSurveyRoom columns at every stepSave + completeRoom so the
+            // downstream RamsBuilderService extensions (260503-tfb) see the data.
+            'engineer_feedback' => [
+                'mounting_heights' => [
+                    'screen_h_m'        => null,
+                    'camera_h_m'        => null,
+                    'booking_panel_h_m' => null,
+                    'speaker_h_m'       => null,
+                    'other'             => [],   // [{label, height_m}, ...]
+                ],
+                'work_at_height_methods'   => [],   // ['ladder', 'podium', ...]
+                'cable_routes'             => [],   // [{category, from, to, length_m, notes}, ...]
+                'wall_construction'        => [],   // ['plasterboard', ...]
+                'wall_needs_reinforcement' => false,
+                'wall_needs_chase_out'     => false,
+                'wall_needs_conduit'       => false,
+                'table_info' => [
+                    'has_grommets'  => false,
+                    'grommet_count' => null,
+                    'grommet_size'  => '',          // '' | 'small' | 'standard' | 'large'
+                    'notes'         => '',
+                ],
+                'floor_box_info' => [
+                    'has_floor_box' => false,
+                    'power_outlets' => null,
+                    'data_outlets'  => null,
+                    'cable_space'   => '',          // '' | 'tight' | 'adequate' | 'spacious'
+                    'notes'         => '',
+                ],
+                'brackets_required' => [],          // [{equipment, model, pull_out, notes}, ...]
             ],
         ];
     }
@@ -310,6 +400,53 @@ class SurveyController extends Controller
             ])->toArray();
 
             $canonical = $this->enforceCanonicalShape($canonical);
+
+            // Rehydrate engineer_feedback canonical block from DB columns when
+            // the room has been completed (column wins over canonical JSON).
+            // This is the column-wins bridge: an engineer who already filled the
+            // internal admin form OR already submitted via the wizard sees their
+            // saved data round-trip on the next page load. (quick task 260503-u2x)
+            $efDefault   = $this->emptyCanonicalRoom('')['engineer_feedback'];
+            $efCanonical = is_array($canonical['engineer_feedback'] ?? null)
+                ? $canonical['engineer_feedback']
+                : $efDefault;
+
+            $efFromDb = [
+                'mounting_heights'         => is_array($dbRoom->mounting_heights)        ? $dbRoom->mounting_heights         : null,
+                'work_at_height_methods'   => is_array($dbRoom->work_at_height_methods)  ? $dbRoom->work_at_height_methods   : null,
+                'cable_routes'             => is_array($dbRoom->cable_routes)            ? $dbRoom->cable_routes             : null,
+                'wall_construction'        => is_array($dbRoom->wall_construction)       ? $dbRoom->wall_construction        : null,
+                'wall_needs_reinforcement' => $dbRoom->wall_needs_reinforcement,
+                'wall_needs_chase_out'     => $dbRoom->wall_needs_chase_out,
+                'wall_needs_conduit'       => $dbRoom->wall_needs_conduit,
+                'table_info'               => is_array($dbRoom->table_info)              ? $dbRoom->table_info               : null,
+                'floor_box_info'           => is_array($dbRoom->floor_box_info)          ? $dbRoom->floor_box_info           : null,
+                'brackets_required'        => is_array($dbRoom->brackets_required)       ? $dbRoom->brackets_required        : null,
+            ];
+
+            // Merge: column wins when non-null, otherwise canonical JSON, otherwise default.
+            // mounting_heights merges deeply because it's a fixed-shape object with
+            // optional 'other' array — a partial save shouldn't blank unsaved keys.
+            $ef = $efDefault;
+            if ($efFromDb['mounting_heights'] !== null) {
+                $ef['mounting_heights'] = array_merge($efDefault['mounting_heights'], $efFromDb['mounting_heights']);
+                $ef['mounting_heights']['other'] = is_array($ef['mounting_heights']['other'] ?? null)
+                    ? array_values($ef['mounting_heights']['other'])
+                    : [];
+            } else {
+                $ef['mounting_heights'] = $efCanonical['mounting_heights'] ?? $efDefault['mounting_heights'];
+            }
+            $ef['work_at_height_methods']   = $efFromDb['work_at_height_methods']  ?? ($efCanonical['work_at_height_methods']  ?? []);
+            $ef['cable_routes']             = array_values($efFromDb['cable_routes']      ?? ($efCanonical['cable_routes']    ?? []));
+            $ef['wall_construction']        = $efFromDb['wall_construction']      ?? ($efCanonical['wall_construction']      ?? []);
+            $ef['wall_needs_reinforcement'] = $efFromDb['wall_needs_reinforcement'] ?? ($efCanonical['wall_needs_reinforcement'] ?? false);
+            $ef['wall_needs_chase_out']     = $efFromDb['wall_needs_chase_out']     ?? ($efCanonical['wall_needs_chase_out']     ?? false);
+            $ef['wall_needs_conduit']       = $efFromDb['wall_needs_conduit']       ?? ($efCanonical['wall_needs_conduit']       ?? false);
+            $ef['table_info']               = is_array($efFromDb['table_info'])     ? array_merge($efDefault['table_info'],     $efFromDb['table_info'])     : ($efCanonical['table_info']     ?? $efDefault['table_info']);
+            $ef['floor_box_info']           = is_array($efFromDb['floor_box_info']) ? array_merge($efDefault['floor_box_info'], $efFromDb['floor_box_info']) : ($efCanonical['floor_box_info'] ?? $efDefault['floor_box_info']);
+            $ef['brackets_required']        = array_values($efFromDb['brackets_required'] ?? ($efCanonical['brackets_required'] ?? []));
+
+            $canonical['engineer_feedback'] = $ef;
 
             // Checklist questions surfaced per room so engineers see the
             // guidance context before/while completing the room. Read-only —
@@ -450,6 +587,21 @@ class SurveyController extends Controller
      */
     private function validateStep(int $step, array $data): ?string
     {
+        // Step 0 — site-level engineer-feedback save (quick task 260503-u2x).
+        // Defers shape normalization to normalizeEngineerFeedbackSite(); only
+        // structural + enum guards here.
+        if ($step === 0) {
+            $site = $data['engineer_feedback_site'] ?? null;
+            if ($site !== null && ! is_array($site)) {
+                return 'engineer_feedback_site payload is invalid.';
+            }
+            $crs = $site['comms_room_access_status'] ?? '';
+            if ($crs !== '' && $crs !== null && ! in_array($crs, ['yes','no','outsourced','unknown'], true)) {
+                return 'Invalid comms_room_access_status value.';
+            }
+            return null;
+        }
+
         if ($step === 1) {
             $name = trim((string) ($data['name'] ?? ''));
             $type = trim((string) ($data['type'] ?? ''));
@@ -475,6 +627,12 @@ class SurveyController extends Controller
             $distance = $infra['cable_routes']['estimated_distance'] ?? null;
             if ($distance !== null && $distance !== '' && ! is_numeric($distance)) {
                 return 'Estimated cable distance must be numeric.';
+            }
+
+            // engineer_feedback per-room block (quick task 260503-u2x). Defer
+            // shape normalization to normalizeStepContribution → normalizeEngineerFeedback().
+            if (array_key_exists('engineer_feedback', $data) && ! is_array($data['engineer_feedback'])) {
+                return 'engineer_feedback payload is invalid.';
             }
 
             return null;
@@ -610,6 +768,12 @@ class SurveyController extends Controller
                 if (array_key_exists('infrastructure', $data)) {
                     $room['infrastructure'] = $this->normalizeInfrastructure($data['infrastructure']);
                 }
+                // Engineer-feedback block (quick task 260503-u2x). Final shape
+                // normalization happens in enforceCanonicalShape() via the
+                // normalizeEngineerFeedback() helper called below.
+                if (array_key_exists('engineer_feedback', $data)) {
+                    $room['engineer_feedback'] = $data['engineer_feedback'];
+                }
                 break;
 
             case 5:
@@ -718,6 +882,11 @@ class SurveyController extends Controller
                 'client_present'    => (bool)   ($ui['client_present']   ?? false),
                 'voice_note'        =>          ($ui['voice_note']       ?? null) ?: null,
             ],
+            // Engineer-feedback canonical block (quick task 260503-u2x). Mirrors
+            // SiteSurveyRoom DB columns (260503-rgg). normalizeEngineerFeedback()
+            // strips unknown keys and locks the shape so stale/malformed JSON
+            // is never persisted.
+            'engineer_feedback' => $this->normalizeEngineerFeedback($room['engineer_feedback'] ?? []),
         ];
     }
 
@@ -857,5 +1026,213 @@ class SurveyController extends Controller
             abort(410, 'This survey link has expired.');
         }
         return $survey;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Engineer-feedback normalization + DB-column mirror (quick task 260503-u2x)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Lock the engineer_feedback canonical block to a strict shape so unknown
+     * keys are stripped and missing keys default cleanly. Mirrors the
+     * normalizeInfrastructure style — defensive against stale or malformed JSON.
+     */
+    private function normalizeEngineerFeedback(array $ef): array
+    {
+        $mh = is_array($ef['mounting_heights'] ?? null) ? $ef['mounting_heights'] : [];
+        $ti = is_array($ef['table_info']       ?? null) ? $ef['table_info']       : [];
+        $fb = is_array($ef['floor_box_info']   ?? null) ? $ef['floor_box_info']   : [];
+
+        return [
+            'mounting_heights' => [
+                'screen_h_m'        => $this->numericOrNull($mh['screen_h_m']        ?? null),
+                'camera_h_m'        => $this->numericOrNull($mh['camera_h_m']        ?? null),
+                'booking_panel_h_m' => $this->numericOrNull($mh['booking_panel_h_m'] ?? null),
+                'speaker_h_m'       => $this->numericOrNull($mh['speaker_h_m']       ?? null),
+                'other'             => $this->normalizeMountingHeightOther($mh['other'] ?? []),
+            ],
+            'work_at_height_methods'   => $this->normalizeStringArray($ef['work_at_height_methods'] ?? [], ['ladder','podium','tower','mewp','scaffold','na']),
+            'cable_routes'             => $this->normalizeCableRoutes($ef['cable_routes'] ?? []),
+            'wall_construction'        => $this->normalizeStringArray($ef['wall_construction'] ?? [], ['ply_lined','solid','plasterboard','masonry','metal_stud','concrete']),
+            'wall_needs_reinforcement' => (bool) ($ef['wall_needs_reinforcement'] ?? false),
+            'wall_needs_chase_out'     => (bool) ($ef['wall_needs_chase_out']     ?? false),
+            'wall_needs_conduit'       => (bool) ($ef['wall_needs_conduit']       ?? false),
+            'table_info' => [
+                'has_grommets'  => (bool) ($ti['has_grommets']  ?? false),
+                'grommet_count' => $this->intOrNull($ti['grommet_count'] ?? null),
+                'grommet_size'  => in_array($ti['grommet_size'] ?? '', ['small','standard','large'], true) ? $ti['grommet_size'] : '',
+                'notes'         => (string) ($ti['notes'] ?? ''),
+            ],
+            'floor_box_info' => [
+                'has_floor_box' => (bool) ($fb['has_floor_box'] ?? false),
+                'power_outlets' => $this->intOrNull($fb['power_outlets'] ?? null),
+                'data_outlets'  => $this->intOrNull($fb['data_outlets'] ?? null),
+                'cable_space'   => in_array($fb['cable_space'] ?? '', ['tight','adequate','spacious'], true) ? $fb['cable_space'] : '',
+                'notes'         => (string) ($fb['notes'] ?? ''),
+            ],
+            'brackets_required' => $this->normalizeBrackets($ef['brackets_required'] ?? []),
+        ];
+    }
+
+    /**
+     * Normalise the site-level engineer_feedback_site canonical block. Called by
+     * stepSave() for step=0 site-level saves.
+     */
+    private function normalizeEngineerFeedbackSite(mixed $site): array
+    {
+        $site = is_array($site) ? $site : [];
+        $crs  = $site['comms_room_access_status'] ?? '';
+        return [
+            'comms_room_access_status' => in_array($crs, ['yes','no','outsourced','unknown'], true) ? $crs : '',
+            'comms_room_access_notes'  => mb_substr((string) ($site['comms_room_access_notes']  ?? ''), 0, 2000),
+            'parking_restraints'       => mb_substr((string) ($site['parking_restraints']       ?? ''), 0, 2000),
+            'distance_from_base_miles' => $this->numericOrNull($site['distance_from_base_miles'] ?? null),
+            'distance_from_base_notes' => mb_substr((string) ($site['distance_from_base_notes'] ?? ''), 0, 2000),
+            'site_access_notes'        => mb_substr((string) ($site['site_access_notes']        ?? ''), 0, 3000),
+            'delivery_routes'          => mb_substr((string) ($site['delivery_routes']          ?? ''), 0, 3000),
+        ];
+    }
+
+    private function normalizeMountingHeightOther(mixed $rows): array
+    {
+        $rows = is_array($rows) ? $rows : [];
+        $out  = [];
+        foreach ($rows as $r) {
+            if (! is_array($r)) continue;
+            $label  = trim((string) ($r['label'] ?? ''));
+            $height = $this->numericOrNull($r['height_m'] ?? null);
+            if ($label === '' && $height === null) continue;
+            $out[] = ['label' => $label, 'height_m' => $height];
+        }
+        return $out;
+    }
+
+    private function normalizeCableRoutes(mixed $rows): array
+    {
+        $rows       = is_array($rows) ? $rows : [];
+        $allowedCat = ['ceiling_speakers','desk_cables','mic_cables','booking_panel_cables','screen_cables','rack_to_room','other'];
+        $out        = [];
+        foreach ($rows as $r) {
+            if (! is_array($r)) continue;
+            $cat   = (string) ($r['category'] ?? '');
+            $cat   = in_array($cat, $allowedCat, true) ? $cat : '';
+            $from  = trim((string) ($r['from']  ?? ''));
+            $to    = trim((string) ($r['to']    ?? ''));
+            $len   = $this->numericOrNull($r['length_m'] ?? null);
+            $notes = trim((string) ($r['notes'] ?? ''));
+            if ($cat === '' && $from === '' && $to === '' && $len === null && $notes === '') continue;
+            $out[] = ['category' => $cat, 'from' => $from, 'to' => $to, 'length_m' => $len, 'notes' => $notes];
+        }
+        return $out;
+    }
+
+    private function normalizeBrackets(mixed $rows): array
+    {
+        $rows = is_array($rows) ? $rows : [];
+        $out  = [];
+        foreach ($rows as $r) {
+            if (! is_array($r)) continue;
+            $eq    = trim((string) ($r['equipment'] ?? ''));
+            $model = trim((string) ($r['model']     ?? ''));
+            $pull  = (bool) ($r['pull_out'] ?? false);
+            $notes = trim((string) ($r['notes'] ?? ''));
+            if ($eq === '' && $model === '' && $notes === '' && ! $pull) continue;
+            $out[] = ['equipment' => $eq, 'model' => $model, 'pull_out' => $pull, 'notes' => $notes];
+        }
+        return $out;
+    }
+
+    private function normalizeStringArray(mixed $vals, array $allowed): array
+    {
+        if (! is_array($vals)) return [];
+        $out = [];
+        foreach ($vals as $v) {
+            $v = (string) $v;
+            if (in_array($v, $allowed, true)) $out[] = $v;
+        }
+        return array_values(array_unique($out));
+    }
+
+    private function numericOrNull(mixed $v): ?float
+    {
+        if ($v === null || $v === '' || $v === false) return null;
+        if (! is_numeric($v)) return null;
+        return (float) $v;
+    }
+
+    private function intOrNull(mixed $v): ?int
+    {
+        if ($v === null || $v === '' || $v === false) return null;
+        if (! is_numeric($v)) return null;
+        return (int) $v;
+    }
+
+    /**
+     * Mirror the per-room engineer_feedback canonical block onto the SiteSurveyRoom
+     * DB columns. Called by stepSave() for step=4 AND by PublicSurveyController::
+     * completeRoom() so both surfaces stay aligned. Eloquent's array casts on the
+     * JSON columns handle encode/decode transparently. Booleans persist as boolean
+     * even when false because the boolean answer carries information.
+     *
+     * Note: public so PublicSurveyController can resolve via app() without
+     * widening its dependency surface.
+     */
+    public function writeEngineerFeedbackToColumns(\App\Models\SiteSurveyRoom $room, array $ef): void
+    {
+        $ef = $this->normalizeEngineerFeedback($ef);
+        $room->update([
+            'mounting_heights'         => $this->isMountingHeightsEmpty($ef['mounting_heights']) ? null : $ef['mounting_heights'],
+            'work_at_height_methods'   => $ef['work_at_height_methods']   ?: null,
+            'cable_routes'             => $ef['cable_routes']             ?: null,
+            'wall_construction'        => $ef['wall_construction']        ?: null,
+            'wall_needs_reinforcement' => $ef['wall_needs_reinforcement'],
+            'wall_needs_chase_out'     => $ef['wall_needs_chase_out'],
+            'wall_needs_conduit'       => $ef['wall_needs_conduit'],
+            'table_info'               => $this->isTableInfoEmpty($ef['table_info'])     ? null : $ef['table_info'],
+            'floor_box_info'           => $this->isFloorBoxInfoEmpty($ef['floor_box_info']) ? null : $ef['floor_box_info'],
+            'brackets_required'        => $ef['brackets_required']        ?: null,
+        ]);
+    }
+
+    /**
+     * Mirror the site-level engineer_feedback canonical block onto SiteSurvey
+     * DB columns. Called by stepSave() for step=0 site-level saves.
+     */
+    private function writeEngineerFeedbackSiteToColumns(SiteSurvey $survey, array $site): void
+    {
+        $survey->update([
+            'comms_room_access_status' => $site['comms_room_access_status'] ?: null,
+            'comms_room_access_notes'  => $site['comms_room_access_notes']  ?: null,
+            'parking_restraints'       => $site['parking_restraints']       ?: null,
+            'distance_from_base_miles' => $site['distance_from_base_miles'],
+            'distance_from_base_notes' => $site['distance_from_base_notes'] ?: null,
+            'site_access_notes'        => $site['site_access_notes']        ?: null,
+            'delivery_routes'          => $site['delivery_routes']          ?: null,
+        ]);
+    }
+
+    private function isMountingHeightsEmpty(array $mh): bool
+    {
+        foreach (['screen_h_m','camera_h_m','booking_panel_h_m','speaker_h_m'] as $k) {
+            if (($mh[$k] ?? null) !== null) return false;
+        }
+        return empty($mh['other'] ?? []);
+    }
+
+    private function isTableInfoEmpty(array $ti): bool
+    {
+        return empty($ti['has_grommets'])
+            && ($ti['grommet_count'] ?? null) === null
+            && empty($ti['grommet_size'])
+            && empty($ti['notes']);
+    }
+
+    private function isFloorBoxInfoEmpty(array $fb): bool
+    {
+        return empty($fb['has_floor_box'])
+            && ($fb['power_outlets'] ?? null) === null
+            && ($fb['data_outlets']  ?? null) === null
+            && empty($fb['cable_space'])
+            && empty($fb['notes']);
     }
 }
