@@ -798,6 +798,73 @@
         }
 
         /* ═══════════════════════════════════════════════════════════════
+           FORM SECTIONS — card wrapper for logical blocks of inputs
+           Pairs with the existing .section-heading (teal accent strip)
+        ═══════════════════════════════════════════════════════════════ */
+        .form-section {
+            background: var(--surface);
+            border: 1px solid var(--ink-200);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-xs);
+            margin-bottom: 1.25rem;
+            overflow: hidden; /* keeps the cream header tint inside the radius */
+        }
+        .form-section__header {
+            background: linear-gradient(180deg, var(--paper) 0%, var(--paper-2) 100%);
+            border-bottom: 1px solid var(--ink-100);
+            padding: .85rem 1.25rem;
+        }
+        /* When a .section-heading sits inside .form-section__header, drop its
+           trailing border + bottom margin (the header bar already provides them). */
+        .form-section__header .section-heading {
+            margin: 0;
+            padding-bottom: 0;
+            border-bottom: 0;
+        }
+        .form-section__body {
+            padding: 1.25rem 1.5rem 1rem;
+        }
+        @media (max-width: 768px) {
+            .form-section__header { padding: .7rem 1rem; }
+            .form-section__body   { padding: 1rem 1rem .5rem; }
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           EMPTY-FIELD HIGHLIGHT — pure CSS, opt-out via [data-optional]
+           or .is-optional. Fires on REQUIRED inputs/textareas/selects
+           whose value is empty. Clears instantly the moment a user types.
+        ═══════════════════════════════════════════════════════════════ */
+        /* Text-style inputs and textareas — :placeholder-shown evaluates
+           empty when the input has a placeholder attribute (single space ' '
+           qualifies) and no user-typed value. */
+        .form-control:placeholder-shown:required:not([data-optional]):not(.is-optional):not(:focus) {
+            background-color: #FDF1EE; /* derived from --danger-light, slightly softer */
+            border-color: #E8B7AE;
+        }
+        /* Selects — :required + :invalid fires when current option has no value
+           (the placeholder option must have value="" — already the project's
+           convention; see site-survey/edit.blade.php line 350). */
+        select.form-control:required:invalid:not([data-optional]):not(.is-optional):not(:focus) {
+            background-color: #FDF1EE;
+            border-color: #E8B7AE;
+        }
+        /* Date / number / email inputs that don't visually support placeholders
+           in all browsers: still rely on :required:invalid as a fallback. */
+        input.form-control[type="date"]:required:invalid:not([data-optional]):not(.is-optional):not(:focus),
+        input.form-control[type="number"]:required:invalid:not([data-optional]):not(.is-optional):not(:focus),
+        input.form-control[type="email"]:required:invalid:not([data-optional]):not(.is-optional):not(:focus) {
+            background-color: #FDF1EE;
+            border-color: #E8B7AE;
+        }
+        /* Project rule: server-side .is-invalid (validation failures from
+           Laravel) must always win — keep the existing red ring at full
+           strength even on otherwise-empty inputs. */
+        .form-control.is-invalid {
+            background-color: #FDF1EE;
+            border-color: var(--danger);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
            TABLES
         ═══════════════════════════════════════════════════════════════ */
         .data-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
