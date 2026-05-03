@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Installation Programme & Field Management — SHIPPED 2026-04-25
-status: executing
-last_updated: "2026-05-03T09:07:29.630Z"
+status: verifying
+last_updated: "2026-05-03T09:27:33.848Z"
 last_activity: 2026-05-03
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 7
-  completed_plans: 6
-  percent: 86
+  completed_plans: 7
+  percent: 100
 ---
 
 ## Project Reference
@@ -22,9 +22,9 @@ See: .planning/PROJECT.md (updated 2026-04-30)
 
 ## Current Position
 
-Phase: 20 (drawing-export-pipeline-o-m-integration) — EXECUTING
-Plan: 2 of 2
-Status: Ready to execute
+Phase: 20 (drawing-export-pipeline-o-m-integration) — COMPLETE
+Plan: 2 of 2 — DONE
+Status: v1.3 milestone READY for /gsd-complete-milestone
 Last activity: 2026-05-03
 
 ## Milestone Progress (v1.3)
@@ -34,9 +34,9 @@ Last activity: 2026-05-03
 | 17. System Schematics + Shared Foundations | 3/3 | ✓ Complete |
 | 18. Rack Elevations | 2/2 | ✓ Complete (18-01 + 18-03 done) |
 | 19. Floor Plans (Konva) | 0/0 | ⤳ Deferred to v2.0 backlog 999.1 (2026-05-02) |
-| 20. Drawing Export + O&M Integration | 1/2 | 🚧 In progress (20-01 LANDED 2026-05-03; 20-02 next) |
+| 20. Drawing Export + O&M Integration | 2/2 | ✓ Complete (20-01 + 20-02 LANDED 2026-05-03) |
 
-**Total:** 6/7 plans complete, 2/3 phases shipped (86%) — Phase 19 deferred from v1.3 scope; Plan 20-01 (bound PDF + sheet numbering + ZIP) LANDED.
+**Total:** 7/7 plans complete, 3/3 phases shipped (100%) — Phase 19 deferred from v1.3 scope; v1.3 milestone READY for `/gsd-complete-milestone`.
 
 ## Performance Metrics
 
@@ -55,11 +55,13 @@ Last activity: 2026-05-03
 | Phase 18 P01 | 65min | 3 tasks | 18 files |
 | Phase 18 P03 | 12min | 3 tasks | 15 files |
 | Phase 20 P01 | 35min | 3 tasks | 19 files |
+| Phase 20 P02 | 13min | 3 tasks | 12 files |
 
 ## Accumulated Context
 
 ### Key Decisions (v1.3)
 
+- **Plan 20-02 LANDED** (2026-05-03) — Phase 20 COMPLETE. v1.3 ready for `/gsd-complete-milestone`. Production hardening: drawings:audit-licenses Artisan command (composer + npm GPL/AGPL detector with --strict mode + pre-existing allowlist for mpdf/dompdf/smalot/tcpdf/nette — predate Phase 20 per Plan 20-01 SUMMARY; live audit clean against 142 composer + 229 npm deps); dedicated 'drawings' queue connection in config/queue.php (driver=database, queue=drawings, retry_after=600 vs default 90 — bound PDFs need 10 min vs 90s; BuildBoundPdfJob already targets via constructor onQueue from Plan 20-01); CHROME_HEADLESS_SHELL_VERSION=147.0.7727.57 pin in .env.example with bump procedure; @font-face Liberation Sans (regular + bold) + DejaVu Sans (regular) declarations in all 3 drawing Blade views (schematic, rack, bound-cover) with font-display: block + graceful fallback chain (Arial → Helvetica → Liberation Sans → DejaVu Sans → sans-serif); public/fonts/.gitkeep so directory exists in git (binaries 100KB+ deploy via runbook); 218-line docs/runbooks/drawings-queue-runbook.md (why-separate-queue + supervisor numprocs=1 --memory=512 --max-jobs=10 --timeout=600 --tries=2 + chrome upgrade procedure with smoke-test gate + license audit deploy gate + fonts setup graceful degradation). Two NON-changes verified: OmManualDocxService Drawings loop already kind-agnostic (Phase 17 P03 + Phase 18 P03 — Plan 20-02 added regression test asserting both kindLabels + 2 <v:imagedata> entries lock the behaviour against future v1.3.x regressions; PhpWord 1.4 emits images via legacy VML <v:imagedata> NOT modern <w:drawing>); PdfRenderService::fromBlade + fromBladeAsPng both still have disable-dev-shm-usage Chromium argument (grep -c returns 4 — Plan 20-01 BoundPdfBuilderService work did NOT remove it; PdfRenderService is single Browsershot hardening surface per Warning 8). pdf:smoke-test --drawings extended to render BOTH schematic + rack via paired helpers renderSchematicSmoke + renderRackSmoke, exit FAILURE if either zero bytes (CRIT-04). 7 plan tests / 25 assertions: 2 OmManualEmbedsRackTest (embed_both + skip_failed_renders), 2 PdfSmokeTestRackTest (renders_rack + fails_when_rack_zero_bytes), 3 AuditDrawingLicensesTest (clean_state + GPL_simulated + LGPL_strict_only) via stub-via-subclass pattern overriding protected runComposerLicenses + runNpmLockGrep helpers. 72-test drawings/console suite green (1 D2 skip, +7 from Wave 1's 65 baseline). Commits: c065b17 + 79c68d2 + e882f40. Deviations: PhpWord <v:imagedata> not <w:drawing> auto-fixed during RED; pre-existing GPL allowlist auto-added to AuditDrawingLicensesCommand to satisfy 'exits 0 against current clean composer state' acceptance criterion.
 - **Plan 20-01 LANDED** (2026-05-03) — DRAW-21 bound PDF + DRAW-23 sheet numbering + DRAW-28 ZIP bundle shipped. New: SheetNumberAllocator (AV-201..299 schematics, AV-301..399 racks, set-once on DrawingService::createForProject; superseded rows skipped from count; floor-plan throws InvalidArgumentException — v2.0); BoundPdfBuilderService (FPDI page-by-page concat of cover sheet + every per-drawing PDF; per-drawing failures isolated via try/catch — register row prefixed `[render failed]`, whole bound PDF still completes; on-disk version scan via glob `drawings/bound-{projectId}-v*-*.pdf`); BuildBoundPdfJob ($projectId not $drawingId — project-level artifact; tries=2; timeout=300; queue='drawings' via constructor onQueue() because typed `public string $queue` triggers PHP fatal vs untyped Queueable trait; WithoutOverlapping middleware keyed by bound-pdf-{projectId} releaseAfter(60s)); BoundPdfReadyMail (Project-typed, basename'd PDF attachment); pdf/drawings/bound-cover.blade.php (A4 portrait cover + drawing register table with red-row failure highlighting + banner); pdf/drawings/_title-block.blade.php gets new Sheet row consuming $drawing->sheet_number with @if defensive guard for pre-Phase-20 rows. Three new routes registered BEFORE {drawing} wildcard show route: GET projects/{project}/drawings/bound-pdf (downloadBoundPdf — fresh streamed OR ≤3-drawing inline build OR async dispatch), POST projects/{project}/drawings/bound-pdf/build (regenerateBoundPdf — always async), GET projects/{project}/drawings/bundle.zip (downloadBundle — ZipArchive on-disk build → streamDownload, EVERY addFile via basename($realPath) per T-20-02 + drawing-register.csv via addFromString). Index controller computes $boundPdfStaleBadge (latest mtime vs max drawings.updated_at — MOD-10) → amber pill in index Blade. Index Blade ships Project Documents block (bound PDF + ZIP buttons) + Sheet column on schematic + rack rows. New deps: setasign/fpdi:^2.6 (MIT) + setasign/fpdf:^1.8.6 (permissive — bumped from ^1.8.0 due to PHP 8 fatal in get_magic_quotes_runtime()). Composer downgraded symfony/http-client + symfony/postmark-mailer 8.x → 7.x as side effect (no test regressions). 12 plan tests / 35 assertions: 5 SheetNumberAllocator (block bases, superseded skip, floor-plan throw), 5 BoundPdfBuilder (3-page concat, failure isolation, floor-plan exclusion, kind-group order, ULID filename pattern), 4 BoundPdfDownload (200+%PDF body, 403 non-owner, regen-needed badge after touch, regenerate POST dispatches BuildBoundPdfJob), 3 ZipBundleDownload (ZIP regex'd entries for bound + per-kind-PDF/SVG/PNG + register.csv, no `..`/`/`/`\` in entry names, 403). Deviations: SQLite no FIELD() → CASE-based portable ordering (works MySQL+SQLite); literal-segment routes BEFORE {drawing} wildcard (Phase 18 precedent). 65-test drawings suite green (Phase 17/18 zero regressions). 14 drawings routes total. Commits: feefb41 + 428690d + 184beec.
 - **Plan 18-03 LANDED** (2026-05-02) — Phase 18 COMPLETE. RackElevationRenderService synchronous custom Blade SVG renderer (~340 LOC, measured 0.06s for full 42U/30-items vs 1s budget — Warning 8 fix); rack editor Blade view with Alpine + Sortable.js drag-into-U-slots palette + 42U scaffold + per-item lock toggle + cursor-walk lock-aware reorder algorithm in JS; AJAX saveRackCanvas endpoint validates JSON allow-list, runs render synchronously, flips status to ready (or failed on render exception); flipRackMountedFlag endpoint authorises against ProjectPolicy::update (project-scoped, owner-OR-admin) so it works BEFORE any rack drawing exists (Blocker 2 fix from checker iteration 2); pdf/drawings/rack.blade.php landscape A4 view; DrawingExportRendererService::bladeViewFor rack arm now returns 'pdf.drawings.rack' (PDF/SVG/PNG endpoints all light up); Sortable.js dependency in dedicated Vite entry (39 kB gzip 14 kB chunk separate from Alpine bundle); show.blade.php Edit Rack button next to Download buttons (existing kind-agnostic line-66 SVG render branch UNCHANGED — Warning 9 fix). NEW App\Policies\ProjectPolicy registered (Phase 17 didn't ship one; deviation Rule 2). 20 new test cases / 99 assertions: render kind guard, 42U rail, item placement, partial-data asterisks/ratios, CRIT-06 unknown-u_height warning, lock annotation, 1s render budget, XSS escape, edit-page render/404/403, save-canvas success/422/extra-key-drop/lock-roundtrip/cursor-walk-Warning-7, flipRackMounted update / pre-rack regression / non-owner 403. DRAW-07 / DRAW-08 / DRAW-09 (partial — palette ordering + bottom-up rendering, AVIXA auto-place algorithm deferred to v1.3.x or v2.0) / DRAW-10 / DRAW-11 / DRAW-12 / DRAW-13 covered. 11 drawings routes total (6 P17 + 2 P18-01 + 3 P18-03). 48 Drawings tests pass + 1 expected D2 skip on dev.
 - **Plan 18-01 LANDED** (2026-05-02) — Phase 18 foundations: devices.u_height + ventilation/is_rack_mounted columns (CRIT-06 nullable-first); 53-entry hand-curated manufacturer JSON pack at resources/data/device-port-catalog.json + DeviceCatalogService memoised reader + idempotent DeviceCatalogSeeder (whereRaw LOWER(TRIM) bound parameter — devices outside the pack stay NULL); DrawingService::generateInitial dispatches by kind via match (schematic = Phase 17 async, rack = synchronous + 42U + 230V scaffold, floor_plan deferred to v2.0); DrawingDataResolverService::rackStackForProject body filled with rack-mounted-first palette; ProjectDrawingController::picker + createRack actions; unified Alpine + Create Drawing modal replaces per-kind buttons (Floor Plan card disabled with "Coming in v2.0" tooltip). 24 new test cases / 72 assertions. DRAW-08 (schema), DRAW-09 (palette ordering — partial), DRAW-11 (multi-rack picker), DRAW-12 (metadata schema) covered.
@@ -92,9 +94,9 @@ Last activity: 2026-05-03
 
 ## Session Continuity
 
-**Last session ended:** 2026-05-03 — Plan 20-01 (bound PDF + sheet numbering + ZIP bundle) completed in 35 minutes / 3 commits / 19 files. SheetNumberAllocator + BoundPdfBuilderService + BuildBoundPdfJob + BoundPdfReadyMail + bound-cover Blade + title-block Sheet row + 3 new routes + Project Documents UI block + 12 tests/35 assertions. FPDF 1.8 PHP-8 fatal hot-fix + SQLite FIELD()→CASE portability + Queueable trait `$queue` conflict deferred to constructor onQueue() — three Rule-1 deviations all auto-fixed. License audit: setasign/fpdi MIT + setasign/fpdf permissive (no GPL/AGPL).
+**Last session ended:** 2026-05-03 — Plan 20-02 (production hardening + O&M rack embed) completed in 13 minutes / 3 commits / 12 files. AuditDrawingLicensesCommand + drawings queue connection + CHROME_HEADLESS_SHELL_VERSION pin + 3 Blade @font-face declarations + public/fonts/.gitkeep + 218-line drawings-queue-runbook.md + PdfSmokeTestCommand rack arm extension + 7 tests/25 assertions. PhpWord <v:imagedata> not <w:drawing> + pre-existing GPL allowlist — two Rule-1/Rule-2 deviations auto-fixed. Phase 20 COMPLETE; v1.3 milestone READY for `/gsd-complete-milestone`.
 
-**Next session starts:** Plan 20-02 (production hardening + O&M rack embed) — extends pdf:smoke-test to cover rack render, dedicated `drawings` queue worker process + config, @font-face Arial/Liberation Sans embed in bound-cover.blade.php (CRIT-04), composer/npm license audit script, and OmManualDocxService Drawings section extension to embed rack PNGs alongside schematic PNGs (existing Phase 17 P03 patch grows the loop). Estimated ~60-90 min.
+**Next session starts:** v1.3 milestone close-out via `/gsd-complete-milestone` — moves DRAW-01..13 + 21..28 + 30 to PROJECT.md Validated, archives v1.3 phase artifacts, opens v1.4 (Client Portal) milestone scoping. Optional: outstanding Phase 17/18 human UAT confirmation deferred to live-deploy session (drawings rendering on tablets/print during install — gate is deployment, not implementation).
 
 ## Roadmap Overview
 
