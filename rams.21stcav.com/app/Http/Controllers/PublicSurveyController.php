@@ -228,6 +228,15 @@ class PublicSurveyController extends Controller
 
         $data = $this->validatePublicSurvey($request);
 
+        // Engineer-feedback site-level fields (quick task 260503-u2x — defensive
+        // double-write; primary write is via SurveyController::stepSave step=0
+        // mid-session, but SurveyService::saveDraftPublic does NOT touch these
+        // site-level columns so we explicitly mirror them here).
+        $siteUpdate = $this->extractSiteEngineerFeedback($data);
+        if (! empty($siteUpdate)) {
+            $survey->update($siteUpdate);
+        }
+
         $this->service->saveDraftPublic($survey, $data);
 
         return redirect()
@@ -250,6 +259,14 @@ class PublicSurveyController extends Controller
         abort_if($survey->isSubmitted(), 403, 'This survey has already been submitted.');
 
         $data = $this->validatePublicSurvey($request, true);
+
+        // Engineer-feedback site-level fields (quick task 260503-u2x — defensive
+        // double-write at final-submit time so any field that didn't make it
+        // through stepSave step=0 still lands in the SiteSurvey columns).
+        $siteUpdate = $this->extractSiteEngineerFeedback($data);
+        if (! empty($siteUpdate)) {
+            $survey->update($siteUpdate);
+        }
 
         $this->service->submitPublic($survey, $data);
 
@@ -316,8 +333,36 @@ class PublicSurveyController extends Controller
             break;
         }
 
-        // If no rooms array was sent, just mark complete without overwriting data.
+        // If no rooms array was sent (the typical wizard mark-complete path),
+        // pull the engineer-feedback canonical block from survey_data and
+        // mirror it onto the SiteSurveyRoom DB columns BEFORE flipping the
+        // completion flags. This is the second mirror (the first runs at
+        // every stepSave step=4 in SurveyController) — both are idempotent
+        // and safe; ensures downstream RamsBuilderService (260503-tfb) sees
+        // the engineer's data even if a stepSave race lost a row. (quick task
+        // 260503-u2x)
         if (empty($data['rooms'])) {
+            $payload    = $survey->survey_data ?? [];
+            $roomsArray = is_array($payload['rooms'] ?? null) ? $payload['rooms'] : [];
+
+            // Match the canonical entry to this DB room by sort_order — the
+            // canonical 'rooms' array is built in sort_order in
+            // SurveyController::initialPayload + buildAlpineRooms.
+            $dbRoomIds    = $survey->rooms()->orderBy('sort_order')->pluck('id')->toArray();
+            $canonicalIdx = array_search($room->id, $dbRoomIds, true);
+            $ef           = ($canonicalIdx !== false && isset($roomsArray[$canonicalIdx]['engineer_feedback']))
+                ? (array) $roomsArray[$canonicalIdx]['engineer_feedback']
+                : [];
+
+            if (! empty($ef)) {
+                // Resolve via app() so PublicSurveyController doesn't need a
+                // constructor-injected SurveyController dependency. The writer
+                // calls $room->update() internally — two writes (this one + the
+                // completion flag below) is fine because they touch disjoint columns.
+                app(\App\Http\Controllers\SurveyController::class)
+                    ->writeEngineerFeedbackToColumns($room, $ef);
+            }
+
             $room->update(['is_completed' => true, 'completed_at' => now()]);
         }
 
@@ -577,7 +622,79 @@ class PublicSurveyController extends Controller
             'items_to_retain'           => $data['items_to_retain']          ?? null,
             'engineer_confirmed'        => isset($data['engineer_confirmed']) ? (bool) $data['engineer_confirmed'] : null,
             'engineer_signature_name'   => $data['engineer_signature_name']  ?? null,
+            // Engineer-feedback additions (quick task 260503-u2x — mirrors
+            // SurveyService::roomAttributes from 260503-rgg). Eloquent's array
+            // cast on the JSON columns handles encode/decode automatically;
+            // boolean wall_needs_* coerce explicitly so the column stores a
+            // canonical boolean rather than truthy strings from a flat-form post.
+            'mounting_heights'          => $data['mounting_heights']         ?? null,
+            'work_at_height_methods'    => $data['work_at_height_methods']   ?? null,
+            'cable_routes'              => $this->stripEmptyCableRoutes($data['cable_routes'] ?? null),
+            'wall_construction'         => $data['wall_construction']        ?? null,
+            'wall_needs_reinforcement'  => isset($data['wall_needs_reinforcement']) ? (bool) $data['wall_needs_reinforcement'] : null,
+            'wall_needs_chase_out'      => isset($data['wall_needs_chase_out'])     ? (bool) $data['wall_needs_chase_out']     : null,
+            'wall_needs_conduit'        => isset($data['wall_needs_conduit'])       ? (bool) $data['wall_needs_conduit']       : null,
+            'table_info'                => $data['table_info']               ?? null,
+            'floor_box_info'            => $data['floor_box_info']           ?? null,
+            'brackets_required'         => $this->stripEmptyBracketRows($data['brackets_required'] ?? null),
         ];
+    }
+
+    /**
+     * Drop fully-empty rows from cable_routes submitted via the legacy flat-form
+     * save endpoint. Matches SurveyService::normalizeCableRoutes from 260503-rgg.
+     * (quick task 260503-u2x)
+     */
+    private function stripEmptyCableRoutes(?array $rows): ?array
+    {
+        if ($rows === null) return null;
+        $clean = array_values(array_filter($rows, function ($r) {
+            if (! is_array($r)) return false;
+            return trim((string) ($r['category'] ?? '')) !== ''
+                || trim((string) ($r['from']     ?? '')) !== ''
+                || trim((string) ($r['to']       ?? '')) !== ''
+                || trim((string) ($r['notes']    ?? '')) !== ''
+                || (($r['length_m'] ?? null) !== null && $r['length_m'] !== '');
+        }));
+        return $clean === [] ? null : $clean;
+    }
+
+    /**
+     * Drop fully-empty rows from brackets_required submitted via the legacy
+     * flat-form save endpoint. Matches SurveyService::normalizeBracketRows.
+     * (quick task 260503-u2x)
+     */
+    private function stripEmptyBracketRows(?array $rows): ?array
+    {
+        if ($rows === null) return null;
+        $clean = array_values(array_filter($rows, function ($r) {
+            if (! is_array($r)) return false;
+            return trim((string) ($r['equipment'] ?? '')) !== ''
+                || trim((string) ($r['model']     ?? '')) !== ''
+                || trim((string) ($r['notes']     ?? '')) !== '';
+        }));
+        return $clean === [] ? null : $clean;
+    }
+
+    /**
+     * Extract the 7 site-level engineer-feedback fields from a validated payload
+     * into a $survey->update()-shaped array. Returns only the keys present in
+     * $data so an empty payload doesn't null out previously-saved values.
+     * (quick task 260503-u2x — defensive double-write because
+     * SurveyService::saveDraftPublic + submitPublic do NOT touch site-level
+     * engineer-feedback columns; they handle the legacy header fields only.)
+     */
+    private function extractSiteEngineerFeedback(array $data): array
+    {
+        $update = [];
+        foreach (['comms_room_access_status', 'comms_room_access_notes', 'parking_restraints',
+                  'distance_from_base_miles', 'distance_from_base_notes', 'site_access_notes',
+                  'delivery_routes'] as $field) {
+            if (array_key_exists($field, $data)) {
+                $update[$field] = $data[$field] ?? null;
+            }
+        }
+        return $update;
     }
 
     /**
@@ -597,6 +714,18 @@ class PublicSurveyController extends Controller
             'site_risks'                            => ['nullable', 'string', 'max:3000'],
             'access_constraints'                    => ['nullable', 'string', 'max:3000'],
             'h_and_s_notes'                         => ['nullable', 'string', 'max:3000'],
+            // Engineer-feedback site-level rules (quick task 260503-u2x —
+            // mirrors SiteSurveyController::validateSurvey additions from
+            // 260503-rgg). Defensive: the wizard normally writes these via
+            // stepSave step=0 → DB columns, but a flat-form save endpoint
+            // POST should also accept them so external tools can hit /save.
+            'comms_room_access_status'              => ['nullable', 'string', 'in:yes,no,outsourced,unknown'],
+            'comms_room_access_notes'               => ['nullable', 'string', 'max:2000'],
+            'parking_restraints'                    => ['nullable', 'string', 'max:2000'],
+            'distance_from_base_miles'              => ['nullable', 'numeric', 'min:0', 'max:9999'],
+            'distance_from_base_notes'              => ['nullable', 'string', 'max:2000'],
+            'site_access_notes'                     => ['nullable', 'string', 'max:3000'],
+            'delivery_routes'                       => ['nullable', 'string', 'max:3000'],
             // Rooms
             'rooms'                                 => ['nullable', 'array'],
             'rooms.*.id'                            => ['required', 'integer', 'exists:site_survey_rooms,id'],
@@ -651,6 +780,54 @@ class PublicSurveyController extends Controller
             'rooms.*.existing_condition'            => ['nullable', 'string', 'max:3000'],
             'rooms.*.items_to_remove'               => ['nullable', 'string', 'max:3000'],
             'rooms.*.items_to_retain'               => ['nullable', 'string', 'max:3000'],
+            // Engineer-feedback room-level rules (quick task 260503-u2x —
+            // mirrors SiteSurveyController::validateSurvey additions from
+            // 260503-rgg). Defensive: the wizard normally writes these via
+            // stepSave step=4 → SiteSurveyRoom DB columns, but flat-form
+            // save / completeRoom should also accept them.
+            'rooms.*.mounting_heights'                    => ['nullable', 'array'],
+            'rooms.*.mounting_heights.screen_h_m'         => ['nullable', 'numeric', 'min:0', 'max:99'],
+            'rooms.*.mounting_heights.camera_h_m'         => ['nullable', 'numeric', 'min:0', 'max:99'],
+            'rooms.*.mounting_heights.booking_panel_h_m'  => ['nullable', 'numeric', 'min:0', 'max:99'],
+            'rooms.*.mounting_heights.speaker_h_m'        => ['nullable', 'numeric', 'min:0', 'max:99'],
+            'rooms.*.mounting_heights.other'              => ['nullable', 'array'],
+            'rooms.*.mounting_heights.other.*.label'      => ['nullable', 'string', 'max:150'],
+            'rooms.*.mounting_heights.other.*.height_m'   => ['nullable', 'numeric', 'min:0', 'max:99'],
+
+            'rooms.*.work_at_height_methods'              => ['nullable', 'array'],
+            'rooms.*.work_at_height_methods.*'            => ['string', 'in:ladder,podium,tower,mewp,scaffold,na'],
+
+            'rooms.*.cable_routes'                        => ['nullable', 'array'],
+            'rooms.*.cable_routes.*.category'             => ['nullable', 'string', 'in:ceiling_speakers,desk_cables,mic_cables,booking_panel_cables,screen_cables,rack_to_room,other'],
+            'rooms.*.cable_routes.*.from'                 => ['nullable', 'string', 'max:255'],
+            'rooms.*.cable_routes.*.to'                   => ['nullable', 'string', 'max:255'],
+            'rooms.*.cable_routes.*.length_m'             => ['nullable', 'numeric', 'min:0', 'max:9999'],
+            'rooms.*.cable_routes.*.notes'                => ['nullable', 'string', 'max:500'],
+
+            'rooms.*.wall_construction'                   => ['nullable', 'array'],
+            'rooms.*.wall_construction.*'                 => ['string', 'in:ply_lined,solid,plasterboard,masonry,metal_stud,concrete'],
+            'rooms.*.wall_needs_reinforcement'            => ['nullable', 'boolean'],
+            'rooms.*.wall_needs_chase_out'                => ['nullable', 'boolean'],
+            'rooms.*.wall_needs_conduit'                  => ['nullable', 'boolean'],
+
+            'rooms.*.table_info'                          => ['nullable', 'array'],
+            'rooms.*.table_info.has_grommets'             => ['nullable', 'boolean'],
+            'rooms.*.table_info.grommet_count'            => ['nullable', 'integer', 'min:0', 'max:99'],
+            'rooms.*.table_info.grommet_size'             => ['nullable', 'string', 'in:small,standard,large'],
+            'rooms.*.table_info.notes'                    => ['nullable', 'string', 'max:500'],
+
+            'rooms.*.floor_box_info'                      => ['nullable', 'array'],
+            'rooms.*.floor_box_info.has_floor_box'        => ['nullable', 'boolean'],
+            'rooms.*.floor_box_info.power_outlets'        => ['nullable', 'integer', 'min:0', 'max:99'],
+            'rooms.*.floor_box_info.data_outlets'         => ['nullable', 'integer', 'min:0', 'max:99'],
+            'rooms.*.floor_box_info.cable_space'          => ['nullable', 'string', 'in:tight,adequate,spacious'],
+            'rooms.*.floor_box_info.notes'                => ['nullable', 'string', 'max:500'],
+
+            'rooms.*.brackets_required'                   => ['nullable', 'array'],
+            'rooms.*.brackets_required.*.equipment'       => ['nullable', 'string', 'max:255'],
+            'rooms.*.brackets_required.*.model'           => ['nullable', 'string', 'max:255'],
+            'rooms.*.brackets_required.*.pull_out'        => ['nullable', 'boolean'],
+            'rooms.*.brackets_required.*.notes'           => ['nullable', 'string', 'max:500'],
         ]);
     }
 }
