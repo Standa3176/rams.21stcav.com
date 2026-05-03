@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\BuildBoundPdfJob;
 use App\Models\Project;
 use App\Models\ProjectDrawing;
 use App\Services\DocumentEdits\DocumentEditAdapterRegistry;
+use App\Services\Drawings\BoundPdfBuilderService;
 use App\Services\Drawings\DrawingDataResolverService;
 use App\Services\Drawings\DrawingExportRendererService;
 use App\Services\Drawings\DrawingService;
@@ -16,6 +18,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use ZipArchive;
 
 /**
  * v1.3 / Phase 17 — drawings list / regenerate / show / download / create /
@@ -55,9 +59,28 @@ class ProjectDrawingController extends Controller
             ->orderBy('version', 'desc')
             ->get();
 
+        // Phase 20 Plan 01 (MOD-10) — surface a "regen needed" pill when the
+        // latest bound PDF on disk is older than the most recent drawing edit.
+        // Uses BoundPdfBuilderService::latestBoundPdfPath which globs disk for
+        // bound-{projectId}-v*-*.pdf — no DB read, no API call. Three states:
+        //   - boundPdfStaleBadge=null   → no bound PDF on disk yet (no badge)
+        //   - boundPdfStaleBadge=false  → fresh (mtime >= newest drawing.updated_at)
+        //   - boundPdfStaleBadge=true   → stale (drawings touched after generation)
+        $boundPdfStaleBadge = null;
+        $latestBoundPath = app(BoundPdfBuilderService::class)
+            ->latestBoundPdfPath((int) $project->id);
+        if ($latestBoundPath !== null && is_file($latestBoundPath) && $drawings->isNotEmpty()) {
+            $boundMtime = filemtime($latestBoundPath);
+            $maxDrawingTs = $drawings
+                ->map(fn ($d) => $d->updated_at?->getTimestamp() ?? 0)
+                ->max();
+            $boundPdfStaleBadge = $maxDrawingTs > $boundMtime;
+        }
+
         return view('projects.drawings.index', [
             'project' => $project,
             'drawings' => $drawings,
+            'boundPdfStaleBadge' => $boundPdfStaleBadge,
         ]);
     }
 
@@ -458,5 +481,221 @@ class ProjectDrawingController extends Controller
         ]);
 
         return response()->json(['ok' => true, 'updated' => $updated]);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Phase 20 Plan 01 — bound PDF + ZIP bundle download endpoints
+    // ════════════════════════════════════════════════════════════════════════
+
+    /**
+     * DRAW-21 — download the project's bound PDF (cover + register + every
+     * drawing). Authorisation routes through ProjectPolicy (owner OR admin).
+     *
+     * Three branches:
+     *   1. Latest bound PDF exists on disk AND every drawing.updated_at <=
+     *      bound-pdf-mtime → stream the existing file as BinaryFileResponse.
+     *   2. Latest bound PDF exists on disk BUT a drawing has been touched
+     *      since OR no bound PDF exists yet:
+     *      a. If the project has ≤3 drawings → build inline (sync) and stream.
+     *      b. Else → dispatch BuildBoundPdfJob and redirect with flash.
+     *
+     * The 3-drawing inline threshold matches the typical assembly time (~1-2s
+     * sync; >3 drawings starts to push toward the 5-second response budget).
+     */
+    public function downloadBoundPdf(
+        Project $project,
+        BoundPdfBuilderService $builder,
+    ): BinaryFileResponse|RedirectResponse {
+        $this->authorize('view', $project);
+
+        $drawings = $project->drawings()
+            ->whereNull('superseded_by_id')
+            ->whereIn('kind', [ProjectDrawing::KIND_SCHEMATIC, ProjectDrawing::KIND_RACK])
+            ->get();
+
+        $maxDrawingTs = $drawings
+            ->map(fn ($d) => $d->updated_at?->getTimestamp() ?? 0)
+            ->max() ?? 0;
+
+        $latestPath = $builder->latestBoundPdfPath((int) $project->id);
+        if ($latestPath !== null && is_file($latestPath)
+            && filemtime($latestPath) >= $maxDrawingTs) {
+            return response()->download($latestPath, basename($latestPath), [
+                'Content-Type' => 'application/pdf',
+            ]);
+        }
+
+        // Need to build (either no bound PDF yet, or stale).
+        if ($drawings->count() > 3) {
+            BuildBoundPdfJob::dispatch((int) $project->id);
+
+            return redirect()
+                ->route('projects.drawings.index', $project)
+                ->with('status', 'Bound PDF queued — you will receive an email when it is ready.');
+        }
+
+        // Inline (synchronous) build for small projects.
+        $result = $builder->build($project);
+
+        return response()->download($result['path'], basename($result['path']), [
+            'Content-Type' => 'application/pdf',
+        ]);
+    }
+
+    /**
+     * DRAW-21 — explicit "regenerate bound PDF" trigger. Always async (queues
+     * the job + returns a flash message). Used when the user wants a fresh
+     * bound PDF without waiting for the inline-build threshold to apply.
+     */
+    public function regenerateBoundPdf(Request $request, Project $project): RedirectResponse
+    {
+        $this->authorize('view', $project);
+
+        BuildBoundPdfJob::dispatch((int) $project->id);
+
+        Log::info('ProjectDrawingController: BuildBoundPdfJob dispatched', [
+            'project_id' => $project->id,
+            'user_id'    => optional($request->user())->id,
+        ]);
+
+        return redirect()
+            ->route('projects.drawings.index', $project)
+            ->with('status', 'Bound PDF queued — you will receive an email when it is ready.');
+    }
+
+    /**
+     * DRAW-28 — stream a ZIP bundle containing the bound PDF + every per-
+     * drawing PDF/SVG/PNG + a drawing-register CSV. Built on-demand, no
+     * staleness risk.
+     *
+     * Threat model T-20-02 (ZIP path traversal): every entry name passed
+     * through basename($realPath) before ZipArchive::addFile — a hostile
+     * filename like "../../etc/passwd" would write its CONTENTS as
+     * "passwd" in the ZIP, NOT escape the ZIP root.
+     *
+     * Threat model T-20-01 (auth): $this->authorize('view', $project) routes
+     * through ProjectPolicy::view (owner OR admin).
+     */
+    public function downloadBundle(
+        Project $project,
+        BoundPdfBuilderService $builder,
+        DrawingExportRendererService $renderer,
+    ): StreamedResponse {
+        $this->authorize('view', $project);
+
+        $drawings = $project->drawings()
+            ->whereNull('superseded_by_id')
+            ->whereIn('kind', [ProjectDrawing::KIND_SCHEMATIC, ProjectDrawing::KIND_RACK])
+            ->orderByRaw("CASE kind WHEN '".ProjectDrawing::KIND_SCHEMATIC."' THEN 1 WHEN '".ProjectDrawing::KIND_RACK."' THEN 2 ELSE 99 END")
+            ->orderBy('created_at')
+            ->get();
+
+        // Build the ZIP synchronously to a temp file, then stream it. This
+        // avoids ZipArchive's quirk where streaming-while-building can produce
+        // empty entries when callers consume the response in chunks.
+        $tmpZip = tempnam(sys_get_temp_dir(), 'drawings-bundle-').'.zip';
+
+        $zip = new ZipArchive();
+        if ($zip->open($tmpZip, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            @unlink($tmpZip);
+            abort(500, 'Could not create ZIP archive.');
+        }
+
+        // 1. Bound PDF — build inline if missing OR stale.
+        $maxDrawingTs = $drawings
+            ->map(fn ($d) => $d->updated_at?->getTimestamp() ?? 0)
+            ->max() ?? 0;
+        $latestBound = $builder->latestBoundPdfPath((int) $project->id);
+        if ($latestBound === null
+            || ! is_file($latestBound)
+            || filemtime($latestBound) < $maxDrawingTs) {
+            $latestBound = $builder->build($project)['path'];
+        }
+        if (is_file($latestBound)) {
+            // T-20-02: basename() — never trust a real-path as the ZIP entry name.
+            $zip->addFile($latestBound, basename($latestBound));
+        }
+
+        // 2. Per-drawing PDF + SVG + PNG. Failures isolated per drawing.
+        foreach ($drawings as $drawing) {
+            if (! $drawing->isReady()) {
+                continue;
+            }
+            try {
+                $pdfPath = $renderer->renderPdf($drawing);
+                $zip->addFile($pdfPath, basename($pdfPath));
+            } catch (\Throwable $e) {
+                Log::warning('ProjectDrawingController: ZIP per-drawing PDF render failed', [
+                    'project_id' => $project->id,
+                    'drawing_id' => $drawing->id,
+                    'error'      => $e->getMessage(),
+                ]);
+            }
+            try {
+                $svgPath = $renderer->renderSvg($drawing);
+                $zip->addFile($svgPath, basename($svgPath));
+            } catch (\Throwable $e) {
+                Log::warning('ProjectDrawingController: ZIP per-drawing SVG render failed', [
+                    'project_id' => $project->id,
+                    'drawing_id' => $drawing->id,
+                    'error'      => $e->getMessage(),
+                ]);
+            }
+            try {
+                $pngPath = $renderer->renderPng($drawing);
+                $zip->addFile($pngPath, basename($pngPath));
+            } catch (\Throwable $e) {
+                Log::warning('ProjectDrawingController: ZIP per-drawing PNG render failed', [
+                    'project_id' => $project->id,
+                    'drawing_id' => $drawing->id,
+                    'error'      => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // 3. Drawing register CSV (in-memory).
+        $csvLines = ['Sheet,Title,Kind,Revision,Status,Date,Filename'];
+        foreach ($drawings as $drawing) {
+            $csvLines[] = sprintf(
+                '%s,%s,%s,%s,%s,%s,%s',
+                $this->csvField((string) ($drawing->sheet_number ?? '')),
+                $this->csvField($drawing->kindLabel().' — '.($drawing->room?->name ?? $drawing->rack_label ?? 'Whole project')),
+                $this->csvField((string) $drawing->kind),
+                $this->csvField($drawing->revisionLabel()),
+                $this->csvField((string) $drawing->status),
+                $this->csvField(optional($drawing->updated_at)->toDateString() ?? ''),
+                $this->csvField((string) ($drawing->filename ?? '')),
+            );
+        }
+        $zip->addFromString('drawing-register.csv', implode("\n", $csvLines));
+
+        $zip->close();
+
+        // Build a safe filename: {ref or id}-drawings-{Y-m-d}.zip with non
+        // alphanumerics replaced by underscores.
+        $rawName = ($project->ref ?: (string) $project->id).'-drawings-'.now()->format('Y-m-d');
+        $safeName = preg_replace('/[^A-Za-z0-9_\-.]/', '_', $rawName).'.zip';
+
+        return response()->streamDownload(
+            function () use ($tmpZip): void {
+                readfile($tmpZip);
+                @unlink($tmpZip);
+            },
+            $safeName,
+            [
+                'Content-Type'        => 'application/zip',
+                'Content-Disposition' => 'attachment; filename="'.$safeName.'"',
+            ],
+        );
+    }
+
+    /** Minimal CSV field quoter — escapes embedded quotes, wraps when needed. */
+    private function csvField(string $value): string
+    {
+        if (str_contains($value, ',') || str_contains($value, '"') || str_contains($value, "\n")) {
+            return '"'.str_replace('"', '""', $value).'"';
+        }
+
+        return $value;
     }
 }

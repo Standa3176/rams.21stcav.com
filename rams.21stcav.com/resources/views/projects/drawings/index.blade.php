@@ -46,6 +46,30 @@
         </div>
     @endif
 
+    {{-- ───── Phase 20 Plan 01 — Project Documents (bound PDF + ZIP) ──────── --}}
+    @php($renderableDrawings = $drawings->whereIn('kind', [\App\Models\ProjectDrawing::KIND_SCHEMATIC, \App\Models\ProjectDrawing::KIND_RACK]))
+    @if ($renderableDrawings->isNotEmpty())
+        <div class="bg-white border border-gray-200 rounded-lg p-4 mb-6 flex items-center justify-between">
+            <div>
+                <div class="font-semibold text-gray-900">Project Documents</div>
+                <div class="text-xs text-gray-500">Bound multi-page PDF + ZIP bundle (cover sheet, register, every drawing)</div>
+                @if (! empty($boundPdfStaleBadge))
+                    <span class="inline-block mt-2 px-2 py-1 text-xs rounded bg-amber-100 text-amber-800">Regen needed — drawing changed</span>
+                @endif
+            </div>
+            <div class="flex gap-2">
+                <a href="{{ route('projects.drawings.bound-pdf', $project) }}"
+                   class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium px-3 py-2 rounded-lg">
+                    Download Bound PDF
+                </a>
+                <a href="{{ route('projects.drawings.bundle', $project) }}"
+                   class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium px-3 py-2 rounded-lg">
+                    Download ZIP
+                </a>
+            </div>
+        </div>
+    @endif
+
     {{-- ───── Schematics ───────────────────────────────────────────── --}}
     <h2 class="text-lg font-semibold mt-2 mb-3 text-gray-800">
         System Schematics
@@ -60,7 +84,9 @@
                     {{ $drawing->kindLabel() }} — {{ $drawing->room?->name ?? 'Whole project' }}
                 </div>
                 <div class="text-xs text-gray-500">
-                    Revision {{ $drawing->revisionLabel() }}
+                    {{-- Phase 20 Plan 01 — DRAW-23 sheet number column. --}}
+                    <span class="font-medium text-gray-700">Sheet {{ $drawing->sheet_number ?? '—' }}</span>
+                    · Revision {{ $drawing->revisionLabel() }}
                     · Updated {{ $drawing->updated_at?->diffForHumans() }}
                 </div>
             </div>
@@ -106,7 +132,9 @@
                     {{ $drawing->rack_label ?? 'Rack '.$drawing->id }}
                 </div>
                 <div class="text-xs text-gray-500">
-                    Revision {{ $drawing->revisionLabel() }}
+                    {{-- Phase 20 Plan 01 — DRAW-23 sheet number column. --}}
+                    <span class="font-medium text-gray-700">Sheet {{ $drawing->sheet_number ?? '—' }}</span>
+                    · Revision {{ $drawing->revisionLabel() }}
                     · Updated {{ $drawing->updated_at?->diffForHumans() }}
                 </div>
             </div>

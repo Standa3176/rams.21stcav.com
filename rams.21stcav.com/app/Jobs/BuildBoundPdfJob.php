@@ -54,13 +54,22 @@ class BuildBoundPdfJob implements ShouldQueue
 
     public int $timeout = 300;
 
-    public string $queue = 'drawings';
-
     /**
      * NOTE: project-level, NOT drawing-level. Distinct from
      * BuildSchematicJob::$drawingId.
+     *
+     * Queue: assigned to 'drawings' inside the constructor via the Queueable
+     * trait's onQueue() method — Plan 20-02 wires the dedicated worker.
+     * Setting the queue name now is forward-compatible: Laravel falls back to
+     * 'default' when the queue isn't configured separately, which matches the
+     * current state. NB: cannot use `public string $queue = 'drawings';`
+     * directly because Queueable already defines $queue without a type,
+     * yielding a PHP "incompatible composition" fatal at autoload time.
      */
-    public function __construct(public readonly int $projectId) {}
+    public function __construct(public readonly int $projectId)
+    {
+        $this->onQueue('drawings');
+    }
 
     /**
      * WithoutOverlapping per project — a double-click never assembles the

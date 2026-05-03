@@ -345,6 +345,25 @@ Route::middleware('auth')->group(function () {
     Route::put('projects/{project}/drawings/{drawing}/status',
         [ProjectDrawingController::class, 'updateStatus'])
         ->name('projects.drawings.update-status');
+
+    // ── Phase 20 Plan 01 — bound PDF + ZIP bundle (DRAW-21, DRAW-28) ──
+    // Project-level artifacts that aggregate every drawing in the project.
+    // Authorisation routes through ProjectPolicy (owner OR admin) — these
+    // are project-level, not drawing-level. MUST be registered BEFORE the
+    // {drawing} wildcard `show` route below so literal segments
+    // ('bound-pdf', 'bound-pdf/build', 'bundle.zip') aren't captured by
+    // implicit route model binding (Laravel would 404 on the model lookup
+    // and never reach these routes if they came after).
+    Route::get('projects/{project}/drawings/bound-pdf',
+        [ProjectDrawingController::class, 'downloadBoundPdf'])
+        ->name('projects.drawings.bound-pdf');
+    Route::post('projects/{project}/drawings/bound-pdf/build',
+        [ProjectDrawingController::class, 'regenerateBoundPdf'])
+        ->name('projects.drawings.bound-pdf.build');
+    Route::get('projects/{project}/drawings/bundle.zip',
+        [ProjectDrawingController::class, 'downloadBundle'])
+        ->name('projects.drawings.bundle');
+
     Route::get('projects/{project}/drawings/{drawing}', [ProjectDrawingController::class, 'show'])
         ->name('projects.drawings.show');
     Route::post('projects/{project}/drawings/{drawing}/regenerate', [ProjectDrawingController::class, 'regenerate'])
