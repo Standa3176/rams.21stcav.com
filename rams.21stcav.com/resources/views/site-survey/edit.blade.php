@@ -138,6 +138,69 @@
         </div>
     </div>
 
+    {{-- Site Logistics — engineer-feedback site-level capture (quick task 260503-rgg) --}}
+    <div class="form-section">
+        <div class="form-section__header">
+            <h2 class="section-heading">Site Logistics</h2>
+        </div>
+        <div class="form-section__body">
+            <div class="form-grid-2">
+                <div class="form-group">
+                    <label class="form-label" for="comms_room_access_status">Comms Room Access</label>
+                    <select id="comms_room_access_status" name="comms_room_access_status" class="form-control" data-optional>
+                        <option value="">— Select —</option>
+                        @php $cras = old('comms_room_access_status', $survey->comms_room_access_status); @endphp
+                        <option value="yes"        @selected($cras === 'yes')>Yes — engineer needs permission</option>
+                        <option value="no"         @selected($cras === 'no')>No — open access</option>
+                        <option value="outsourced" @selected($cras === 'outsourced')>Outsourced (third-party manages)</option>
+                        <option value="unknown"    @selected($cras === 'unknown')>Unknown</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="distance_from_base_miles">Distance from Base (miles)</label>
+                    <input type="number" id="distance_from_base_miles" name="distance_from_base_miles" class="form-control"
+                           value="{{ old('distance_from_base_miles', $survey->distance_from_base_miles) }}"
+                           min="0" max="9999" step="0.1" placeholder="e.g. 47.5" data-optional>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="comms_room_access_notes">Comms Room Access — Notes</label>
+                <textarea id="comms_room_access_notes" name="comms_room_access_notes" class="form-control"
+                          rows="2" maxlength="2000" data-optional
+                          placeholder="e.g. Permit required 48h notice; key from FM desk Mon-Fri 9-5">{{ old('comms_room_access_notes', $survey->comms_room_access_notes) }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="distance_from_base_notes">Route / Travel Notes</label>
+                <textarea id="distance_from_base_notes" name="distance_from_base_notes" class="form-control"
+                          rows="2" maxlength="2000" data-optional
+                          placeholder="e.g. M25 J7 then 12mi A23; allow 2h in rush hour">{{ old('distance_from_base_notes', $survey->distance_from_base_notes) }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="parking_restraints">Parking Restraints</label>
+                <textarea id="parking_restraints" name="parking_restraints" class="form-control"
+                          rows="2" maxlength="2000" data-optional
+                          placeholder="e.g. No on-street parking, must use NCP £18/day; loading bay 8am-10am only">{{ old('parking_restraints', $survey->parking_restraints) }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="site_access_notes">Site Access Notes</label>
+                <textarea id="site_access_notes" name="site_access_notes" class="form-control"
+                          rows="3" maxlength="3000" data-optional
+                          placeholder="e.g. Loading bay south side; goods lift 1.8m × 1.4m × 2.2m, 500kg; security pass collected from reception">{{ old('site_access_notes', $survey->site_access_notes) }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="delivery_routes">Delivery Routes</label>
+                <textarea id="delivery_routes" name="delivery_routes" class="form-control"
+                          rows="3" maxlength="3000" data-optional
+                          placeholder="e.g. Deliveries to bay 4 between 7am-11am; contact Site Manager 0207 xxx xxxx 1h before arrival">{{ old('delivery_routes', $survey->delivery_routes) }}</textarea>
+            </div>
+        </div>
+    </div>
+
     {{-- Areas / Rooms --}}
     <div class="form-section">
         <div class="form-section__header">
@@ -332,6 +395,10 @@ function roomCardHtml(i, type) {
     const showAreaType = type !== 'general';
     const n = k => `rooms[${i}][${k}]`;
 
+    // New rooms get the engineer-feedback fields (mounting heights, cable routes,
+    // wall construction, table info, floor box info, brackets, working-at-height
+    // methods) after first save — re-render via the _room-form partial. Avoids
+    // duplicating ~250 lines of new markup in JS-string form here. (260503-rgg)
     return `<div class="room-card" style="border:1.5px solid #e0e0e0;border-radius:6px;margin-bottom:.6rem;background:#fafafa;">
         <div class="room-card-header" onclick="toggleAdminCard(this)"
              style="display:flex;align-items:center;gap:.6rem;padding:.75rem 1rem;cursor:pointer;user-select:none;border-radius:6px 6px 0 0;">
