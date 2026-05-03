@@ -76,6 +76,15 @@
         <td>Revision</td>
         <td>{{ $rev }}</td>
     </tr>
+    @if (! empty($drawing->sheet_number))
+    {{-- Phase 20 Plan 01 — DRAW-23. Defensive @if so any pre-Phase-20 rows
+         (Phase 17/18 schematics + racks created before the migration) still
+         render the title block without an empty Sheet row. --}}
+    <tr>
+        <td>Sheet</td>
+        <td>{{ $drawing->sheet_number }}</td>
+    </tr>
+    @endif
     <tr>
         <td>Status</td>
         <td>{{ $statusLbl }}</td>
