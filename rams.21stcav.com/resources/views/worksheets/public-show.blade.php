@@ -523,24 +523,46 @@
                                             $itemQty   = $item['quantity'] ?? $item['qty'] ?? 1;
                                             $itemKey   = strtolower(trim($itemDesc));
                                             $existing  = $roomLabelPhotos[$itemKey] ?? collect();
+
+                                            // Box Serial Label only makes sense for physical hardware that has a
+                                            // sticker on the box — skip cables, mounts, brackets, services, warranties.
+                                            $itemDescLower = strtolower($itemDesc);
+                                            $itemCategory  = strtolower($item['category'] ?? '');
+                                            $nonHardwareKeywords = [
+                                                'cable', 'cat5', 'cat6', 'cat6a', 'cat7', 'hdmi cable', 'usb cable',
+                                                'patch lead', 'patch cable', 'fibre', 'optical lead',
+                                                'mount', 'bracket', 'caddy', 'tray', 'arm', 'pole', 'plate',
+                                                'warranty', 'extended warranty', 'support contract', 'maintenance',
+                                                'install', 'commission', 'project management', 'configuration',
+                                                'training', 'delivery', 'consumable',
+                                            ];
+                                            $isHardware = true;
+                                            foreach ($nonHardwareKeywords as $kw) {
+                                                if (str_contains($itemDescLower, $kw)) { $isHardware = false; break; }
+                                            }
+                                            if (in_array($itemCategory, ['cable','accessory','service','warranty','consumable','option'], true)) {
+                                                $isHardware = false;
+                                            }
                                         @endphp
                                         <li class="kit-row" style="display:flex;flex-direction:column;gap:.5rem;padding:.65rem 0;border-bottom:1px solid #F3F4F6;">
                                             <div style="display:flex;align-items:center;gap:.5rem;">
                                                 <span class="qty-pill">{{ $itemQty }}×</span>
                                                 <span style="flex:1;">{{ $itemDesc }}</span>
-                                                <label class="btn btn-outline btn-sm label-cap-btn"
-                                                       style="display:inline-flex;align-items:center;gap:.35rem;cursor:pointer;font-size:.78rem;">
-                                                    📷 Label
-                                                    <input type="file"
-                                                           accept="image/*"
-                                                           capture="environment"
-                                                           style="display:none;"
-                                                           data-room="{{ $room['name'] ?? '' }}"
-                                                           data-desc="{{ $itemDesc }}"
-                                                           data-part="{{ $itemPart }}"
-                                                           data-qty="{{ $itemQty }}"
-                                                           onchange="captureLabel(this, '{{ $token }}')">
-                                                </label>
+                                                @if ($isHardware)
+                                                    <label class="btn btn-outline btn-sm label-cap-btn"
+                                                           style="display:inline-flex;align-items:center;gap:.35rem;cursor:pointer;font-size:.78rem;">
+                                                        📷 Box Serial Label
+                                                        <input type="file"
+                                                               accept="image/*"
+                                                               capture="environment"
+                                                               style="display:none;"
+                                                               data-room="{{ $room['name'] ?? '' }}"
+                                                               data-desc="{{ $itemDesc }}"
+                                                               data-part="{{ $itemPart }}"
+                                                               data-qty="{{ $itemQty }}"
+                                                               onchange="captureLabel(this, '{{ $token }}')">
+                                                    </label>
+                                                @endif
                                             </div>
                                             @if($existing->isNotEmpty())
                                                 <div class="label-thumbs" style="display:flex;flex-wrap:wrap;gap:.4rem;">
@@ -594,7 +616,7 @@
                     {{-- Photo tray — engineers must capture at least one photo per
                          space before requesting client sign-off. --}}
                     <div class="photo-tray" data-photo-tray data-room-key="{{ $roomKey }}">
-                        <div class="photo-tray-title">📷 Photos for this space (<span data-photo-count>{{ $photoCount }}</span>)</div>
+                        <div class="photo-tray-title">📷 Photos of completed work (<span data-photo-count>{{ $photoCount }}</span>)</div>
                         <div class="photo-thumbs" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.6rem;">
                             @foreach($roomPhotos as $p)
                                 <div style="position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;background:#F3F4F6;flex-shrink:0;">
