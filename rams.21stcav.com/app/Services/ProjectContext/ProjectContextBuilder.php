@@ -70,12 +70,31 @@ class ProjectContextBuilder
             );
         }
 
-        $context = SurveyToProjectContextMapper::map($surveyData);
+        // Pass the SiteSurveyRoom relation into the mapper so per-room
+        // engineer-feedback fields (mounting heights, work-at-height methods,
+        // cable routes, wall prep, brackets, table/floor box info) are merged
+        // into the rooms[] output for downstream RAMS generation.
+        $context = SurveyToProjectContextMapper::mapWithModelRooms(
+            $surveyData,
+            $survey->rooms
+        );
 
         // Supplement project_id from model relationship when payload omits it
         if (empty($context['project_id']) && $survey->project_id) {
             $context['project_id'] = (int) $survey->project_id;
         }
+
+        // Attach site-level engineer feedback (NOT in survey_data JSON — these
+        // live on the SiteSurvey model columns added in quick task 260503-rgg).
+        $context['site_logistics'] = [
+            'comms_room_access_status' => (string) ($survey->comms_room_access_status ?? ''),
+            'comms_room_access_notes'  => (string) ($survey->comms_room_access_notes  ?? ''),
+            'parking_restraints'       => (string) ($survey->parking_restraints       ?? ''),
+            'distance_from_base_miles' => $survey->distance_from_base_miles, // may be null
+            'distance_from_base_notes' => (string) ($survey->distance_from_base_notes ?? ''),
+            'site_access_notes'        => (string) ($survey->site_access_notes        ?? ''),
+            'delivery_routes'          => (string) ($survey->delivery_routes          ?? ''),
+        ];
 
         return $context;
     }

@@ -49,6 +49,35 @@ class SurveyToProjectContextMapper
      */
     public static function map(array $surveyData): array
     {
+        return self::mapWithModelRooms($surveyData, null);
+    }
+
+    /**
+     * Model-aware mapper. Builds the canonical ProjectContext rooms[] from the
+     * survey_data JSON blob, then merges per-room engineer-feedback blocks
+     * sourced from SiteSurveyRoom MODEL ROWS (table columns added in quick task
+     * 260503-rgg).
+     *
+     * Engineer-feedback fields live on SiteSurveyRoom rows (NOT in the
+     * survey_data JSON), so the JSON-only map() path cannot see them. This
+     * method bridges that gap while preserving the legacy contract for tests
+     * that operate on raw payloads.
+     *
+     * Matching is by case-insensitive trimmed room name (room_name column),
+     * with positional fallback when names are missing on either side.
+     *
+     * Each mapped room gains an additional 'engineer_feedback' key with the
+     * shape documented inline below. When no model row is found (legacy
+     * surveys, payload rooms not yet persisted), the key is set to an empty
+     * array — never omitted, so downstream code only needs to test for
+     * non-empty.
+     *
+     * @param  array  $surveyData  Contents of SiteSurvey::survey_data
+     * @param  iterable|null  $modelRooms  Collection<SiteSurveyRoom> from $survey->rooms (or null)
+     * @return array  { project_id: int, rooms: array[] }
+     */
+    public static function mapWithModelRooms(array $surveyData, $modelRooms = null): array
+    {
         $projectId = (int) ($surveyData['project_id'] ?? 0);
 
         $rooms = array_values(array_map(
@@ -56,10 +85,92 @@ class SurveyToProjectContextMapper
             (array) ($surveyData['rooms'] ?? [])
         ));
 
+        // Build a lookup of model rows keyed by trimmed-lowercased room_name,
+        // plus an indexed list for positional fallback.
+        $modelByName  = [];
+        $modelByIndex = [];
+        if ($modelRooms !== null) {
+            $idx = 0;
+            foreach ($modelRooms as $modelRoom) {
+                $modelByIndex[$idx++] = $modelRoom;
+                $key = strtolower(trim((string) ($modelRoom->room_name ?? '')));
+                if ($key !== '') {
+                    $modelByName[$key] = $modelRoom;
+                }
+            }
+        }
+
+        $hasModelRooms = ! empty($modelByIndex);
+
+        foreach ($rooms as $i => $room) {
+            $modelRoom = null;
+            if ($hasModelRooms) {
+                $key = strtolower(trim((string) ($room['name'] ?? '')));
+                if ($key !== '' && isset($modelByName[$key])) {
+                    $modelRoom = $modelByName[$key];
+                } elseif (isset($modelByIndex[$i])) {
+                    $modelRoom = $modelByIndex[$i];
+                }
+            }
+
+            $rooms[$i]['engineer_feedback'] = $modelRoom !== null
+                ? self::buildEngineerFeedback($modelRoom)
+                : [];
+        }
+
         return [
             'project_id' => $projectId,
             'rooms'      => $rooms,
         ];
+    }
+
+    /**
+     * Extract the engineer-feedback block from a SiteSurveyRoom row.
+     *
+     * Defensive: every column is nullable. When a column is empty/null the
+     * matching key in the output is a safe default (empty array, false,
+     * or null for max_mounting_height_m).
+     */
+    private static function buildEngineerFeedback($modelRoom): array
+    {
+        $mountingHeights = is_array($modelRoom->mounting_heights) ? $modelRoom->mounting_heights : [];
+
+        return [
+            'mounting_heights'         => $mountingHeights,
+            'work_at_height_methods'   => is_array($modelRoom->work_at_height_methods) ? $modelRoom->work_at_height_methods : [],
+            'cable_routes'             => is_array($modelRoom->cable_routes) ? $modelRoom->cable_routes : [],
+            'wall_construction'        => is_array($modelRoom->wall_construction) ? $modelRoom->wall_construction : [],
+            'wall_needs_reinforcement' => (bool) ($modelRoom->wall_needs_reinforcement ?? false),
+            'wall_needs_chase_out'     => (bool) ($modelRoom->wall_needs_chase_out ?? false),
+            'wall_needs_conduit'       => (bool) ($modelRoom->wall_needs_conduit ?? false),
+            'table_info'               => is_array($modelRoom->table_info) ? $modelRoom->table_info : [],
+            'floor_box_info'           => is_array($modelRoom->floor_box_info) ? $modelRoom->floor_box_info : [],
+            'brackets_required'        => is_array($modelRoom->brackets_required) ? $modelRoom->brackets_required : [],
+            'max_mounting_height_m'    => self::deriveMaxMountingHeight($mountingHeights),
+        ];
+    }
+
+    /**
+     * Derive the maximum mounting height (metres) across all height fields.
+     * Returns null when no numeric height is captured.
+     */
+    private static function deriveMaxMountingHeight(array $mountingHeights): ?float
+    {
+        $candidates = [];
+        foreach (['screen_h_m', 'camera_h_m', 'booking_panel_h_m', 'speaker_h_m'] as $key) {
+            $val = $mountingHeights[$key] ?? null;
+            if (is_numeric($val) && (float) $val > 0) {
+                $candidates[] = (float) $val;
+            }
+        }
+        foreach ((array) ($mountingHeights['other'] ?? []) as $other) {
+            $val = is_array($other) ? ($other['h_m'] ?? null) : null;
+            if (is_numeric($val) && (float) $val > 0) {
+                $candidates[] = (float) $val;
+            }
+        }
+
+        return empty($candidates) ? null : max($candidates);
     }
 
     // ── Private — room mapping ────────────────────────────────────────────────

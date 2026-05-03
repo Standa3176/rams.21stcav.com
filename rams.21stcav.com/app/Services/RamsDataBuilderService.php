@@ -63,6 +63,7 @@ class RamsDataBuilderService
         // When a site survey provides rooms, resolve additional risks and cable
         // requirements, then merge into the upstream risk data.
         $contextRooms       = $projectContext['rooms'] ?? [];
+        $siteLogistics      = (array) ($projectContext['site_logistics'] ?? []);
         $cableRequirements  = [];
 
         if (! empty($contextRooms)) {
@@ -84,6 +85,7 @@ class RamsDataBuilderService
             'project'                => $this->resolveProjectFields($parsed, $formData),
             'project_context'        => $projectContext,
             'rooms'                  => $contextRooms,
+            'site_logistics'         => $siteLogistics,
             'hazards'                => $risk['hazards']          ?? [],
             'ppe'                    => $this->mergePpe(
                                             $risk['ppe']          ?? [],
@@ -94,6 +96,7 @@ class RamsDataBuilderService
             'persons_at_risk'        => $this->buildPersons($formData['persons_at_risk'] ?? []),
             'method_statement'       => $methodStatement,   // always present — guaranteed by normalise()
             'team'                   => $formData['team']   ?? [],
+            'site_vehicles'          => $formData['site_vehicles'] ?? [],
             'quote'                  => $this->buildQuoteSummary($parsed),
             'classified'             => $classified,
             'scope_items'            => $this->buildScopeItems($formData),
@@ -516,6 +519,21 @@ class RamsDataBuilderService
 
         // ── rooms (from ProjectContext — pass through if present) ─────────────
         $data['rooms'] = is_array($data['rooms'] ?? null) ? $data['rooms'] : [];
+
+        // ── site_logistics (from ProjectContext, attached on SiteSurvey model) ─
+        // Strict-typed scalars so the Blade template can rely on string types
+        // for every field. distance_from_base_miles is left as null/scalar so
+        // numeric comparisons in the view don't get tripped up by ''.
+        $sl = is_array($data['site_logistics'] ?? null) ? $data['site_logistics'] : [];
+        $data['site_logistics'] = [
+            'comms_room_access_status' => (string) ($sl['comms_room_access_status'] ?? ''),
+            'comms_room_access_notes'  => (string) ($sl['comms_room_access_notes']  ?? ''),
+            'parking_restraints'       => (string) ($sl['parking_restraints']       ?? ''),
+            'distance_from_base_miles' => $sl['distance_from_base_miles'] ?? null,
+            'distance_from_base_notes' => (string) ($sl['distance_from_base_notes'] ?? ''),
+            'site_access_notes'        => (string) ($sl['site_access_notes']        ?? ''),
+            'delivery_routes'          => (string) ($sl['delivery_routes']          ?? ''),
+        ];
 
         // ── cable_requirements (from ProjectContext) ──────────────────────────
         $rawCables = is_array($data['cable_requirements'] ?? null) ? $data['cable_requirements'] : [];

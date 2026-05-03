@@ -223,7 +223,15 @@ class RamsBuilderService
             $scopeOfWorks = $this->buildScopeFromEquipment($reviewedData);
         }
         $data['scope_of_works']  = $scopeOfWorks;
-        $data['site_logistics']  = (array) ($reviewedData['site_logistics'] ?? []);
+        // site_logistics priority: reviewed_data (manual review wins) > survey-derived
+        // (assembled by RamsDataBuilderService::assemble() from ProjectContext).
+        // When reviewed_data carries no logistics, KEEP the survey-derived block —
+        // older code unconditionally overwrote it with an empty array, hiding the
+        // engineer-feedback site logistics surfaced in quick task 260503-tfb.
+        $reviewedSiteLogistics = (array) ($reviewedData['site_logistics'] ?? []);
+        if (! empty($reviewedSiteLogistics)) {
+            $data['site_logistics'] = $reviewedSiteLogistics;
+        }
 
         // Preserve PM guidance verbatim on generated_data — the compliance upgrade service's
         // scope gates (RamsComplianceUpgradeService) read this to decide whether podium/tower,
@@ -439,6 +447,21 @@ class RamsBuilderService
             fn (string $s) => $s !== '',
         ));
 
+        // ── Site vehicles & registrations (for site security / parking) ──────
+        // Stored as an array on programme.site_vehicles (Project Package
+        // review) OR project.site_vehicles (RAMS review form). Either source
+        // populates the asset register section on the cover and Section 6.1.1.
+        $vehiclesSrc = $programme['site_vehicles']
+            ?? $project['site_vehicles']
+            ?? [];
+        if (is_string($vehiclesSrc)) {
+            $vehiclesSrc = preg_split('/\r?\n/', $vehiclesSrc) ?: [];
+        }
+        $vehiclesArr = array_values(array_filter(
+            array_map('trim', (array) $vehiclesSrc),
+            fn (string $s) => $s !== '',
+        ));
+
         // ── Engineering team array for DocxBuilderService::addTeamTable() ─────
         $team = [];
         if ($pmName !== '') {
@@ -463,13 +486,29 @@ class RamsBuilderService
         // ── Start date ────────────────────────────────────────────────────────
         $startDate = trim((string) ($programme['planned_start_date'] ?? ''));
 
+        // doc_author (Prepared By on the cover) — the 21CAV PM is the
+        // authoritative author of the RAMS. The parsed `prepared_by` from
+        // the quote PDF is unreliable: when QuoteWerks leaves PREPAREDBYSTART
+        // empty, the parser falls back to deriving a name from the client's
+        // SHIPEMAIL — which puts the CLIENT contact's name on PREPARED BY.
+        //
+        // Resolution order:
+        //   1. Form-supplied doc_author (engineer set it explicitly) — kept
+        //      via array_merge by passing null here, so $formData wins.
+        //   2. Project Manager name from reviewed data.
+        //   3. Parsed prepared_by from the quote (last-ditch fallback).
+        $formAuthor = trim((string) ($formData['doc_author'] ?? ''));
+        $docAuthor  = $formAuthor !== ''
+            ? null
+            : ($pmName ?: (($project['prepared_by'] ?? '') ?: null));
+
         $merged = array_merge($formData, array_filter([
             'project_ref'          => ($project['quote_ref']    ?? '') ?: null,
             'project_name'         => ($project['project_name'] ?? '') ?: null,
             'client_name'          => ($project['client_name']  ?? '') ?: null,
             'site_address'         => ($project['site_address'] ?? '') ?: null,
             'site_contact'         => ($project['site_contact'] ?? '') ?: null,
-            'doc_author'           => ($project['prepared_by']  ?? '') ?: null,
+            'doc_author'           => $docAuthor,
             'project_manager'      => $pmName  ?: null,
             'lead_engineer'        => $leName  ?: null,
             'additional_engineers' => $addEngsArr ? implode(', ', $addEngsArr)
@@ -484,6 +523,9 @@ class RamsBuilderService
 
         // team must always be set (array_filter would strip an empty array)
         $merged['team'] = $team;
+        // Always pass the vehicles array (may be empty — DocxBuilder will skip
+        // the section when there are no entries).
+        $merged['site_vehicles'] = $vehiclesArr;
 
         return $merged;
     }
