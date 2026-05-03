@@ -248,6 +248,110 @@
             </label>
         </div>
 
+        {{-- ────────────────────────────────────────────────────────────────────── --}}
+        {{-- TYPE-SPECIFIC PANELS (PA / Signage / Upgrade) — shown immediately      --}}
+        {{-- after the scope booleans so the engineer sees the type-tailored        --}}
+        {{-- questions before the generic measurements / sub-sections below.        --}}
+        {{-- ────────────────────────────────────────────────────────────────────── --}}
+
+        {{-- ── PA SYSTEM ────────────────────────────────────────────────────────── --}}
+        <div class="type-panel type-panel--pa" @if(!$showPaRm)style="display:none"@endif>
+            <div class="type-panel-heading">PA System Details</div>
+            <div class="form-grid-2">
+                <div class="form-group">
+                    <label class="form-label">Number of Speakers</label>
+                    <input type="number" name="rooms[{{ $ri }}][speaker_count]" class="form-control" data-optional
+                           value="{{ $val('speaker_count') }}" min="0" max="999" step="1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Speaker Type</label>
+                    <select name="rooms[{{ $ri }}][speaker_type]" class="form-control" data-optional>
+                        <option value="">— Select —</option>
+                        <option value="ceiling"    {{ $opt('speaker_type', 'ceiling') }}>Ceiling (flush)</option>
+                        <option value="pendant"    {{ $opt('speaker_type', 'pendant') }}>Pendant</option>
+                        <option value="surface"    {{ $opt('speaker_type', 'surface') }}>Surface mount</option>
+                        <option value="column"     {{ $opt('speaker_type', 'column') }}>Column array</option>
+                        <option value="horn"       {{ $opt('speaker_type', 'horn') }}>Horn / outdoor</option>
+                        <option value="sub"        {{ $opt('speaker_type', 'sub') }}>Subwoofer</option>
+                        <option value="line_array" {{ $opt('speaker_type', 'line_array') }}>Line array</option>
+                        <option value="other"      {{ $opt('speaker_type', 'other') }}>Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Speaker Mounting</label>
+                    <select name="rooms[{{ $ri }}][speaker_mounting]" class="form-control" data-optional>
+                        <option value="">— Select —</option>
+                        <option value="ceiling_recessed" {{ $opt('speaker_mounting', 'ceiling_recessed') }}>Ceiling — recessed</option>
+                        <option value="ceiling_surface"  {{ $opt('speaker_mounting', 'ceiling_surface') }}>Ceiling — surface</option>
+                        <option value="pendant"          {{ $opt('speaker_mounting', 'pendant') }}>Pendant drop</option>
+                        <option value="wall"             {{ $opt('speaker_mounting', 'wall') }}>Wall mount</option>
+                        <option value="bracket"          {{ $opt('speaker_mounting', 'bracket') }}>Bracket / truss</option>
+                        <option value="floor_stand"      {{ $opt('speaker_mounting', 'floor_stand') }}>Floor stand</option>
+                        <option value="other"            {{ $opt('speaker_mounting', 'other') }}>Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Background Noise (dB)</label>
+                    <input type="number" name="rooms[{{ $ri }}][bg_noise_db]" class="form-control" data-optional
+                           value="{{ $val('bg_noise_db') }}" min="0" max="120" step="1"
+                           placeholder="Measured dB(A)">
+                </div>
+            </div>
+        </div>
+
+        {{-- ── DIGITAL SIGNAGE ──────────────────────────────────────────────────── --}}
+        <div class="type-panel type-panel--signage" @if(!$showSignRm)style="display:none"@endif>
+            <div class="type-panel-heading">Digital Signage Details</div>
+            <div class="form-grid-2">
+                <div class="form-group">
+                    <label class="form-label">Display Size (inches)</label>
+                    <input type="number" name="rooms[{{ $ri }}][display_size_in]" class="form-control" data-optional
+                           value="{{ $val('display_size_in') }}" min="0" max="999" step="0.1"
+                           placeholder="e.g. 55, 75, 86">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Orientation</label>
+                    <select name="rooms[{{ $ri }}][display_orient]" class="form-control" data-optional>
+                        <option value="">— Select —</option>
+                        <option value="landscape" {{ $opt('display_orient', 'landscape') }}>Landscape</option>
+                        <option value="portrait"  {{ $opt('display_orient', 'portrait') }}>Portrait</option>
+                    </select>
+                </div>
+                <div class="form-group" style="grid-column:1/-1;">
+                    <label class="form-label">Mounting Type</label>
+                    <select name="rooms[{{ $ri }}][display_mounting]" class="form-control" data-optional>
+                        <option value="">— Select —</option>
+                        <option value="wall_flush"  {{ $opt('display_mounting', 'wall_flush') }}>Wall — flush / fixed</option>
+                        <option value="wall_tilt"   {{ $opt('display_mounting', 'wall_tilt') }}>Wall — tilt / articulating</option>
+                        <option value="ceiling"     {{ $opt('display_mounting', 'ceiling') }}>Ceiling drop mount</option>
+                        <option value="floor_stand" {{ $opt('display_mounting', 'floor_stand') }}>Floor stand / totem</option>
+                        <option value="desk_stand"  {{ $opt('display_mounting', 'desk_stand') }}>Desk / counter stand</option>
+                        <option value="other"       {{ $opt('display_mounting', 'other') }}>Other</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        {{-- ── UPGRADE / STRIP-OUT ──────────────────────────────────────────────── --}}
+        <div class="type-panel type-panel--upgrade" @if(!$showUpgRm)style="display:none"@endif>
+            <div class="type-panel-heading">Upgrade / Strip-out Details</div>
+            <div class="form-group">
+                <label class="form-label">Existing Equipment Condition</label>
+                <textarea name="rooms[{{ $ri }}][existing_condition]" class="form-control" data-optional rows="2" maxlength="3000"
+                          placeholder="Describe condition of existing AV kit…">{{ $val('existing_condition') }}</textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Items to Remove / Strip Out</label>
+                <textarea name="rooms[{{ $ri }}][items_to_remove]" class="form-control" data-optional rows="2" maxlength="3000"
+                          placeholder="List equipment to be decommissioned…">{{ $val('items_to_remove') }}</textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Items to Retain / Reuse</label>
+                <textarea name="rooms[{{ $ri }}][items_to_retain]" class="form-control" data-optional rows="2" maxlength="3000"
+                          placeholder="List equipment to keep and integrate…">{{ $val('items_to_retain') }}</textarea>
+            </div>
+        </div>
+
         {{-- Measurements / infrastructure (always available, collapsed) --}}
         <button type="button" class="btn btn-outline btn-sm" style="margin-bottom:.75rem;"
                 onclick="toggleInfra(this)">&#9660; Measurements &amp; Infrastructure</button>
@@ -791,104 +895,6 @@
                 <input type="text" name="rooms[{{ $ri }}][engineer_signature_name]" class="form-control" data-optional
                        value="{{ $val('engineer_signature_name') }}" maxlength="255"
                        placeholder="Full name of surveying engineer">
-            </div>
-        </div>
-
-        {{-- ── PA SYSTEM ────────────────────────────────────────────────────────── --}}
-        <div class="type-panel type-panel--pa" @if(!$showPaRm)style="display:none"@endif>
-            <div class="type-panel-heading">PA System Details</div>
-            <div class="form-grid-2">
-                <div class="form-group">
-                    <label class="form-label">Number of Speakers</label>
-                    <input type="number" name="rooms[{{ $ri }}][speaker_count]" class="form-control" data-optional
-                           value="{{ $val('speaker_count') }}" min="0" max="999" step="1">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Speaker Type</label>
-                    <select name="rooms[{{ $ri }}][speaker_type]" class="form-control" data-optional>
-                        <option value="">— Select —</option>
-                        <option value="ceiling"    {{ $opt('speaker_type', 'ceiling') }}>Ceiling (flush)</option>
-                        <option value="pendant"    {{ $opt('speaker_type', 'pendant') }}>Pendant</option>
-                        <option value="surface"    {{ $opt('speaker_type', 'surface') }}>Surface mount</option>
-                        <option value="column"     {{ $opt('speaker_type', 'column') }}>Column array</option>
-                        <option value="horn"       {{ $opt('speaker_type', 'horn') }}>Horn / outdoor</option>
-                        <option value="sub"        {{ $opt('speaker_type', 'sub') }}>Subwoofer</option>
-                        <option value="line_array" {{ $opt('speaker_type', 'line_array') }}>Line array</option>
-                        <option value="other"      {{ $opt('speaker_type', 'other') }}>Other</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Speaker Mounting</label>
-                    <select name="rooms[{{ $ri }}][speaker_mounting]" class="form-control" data-optional>
-                        <option value="">— Select —</option>
-                        <option value="ceiling_recessed" {{ $opt('speaker_mounting', 'ceiling_recessed') }}>Ceiling — recessed</option>
-                        <option value="ceiling_surface"  {{ $opt('speaker_mounting', 'ceiling_surface') }}>Ceiling — surface</option>
-                        <option value="pendant"          {{ $opt('speaker_mounting', 'pendant') }}>Pendant drop</option>
-                        <option value="wall"             {{ $opt('speaker_mounting', 'wall') }}>Wall mount</option>
-                        <option value="bracket"          {{ $opt('speaker_mounting', 'bracket') }}>Bracket / truss</option>
-                        <option value="floor_stand"      {{ $opt('speaker_mounting', 'floor_stand') }}>Floor stand</option>
-                        <option value="other"            {{ $opt('speaker_mounting', 'other') }}>Other</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Background Noise (dB)</label>
-                    <input type="number" name="rooms[{{ $ri }}][bg_noise_db]" class="form-control" data-optional
-                           value="{{ $val('bg_noise_db') }}" min="0" max="120" step="1"
-                           placeholder="Measured dB(A)">
-                </div>
-            </div>
-        </div>
-
-        {{-- ── DIGITAL SIGNAGE ──────────────────────────────────────────────────── --}}
-        <div class="type-panel type-panel--signage" @if(!$showSignRm)style="display:none"@endif>
-            <div class="type-panel-heading">Digital Signage Details</div>
-            <div class="form-grid-2">
-                <div class="form-group">
-                    <label class="form-label">Display Size (inches)</label>
-                    <input type="number" name="rooms[{{ $ri }}][display_size_in]" class="form-control" data-optional
-                           value="{{ $val('display_size_in') }}" min="0" max="999" step="0.1"
-                           placeholder="e.g. 55, 75, 86">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Orientation</label>
-                    <select name="rooms[{{ $ri }}][display_orient]" class="form-control" data-optional>
-                        <option value="">— Select —</option>
-                        <option value="landscape" {{ $opt('display_orient', 'landscape') }}>Landscape</option>
-                        <option value="portrait"  {{ $opt('display_orient', 'portrait') }}>Portrait</option>
-                    </select>
-                </div>
-                <div class="form-group" style="grid-column:1/-1;">
-                    <label class="form-label">Mounting Type</label>
-                    <select name="rooms[{{ $ri }}][display_mounting]" class="form-control" data-optional>
-                        <option value="">— Select —</option>
-                        <option value="wall_flush"  {{ $opt('display_mounting', 'wall_flush') }}>Wall — flush / fixed</option>
-                        <option value="wall_tilt"   {{ $opt('display_mounting', 'wall_tilt') }}>Wall — tilt / articulating</option>
-                        <option value="ceiling"     {{ $opt('display_mounting', 'ceiling') }}>Ceiling drop mount</option>
-                        <option value="floor_stand" {{ $opt('display_mounting', 'floor_stand') }}>Floor stand / totem</option>
-                        <option value="desk_stand"  {{ $opt('display_mounting', 'desk_stand') }}>Desk / counter stand</option>
-                        <option value="other"       {{ $opt('display_mounting', 'other') }}>Other</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-
-        {{-- ── UPGRADE / STRIP-OUT ──────────────────────────────────────────────── --}}
-        <div class="type-panel type-panel--upgrade" @if(!$showUpgRm)style="display:none"@endif>
-            <div class="type-panel-heading">Upgrade / Strip-out Details</div>
-            <div class="form-group">
-                <label class="form-label">Existing Equipment Condition</label>
-                <textarea name="rooms[{{ $ri }}][existing_condition]" class="form-control" data-optional rows="2" maxlength="3000"
-                          placeholder="Describe condition of existing AV kit…">{{ $val('existing_condition') }}</textarea>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Items to Remove / Strip Out</label>
-                <textarea name="rooms[{{ $ri }}][items_to_remove]" class="form-control" data-optional rows="2" maxlength="3000"
-                          placeholder="List equipment to be decommissioned…">{{ $val('items_to_remove') }}</textarea>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Items to Retain / Reuse</label>
-                <textarea name="rooms[{{ $ri }}][items_to_retain]" class="form-control" data-optional rows="2" maxlength="3000"
-                          placeholder="List equipment to keep and integrate…">{{ $val('items_to_retain') }}</textarea>
             </div>
         </div>
 
