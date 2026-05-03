@@ -497,19 +497,76 @@
                         </details>
                     @endif
 
-                    {{-- KIT LIST drawer (gold) --}}
-                    @if(! empty($equipment))
+                    {{-- KIT LIST drawer (gold) — each row has a "📷 Label" capture button.
+                         Engineer photographs the sticker; server runs Claude vision OCR;
+                         engineer confirms → values flow into the asset register (devices).
+                         Defensive: DeviceLabelPhoto model is half-built (not yet deployed
+                         on every environment) — degrade gracefully when missing. --}}
+                    @if(! empty($equipment) && class_exists(\App\Models\DeviceLabelPhoto::class))
+                        @php
+                            $roomLabelPhotos = \App\Models\DeviceLabelPhoto::where('worksheet_id', $worksheet->id)
+                                ->where('room_name', $room['name'] ?? '')
+                                ->get()
+                                ->groupBy(fn ($p) => strtolower(trim((string) optional($p->device)->description)));
+                        @endphp
                         <details class="room-drawer gold">
                             <summary>
                                 <span>📦 Kit List ({{ count($equipment) }})</span>
                                 <span class="chev">▾</span>
                             </summary>
                             <div class="room-drawer-body">
-                                <ul class="kit-rows">
+                                <ul class="kit-rows" style="list-style:none;padding:0;margin:0;">
                                     @foreach($equipment as $item)
-                                        <li>
-                                            <span class="qty-pill">{{ $item['quantity'] ?? $item['qty'] ?? 1 }}×</span>
-                                            <span style="flex:1;">{{ $item['name'] ?? $item['description'] ?? '—' }}</span>
+                                        @php
+                                            $itemDesc  = $item['name'] ?? $item['description'] ?? '—';
+                                            $itemPart  = $item['part_number'] ?? $item['part_no'] ?? '';
+                                            $itemQty   = $item['quantity'] ?? $item['qty'] ?? 1;
+                                            $itemKey   = strtolower(trim($itemDesc));
+                                            $existing  = $roomLabelPhotos[$itemKey] ?? collect();
+                                        @endphp
+                                        <li class="kit-row" style="display:flex;flex-direction:column;gap:.5rem;padding:.65rem 0;border-bottom:1px solid #F3F4F6;">
+                                            <div style="display:flex;align-items:center;gap:.5rem;">
+                                                <span class="qty-pill">{{ $itemQty }}×</span>
+                                                <span style="flex:1;">{{ $itemDesc }}</span>
+                                                <label class="btn btn-outline btn-sm label-cap-btn"
+                                                       style="display:inline-flex;align-items:center;gap:.35rem;cursor:pointer;font-size:.78rem;">
+                                                    📷 Label
+                                                    <input type="file"
+                                                           accept="image/*"
+                                                           capture="environment"
+                                                           style="display:none;"
+                                                           data-room="{{ $room['name'] ?? '' }}"
+                                                           data-desc="{{ $itemDesc }}"
+                                                           data-part="{{ $itemPart }}"
+                                                           data-qty="{{ $itemQty }}"
+                                                           onchange="captureLabel(this, '{{ $token }}')">
+                                                </label>
+                                            </div>
+                                            @if($existing->isNotEmpty())
+                                                <div class="label-thumbs" style="display:flex;flex-wrap:wrap;gap:.4rem;">
+                                                    @foreach($existing as $lp)
+                                                        @php $ai = $lp->ai_extracted ?? []; @endphp
+                                                        <div class="label-thumb"
+                                                             data-photo-id="{{ $lp->id }}"
+                                                             style="position:relative;border:1px solid #E5E7EB;border-radius:6px;padding:.4rem;background:#F9FAFB;font-size:.72rem;line-height:1.35;min-width:180px;">
+                                                            <a href="{{ \Illuminate\Support\Facades\Storage::url($lp->photo_path) }}" target="_blank" style="float:right;">↗</a>
+                                                            <div><strong>Part:</strong> {{ $ai['part_number'] ?? '—' }}</div>
+                                                            <div><strong>Serial:</strong> {{ $ai['serial_number'] ?? '—' }}</div>
+                                                            <div><strong>MAC:</strong> {{ $ai['mac_address'] ?? '—' }}</div>
+                                                            <div style="margin-top:.25rem;">
+                                                                <span style="display:inline-block;padding:1px 6px;border-radius:9999px;background:{{ $lp->confirmed ? '#DCFCE7' : '#FEF3C7' }};color:{{ $lp->confirmed ? '#166534' : '#92400E' }};font-weight:600;font-size:.65rem;">
+                                                                    {{ $lp->confirmed ? '✓ Confirmed' : 'Review' }}
+                                                                </span>
+                                                                @unless($lp->confirmed)
+                                                                    <button type="button"
+                                                                            onclick="reviewLabel({{ $lp->id }}, '{{ $token }}')"
+                                                                            style="background:none;border:0;color:#0F766E;cursor:pointer;font-size:.7rem;text-decoration:underline;">Edit / Confirm</button>
+                                                                @endunless
+                                                            </div>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            @endif
                                         </li>
                                     @endforeach
                                 </ul>
@@ -771,6 +828,137 @@
             } catch (e) {
                 alert('Network error.');
             }
+        }
+
+        // ── Equipment label capture (per-item) ──────────────────────────────
+        // Engineer photographs the manufacturer sticker; Claude vision OCRs
+        // part / serial / MAC; engineer reviews + confirms; values flow into
+        // the asset-register `devices` table.
+        async function captureLabel(input, token) {
+            const file = input.files && input.files[0];
+            if (!file) return;
+            const fd = new FormData();
+            fd.append('photo', file);
+            fd.append('room_name',        input.dataset.room || '');
+            fd.append('item_description', input.dataset.desc || '');
+            fd.append('item_part_number', input.dataset.part || '');
+            fd.append('item_qty',         input.dataset.qty  || 1);
+
+            const btn = input.closest('label');
+            const orig = btn ? btn.textContent.trim() : '';
+            if (btn) btn.style.opacity = '.6';
+
+            const url = '/worksheet/' + encodeURIComponent(token) + '/label-photo';
+            try {
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                        'Accept': 'application/json',
+                    },
+                    body: fd,
+                });
+                if (!resp.ok) {
+                    alert('Label upload failed. ' + (resp.statusText || ''));
+                    input.value = '';
+                    if (btn) btn.style.opacity = '';
+                    return;
+                }
+                const data = await resp.json();
+                const ai = data.ai_extracted || {};
+                openLabelReview({
+                    photoId: data.id,
+                    token,
+                    photoUrl: data.photo_url,
+                    extracted: {
+                        part_number:   ai.part_number   || '',
+                        serial_number: ai.serial_number || '',
+                        mac_address:   ai.mac_address   || '',
+                        model:         ai.model         || '',
+                        manufacturer:  ai.manufacturer  || '',
+                    },
+                });
+            } catch (e) {
+                alert('Network error. Please try again.');
+                input.value = '';
+                if (btn) btn.style.opacity = '';
+            }
+        }
+
+        async function reviewLabel(photoId, token) {
+            // Re-open the modal for an existing label photo (the engineer can
+            // edit then confirm). Pulls latest extracted values via the same
+            // confirm endpoint by sending a GET — but we only have POST, so we
+            // grab values from the DOM card instead.
+            const card = document.querySelector('.label-thumb[data-photo-id="' + photoId + '"]');
+            if (!card) return;
+            const get = (label) => {
+                const r = [...card.querySelectorAll('div')].find((d) => d.textContent.startsWith(label));
+                return r ? r.textContent.replace(label, '').trim() : '';
+            };
+            openLabelReview({
+                photoId,
+                token,
+                photoUrl: card.querySelector('a').href,
+                extracted: {
+                    part_number:   get('Part:'),
+                    serial_number: get('Serial:'),
+                    mac_address:   get('MAC:'),
+                    model:         '',
+                    manufacturer:  '',
+                },
+            });
+        }
+
+        function openLabelReview({ photoId, token, photoUrl, extracted }) {
+            // Build a simple modal — vanilla JS, no Alpine dep.
+            const overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+            overlay.innerHTML = `
+                <div style="background:#fff;border-radius:12px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto;padding:1.25rem;">
+                    <h3 style="margin:0 0 .75rem;font-size:1.05rem;">Confirm label values</h3>
+                    <img src="${photoUrl}" alt="" style="width:100%;max-height:240px;object-fit:contain;border-radius:8px;background:#F3F4F6;margin-bottom:.85rem;">
+                    <div style="font-size:.78rem;color:#6B7280;margin-bottom:.65rem;">
+                        AI read these values from the label. Edit any field, then confirm to save to the asset register.
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:.55rem;">
+                        ${['part_number','serial_number','mac_address','model','manufacturer'].map((k) => `
+                            <label style="display:flex;flex-direction:column;gap:.2rem;font-size:.78rem;font-weight:600;color:#374151;">
+                                <span>${k.replace('_',' ').replace(/\b\w/g, (c) => c.toUpperCase())}</span>
+                                <input type="text" name="${k}" value="${extracted[k] && extracted[k] !== 'UNKNOWN' ? extracted[k].replace(/"/g,'&quot;') : ''}"
+                                       style="border:1px solid #D1D5DB;border-radius:6px;padding:.5rem .65rem;font-family:inherit;font-size:.875rem;">
+                            </label>
+                        `).join('')}
+                    </div>
+                    <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;">
+                        <button type="button" id="lblCancel" style="background:#F3F4F6;border:1px solid #D1D5DB;color:#374151;padding:.5rem .9rem;border-radius:6px;cursor:pointer;font-weight:600;font-size:.85rem;">Cancel</button>
+                        <button type="button" id="lblConfirm" style="background:#16A34A;border:1px solid #16A34A;color:#fff;padding:.5rem .9rem;border-radius:6px;cursor:pointer;font-weight:600;font-size:.85rem;">✓ Confirm</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+            const close = () => { overlay.remove(); window.location.reload(); };
+            overlay.querySelector('#lblCancel').onclick = () => overlay.remove();
+            overlay.querySelector('#lblConfirm').onclick = async () => {
+                const fd = new FormData();
+                ['part_number','serial_number','mac_address','model','manufacturer'].forEach((k) => {
+                    const v = overlay.querySelector(`input[name="${k}"]`).value.trim();
+                    if (v) fd.append(k, v);
+                });
+                const url = '/worksheet/' + encodeURIComponent(token) + '/label-photos/' + photoId + '/confirm';
+                try {
+                    const resp = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                            'Accept': 'application/json',
+                        },
+                        body: fd,
+                    });
+                    if (!resp.ok) { alert('Confirm failed.'); return; }
+                    close();
+                } catch (e) { alert('Network error.'); }
+            };
         }
     </script>
 
