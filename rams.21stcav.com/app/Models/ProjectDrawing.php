@@ -68,7 +68,7 @@ class ProjectDrawing extends Model
 
     protected $fillable = [
         'project_id', 'site_survey_room_id', 'kind', 'rack_label',
-        'version', 'superseded_by_id',
+        'version', 'sheet_number', 'superseded_by_id',
         'source_data', 'generated_svg', 'canvas_state', 'thumbnail_png_path',
         'status', 'error_message', 'filename',
         'completion_email_sent_at', 'failed_email_sent_at',

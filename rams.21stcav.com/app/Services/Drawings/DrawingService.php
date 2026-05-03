@@ -36,6 +36,7 @@ class DrawingService
     public function __construct(
         private readonly ProjectDataService $projectDataService,
         private readonly DrawingDataResolverService $resolver,
+        private readonly SheetNumberAllocator $sheetAllocator,
     ) {}
 
     /**
@@ -58,12 +59,27 @@ class DrawingService
             'source_data' => $this->projectDataService->resolve($project),
         ]);
 
+        // Phase 20 Plan 01 (DRAW-23) — set-once auto-derived AVIXA sheet number.
+        // Schematics get AV-201..299; racks get AV-301..399; floor plans skipped
+        // (allocator throws on KIND_FLOOR_PLAN — guard here so v2.0 floor plans
+        // can land without changing the controller path). The set-once guard
+        // (`sheet_number === null`) is defensive — re-running createForProject
+        // shouldn't ever happen on the same row, but if it did the allocator
+        // would over-count itself.
+        if (in_array($kind, [ProjectDrawing::KIND_SCHEMATIC, ProjectDrawing::KIND_RACK], true)
+            && $drawing->sheet_number === null) {
+            $drawing->update([
+                'sheet_number' => $this->sheetAllocator->allocate($project->id, $kind),
+            ]);
+        }
+
         Log::info('DrawingService: drawing created', [
             'drawing_id' => $drawing->id,
             'project_id' => $project->id,
             'kind' => $kind,
             'room_id' => $roomId,
             'user_id' => $userId,
+            'sheet_number' => $drawing->fresh()->sheet_number, // Phase 20 (DRAW-23)
         ]);
 
         return $drawing;

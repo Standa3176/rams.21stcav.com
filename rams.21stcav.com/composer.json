@@ -17,11 +17,12 @@
         "laravel/tinker": "^2.10.1",
         "mpdf/mpdf": "^8.3",
         "phpoffice/phpword": "^1.4",
+        "setasign/fpdf": "1.8.6",
         "smalot/pdfparser": "^2.12",
         "spatie/browsershot": "^5.3",
         "spatie/pdf-to-text": "^1.54",
-        "symfony/http-client": "^8.0",
-        "symfony/postmark-mailer": "^8.0"
+        "symfony/http-client": "^7.0 || ^8.0",
+        "symfony/postmark-mailer": "^7.0 || ^8.0"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
@@ -101,6 +102,9 @@
         "allow-plugins": {
             "pestphp/pest-plugin": true,
             "php-http/discovery": true
+        },
+        "platform": {
+            "php": "8.2.0"
         }
     },
     "minimum-stability": "stable",
