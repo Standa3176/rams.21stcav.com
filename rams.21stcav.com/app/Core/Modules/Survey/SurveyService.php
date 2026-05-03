@@ -256,6 +256,14 @@ class SurveyService
                 'surveyor_name' => $data['surveyor_name'] ?? null,
                 'general_notes' => $data['general_notes'] ?? null,
                 'survey_type'   => $data['survey_type']   ?? $survey->survey_type,
+                // Engineer-feedback site logistics (quick task 260503-rgg)
+                'comms_room_access_status' => $data['comms_room_access_status'] ?? null,
+                'comms_room_access_notes'  => $data['comms_room_access_notes']  ?? null,
+                'parking_restraints'       => $data['parking_restraints']       ?? null,
+                'distance_from_base_miles' => $data['distance_from_base_miles'] ?? null,
+                'distance_from_base_notes' => $data['distance_from_base_notes'] ?? null,
+                'site_access_notes'        => $data['site_access_notes']        ?? null,
+                'delivery_routes'          => $data['delivery_routes']          ?? null,
             ]);
 
             // Rebuild rooms: keep existing IDs where supplied to preserve photos
@@ -594,6 +602,17 @@ class SurveyService
             // Engineer sign-off
             'engineer_confirmed'        => isset($data['engineer_confirmed']) ? (bool) $data['engineer_confirmed'] : null,
             'engineer_signature_name'   => $data['engineer_signature_name']   ?? null,
+            // Engineer-feedback room-level additions (quick task 260503-rgg)
+            'mounting_heights'          => $data['mounting_heights']          ?? null,
+            'work_at_height_methods'    => $data['work_at_height_methods']    ?? null,
+            'cable_routes'              => $this->normalizeCableRoutes($data['cable_routes'] ?? null),
+            'wall_construction'         => $data['wall_construction']         ?? null,
+            'wall_needs_reinforcement'  => isset($data['wall_needs_reinforcement']) ? (bool) $data['wall_needs_reinforcement'] : null,
+            'wall_needs_chase_out'      => isset($data['wall_needs_chase_out'])     ? (bool) $data['wall_needs_chase_out']     : null,
+            'wall_needs_conduit'        => isset($data['wall_needs_conduit'])       ? (bool) $data['wall_needs_conduit']       : null,
+            'table_info'                => $data['table_info']                ?? null,
+            'floor_box_info'            => $data['floor_box_info']            ?? null,
+            'brackets_required'         => $this->normalizeBracketRows($data['brackets_required'] ?? null),
         ];
     }
 
@@ -762,5 +781,58 @@ class SurveyService
             'survey_id'  => $survey->id,
             'project_id' => $survey->project_id,
         ]);
+    }
+
+    /**
+     * Drop fully-empty rows from the cable_routes JSON array submitted from the
+     * dynamic Alpine row-add UI. A row is considered empty when category, from,
+     * to, length_m AND notes are all blank/null. Returns null if no real rows
+     * remain so the column stays NULL rather than storing an empty array.
+     *
+     * Quick task 260503-rgg.
+     *
+     * @param  array<int, array<string, mixed>>|null  $rows
+     */
+    private function normalizeCableRoutes(?array $rows): ?array
+    {
+        if ($rows === null) {
+            return null;
+        }
+        $clean = array_values(array_filter($rows, function ($r) {
+            if (! is_array($r)) {
+                return false;
+            }
+            $hasContent = trim((string) ($r['category'] ?? '')) !== ''
+                || trim((string) ($r['from']     ?? '')) !== ''
+                || trim((string) ($r['to']       ?? '')) !== ''
+                || trim((string) ($r['notes']    ?? '')) !== ''
+                || (($r['length_m'] ?? null) !== null && $r['length_m'] !== '');
+            return $hasContent;
+        }));
+        return $clean === [] ? null : $clean;
+    }
+
+    /**
+     * Same empty-row-strip logic for brackets_required. A row is empty when
+     * equipment, model AND notes are all blank.
+     *
+     * Quick task 260503-rgg.
+     *
+     * @param  array<int, array<string, mixed>>|null  $rows
+     */
+    private function normalizeBracketRows(?array $rows): ?array
+    {
+        if ($rows === null) {
+            return null;
+        }
+        $clean = array_values(array_filter($rows, function ($r) {
+            if (! is_array($r)) {
+                return false;
+            }
+            return trim((string) ($r['equipment'] ?? '')) !== ''
+                || trim((string) ($r['model']     ?? '')) !== ''
+                || trim((string) ($r['notes']     ?? '')) !== '';
+        }));
+        return $clean === [] ? null : $clean;
     }
 }

@@ -329,7 +329,13 @@ class SiteSurveyController extends Controller
         $record = SiteSurvey::findOrFail($siteSurvey);
         $this->authorizeSurvey($record);
 
+        $projectId = $record->project_id;
+
         $record->delete();
+
+        if ($projectId) {
+            return redirect()->route('projects.show', $projectId)->with('success', 'Survey deleted.');
+        }
 
         return redirect()->route('site-surveys.index')->with('success', 'Survey deleted.');
     }
@@ -467,6 +473,14 @@ class SiteSurveyController extends Controller
             'pm_email'                              => ['nullable', 'email', 'max:150'],
             'general_notes'                         => ['nullable', 'string', 'max:3000'],
             'survey_type'                           => ['nullable', 'string', 'in:general,pa_system,infrastructure,signage,upgrade,mixed'],
+            // Engineer-feedback site logistics (quick task 260503-rgg)
+            'comms_room_access_status'              => ['nullable', 'string', 'in:yes,no,outsourced,unknown'],
+            'comms_room_access_notes'               => ['nullable', 'string', 'max:2000'],
+            'parking_restraints'                    => ['nullable', 'string', 'max:2000'],
+            'distance_from_base_miles'              => ['nullable', 'numeric', 'min:0', 'max:9999'],
+            'distance_from_base_notes'              => ['nullable', 'string', 'max:2000'],
+            'site_access_notes'                     => ['nullable', 'string', 'max:3000'],
+            'delivery_routes'                       => ['nullable', 'string', 'max:3000'],
             // Rooms
             'rooms'                                 => ['nullable', 'array'],
             'rooms.*.id'                            => ['nullable', 'integer'],
@@ -512,6 +526,51 @@ class SiteSurveyController extends Controller
             'rooms.*.existing_condition'            => ['nullable', 'string', 'max:3000'],
             'rooms.*.items_to_remove'               => ['nullable', 'string', 'max:3000'],
             'rooms.*.items_to_retain'               => ['nullable', 'string', 'max:3000'],
+
+            // ── Engineer-feedback room-level additions (quick task 260503-rgg) ──
+            'rooms.*.mounting_heights'                  => ['nullable', 'array'],
+            'rooms.*.mounting_heights.screen_h_m'       => ['nullable', 'numeric', 'min:0', 'max:99'],
+            'rooms.*.mounting_heights.camera_h_m'       => ['nullable', 'numeric', 'min:0', 'max:99'],
+            'rooms.*.mounting_heights.booking_panel_h_m'=> ['nullable', 'numeric', 'min:0', 'max:99'],
+            'rooms.*.mounting_heights.speaker_h_m'      => ['nullable', 'numeric', 'min:0', 'max:99'],
+            'rooms.*.mounting_heights.other'            => ['nullable', 'array'],
+            'rooms.*.mounting_heights.other.*.label'    => ['nullable', 'string', 'max:150'],
+            'rooms.*.mounting_heights.other.*.height_m' => ['nullable', 'numeric', 'min:0', 'max:99'],
+
+            'rooms.*.work_at_height_methods'            => ['nullable', 'array'],
+            'rooms.*.work_at_height_methods.*'          => ['string', 'in:ladder,podium,tower,mewp,scaffold,na'],
+
+            'rooms.*.cable_routes'                      => ['nullable', 'array'],
+            'rooms.*.cable_routes.*.category'           => ['nullable', 'string', 'in:ceiling_speakers,desk_cables,mic_cables,booking_panel_cables,screen_cables,rack_to_room,other'],
+            'rooms.*.cable_routes.*.from'               => ['nullable', 'string', 'max:255'],
+            'rooms.*.cable_routes.*.to'                 => ['nullable', 'string', 'max:255'],
+            'rooms.*.cable_routes.*.length_m'           => ['nullable', 'numeric', 'min:0', 'max:9999'],
+            'rooms.*.cable_routes.*.notes'              => ['nullable', 'string', 'max:500'],
+
+            'rooms.*.wall_construction'                 => ['nullable', 'array'],
+            'rooms.*.wall_construction.*'               => ['string', 'in:ply_lined,solid,plasterboard,masonry,metal_stud,concrete'],
+            'rooms.*.wall_needs_reinforcement'          => ['nullable', 'boolean'],
+            'rooms.*.wall_needs_chase_out'              => ['nullable', 'boolean'],
+            'rooms.*.wall_needs_conduit'                => ['nullable', 'boolean'],
+
+            'rooms.*.table_info'                        => ['nullable', 'array'],
+            'rooms.*.table_info.has_grommets'           => ['nullable', 'boolean'],
+            'rooms.*.table_info.grommet_count'          => ['nullable', 'integer', 'min:0', 'max:99'],
+            'rooms.*.table_info.grommet_size'           => ['nullable', 'string', 'in:small,standard,large'],
+            'rooms.*.table_info.notes'                  => ['nullable', 'string', 'max:500'],
+
+            'rooms.*.floor_box_info'                    => ['nullable', 'array'],
+            'rooms.*.floor_box_info.has_floor_box'      => ['nullable', 'boolean'],
+            'rooms.*.floor_box_info.power_outlets'      => ['nullable', 'integer', 'min:0', 'max:99'],
+            'rooms.*.floor_box_info.data_outlets'       => ['nullable', 'integer', 'min:0', 'max:99'],
+            'rooms.*.floor_box_info.cable_space'        => ['nullable', 'string', 'in:tight,adequate,spacious'],
+            'rooms.*.floor_box_info.notes'              => ['nullable', 'string', 'max:500'],
+
+            'rooms.*.brackets_required'                 => ['nullable', 'array'],
+            'rooms.*.brackets_required.*.equipment'     => ['nullable', 'string', 'max:255'],
+            'rooms.*.brackets_required.*.model'         => ['nullable', 'string', 'max:255'],
+            'rooms.*.brackets_required.*.pull_out'      => ['nullable', 'boolean'],
+            'rooms.*.brackets_required.*.notes'         => ['nullable', 'string', 'max:500'],
         ]);
     }
 }
