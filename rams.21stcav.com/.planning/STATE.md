@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Installation Programme & Field Management — SHIPPED 2026-04-25
-status: Phase 18 fully shipped (Plans 18-01 + 18-03); v1.3 next phase is 20.
-last_updated: "2026-05-02T21:49:59.274Z"
-last_activity: 2026-05-02
+milestone: v1.3
+milestone_name: Technical Drawings & Schematics
+status: Phase 20 planned (2/2 plans, plan-checker PASS-WITH-NOTES → 3 blockers fixed → PASS); ready for /gsd-execute-phase 20.
+last_updated: "2026-05-03T08:30:00.000Z"
+last_activity: 2026-05-03
 progress:
   total_phases: 3
   completed_phases: 2
@@ -18,14 +18,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-30)
 
 **Core value:** One dataset powers every document.
-**Current focus:** Phase 18 — Rack Elevations
+**Current focus:** Phase 20 — Drawing Export Pipeline + O&M Integration (planned, ready to execute)
 
 ## Current Position
 
-Phase: 999.1
-Plan: Not started
-Status: Phase 18 fully shipped (Plans 18-01 + 18-03); v1.3 next phase is 20.
-Last activity: 2026-05-02
+Phase: 20
+Plan: 20-01 (next to execute) + 20-02 (Wave 2)
+Status: Phase 20 planned (2/2 plans, plan-checker PASS after fixes); /gsd-execute-phase 20 next.
+Last activity: 2026-05-03
 
 ## Milestone Progress (v1.3)
 
@@ -34,9 +34,9 @@ Last activity: 2026-05-02
 | 17. System Schematics + Shared Foundations | 3/3 | ✓ Complete |
 | 18. Rack Elevations | 2/2 | ✓ Complete (18-01 + 18-03 done) |
 | 19. Floor Plans (Konva) | 0/0 | ⤳ Deferred to v2.0 backlog 999.1 (2026-05-02) |
-| 20. Drawing Export + O&M Integration | 0/2 | Not started |
+| 20. Drawing Export + O&M Integration | 0/2 | 📋 Planned (2026-05-03) — plan-checker PASS, ready to execute |
 
-**Total:** 5/7 plans, 2/3 phases (71%) — Phase 19 deferred from v1.3 scope.
+**Total:** 5/7 plans complete, 2/3 phases shipped (71%) — Phase 19 deferred from v1.3 scope; Phase 20 planning complete.
 
 ## Performance Metrics
 

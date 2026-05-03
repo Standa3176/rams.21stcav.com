@@ -106,7 +106,9 @@ Floor plan drawing tool moved out of v1.3 scope on 2026-05-02 to avoid building 
   3. User can download a ZIP bundle of all of a project's drawings (PDF + SVG + PNG) in one action
   4. User who opens an O&M Manual sees a "Drawings" section with each ready drawing embedded as a high-resolution PNG, one drawing per page, matching the bound PDF
   5. Production hardening: dedicated drawings queue (concurrency=1) + `pdf:smoke-test --drawings` + chrome-headless-shell version pin + `@font-face` + license audit
-**Plans**: 2 plans (estimated; Plan 2 includes O&M integration and production hardening)
+**Plans**: 2 plans
+- [ ] 20-01-bound-pdf-sheet-numbering-zip-PLAN.md — sheet_number column + SheetNumberAllocator + setasign/fpdi MIT install + BoundPdfBuilderService (cover+register Blade + per-drawing concat with isolated failures) + BuildBoundPdfJob + BoundPdfReadyMail + 3 routes (bound-pdf download, bound-pdf build, ZIP bundle) + drawings index UI (bound-PDF button + ZIP button + sheet column + 'regen needed' badge). Wave 1. Requirements: DRAW-21, DRAW-23, DRAW-28.
+- [ ] 20-02-production-hardening-om-rack-embed-PLAN.md — O&M rack-embed regression test + pdf:smoke-test --drawings rack extension + drawings:audit-licenses command + drawings queue connection in config/queue.php + .env.example chrome-headless-shell version pin + @font-face declarations in 3 drawing Blade views + public/fonts/.gitkeep + drawings-queue-runbook.md. Wave 2 — depends on 20-01. Requirements: (none — pure hardening).
 **UI hint**: yes
 **Canonical refs**:
   - `.planning/research/SUMMARY.md`
