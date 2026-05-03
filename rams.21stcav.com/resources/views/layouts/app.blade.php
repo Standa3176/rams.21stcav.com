@@ -831,6 +831,35 @@
         }
 
         /* ═══════════════════════════════════════════════════════════════
+           ROOM SUB-SECTION — lightweight inline divider for grouping
+           fields inside an already-bordered card (e.g. .room-card). Avoids
+           nested .form-section chrome that produces 3-deep visual stacks.
+        ═══════════════════════════════════════════════════════════════ */
+        .room-subsection {
+            margin-top: 1.25rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--rule, var(--ink-200));
+        }
+        .room-subsection:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+        .room-subsection__heading {
+            font-size: .72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            color: var(--teal-700);
+            margin: 0 0 .6rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .room-subsection__heading::before {
+            content: '';
+            width: 3px;
+            height: 12px;
+            background: var(--teal-700);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
            EMPTY-FIELD HIGHLIGHT — pure CSS, opt-out via [data-optional]
            or .is-optional. Fires on ANY empty input/textarea/select unless
            explicitly opted out. Clears instantly when the user types.

@@ -425,364 +425,351 @@
         @endphp
 
         {{-- (a) Mounting Heights ─────────────────────────────────────────────── --}}
-        <div class="form-section">
-            <div class="form-section__header">
-                <h2 class="section-heading">Mounting Heights</h2>
+        <div class="room-subsection" id="r{{ $ri }}_mounting_heights">
+            <div class="room-subsection__heading">Mounting Heights</div>
+            <div class="form-grid-2">
+                <div class="form-group">
+                    <label class="form-label" for="r{{ $ri }}_screen_h_m">Screen height (m)</label>
+                    <input type="number" id="r{{ $ri }}_screen_h_m"
+                           name="rooms[{{ $ri }}][mounting_heights][screen_h_m]"
+                           class="form-control" data-optional min="0" max="99" step="0.01" placeholder=" "
+                           value="{{ $heights['screen_h_m'] ?? '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="r{{ $ri }}_camera_h_m">Camera height (m)</label>
+                    <input type="number" id="r{{ $ri }}_camera_h_m"
+                           name="rooms[{{ $ri }}][mounting_heights][camera_h_m]"
+                           class="form-control" data-optional min="0" max="99" step="0.01" placeholder=" "
+                           value="{{ $heights['camera_h_m'] ?? '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="r{{ $ri }}_booking_panel_h_m">Booking panel height (m)</label>
+                    <input type="number" id="r{{ $ri }}_booking_panel_h_m"
+                           name="rooms[{{ $ri }}][mounting_heights][booking_panel_h_m]"
+                           class="form-control" data-optional min="0" max="99" step="0.01" placeholder=" "
+                           value="{{ $heights['booking_panel_h_m'] ?? '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="r{{ $ri }}_speaker_h_m">Speaker height (m)</label>
+                    <input type="number" id="r{{ $ri }}_speaker_h_m"
+                           name="rooms[{{ $ri }}][mounting_heights][speaker_h_m]"
+                           class="form-control" data-optional min="0" max="99" step="0.01" placeholder=" "
+                           value="{{ $heights['speaker_h_m'] ?? '' }}">
+                </div>
             </div>
-            <div class="form-section__body">
-                <div class="form-grid-2">
-                    <div class="form-group">
-                        <label class="form-label" for="r{{ $ri }}_screen_h_m">Screen height (m)</label>
-                        <input type="number" id="r{{ $ri }}_screen_h_m"
-                               name="rooms[{{ $ri }}][mounting_heights][screen_h_m]"
-                               class="form-control" min="0" max="99" step="0.01" placeholder=" "
-                               value="{{ $heights['screen_h_m'] ?? '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="r{{ $ri }}_camera_h_m">Camera height (m)</label>
-                        <input type="number" id="r{{ $ri }}_camera_h_m"
-                               name="rooms[{{ $ri }}][mounting_heights][camera_h_m]"
-                               class="form-control" min="0" max="99" step="0.01" placeholder=" "
-                               value="{{ $heights['camera_h_m'] ?? '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="r{{ $ri }}_booking_panel_h_m">Booking panel height (m)</label>
-                        <input type="number" id="r{{ $ri }}_booking_panel_h_m"
-                               name="rooms[{{ $ri }}][mounting_heights][booking_panel_h_m]"
-                               class="form-control" min="0" max="99" step="0.01" placeholder=" "
-                               value="{{ $heights['booking_panel_h_m'] ?? '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="r{{ $ri }}_speaker_h_m">Speaker height (m)</label>
-                        <input type="number" id="r{{ $ri }}_speaker_h_m"
-                               name="rooms[{{ $ri }}][mounting_heights][speaker_h_m]"
-                               class="form-control" min="0" max="99" step="0.01" placeholder=" "
-                               value="{{ $heights['speaker_h_m'] ?? '' }}">
-                    </div>
-                </div>
 
-                <div x-data="{ rows: @js(is_array($heights['other'] ?? null) ? array_values($heights['other']) : []) }" style="margin-top:.75rem;">
-                    <label class="form-label">Other Mounting Heights</label>
-                    <template x-for="(row, i) in rows" :key="i">
-                        <div class="form-grid-2" style="margin-bottom:.5rem;align-items:end;">
-                            <div class="form-group" style="margin-bottom:0;">
-                                <input type="text"
-                                       :name="`rooms[{{ $ri }}][mounting_heights][other][${i}][label]`"
-                                       x-model="row.label" class="form-control" maxlength="150"
-                                       placeholder="e.g. Mic boom" data-optional>
-                            </div>
-                            <div class="form-group" style="margin-bottom:0;display:flex;gap:.5rem;">
-                                <input type="number"
-                                       :name="`rooms[{{ $ri }}][mounting_heights][other][${i}][height_m]`"
-                                       x-model="row.height_m" class="form-control"
-                                       min="0" max="99" step="0.01" placeholder="height (m)" data-optional>
-                                <button type="button" @click="rows.splice(i,1)"
-                                        style="background:none;border:1px solid #c0392b;color:#c0392b;border-radius:6px;padding:0 .65rem;cursor:pointer;">&#10005;</button>
-                            </div>
+            <div x-data="{ rows: @js(is_array($heights['other'] ?? null) ? array_values($heights['other']) : []) }" style="margin-top:.75rem;">
+                <label class="form-label">Other Mounting Heights</label>
+                <template x-if="rows.length === 0">
+                    <p style="font-size:.82rem;color:var(--text-muted, #64748B);font-style:italic;margin:0 0 .5rem;">
+                        No additional mounting heights added yet — click below to add one.
+                    </p>
+                </template>
+                <template x-for="(row, i) in rows" :key="i">
+                    <div class="form-grid-2" style="margin-bottom:.5rem;align-items:end;">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <input type="text"
+                                   :name="`rooms[{{ $ri }}][mounting_heights][other][${i}][label]`"
+                                   x-model="row.label" class="form-control" maxlength="150"
+                                   placeholder="e.g. Mic boom" data-optional>
                         </div>
-                    </template>
-                    <button type="button" @click="rows.push({label:'',height_m:''})"
-                            class="btn btn-outline btn-sm">+ Add Mounting Height</button>
-                </div>
+                        <div class="form-group" style="margin-bottom:0;display:flex;gap:.5rem;">
+                            <input type="number"
+                                   :name="`rooms[{{ $ri }}][mounting_heights][other][${i}][height_m]`"
+                                   x-model="row.height_m" class="form-control"
+                                   min="0" max="99" step="0.01" placeholder="height (m)" data-optional>
+                            <button type="button" @click="rows.splice(i,1)"
+                                    style="background:none;border:1px solid #c0392b;color:#c0392b;border-radius:6px;padding:0 .65rem;cursor:pointer;">&#10005;</button>
+                        </div>
+                    </div>
+                </template>
+                <button type="button" @click="rows.push({label:'',height_m:''})"
+                        class="btn btn-outline btn-sm">+ Add Mounting Height</button>
             </div>
         </div>
 
         {{-- (b) Working at Height Methods ─────────────────────────────────────── --}}
-        <div class="form-section">
-            <div class="form-section__header">
-                <h2 class="section-heading">Working at Height Methods</h2>
-            </div>
-            <div class="form-section__body">
-                <div style="display:flex;gap:1rem;flex-wrap:wrap;">
-                    @foreach([
-                        'ladder'   => 'Ladder',
-                        'podium'   => 'Podium step',
-                        'tower'    => 'Mobile tower',
-                        'mewp'     => 'MEWP / cherry picker',
-                        'scaffold' => 'Scaffold',
-                        'na'       => 'N/A — ground level only',
-                    ] as $wahVal => $wahLabel)
-                        <label class="check-item" style="cursor:pointer;">
-                            <input type="checkbox"
-                                   name="rooms[{{ $ri }}][work_at_height_methods][]"
-                                   value="{{ $wahVal }}"
-                                   {{ in_array($wahVal, $wahMethods, true) ? 'checked' : '' }}>
-                            <span>{{ $wahLabel }}</span>
-                        </label>
-                    @endforeach
-                </div>
+        <div class="room-subsection" id="r{{ $ri }}_wah_methods">
+            <div class="room-subsection__heading">Working at Height Methods</div>
+            <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+                @foreach([
+                    'ladder'   => 'Ladder',
+                    'podium'   => 'Podium step',
+                    'tower'    => 'Mobile tower',
+                    'mewp'     => 'MEWP / cherry picker',
+                    'scaffold' => 'Scaffold',
+                    'na'       => 'N/A — ground level only',
+                ] as $wahVal => $wahLabel)
+                    <label class="check-item" style="cursor:pointer;">
+                        <input type="checkbox"
+                               name="rooms[{{ $ri }}][work_at_height_methods][]"
+                               value="{{ $wahVal }}"
+                               {{ in_array($wahVal, $wahMethods, true) ? 'checked' : '' }}>
+                        <span>{{ $wahLabel }}</span>
+                    </label>
+                @endforeach
             </div>
         </div>
 
         {{-- (c) Cable Routes ──────────────────────────────────────────────────── --}}
-        <div class="form-section">
-            <div class="form-section__header">
-                <h2 class="section-heading">Cable Routes</h2>
-            </div>
-            <div class="form-section__body">
-                <div x-data="{ rows: @js(array_values($cableRows)) }">
-                    <template x-for="(row, i) in rows" :key="i">
-                        <div style="border:1px solid #e0e0e0;border-radius:6px;padding:.6rem;margin-bottom:.5rem;background:#fff;">
-                            <div class="form-grid-2">
-                                <div class="form-group" style="margin-bottom:.5rem;">
-                                    <label class="form-label">Category</label>
-                                    <select :name="`rooms[{{ $ri }}][cable_routes][${i}][category]`"
-                                            x-model="row.category" class="form-control" data-optional>
-                                        <option value="">— Select —</option>
-                                        <option value="ceiling_speakers">Ceiling speakers</option>
-                                        <option value="desk_cables">Desk cables</option>
-                                        <option value="mic_cables">Mic cables</option>
-                                        <option value="booking_panel_cables">Booking panel cables</option>
-                                        <option value="screen_cables">Screen cables</option>
-                                        <option value="rack_to_room">Rack to room</option>
-                                        <option value="other">Other</option>
-                                    </select>
-                                </div>
-                                <div class="form-group" style="margin-bottom:.5rem;">
-                                    <label class="form-label">Length (m)</label>
-                                    <input type="number"
-                                           :name="`rooms[{{ $ri }}][cable_routes][${i}][length_m]`"
-                                           x-model="row.length_m" class="form-control"
-                                           min="0" max="9999" step="0.1" placeholder=" ">
-                                </div>
-                                <div class="form-group" style="margin-bottom:.5rem;">
-                                    <label class="form-label">From</label>
-                                    <input type="text"
-                                           :name="`rooms[{{ $ri }}][cable_routes][${i}][from]`"
-                                           x-model="row.from" class="form-control" maxlength="255"
-                                           placeholder="e.g. Rack room A">
-                                </div>
-                                <div class="form-group" style="margin-bottom:.5rem;">
-                                    <label class="form-label">To</label>
-                                    <input type="text"
-                                           :name="`rooms[{{ $ri }}][cable_routes][${i}][to]`"
-                                           x-model="row.to" class="form-control" maxlength="255"
-                                           placeholder="e.g. Display position">
-                                </div>
+        <div class="room-subsection" id="r{{ $ri }}_cable_routes">
+            <div class="room-subsection__heading">Cable Routes</div>
+            <div x-data="{ rows: @js(array_values($cableRows)) }">
+                <template x-if="rows.length === 0">
+                    <p style="font-size:.82rem;color:var(--text-muted, #64748B);font-style:italic;margin:0 0 .5rem;">
+                        No cable routes added yet — click below to add one.
+                    </p>
+                </template>
+                <template x-for="(row, i) in rows" :key="i">
+                    <div style="border:1px solid #e0e0e0;border-radius:6px;padding:.6rem;margin-bottom:.5rem;background:#fff;">
+                        <div class="form-grid-2">
+                            <div class="form-group" style="margin-bottom:.5rem;">
+                                <label class="form-label">Category</label>
+                                <select :name="`rooms[{{ $ri }}][cable_routes][${i}][category]`"
+                                        x-model="row.category" class="form-control" data-optional>
+                                    <option value="">— Select —</option>
+                                    <option value="ceiling_speakers">Ceiling speakers</option>
+                                    <option value="desk_cables">Desk cables</option>
+                                    <option value="mic_cables">Mic cables</option>
+                                    <option value="booking_panel_cables">Booking panel cables</option>
+                                    <option value="screen_cables">Screen cables</option>
+                                    <option value="rack_to_room">Rack to room</option>
+                                    <option value="other">Other</option>
+                                </select>
                             </div>
-                            <div class="form-group" style="margin-bottom:0;">
-                                <label class="form-label">Notes</label>
+                            <div class="form-group" style="margin-bottom:.5rem;">
+                                <label class="form-label">Length (m)</label>
+                                <input type="number"
+                                       :name="`rooms[{{ $ri }}][cable_routes][${i}][length_m]`"
+                                       x-model="row.length_m" class="form-control" data-optional
+                                       min="0" max="9999" step="0.1" placeholder=" ">
+                            </div>
+                            <div class="form-group" style="margin-bottom:.5rem;">
+                                <label class="form-label">From</label>
                                 <input type="text"
-                                       :name="`rooms[{{ $ri }}][cable_routes][${i}][notes]`"
-                                       x-model="row.notes" class="form-control" maxlength="500"
-                                       placeholder="e.g. Through ceiling void, drop into floor box" data-optional>
+                                       :name="`rooms[{{ $ri }}][cable_routes][${i}][from]`"
+                                       x-model="row.from" class="form-control" data-optional maxlength="255"
+                                       placeholder="e.g. Rack room A">
                             </div>
-                            <div style="text-align:right;margin-top:.4rem;">
-                                <button type="button" @click="rows.splice(i,1)"
-                                        style="background:none;border:1px solid #c0392b;color:#c0392b;border-radius:6px;padding:.2rem .65rem;cursor:pointer;font-size:.78rem;">Remove route</button>
+                            <div class="form-group" style="margin-bottom:.5rem;">
+                                <label class="form-label">To</label>
+                                <input type="text"
+                                       :name="`rooms[{{ $ri }}][cable_routes][${i}][to]`"
+                                       x-model="row.to" class="form-control" data-optional maxlength="255"
+                                       placeholder="e.g. Display position">
                             </div>
                         </div>
-                    </template>
-                    <button type="button" @click="rows.push({category:'',from:'',to:'',length_m:'',notes:''})"
-                            class="btn btn-outline btn-sm">+ Add Cable Route</button>
-                    <p style="font-size:.78rem;color:#6B7280;margin:.5rem 0 0;">
-                        Add one row per cable category. Length captures total cable run including slack.
-                    </p>
-                </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label class="form-label">Notes</label>
+                            <input type="text"
+                                   :name="`rooms[{{ $ri }}][cable_routes][${i}][notes]`"
+                                   x-model="row.notes" class="form-control" maxlength="500"
+                                   placeholder="e.g. Through ceiling void, drop into floor box" data-optional>
+                        </div>
+                        <div style="text-align:right;margin-top:.4rem;">
+                            <button type="button" @click="rows.splice(i,1)"
+                                    style="background:none;border:1px solid #c0392b;color:#c0392b;border-radius:6px;padding:.2rem .65rem;cursor:pointer;font-size:.78rem;">Remove route</button>
+                        </div>
+                    </div>
+                </template>
+                <button type="button" @click="rows.push({category:'',from:'',to:'',length_m:'',notes:''})"
+                        class="btn btn-outline btn-sm">+ Add Cable Route</button>
+                <p style="font-size:.78rem;color:#6B7280;margin:.5rem 0 0;">
+                    Add one row per cable category. Length captures total cable run including slack.
+                </p>
             </div>
         </div>
 
         {{-- (d) Wall Construction + Prep Flags ─────────────────────────────────── --}}
-        <div class="form-section">
-            <div class="form-section__header">
-                <h2 class="section-heading">Wall Construction &amp; Prep</h2>
+        <div class="room-subsection" id="r{{ $ri }}_wall_construction">
+            <div class="room-subsection__heading">Wall Construction &amp; Prep</div>
+            <label class="form-label" style="margin-bottom:.4rem;">Wall construction (multi-select)</label>
+            <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:.75rem;">
+                @foreach([
+                    'ply_lined'    => 'Ply-lined',
+                    'solid'        => 'Solid',
+                    'plasterboard' => 'Plasterboard',
+                    'masonry'      => 'Masonry',
+                    'metal_stud'   => 'Metal stud',
+                    'concrete'     => 'Concrete',
+                ] as $wcVal => $wcLabel)
+                    <label class="check-item" style="cursor:pointer;">
+                        <input type="checkbox"
+                               name="rooms[{{ $ri }}][wall_construction][]"
+                               value="{{ $wcVal }}"
+                               {{ in_array($wcVal, $wallConstr, true) ? 'checked' : '' }}>
+                        <span>{{ $wcLabel }}</span>
+                    </label>
+                @endforeach
             </div>
-            <div class="form-section__body">
-                <label class="form-label" style="margin-bottom:.4rem;">Wall construction (multi-select)</label>
-                <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:.75rem;">
-                    @foreach([
-                        'ply_lined'    => 'Ply-lined',
-                        'solid'        => 'Solid',
-                        'plasterboard' => 'Plasterboard',
-                        'masonry'      => 'Masonry',
-                        'metal_stud'   => 'Metal stud',
-                        'concrete'     => 'Concrete',
-                    ] as $wcVal => $wcLabel)
-                        <label class="check-item" style="cursor:pointer;">
-                            <input type="checkbox"
-                                   name="rooms[{{ $ri }}][wall_construction][]"
-                                   value="{{ $wcVal }}"
-                                   {{ in_array($wcVal, $wallConstr, true) ? 'checked' : '' }}>
-                            <span>{{ $wcLabel }}</span>
-                        </label>
-                    @endforeach
-                </div>
 
-                <label class="form-label" style="margin-bottom:.4rem;">Wall preparation needed</label>
-                <div style="display:flex;gap:1.5rem;flex-wrap:wrap;">
-                    <label class="check-item" style="cursor:pointer;">
-                        <input type="hidden" name="rooms[{{ $ri }}][wall_needs_reinforcement]" value="0">
-                        <input type="checkbox" name="rooms[{{ $ri }}][wall_needs_reinforcement]" value="1"
-                               {{ $chk('wall_needs_reinforcement') ? 'checked' : '' }}>
-                        <span>Wall needs reinforcement</span>
-                    </label>
-                    <label class="check-item" style="cursor:pointer;">
-                        <input type="hidden" name="rooms[{{ $ri }}][wall_needs_chase_out]" value="0">
-                        <input type="checkbox" name="rooms[{{ $ri }}][wall_needs_chase_out]" value="1"
-                               {{ $chk('wall_needs_chase_out') ? 'checked' : '' }}>
-                        <span>Wall needs chase-out / chasing</span>
-                    </label>
-                    <label class="check-item" style="cursor:pointer;">
-                        <input type="hidden" name="rooms[{{ $ri }}][wall_needs_conduit]" value="0">
-                        <input type="checkbox" name="rooms[{{ $ri }}][wall_needs_conduit]" value="1"
-                               {{ $chk('wall_needs_conduit') ? 'checked' : '' }}>
-                        <span>Wall needs conduit run</span>
-                    </label>
-                </div>
+            <label class="form-label" style="margin-bottom:.4rem;">Wall preparation needed</label>
+            <div style="display:flex;gap:1.5rem;flex-wrap:wrap;">
+                <label class="check-item" style="cursor:pointer;">
+                    <input type="hidden" name="rooms[{{ $ri }}][wall_needs_reinforcement]" value="0">
+                    <input type="checkbox" name="rooms[{{ $ri }}][wall_needs_reinforcement]" value="1"
+                           {{ $chk('wall_needs_reinforcement') ? 'checked' : '' }}>
+                    <span>Wall needs reinforcement</span>
+                </label>
+                <label class="check-item" style="cursor:pointer;">
+                    <input type="hidden" name="rooms[{{ $ri }}][wall_needs_chase_out]" value="0">
+                    <input type="checkbox" name="rooms[{{ $ri }}][wall_needs_chase_out]" value="1"
+                           {{ $chk('wall_needs_chase_out') ? 'checked' : '' }}>
+                    <span>Wall needs chase-out / chasing</span>
+                </label>
+                <label class="check-item" style="cursor:pointer;">
+                    <input type="hidden" name="rooms[{{ $ri }}][wall_needs_conduit]" value="0">
+                    <input type="checkbox" name="rooms[{{ $ri }}][wall_needs_conduit]" value="1"
+                           {{ $chk('wall_needs_conduit') ? 'checked' : '' }}>
+                    <span>Wall needs conduit run</span>
+                </label>
             </div>
         </div>
 
         {{-- (e) Table Info ────────────────────────────────────────────────────── --}}
-        <div class="form-section">
-            <div class="form-section__header">
-                <h2 class="section-heading">Table Info</h2>
-            </div>
-            <div class="form-section__body">
-                <div class="form-grid-2">
-                    <div class="form-group">
-                        <label class="check-item" style="cursor:pointer;">
-                            <input type="hidden" name="rooms[{{ $ri }}][table_info][has_grommets]" value="0">
-                            <input type="checkbox" name="rooms[{{ $ri }}][table_info][has_grommets]" value="1"
-                                   {{ ! empty($tableInfo['has_grommets']) ? 'checked' : '' }}>
-                            <span>Table has grommets</span>
-                        </label>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="r{{ $ri }}_grommet_count">Grommet count</label>
-                        <input type="number" id="r{{ $ri }}_grommet_count"
-                               name="rooms[{{ $ri }}][table_info][grommet_count]"
-                               class="form-control" data-optional min="0" max="99" step="1"
-                               value="{{ $tableInfo['grommet_count'] ?? '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="r{{ $ri }}_grommet_size">Grommet size</label>
-                        <select id="r{{ $ri }}_grommet_size"
-                                name="rooms[{{ $ri }}][table_info][grommet_size]"
-                                class="form-control" data-optional>
-                            <option value="">— Select —</option>
-                            @php $gs = $tableInfo['grommet_size'] ?? ''; @endphp
-                            <option value="small"    @selected($gs === 'small')>Small</option>
-                            <option value="standard" @selected($gs === 'standard')>Standard</option>
-                            <option value="large"    @selected($gs === 'large')>Large</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="r{{ $ri }}_table_notes">Table notes</label>
-                        <input type="text" id="r{{ $ri }}_table_notes"
-                               name="rooms[{{ $ri }}][table_info][notes]"
-                               class="form-control" data-optional maxlength="500"
-                               value="{{ $tableInfo['notes'] ?? '' }}"
-                               placeholder="e.g. Solid oak, hidden raceway">
-                    </div>
+        <div class="room-subsection" id="r{{ $ri }}_table_info">
+            <div class="room-subsection__heading">Table Info</div>
+            <div class="form-grid-2">
+                <div class="form-group">
+                    <label class="check-item" style="cursor:pointer;">
+                        <input type="hidden" name="rooms[{{ $ri }}][table_info][has_grommets]" value="0">
+                        <input type="checkbox" name="rooms[{{ $ri }}][table_info][has_grommets]" value="1"
+                               {{ ! empty($tableInfo['has_grommets']) ? 'checked' : '' }}>
+                        <span>Table has grommets</span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="r{{ $ri }}_grommet_count">Grommet count</label>
+                    <input type="number" id="r{{ $ri }}_grommet_count"
+                           name="rooms[{{ $ri }}][table_info][grommet_count]"
+                           class="form-control" data-optional min="0" max="99" step="1"
+                           value="{{ $tableInfo['grommet_count'] ?? '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="r{{ $ri }}_grommet_size">Grommet size</label>
+                    <select id="r{{ $ri }}_grommet_size"
+                            name="rooms[{{ $ri }}][table_info][grommet_size]"
+                            class="form-control" data-optional>
+                        <option value="">— Select —</option>
+                        @php $gs = $tableInfo['grommet_size'] ?? ''; @endphp
+                        <option value="small"    @selected($gs === 'small')>Small</option>
+                        <option value="standard" @selected($gs === 'standard')>Standard</option>
+                        <option value="large"    @selected($gs === 'large')>Large</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="r{{ $ri }}_table_notes">Table notes</label>
+                    <input type="text" id="r{{ $ri }}_table_notes"
+                           name="rooms[{{ $ri }}][table_info][notes]"
+                           class="form-control" data-optional maxlength="500"
+                           value="{{ $tableInfo['notes'] ?? '' }}"
+                           placeholder="e.g. Solid oak, hidden raceway">
                 </div>
             </div>
         </div>
 
         {{-- (f) Floor Box Info ────────────────────────────────────────────────── --}}
-        <div class="form-section">
-            <div class="form-section__header">
-                <h2 class="section-heading">Floor Box Info</h2>
-            </div>
-            <div class="form-section__body">
-                <div class="form-grid-2">
-                    <div class="form-group">
-                        <label class="check-item" style="cursor:pointer;">
-                            <input type="hidden" name="rooms[{{ $ri }}][floor_box_info][has_floor_box]" value="0">
-                            <input type="checkbox" name="rooms[{{ $ri }}][floor_box_info][has_floor_box]" value="1"
-                                   {{ ! empty($floorBox['has_floor_box']) ? 'checked' : '' }}>
-                            <span>Room has floor box</span>
-                        </label>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="r{{ $ri }}_fb_power_outlets">Power outlets</label>
-                        <input type="number" id="r{{ $ri }}_fb_power_outlets"
-                               name="rooms[{{ $ri }}][floor_box_info][power_outlets]"
-                               class="form-control" data-optional min="0" max="99" step="1"
-                               value="{{ $floorBox['power_outlets'] ?? '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="r{{ $ri }}_fb_data_outlets">Data outlets</label>
-                        <input type="number" id="r{{ $ri }}_fb_data_outlets"
-                               name="rooms[{{ $ri }}][floor_box_info][data_outlets]"
-                               class="form-control" data-optional min="0" max="99" step="1"
-                               value="{{ $floorBox['data_outlets'] ?? '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="r{{ $ri }}_fb_cable_space">Cable space</label>
-                        <select id="r{{ $ri }}_fb_cable_space"
-                                name="rooms[{{ $ri }}][floor_box_info][cable_space]"
-                                class="form-control" data-optional>
-                            <option value="">— Select —</option>
-                            @php $cs = $floorBox['cable_space'] ?? ''; @endphp
-                            <option value="tight"    @selected($cs === 'tight')>Tight</option>
-                            <option value="adequate" @selected($cs === 'adequate')>Adequate</option>
-                            <option value="spacious" @selected($cs === 'spacious')>Spacious</option>
-                        </select>
-                    </div>
-                    <div class="form-group" style="grid-column:1/-1;">
-                        <label class="form-label" for="r{{ $ri }}_fb_notes">Floor box notes</label>
-                        <input type="text" id="r{{ $ri }}_fb_notes"
-                               name="rooms[{{ $ri }}][floor_box_info][notes]"
-                               class="form-control" data-optional maxlength="500"
-                               value="{{ $floorBox['notes'] ?? '' }}"
-                               placeholder="e.g. 4-gang under boardroom table, lid 200mm × 300mm">
-                    </div>
+        <div class="room-subsection" id="r{{ $ri }}_floor_box_info">
+            <div class="room-subsection__heading">Floor Box Info</div>
+            <div class="form-grid-2">
+                <div class="form-group">
+                    <label class="check-item" style="cursor:pointer;">
+                        <input type="hidden" name="rooms[{{ $ri }}][floor_box_info][has_floor_box]" value="0">
+                        <input type="checkbox" name="rooms[{{ $ri }}][floor_box_info][has_floor_box]" value="1"
+                               {{ ! empty($floorBox['has_floor_box']) ? 'checked' : '' }}>
+                        <span>Room has floor box</span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="r{{ $ri }}_fb_power_outlets">Power outlets</label>
+                    <input type="number" id="r{{ $ri }}_fb_power_outlets"
+                           name="rooms[{{ $ri }}][floor_box_info][power_outlets]"
+                           class="form-control" data-optional min="0" max="99" step="1"
+                           value="{{ $floorBox['power_outlets'] ?? '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="r{{ $ri }}_fb_data_outlets">Data outlets</label>
+                    <input type="number" id="r{{ $ri }}_fb_data_outlets"
+                           name="rooms[{{ $ri }}][floor_box_info][data_outlets]"
+                           class="form-control" data-optional min="0" max="99" step="1"
+                           value="{{ $floorBox['data_outlets'] ?? '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="r{{ $ri }}_fb_cable_space">Cable space</label>
+                    <select id="r{{ $ri }}_fb_cable_space"
+                            name="rooms[{{ $ri }}][floor_box_info][cable_space]"
+                            class="form-control" data-optional>
+                        <option value="">— Select —</option>
+                        @php $cs = $floorBox['cable_space'] ?? ''; @endphp
+                        <option value="tight"    @selected($cs === 'tight')>Tight</option>
+                        <option value="adequate" @selected($cs === 'adequate')>Adequate</option>
+                        <option value="spacious" @selected($cs === 'spacious')>Spacious</option>
+                    </select>
+                </div>
+                <div class="form-group" style="grid-column:1/-1;">
+                    <label class="form-label" for="r{{ $ri }}_fb_notes">Floor box notes</label>
+                    <input type="text" id="r{{ $ri }}_fb_notes"
+                           name="rooms[{{ $ri }}][floor_box_info][notes]"
+                           class="form-control" data-optional maxlength="500"
+                           value="{{ $floorBox['notes'] ?? '' }}"
+                           placeholder="e.g. 4-gang under boardroom table, lid 200mm × 300mm">
                 </div>
             </div>
         </div>
 
         {{-- (g) Brackets Required ─────────────────────────────────────────────── --}}
-        <div class="form-section">
-            <div class="form-section__header">
-                <h2 class="section-heading">Brackets Required</h2>
-            </div>
-            <div class="form-section__body">
-                <div x-data="{ rows: @js(array_values($bracketRows)) }">
-                    <template x-for="(row, i) in rows" :key="i">
-                        <div style="border:1px solid #e0e0e0;border-radius:6px;padding:.6rem;margin-bottom:.5rem;background:#fff;">
-                            <div class="form-grid-2">
-                                <div class="form-group" style="margin-bottom:.5rem;">
-                                    <label class="form-label">Equipment</label>
-                                    <input type="text"
-                                           :name="`rooms[{{ $ri }}][brackets_required][${i}][equipment]`"
-                                           x-model="row.equipment" class="form-control" maxlength="255"
-                                           placeholder='e.g. 75&quot; display'>
-                                </div>
-                                <div class="form-group" style="margin-bottom:.5rem;">
-                                    <label class="form-label">Bracket Model</label>
-                                    <input type="text"
-                                           :name="`rooms[{{ $ri }}][brackets_required][${i}][model]`"
-                                           x-model="row.model" class="form-control" maxlength="255"
-                                           placeholder="e.g. Vogels PFW6880">
-                                </div>
-                            </div>
-                            <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap;margin-bottom:.5rem;">
-                                <label class="check-item" style="cursor:pointer;">
-                                    <input type="hidden"
-                                           :name="`rooms[{{ $ri }}][brackets_required][${i}][pull_out]`" value="0">
-                                    <input type="checkbox"
-                                           :name="`rooms[{{ $ri }}][brackets_required][${i}][pull_out]`" value="1"
-                                           :checked="row.pull_out == 1 || row.pull_out === true"
-                                           @change="row.pull_out = $event.target.checked ? 1 : 0">
-                                    <span>Pull-out / articulating bracket</span>
-                                </label>
-                            </div>
-                            <div class="form-group" style="margin-bottom:0;">
-                                <label class="form-label">Notes</label>
+        <div class="room-subsection" id="r{{ $ri }}_brackets_required">
+            <div class="room-subsection__heading">Brackets Required</div>
+            <div x-data="{ rows: @js(array_values($bracketRows)) }">
+                <template x-if="rows.length === 0">
+                    <p style="font-size:.82rem;color:var(--text-muted, #64748B);font-style:italic;margin:0 0 .5rem;">
+                        No brackets added yet — click below to add one.
+                    </p>
+                </template>
+                <template x-for="(row, i) in rows" :key="i">
+                    <div style="border:1px solid #e0e0e0;border-radius:6px;padding:.6rem;margin-bottom:.5rem;background:#fff;">
+                        <div class="form-grid-2">
+                            <div class="form-group" style="margin-bottom:.5rem;">
+                                <label class="form-label">Equipment</label>
                                 <input type="text"
-                                       :name="`rooms[{{ $ri }}][brackets_required][${i}][notes]`"
-                                       x-model="row.notes" class="form-control" maxlength="500"
-                                       placeholder="e.g. VESA 600×400; check wall plate weight rating" data-optional>
+                                       :name="`rooms[{{ $ri }}][brackets_required][${i}][equipment]`"
+                                       x-model="row.equipment" class="form-control" data-optional maxlength="255"
+                                       placeholder='e.g. 75&quot; display'>
                             </div>
-                            <div style="text-align:right;margin-top:.4rem;">
-                                <button type="button" @click="rows.splice(i,1)"
-                                        style="background:none;border:1px solid #c0392b;color:#c0392b;border-radius:6px;padding:.2rem .65rem;cursor:pointer;font-size:.78rem;">Remove bracket</button>
+                            <div class="form-group" style="margin-bottom:.5rem;">
+                                <label class="form-label">Bracket Model</label>
+                                <input type="text"
+                                       :name="`rooms[{{ $ri }}][brackets_required][${i}][model]`"
+                                       x-model="row.model" class="form-control" data-optional maxlength="255"
+                                       placeholder="e.g. Vogels PFW6880">
                             </div>
                         </div>
-                    </template>
-                    <button type="button" @click="rows.push({equipment:'',model:'',pull_out:0,notes:''})"
-                            class="btn btn-outline btn-sm">+ Add Bracket</button>
-                </div>
+                        <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap;margin-bottom:.5rem;">
+                            <label class="check-item" style="cursor:pointer;">
+                                <input type="hidden"
+                                       :name="`rooms[{{ $ri }}][brackets_required][${i}][pull_out]`" value="0">
+                                <input type="checkbox"
+                                       :name="`rooms[{{ $ri }}][brackets_required][${i}][pull_out]`" value="1"
+                                       :checked="row.pull_out == 1 || row.pull_out === true"
+                                       @change="row.pull_out = $event.target.checked ? 1 : 0">
+                                <span>Pull-out / articulating bracket</span>
+                            </label>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label class="form-label">Notes</label>
+                            <input type="text"
+                                   :name="`rooms[{{ $ri }}][brackets_required][${i}][notes]`"
+                                   x-model="row.notes" class="form-control" maxlength="500"
+                                   placeholder="e.g. VESA 600×400; check wall plate weight rating" data-optional>
+                        </div>
+                        <div style="text-align:right;margin-top:.4rem;">
+                            <button type="button" @click="rows.splice(i,1)"
+                                    style="background:none;border:1px solid #c0392b;color:#c0392b;border-radius:6px;padding:.2rem .65rem;cursor:pointer;font-size:.78rem;">Remove bracket</button>
+                        </div>
+                    </div>
+                </template>
+                <button type="button" @click="rows.push({equipment:'',model:'',pull_out:0,notes:''})"
+                        class="btn btn-outline btn-sm">+ Add Bracket</button>
             </div>
         </div>
 
