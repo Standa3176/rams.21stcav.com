@@ -208,8 +208,11 @@ Route::middleware('auth')->group(function () {
     Route::get('rams/{rams}/check-ready', [QuoteUploadController::class, 'checkReady'])->name('rams.check-ready');
 
     // ── Core RAMS resource ────────────────────────────────────────────────
+    // NOTE: 'destroy' deliberately omitted — the explicit DELETE route below
+    // at /rams/{rams}/destroy owns the rams.destroy name. Including it here
+    // would register two routes with the same name and break route:cache.
     Route::resource('rams', RamsController::class)
-        ->only(['index', 'create', 'store', 'destroy']);
+        ->only(['index', 'create', 'store']);
 
     // ── Existing RAMS actions ─────────────────────────────────────────────
     Route::get('rams/{rams}/review', [RamsController::class, 'review'])->name('rams.review');
