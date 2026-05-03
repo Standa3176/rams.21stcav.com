@@ -711,6 +711,63 @@ p { margin: 3pt 0; }
     @endif
 </div>
 
+{{-- ─── Site Logistics & Access (from site survey, quick task 260503-tfb) ─── --}}
+@php
+    $siteLog    = $data['site_logistics'] ?? [];
+    $hasSiteLog = is_array($siteLog) && (
+        ! empty($siteLog['comms_room_access_status']) ||
+        ! empty($siteLog['comms_room_access_notes']) ||
+        ! empty($siteLog['parking_restraints']) ||
+        ! empty($siteLog['distance_from_base_miles']) ||
+        ! empty($siteLog['distance_from_base_notes']) ||
+        ! empty($siteLog['site_access_notes']) ||
+        ! empty($siteLog['delivery_routes'])
+    );
+    $commsLabels = [
+        'yes'        => 'Permission required',
+        'no'         => 'Free access',
+        'outsourced' => 'Outsourced facilities team',
+        'unknown'    => 'Status unknown',
+    ];
+@endphp
+@if($hasSiteLog)
+<div class="sec-subheading" style="margin-top:8pt;">Site Logistics &amp; Access (from site survey)</div>
+<table class="std-table">
+    <tbody>
+        @if(! empty($siteLog['parking_restraints']))
+            <tr><td class="lbl" style="width:30%;">Parking arrangements:</td>
+                <td>{{ $siteLog['parking_restraints'] }}</td></tr>
+        @endif
+        @if(! empty($siteLog['site_access_notes']))
+            <tr><td class="lbl">Site access notes:</td>
+                <td>{{ $siteLog['site_access_notes'] }}</td></tr>
+        @endif
+        @if(! empty($siteLog['delivery_routes']))
+            <tr><td class="lbl">Delivery routes:</td>
+                <td>{{ $siteLog['delivery_routes'] }}</td></tr>
+        @endif
+        @if(! empty($siteLog['comms_room_access_status']) || ! empty($siteLog['comms_room_access_notes']))
+            @php
+                $commsStatus = $commsLabels[$siteLog['comms_room_access_status'] ?? ''] ?? '';
+                $commsParts  = array_filter([$commsStatus, $siteLog['comms_room_access_notes'] ?? '']);
+            @endphp
+            <tr><td class="lbl">Comms room access:</td>
+                <td>{{ implode(' — ', $commsParts) }}</td></tr>
+        @endif
+        @if(! empty($siteLog['distance_from_base_miles']) || ! empty($siteLog['distance_from_base_notes']))
+            @php
+                $distParts = array_filter([
+                    ! empty($siteLog['distance_from_base_miles']) ? $siteLog['distance_from_base_miles'] . ' miles from depot' : '',
+                    $siteLog['distance_from_base_notes'] ?? '',
+                ]);
+            @endphp
+            <tr><td class="lbl">Distance from depot:</td>
+                <td>{{ implode(' — ', $distParts) }}</td></tr>
+        @endif
+    </tbody>
+</table>
+@endif
+
 {{-- Scope of Works bullets (Tier 1 upgrade) --}}
 @if(! empty($data['scope_of_works_bullets']))
 <div class="sec-subheading" style="margin-top:8pt;">Works Activities</div>
@@ -721,6 +778,48 @@ p { margin: 3pt 0; }
 </ul>
 @endif
 
+{{-- ─── Engineer Survey Findings lookup (quick task 260503-tfb) ───
+     Build a name-keyed lookup from $data['rooms'] (ProjectContext-derived)
+     so the existing $roomOverviews loop (driven by reviewed_data) can
+     find the matching engineer_feedback block by room name. --}}
+@php
+    $efByRoom = [];
+    foreach ((array) ($data['rooms'] ?? []) as $ctxRoom) {
+        $key = strtolower(trim((string) ($ctxRoom['name'] ?? '')));
+        $ef  = (array) ($ctxRoom['engineer_feedback'] ?? []);
+        if ($key !== '' && ! empty($ef)) {
+            $efByRoom[$key] = $ef;
+        }
+    }
+    $methodLabels = [
+        'ladder'   => 'Ladder',
+        'podium'   => 'Podium steps',
+        'tower'    => 'Access tower',
+        'mewp'     => 'MEWP',
+        'scaffold' => 'Scaffold',
+        'na'       => 'Not required',
+    ];
+    $wallConstructionLabels = [
+        'ply_lined'    => 'Ply-lined',
+        'solid'        => 'Solid wall',
+        'plasterboard' => 'Plasterboard',
+        'masonry'      => 'Masonry / brick',
+        'metal_stud'   => 'Metal stud',
+        'concrete'     => 'Concrete',
+    ];
+    // Cable category enum verified against SiteSurveyController validation
+    // (rooms.*.cable_routes.*.category): ceiling_speakers, desk_cables,
+    // mic_cables, booking_panel_cables, screen_cables, rack_to_room, other.
+    $cableCategoryLabels = [
+        'ceiling_speakers'      => 'Ceiling speakers',
+        'desk_cables'           => 'Desk cables',
+        'mic_cables'            => 'Microphone cables',
+        'booking_panel_cables'  => 'Booking panel cables',
+        'screen_cables'         => 'Screen / display cables',
+        'rack_to_room'          => 'Rack to room',
+        'other'                 => 'Other',
+    ];
+@endphp
 @if(! empty($roomOverviews) && is_array($roomOverviews))
     {{-- Per-room scope paragraphs from reviewed data.
          Prefers works_summary (install-action bullets — populated by the
@@ -775,6 +874,162 @@ p { margin: 3pt 0; }
             </ul>
         @elseif($rvName || $rvDesc)
             <p class="body-para"><strong>{{ $rvName }}:</strong>{{ $rvName && $rvDesc ? ' ' : '' }}{{ $rvDesc }}</p>
+        @endif
+
+        {{-- ─── Engineer Survey Findings (quick task 260503-tfb) ───
+             Per-room block sourced from $data['rooms'][n]['engineer_feedback'].
+             Every sub-block is independently @if-guarded so a row with all
+             new fields NULL renders nothing — the heading itself is also
+             guarded so untouched rooms remain visually identical to before. --}}
+        @php
+            $rvKey = strtolower(trim((string) ($rvName ?? '')));
+            $ef    = $efByRoom[$rvKey] ?? [];
+            $hasEF = ! empty($ef) && (
+                ! empty($ef['mounting_heights']) ||
+                ! empty($ef['work_at_height_methods']) ||
+                ! empty($ef['cable_routes']) ||
+                ! empty($ef['wall_construction']) ||
+                ! empty($ef['wall_needs_reinforcement']) ||
+                ! empty($ef['wall_needs_chase_out']) ||
+                ! empty($ef['wall_needs_conduit']) ||
+                ! empty($ef['brackets_required']) ||
+                ! empty($ef['table_info']) ||
+                ! empty($ef['floor_box_info'])
+            );
+        @endphp
+        @if($hasEF)
+            <div class="sec-subheading" style="margin-top:6pt;">Engineer Survey Findings — {{ $rvName }}</div>
+
+            {{-- Mounting heights --}}
+            @php
+                $mh         = (array) ($ef['mounting_heights'] ?? []);
+                $heightRows = [];
+                foreach ([
+                    'screen_h_m'         => 'Screen',
+                    'camera_h_m'         => 'Camera',
+                    'booking_panel_h_m'  => 'Booking panel',
+                    'speaker_h_m'        => 'Speaker',
+                ] as $k => $lbl) {
+                    if (! empty($mh[$k])) {
+                        $heightRows[] = $lbl . ': ' . $mh[$k] . ' m';
+                    }
+                }
+                foreach ((array) ($mh['other'] ?? []) as $other) {
+                    $oLbl = trim((string) ($other['label'] ?? ''));
+                    $oH   = $other['h_m'] ?? null;
+                    if ($oLbl !== '' && $oH !== null && $oH !== '') {
+                        $heightRows[] = $oLbl . ': ' . $oH . ' m';
+                    }
+                }
+            @endphp
+            @if(! empty($heightRows))
+                <p class="body-para"><strong>Installation heights:</strong> {{ implode(' • ', $heightRows) }}</p>
+            @endif
+
+            {{-- Working at height methods --}}
+            @php
+                $wahLabels = array_values(array_filter(array_map(
+                    fn ($m) => $methodLabels[strtolower((string) $m)] ?? ucfirst((string) $m),
+                    (array) ($ef['work_at_height_methods'] ?? [])
+                )));
+            @endphp
+            @if(! empty($wahLabels))
+                <p class="body-para"><strong>Working at height — methods on site:</strong> {{ implode(', ', $wahLabels) }}</p>
+            @endif
+
+            {{-- Cable routes --}}
+            @php $cableRoutes = (array) ($ef['cable_routes'] ?? []); @endphp
+            @if(! empty($cableRoutes))
+                <p class="body-para" style="margin-bottom:2pt;"><strong>Cable routes planned:</strong></p>
+                <ul class="blist">
+                    @foreach($cableRoutes as $cr)
+                        @php
+                            $catKey = (string) ($cr['category'] ?? '');
+                            $cat    = $cableCategoryLabels[$catKey] ?? ucwords(str_replace('_', ' ', $catKey));
+                            $len    = ! empty($cr['length_m']) ? ($cr['length_m'] . ' m') : '';
+                            $from   = trim((string) ($cr['from'] ?? ''));
+                            $to     = trim((string) ($cr['to']   ?? ''));
+                            $route  = ($from && $to) ? ($from . ' → ' . $to) : ($from ?: $to);
+                            $note   = trim((string) ($cr['notes'] ?? ''));
+                            $parts  = array_filter([$cat, $route, $len, $note]);
+                        @endphp
+                        @if(! empty($parts))
+                            <li>{{ implode(' — ', $parts) }}</li>
+                        @endif
+                    @endforeach
+                </ul>
+            @endif
+
+            {{-- Wall construction & prep --}}
+            @php
+                $wcLabels = array_values(array_filter(array_map(
+                    fn ($w) => $wallConstructionLabels[strtolower((string) $w)] ?? ucwords(str_replace('_', ' ', (string) $w)),
+                    (array) ($ef['wall_construction'] ?? [])
+                )));
+                $prepFlags = [];
+                if (! empty($ef['wall_needs_reinforcement'])) $prepFlags[] = 'Reinforcement required';
+                if (! empty($ef['wall_needs_chase_out']))     $prepFlags[] = 'Chase-out required';
+                if (! empty($ef['wall_needs_conduit']))       $prepFlags[] = 'Conduit installation required';
+            @endphp
+            @if(! empty($wcLabels) || ! empty($prepFlags))
+                <p class="body-para">
+                    <strong>Wall construction:</strong>
+                    {{ ! empty($wcLabels) ? implode(', ', $wcLabels) : '—' }}
+                    @if(! empty($prepFlags))
+                        <br><strong>Prep needed:</strong> {{ implode(', ', $prepFlags) }}
+                    @endif
+                </p>
+            @endif
+
+            {{-- Brackets to source --}}
+            @php $brackets = (array) ($ef['brackets_required'] ?? []); @endphp
+            @if(! empty($brackets))
+                <p class="body-para" style="margin-bottom:2pt;"><strong>Brackets to source:</strong></p>
+                <ul class="blist">
+                    @foreach($brackets as $b)
+                        @php
+                            $eq   = trim((string) ($b['equipment'] ?? ''));
+                            $mod  = trim((string) ($b['model']     ?? ''));
+                            $pull = ! empty($b['pull_out']) ? ' (pull-out)' : '';
+                            $note = trim((string) ($b['notes']     ?? ''));
+                            $line = trim($eq . ($mod ? ' — ' . $mod : '') . $pull);
+                            if ($note !== '') $line .= ' — ' . $note;
+                        @endphp
+                        @if($line !== '')
+                            <li>{{ $line }}</li>
+                        @endif
+                    @endforeach
+                </ul>
+            @endif
+
+            {{-- Table & floor box info (compact, single line each if present) --}}
+            @php
+                $ti       = (array) ($ef['table_info'] ?? []);
+                $hasTable = ! empty($ti) && (! empty($ti['has_grommets']) || ! empty($ti['notes']));
+                $fb       = (array) ($ef['floor_box_info'] ?? []);
+                $hasFb    = ! empty($fb) && (! empty($fb['has_floor_box']) || ! empty($fb['notes']));
+            @endphp
+            @if($hasTable)
+                @php
+                    $tParts = [];
+                    if (! empty($ti['has_grommets'])) {
+                        $tParts[] = ($ti['grommet_count'] ?? '?') . '× ' . trim((string) ($ti['grommet_size'] ?? '')) . ' grommets';
+                    }
+                    if (! empty($ti['notes'])) $tParts[] = $ti['notes'];
+                @endphp
+                <p class="body-para"><strong>Table:</strong> {{ implode(' — ', array_filter($tParts)) }}</p>
+            @endif
+            @if($hasFb)
+                @php
+                    $fParts = [];
+                    if (! empty($fb['has_floor_box'])) {
+                        $fParts[] = ($fb['power_outlets'] ?? 0) . ' power, ' . ($fb['data_outlets'] ?? 0) . ' data';
+                        if (! empty($fb['cable_space'])) $fParts[] = trim((string) $fb['cable_space']) . ' cable space';
+                    }
+                    if (! empty($fb['notes'])) $fParts[] = $fb['notes'];
+                @endphp
+                <p class="body-para"><strong>Floor box:</strong> {{ implode(' — ', array_filter($fParts)) }}</p>
+            @endif
         @endif
     @endforeach
 @elseif($scopeOfWorks)
