@@ -80,5 +80,129 @@
         <td class="label-sm">Notes</td><td colspan="3">{!! $line !!}</td>
     </tr>
 </table>
+
+{{-- ─────────────────────────────────────────────────────────────────────
+     ENGINEER FEEDBACK — added by quick task 260503-w77 to mirror the
+     same fields surfaced in the digital wizard (260503-rgg / -u2x).
+     Keeps paper → digital transcription 1:1 when engineers work offline.
+     ───────────────────────────────────────────────────────────────────── --}}
+
+<h3>Mounting Heights</h3>
+<table>
+    <tr>
+        <td class="label-sm">Screen (m)</td><td>{!! $line !!}</td>
+        <td class="label-sm">Camera (m)</td><td>{!! $line !!}</td>
+    </tr>
+    <tr>
+        <td class="label-sm">Booking panel (m)</td><td>{!! $line !!}</td>
+        <td class="label-sm">Speaker (m)</td><td>{!! $line !!}</td>
+    </tr>
+    <tr>
+        <td class="label-sm">Other 1</td>
+        <td colspan="3">Label: {!! $line !!} &nbsp;&nbsp; Height (m): {!! $line !!}</td>
+    </tr>
+    <tr>
+        <td class="label-sm">Other 2</td>
+        <td colspan="3">Label: {!! $line !!} &nbsp;&nbsp; Height (m): {!! $line !!}</td>
+    </tr>
+    <tr>
+        <td class="label-sm">Other 3</td>
+        <td colspan="3">Label: {!! $line !!} &nbsp;&nbsp; Height (m): {!! $line !!}</td>
+    </tr>
+</table>
+
+<h3>Working at Height — Methods Required</h3>
+<table>
+    <tr>
+        <td colspan="4">
+            &#9744; Ladder &nbsp;&nbsp; &#9744; Podium &nbsp;&nbsp; &#9744; Tower &nbsp;&nbsp; &#9744; MEWP &nbsp;&nbsp; &#9744; Scaffold &nbsp;&nbsp; &#9744; N/A
+            <span style="color:#888;font-size:7.5pt;">&nbsp;(tick all that apply)</span>
+        </td>
+    </tr>
+</table>
+
+<h3>Cable Routes Planned</h3>
+<table>
+    <tr>
+        <th style="width:24%;">Category</th>
+        <th style="width:26%;">From</th>
+        <th style="width:26%;">To</th>
+        <th style="width:12%;">Length (m)</th>
+        <th style="width:12%;">Notes</th>
+    </tr>
+    @for ($cr = 0; $cr < 4; $cr++)
+        <tr>
+            <td style="font-size:7.5pt;">&#9744; Ceiling spk &nbsp; &#9744; Desk &nbsp; &#9744; Mic &nbsp; &#9744; Booking &nbsp; &#9744; Screen &nbsp; &#9744; Rack→Room</td>
+            <td>{!! $line !!}</td>
+            <td>{!! $line !!}</td>
+            <td>{!! $line !!}</td>
+            <td>{!! $line !!}</td>
+        </tr>
+    @endfor
+</table>
+
+<h3>Wall Construction &amp; Prep</h3>
+<table>
+    <tr>
+        <td class="label-sm">Wall construction (multi)</td>
+        <td colspan="3">
+            &#9744; Ply-lined &nbsp; &#9744; Solid &nbsp; &#9744; Plasterboard &nbsp; &#9744; Masonry &nbsp; &#9744; Metal stud &nbsp; &#9744; Concrete
+        </td>
+    </tr>
+    <tr>
+        <td class="label-sm">Reinforcement needed?</td><td>&#9744; Yes &nbsp; &#9744; No</td>
+        <td class="label-sm">Chase out needed?</td><td>&#9744; Yes &nbsp; &#9744; No</td>
+    </tr>
+    <tr>
+        <td class="label-sm">Conduit needed?</td><td>&#9744; Yes &nbsp; &#9744; No</td>
+        <td class="label-sm">Notes</td><td>{!! $line !!}</td>
+    </tr>
+</table>
+
+<h3>Table Info</h3>
+<table>
+    <tr>
+        <td class="label-sm">Has table grommets?</td><td>&#9744; Yes &nbsp; &#9744; No</td>
+        <td class="label-sm">Grommet count</td><td>{!! $line !!}</td>
+    </tr>
+    <tr>
+        <td class="label-sm">Grommet size</td>
+        <td>&#9744; Small &nbsp; &#9744; Standard &nbsp; &#9744; Large</td>
+        <td class="label-sm">Notes</td><td>{!! $line !!}</td>
+    </tr>
+</table>
+
+<h3>Floor Box Info</h3>
+<table>
+    <tr>
+        <td class="label-sm">Has floor box?</td><td>&#9744; Yes &nbsp; &#9744; No</td>
+        <td class="label-sm">Power outlets</td><td>{!! $line !!}</td>
+    </tr>
+    <tr>
+        <td class="label-sm">Data outlets</td><td>{!! $line !!}</td>
+        <td class="label-sm">Cable space</td>
+        <td>&#9744; Tight &nbsp; &#9744; Adequate &nbsp; &#9744; Spacious</td>
+    </tr>
+    <tr><td class="label-sm">Notes</td><td colspan="3">{!! $line !!}</td></tr>
+</table>
+
+<h3>Brackets Required</h3>
+<table>
+    <tr>
+        <th style="width:35%;">Equipment</th>
+        <th style="width:30%;">Bracket model</th>
+        <th style="width:15%;">Pull-out?</th>
+        <th style="width:20%;">Notes</th>
+    </tr>
+    @for ($b = 0; $b < 4; $b++)
+        <tr>
+            <td>{!! $line !!}</td>
+            <td>{!! $line !!}</td>
+            <td>&#9744; Yes &nbsp; &#9744; No</td>
+            <td>{!! $line !!}</td>
+        </tr>
+    @endfor
+</table>
+
 <div style="font-size:7.5pt;color:#666;margin-bottom:2pt;">Sketch (mark doors, windows, power, display, rack — grid = 5mm):</div>
 <div class="sketch-box"></div>
