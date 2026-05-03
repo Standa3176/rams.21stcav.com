@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Installation Programme & Field Management — SHIPPED 2026-04-25
 status: completed
-last_updated: "2026-05-03T12:45:00.000Z"
-last_activity: 2026-05-03 -- Completed quick task 260503-ipc: UI polish across editable forms
+last_updated: "2026-05-03T18:58:00.000Z"
+last_activity: 2026-05-03 -- Completed quick task 260503-rgg: Site Survey engineer-feedback enhancements (17 fields)
 progress:
   total_phases: 4
   completed_phases: 3
@@ -127,3 +127,4 @@ Last activity: 2026-05-03
 | 260427-qvr | 2026-04-27 | Migrate PDF rendering to Browsershot (RAMS + O&M + Site Survey via single PdfRenderService, pdf:smoke-test command, deployment runbook for chrome symlink + queue-worker user fix + chown). Existing dompdf/mpdf retained for rollback. | ⚠️ Needs Review | 92c95da |
 | 260430-um1 | 2026-04-30 | Fix install programme 0 tasks — port two-strategy room/equipment distribution (area-tag grouping + flat-equipment fallback with NON_PHYSICAL_ROOMS guard) into InstallTaskGeneratorService. Verified locally on 3 projects (3/43/31 tasks generated). | ✅ Done | c479364 |
 | 260503-ipc | 2026-05-03 | UI polish across 5 editable forms — section cards with teal headers + soft-red empty-field highlight via pure CSS (`:placeholder-shown` + `data-optional` opt-out). 9 files, 2 commits. CSS/Blade only — `git diff app/ routes/ database/ config/` = empty. Visual confirmation pending. | ⚠️ Needs Review | 2edc1ba |
+| 260503-rgg | 2026-05-03 | Site Survey form enhancements per engineer feedback — 17 new fields across site-logistics + per-room mounting heights + build-out details (cable routes, wall construction, brackets, table/floor box info, work-at-height methods). Schema-additive (7 site cols + 10 room cols, all nullable), Alpine multi-row UIs, .form-section card chrome from 260503-ipc. 7 files, 3 commits. RamsBuilder/InstallTask services UNTOUCHED — pick up new data on next regen. | ⚠️ Needs Upload | 5aef363 |
