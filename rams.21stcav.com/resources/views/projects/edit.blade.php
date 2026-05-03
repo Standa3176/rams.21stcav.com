@@ -28,8 +28,8 @@
 
             <div class="form-group">
                 <label class="form-label" for="ref">Project Ref</label>
-                <input id="ref" name="ref" type="text" class="form-control" data-optional
-                       value="{{ old('ref', $project->ref) }}">
+                <input id="ref" name="ref" type="text" class="form-control"
+                       value="{{ old('ref', $project->ref) }}" placeholder=" ">
             </div>
 
             <div class="form-group">
@@ -51,7 +51,7 @@
             <div class="form-group" style="grid-column:span 2;">
                 <label class="form-label" for="works_description">Works Description</label>
                 <textarea id="works_description" name="works_description"
-                          class="form-control" rows="3" data-optional>{{ old('works_description', $project->works_description) }}</textarea>
+                          class="form-control" rows="3" placeholder=" ">{{ old('works_description', $project->works_description) }}</textarea>
             </div>
 
             <div class="form-group" style="grid-column:span 2;">

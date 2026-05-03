@@ -214,7 +214,7 @@
             </div>
             <div class="form-group">
                 <label class="form-label">Floor / Level</label>
-                <input type="text" name="rooms[{{ $ri }}][floor]" class="form-control" data-optional
+                <input type="text" name="rooms[{{ $ri }}][floor]" class="form-control"
                        value="{{ $val('floor') }}" maxlength="50" placeholder="e.g. Ground, 1st, B1">
             </div>
         </div>
@@ -222,8 +222,8 @@
         {{-- AV requirements --}}
         <div class="form-group">
             <label class="form-label">AV Requirements / Scope Notes</label>
-            <textarea name="rooms[{{ $ri }}][av_requirements]" class="form-control" data-optional
-                      rows="2" maxlength="5000">{{ $val('av_requirements') }}</textarea>
+            <textarea name="rooms[{{ $ri }}][av_requirements]" class="form-control"
+                      rows="2" maxlength="5000" placeholder=" ">{{ $val('av_requirements') }}</textarea>
         </div>
 
         {{-- Power / network --}}
@@ -256,18 +256,18 @@
             <div class="form-grid-2">
                 <div class="form-group">
                     <label class="form-label">Width (m)</label>
-                    <input type="number" name="rooms[{{ $ri }}][room_width_m]" class="form-control" data-optional
-                           value="{{ $val('room_width_m') }}" min="0" max="999" step="0.01">
+                    <input type="number" name="rooms[{{ $ri }}][room_width_m]" class="form-control"
+                           value="{{ $val('room_width_m') }}" min="0" max="999" step="0.01" placeholder=" ">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Depth (m)</label>
-                    <input type="number" name="rooms[{{ $ri }}][room_depth_m]" class="form-control" data-optional
-                           value="{{ $val('room_depth_m') }}" min="0" max="999" step="0.01">
+                    <input type="number" name="rooms[{{ $ri }}][room_depth_m]" class="form-control"
+                           value="{{ $val('room_depth_m') }}" min="0" max="999" step="0.01" placeholder=" ">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Height (m)</label>
-                    <input type="number" name="rooms[{{ $ri }}][room_height_m]" class="form-control" data-optional
-                           value="{{ $val('room_height_m') }}" min="0" max="99" step="0.01">
+                    <input type="number" name="rooms[{{ $ri }}][room_height_m]" class="form-control"
+                           value="{{ $val('room_height_m') }}" min="0" max="99" step="0.01" placeholder=" ">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Ceiling Type</label>
@@ -282,8 +282,8 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Ceiling Height (m)</label>
-                    <input type="number" name="rooms[{{ $ri }}][ceiling_height_m]" class="form-control" data-optional
-                           value="{{ $val('ceiling_height_m') }}" min="0" max="99" step="0.01">
+                    <input type="number" name="rooms[{{ $ri }}][ceiling_height_m]" class="form-control"
+                           value="{{ $val('ceiling_height_m') }}" min="0" max="99" step="0.01" placeholder=" ">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Wall Material</label>
