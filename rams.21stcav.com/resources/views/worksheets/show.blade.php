@@ -4,100 +4,79 @@
 
 @push('styles')
 <style>
-/* ── Room cards (copied verbatim from site-survey/show.blade.php) ─── */
+/* ── Room cards — clean modern dashboard ─────────────────── */
 .survey-room-card {
-    background:#fff;
-    border:1.5px solid #e5e7eb;
-    border-radius:8px;
-    margin-bottom:.75rem;
-    overflow:hidden;
-    box-shadow:var(--shadow-sm);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: .75rem;
+    overflow: hidden;
+    box-shadow: var(--shadow-xs);
 }
-.survey-room-card--complete {
-    border-color:#6EE7B7;
-}
+.survey-room-card--complete { border-color: var(--success); }
 .room-view-hdr {
-    display:flex;
-    align-items:center;
-    gap:.75rem;
-    padding:.9rem 1.1rem;
-    cursor:pointer;
-    user-select:none;
+    display: flex; align-items: center; gap: .75rem;
+    padding: .9rem 1.1rem; cursor: pointer; user-select: none;
 }
-.room-view-hdr--complete   { background:#D1FAE5; }
-.room-view-hdr--empty      { background:#F9FAFB; }
+.room-view-hdr--complete   { background: var(--success-light); }
+.room-view-hdr--empty      { background: var(--surface-soft); }
 .room-view-name {
-    flex:1;
-    font-weight:700;
-    font-size:.975rem;
-    color:#0B3C45;
+    flex: 1;
+    font-weight: 600;
+    font-size: .975rem;
+    color: var(--text);
 }
 .room-view-badge {
-    font-size:.7rem;
-    font-weight:700;
-    padding:.15rem .55rem;
-    border-radius:20px;
-    white-space:nowrap;
+    font-size: .7rem; font-weight: 600;
+    padding: .15rem .55rem; border-radius: 999px;
+    white-space: nowrap;
 }
-.room-view-badge--complete { background:#A7F3D0; color:#065F46; }
-.room-view-badge--empty    { background:#E5E7EB; color:#6B7280; }
+.room-view-badge--complete { background: #BBF7D0; color: #14532D; }
+.room-view-badge--empty    { background: var(--surface-deep); color: var(--text-muted); }
 .room-view-chevron {
-    color:#9CA3AF;
-    font-size:.85rem;
-    transition:transform 200ms;
+    color: var(--text-muted); font-size: .85rem;
+    transition: transform var(--transition);
 }
-.room-view-chevron.open { transform:rotate(90deg); }
-.room-view-body {
-    padding:0 1.1rem 1rem;
-    display:none;
-}
-.room-view-body.open { display:block; }
+.room-view-chevron.open { transform: rotate(90deg); }
+.room-view-body { padding: 0 1.1rem 1rem; display: none; }
+.room-view-body.open { display: block; }
 
-/* ── Field table ─────────────────────────────────────────────────── */
+/* ── Field table ─────────────────────────────────────────── */
 .field-table {
-    width:100%;
-    border-collapse:collapse;
-    font-size:.875rem;
-    margin-bottom:1rem;
+    width: 100%; border-collapse: collapse;
+    font-size: .875rem; margin-bottom: 1rem;
 }
 .field-table th {
-    background:#F3F6F7;
-    font-size:.7rem;
-    font-weight:700;
-    text-transform:uppercase;
-    letter-spacing:.05em;
-    color:var(--text-muted);
-    padding:.5rem .75rem;
-    text-align:left;
-    border-bottom:1px solid var(--border);
+    background: var(--surface-soft);
+    font-size: .7rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .05em;
+    color: var(--text-muted);
+    padding: .5rem .75rem; text-align: left;
+    border-bottom: 1px solid var(--border);
 }
 .field-table td {
-    padding:.45rem .75rem;
-    border-bottom:1px solid #f5f5f5;
-    vertical-align:top;
-    color:#374151;
+    padding: .45rem .75rem;
+    border-bottom: 1px solid var(--surface-deep);
+    vertical-align: top;
+    color: var(--text);
 }
-.field-table tr:last-child td { border-bottom:none; }
+.field-table tr:last-child td { border-bottom: none; }
 .field-table td:first-child {
-    width:34%;
-    font-weight:600;
-    color:#4B5563;
-    font-size:.82rem;
+    width: 34%;
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: .82rem;
 }
-.field-table td:last-child {
-    white-space:pre-wrap;
-}
+.field-table td:last-child { white-space: pre-wrap; }
 
-/* ── Section heading inside room ─────────────────────────────────── */
+/* ── Section heading inside room ────────────────────────── */
 .room-section-hdr {
-    font-size:.7rem;
-    font-weight:800;
-    text-transform:uppercase;
-    letter-spacing:.07em;
-    color:var(--teal);
-    border-top:1px solid #f0f0f0;
-    padding-top:.75rem;
-    margin:.75rem 0 .5rem;
+    font-size: .7rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .07em;
+    color: var(--teal);
+    border-top: 1px solid var(--border);
+    padding-top: .75rem;
+    margin: .75rem 0 .5rem;
 }
 </style>
 @endpush
@@ -146,6 +125,13 @@
     </div>
 </div>
 
+{{-- Sign-Off Status section — wraps status bar + client sign-off link card --}}
+<div class="form-section">
+    <div class="form-section__header">
+        <h2 class="section-heading">Sign-Off Status</h2>
+    </div>
+    <div class="form-section__body">
+
 {{-- Status bar --}}
 <div class="card card-sm" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.25rem;">
     <div>
@@ -178,7 +164,7 @@
         Client Sign-Off Link
     </div>
     <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
-        <input type="text" :value="url" readonly
+        <input type="text" :value="url" readonly data-optional
                style="flex:1;min-width:260px;font-size:.82rem;padding:.45rem .65rem;border:1px solid var(--border);border-radius:6px;background:#fafbfc;"
                @click="$event.target.select()">
         <button type="button" class="btn-outline btn-sm"
@@ -195,6 +181,9 @@
     @endif
 </div>
 @endif
+
+    </div>
+</div>{{-- /Sign-Off Status section --}}
 
 {{-- Room accordion --}}
 @php
@@ -322,6 +311,50 @@
                         </tr>
                     </tbody>
                 </table>
+
+                {{-- Engineer-captured equipment label photos for this room.
+                     Labels were photographed on-site → AI OCR'd → confirmed →
+                     wrote serial / MAC / part values into the asset register. --}}
+                @php
+                    $labelPhotos = \App\Models\DeviceLabelPhoto::where('worksheet_id', $worksheet->id)
+                        ->where('room_name', $room['name'] ?? '')
+                        ->with('device')
+                        ->orderBy('created_at')
+                        ->get();
+                @endphp
+                @if($labelPhotos->isNotEmpty())
+                    <div class="room-section-hdr">Equipment Labels Captured ({{ $labelPhotos->count() }})</div>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.7rem;margin-bottom:1rem;">
+                        @foreach($labelPhotos as $lp)
+                            @php $ai = $lp->ai_extracted ?? []; @endphp
+                            <div style="border:1px solid var(--border);border-radius:8px;padding:.65rem;background:var(--surface-soft);font-size:.78rem;line-height:1.4;">
+                                <a href="{{ \Illuminate\Support\Facades\Storage::url($lp->photo_path) }}"
+                                   target="_blank"
+                                   style="display:block;width:100%;height:120px;border-radius:6px;overflow:hidden;background:#F3F4F6;margin-bottom:.5rem;">
+                                    <img src="{{ \Illuminate\Support\Facades\Storage::url($lp->photo_path) }}"
+                                         alt="Equipment label" loading="lazy"
+                                         style="width:100%;height:100%;object-fit:cover;">
+                                </a>
+                                @if($lp->device)
+                                    <div style="font-weight:600;color:var(--text);margin-bottom:.3rem;">{{ $lp->device->description }}</div>
+                                @endif
+                                <div><strong>Part:</strong> {{ $lp->device->part_no ?? ($ai['part_number'] ?? '—') }}</div>
+                                <div><strong>Serial:</strong> {{ $lp->device->serial_number ?? ($ai['serial_number'] ?? '—') }}</div>
+                                <div><strong>MAC:</strong> {{ $lp->device->mac_address ?? ($ai['mac_address'] ?? '—') }}</div>
+                                <div style="margin-top:.4rem;">
+                                    @if($lp->confirmed)
+                                        <span style="display:inline-block;padding:1px 6px;border-radius:9999px;background:#DCFCE7;color:#166534;font-weight:600;font-size:.7rem;">✓ Confirmed</span>
+                                    @else
+                                        <span style="display:inline-block;padding:1px 6px;border-radius:9999px;background:#FEF3C7;color:#92400E;font-weight:600;font-size:.7rem;">Awaiting review</span>
+                                    @endif
+                                    <span style="color:var(--text-faint);font-size:.7rem;margin-left:.4rem;">
+                                        {{ $lp->captured_at?->format('d M H:i') }}
+                                    </span>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
 
             </div>{{-- /.room-view-body --}}
         </div>{{-- /.survey-room-card --}}

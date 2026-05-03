@@ -346,31 +346,33 @@
 
             {{-- ══════════ TAB: PROJECT ══════════ --}}
             <div x-show="tab==='project'" class="rams-tab-panel">
-                <h2 class="section-heading">Project Details</h2>
+                <div class="form-section__header" style="margin-bottom:1rem;border-radius:var(--radius-sm);">
+                    <h2 class="section-heading">Project Details</h2>
+                </div>
             <div class="form-grid-2">
                 <div class="form-group">
                     <label class="form-label" for="project_name">Project Name <span class="req">*</span></label>
                     <input id="project_name" name="project_name" type="text"
                            class="form-control @error('project_name') is-invalid @enderror"
-                           value="{{ old('project_name', $project['name'] ?? $rams->project_name) }}" required>
+                           value="{{ old('project_name', $project['name'] ?? $rams->project_name) }}" required placeholder=" ">
                     @error('project_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="project_ref">Project Ref</label>
                     <input id="project_ref" name="project_ref" type="text"
-                           class="form-control"
+                           class="form-control" data-optional
                            value="{{ old('project_ref', $project['ref'] ?? $rams->project_ref) }}">
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="client_name">Client <span class="req">*</span></label>
                     <input id="client_name" name="client_name" type="text"
                            class="form-control @error('client_name') is-invalid @enderror"
-                           value="{{ old('client_name', $project['client'] ?? $rams->client_name) }}" required>
+                           value="{{ old('client_name', $project['client'] ?? $rams->client_name) }}" required placeholder=" ">
                     @error('client_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="document_status">Document Status</label>
-                    <select id="document_status" name="document_status" class="form-control">
+                    <select id="document_status" name="document_status" class="form-control" data-optional>
                         @foreach(['For Construction', 'For Review', 'For Approval', 'For Information'] as $docStatus)
                             <option value="{{ $docStatus }}"
                                 {{ ($project['document_status'] ?? 'For Construction') === $docStatus ? 'selected' : '' }}>
@@ -383,20 +385,20 @@
                     <label class="form-label" for="site_address">Site Address <span class="req">*</span></label>
                     <input id="site_address" name="site_address" type="text"
                            class="form-control @error('site_address') is-invalid @enderror"
-                           value="{{ old('site_address', $project['site_address'] ?? $rams->site_address) }}" required>
+                           value="{{ old('site_address', $project['site_address'] ?? $rams->site_address) }}" required placeholder=" ">
                     @error('site_address')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="form-group" style="grid-column: span 2;">
                     <label class="form-label" for="site_contact">Site Contact</label>
                     <input id="site_contact" name="site_contact" type="text"
-                           class="form-control @error('site_contact') is-invalid @enderror"
+                           class="form-control @error('site_contact') is-invalid @enderror" data-optional
                            value="{{ old('site_contact', $project['site_contact'] ?? '') }}">
                     @error('site_contact')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="form-group" style="grid-column: span 2;">
                     <label class="form-label" for="subtitle">Subtitle <small style="font-weight:400;color:#666;">(one-liner shown on cover, e.g. "Site | Client | AV Installation")</small></label>
                     <input id="subtitle" name="subtitle" type="text"
-                           class="form-control"
+                           class="form-control" data-optional
                            value="{{ old('subtitle', $project['subtitle'] ?? '') }}">
                 </div>
             </div>
@@ -433,7 +435,7 @@
                         $vehiclesValue = old('site_vehicles', $project['site_vehicles'] ?? '');
                         if (is_array($vehiclesValue)) { $vehiclesValue = implode("\n", $vehiclesValue); }
                     @endphp
-                    <textarea id="site_vehicles" name="site_vehicles" rows="3"
+                    <textarea id="site_vehicles" name="site_vehicles" rows="3" data-optional
                               class="form-control"
                               placeholder="One vehicle per line — e.g. AB12 CDE - Crew van">{{ $vehiclesValue }}</textarea>
                     <small style="display:block;color:#666;font-size:.78rem;margin-top:.2rem;">
@@ -490,7 +492,7 @@
             </div>
             <div class="form-group">
                 <label class="form-label" for="waste_removal_notes">Waste Removal Notes</label>
-                <textarea id="waste_removal_notes" name="waste_removal_notes" class="form-control" rows="2"
+                <textarea id="waste_removal_notes" name="waste_removal_notes" class="form-control" rows="2" data-optional
                           placeholder="e.g. All packaging and old equipment removed by 21CAV to skip on site"
                 >{{ old('waste_removal_notes', $prog['waste_removal_notes'] ?? '') }}</textarea>
             </div>
@@ -568,7 +570,7 @@
             </div>
             <div class="form-group" style="margin-top:.65rem;">
                 <label class="form-label" for="material_handling_handling_notes">Handling Notes</label>
-                <textarea id="material_handling_handling_notes" name="material_handling_handling_notes" class="form-control" rows="2"
+                <textarea id="material_handling_handling_notes" name="material_handling_handling_notes" class="form-control" rows="2" data-optional
                           placeholder="Any general manual handling notes or risk controls"
                 >{{ old('material_handling_handling_notes', $matHandling['handling_notes'] ?? '') }}</textarea>
             </div>
@@ -626,7 +628,7 @@
 
             <div class="form-group">
                 <label class="form-label" for="welfare_notes">Welfare Arrangements — Site-Specific Notes</label>
-                <textarea id="welfare_notes" name="welfare_notes" class="form-control" rows="2"
+                <textarea id="welfare_notes" name="welfare_notes" class="form-control" rows="2" data-optional
                           placeholder="e.g. Welfare facilities in Building B, Level 1. First aider: John Smith (07700 000000)"
                 >{{ old('welfare_notes', $prog['welfare_notes'] ?? '') }}</textarea>
             </div>
@@ -1027,12 +1029,12 @@
             <div class="form-group" style="flex:1; min-width:200px; margin-bottom:0;">
                 <label class="form-label" for="recipient_email">Recipient Email</label>
                 <input id="recipient_email" name="recipient_email" type="email"
-                       class="form-control" placeholder="client@example.com">
+                       class="form-control" data-optional placeholder="client@example.com">
             </div>
             <div class="form-group" style="flex:1; min-width:150px; margin-bottom:0;">
                 <label class="form-label" for="recipient_name">Recipient Name <small style="font-weight:400;">(optional)</small></label>
                 <input id="recipient_name" name="recipient_name" type="text"
-                       class="form-control" placeholder="John Smith">
+                       class="form-control" data-optional placeholder="John Smith">
             </div>
             <button type="submit" class="btn btn-outline btn-sm" style="margin-bottom:.05rem;">Send</button>
         </form>

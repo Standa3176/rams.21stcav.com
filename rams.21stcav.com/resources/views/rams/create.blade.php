@@ -49,7 +49,7 @@
                            name="project_ref"
                            class="form-control @error('project_ref') is-invalid @enderror"
                            value="{{ old('project_ref') ?? $project?->ref ?? '' }}"
-                           placeholder="e.g. 21CQ-25001">
+                           placeholder="e.g. 21CQ-25001" data-optional>
                     @error('project_ref')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -64,7 +64,7 @@
                            name="project_name"
                            class="form-control @error('project_name') is-invalid @enderror"
                            value="{{ old('project_name') ?? $project?->name ?? '' }}"
-                           required>
+                           required placeholder=" ">
                     @error('project_name')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -79,7 +79,7 @@
                            name="client_name"
                            class="form-control @error('client_name') is-invalid @enderror"
                            value="{{ old('client_name') ?? $project?->client_name ?? '' }}"
-                           required>
+                           required placeholder=" ">
                     @error('client_name')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -92,7 +92,7 @@
                            name="site_contact"
                            class="form-control @error('site_contact') is-invalid @enderror"
                            value="{{ old('site_contact') }}"
-                           placeholder="Contact name on site">
+                           placeholder="Contact name on site" data-optional>
                     @error('site_contact')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -107,7 +107,7 @@
                           name="site_address"
                           class="form-control @error('site_address') is-invalid @enderror"
                           rows="2"
-                          required>{{ old('site_address') ?? $project?->site_address ?? '' }}</textarea>
+                          required placeholder=" ">{{ old('site_address') ?? $project?->site_address ?? '' }}</textarea>
                 @error('site_address')
                     <div class="invalid-feedback">{{ $message }}</div>
                 @enderror
@@ -121,7 +121,7 @@
                            name="start_date"
                            class="form-control @error('start_date') is-invalid @enderror"
                            value="{{ old('start_date') }}"
-                           placeholder="e.g. March 2026">
+                           placeholder="e.g. March 2026" data-optional>
                     @error('start_date')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -134,7 +134,7 @@
                            name="expected_duration"
                            class="form-control @error('expected_duration') is-invalid @enderror"
                            value="{{ old('expected_duration') }}"
-                           placeholder="e.g. 2 weeks">
+                           placeholder="e.g. 2 weeks" data-optional>
                     @error('expected_duration')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -150,7 +150,7 @@
                           class="form-control @error('works_description') is-invalid @enderror"
                           rows="4"
                           minlength="20"
-                          required>{{ old('works_description') ?? $project?->works_description ?? '' }}</textarea>
+                          required placeholder=" ">{{ old('works_description') ?? $project?->works_description ?? '' }}</textarea>
                 <div class="form-help">
                     Describe the AV works in detail — the AI uses this to tailor control measures.
                     Be specific: equipment types, mounting methods, cable routes, commissioning tasks.
@@ -175,7 +175,7 @@
                            name="project_manager"
                            class="form-control @error('project_manager') is-invalid @enderror"
                            value="{{ old('project_manager', $prefill['project_manager'] ?? '') }}"
-                           placeholder="Name">
+                           placeholder="Name" data-optional>
                     @error('project_manager')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -188,7 +188,7 @@
                            name="lead_engineer"
                            class="form-control @error('lead_engineer') is-invalid @enderror"
                            value="{{ old('lead_engineer', $prefill['lead_engineer'] ?? '') }}"
-                           placeholder="Name">
+                           placeholder="Name" data-optional>
                     @error('lead_engineer')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -201,7 +201,7 @@
                            name="additional_engineers"
                            class="form-control @error('additional_engineers') is-invalid @enderror"
                            value="{{ old('additional_engineers', $prefill['additional_engineers'] ?? '') }}"
-                           placeholder="Comma-separated names">
+                           placeholder="Comma-separated names" data-optional>
                     @error('additional_engineers')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -214,7 +214,7 @@
                            name="programmer"
                            class="form-control @error('programmer') is-invalid @enderror"
                            value="{{ old('programmer', $prefill['programmer'] ?? '') }}"
-                           placeholder="Name">
+                           placeholder="Name" data-optional>
                     @error('programmer')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -236,7 +236,7 @@
                            name="client_contact_name"
                            class="form-control @error('client_contact_name') is-invalid @enderror"
                            value="{{ old('client_contact_name') }}"
-                           placeholder="Client representative">
+                           placeholder="Client representative" data-optional>
                     @error('client_contact_name')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -249,7 +249,7 @@
                            name="client_contact_email"
                            class="form-control @error('client_contact_email') is-invalid @enderror"
                            value="{{ old('client_contact_email') }}"
-                           placeholder="client@example.com">
+                           placeholder="client@example.com" data-optional>
                     @error('client_contact_email')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -262,7 +262,7 @@
                            name="rooms_text"
                            class="form-control @error('rooms_text') is-invalid @enderror"
                            value="{{ old('rooms_text') }}"
-                           placeholder="e.g. Boardroom, Training Room, Reception">
+                           placeholder="e.g. Boardroom, Training Room, Reception" data-optional>
                     @error('rooms_text')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -273,7 +273,7 @@
                     <input type="text"
                            id="working_hours"
                            name="working_hours"
-                           class="form-control @error('working_hours') is-invalid @enderror"
+                           class="form-control @error('working_hours') is-invalid @enderror" data-optional
                            value="{{ old('working_hours', 'Monday–Friday, 09:00–17:30') }}">
                     @error('working_hours')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -285,7 +285,7 @@
                     <input type="text"
                            id="revision"
                            name="revision"
-                           class="form-control @error('revision') is-invalid @enderror"
+                           class="form-control @error('revision') is-invalid @enderror" data-optional
                            value="{{ old('revision', 'Rev 1.0') }}">
                     @error('revision')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -296,7 +296,7 @@
                     <label class="form-label" for="document_status">Document Status</label>
                     <select id="document_status"
                             name="document_status"
-                            class="form-control @error('document_status') is-invalid @enderror">
+                            class="form-control @error('document_status') is-invalid @enderror" data-optional>
                         <option value="For Issue" {{ old('document_status', 'For Issue') === 'For Issue' ? 'selected' : '' }}>For Issue</option>
                         <option value="For Construction" {{ old('document_status') === 'For Construction' ? 'selected' : '' }}>For Construction</option>
                         <option value="Approved" {{ old('document_status') === 'Approved' ? 'selected' : '' }}>Approved</option>
@@ -551,10 +551,10 @@
                         <div class="team-row" data-row="{{ $i }}">
                             <input type="text"
                                    name="team[{{ $i }}][name]"
-                                   class="form-control"
+                                   class="form-control" data-optional
                                    value="{{ $member['name'] ?? '' }}"
                                    placeholder="Full name">
-                            <select name="team[{{ $i }}][role]" class="form-control">
+                            <select name="team[{{ $i }}][role]" class="form-control" data-optional>
                                 @foreach (['Project Manager','Lead Engineer','Engineer','Programmer'] as $role)
                                     <option value="{{ $role }}" {{ ($member['role'] ?? '') === $role ? 'selected' : '' }}>
                                         {{ $role }}
@@ -563,7 +563,7 @@
                             </select>
                             <input type="text"
                                    name="team[{{ $i }}][mobile]"
-                                   class="form-control"
+                                   class="form-control" data-optional
                                    value="{{ $member['mobile'] ?? '' }}"
                                    placeholder="07xxx xxxxxx">
                             <button type="button"
@@ -594,7 +594,7 @@
                     <input type="text"
                            id="emergency_contact"
                            name="emergency_contact"
-                           class="form-control"
+                           class="form-control" data-optional
                            value="{{ old('emergency_contact') }}"
                            placeholder="Emergency contact name">
                 </div>
@@ -604,7 +604,7 @@
                     <input type="text"
                            id="emergency_tel"
                            name="emergency_tel"
-                           class="form-control"
+                           class="form-control" data-optional
                            value="{{ old('emergency_tel') }}"
                            placeholder="e.g. 0800 999 9999">
                 </div>
@@ -622,7 +622,7 @@
                 <input type="text"
                        id="doc_author"
                        name="doc_author"
-                       class="form-control"
+                       class="form-control" data-optional
                        value="{{ old('doc_author', auth()->user()->name ?? '') }}"
                        placeholder="Your name">
             </div>

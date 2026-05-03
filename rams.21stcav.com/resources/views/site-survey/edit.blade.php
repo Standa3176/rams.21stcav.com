@@ -27,12 +27,15 @@
     @method('PUT')
 
     {{-- Project Details --}}
-    <div class="section-block">
-        <h2 class="section-heading">Project Details</h2>
+    <div class="form-section">
+        <div class="form-section__header">
+            <h2 class="section-heading">Project Details</h2>
+        </div>
+        <div class="form-section__body">
         <div class="form-grid-2">
             <div class="form-group">
                 <label class="form-label" for="project_id">Link to Project</label>
-                <select id="project_id" name="project_id" class="form-control" onchange="onProjectChange(this)">
+                <select id="project_id" name="project_id" class="form-control" data-optional onchange="onProjectChange(this)">
                     <option value="">— Standalone (no project) —</option>
                     @foreach ($projects as $p)
                         <option value="{{ $p->id }}" {{ (old('project_id', $survey->project_id) == $p->id) ? 'selected' : '' }}>
@@ -43,7 +46,7 @@
             </div>
             <div class="form-group">
                 <label class="form-label" for="survey_type">Default Space Type <span style="font-weight:400;color:#6B7280;">(for new spaces added)</span></label>
-                <select id="survey_type" name="survey_type" class="form-control"
+                <select id="survey_type" name="survey_type" class="form-control" data-optional
                         onchange="CURRENT_DEFAULT_TYPE = this.value">
                     <option value="general"        {{ $currentType === 'general'        ? 'selected' : '' }}>General AV / Meeting Room</option>
                     <option value="pa_system"      {{ $currentType === 'pa_system'      ? 'selected' : '' }}>PA / Background Music</option>
@@ -57,46 +60,47 @@
                 <label class="form-label" for="project_name">Project Name <span class="req">*</span></label>
                 <input type="text" id="project_name" name="project_name"
                        class="form-control @error('project_name') is-invalid @enderror"
-                       value="{{ old('project_name', $survey->project_name) }}" required maxlength="200">
+                       value="{{ old('project_name', $survey->project_name) }}" required maxlength="200" placeholder=" ">
                 @error('project_name') <div class="invalid-feedback">{{ $message }}</div> @enderror
             </div>
             <div class="form-group">
                 <label class="form-label" for="project_ref">Reference</label>
-                <input type="text" id="project_ref" name="project_ref" class="form-control"
+                <input type="text" id="project_ref" name="project_ref" class="form-control" data-optional
                        value="{{ old('project_ref', $survey->project_ref) }}" maxlength="50">
             </div>
             <div class="form-group">
                 <label class="form-label" for="client_name">Client Name</label>
-                <input type="text" id="client_name" name="client_name" class="form-control"
+                <input type="text" id="client_name" name="client_name" class="form-control" data-optional
                        value="{{ old('client_name', $survey->client_name) }}" maxlength="150">
             </div>
             <div class="form-group">
                 <label class="form-label" for="surveyor_name">Surveyor Name</label>
-                <input type="text" id="surveyor_name" name="surveyor_name" class="form-control"
+                <input type="text" id="surveyor_name" name="surveyor_name" class="form-control" data-optional
                        value="{{ old('surveyor_name', $survey->surveyor_name) }}" maxlength="100">
             </div>
             <div class="form-group">
                 <label class="form-label" for="survey_date">Survey Date</label>
-                <input type="date" id="survey_date" name="survey_date" class="form-control"
+                <input type="date" id="survey_date" name="survey_date" class="form-control" data-optional
                        value="{{ old('survey_date', $survey->survey_date?->format('Y-m-d')) }}">
             </div>
             <div class="form-group">
                 <label class="form-label" for="visit_time">Visit Time</label>
-                <input type="text" id="visit_time" name="visit_time" class="form-control"
+                <input type="text" id="visit_time" name="visit_time" class="form-control" data-optional
                        value="{{ old('visit_time', $survey->visit_time) }}" placeholder="e.g. 9:00 AM – 12:00 PM" maxlength="100">
             </div>
         </div>
 
         {{-- Site Contact --}}
+        <h3 class="section-heading" style="margin-top:1rem;">Site Contact</h3>
         <div class="form-grid-2">
             <div class="form-group">
                 <label class="form-label" for="site_contact_name">Site Contact Name</label>
-                <input type="text" id="site_contact_name" name="site_contact_name" class="form-control"
+                <input type="text" id="site_contact_name" name="site_contact_name" class="form-control" data-optional
                        value="{{ old('site_contact_name', $survey->site_contact_name) }}" placeholder="e.g. Jane Smith" maxlength="150">
             </div>
             <div class="form-group">
                 <label class="form-label" for="site_contact_phone">Site Contact Phone</label>
-                <input type="text" id="site_contact_phone" name="site_contact_phone" class="form-control"
+                <input type="text" id="site_contact_phone" name="site_contact_phone" class="form-control" data-optional
                        value="{{ old('site_contact_phone', $survey->site_contact_phone) }}" placeholder="e.g. 07700 123456" maxlength="50">
             </div>
         </div>
@@ -107,17 +111,17 @@
             <div class="form-grid-2">
                 <div class="form-group" style="margin-bottom:0;">
                     <label class="form-label" for="pm_name">Name</label>
-                    <input type="text" id="pm_name" name="pm_name" class="form-control"
+                    <input type="text" id="pm_name" name="pm_name" class="form-control" data-optional
                            value="{{ old('pm_name', $survey->pm_name) }}" placeholder="e.g. John Doe" maxlength="150">
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
                     <label class="form-label" for="pm_phone">Phone</label>
-                    <input type="text" id="pm_phone" name="pm_phone" class="form-control"
+                    <input type="text" id="pm_phone" name="pm_phone" class="form-control" data-optional
                            value="{{ old('pm_phone', $survey->pm_phone) }}" placeholder="e.g. 07700 654321" maxlength="50">
                 </div>
                 <div class="form-group" style="margin-bottom:0;grid-column:1/-1;">
                     <label class="form-label" for="pm_email">Email</label>
-                    <input type="email" id="pm_email" name="pm_email" class="form-control"
+                    <input type="email" id="pm_email" name="pm_email" class="form-control" data-optional
                            value="{{ old('pm_email', $survey->pm_email) }}" placeholder="e.g. pm@company.com" maxlength="150">
                 </div>
             </div>
@@ -125,22 +129,26 @@
 
         <div class="form-group">
             <label class="form-label" for="site_address">Site Address</label>
-            <textarea id="site_address" name="site_address" class="form-control" rows="2" maxlength="500">{{ old('site_address', $survey->site_address) }}</textarea>
+            <textarea id="site_address" name="site_address" class="form-control" rows="2" maxlength="500" data-optional>{{ old('site_address', $survey->site_address) }}</textarea>
         </div>
         <div class="form-group">
             <label class="form-label" for="general_notes">General Notes</label>
-            <textarea id="general_notes" name="general_notes" class="form-control" rows="3" maxlength="3000">{{ old('general_notes', $survey->general_notes) }}</textarea>
+            <textarea id="general_notes" name="general_notes" class="form-control" rows="3" maxlength="3000" data-optional>{{ old('general_notes', $survey->general_notes) }}</textarea>
+        </div>
         </div>
     </div>
 
     {{-- Areas / Rooms --}}
-    <div class="section-block">
-        <h2 class="section-heading" id="areas-heading">{{ match($currentType) {
-            'pa_system'      => 'PA Zones / Areas',
-            'infrastructure' => 'Locations / Routes',
-            'signage'        => 'Display Positions',
-            default          => 'Rooms / Areas',
-        } }}</h2>
+    <div class="form-section">
+        <div class="form-section__header">
+            <h2 class="section-heading" id="areas-heading">{{ match($currentType) {
+                'pa_system'      => 'PA Zones / Areas',
+                'infrastructure' => 'Locations / Routes',
+                'signage'        => 'Display Positions',
+                default          => 'Rooms / Areas',
+            } }}</h2>
+        </div>
+        <div class="form-section__body">
         <p style="color:#666;font-size:.875rem;margin-bottom:1rem;">
             Existing areas are preserved. Removed areas will be deleted along with their photos.
         </p>
@@ -165,6 +173,7 @@
                 default          => 'Room',
             } }}
         </button>
+        </div>
     </div>
 
     <div style="display:flex;gap:1rem;flex-wrap:wrap;">

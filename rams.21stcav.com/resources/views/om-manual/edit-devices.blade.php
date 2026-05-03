@@ -76,9 +76,26 @@
                             </thead>
                             <tbody>
                                 @foreach ($roomDevices as $d)
+                                    @php
+                                        $labelCount = \App\Models\DeviceLabelPhoto::where('device_id', $d->id)->count();
+                                        $confirmedCount = \App\Models\DeviceLabelPhoto::where('device_id', $d->id)->where('confirmed', true)->count();
+                                    @endphp
                                     <tr style="border-bottom:1px solid #EEE;">
                                         <td style="padding:8px; vertical-align:top;">
-                                            <div style="font-weight:600;">{{ $d->description }}</div>
+                                            <div style="font-weight:600;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;">
+                                                <span>{{ $d->description }}</span>
+                                                @if ($confirmedCount > 0)
+                                                    <span title="{{ $confirmedCount }} confirmed label photo{{ $confirmedCount > 1 ? 's' : '' }} from worksheet"
+                                                          style="display:inline-flex;align-items:center;gap:.25rem;padding:1px 6px;border-radius:9999px;background:#DCFCE7;color:#166534;font-weight:600;font-size:.65rem;text-transform:uppercase;letter-spacing:.04em;">
+                                                        ✓ Worksheet
+                                                    </span>
+                                                @elseif ($labelCount > 0)
+                                                    <span title="{{ $labelCount }} unconfirmed label photo{{ $labelCount > 1 ? 's' : '' }}"
+                                                          style="display:inline-flex;align-items:center;gap:.25rem;padding:1px 6px;border-radius:9999px;background:#FEF3C7;color:#92400E;font-weight:600;font-size:.65rem;text-transform:uppercase;letter-spacing:.04em;">
+                                                        📷 {{ $labelCount }} pending
+                                                    </span>
+                                                @endif
+                                            </div>
                                             <div style="font-size:.75rem; color:#888;">
                                                 {{ $d->model ?? '—' }}
                                                 @if ($d->qty && $d->qty > 1)
@@ -87,49 +104,49 @@
                                             </div>
                                         </td>
                                         <td style="padding:6px 4px;">
-                                            <input type="text"
+                                            <input type="text" data-optional
                                                 name="devices[{{ $d->id }}][serial_number]"
                                                 value="{{ old('devices.' . $d->id . '.serial_number', $d->serial_number) }}"
                                                 class="form-input" style="width:100%; font-size:.82rem; padding:4px 6px;"
                                                 placeholder="—">
                                         </td>
                                         <td style="padding:6px 4px;">
-                                            <input type="text"
+                                            <input type="text" data-optional
                                                 name="devices[{{ $d->id }}][ip_address]"
                                                 value="{{ old('devices.' . $d->id . '.ip_address', $d->ip_address) }}"
                                                 class="form-input" style="width:100%; font-size:.82rem; padding:4px 6px;"
                                                 placeholder="—">
                                         </td>
                                         <td style="padding:6px 4px;">
-                                            <input type="text"
+                                            <input type="text" data-optional
                                                 name="devices[{{ $d->id }}][vlan]"
                                                 value="{{ old('devices.' . $d->id . '.vlan', $d->vlan) }}"
                                                 class="form-input" style="width:100%; font-size:.82rem; padding:4px 6px;"
                                                 placeholder="—">
                                         </td>
                                         <td style="padding:6px 4px;">
-                                            <input type="text"
+                                            <input type="text" data-optional
                                                 name="devices[{{ $d->id }}][port]"
                                                 value="{{ old('devices.' . $d->id . '.port', $d->port) }}"
                                                 class="form-input" style="width:100%; font-size:.82rem; padding:4px 6px;"
                                                 placeholder="—">
                                         </td>
                                         <td style="padding:6px 4px;">
-                                            <input type="text"
+                                            <input type="text" data-optional
                                                 name="devices[{{ $d->id }}][firmware_version]"
                                                 value="{{ old('devices.' . $d->id . '.firmware_version', $d->firmware_version) }}"
                                                 class="form-input" style="width:100%; font-size:.82rem; padding:4px 6px;"
                                                 placeholder="—">
                                         </td>
                                         <td style="padding:6px 4px;">
-                                            <input type="text"
+                                            <input type="text" data-optional
                                                 name="devices[{{ $d->id }}][asset_tag]"
                                                 value="{{ old('devices.' . $d->id . '.asset_tag', $d->asset_tag) }}"
                                                 class="form-input" style="width:100%; font-size:.82rem; padding:4px 6px;"
                                                 placeholder="—">
                                         </td>
                                         <td style="padding:6px 4px;">
-                                            <input type="text"
+                                            <input type="text" data-optional
                                                 name="devices[{{ $d->id }}][mac_address]"
                                                 value="{{ old('devices.' . $d->id . '.mac_address', $d->mac_address) }}"
                                                 class="form-input" style="width:100%; font-size:.82rem; padding:4px 6px;"

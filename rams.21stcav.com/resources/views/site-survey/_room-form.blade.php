@@ -158,7 +158,7 @@
         <div class="form-grid-2" style="margin-bottom:.75rem;">
             <div class="form-group" style="margin-bottom:0;">
                 <label class="form-label">Space / Survey Type</label>
-                <select name="rooms[{{ $ri }}][space_type]" class="form-control"
+                <select name="rooms[{{ $ri }}][space_type]" class="form-control" data-optional
                         onchange="onSpaceTypeChange(this)">
                     <option value="general"        {{ $spaceType === 'general'        ? 'selected' : '' }}>General AV / Meeting Room</option>
                     <option value="pa_system"      {{ $spaceType === 'pa_system'      ? 'selected' : '' }}>PA / Background Music</option>
@@ -170,7 +170,7 @@
             </div>
             <div class="area-type-group form-group" style="margin-bottom:0;{{ !$showAreaType ? 'display:none' : '' }}">
                 <label class="form-label">Area Classification</label>
-                <select name="rooms[{{ $ri }}][area_type]" class="form-control">
+                <select name="rooms[{{ $ri }}][area_type]" class="form-control" data-optional>
                     <option value="">— Select —</option>
                     @foreach([
                         'room'             => 'Meeting Room',
@@ -203,18 +203,18 @@
             @if(!$isModel || $isNew)
             <div class="form-group">
                 <label class="form-label">Qty <span style="font-weight:400;color:#6B7280;">(creates multiple rooms)</span></label>
-                <input type="number" name="rooms[{{ $ri }}][qty]" class="form-control"
+                <input type="number" name="rooms[{{ $ri }}][qty]" class="form-control" data-optional
                        value="1" min="1" max="99" step="1">
             </div>
             @endif
             <div class="form-group">
                 <label class="form-label">Ref / Number</label>
-                <input type="text" name="rooms[{{ $ri }}][room_ref]" class="form-control"
+                <input type="text" name="rooms[{{ $ri }}][room_ref]" class="form-control" data-optional
                        value="{{ $val('room_ref') }}" maxlength="50">
             </div>
             <div class="form-group">
                 <label class="form-label">Floor / Level</label>
-                <input type="text" name="rooms[{{ $ri }}][floor]" class="form-control"
+                <input type="text" name="rooms[{{ $ri }}][floor]" class="form-control" data-optional
                        value="{{ $val('floor') }}" maxlength="50" placeholder="e.g. Ground, 1st, B1">
             </div>
         </div>
@@ -222,7 +222,7 @@
         {{-- AV requirements --}}
         <div class="form-group">
             <label class="form-label">AV Requirements / Scope Notes</label>
-            <textarea name="rooms[{{ $ri }}][av_requirements]" class="form-control"
+            <textarea name="rooms[{{ $ri }}][av_requirements]" class="form-control" data-optional
                       rows="2" maxlength="5000">{{ $val('av_requirements') }}</textarea>
         </div>
 
@@ -256,22 +256,22 @@
             <div class="form-grid-2">
                 <div class="form-group">
                     <label class="form-label">Width (m)</label>
-                    <input type="number" name="rooms[{{ $ri }}][room_width_m]" class="form-control"
+                    <input type="number" name="rooms[{{ $ri }}][room_width_m]" class="form-control" data-optional
                            value="{{ $val('room_width_m') }}" min="0" max="999" step="0.01">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Depth (m)</label>
-                    <input type="number" name="rooms[{{ $ri }}][room_depth_m]" class="form-control"
+                    <input type="number" name="rooms[{{ $ri }}][room_depth_m]" class="form-control" data-optional
                            value="{{ $val('room_depth_m') }}" min="0" max="999" step="0.01">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Height (m)</label>
-                    <input type="number" name="rooms[{{ $ri }}][room_height_m]" class="form-control"
+                    <input type="number" name="rooms[{{ $ri }}][room_height_m]" class="form-control" data-optional
                            value="{{ $val('room_height_m') }}" min="0" max="99" step="0.01">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Ceiling Type</label>
-                    <select name="rooms[{{ $ri }}][ceiling_type]" class="form-control">
+                    <select name="rooms[{{ $ri }}][ceiling_type]" class="form-control" data-optional>
                         <option value="">— Select —</option>
                         <option value="concrete"     {{ $opt('ceiling_type', 'concrete') }}>Concrete</option>
                         <option value="suspended"    {{ $opt('ceiling_type', 'suspended') }}>Suspended</option>
@@ -282,12 +282,12 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Ceiling Height (m)</label>
-                    <input type="number" name="rooms[{{ $ri }}][ceiling_height_m]" class="form-control"
+                    <input type="number" name="rooms[{{ $ri }}][ceiling_height_m]" class="form-control" data-optional
                            value="{{ $val('ceiling_height_m') }}" min="0" max="99" step="0.01">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Wall Material</label>
-                    <select name="rooms[{{ $ri }}][wall_material]" class="form-control">
+                    <select name="rooms[{{ $ri }}][wall_material]" class="form-control" data-optional>
                         <option value="">— Select —</option>
                         <option value="brick"        {{ $opt('wall_material', 'brick') }}>Brick</option>
                         <option value="plasterboard" {{ $opt('wall_material', 'plasterboard') }}>Plasterboard</option>
@@ -298,7 +298,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Floor Type</label>
-                    <select name="rooms[{{ $ri }}][floor_type]" class="form-control">
+                    <select name="rooms[{{ $ri }}][floor_type]" class="form-control" data-optional>
                         <option value="">— Select —</option>
                         <option value="concrete" {{ $opt('floor_type', 'concrete') }}>Concrete</option>
                         <option value="carpet"   {{ $opt('floor_type', 'carpet') }}>Carpet</option>
@@ -309,36 +309,36 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Power Outlets</label>
-                    <input type="number" name="rooms[{{ $ri }}][power_outlet_count]" class="form-control"
+                    <input type="number" name="rooms[{{ $ri }}][power_outlet_count]" class="form-control" data-optional
                            value="{{ $val('power_outlet_count') ?: 0 }}" min="0" max="999" step="1">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Network Ports</label>
-                    <input type="number" name="rooms[{{ $ri }}][network_port_count]" class="form-control"
+                    <input type="number" name="rooms[{{ $ri }}][network_port_count]" class="form-control" data-optional
                            value="{{ $val('network_port_count') ?: 0 }}" min="0" max="999" step="1">
                 </div>
             </div>
             <div class="form-group">
                 <label class="form-label">Existing Cabling</label>
-                <textarea name="rooms[{{ $ri }}][existing_cabling]" class="form-control"
+                <textarea name="rooms[{{ $ri }}][existing_cabling]" class="form-control" data-optional
                           rows="2" maxlength="500">{{ $val('existing_cabling') }}</textarea>
             </div>
             <div class="form-group">
                 <label class="form-label">Cable Route Description</label>
-                <textarea name="rooms[{{ $ri }}][cable_route_desc]" class="form-control"
+                <textarea name="rooms[{{ $ri }}][cable_route_desc]" class="form-control" data-optional
                           rows="2" maxlength="3000"
                           placeholder="Describe the planned cable routing path…">{{ $val('cable_route_desc') }}</textarea>
             </div>
             <div class="form-grid-2">
                 <div class="form-group">
                     <label class="form-label">Cable Route From</label>
-                    <input type="text" name="rooms[{{ $ri }}][cable_route_from]" class="form-control"
+                    <input type="text" name="rooms[{{ $ri }}][cable_route_from]" class="form-control" data-optional
                            value="{{ $val('cable_route_from') }}" maxlength="500"
                            placeholder="e.g. Rack room, riser B1…">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Cable Route To</label>
-                    <input type="text" name="rooms[{{ $ri }}][cable_route_to]" class="form-control"
+                    <input type="text" name="rooms[{{ $ri }}][cable_route_to]" class="form-control" data-optional
                            value="{{ $val('cable_route_to') }}" maxlength="500"
                            placeholder="e.g. Boardroom, display position…">
                 </div>
@@ -346,13 +346,13 @@
             <div class="form-grid-2">
                 <div class="form-group">
                     <label class="form-label">Projection Throw (m)</label>
-                    <input type="number" name="rooms[{{ $ri }}][projection_throw_m]" class="form-control"
+                    <input type="number" name="rooms[{{ $ri }}][projection_throw_m]" class="form-control" data-optional
                            value="{{ $val('projection_throw_m') }}" min="0" max="999" step="0.01"
                            placeholder="e.g. 3.5">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Viewing Distance (m)</label>
-                    <input type="number" name="rooms[{{ $ri }}][viewing_distance_m]" class="form-control"
+                    <input type="number" name="rooms[{{ $ri }}][viewing_distance_m]" class="form-control" data-optional
                            value="{{ $val('viewing_distance_m') }}" min="0" max="999" step="0.01"
                            placeholder="e.g. 5.0">
                 </div>
@@ -371,31 +371,31 @@
             <div class="form-grid-2">
                 <div class="form-group">
                     <label class="form-label">SSID / Network Name</label>
-                    <input type="text" name="rooms[{{ $ri }}][network_ssid]" class="form-control"
+                    <input type="text" name="rooms[{{ $ri }}][network_ssid]" class="form-control" data-optional
                            value="{{ $val('network_ssid') }}" maxlength="255"
                            placeholder="e.g. Corp-AV-Net">
                 </div>
                 <div class="form-group">
                     <label class="form-label">VLAN</label>
-                    <input type="text" name="rooms[{{ $ri }}][network_vlan]" class="form-control"
+                    <input type="text" name="rooms[{{ $ri }}][network_vlan]" class="form-control" data-optional
                            value="{{ $val('network_vlan') }}" maxlength="100"
                            placeholder="e.g. 100">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Switch Port</label>
-                    <input type="text" name="rooms[{{ $ri }}][network_switch_port]" class="form-control"
+                    <input type="text" name="rooms[{{ $ri }}][network_switch_port]" class="form-control" data-optional
                            value="{{ $val('network_switch_port') }}" maxlength="100"
                            placeholder="e.g. SW-1 Port 12">
                 </div>
             </div>
             <div class="form-group">
                 <label class="form-label">Existing AV Equipment</label>
-                <textarea name="rooms[{{ $ri }}][av_equipment_list]" class="form-control"
+                <textarea name="rooms[{{ $ri }}][av_equipment_list]" class="form-control" data-optional
                           rows="2" maxlength="5000">{{ $val('av_equipment_list') }}</textarea>
             </div>
             <div class="form-group">
                 <label class="form-label">Access / Hazard Notes</label>
-                <textarea name="rooms[{{ $ri }}][access_notes]" class="form-control"
+                <textarea name="rooms[{{ $ri }}][access_notes]" class="form-control" data-optional
                           rows="2" maxlength="500">{{ $val('access_notes') }}</textarea>
             </div>
         </div>
@@ -415,7 +415,7 @@
             </div>
             <div class="form-group" style="margin-bottom:0;">
                 <label class="form-label">Engineer Name (Print)</label>
-                <input type="text" name="rooms[{{ $ri }}][engineer_signature_name]" class="form-control"
+                <input type="text" name="rooms[{{ $ri }}][engineer_signature_name]" class="form-control" data-optional
                        value="{{ $val('engineer_signature_name') }}" maxlength="255"
                        placeholder="Full name of surveying engineer">
             </div>
@@ -427,12 +427,12 @@
             <div class="form-grid-2">
                 <div class="form-group">
                     <label class="form-label">Number of Speakers</label>
-                    <input type="number" name="rooms[{{ $ri }}][speaker_count]" class="form-control"
+                    <input type="number" name="rooms[{{ $ri }}][speaker_count]" class="form-control" data-optional
                            value="{{ $val('speaker_count') }}" min="0" max="999" step="1">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Speaker Type</label>
-                    <select name="rooms[{{ $ri }}][speaker_type]" class="form-control">
+                    <select name="rooms[{{ $ri }}][speaker_type]" class="form-control" data-optional>
                         <option value="">— Select —</option>
                         <option value="ceiling"    {{ $opt('speaker_type', 'ceiling') }}>Ceiling (flush)</option>
                         <option value="pendant"    {{ $opt('speaker_type', 'pendant') }}>Pendant</option>
@@ -446,7 +446,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Speaker Mounting</label>
-                    <select name="rooms[{{ $ri }}][speaker_mounting]" class="form-control">
+                    <select name="rooms[{{ $ri }}][speaker_mounting]" class="form-control" data-optional>
                         <option value="">— Select —</option>
                         <option value="ceiling_recessed" {{ $opt('speaker_mounting', 'ceiling_recessed') }}>Ceiling — recessed</option>
                         <option value="ceiling_surface"  {{ $opt('speaker_mounting', 'ceiling_surface') }}>Ceiling — surface</option>
@@ -459,7 +459,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Background Noise (dB)</label>
-                    <input type="number" name="rooms[{{ $ri }}][bg_noise_db]" class="form-control"
+                    <input type="number" name="rooms[{{ $ri }}][bg_noise_db]" class="form-control" data-optional
                            value="{{ $val('bg_noise_db') }}" min="0" max="120" step="1"
                            placeholder="Measured dB(A)">
                 </div>
@@ -472,13 +472,13 @@
             <div class="form-grid-2">
                 <div class="form-group">
                     <label class="form-label">Display Size (inches)</label>
-                    <input type="number" name="rooms[{{ $ri }}][display_size_in]" class="form-control"
+                    <input type="number" name="rooms[{{ $ri }}][display_size_in]" class="form-control" data-optional
                            value="{{ $val('display_size_in') }}" min="0" max="999" step="0.1"
                            placeholder="e.g. 55, 75, 86">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Orientation</label>
-                    <select name="rooms[{{ $ri }}][display_orient]" class="form-control">
+                    <select name="rooms[{{ $ri }}][display_orient]" class="form-control" data-optional>
                         <option value="">— Select —</option>
                         <option value="landscape" {{ $opt('display_orient', 'landscape') }}>Landscape</option>
                         <option value="portrait"  {{ $opt('display_orient', 'portrait') }}>Portrait</option>
@@ -486,7 +486,7 @@
                 </div>
                 <div class="form-group" style="grid-column:1/-1;">
                     <label class="form-label">Mounting Type</label>
-                    <select name="rooms[{{ $ri }}][display_mounting]" class="form-control">
+                    <select name="rooms[{{ $ri }}][display_mounting]" class="form-control" data-optional>
                         <option value="">— Select —</option>
                         <option value="wall_flush"  {{ $opt('display_mounting', 'wall_flush') }}>Wall — flush / fixed</option>
                         <option value="wall_tilt"   {{ $opt('display_mounting', 'wall_tilt') }}>Wall — tilt / articulating</option>
@@ -504,17 +504,17 @@
             <div class="type-panel-heading">Upgrade / Strip-out Details</div>
             <div class="form-group">
                 <label class="form-label">Existing Equipment Condition</label>
-                <textarea name="rooms[{{ $ri }}][existing_condition]" class="form-control" rows="2" maxlength="3000"
+                <textarea name="rooms[{{ $ri }}][existing_condition]" class="form-control" data-optional rows="2" maxlength="3000"
                           placeholder="Describe condition of existing AV kit…">{{ $val('existing_condition') }}</textarea>
             </div>
             <div class="form-group">
                 <label class="form-label">Items to Remove / Strip Out</label>
-                <textarea name="rooms[{{ $ri }}][items_to_remove]" class="form-control" rows="2" maxlength="3000"
+                <textarea name="rooms[{{ $ri }}][items_to_remove]" class="form-control" data-optional rows="2" maxlength="3000"
                           placeholder="List equipment to be decommissioned…">{{ $val('items_to_remove') }}</textarea>
             </div>
             <div class="form-group">
                 <label class="form-label">Items to Retain / Reuse</label>
-                <textarea name="rooms[{{ $ri }}][items_to_retain]" class="form-control" rows="2" maxlength="3000"
+                <textarea name="rooms[{{ $ri }}][items_to_retain]" class="form-control" data-optional rows="2" maxlength="3000"
                           placeholder="List equipment to keep and integrate…">{{ $val('items_to_retain') }}</textarea>
             </div>
         </div>
@@ -522,7 +522,7 @@
         {{-- Other notes (always shown) --}}
         <div class="form-group" style="margin-bottom:0;margin-top:.5rem;">
             <label class="form-label">Other Notes</label>
-            <textarea name="rooms[{{ $ri }}][notes]" class="form-control"
+            <textarea name="rooms[{{ $ri }}][notes]" class="form-control" data-optional
                       rows="2" maxlength="500">{{ $val('notes') }}</textarea>
         </div>
 

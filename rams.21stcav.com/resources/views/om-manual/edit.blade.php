@@ -2,15 +2,44 @@
 
 @section('title', 'Review O&M Equipment — ' . ($manual->project_name ?? 'O&M Manual'))
 
+@push('styles')
+<style>
+    .om-edit-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin: 0;
+        color: var(--text);
+        letter-spacing: -.015em;
+        line-height: 1.2;
+    }
+    .om-edit-title em {
+        font-style: normal;
+        font-weight: 500;
+        color: var(--text-muted);
+    }
+    .om-edit-eyebrow {
+        font-size: .7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: .07em;
+        color: var(--text-muted);
+        margin-bottom: .25rem;
+    }
+</style>
+@endpush
+
 @section('content')
 <div class="container" style="max-width:900px; margin:0 auto;">
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem;">
-        <h1 style="font-size:1.4rem; font-weight:700; margin:0;">
-            Review O&amp;M Equipment
-            @if ($manual->project_name)
-                <span style="font-weight:400; color:#888;">— {{ $manual->project_name }}</span>
-            @endif
-        </h1>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem; gap:1rem; flex-wrap:wrap;">
+        <div>
+            <div class="om-edit-eyebrow">Operations &amp; Maintenance Manual</div>
+            <h1 class="om-edit-title">
+                Review O&amp;M Equipment
+                @if ($manual->project_name)
+                    <em>— {{ $manual->project_name }}</em>
+                @endif
+            </h1>
+        </div>
         <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
             @if ($manual->project_id)
                 <a href="{{ route('om-manuals.edit-devices', $manual) }}" class="btn btn-teal btn-sm">📋 Manage Asset Data</a>
@@ -44,13 +73,16 @@
     </div>
 
     {{-- Edit extracted data --}}
-    <div class="card" style="padding:1.5rem; margin-bottom:1.25rem;">
-        <h2 style="font-size:1rem; font-weight:700; margin-bottom:1rem;">Equipment List (JSON)</h2>
+    <div class="form-section">
+        <div class="form-section__header">
+            <h2 class="section-heading">Equipment List (JSON)</h2>
+        </div>
+        <div class="form-section__body">
         <form method="POST" action="{{ route('om-manuals.update', $manual) }}">
             @csrf
             @method('PATCH')
             <div style="margin-bottom:1rem;">
-                <textarea id="extracted_json" name="extracted_json" rows="20"
+                <textarea id="extracted_json" name="extracted_json" rows="20" data-optional
                           class="form-input" style="width:100%; font-family:monospace; font-size:.82rem;"
                 >{{ json_encode($manual->extracted_data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) }}</textarea>
                 @error('extracted_json')
@@ -59,6 +91,7 @@
             </div>
             <button type="submit" class="btn btn-teal">Save Changes</button>
         </form>
+        </div>
     </div>
 
     {{-- Generate O&M --}}
