@@ -328,6 +328,108 @@ class RiskTemplateResolverService
                     'valid, signed permit.'
                 );
             }
+
+            // ═══════════════════════════════════════════════════════════════════
+            // ENGINEER-FEEDBACK BRANCHES (quick task 260503-tfb)
+            //
+            // Surveys captured before quick task 260503-rgg landed have no
+            // engineer_feedback block — Task 1 of this quick task guarantees
+            // an empty array `[]` in that case, so this whole sub-section is
+            // a strict no-op on legacy surveys.
+            //
+            // Hazard titles below MUST match existing global library template
+            // names verbatim — no new HazardTemplate seeder entries.
+            // ═══════════════════════════════════════════════════════════════════
+
+            $ef = (array) ($room['engineer_feedback'] ?? []);
+            if (empty($ef)) {
+                continue; // legacy survey — no engineer data — skip new branches
+            }
+
+            // ── Working at height tier (HIGH > MEDIUM > LOW, mutually exclusive) ──
+            // Resolves to the single existing 'Working at Height' template;
+            // tier (LOW/MEDIUM/HIGH) is encoded in the hazard description text.
+            $methods = array_map('strtolower', (array) ($ef['work_at_height_methods'] ?? []));
+            $maxH    = $ef['max_mounting_height_m'] ?? null; // float|null
+
+            $isHigh   = in_array('mewp', $methods, true)
+                        || in_array('scaffold', $methods, true)
+                        || ($maxH !== null && $maxH > 4.0);
+            $isMedium = ! $isHigh && (
+                            in_array('tower', $methods, true)
+                            || ($maxH !== null && $maxH > 2.0)
+                        );
+            $isLow    = ! $isHigh && ! $isMedium && (
+                            in_array('ladder', $methods, true)
+                            || in_array('podium', $methods, true)
+                            || ($maxH !== null && $maxH <= 2.0 && $maxH > 0)
+                        );
+
+            if ($isHigh) {
+                $this->mergeHazard($hazardMap, $roomName, 'Working at Height',
+                    'HIGH-tier working at height: MEWP or scaffold required, OR mounting points above 4 m. ' .
+                    'Use only trained operators for MEWP. Erect rescue plan; barrier exclusion zone below works. ' .
+                    'Maintain three-point contact and harness where required.'
+                );
+                $allPpe[]         = 'Hard Hat';
+                $allPpe[]         = 'Safety Harness';
+                $allAccessEquip[] = 'MEWP (operator certified)';
+                $allAccessEquip[] = 'Scaffold (if specified)';
+            } elseif ($isMedium) {
+                $this->mergeHazard($hazardMap, $roomName, 'Working at Height',
+                    'MEDIUM-tier working at height: access tower OR mounting points 2 m – 4 m. ' .
+                    'Tower must be erected by competent person. Barrier zone below works.'
+                );
+                $allPpe[]         = 'Hard Hat';
+                $allAccessEquip[] = 'Access Tower';
+            } elseif ($isLow) {
+                $this->mergeHazard($hazardMap, $roomName, 'Working at Height',
+                    'LOW-tier working at height: ladder, podium, or mounting at or below 2 m. ' .
+                    'Maintain three points of contact; do not over-reach.'
+                );
+                $allPpe[]         = 'Hard Hat';
+                $allAccessEquip[] = 'Podium Steps';
+            }
+            // 'na' or no signal → no override (existing under_2m / over_2m logic
+            // from primaryRisk above may still emit its own row).
+
+            // ── Wall prep hazards (each independent) ───────────────────────────
+            if (! empty($ef['wall_needs_chase_out'])) {
+                $this->mergeHazard($hazardMap, $roomName, 'Dust & Debris (Including Drilling)',
+                    'Wall chasing required for cable conduit. High dust generation. ' .
+                    'Use FFP3 dust mask, on-tool extraction, and seal off occupied areas.'
+                );
+                $allPpe[] = 'Dust Mask (FFP3)';
+            }
+            if (! empty($ef['wall_needs_reinforcement'])) {
+                $this->mergeHazard($hazardMap, $roomName, 'Fixings / Substrate Failure',
+                    'Wall reinforcement required to safely carry mounted equipment load. ' .
+                    'Confirm structural fixings rated for full bracket + display weight; CAT-and-Genny scan before drilling.'
+                );
+            }
+            if (! empty($ef['wall_needs_conduit'])) {
+                $this->mergeHazard($hazardMap, $roomName, 'Hidden Services (Electrical, Plumbing, Gas)',
+                    'Conduit installation requires drilling through wall structure. ' .
+                    'Mandatory CAT-and-Genny scan; obtain services drawings before any penetration.'
+                );
+            }
+
+            // ── Long cable pulls (manual handling) ─────────────────────────────
+            $cableRoutes = (array) ($ef['cable_routes'] ?? []);
+            $hasLongPull = false;
+            foreach ($cableRoutes as $cr) {
+                $len = (float) (is_array($cr) ? ($cr['length_m'] ?? 0) : 0);
+                if ($len > 30.0) {
+                    $hasLongPull = true;
+                    break;
+                }
+            }
+            if ($hasLongPull) {
+                $this->mergeHazard($hazardMap, $roomName, 'Manual Handling',
+                    'Long cable pull (>30 m) creates manual handling risk. ' .
+                    'Two-person team; use cable rollers / pulling lubricant; take rest breaks.'
+                );
+            }
         }
 
         return [
