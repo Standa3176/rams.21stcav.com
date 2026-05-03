@@ -75,17 +75,17 @@
             </div>
             <div class="form-group">
                 <label class="form-label" for="surveyor_name">Surveyor Name</label>
-                <input type="text" id="surveyor_name" name="surveyor_name" class="form-control" data-optional
-                       value="{{ old('surveyor_name', $survey->surveyor_name) }}" maxlength="100">
+                <input type="text" id="surveyor_name" name="surveyor_name" class="form-control"
+                       value="{{ old('surveyor_name', $survey->surveyor_name) }}" placeholder=" " maxlength="100">
             </div>
             <div class="form-group">
                 <label class="form-label" for="survey_date">Survey Date</label>
-                <input type="date" id="survey_date" name="survey_date" class="form-control" data-optional
+                <input type="date" id="survey_date" name="survey_date" class="form-control"
                        value="{{ old('survey_date', $survey->survey_date?->format('Y-m-d')) }}">
             </div>
             <div class="form-group">
                 <label class="form-label" for="visit_time">Visit Time</label>
-                <input type="text" id="visit_time" name="visit_time" class="form-control" data-optional
+                <input type="text" id="visit_time" name="visit_time" class="form-control"
                        value="{{ old('visit_time', $survey->visit_time) }}" placeholder="e.g. 9:00 AM – 12:00 PM" maxlength="100">
             </div>
         </div>
@@ -95,12 +95,12 @@
         <div class="form-grid-2">
             <div class="form-group">
                 <label class="form-label" for="site_contact_name">Site Contact Name</label>
-                <input type="text" id="site_contact_name" name="site_contact_name" class="form-control" data-optional
+                <input type="text" id="site_contact_name" name="site_contact_name" class="form-control"
                        value="{{ old('site_contact_name', $survey->site_contact_name) }}" placeholder="e.g. Jane Smith" maxlength="150">
             </div>
             <div class="form-group">
                 <label class="form-label" for="site_contact_phone">Site Contact Phone</label>
-                <input type="text" id="site_contact_phone" name="site_contact_phone" class="form-control" data-optional
+                <input type="text" id="site_contact_phone" name="site_contact_phone" class="form-control"
                        value="{{ old('site_contact_phone', $survey->site_contact_phone) }}" placeholder="e.g. 07700 123456" maxlength="50">
             </div>
         </div>
@@ -111,17 +111,17 @@
             <div class="form-grid-2">
                 <div class="form-group" style="margin-bottom:0;">
                     <label class="form-label" for="pm_name">Name</label>
-                    <input type="text" id="pm_name" name="pm_name" class="form-control" data-optional
+                    <input type="text" id="pm_name" name="pm_name" class="form-control"
                            value="{{ old('pm_name', $survey->pm_name) }}" placeholder="e.g. John Doe" maxlength="150">
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
                     <label class="form-label" for="pm_phone">Phone</label>
-                    <input type="text" id="pm_phone" name="pm_phone" class="form-control" data-optional
+                    <input type="text" id="pm_phone" name="pm_phone" class="form-control"
                            value="{{ old('pm_phone', $survey->pm_phone) }}" placeholder="e.g. 07700 654321" maxlength="50">
                 </div>
                 <div class="form-group" style="margin-bottom:0;grid-column:1/-1;">
                     <label class="form-label" for="pm_email">Email</label>
-                    <input type="email" id="pm_email" name="pm_email" class="form-control" data-optional
+                    <input type="email" id="pm_email" name="pm_email" class="form-control"
                            value="{{ old('pm_email', $survey->pm_email) }}" placeholder="e.g. pm@company.com" maxlength="150">
                 </div>
             </div>
@@ -129,7 +129,7 @@
 
         <div class="form-group">
             <label class="form-label" for="site_address">Site Address</label>
-            <textarea id="site_address" name="site_address" class="form-control" rows="2" maxlength="500" data-optional>{{ old('site_address', $survey->site_address) }}</textarea>
+            <textarea id="site_address" name="site_address" class="form-control" rows="2" maxlength="500" placeholder=" ">{{ old('site_address', $survey->site_address) }}</textarea>
         </div>
         <div class="form-group">
             <label class="form-label" for="general_notes">General Notes</label>
