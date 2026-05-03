@@ -33,17 +33,18 @@ One dataset powers every document. Engineers capture real-world data, quotes pro
 - ✓ AI content pack — single Claude call generates room scope narratives for RAMS enrichment — v1.0
 - ✓ Dynamic AI-generated pre-install check questions per survey room (Phase 07) — v1.0
 
-## Current Milestone: v1.3 Technical Drawings & Schematics
+## Current Milestone: v1.3 Technical Drawings & Schematics — SHIPPED 2026-05-03 (pending human UAT)
 
 **Goal:** Generate AV technical drawings — schematics + rack elevations — from the same canonical project data that powers RAMS, O&M, and worksheets. Internal engineers view drawings on tablets/print during install; clients receive them as part of the O&M Manual handover.
 
-**Target features:**
-- Auto-generated system schematics (signal flow) from equipment + cable schedule data
-- Engineer-built rack elevations from equipment list with U-height + ventilation data (manual-build only — no auto-place)
-- Drawing export — bound multi-page PDF (must-have), SVG (must-have), PNG (must-have for O&M embed), per-drawing + ZIP bundle
-- Drawings included in O&M Manual handover via existing OmManualDocxService
+**Shipped features:**
+- ✓ Auto-generated system schematics (D2 CLI + AVIXA-aligned SVG symbols) from equipment + cable schedule data — Phase 17
+- ✓ Engineer-built rack elevations (manual-build only, custom Blade SVG) from equipment list with U-height + ventilation data — Phase 18
+- ✓ Drawing export — bound multi-page PDF (FPDI page concat with `[render failed]` isolation), per-drawing PDF/SVG/PNG, on-demand ZIP bundle, AVIXA-style sheet numbering (AV-201..299 schematics, AV-301..399 racks) — Phase 20
+- ✓ Drawings included in O&M Manual handover via existing OmManualDocxService (kind-agnostic loop, regression-locked) — Phase 17 + 20
+- ✓ Production hardening — dedicated `drawings` queue connection, chrome-headless-shell version pin, @font-face declarations, `drawings:audit-licenses` artisan command — Phase 20
 
-**Scope reduction (2026-05-02):** Floor plans (Phase 19 / Konva canvas editor) and DXF export deferred to v2.0 backlog 999.1. The Konva editor is the most likely throwaway when v2.0's engineering-grade upgrade lands — v2.0 needs to build floor plans properly with port catalog + sub-room zones anyway. v1.3 ships ~3-4 weeks sooner. v1.3 active scope = Phases 17 + 18 + 20 (3 phases, ~7 plans).
+**Scope reduction (2026-05-02):** Floor plans (Phase 19 / Konva canvas editor) and DXF export deferred to v2.0 backlog 999.1. The Konva editor is the most likely throwaway when v2.0's engineering-grade upgrade lands — v2.0 needs to build floor plans properly with port catalog + sub-room zones anyway. v1.3 ships ~3-4 weeks sooner. v1.3 active scope = Phases 17 + 18 + 20 (3 phases, 7 plans, all complete).
 
 **Audience:**
 - Internal engineers — printed PDF + on-tablet view during install
