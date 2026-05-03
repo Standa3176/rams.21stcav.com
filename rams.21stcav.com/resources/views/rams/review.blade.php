@@ -360,8 +360,8 @@
                 <div class="form-group">
                     <label class="form-label" for="project_ref">Project Ref</label>
                     <input id="project_ref" name="project_ref" type="text"
-                           class="form-control" data-optional
-                           value="{{ old('project_ref', $project['ref'] ?? $rams->project_ref) }}">
+                           class="form-control"
+                           value="{{ old('project_ref', $project['ref'] ?? $rams->project_ref) }}" placeholder=" ">
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="client_name">Client <span class="req">*</span></label>
@@ -391,8 +391,8 @@
                 <div class="form-group" style="grid-column: span 2;">
                     <label class="form-label" for="site_contact">Site Contact</label>
                     <input id="site_contact" name="site_contact" type="text"
-                           class="form-control @error('site_contact') is-invalid @enderror" data-optional
-                           value="{{ old('site_contact', $project['site_contact'] ?? '') }}">
+                           class="form-control @error('site_contact') is-invalid @enderror"
+                           value="{{ old('site_contact', $project['site_contact'] ?? '') }}" placeholder=" ">
                     @error('site_contact')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="form-group" style="grid-column: span 2;">
@@ -435,7 +435,7 @@
                         $vehiclesValue = old('site_vehicles', $project['site_vehicles'] ?? '');
                         if (is_array($vehiclesValue)) { $vehiclesValue = implode("\n", $vehiclesValue); }
                     @endphp
-                    <textarea id="site_vehicles" name="site_vehicles" rows="3" data-optional
+                    <textarea id="site_vehicles" name="site_vehicles" rows="3"
                               class="form-control"
                               placeholder="One vehicle per line — e.g. AB12 CDE - Crew van">{{ $vehiclesValue }}</textarea>
                     <small style="display:block;color:#666;font-size:.78rem;margin-top:.2rem;">

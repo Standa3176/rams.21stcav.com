@@ -49,7 +49,7 @@
                            name="project_ref"
                            class="form-control @error('project_ref') is-invalid @enderror"
                            value="{{ old('project_ref') ?? $project?->ref ?? '' }}"
-                           placeholder="e.g. 21CQ-25001" data-optional>
+                           placeholder="e.g. 21CQ-25001">
                     @error('project_ref')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -92,7 +92,7 @@
                            name="site_contact"
                            class="form-control @error('site_contact') is-invalid @enderror"
                            value="{{ old('site_contact') }}"
-                           placeholder="Contact name on site" data-optional>
+                           placeholder="Contact name on site">
                     @error('site_contact')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -121,7 +121,7 @@
                            name="start_date"
                            class="form-control @error('start_date') is-invalid @enderror"
                            value="{{ old('start_date') }}"
-                           placeholder="e.g. March 2026" data-optional>
+                           placeholder="e.g. March 2026">
                     @error('start_date')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -134,7 +134,7 @@
                            name="expected_duration"
                            class="form-control @error('expected_duration') is-invalid @enderror"
                            value="{{ old('expected_duration') }}"
-                           placeholder="e.g. 2 weeks" data-optional>
+                           placeholder="e.g. 2 weeks">
                     @error('expected_duration')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
