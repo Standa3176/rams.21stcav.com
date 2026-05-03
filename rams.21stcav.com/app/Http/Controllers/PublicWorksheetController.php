@@ -2,9 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Device;
+use App\Models\DeviceLabelPhoto;
 use App\Models\Worksheet;
+use App\Services\DeviceLabelPhotoService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 /**
@@ -187,6 +191,122 @@ class PublicWorksheetController extends Controller
             ->with('success', 'Thank you — your sign-off has been recorded.');
     }
 
+    // ─── Device label photo capture (engineer-facing) ───────────────────────
+
+    /**
+     * POST /worksheet/{token}/label-photo
+     *
+     * Engineer captures a photo of an equipment label. The server finds or
+     * creates the matching Device row by (project_id, room_name, description),
+     * stores the photo, runs AI vision OCR, and returns the extracted fields
+     * for engineer confirmation.
+     */
+    public function uploadLabelPhoto(
+        Request $request,
+        DeviceLabelPhotoService $service,
+        string $token,
+    ): \Illuminate\Http\JsonResponse {
+        $worksheet = $this->resolveWorksheet($token);
+
+        $data = $request->validate([
+            'photo'            => ['required', 'file', 'image', 'max:10240'],
+            'room_name'        => ['required', 'string', 'max:200'],
+            'item_description' => ['required', 'string', 'max:300'],
+            'item_part_number' => ['nullable', 'string', 'max:120'],
+            'item_qty'         => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        abort_if($worksheet->project_id === null, 422,
+            'Worksheet has no project — cannot register devices.');
+
+        // Find-or-create the Device row this label belongs to.
+        $device = Device::firstOrCreate(
+            [
+                'project_id'  => $worksheet->project_id,
+                'room_name'   => $data['room_name'],
+                'description' => $data['item_description'],
+            ],
+            [
+                'part_no' => $data['item_part_number'] ?? null,
+                'qty'     => $data['item_qty'] ?? 1,
+            ]
+        );
+
+        $photo = $service->capture(
+            project:    $worksheet->project,
+            file:       $request->file('photo'),
+            device:     $device,
+            worksheet:  $worksheet,
+            roomName:   $data['room_name'],
+            capturedBy: substr($token, 0, 8),
+        );
+
+        return response()->json([
+            'id'           => $photo->id,
+            'device_id'    => $device->id,
+            'photo_url'    => Storage::url($photo->photo_path),
+            'ai_extracted' => $photo->ai_extracted,
+            'confirmed'    => $photo->confirmed,
+        ]);
+    }
+
+    /**
+     * POST /worksheet/{token}/label-photos/{photo}/confirm
+     *
+     * Engineer reviews/edits the AI-extracted values and confirms. Writes
+     * the final part / serial / MAC / model / manufacturer onto the linked
+     * Device row.
+     */
+    public function confirmLabelPhoto(
+        Request $request,
+        DeviceLabelPhotoService $service,
+        string $token,
+        int $photoId,
+    ): \Illuminate\Http\JsonResponse {
+        $worksheet = $this->resolveWorksheet($token);
+
+        $photo = DeviceLabelPhoto::where('id', $photoId)
+            ->where('worksheet_id', $worksheet->id)
+            ->firstOrFail();
+
+        $fields = $request->validate([
+            'part_number'   => ['nullable', 'string', 'max:120'],
+            'serial_number' => ['nullable', 'string', 'max:120'],
+            'mac_address'   => ['nullable', 'string', 'max:60'],
+            'model'         => ['nullable', 'string', 'max:120'],
+            'manufacturer'  => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $photo = $service->confirm($photo, $fields);
+
+        return response()->json([
+            'ok'        => true,
+            'confirmed' => $photo->confirmed,
+            'device'    => $photo->device?->only([
+                'id', 'part_no', 'serial_number', 'mac_address', 'model', 'manufacturer',
+            ]),
+        ]);
+    }
+
+    /**
+     * DELETE /worksheet/{token}/label-photos/{photo}
+     */
+    public function deleteLabelPhoto(
+        DeviceLabelPhotoService $service,
+        string $token,
+        int $photoId,
+    ): \Illuminate\Http\JsonResponse {
+        $worksheet = $this->resolveWorksheet($token);
+
+        $photo = DeviceLabelPhoto::where('id', $photoId)
+            ->where('worksheet_id', $worksheet->id)
+            ->firstOrFail();
+
+        $service->delete($photo);
+
+        return response()->json(['ok' => true]);
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
     /**
@@ -200,5 +320,20 @@ class PublicWorksheetController extends Controller
         abort_if($worksheet === null, 404, 'Worksheet not found. Please check your link.');
 
         return $worksheet;
+    }
+
+    /**
+     * Resolve a Device that belongs to the worksheet's project. 404 prevents
+     * cross-project enumeration via a leaked token.
+     */
+    private function resolveDevice(Worksheet $worksheet, int $deviceId): Device
+    {
+        $device = Device::where('id', $deviceId)
+            ->where('project_id', $worksheet->project_id)
+            ->first();
+
+        abort_if($device === null, 404, 'Device not found on this project.');
+
+        return $device;
     }
 }
