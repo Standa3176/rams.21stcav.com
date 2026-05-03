@@ -22,6 +22,19 @@
     $showSignRm  = in_array($spaceType, ['signage',         'mixed']);
     $showUpgRm   = in_array($spaceType, ['upgrade',         'mixed']);
     $showAreaType = $spaceType !== 'general';
+
+    // Per-section guards for the engineer-feedback sub-sections (260503-rgg).
+    // Hide blocks that don't make sense for the current space type so the form
+    // doesn't ask infrastructure surveyors about table grommets, etc. Mirrored
+    // by applySpaceType() in edit.blade.php so live type-changes are reactive.
+    $showMounting = ! in_array($spaceType, ['infrastructure']);                      // hide for pure infra
+    $showWahMeth  = true;                                                            // always relevant
+    $showCableRt  = in_array($spaceType, ['infrastructure', 'mixed']);               // dedicated infra rows
+    $showWallCon  = ! in_array($spaceType, ['infrastructure']);                      // hide for pure infra
+    $showTableInf = in_array($spaceType, ['general', 'mixed']);                      // only meeting rooms
+    $showFloorBox = in_array($spaceType, ['general', 'mixed']);                      // only meeting rooms
+    $showBrackets = in_array($spaceType, ['general', 'pa_system', 'signage', 'mixed']); // hide infra+upgrade
+
     $kitItems     = $kitItems ?? [];
 
     // Collapsible: existing rooms start collapsed to reduce clutter
@@ -529,7 +542,8 @@
         @endphp
 
         {{-- (a) Mounting Heights ─────────────────────────────────────────────── --}}
-        <div class="room-subsection" id="r{{ $ri }}_mounting_heights">
+        <div class="room-subsection subsection--mounting" id="r{{ $ri }}_mounting_heights"
+             @if(!$showMounting)style="display:none"@endif>
             <div class="room-subsection__heading">Mounting Heights</div>
             <div class="form-grid-2">
                 <div class="form-group">
@@ -593,7 +607,8 @@
         </div>
 
         {{-- (b) Working at Height Methods ─────────────────────────────────────── --}}
-        <div class="room-subsection" id="r{{ $ri }}_wah_methods">
+        <div class="room-subsection subsection--wah" id="r{{ $ri }}_wah_methods"
+             @if(!$showWahMeth)style="display:none"@endif>
             <div class="room-subsection__heading">Working at Height Methods</div>
             <div style="display:flex;gap:1rem;flex-wrap:wrap;">
                 @foreach([
@@ -616,7 +631,8 @@
         </div>
 
         {{-- (c) Cable Routes ──────────────────────────────────────────────────── --}}
-        <div class="room-subsection" id="r{{ $ri }}_cable_routes">
+        <div class="room-subsection subsection--cable-routes" id="r{{ $ri }}_cable_routes"
+             @if(!$showCableRt)style="display:none"@endif>
             <div class="room-subsection__heading">Cable Routes</div>
             <div x-data="{ rows: @js(array_values($cableRows)) }">
                 <template x-if="rows.length === 0">
@@ -685,7 +701,8 @@
         </div>
 
         {{-- (d) Wall Construction + Prep Flags ─────────────────────────────────── --}}
-        <div class="room-subsection" id="r{{ $ri }}_wall_construction">
+        <div class="room-subsection subsection--wall-construction" id="r{{ $ri }}_wall_construction"
+             @if(!$showWallCon)style="display:none"@endif>
             <div class="room-subsection__heading">Wall Construction &amp; Prep</div>
             <label class="form-label" style="margin-bottom:.4rem;">Wall construction (multi-select)</label>
             <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:.75rem;">
@@ -731,7 +748,8 @@
         </div>
 
         {{-- (e) Table Info ────────────────────────────────────────────────────── --}}
-        <div class="room-subsection" id="r{{ $ri }}_table_info">
+        <div class="room-subsection subsection--table-info" id="r{{ $ri }}_table_info"
+             @if(!$showTableInf)style="display:none"@endif>
             <div class="room-subsection__heading">Table Info</div>
             <div class="form-grid-2">
                 <div class="form-group">
@@ -773,7 +791,8 @@
         </div>
 
         {{-- (f) Floor Box Info ────────────────────────────────────────────────── --}}
-        <div class="room-subsection" id="r{{ $ri }}_floor_box_info">
+        <div class="room-subsection subsection--floor-box" id="r{{ $ri }}_floor_box_info"
+             @if(!$showFloorBox)style="display:none"@endif>
             <div class="room-subsection__heading">Floor Box Info</div>
             <div class="form-grid-2">
                 <div class="form-group">
@@ -822,7 +841,8 @@
         </div>
 
         {{-- (g) Brackets Required ─────────────────────────────────────────────── --}}
-        <div class="room-subsection" id="r{{ $ri }}_brackets_required">
+        <div class="room-subsection subsection--brackets" id="r{{ $ri }}_brackets_required"
+             @if(!$showBrackets)style="display:none"@endif>
             <div class="room-subsection__heading">Brackets Required</div>
             <div x-data="{ rows: @js(array_values($bracketRows)) }">
                 <template x-if="rows.length === 0">

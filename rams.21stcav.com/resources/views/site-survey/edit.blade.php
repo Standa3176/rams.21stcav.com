@@ -292,14 +292,30 @@ function onSpaceTypeChange(sel) {
     applySpaceType(sel.closest('.room-card'), sel.value);
 }
 function applySpaceType(card, type) {
-    const showPa      = type === 'pa_system'  || type === 'mixed';
-    const showSignage = type === 'signage'     || type === 'mixed';
-    const showUpgrade = type === 'upgrade'     || type === 'mixed';
+    const showPa       = type === 'pa_system'  || type === 'mixed';
+    const showSignage  = type === 'signage'     || type === 'mixed';
+    const showUpgrade  = type === 'upgrade'     || type === 'mixed';
     const showAreaType = type !== 'general';
     card.querySelectorAll('.type-panel--pa').forEach(el => el.style.display = showPa ? 'block' : 'none');
     card.querySelectorAll('.type-panel--signage').forEach(el => el.style.display = showSignage ? 'block' : 'none');
     card.querySelectorAll('.type-panel--upgrade').forEach(el => el.style.display = showUpgrade ? 'block' : 'none');
     card.querySelectorAll('.area-type-group').forEach(el => el.style.display = showAreaType ? 'block' : 'none');
+
+    // Engineer-feedback sub-section visibility — mirrors the Blade @php block in
+    // _room-form.blade.php so live type changes hide irrelevant sub-sections.
+    const showMounting   = type !== 'infrastructure';
+    const showCableRt    = type === 'infrastructure' || type === 'mixed';
+    const showWallCon    = type !== 'infrastructure';
+    const showTableInf   = type === 'general' || type === 'mixed';
+    const showFloorBox   = type === 'general' || type === 'mixed';
+    const showBrackets   = ['general','pa_system','signage','mixed'].includes(type);
+    card.querySelectorAll('.subsection--mounting').forEach(el => el.style.display = showMounting ? '' : 'none');
+    card.querySelectorAll('.subsection--cable-routes').forEach(el => el.style.display = showCableRt ? '' : 'none');
+    card.querySelectorAll('.subsection--wall-construction').forEach(el => el.style.display = showWallCon ? '' : 'none');
+    card.querySelectorAll('.subsection--table-info').forEach(el => el.style.display = showTableInf ? '' : 'none');
+    card.querySelectorAll('.subsection--floor-box').forEach(el => el.style.display = showFloorBox ? '' : 'none');
+    card.querySelectorAll('.subsection--brackets').forEach(el => el.style.display = showBrackets ? '' : 'none');
+    // .subsection--wah is always shown — no toggle.
 }
 
 // ── Add new space (expanded, new rooms always open) ───────────────────────────
