@@ -44,6 +44,33 @@ return [
             'after_commit' => false,
         ],
 
+        // Phase 20 — drawings queue (CRIT-03)
+        // Dedicated connection for drawing-export jobs (BuildBoundPdfJob and any
+        // future bound-PDF / ZIP-bundle workloads). Browsershot bound PDFs can
+        // take 90s+ on full projects; isolating them on their own queue prevents
+        // them from starving the default queue (RAMS / O&M / worksheets / cable
+        // schedules / schematic builds) when concurrent.
+        //
+        // Why separate connection (not just a queue NAME on database)?
+        //   - Lets `php artisan queue:work --queue=drawings` target this lane by
+        //     name in deploy supervisor configs (see drawings-queue-runbook.md).
+        //   - Lets retry_after diverge: bound PDFs need 600s vs the default 90s
+        //     (FPDI page-by-page concat over 5+ Browsershot renders can exceed
+        //     the default retry window, which would cause a re-fire while the
+        //     first attempt is still running).
+        //
+        // BuildBoundPdfJob assigns this queue via $this->onQueue('drawings') in
+        // its constructor (typed `public string $queue` triggers a PHP fatal vs
+        // the untyped Queueable trait — see Plan 20-01 SUMMARY deviation 3).
+        'drawings' => [
+            'driver' => 'database',
+            'connection' => env('DB_QUEUE_CONNECTION'),
+            'table' => env('DB_QUEUE_TABLE', 'jobs'),
+            'queue' => env('DB_QUEUE_DRAWINGS', 'drawings'),
+            'retry_after' => (int) env('DB_QUEUE_DRAWINGS_RETRY_AFTER', 600),
+            'after_commit' => false,
+        ],
+
         'beanstalkd' => [
             'driver' => 'beanstalkd',
             'host' => env('BEANSTALKD_QUEUE_HOST', 'localhost'),
