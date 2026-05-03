@@ -30,14 +30,14 @@
 
 ### Drawing Export & Cross-cutting (Phase 20 + foundations in Phase 17)
 
-- [ ] **DRAW-21**: User can generate a single bound multi-page PDF per project (cover + drawing register + paginated per-section sheets)
+- [x] **DRAW-21**: User can generate a single bound multi-page PDF per project (cover + drawing register + paginated per-section sheets)
 - [x] **DRAW-22**: Every sheet renders a standard title block (project ref, client, drawn-by, revision, date)
-- [ ] **DRAW-23**: Sheet numbering is configurable per project (default `AV-101`, `AV-201`, `AV-301` per drawing kind)
+- [x] **DRAW-23**: Sheet numbering is configurable per project (default `AV-101`, `AV-201`, `AV-301` per drawing kind)
 - [x] **DRAW-24**: Each drawing supports revision tracking (R0, R1, R2…)
 - [x] **DRAW-25**: Each drawing has a status enum — draft / for review / approved / superseded
 - [x] **DRAW-26**: Drawings are included in the O&M Manual handover via PNG embed (no SVG-in-DOCX)
 - [x] **DRAW-27**: User can download an individual drawing as PDF, SVG, or PNG
-- [ ] **DRAW-28**: User can download a ZIP bundle of all drawings for a project
+- [x] **DRAW-28**: User can download a ZIP bundle of all drawings for a project
 - [x] **DRAW-30**: User can edit/modify any drawing via AI chat ("Edit via Chat" pattern, mirroring existing RAMS/O&M/Worksheet adapters). Chat operations are constrained to layout, positioning, grouping, formatting, and styling — within canonical project data. AI cannot invent or add equipment/cables/rooms that aren't already in the project source data. *(Scaffolding only in Phase 17 — functional schematic chat deferred to v2.0 alongside engineering-grade renderer.)*
 
 ### Deferred to v2.0 (backlog 999.1)
