@@ -24,6 +24,36 @@
         runbook).
     --}}
     <style>
+        /*
+         * Phase 20 (CRIT-04) — explicit @font-face so chrome-headless-shell
+         * finds the font. Production drops the woff2 binaries into
+         * public/fonts/ via the deploy runbook (drawings-queue-runbook.md);
+         * if missing, the existing font-family fallback chain (Arial →
+         * Helvetica → Liberation Sans → DejaVu Sans → sans-serif) below
+         * keeps PDFs valid — no breakage. font-display: block makes
+         * Browsershot wait for the font load before snapshotting.
+         */
+        @font-face {
+            font-family: 'Liberation Sans';
+            font-style: normal;
+            font-weight: 400;
+            font-display: block;
+            src: url('/fonts/liberation-sans-regular.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'Liberation Sans';
+            font-style: normal;
+            font-weight: 700;
+            font-display: block;
+            src: url('/fonts/liberation-sans-bold.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'DejaVu Sans';
+            font-style: normal;
+            font-weight: 400;
+            font-display: block;
+            src: url('/fonts/dejavu-sans-regular.woff2') format('woff2');
+        }
         @page {
             size: A4 portrait;
             margin: 14mm;
