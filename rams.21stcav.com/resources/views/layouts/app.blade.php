@@ -803,16 +803,17 @@
         ═══════════════════════════════════════════════════════════════ */
         .form-section {
             background: var(--surface);
-            border: 1px solid var(--ink-200);
+            border: 1px solid var(--ink-300);
+            border-left: 3px solid var(--teal-700);
             border-radius: var(--radius);
-            box-shadow: var(--shadow-xs);
-            margin-bottom: 1.25rem;
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 1.5rem;
             overflow: hidden; /* keeps the cream header tint inside the radius */
         }
         .form-section__header {
-            background: linear-gradient(180deg, var(--paper) 0%, var(--paper-2) 100%);
-            border-bottom: 1px solid var(--ink-100);
-            padding: .85rem 1.25rem;
+            background: linear-gradient(180deg, #EFEBDF 0%, #E5DFCE 100%);
+            border-bottom: 1px solid var(--ink-200);
+            padding: .9rem 1.25rem;
         }
         /* When a .section-heading sits inside .form-section__header, drop its
            trailing border + bottom margin (the header bar already provides them). */
@@ -831,28 +832,28 @@
 
         /* ═══════════════════════════════════════════════════════════════
            EMPTY-FIELD HIGHLIGHT — pure CSS, opt-out via [data-optional]
-           or .is-optional. Fires on REQUIRED inputs/textareas/selects
-           whose value is empty. Clears instantly the moment a user types.
+           or .is-optional. Fires on ANY empty input/textarea/select unless
+           explicitly opted out. Clears instantly when the user types.
         ═══════════════════════════════════════════════════════════════ */
-        /* Text-style inputs and textareas — :placeholder-shown evaluates
-           empty when the input has a placeholder attribute (single space ' '
-           qualifies) and no user-typed value. */
-        .form-control:placeholder-shown:required:not([data-optional]):not(.is-optional):not(:focus) {
-            background-color: #FDF1EE; /* derived from --danger-light, slightly softer */
-            border-color: #E8B7AE;
-        }
-        /* Selects — :required + :invalid fires when current option has no value
-           (the placeholder option must have value="" — already the project's
-           convention; see site-survey/edit.blade.php line 350). */
-        select.form-control:required:invalid:not([data-optional]):not(.is-optional):not(:focus) {
+        /* Text-style inputs and textareas — :placeholder-shown is true when
+           the input has a placeholder attribute and no user-typed value.
+           Inputs missing a placeholder get one (single space) in markup. */
+        .form-control:placeholder-shown:not([data-optional]):not(.is-optional):not(:focus):not([readonly]):not([disabled]) {
             background-color: #FDF1EE;
             border-color: #E8B7AE;
         }
-        /* Date / number / email inputs that don't visually support placeholders
-           in all browsers: still rely on :required:invalid as a fallback. */
-        input.form-control[type="date"]:required:invalid:not([data-optional]):not(.is-optional):not(:focus),
-        input.form-control[type="number"]:required:invalid:not([data-optional]):not(.is-optional):not(:focus),
-        input.form-control[type="email"]:required:invalid:not([data-optional]):not(.is-optional):not(:focus) {
+        /* Selects — :invalid fires when no option is selected OR the
+           selected option has value="". Project convention: the first
+           "Choose…" option uses value="". Falls back to required:invalid
+           when the field is HTML-required. */
+        select.form-control:not([data-optional]):not(.is-optional):not(:focus):invalid {
+            background-color: #FDF1EE;
+            border-color: #E8B7AE;
+        }
+        /* Pure-CSS empty detection for selects without `required`: target
+           the implicit empty value via :has(option[value=""]:checked).
+           Modern Chrome/Safari/Firefox 121+ support :has. */
+        select.form-control:not([data-optional]):not(.is-optional):not(:focus):has(option[value=""]:checked) {
             background-color: #FDF1EE;
             border-color: #E8B7AE;
         }
