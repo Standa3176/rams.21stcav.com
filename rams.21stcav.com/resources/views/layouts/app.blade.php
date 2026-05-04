@@ -1415,6 +1415,27 @@
     </div>
 
     <script>
+        /* ── DIAGNOSTIC: log who calls window.confirm() ─────────────────
+           TEMPORARY — remove once the empty-popup mystery is resolved. */
+        (function() {
+            const origConfirm = window.confirm;
+            window.confirm = function(msg) {
+                const caller = (new Error().stack || 'no stack').split('\n').slice(1, 6).join(' | ');
+                const debugInfo = '🔎 confirm() called\n  msg: ' + JSON.stringify(msg) + '\n  caller: ' + caller;
+                // Persistent on-screen toast (top-left red banner) so iPad users can see it
+                let toast = document.getElementById('__confirm_diag__');
+                if (!toast) {
+                    toast = document.createElement('div');
+                    toast.id = '__confirm_diag__';
+                    toast.style.cssText = 'position:fixed;top:8px;left:8px;right:8px;background:#FEE2E2;color:#7F1D1D;border:2px solid #DC2626;border-radius:8px;padding:.75rem 1rem;font:11px/1.4 monospace;z-index:99999;white-space:pre-wrap;word-break:break-all;max-height:50vh;overflow:auto;box-shadow:0 4px 12px rgba(0,0,0,.2);';
+                    document.body && document.body.appendChild(toast);
+                }
+                toast.textContent = debugInfo + '\n\n[tap to dismiss]';
+                toast.onclick = () => toast.remove();
+                console.warn(debugInfo);
+                return origConfirm.call(this, msg);
+            };
+        })();
         /* ── SCC v2 styled confirm() replacement ──────────────────────────
            Alpine x-data component declared above; this script wires it up
            to capture-phase form submit + click handlers AND exposes
