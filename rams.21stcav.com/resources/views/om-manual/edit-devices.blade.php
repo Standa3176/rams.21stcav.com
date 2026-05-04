@@ -3,6 +3,10 @@
 @section('title', 'Asset Register — ' . ($manual->project_name ?? 'O&M Manual'))
 
 @section('content')
+<x-edit-action-bar :form-id="'om-manual-devices-form'" :cancel-url="route('om-manuals.edit', $manual)">
+    <x-slot:title>Edit Devices — {{ $manual->project_name ?? $manual->title ?? 'Untitled' }}</x-slot:title>
+</x-edit-action-bar>
+
 <div class="container" style="max-width:1400px; margin:0 auto;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem;">
         <h1 style="font-size:1.4rem; font-weight:700; margin:0;">
@@ -47,7 +51,7 @@
             equipment line. Then come back here to populate the data.
         </div>
     @else
-        <form method="POST" action="{{ route('om-manuals.update-devices', $manual) }}">
+        <form method="POST" action="{{ route('om-manuals.update-devices', $manual) }}" id="om-manual-devices-form">
             @csrf
             @method('PUT')
 

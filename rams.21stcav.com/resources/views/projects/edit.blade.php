@@ -4,6 +4,10 @@
 
 @section('content')
 
+<x-edit-action-bar :form-id="'project-edit-form'" :cancel-url="route('projects.show', $project)">
+    <x-slot:title>Edit Project — {{ $project->name }}</x-slot:title>
+</x-edit-action-bar>
+
 <div class="page-header">
     <h1 class="page-title">Edit Project</h1>
     <a href="{{ route('projects.show', $project) }}" class="btn btn-outline btn-sm">← Back</a>
@@ -14,7 +18,7 @@
         <h2 class="section-heading">Project Details</h2>
     </div>
     <div class="form-section__body">
-    <form method="POST" action="{{ route('projects.update', $project) }}">
+    <form method="POST" action="{{ route('projects.update', $project) }}" id="project-edit-form">
         @csrf @method('PUT')
 
         <div class="form-grid-2">

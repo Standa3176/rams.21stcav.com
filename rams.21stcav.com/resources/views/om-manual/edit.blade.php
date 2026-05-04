@@ -29,6 +29,10 @@
 @endpush
 
 @section('content')
+<x-edit-action-bar :form-id="'om-manual-edit-form'" :cancel-url="route('om-manuals.index')">
+    <x-slot:title>Edit O&amp;M Manual — {{ $manual->project_name ?? $manual->title ?? 'Untitled' }}</x-slot:title>
+</x-edit-action-bar>
+
 <div class="container" style="max-width:900px; margin:0 auto;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem; gap:1rem; flex-wrap:wrap;">
         <div>
@@ -78,7 +82,7 @@
             <h2 class="section-heading">Equipment List (JSON)</h2>
         </div>
         <div class="form-section__body">
-        <form method="POST" action="{{ route('om-manuals.update', $manual) }}">
+        <form method="POST" action="{{ route('om-manuals.update', $manual) }}" id="om-manual-edit-form">
             @csrf
             @method('PATCH')
             <div style="margin-bottom:1rem;">
