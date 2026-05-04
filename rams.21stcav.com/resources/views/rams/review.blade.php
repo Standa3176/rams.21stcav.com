@@ -209,6 +209,10 @@
         $statusLabel = ucfirst(str_replace('_', ' ', $rams->status));
     @endphp
 
+    <x-edit-action-bar :form-id="'rams-review-form'" :cancel-url="route('rams.index')">
+        <x-slot:title>Review RAMS — {{ $rams->project_name }}</x-slot:title>
+    </x-edit-action-bar>
+
     <div class="rams-hero">
         <div class="rams-hero-title">
             <div>
@@ -341,7 +345,7 @@
 
     {{-- ── Edit & Download form ─────────────────────────────────────────────── --}}
     <div class="card">
-        <form method="POST" action="{{ route('rams.update-and-download', $rams) }}">
+        <form method="POST" action="{{ route('rams.update-and-download', $rams) }}" id="rams-review-form">
             @csrf
 
             {{-- ══════════ TAB: PROJECT ══════════ --}}

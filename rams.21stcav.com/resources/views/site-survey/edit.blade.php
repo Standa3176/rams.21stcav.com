@@ -4,12 +4,9 @@
 
 @section('content')
 
-<div class="page-header">
-    <h1 class="page-title">Edit Survey</h1>
-    <div style="display:flex;gap:.5rem;">
-        <a href="{{ route('site-surveys.show', $survey) }}" class="btn btn-outline btn-sm">&#8592; Back</a>
-    </div>
-</div>
+<x-edit-action-bar :form-id="'survey-form'" :cancel-url="route('site-surveys.show', $survey)">
+    <x-slot:title>Edit Survey — {{ $survey->project_name }}</x-slot:title>
+</x-edit-action-bar>
 
 @if ($errors->any())
     <div class="alert alert-error">
