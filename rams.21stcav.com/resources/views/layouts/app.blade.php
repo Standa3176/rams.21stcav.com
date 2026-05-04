@@ -6,6 +6,31 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Operations Platform') — 21st Century AV</title>
 
+    {{-- DIAGNOSTIC (TEMPORARY, to remove): wrap native dialogs so we can see
+         who's firing the empty-body popup on the project page. Loaded FIRST
+         in <head> so nothing else can fire before this installs. --}}
+    <script>
+        (function() {
+            const wrap = function(name, orig) {
+                return function(msg) {
+                    const stack = (new Error().stack || '').split('\n').slice(1, 4).join(' > ');
+                    const debugMsg = '[DIAG ' + name + '() called]\n\n'
+                        + 'Original message: ' + JSON.stringify(msg) + '\n\n'
+                        + 'URL: ' + (location && location.href) + '\n\n'
+                        + 'Caller:\n' + stack;
+                    try {
+                        const t = sessionStorage.getItem('__diag_log__') || '';
+                        sessionStorage.setItem('__diag_log__', t + '\n---\n' + debugMsg);
+                    } catch (e) {}
+                    return orig.call(this, debugMsg);
+                };
+            };
+            window.alert   = wrap('alert',   window.alert);
+            window.confirm = wrap('confirm', window.confirm);
+            window.prompt  = wrap('prompt',  window.prompt);
+        })();
+    </script>
+
     {{-- Modern dashboard typography: Inter (sans-only). --}}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
