@@ -831,6 +831,41 @@
         }
 
         /* ═══════════════════════════════════════════════════════════════
+           EDIT ACTION BAR — sticky Save/Cancel under the app header.
+           Used on every editable form page via <x-edit-action-bar/>.
+           Negative margins counter .page-wrap padding for full-bleed.
+        ═══════════════════════════════════════════════════════════════ */
+        .edit-action-bar {
+            position: sticky;
+            top: var(--header-height);
+            z-index: 90;
+            background: var(--surface);
+            border-bottom: 1px solid var(--ink-200);
+            box-shadow: 0 2px 6px rgba(15, 23, 42, .04);
+            padding: .65rem 1.5rem;
+            margin: -1.75rem -2rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .edit-action-bar__title {
+            font-family: var(--font-display);
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--ink-900);
+            flex: 1 1 auto;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .edit-action-bar__actions {
+            display: flex;
+            gap: .5rem;
+            flex-shrink: 0;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
            ROOM SUB-SECTION — lightweight inline divider for grouping
            fields inside an already-bordered card (e.g. .room-card). Avoids
            nested .form-section chrome that produces 3-deep visual stacks.
@@ -1237,6 +1272,8 @@
             .mobile-tab-bar { display: block; }
             .app-content  { padding-bottom: calc(60px + env(safe-area-inset-bottom, 0)); }
             .page-header-actions { width: 100%; }
+            .edit-action-bar         { padding: .55rem .9rem; margin: -1.25rem -1rem 1rem; }
+            .edit-action-bar__title  { display: none; }
         }
         @media (max-width: 480px) {
             .stat-grid { grid-template-columns: 1fr; }
