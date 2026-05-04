@@ -441,6 +441,54 @@
 
         @php
             $rooms = $worksheet->generated_data['rooms'] ?? [];
+
+            // ── Survey Reference lookup (per quick task 260504-dh8) ────────────────
+            // Build a per-project, room-name-keyed lookup of engineer-feedback
+            // captured in the latest SiteSurvey for this worksheet's project. Used
+            // by the new teal "Survey Reference" drawer rendered before the kit-list.
+            // Defensive: missing class / missing project / missing survey ⇒ empty []
+            // and the drawer simply doesn't render — pre-260503-rgg worksheets stay
+            // visually identical.
+            $efByRoom = [];
+            if ($worksheet->project_id && class_exists(\App\Models\SiteSurvey::class)) {
+                $survey = \App\Models\SiteSurvey::with('rooms')
+                    ->where('project_id', $worksheet->project_id)
+                    ->latest('id')
+                    ->first();
+                if ($survey) {
+                    foreach ($survey->rooms as $r) {
+                        $key = strtolower(trim((string) ($r->room_name ?? '')));
+                        if ($key === '') continue;
+                        $efByRoom[$key] = [
+                            'mounting_heights'         => (array) ($r->mounting_heights ?? []),
+                            'work_at_height_methods'   => (array) ($r->work_at_height_methods ?? []),
+                            'cable_routes'             => (array) ($r->cable_routes ?? []),
+                            'wall_construction'        => (array) ($r->wall_construction ?? []),
+                            'wall_needs_reinforcement' => (bool) ($r->wall_needs_reinforcement ?? false),
+                            'wall_needs_chase_out'     => (bool) ($r->wall_needs_chase_out ?? false),
+                            'wall_needs_conduit'       => (bool) ($r->wall_needs_conduit ?? false),
+                            'table_info'               => (array) ($r->table_info ?? []),
+                            'floor_box_info'           => (array) ($r->floor_box_info ?? []),
+                            'brackets_required'        => (array) ($r->brackets_required ?? []),
+                        ];
+                    }
+                }
+            }
+
+            $methodLabels = [
+                'ladder' => 'Ladder', 'podium' => 'Podium steps', 'tower' => 'Access tower',
+                'mewp' => 'MEWP', 'scaffold' => 'Scaffold', 'na' => 'Not required',
+            ];
+            $wallConstructionLabels = [
+                'ply_lined' => 'Ply-lined', 'solid' => 'Solid wall', 'plasterboard' => 'Plasterboard',
+                'masonry' => 'Masonry / brick', 'metal_stud' => 'Metal stud', 'concrete' => 'Concrete',
+            ];
+            $cableCategoryLabels = [
+                'ceiling_speakers' => 'Ceiling speakers', 'desk_cables' => 'Desk cables',
+                'mic_cables' => 'Microphone cables', 'booking_panel_cables' => 'Booking panel cables',
+                'screen_cables' => 'Screen / display cables', 'rack_to_room' => 'Rack to room',
+                'other' => 'Other',
+            ];
         @endphp
 
         @if(empty($rooms))
@@ -469,6 +517,35 @@
                     $photoCount   = $photoCounts[$roomKey] ?? 0;
                     $roomPhotos   = $worksheet->photos
                         ->filter(fn ($p) => strtolower(trim((string) $p->room_name)) === $roomKey);
+
+                    // ── Survey Reference (260504-dh8) — per-room engineer-feedback
+                    //    lookup keyed by lowercase room name. \$hasEF gates the
+                    //    teal drawer below; \$efItemCount drives the "(N captured)"
+                    //    badge in the drawer summary.
+                    $efKey  = strtolower(trim((string) ($room['name'] ?? '')));
+                    $ef     = $efByRoom[$efKey] ?? [];
+                    $hasEF  = ! empty($ef) && (
+                        ! empty($ef['mounting_heights'])
+                        || ! empty($ef['work_at_height_methods'])
+                        || ! empty($ef['cable_routes'])
+                        || ! empty($ef['wall_construction'])
+                        || ! empty($ef['wall_needs_reinforcement'])
+                        || ! empty($ef['wall_needs_chase_out'])
+                        || ! empty($ef['wall_needs_conduit'])
+                        || ! empty($ef['brackets_required'])
+                        || (is_array($ef['table_info'] ?? null) && ! empty($ef['table_info']['has_grommets']))
+                        || (is_array($ef['floor_box_info'] ?? null) && ! empty($ef['floor_box_info']['has_floor_box']))
+                    );
+                    $efItemCount = 0;
+                    if ($hasEF) {
+                        $efItemCount = (int) (! empty($ef['mounting_heights']) ? 1 : 0)
+                                     + (int) (! empty($ef['work_at_height_methods']) ? 1 : 0)
+                                     + (int) (! empty($ef['cable_routes']) ? 1 : 0)
+                                     + (int) (! empty($ef['wall_construction']) || ! empty($ef['wall_needs_reinforcement']) || ! empty($ef['wall_needs_chase_out']) || ! empty($ef['wall_needs_conduit']) ? 1 : 0)
+                                     + (int) (! empty($ef['brackets_required']) ? 1 : 0)
+                                     + (int) (! empty($ef['table_info']['has_grommets'] ?? false) ? 1 : 0)
+                                     + (int) (! empty($ef['floor_box_info']['has_floor_box'] ?? false) ? 1 : 0);
+                    }
                 @endphp
 
                 <details class="card" {{ $idx === 0 ? 'open' : '' }}>
@@ -479,6 +556,150 @@
                             📷 {{ $photoCount }}
                         </span>
                     </summary>
+
+                    {{-- SURVEY REFERENCE drawer (teal) — engineer findings captured during the
+                         site survey (Mounting heights, Cable Routes, Wall Prep, Brackets etc.).
+                         Read-only reference for installers. Hidden when no survey data exists. --}}
+                    @if($hasEF)
+                        <details class="room-drawer teal">
+                            <summary>
+                                <span>📋 Survey Reference ({{ $efItemCount }} captured)</span>
+                                <span class="chev">▾</span>
+                            </summary>
+                            <div class="room-drawer-body">
+
+                                {{-- Mounting heights --}}
+                                @php
+                                    $mh = (array) ($ef['mounting_heights'] ?? []);
+                                    $heightLines = [];
+                                    foreach ([
+                                        'screen_h_m' => 'Screen', 'camera_h_m' => 'Camera',
+                                        'booking_panel_h_m' => 'Booking panel', 'speaker_h_m' => 'Speaker',
+                                    ] as $k => $lbl) {
+                                        if (! empty($mh[$k])) $heightLines[] = $lbl . ': ' . $mh[$k] . ' m';
+                                    }
+                                    foreach ((array) ($mh['other'] ?? []) as $other) {
+                                        $oLbl = trim((string) ($other['label'] ?? ''));
+                                        $oH   = $other['h_m'] ?? null;
+                                        if ($oLbl !== '' && $oH !== null && $oH !== '') $heightLines[] = $oLbl . ': ' . $oH . ' m';
+                                    }
+                                @endphp
+                                @if(! empty($heightLines))
+                                    <div style="margin-bottom:.65rem;">
+                                        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Mounting heights</div>
+                                        <ul class="actions">
+                                            @foreach($heightLines as $hl)<li>{{ $hl }}</li>@endforeach
+                                        </ul>
+                                    </div>
+                                @endif
+
+                                {{-- Working at height methods --}}
+                                @php
+                                    $wahLabels = array_values(array_filter(array_map(
+                                        fn ($m) => $methodLabels[strtolower((string) $m)] ?? ucfirst((string) $m),
+                                        (array) ($ef['work_at_height_methods'] ?? [])
+                                    )));
+                                @endphp
+                                @if(! empty($wahLabels))
+                                    <div style="margin-bottom:.65rem;">
+                                        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Working at height — methods</div>
+                                        <div style="font-size:.88rem;color:#374151;">{{ implode(', ', $wahLabels) }}</div>
+                                    </div>
+                                @endif
+
+                                {{-- Cable routes --}}
+                                @php $cableRoutes = (array) ($ef['cable_routes'] ?? []); @endphp
+                                @if(! empty($cableRoutes))
+                                    <div style="margin-bottom:.65rem;">
+                                        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Cable routes planned</div>
+                                        <ul class="actions">
+                                            @foreach($cableRoutes as $cr)
+                                                @php
+                                                    $catKey = (string) ($cr['category'] ?? '');
+                                                    $cat    = $cableCategoryLabels[$catKey] ?? ucwords(str_replace('_', ' ', $catKey));
+                                                    $len    = ! empty($cr['length_m']) ? ($cr['length_m'] . ' m') : '';
+                                                    $from   = trim((string) ($cr['from'] ?? ''));
+                                                    $to     = trim((string) ($cr['to']   ?? ''));
+                                                    $route  = ($from && $to) ? ($from . ' → ' . $to) : ($from ?: $to);
+                                                    $note   = trim((string) ($cr['notes'] ?? ''));
+                                                    $parts  = array_filter([$cat, $route, $len, $note]);
+                                                @endphp
+                                                @if(! empty($parts))<li>{{ implode(' — ', $parts) }}</li>@endif
+                                            @endforeach
+                                        </ul>
+                                    </div>
+                                @endif
+
+                                {{-- Wall construction & prep --}}
+                                @php
+                                    $wcLabels = array_values(array_filter(array_map(
+                                        fn ($w) => $wallConstructionLabels[strtolower((string) $w)] ?? ucwords(str_replace('_', ' ', (string) $w)),
+                                        (array) ($ef['wall_construction'] ?? [])
+                                    )));
+                                    $prepFlags = [];
+                                    if (! empty($ef['wall_needs_reinforcement'])) $prepFlags[] = 'Reinforcement';
+                                    if (! empty($ef['wall_needs_chase_out']))     $prepFlags[] = 'Chase out';
+                                    if (! empty($ef['wall_needs_conduit']))       $prepFlags[] = 'Conduit';
+                                @endphp
+                                @if(! empty($wcLabels) || ! empty($prepFlags))
+                                    <div style="margin-bottom:.65rem;">
+                                        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Wall construction &amp; prep</div>
+                                        <div style="font-size:.88rem;color:#374151;">
+                                            @if(! empty($wcLabels))<div><strong>Construction:</strong> {{ implode(', ', $wcLabels) }}</div>@endif
+                                            @if(! empty($prepFlags))<div><strong>Prep needed:</strong> {{ implode(', ', $prepFlags) }}</div>@endif
+                                        </div>
+                                    </div>
+                                @endif
+
+                                {{-- Brackets required --}}
+                                @php $brackets = (array) ($ef['brackets_required'] ?? []); @endphp
+                                @if(! empty($brackets))
+                                    <div style="margin-bottom:.65rem;">
+                                        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Brackets required</div>
+                                        <ul class="actions">
+                                            @foreach($brackets as $b)
+                                                @php
+                                                    $eq   = trim((string) ($b['equipment'] ?? ''));
+                                                    $mod  = trim((string) ($b['model']     ?? ''));
+                                                    $pull = ! empty($b['pull_out']) ? ' (pull-out)' : '';
+                                                    $note = trim((string) ($b['notes']     ?? ''));
+                                                    $line = trim($eq . ($mod ? ' — ' . $mod : '') . $pull);
+                                                    if ($note !== '') $line .= ' — ' . $note;
+                                                @endphp
+                                                @if($line !== '')<li>{{ $line }}</li>@endif
+                                            @endforeach
+                                        </ul>
+                                    </div>
+                                @endif
+
+                                {{-- Table info — only when has_grommets --}}
+                                @php $ti = (array) ($ef['table_info'] ?? []); @endphp
+                                @if(! empty($ti['has_grommets']))
+                                    <div style="margin-bottom:.65rem;">
+                                        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Table info</div>
+                                        <div style="font-size:.88rem;color:#374151;">
+                                            {{ ($ti['grommet_count'] ?? '?') }}× {{ trim((string) ($ti['grommet_size'] ?? '')) }} grommets
+                                            @if(! empty($ti['notes'])) — {{ $ti['notes'] }}@endif
+                                        </div>
+                                    </div>
+                                @endif
+
+                                {{-- Floor box info — only when has_floor_box --}}
+                                @php $fb = (array) ($ef['floor_box_info'] ?? []); @endphp
+                                @if(! empty($fb['has_floor_box']))
+                                    <div style="margin-bottom:.65rem;">
+                                        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Floor box info</div>
+                                        <div style="font-size:.88rem;color:#374151;">
+                                            {{ ($fb['power_outlets'] ?? 0) }} power, {{ ($fb['data_outlets'] ?? 0) }} data
+                                            @if(! empty($fb['cable_space'])) • {{ trim((string) $fb['cable_space']) }} cable space @endif
+                                            @if(! empty($fb['notes'])) — {{ $fb['notes'] }}@endif
+                                        </div>
+                                    </div>
+                                @endif
+
+                            </div>
+                        </details>
+                    @endif
 
                     {{-- AV WORKS drawer (teal) --}}
                     @if(! empty($bullets))
