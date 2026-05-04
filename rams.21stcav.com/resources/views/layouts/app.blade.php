@@ -1383,6 +1383,160 @@
     <x-mobile-tab-bar />
     @endauth
 
+    {{-- ── GLOBAL CONFIRM MODAL (SCC v2 styled) ──────────────────────────
+         Replaces native window.confirm(). Activated via:
+           • <form data-confirm="...">                — intercepts submit
+           • <button|a data-confirm="...">            — intercepts click
+           • window.appConfirm('...').then(ok=>...)   — programmatic Promise
+         Optional attrs: data-confirm-title, data-confirm-label, data-confirm-danger="1"
+    --}}
+    <div x-data="appConfirm()"
+         x-show="open"
+         x-transition.opacity
+         @keydown.escape.window="cancel"
+         @keydown.enter.window="confirmAction"
+         style="display:none; position:fixed; inset:0; background:rgba(15,20,24,.55); z-index:9999; align-items:center; justify-content:center; padding:1rem;">
+        <div @click.away="cancel"
+             x-transition
+             style="background:#fff; border-radius:var(--radius-lg, 14px); box-shadow:var(--shadow-pop, 0 6px 20px rgba(15,23,42,.10), 0 0 0 1px rgba(15,23,42,.04)); max-width:420px; width:100%; padding:1.75rem;">
+            <h3 class="font-display"
+                x-text="title"
+                style="font-size:1.35rem; font-weight:600; color:var(--ink-900); margin:0 0 .85rem;"></h3>
+            <p x-text="message"
+               style="font-size:.95rem; line-height:1.5; color:var(--ink-700); margin:0 0 1.4rem; white-space:pre-line;"></p>
+            <div style="display:flex; gap:.6rem; justify-content:flex-end;">
+                <button type="button" @click="cancel" class="btn btn-outline btn-sm" x-text="cancelLabel"></button>
+                <button type="button" @click="confirmAction"
+                        :class="danger ? 'btn btn-danger btn-sm' : 'btn btn-teal btn-sm'"
+                        x-text="confirmLabel"
+                        x-ref="confirmBtn"></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ── SCC v2 styled confirm() replacement ──────────────────────────
+           Alpine x-data component declared above; this script wires it up
+           to capture-phase form submit + click handlers AND exposes
+           window.appConfirm(message, opts) for programmatic JS use.
+        ─────────────────────────────────────────────────────────────── */
+        function appConfirm() {
+            return {
+                open: false,
+                title: 'Are you sure?',
+                message: '',
+                confirmLabel: 'Confirm',
+                cancelLabel: 'Cancel',
+                danger: false,
+                _resolve: null,
+                _trigger: null,        // 'submit' | 'click'
+                _targetEl: null,       // form or button/link
+
+                show(opts) {
+                    this.title        = opts.title || 'Are you sure?';
+                    this.message      = opts.message || '';
+                    this.confirmLabel = opts.confirmLabel || 'Confirm';
+                    this.cancelLabel  = opts.cancelLabel || 'Cancel';
+                    this.danger       = !!opts.danger;
+                    this.open         = true;
+                    this.$nextTick(() => this.$refs.confirmBtn && this.$refs.confirmBtn.focus());
+                    return new Promise((resolve) => { this._resolve = resolve; });
+                },
+
+                cancel() {
+                    if (!this.open) return;
+                    this.open = false;
+                    const r = this._resolve;
+                    this._resolve = null;
+                    this._trigger = null;
+                    this._targetEl = null;
+                    if (r) r(false);
+                },
+
+                confirmAction() {
+                    if (!this.open) return;
+                    this.open = false;
+                    const r = this._resolve;
+                    const trig = this._trigger;
+                    const tgt = this._targetEl;
+                    this._resolve = null;
+                    this._trigger = null;
+                    this._targetEl = null;
+                    if (r) r(true);
+                    // If invoked from a form/button intercept, trigger the actual action
+                    if (trig === 'submit' && tgt) {
+                        tgt.removeAttribute('data-confirm');
+                        tgt.submit();
+                    } else if (trig === 'click' && tgt) {
+                        tgt.dataset._confirmBypass = '1';
+                        tgt.click();
+                        delete tgt.dataset._confirmBypass;
+                    }
+                },
+            };
+        }
+
+        // Global helper for inline JS calls (replaces window.confirm in app code)
+        window.appConfirm = function(message, opts) {
+            opts = opts || {};
+            const root = document.querySelector('[x-data="appConfirm()"]');
+            if (!root || !root._x_dataStack) {
+                // Fallback to native confirm if Alpine isn't ready
+                return Promise.resolve(window.confirm(message));
+            }
+            const cmp = root._x_dataStack[0];
+            return cmp.show(Object.assign({ message: message }, opts));
+        };
+
+        // Capture-phase form submit interceptor
+        document.addEventListener('submit', function(e) {
+            const form = e.target;
+            if (!(form instanceof HTMLFormElement)) return;
+            const msg = form.getAttribute('data-confirm');
+            if (!msg) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const root = document.querySelector('[x-data="appConfirm()"]');
+            if (!root || !root._x_dataStack) {
+                if (window.confirm(msg)) form.submit();
+                return;
+            }
+            const cmp = root._x_dataStack[0];
+            cmp._trigger = 'submit';
+            cmp._targetEl = form;
+            cmp.show({
+                title:        form.getAttribute('data-confirm-title') || 'Are you sure?',
+                message:      msg,
+                confirmLabel: form.getAttribute('data-confirm-label') || 'Confirm',
+                danger:       form.getAttribute('data-confirm-danger') === '1',
+            });
+        }, true);
+
+        // Capture-phase click interceptor for buttons/links with data-confirm
+        document.addEventListener('click', function(e) {
+            const el = e.target.closest && e.target.closest('[data-confirm]');
+            if (!el) return;
+            if (el.dataset._confirmBypass === '1') return;
+            if (el.tagName === 'FORM') return;  // forms handled by submit handler
+            e.preventDefault();
+            e.stopPropagation();
+            const root = document.querySelector('[x-data="appConfirm()"]');
+            if (!root || !root._x_dataStack) {
+                if (window.confirm(el.getAttribute('data-confirm'))) el.click();
+                return;
+            }
+            const cmp = root._x_dataStack[0];
+            cmp._trigger = 'click';
+            cmp._targetEl = el;
+            cmp.show({
+                title:        el.getAttribute('data-confirm-title') || 'Are you sure?',
+                message:      el.getAttribute('data-confirm'),
+                confirmLabel: el.getAttribute('data-confirm-label') || 'Confirm',
+                danger:       el.getAttribute('data-confirm-danger') === '1',
+            });
+        }, true);
+    </script>
+
     {{-- Phase 16 W-11 — global sign-pad bundle load (creagia/laravel-sign-pad).
          Loaded synchronously, unconditionally, BEFORE @stack('scripts') so any
          page-level pushed Alpine factory (Plan 05) can reference the canvas
