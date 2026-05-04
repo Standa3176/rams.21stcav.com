@@ -543,6 +543,16 @@
             ];
         @endphp
 
+        @if($latestSignoff)
+            {{-- 260504-iy4 L3 — signaled lock. Disables every nested form/button/input
+                 (fieldset cascades the disabled attribute) so engineers + clients
+                 can't accidentally re-submit photos / labels / reviews / sign-offs.
+                 View-only elements (drawers, thumbnails, signed banner) remain
+                 interactive. JS can later toggle this flag if a re-sign-off is
+                 intentional (snag-list workflow — out of scope for v1.3). --}}
+            <fieldset disabled style="border:0;padding:0;margin:0;">
+        @endif
+
         @if(empty($rooms))
             <div class="card">
                 <div class="card-title">Worksheet</div>
@@ -613,17 +623,19 @@
             </p>
 
             @php
-                // ── Sign-off gate (260504-hqe) — collect rooms that have a survey but
-                //    have NOT yet been reviewed. The set drives the soft-disable on the
-                //    page-level Sign-Off button. Visual-only gate — never blocks server.
-                $confirmations    = (array) ($worksheet->pre_install_confirmations ?? []);
+                // ── Sign-off gate (260504-hqe + 260504-iy4 H4) — collect rooms that
+                //    have a survey but have NOT yet been reviewed. The set drives the
+                //    soft-disable on the page-level Sign-Off button. Visual-only gate —
+                //    never blocks server. Now reads via $worksheet->surveyReviewedAt()
+                //    accessor so legacy flat-shape AND the new namespaced shape both
+                //    resolve cleanly (legacy → null → re-mark).
                 $unreviewedRooms  = [];
                 foreach ($rooms as $r) {
                     $rName = (string) ($r['name'] ?? '');
                     if ($rName === '') continue;
                     $rKey  = strtolower(trim($rName));
                     $hasSurveyForThisRoom = in_array($rKey, $roomsRequiringReview, true);
-                    if ($hasSurveyForThisRoom && empty($confirmations[$rName])) {
+                    if ($hasSurveyForThisRoom && $worksheet->surveyReviewedAt($rName) === null) {
                         $unreviewedRooms[] = $rName;
                     }
                 }
@@ -633,6 +645,20 @@
                 $firstUnreviewedSlug = ! empty($unreviewedRooms)
                     ? \Illuminate\Support\Str::slug((string) $unreviewedRooms[0])
                     : '';
+
+                // ── 260504-iy4 H1 — auto-collapse on completion ──
+                // Default open-room is the first room that is NOT yet marked complete.
+                // When every room is complete, leave them all closed so the engineer
+                // sees a clean "all done" page that they can review-or-collapse-on-demand.
+                $firstIncompleteIdx = null;
+                foreach ($rooms as $i => $r) {
+                    $rName = (string) ($r['name'] ?? '');
+                    if ($rName === '') continue;
+                    if (! $worksheet->roomCompletedAt($rName)) {
+                        $firstIncompleteIdx = $i;
+                        break;
+                    }
+                }
             @endphp
 
             {{-- 260504-ij9 fix H2 — TOP banner mirrors the bottom Sign-Off banner so
@@ -699,17 +725,35 @@
                                      + (int) (! empty($ef['floor_box_info']['has_floor_box'] ?? false) ? 1 : 0);
                     }
 
-                    // ── Per-room review status (260504-ij9 fix B2) ──
+                    // ── Per-room review status (260504-ij9 fix B2 + 260504-iy4 H4 namespace) ──
                     // Pill renders alongside the photo-count pill on the room <summary>.
                     // No pill at all when the room has no survey to review (gate doesn't apply).
-                    $thisRoomReviewedStamp  = $confirmations[$room['name'] ?? ''] ?? null;
+                    $thisRoomReviewedStamp  = $worksheet->surveyReviewedAt($room['name'] ?? '');
                     $gateApplies            = $hasEF; // EF data OR survey photos already folded into $hasEF
-                    $isReviewed             = ! empty($thisRoomReviewedStamp);
+                    $isReviewed             = $thisRoomReviewedStamp !== null;
                     $isUnreviewedWithGate   = $gateApplies && ! $isReviewed;
                     $roomIdSlug             = \Illuminate\Support\Str::slug((string) ($room['name'] ?? ('room-' . $idx)));
+
+                    // ── 260504-iy4 H1 — per-room completion status ──
+                    $roomCompletedAt = $worksheet->roomCompletedAt($room['name'] ?? '');
+                    $roomCompletedBy = $worksheet->roomCompletedBy($room['name'] ?? '');
+                    $isRoomComplete  = $roomCompletedAt !== null;
+                    try {
+                        $roomCompletedDisplay = $isRoomComplete ? \Carbon\Carbon::parse($roomCompletedAt)->format('d M Y H:i') : '';
+                    } catch (\Throwable $e) {
+                        $roomCompletedDisplay = (string) $roomCompletedAt;
+                    }
+
+                    // Soft gate for Mark Complete CTA: requires (a) survey reviewed if a survey applies, AND
+                    // (b) at least one completed-work photo. Visual-only — server still accepts the POST.
+                    $markCompleteGateOk = (! $gateApplies || $isReviewed) && $photoCount >= 1;
+
+                    // Skip-restore flag — used by the H3 scroll-restore JS so a room that was just
+                    // completed DOES NOT get reopened on reload (auto-collapse must win).
+                    $skipRestoreAttr = $isRoomComplete ? 'data-skip-restore="1"' : '';
                 @endphp
 
-                <details class="card" id="room-{{ $roomIdSlug }}" {{ $idx === 0 ? 'open' : '' }}>
+                <details class="card" id="room-{{ $roomIdSlug }}" {!! $skipRestoreAttr !!} {{ $idx === $firstIncompleteIdx ? 'open' : '' }}>
                     <summary class="room-summary">
                         <span class="room-chevron">▶</span>
                         <span class="room-summary-name">{{ $room['name'] ?? 'Unknown Room' }}</span>
@@ -717,6 +761,9 @@
                             <span style="display:inline-flex;align-items:center;gap:.25rem;padding:1px 8px;border-radius:9999px;background:#FEF3C7;color:#92400E;font-weight:700;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;">⚠ Survey not reviewed</span>
                         @elseif($isReviewed)
                             <span style="display:inline-flex;align-items:center;gap:.25rem;padding:1px 8px;border-radius:9999px;background:#DCFCE7;color:#166534;font-weight:700;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;">✓ Reviewed</span>
+                        @endif
+                        @if($isRoomComplete)
+                            <span style="display:inline-flex;align-items:center;gap:.25rem;padding:1px 8px;border-radius:9999px;background:#DCFCE7;color:#166534;font-weight:700;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;" title="Completed by {{ $roomCompletedBy }} at {{ $roomCompletedDisplay }}">✓ Complete</span>
                         @endif
                         <span class="photo-count-pill {{ $photoCount === 0 ? 'zero' : '' }}">
                             📷 {{ $photoCount }}
@@ -754,6 +801,42 @@
                             <div class="photo-warn" style="margin-top:.55rem;">
                                 ⚠ No photos captured yet — capture at least one before requesting sign-off.
                             </div>
+                        @endif
+                    </div>
+
+                    {{-- ── 260504-iy4 H1 — Mark Room Complete CTA ──
+                         Soft visual gate: button disables until (a) survey reviewed if a survey
+                         applies AND (b) at least one completed-work photo exists. The endpoint
+                         itself does NOT enforce the gate — engineer on flaky network can still
+                         POST. When complete, this block flips to a green status badge instead. --}}
+                    <div style="margin-bottom:1rem;padding-bottom:.85rem;border-bottom:1px dashed #E5E7EB;">
+                        @if($isRoomComplete)
+                            <div style="display:inline-block;padding:.45rem .9rem;border-radius:9999px;background:#DCFCE7;color:#166534;font-size:.85rem;font-weight:700;">
+                                ✓ Room Complete by {{ $roomCompletedBy }} at {{ $roomCompletedDisplay }}
+                            </div>
+                        @elseif($photoCount >= 1 || $hasEF)
+                            @php
+                                $gateMsg = ! $markCompleteGateOk
+                                    ? ($photoCount < 1
+                                        ? 'Capture at least one photo first'
+                                        : 'Review the survey for this room first')
+                                    : '';
+                            @endphp
+                            <form method="POST"
+                                  action="{{ route('public-worksheet.room-complete', ['token' => $token, 'roomName' => $room['name']]) }}"
+                                  style="margin:0;">
+                                @csrf
+                                <button type="submit"
+                                        class="btn btn-teal"
+                                        style="font-size:.9rem;padding:.6rem 1.1rem;min-height:44px;"
+                                        @disabled(! $markCompleteGateOk)
+                                        title="{{ $gateMsg }}">
+                                    ✅ Mark Room Complete
+                                </button>
+                                @if(! $markCompleteGateOk)
+                                    <span class="muted" style="margin-left:.6rem;font-size:.82rem;">{{ $gateMsg }}</span>
+                                @endif
+                            </form>
                         @endif
                     </div>
 
@@ -921,16 +1004,19 @@
                                     </div>
                                 @endif
 
-                                {{-- ── Review confirmation gate (260504-hqe) ──
+                                {{-- ── Review confirmation gate (260504-hqe + 260504-iy4 H4) ──
                                      Soft-block: when the engineer has not yet ticked "I have reviewed",
                                      this room is flagged in $unreviewedRooms (page-level set computed
                                      before the rooms loop) and the page-level Sign-Off button is
                                      visually disabled. Once submitted, the row is stamped
                                      {reviewed_at, reviewed_by} and a green badge replaces the form.
-                                     Gate is visual-only — the server does NOT block sign-off. --}}
+                                     Gate is visual-only — the server does NOT block sign-off.
+                                     H4: read via $worksheet->surveyReviewedAt() so the new namespaced
+                                     shape AND the legacy flat shape both resolve cleanly. --}}
                                 @php
-                                    $confirmations = (array) ($worksheet->pre_install_confirmations ?? []);
-                                    $thisRoomReview = $confirmations[$room['name']] ?? null;
+                                    $reviewedAt = $worksheet->surveyReviewedAt($room['name'] ?? '');
+                                    $reviewedBy = $worksheet->surveyReviewedBy($room['name'] ?? '');
+                                    $thisRoomReview = $reviewedAt ? ['reviewed_at' => $reviewedAt, 'reviewed_by' => $reviewedBy] : null;
                                 @endphp
                                 <div style="margin-top:1rem;padding-top:.75rem;border-top:1px solid #E5E7EB;">
                                     @if($thisRoomReview)
@@ -1104,6 +1190,16 @@
         @endif
 
         {{-- ── Sign-off card ─────────────────────────────────────────── --}}
+        @if($latestSignoff)
+            <div class="alert alert-info" style="margin-bottom:1rem;">
+                🔒 This worksheet was signed by <strong>{{ $latestSignoff->client_name }}</strong>
+                on <strong>{{ $latestSignoff->signed_at->format('d M Y H:i') }}</strong>.
+                Photo uploads, label captures, and review actions are now disabled.
+                Additional sign-offs are recorded as snag / follow-up entries — contact your
+                project manager if you need to re-open the worksheet.
+            </div>
+        @endif
+
         <div class="card">
             <div class="card-title">Client Sign-Off</div>
 
@@ -1183,6 +1279,10 @@
                 </div>
             </form>
         </div>
+
+        @if($latestSignoff)
+            </fieldset>
+        @endif
 
     </div>
 
@@ -1460,6 +1560,61 @@
                 } catch (e) { alert('Network error.'); }
             };
         }
+    </script>
+
+    <script>
+        // ── 260504-iy4 H3 — scroll + drawer restore on reload ──
+        // The full-page-reload UX (Mark Reviewed / Mark Complete / Photo upload /
+        // Sign-Off all redirect back to GET /worksheet/{token}) drops the engineer
+        // back at the top with all rooms collapsed. Capture state on submit, restore
+        // on next DOMContentLoaded. SessionStorage scoped per worksheet ID. State
+        // expires after 5 minutes (avoids stale restore on a fresh tab).
+        (function () {
+            var KEY = 'wsState_' + {{ (int) $worksheet->id }};
+
+            // Save on any form submit (capture phase — fires before navigation).
+            document.addEventListener('submit', function () {
+                try {
+                    var openIds = Array.prototype.slice
+                        .call(document.querySelectorAll('details[open][id]'))
+                        .map(function (d) { return d.id; });
+                    sessionStorage.setItem(KEY, JSON.stringify({
+                        scrollY: window.scrollY,
+                        openDetails: openIds,
+                        ts: Date.now()
+                    }));
+                } catch (e) { /* sessionStorage disabled — silently skip */ }
+            }, true);
+
+            // Restore on load.
+            window.addEventListener('DOMContentLoaded', function () {
+                var raw;
+                try { raw = sessionStorage.getItem(KEY); } catch (e) { return; }
+                if (! raw) return;
+                var state;
+                try { state = JSON.parse(raw); } catch (e) { return; }
+
+                // Stale guard — drop if older than 5 minutes.
+                if (! state || typeof state !== 'object' || ! state.ts || Date.now() - state.ts > 5 * 60 * 1000) {
+                    try { sessionStorage.removeItem(KEY); } catch (e) {}
+                    return;
+                }
+
+                // Reopen drawers (skip rooms now flagged data-skip-restore — those are
+                // the ones the engineer just marked complete, auto-collapse must win).
+                (state.openDetails || []).forEach(function (id) {
+                    var d = document.getElementById(id);
+                    if (d && d.dataset.skipRestore !== '1') d.open = true;
+                });
+
+                // Restore scroll — defer to next paint so layout has settled.
+                if (typeof state.scrollY === 'number') {
+                    requestAnimationFrame(function () { window.scrollTo(0, state.scrollY); });
+                }
+
+                try { sessionStorage.removeItem(KEY); } catch (e) {}
+            });
+        })();
     </script>
 
 </body>
