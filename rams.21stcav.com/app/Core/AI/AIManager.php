@@ -73,7 +73,14 @@ class AIManager
         // ── Cache check (first attempt only, before any retry suffix is added) ──
         $builtText = $prompt->build($context);
         $hash      = $cache->hash($builtText);
-        $cached    = $cache->get($hash);
+
+        // Vision/PDF prompts have variable binary input (image / pdf bytes) that
+        // is NOT part of the prompt text. Caching by prompt-text alone would
+        // serve the same response for every image submitted to the same prompt
+        // class — actively wrong. Skip the cache entirely for prompts that
+        // attach binary content.
+        $skipCache = $prompt->usesImage() || $prompt->usesPdf();
+        $cached    = $skipCache ? null : $cache->get($hash);
 
         if ($cached !== null) {
             $decoded = json_decode($cached, true);
@@ -108,8 +115,11 @@ class AIManager
                         'attempt'  => $attempts,
                     ]);
 
-                    // Store in cache (use the original first-attempt text as the key)
-                    $cache->store($hash, $builtText, json_encode($result), $ai->getProviderKey());
+                    // Store in cache (use the original first-attempt text as the key).
+                    // Skip for vision / PDF prompts — see $skipCache above.
+                    if (! $skipCache) {
+                        $cache->store($hash, $builtText, json_encode($result), $ai->getProviderKey());
+                    }
 
                     return $result;
                 }
