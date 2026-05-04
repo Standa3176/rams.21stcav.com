@@ -1434,19 +1434,63 @@
         // Engineer photographs the manufacturer sticker; Claude vision OCRs
         // part / serial / MAC; engineer reviews + confirms; values flow into
         // the asset-register `devices` table.
+        //
+        // 260504-ktt: iOS Safari uploads HEIC files which Claude vision can't
+        // read — we draw the image to a canvas and re-encode as JPEG client-side
+        // before upload. Also downscales to maxSide=1600 to keep payloads small.
+        // Falls back to the raw file if anything fails (very old browser, CORS,
+        // out-of-memory) so the fix never makes uploads worse than they were.
+        async function convertToJpegBlob(file, maxSide = 1600, quality = 0.85) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onerror = () => reject(new Error('FileReader failed'));
+                reader.onload = () => {
+                    const img = new Image();
+                    img.onerror = () => reject(new Error('Image decode failed'));
+                    img.onload = () => {
+                        const w0 = img.naturalWidth, h0 = img.naturalHeight;
+                        if (!w0 || !h0) return reject(new Error('Empty image'));
+                        const scale = Math.min(1, maxSide / Math.max(w0, h0));
+                        const w = Math.round(w0 * scale), h = Math.round(h0 * scale);
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w; canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, w, h);
+                        canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('toBlob returned null')), 'image/jpeg', quality);
+                    };
+                    img.src = reader.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
         async function captureLabel(input, token) {
             const file = input.files && input.files[0];
             if (!file) return;
-            const fd = new FormData();
-            fd.append('photo', file);
-            fd.append('room_name',        input.dataset.room || '');
-            fd.append('item_description', input.dataset.desc || '');
-            fd.append('item_part_number', input.dataset.part || '');
-            fd.append('item_qty',         input.dataset.qty  || 1);
 
             const btn = input.closest('label');
             const orig = btn ? btn.textContent.trim() : '';
             if (btn) btn.style.opacity = '.6';
+
+            // Convert to JPEG client-side — fixes iOS HEIC + downscales for faster upload.
+            // On any failure, fall through with the original file unchanged.
+            let uploadFile = file;
+            let uploadFilename = file.name || 'label.jpg';
+            try {
+                const blob = await convertToJpegBlob(file);
+                uploadFile = blob;
+                uploadFilename = 'label.jpg';
+            } catch (e) {
+                console.warn('Canvas JPEG conversion failed, uploading original:', e);
+                // fall through with raw file
+            }
+
+            const fd = new FormData();
+            fd.append('photo', uploadFile, uploadFilename);
+            fd.append('room_name',        input.dataset.room || '');
+            fd.append('item_description', input.dataset.desc || '');
+            fd.append('item_part_number', input.dataset.part || '');
+            fd.append('item_qty',         input.dataset.qty  || 1);
 
             const url = '/worksheet/' + encodeURIComponent(token) + '/label-photo';
             try {
@@ -1511,12 +1555,23 @@
         }
 
         function openLabelReview({ photoId, token, photoUrl, extracted }) {
+            // 260504-ktt: detect when AI extraction returned nothing usable so we
+            // can prompt the engineer to type the values manually from the photo.
+            const aiFailed = ['part_number','serial_number','mac_address','model','manufacturer']
+                .every(k => !extracted[k] || String(extracted[k]).trim() === '' || String(extracted[k]).toUpperCase() === 'UNKNOWN');
+
             // Build a simple modal — vanilla JS, no Alpine dep.
             const overlay = document.createElement('div');
             overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
             overlay.innerHTML = `
                 <div style="background:#fff;border-radius:12px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto;padding:1.25rem;">
                     <h3 style="margin:0 0 .75rem;font-size:1.05rem;">Confirm label values</h3>
+                    ${aiFailed ? `
+                        <div style="background:#FEF3C7;border:1px solid #FCD34D;border-radius:8px;padding:.65rem .85rem;margin-bottom:.85rem;font-size:.82rem;color:#92400E;line-height:1.4;">
+                            <strong>⚠ AI couldn't read this label clearly.</strong>
+                            Please type the visible values from the photo into the fields below. The image is saved either way.
+                        </div>
+                    ` : ''}
                     <img src="${photoUrl}" alt="" style="width:100%;max-height:240px;object-fit:contain;border-radius:8px;background:#F3F4F6;margin-bottom:.85rem;">
                     <div style="font-size:.78rem;color:#6B7280;margin-bottom:.65rem;">
                         AI read these values from the label. Edit any field, then confirm to save to the asset register.
