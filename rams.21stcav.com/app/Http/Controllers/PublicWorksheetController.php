@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Device;
 use App\Models\DeviceLabelPhoto;
+use App\Models\SiteSurveyPhoto;
 use App\Models\Worksheet;
 use App\Services\DeviceLabelPhotoService;
 use Illuminate\Http\RedirectResponse;
@@ -141,6 +142,80 @@ class PublicWorksheetController extends Controller
             'Content-Type'        => $photo->mime_type ?? 'image/jpeg',
             'Content-Disposition' => 'inline; filename="' . $photo->original_name . '"',
         ]);
+    }
+
+    // ─── Survey reference (photos + per-room review) ──────────────────────────
+
+    /**
+     * GET /worksheet/{token}/survey-photos/{photo}
+     *
+     * Stream a SiteSurveyPhoto belonging to the same project as this worksheet.
+     * Cross-project guard prevents a leaked token from serving photos that live
+     * on a different project's survey — `$photo->room?->survey?->project_id`
+     * must match `$worksheet->project_id`. The defensive `?->` chain causes any
+     * orphaned record (photo with no room, room with no survey, survey with no
+     * project_id) to evaluate to `null` and trip the guard with a 403.
+     */
+    public function serveSurveyPhoto(string $token, SiteSurveyPhoto $photo): \Symfony\Component\HttpFoundation\Response
+    {
+        $worksheet = $this->resolveWorksheet($token);
+
+        abort_unless(
+            $photo->room?->survey?->project_id === $worksheet->project_id,
+            403
+        );
+
+        $path = \Illuminate\Support\Facades\Storage::disk('local')->path($photo->storagePath());
+        abort_unless(file_exists($path), 404);
+
+        return response()->file($path, [
+            'Content-Type'        => $photo->mime_type ?? 'image/jpeg',
+            'Content-Disposition' => 'inline; filename="' . $photo->original_name . '"',
+        ]);
+    }
+
+    /**
+     * POST /worksheet/{token}/rooms/{roomName}/survey-reviewed
+     *
+     * Record that an engineer has reviewed the site-survey reference for a
+     * specific room. Validates `roomName` against the worksheet's own
+     * `generated_data['rooms'][*]['name']` inclusion list — forged names are
+     * rejected with 422 so a leaked token cannot inject arbitrary keys into
+     * the JSON column. Updates `worksheet.pre_install_confirmations` (array
+     * keyed by canonical room name) and redirects back to the show page with
+     * a flash success message (full-page reload pattern).
+     */
+    public function markSurveyReviewed(Request $request, string $token, string $roomName): RedirectResponse
+    {
+        $worksheet = $this->resolveWorksheet($token);
+
+        // Build inclusion list of valid room names from the worksheet's own
+        // generated_data — anything outside this list is a forged name.
+        $validRoomNames = collect((array) ($worksheet->generated_data['rooms'] ?? []))
+            ->pluck('name')
+            ->filter()
+            ->values()
+            ->all();
+
+        abort_if(empty($validRoomNames), 422,
+            'Worksheet has no rooms — cannot mark a room reviewed.');
+
+        if (! in_array($roomName, $validRoomNames, true)) {
+            abort(422, 'Unknown room name.');
+        }
+
+        $confirmations = (array) ($worksheet->pre_install_confirmations ?? []);
+        $now = now();
+        $confirmations[$roomName] = [
+            'reviewed_at' => $now->toIso8601String(),
+            'reviewed_by' => substr($token, 0, 8),
+        ];
+        $worksheet->pre_install_confirmations = $confirmations;
+        $worksheet->save();
+
+        return redirect()
+            ->route('public-worksheet.show', ['token' => $token])
+            ->with('success', "Survey reviewed for: {$roomName}");
     }
 
     // ─── Sign ────────────────────────────────────────────────────────────────

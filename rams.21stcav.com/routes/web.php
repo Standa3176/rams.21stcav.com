@@ -101,6 +101,14 @@ Route::get('worksheet/{token}/photos/{photo}', [PublicWorksheetController::class
 Route::delete('worksheet/{token}/photos/{photo}', [PublicWorksheetController::class, 'deletePhoto'])
     ->name('public-worksheet.photos.delete')->middleware('throttle:30,1');
 
+// Survey-reference photos + per-room review-confirmation gate (engineer cross-checks
+// survey findings before sign-off). Cross-project access prevented in the controller.
+Route::get('worksheet/{token}/survey-photos/{photo}', [PublicWorksheetController::class, 'serveSurveyPhoto'])
+    ->name('public-worksheet.survey-photos.serve')->middleware('throttle:120,1');
+Route::post('worksheet/{token}/rooms/{roomName}/survey-reviewed', [PublicWorksheetController::class, 'markSurveyReviewed'])
+    ->name('public-worksheet.survey-reviewed')->middleware('throttle:60,1')
+    ->where('roomName', '.*');
+
 // Device label photo capture (engineer takes photo of equipment label,
 // AI extracts part / serial / MAC, engineer confirms → writes to devices).
 // The server finds-or-creates the device row by (project, room, description).
