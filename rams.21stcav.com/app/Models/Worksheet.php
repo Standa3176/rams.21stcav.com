@@ -49,6 +49,7 @@ class Worksheet extends Model
         'generated_data',
         'filename',
         'access_token',
+        'pre_install_confirmations',
         'completion_email_sent_at',
         'failed_email_sent_at',
     ];
@@ -76,9 +77,10 @@ class Worksheet extends Model
     protected function casts(): array
     {
         return [
-            'generated_data'           => 'array',
-            'completion_email_sent_at' => 'datetime',
-            'failed_email_sent_at'     => 'datetime',
+            'generated_data'             => 'array',
+            'pre_install_confirmations'  => 'array',
+            'completion_email_sent_at'   => 'datetime',
+            'failed_email_sent_at'       => 'datetime',
         ];
     }
 
