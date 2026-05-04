@@ -3,6 +3,7 @@
      text has its own writable slot. --}}
 @php($line = \App\Support\SurveyPdfHelpers::BLANK_LINE)
 
+<h3>Site Conditions</h3>
 <table>
     <tr>
         <td class="label-sm">Room type / use</td><td colspan="3">{!! $line !!}</td>

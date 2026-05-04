@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\SiteSurvey;
 use App\Models\Worksheet;
 use App\Services\DocumentArtifactStorage;
 use Illuminate\Support\Facades\Log;
@@ -50,6 +51,13 @@ class WorksheetDocxService
         $blockers = $generatedData['blockers']  ?? [];
         $warnings = $generatedData['warnings_panel'] ?? [];
 
+        // ── Engineer-feedback lookup keyed by lowercase room_name. Populated
+        //    lazily — only when this worksheet has a project AND that project
+        //    has a site survey. Defensive: missing project / missing survey /
+        //    missing column data ⇒ empty array, downstream
+        //    renderInstallationReference() becomes a no-op.
+        $efByRoom = $this->loadEngineerFeedbackByRoom($worksheet);
+
         // ── Cover ────────────────────────────────────────────────────────────
         $coverSection = $phpWord->addSection($this->sectionProps());
         $this->buildCoverHeader($coverSection, $project, $worksheet);
@@ -73,7 +81,9 @@ class WorksheetDocxService
         // ── One section per room ─────────────────────────────────────────────
         foreach ($rooms as $room) {
             $section = $phpWord->addSection($this->sectionProps());
-            $this->buildRoom($section, $room, $worksheet, $tmpSignaturePaths);
+            $efKey   = strtolower(trim((string) ($room['name'] ?? '')));
+            $ef      = $efByRoom[$efKey] ?? [];
+            $this->buildRoom($section, $room, $worksheet, $tmpSignaturePaths, $ef);
         }
 
         // ── Save ─────────────────────────────────────────────────────────────
@@ -191,7 +201,7 @@ class WorksheetDocxService
 
     // ── Room Section ─────────────────────────────────────────────────────────
 
-    private function buildRoom($section, array $room, ?Worksheet $worksheet = null, array &$tmpSignaturePaths = []): void
+    private function buildRoom($section, array $room, ?Worksheet $worksheet = null, array &$tmpSignaturePaths = [], array $ef = []): void
     {
         $roomName = $room['name'] ?? 'Unknown Room';
         $isSurveyed = $room['is_surveyed'] ?? false;
@@ -317,6 +327,9 @@ class WorksheetDocxService
             $section->addText('Not surveyed', ['size' => 10, 'color' => '9CA3AF', 'italic' => true]);
         }
         $section->addTextBreak(1);
+
+        // ── Installation Reference (engineer findings from the site survey) ─────
+        $this->renderInstallationReference($section, $ef);
 
         // ── Power & Network check ────────────────────────────────────────────
         $this->heading($section, 'POWER & NETWORK CHECK');
@@ -607,6 +620,210 @@ class WorksheetDocxService
                 $cell->addText('Not surveyed', ['size' => 10, 'color' => '9CA3AF', 'italic' => true]);
             }
         }
+    }
+
+    // ── Installation Reference (engineer findings from site survey) ──────────
+
+    /**
+     * Render the "Installation Reference — Surveyor's Engineer Findings" block
+     * — the engineer's per-room install-time cross-check of survey-captured
+     * mounting heights, cable routes, wall prep, brackets etc.
+     *
+     * Pure no-op when $ef is empty OR every sub-key is empty (legacy worksheets
+     * pre-260503-rgg produce identical output).
+     */
+    private function renderInstallationReference($section, array $ef): void
+    {
+        $hasAny = ! empty($ef['mounting_heights'])
+              || ! empty($ef['work_at_height_methods'])
+              || ! empty($ef['cable_routes'])
+              || ! empty($ef['wall_construction'])
+              || ! empty($ef['wall_needs_reinforcement'])
+              || ! empty($ef['wall_needs_chase_out'])
+              || ! empty($ef['wall_needs_conduit'])
+              || ! empty($ef['brackets_required'])
+              || (is_array($ef['table_info'] ?? null) && ! empty($ef['table_info']['has_grommets']))
+              || (is_array($ef['floor_box_info'] ?? null) && ! empty($ef['floor_box_info']['has_floor_box']));
+        if (! $hasAny) return;
+
+        $methodLabels = [
+            'ladder' => 'Ladder', 'podium' => 'Podium steps', 'tower' => 'Access tower',
+            'mewp' => 'MEWP', 'scaffold' => 'Scaffold', 'na' => 'Not required',
+        ];
+        $wallConstructionLabels = [
+            'ply_lined' => 'Ply-lined', 'solid' => 'Solid wall', 'plasterboard' => 'Plasterboard',
+            'masonry' => 'Masonry / brick', 'metal_stud' => 'Metal stud', 'concrete' => 'Concrete',
+        ];
+        $cableCategoryLabels = [
+            'ceiling_speakers' => 'Ceiling speakers', 'desk_cables' => 'Desk cables',
+            'mic_cables' => 'Microphone cables', 'booking_panel_cables' => 'Booking panel cables',
+            'screen_cables' => 'Screen / display cables', 'rack_to_room' => 'Rack to room',
+            'other' => 'Other',
+        ];
+
+        $this->heading($section, 'INSTALLATION REFERENCE — SURVEYOR\'S ENGINEER FINDINGS');
+
+        // 1. Mounting Heights — bullet list
+        $mh = (array) ($ef['mounting_heights'] ?? []);
+        $heightLines = [];
+        foreach ([
+            'screen_h_m'        => 'Screen',
+            'camera_h_m'        => 'Camera',
+            'booking_panel_h_m' => 'Booking panel',
+            'speaker_h_m'       => 'Speaker',
+        ] as $k => $lbl) {
+            if (! empty($mh[$k])) $heightLines[] = $lbl . ': ' . $mh[$k] . ' m';
+        }
+        foreach ((array) ($mh['other'] ?? []) as $other) {
+            $oLbl = trim((string) ($other['label'] ?? ''));
+            $oH   = $other['h_m'] ?? null;
+            if ($oLbl !== '' && $oH !== null && $oH !== '') $heightLines[] = $oLbl . ': ' . $oH . ' m';
+        }
+        if (! empty($heightLines)) {
+            $section->addText('Mounting heights', ['bold' => true, 'size' => 10, 'color' => self::TEAL]);
+            foreach ($heightLines as $line) {
+                $section->addListItem($this->t($line), 0, ['size' => 10, 'color' => self::DARK], 'listBullet');
+            }
+            $section->addTextBreak();
+        }
+
+        // 2. Working at Height — Methods
+        $wahLabels = array_values(array_filter(array_map(
+            fn ($m) => $methodLabels[strtolower((string) $m)] ?? ucfirst((string) $m),
+            (array) ($ef['work_at_height_methods'] ?? [])
+        )));
+        if (! empty($wahLabels)) {
+            $section->addText('Working at height — methods', ['bold' => true, 'size' => 10, 'color' => self::TEAL]);
+            foreach ($wahLabels as $m) {
+                $section->addListItem($this->t($m), 0, ['size' => 10, 'color' => self::DARK], 'listBullet');
+            }
+            $section->addTextBreak();
+        }
+
+        // 3. Cable Routes — table
+        $cableRoutes = (array) ($ef['cable_routes'] ?? []);
+        if (! empty($cableRoutes)) {
+            $section->addText('Cable routes planned', ['bold' => true, 'size' => 10, 'color' => self::TEAL]);
+            $table = $section->addTable(['borderSize' => 6, 'borderColor' => self::MID, 'cellMargin' => 80]);
+            $h = $table->addRow();
+            foreach (['Category' => 2200, 'From' => 2100, 'To' => 2100, 'Length (m)' => 1100, 'Notes' => 1700] as $hdr => $w) {
+                $h->addCell($w, ['bgColor' => self::TEAL])->addText($hdr, ['bold' => true, 'color' => self::WHITE, 'size' => 9]);
+            }
+            foreach ($cableRoutes as $i => $cr) {
+                $catKey = (string) ($cr['category'] ?? '');
+                $cat    = $cableCategoryLabels[$catKey] ?? ucwords(str_replace('_', ' ', $catKey));
+                $bg     = ($i % 2 === 0) ? self::WHITE : self::GREY;
+                $row    = $table->addRow();
+                $row->addCell(2200, ['bgColor' => $bg])->addText($this->t($cat), ['size' => 9]);
+                $row->addCell(2100, ['bgColor' => $bg])->addText($this->t((string) ($cr['from'] ?? '')), ['size' => 9]);
+                $row->addCell(2100, ['bgColor' => $bg])->addText($this->t((string) ($cr['to'] ?? '')), ['size' => 9]);
+                $row->addCell(1100, ['bgColor' => $bg])->addText($this->t((string) ($cr['length_m'] ?? '')), ['size' => 9]);
+                $row->addCell(1700, ['bgColor' => $bg])->addText($this->t((string) ($cr['notes'] ?? '')), ['size' => 9]);
+            }
+            $section->addTextBreak();
+        }
+
+        // 4. Wall Construction multi + Wall Prep flags
+        $wcLabels = array_values(array_filter(array_map(
+            fn ($w) => $wallConstructionLabels[strtolower((string) $w)] ?? ucwords(str_replace('_', ' ', (string) $w)),
+            (array) ($ef['wall_construction'] ?? [])
+        )));
+        $prepFlags = [
+            'Reinforcement: ' . (! empty($ef['wall_needs_reinforcement']) ? 'Yes' : 'No'),
+            'Chase out: '     . (! empty($ef['wall_needs_chase_out'])     ? 'Yes' : 'No'),
+            'Conduit: '       . (! empty($ef['wall_needs_conduit'])       ? 'Yes' : 'No'),
+        ];
+        if (! empty($wcLabels) || ! empty($ef['wall_needs_reinforcement']) || ! empty($ef['wall_needs_chase_out']) || ! empty($ef['wall_needs_conduit'])) {
+            $section->addText('Wall construction & prep', ['bold' => true, 'size' => 10, 'color' => self::TEAL]);
+            if (! empty($wcLabels)) {
+                foreach ($wcLabels as $wc) {
+                    $section->addListItem($this->t($wc), 0, ['size' => 10, 'color' => self::DARK], 'listBullet');
+                }
+            }
+            $section->addText($this->t(implode(' • ', $prepFlags)), ['size' => 10, 'color' => self::DARK]);
+            $section->addTextBreak();
+        }
+
+        // 5. Brackets Required — table
+        $brackets = (array) ($ef['brackets_required'] ?? []);
+        if (! empty($brackets)) {
+            $section->addText('Brackets required', ['bold' => true, 'size' => 10, 'color' => self::TEAL]);
+            $table = $section->addTable(['borderSize' => 6, 'borderColor' => self::MID, 'cellMargin' => 80]);
+            $h = $table->addRow();
+            foreach (['Equipment' => 3000, 'Model' => 2800, 'Pull-out' => 1200, 'Notes' => 2200] as $hdr => $w) {
+                $h->addCell($w, ['bgColor' => self::TEAL])->addText($hdr, ['bold' => true, 'color' => self::WHITE, 'size' => 9]);
+            }
+            foreach ($brackets as $i => $b) {
+                $bg  = ($i % 2 === 0) ? self::WHITE : self::GREY;
+                $row = $table->addRow();
+                $row->addCell(3000, ['bgColor' => $bg])->addText($this->t((string) ($b['equipment'] ?? '')), ['size' => 9]);
+                $row->addCell(2800, ['bgColor' => $bg])->addText($this->t((string) ($b['model']     ?? '')), ['size' => 9]);
+                $row->addCell(1200, ['bgColor' => $bg])->addText(! empty($b['pull_out']) ? 'Yes' : 'No',         ['size' => 9]);
+                $row->addCell(2200, ['bgColor' => $bg])->addText($this->t((string) ($b['notes']     ?? '')), ['size' => 9]);
+            }
+            $section->addTextBreak();
+        }
+
+        // 6. Table Info — only when has_grommets
+        $ti = (array) ($ef['table_info'] ?? []);
+        if (! empty($ti['has_grommets'])) {
+            $section->addText('Table info', ['bold' => true, 'size' => 10, 'color' => self::TEAL]);
+            $line = ($ti['grommet_count'] ?? '?') . '× ' . trim((string) ($ti['grommet_size'] ?? '')) . ' grommets';
+            if (! empty($ti['notes'])) $line .= ' — ' . $ti['notes'];
+            $section->addText($this->t($line), ['size' => 10, 'color' => self::DARK]);
+            $section->addTextBreak();
+        }
+
+        // 7. Floor Box Info — only when has_floor_box
+        $fb = (array) ($ef['floor_box_info'] ?? []);
+        if (! empty($fb['has_floor_box'])) {
+            $section->addText('Floor box info', ['bold' => true, 'size' => 10, 'color' => self::TEAL]);
+            $line = ($fb['power_outlets'] ?? 0) . ' power, ' . ($fb['data_outlets'] ?? 0) . ' data';
+            if (! empty($fb['cable_space'])) $line .= ' • ' . trim((string) $fb['cable_space']) . ' cable space';
+            if (! empty($fb['notes']))       $line .= ' — ' . $fb['notes'];
+            $section->addText($this->t($line), ['size' => 10, 'color' => self::DARK]);
+            $section->addTextBreak();
+        }
+    }
+
+    /**
+     * Load per-room engineer-feedback (the 17 fields shipped in 260503-rgg)
+     * keyed by lowercase trimmed room name.
+     *
+     * Returns [] when the worksheet has no project_id or the project has no
+     * SiteSurvey — the caller treats [] as "no installation-reference data".
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function loadEngineerFeedbackByRoom(Worksheet $worksheet): array
+    {
+        if (! $worksheet->project_id) return [];
+
+        $survey = SiteSurvey::with('rooms')
+            ->where('project_id', $worksheet->project_id)
+            ->latest('id')
+            ->first();
+
+        if ($survey === null) return [];
+
+        $out = [];
+        foreach ($survey->rooms as $r) {
+            $key = strtolower(trim((string) ($r->room_name ?? '')));
+            if ($key === '') continue;
+            $out[$key] = [
+                'mounting_heights'         => (array) ($r->mounting_heights ?? []),
+                'work_at_height_methods'   => (array) ($r->work_at_height_methods ?? []),
+                'cable_routes'             => (array) ($r->cable_routes ?? []),
+                'wall_construction'        => (array) ($r->wall_construction ?? []),
+                'wall_needs_reinforcement' => (bool) ($r->wall_needs_reinforcement ?? false),
+                'wall_needs_chase_out'     => (bool) ($r->wall_needs_chase_out ?? false),
+                'wall_needs_conduit'       => (bool) ($r->wall_needs_conduit ?? false),
+                'table_info'               => (array) ($r->table_info ?? []),
+                'floor_box_info'           => (array) ($r->floor_box_info ?? []),
+                'brackets_required'        => (array) ($r->brackets_required ?? []),
+            ];
+        }
+        return $out;
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
