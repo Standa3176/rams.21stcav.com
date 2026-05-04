@@ -378,6 +378,8 @@
     // Phase 17 v1.3 — Drawings count (current revisions only; superseded
     // versions excluded so the badge never inflates with archived rows).
     $countDrawings   = $project->drawings()->whereNull('superseded_by_id')->count();
+    // 260504-q19 — Asset register count (all devices captured for this project).
+    $countAssets     = \App\Models\Device::where('project_id', $project->id)->count();
 
     $linkedByType = collect($linkedRecords)->keyBy('type');
 
@@ -693,6 +695,7 @@
                         ['key' => 'om',         'label' => 'O&M',               'count' => $countOm],
                         ['key' => 'install',    'label' => 'Install Programme', 'count' => $countInstall],
                         ['key' => 'quotes',     'label' => 'Quotes',            'count' => $countQuotes],
+                        ['key' => 'assets',     'label' => 'Asset Register',    'count' => $countAssets],
                         ['key' => 'data',       'label' => 'Project Data',      'count' => null],
                     ];
                 @endphp
@@ -1481,6 +1484,108 @@
                             </tbody>
                         </table>
                         </div>
+                    @endif
+                </div>
+
+                {{-- ───── Asset Register panel (260504-q19) ───── --}}
+                <div x-show="activeTab==='assets'" x-cloak role="tabpanel">
+                    @php
+                        $assetDevices = \App\Models\Device::where('project_id', $project->id)
+                            ->with(['labelPhotos' => fn($q) => $q->orderByDesc('captured_at')])
+                            ->orderBy('room_name')
+                            ->orderBy('description')
+                            ->get()
+                            ->groupBy(fn($d) => $d->room_name ?: 'Unassigned room');
+                        $totalDevices    = $assetDevices->flatten()->count();
+                        $totalPhotos     = $assetDevices->flatten()->sum(fn($d) => $d->labelPhotos->count());
+                        $totalConfirmed  = $assetDevices->flatten()->sum(fn($d) => $d->labelPhotos->where('confirmed', true)->count());
+                    @endphp
+
+                    @if ($totalDevices === 0)
+                        <x-empty-state title="No devices captured yet"
+                            description="The asset register populates as engineers capture equipment labels via the public worksheet link. Generate a worksheet, share the link with the engineer, and they'll capture serial photos as part of the install."/>
+                    @else
+                        {{-- Counter strip --}}
+                        <div class="flex flex-wrap gap-3 items-center mb-4 text-sm text-gray-700">
+                            <span><strong class="text-gray-900">{{ $totalDevices }}</strong> device{{ $totalDevices === 1 ? '' : 's' }}</span>
+                            <span class="text-gray-300">•</span>
+                            <span><strong class="text-gray-900">{{ $totalPhotos }}</strong> label{{ $totalPhotos === 1 ? '' : 's' }} captured</span>
+                            <span class="text-gray-300">•</span>
+                            <span><strong class="text-gray-900">{{ $totalConfirmed }}</strong> confirmed</span>
+                        </div>
+
+                        {{-- Per-room device list --}}
+                        @foreach ($assetDevices as $roomName => $roomDevices)
+                            <div class="bg-white border border-gray-200 rounded-lg p-5 mb-4"
+                                 data-name="{{ \Illuminate\Support\Str::lower($roomName) }}"
+                                 x-show="q === '' || $el.dataset.name.includes(q.toLowerCase())">
+                                <h3 class="text-base font-semibold text-teal-700 mb-3 flex items-center gap-2">
+                                    {{ $roomName }}
+                                    <span class="text-xs font-normal text-gray-500">
+                                        {{ $roomDevices->count() }} {{ \Illuminate\Support\Str::plural('device', $roomDevices->count()) }}
+                                    </span>
+                                </h3>
+                                <div class="flex flex-col gap-2">
+                                    @foreach ($roomDevices as $d)
+                                        @php
+                                            $photos = $d->labelPhotos;
+                                            $confirmedCount = $photos->where('confirmed', true)->count();
+                                        @endphp
+                                        <div class="flex items-start gap-3 p-2.5 border border-gray-200 rounded-md bg-gray-50">
+                                            {{-- Photo thumbnails --}}
+                                            @if ($photos->isNotEmpty())
+                                                <div class="flex gap-1 flex-shrink-0">
+                                                    @foreach ($photos->take(3) as $lp)
+                                                        <a href="{{ \Illuminate\Support\Facades\Storage::url($lp->photo_path) }}"
+                                                           target="_blank" rel="noopener"
+                                                           title="Captured {{ optional($lp->captured_at)->format('d M Y H:i') }}{{ $lp->confirmed ? ' • confirmed' : ' • pending' }}"
+                                                           class="block w-12 h-12 rounded overflow-hidden border"
+                                                           style="border-color: {{ $lp->confirmed ? '#86EFAC' : '#FCD34D' }};">
+                                                            <img src="{{ \Illuminate\Support\Facades\Storage::url($lp->photo_path) }}" alt=""
+                                                                 class="w-full h-full object-cover block">
+                                                        </a>
+                                                    @endforeach
+                                                    @if ($photos->count() > 3)
+                                                        <span class="inline-flex items-center justify-center w-12 h-12 rounded border border-dashed border-gray-300 text-xs text-gray-500 font-semibold">
+                                                            +{{ $photos->count() - 3 }}
+                                                        </span>
+                                                    @endif
+                                                </div>
+                                            @else
+                                                <div class="w-12 h-12 border border-dashed border-gray-300 rounded flex items-center justify-center text-gray-400 text-xs flex-shrink-0">
+                                                    📷
+                                                </div>
+                                            @endif
+
+                                            {{-- Device details --}}
+                                            <div class="flex-1 min-w-0 text-sm">
+                                                <div class="font-semibold text-gray-900">{{ $d->description }}</div>
+                                                <div class="text-xs text-gray-500 mt-0.5">
+                                                    @if ($d->manufacturer){{ $d->manufacturer }}@if($d->model) — {{ $d->model }}@endif @endif
+                                                    @if ($d->qty && $d->qty > 1) &middot; qty {{ $d->qty }}@endif
+                                                </div>
+                                                <div class="text-xs text-gray-700 mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                                                    <span><strong>Part:</strong> {{ $d->part_no ?? '—' }}</span>
+                                                    <span><strong>Serial:</strong> {{ $d->serial_number ?? '—' }}</span>
+                                                    <span><strong>MAC:</strong> {{ $d->mac_address ?? '—' }}</span>
+                                                </div>
+                                            </div>
+
+                                            {{-- Status pill --}}
+                                            <div class="flex-shrink-0">
+                                                @if ($confirmedCount > 0)
+                                                    <span class="inline-block px-2 py-0.5 rounded-full bg-green-100 text-green-800 font-bold text-[0.65rem] uppercase tracking-wider">✓ Confirmed</span>
+                                                @elseif ($photos->count() > 0)
+                                                    <span class="inline-block px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-[0.65rem] uppercase tracking-wider">📷 {{ $photos->count() }} pending</span>
+                                                @else
+                                                    <span class="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-bold text-[0.65rem] uppercase tracking-wider">— No labels</span>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endforeach
                     @endif
                 </div>
 
