@@ -313,6 +313,9 @@
         .room-drawer.teal  { border-color: rgba(23,138,149,.35); }
         .room-drawer.gold  { border-color: rgba(251,191,36,.5); }
         .room-drawer.amber { border-color: rgba(245,158,11,.4); }
+        .room-drawer.grey  { border-color: rgba(107,114,128,.35); }
+        /* 260504-ij9 — accent variant for Survey Reference drawer (visual differentiator). */
+        .room-drawer.teal.teal--accent { border-left-width: 4px; border-left-color: #178A95; }
 
         .room-drawer summary {
             list-style: none;
@@ -332,6 +335,7 @@
         .room-drawer.teal  summary { background: rgba(23,138,149,.06); color: #0B3C45; }
         .room-drawer.gold  summary { background: rgba(251,191,36,.08); color: #92400E; }
         .room-drawer.amber summary { background: rgba(245,158,11,.08); color: #92400E; }
+        .room-drawer.grey  summary { background: rgba(107,114,128,.06); color: #374151; }
         .room-drawer summary:hover { filter: brightness(.97); }
         .room-drawer summary .chev {
             font-size: 1.1rem; transition: transform 200ms ease;
@@ -339,6 +343,7 @@
         }
         .room-drawer.gold summary .chev,
         .room-drawer.amber summary .chev { color: #D97706; }
+        .room-drawer.grey summary .chev { color: #6B7280; }
         .room-drawer[open] summary .chev { transform: rotate(180deg); }
         .room-drawer-body { padding: .85rem 1rem; }
         .room-drawer-body ul.kit-rows {
@@ -623,7 +628,27 @@
                     }
                 }
                 $signOffBlocked = ! empty($unreviewedRooms);
+                // 260504-ij9 fix H2 — slug of the FIRST unreviewed room, used by the
+                // top banner's "Jump to first unreviewed room" anchor link.
+                $firstUnreviewedSlug = ! empty($unreviewedRooms)
+                    ? \Illuminate\Support\Str::slug((string) $unreviewedRooms[0])
+                    : '';
             @endphp
+
+            {{-- 260504-ij9 fix H2 — TOP banner mirrors the bottom Sign-Off banner so
+                 engineers see the warning whether they're at top or bottom of the page.
+                 Anchor jumps straight to the first unreviewed room's <details> block. --}}
+            @if($signOffBlocked)
+                <div id="signoff-block-top" style="margin-bottom:1rem;padding:.75rem .95rem;border-radius:8px;background:#FEF3C7;color:#92400E;border:1px solid #FBBF24;font-size:.88rem;line-height:1.5;">
+                    <strong>⚠ Sign-off blocked.</strong>
+                    Review the survey reference for these rooms first:
+                    <strong>{{ implode(', ', $unreviewedRooms) }}</strong>.
+                    @if($firstUnreviewedSlug !== '')
+                        <a href="#room-{{ $firstUnreviewedSlug }}"
+                           style="display:inline-block;margin-left:.4rem;font-weight:700;color:#92400E;text-decoration:underline;">Jump to first unreviewed room →</a>
+                    @endif
+                </div>
+            @endif
 
             @foreach($rooms as $idx => $room)
                 @php
@@ -673,24 +698,72 @@
                                      + (int) (! empty($ef['table_info']['has_grommets'] ?? false) ? 1 : 0)
                                      + (int) (! empty($ef['floor_box_info']['has_floor_box'] ?? false) ? 1 : 0);
                     }
+
+                    // ── Per-room review status (260504-ij9 fix B2) ──
+                    // Pill renders alongside the photo-count pill on the room <summary>.
+                    // No pill at all when the room has no survey to review (gate doesn't apply).
+                    $thisRoomReviewedStamp  = $confirmations[$room['name'] ?? ''] ?? null;
+                    $gateApplies            = $hasEF; // EF data OR survey photos already folded into $hasEF
+                    $isReviewed             = ! empty($thisRoomReviewedStamp);
+                    $isUnreviewedWithGate   = $gateApplies && ! $isReviewed;
+                    $roomIdSlug             = \Illuminate\Support\Str::slug((string) ($room['name'] ?? ('room-' . $idx)));
                 @endphp
 
-                <details class="card" {{ $idx === 0 ? 'open' : '' }}>
+                <details class="card" id="room-{{ $roomIdSlug }}" {{ $idx === 0 ? 'open' : '' }}>
                     <summary class="room-summary">
                         <span class="room-chevron">▶</span>
                         <span class="room-summary-name">{{ $room['name'] ?? 'Unknown Room' }}</span>
+                        @if($isUnreviewedWithGate)
+                            <span style="display:inline-flex;align-items:center;gap:.25rem;padding:1px 8px;border-radius:9999px;background:#FEF3C7;color:#92400E;font-weight:700;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;">⚠ Survey not reviewed</span>
+                        @elseif($isReviewed)
+                            <span style="display:inline-flex;align-items:center;gap:.25rem;padding:1px 8px;border-radius:9999px;background:#DCFCE7;color:#166534;font-weight:700;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;">✓ Reviewed</span>
+                        @endif
                         <span class="photo-count-pill {{ $photoCount === 0 ? 'zero' : '' }}">
                             📷 {{ $photoCount }}
                         </span>
                     </summary>
 
+                    {{-- 260504-ij9 fix B3 — Photo tray moved to TOP of room body so engineers
+                         see the action item (capture proof of completed work) FIRST, before
+                         scrolling through Survey Reference / AV Works / Kit / Steps. --}}
+                    <div class="photo-tray" data-photo-tray data-room-key="{{ $roomKey }}" style="margin-top:0;padding-top:0;border-top:0;margin-bottom:1rem;padding-bottom:.85rem;border-bottom:1px dashed #E5E7EB;">
+                        <div class="photo-tray-title">📷 Photos of completed work (<span data-photo-count>{{ $photoCount }}</span>)</div>
+                        <div class="photo-thumbs" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.6rem;">
+                            @foreach($roomPhotos as $p)
+                                <div style="position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;background:#F3F4F6;flex-shrink:0;">
+                                    <a href="{{ route('public-worksheet.photos.serve', ['token' => $token, 'photo' => $p->id]) }}"
+                                       target="_blank">
+                                        <img src="{{ route('public-worksheet.photos.serve', ['token' => $token, 'photo' => $p->id]) }}"
+                                             alt="{{ $p->caption ?? '' }}"
+                                             loading="lazy"
+                                             style="width:100%;height:100%;object-fit:cover;">
+                                    </a>
+                                    <button type="button"
+                                            onclick="deleteWorksheetPhoto({{ $p->id }}, '{{ $token }}', this)"
+                                            title="Remove"
+                                            style="position:absolute;top:2px;right:2px;width:20px;height:20px;border:0;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:.7rem;line-height:1;cursor:pointer;">✕</button>
+                                </div>
+                            @endforeach
+                        </div>
+                        <label class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:.4rem;cursor:pointer;">
+                            📷 Add photo
+                            <input type="file" accept="image/*" capture="environment" style="display:none;"
+                                   onchange="uploadWorksheetPhoto(this, '{{ $token }}', '{{ addslashes($room['name'] ?? '') }}')">
+                        </label>
+                        @if($photoCount === 0)
+                            <div class="photo-warn" style="margin-top:.55rem;">
+                                ⚠ No photos captured yet — capture at least one before requesting sign-off.
+                            </div>
+                        @endif
+                    </div>
+
                     {{-- SURVEY REFERENCE drawer (teal) — engineer findings captured during the
                          site survey (Mounting heights, Cable Routes, Wall Prep, Brackets etc.).
                          Read-only reference for installers. Hidden when no survey data exists. --}}
                     @if($hasEF)
-                        <details class="room-drawer teal">
+                        <details class="room-drawer teal teal--accent">
                             <summary>
-                                <span>📋 Survey Reference ({{ $efItemCount }} captured)</span>
+                                <span>🔍 Survey Reference ({{ $efItemCount }} captured)</span>
                                 <span class="chev">▾</span>
                             </summary>
                             <div class="room-drawer-body">
@@ -871,15 +944,18 @@
                                             ✓ Reviewed by {{ $rBy }} at {{ $rDisplay }}
                                         </div>
                                     @else
+                                        {{-- 260504-ij9 fix H5 — one-tap review. Dropped the
+                                             confirmation checkbox: the button itself IS the
+                                             confirmation. Same backend POST. --}}
                                         <form method="POST"
                                               action="{{ route('public-worksheet.survey-reviewed', ['token' => $token, 'roomName' => $room['name']]) }}"
-                                              style="display:flex;flex-wrap:wrap;align-items:center;gap:.65rem;">
+                                              style="margin:0;">
                                             @csrf
-                                            <label style="display:inline-flex;align-items:center;gap:.4rem;font-size:.85rem;color:#374151;">
-                                                <input type="checkbox" required style="width:1rem;height:1rem;">
-                                                I have reviewed the survey for this room
-                                            </label>
-                                            <button type="submit" class="btn btn-outline btn-sm" style="font-size:.78rem;">Mark Reviewed</button>
+                                            <button type="submit"
+                                                    class="btn btn-teal"
+                                                    style="font-size:.85rem;padding:.55rem 1rem;min-height:42px;">
+                                                ✓ I have reviewed this room — mark reviewed
+                                            </button>
                                         </form>
                                     @endif
                                 </div>
@@ -888,11 +964,12 @@
                         </details>
                     @endif
 
-                    {{-- AV WORKS drawer (teal) --}}
+                    {{-- AV WORKS drawer (grey) — neutral colour scheme so it's visually
+                         distinct from the teal Survey Reference drawer (260504-ij9 fix B1). --}}
                     @if(! empty($bullets))
-                        <details class="room-drawer teal">
+                        <details class="room-drawer grey">
                             <summary>
-                                <span>📋 AV Works ({{ count($bullets) }})</span>
+                                <span>🛠 AV Works ({{ count($bullets) }})</span>
                                 <span class="chev">▾</span>
                             </summary>
                             <div class="room-drawer-body">
@@ -1021,38 +1098,7 @@
                         </details>
                     @endif
 
-                    {{-- Photo tray — engineers must capture at least one photo per
-                         space before requesting client sign-off. --}}
-                    <div class="photo-tray" data-photo-tray data-room-key="{{ $roomKey }}">
-                        <div class="photo-tray-title">📷 Photos of completed work (<span data-photo-count>{{ $photoCount }}</span>)</div>
-                        <div class="photo-thumbs" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.6rem;">
-                            @foreach($roomPhotos as $p)
-                                <div style="position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;background:#F3F4F6;flex-shrink:0;">
-                                    <a href="{{ route('public-worksheet.photos.serve', ['token' => $token, 'photo' => $p->id]) }}"
-                                       target="_blank">
-                                        <img src="{{ route('public-worksheet.photos.serve', ['token' => $token, 'photo' => $p->id]) }}"
-                                             alt="{{ $p->caption ?? '' }}"
-                                             loading="lazy"
-                                             style="width:100%;height:100%;object-fit:cover;">
-                                    </a>
-                                    <button type="button"
-                                            onclick="deleteWorksheetPhoto({{ $p->id }}, '{{ $token }}', this)"
-                                            title="Remove"
-                                            style="position:absolute;top:2px;right:2px;width:20px;height:20px;border:0;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:.7rem;line-height:1;cursor:pointer;">✕</button>
-                                </div>
-                            @endforeach
-                        </div>
-                        <label class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:.4rem;cursor:pointer;">
-                            📷 Add photo
-                            <input type="file" accept="image/*" capture="environment" style="display:none;"
-                                   onchange="uploadWorksheetPhoto(this, '{{ $token }}', '{{ addslashes($room['name'] ?? '') }}')">
-                        </label>
-                        @if($photoCount === 0)
-                            <div class="photo-warn" style="margin-top:.55rem;">
-                                ⚠ No photos captured yet — capture at least one before requesting sign-off.
-                            </div>
-                        @endif
-                    </div>
+                    {{-- 260504-ij9 fix B3 — Photo tray moved to TOP of room body (above). --}}
                 </details>
             @endforeach
         @endif
