@@ -89,6 +89,7 @@ class DocxBuilderService
         $this->buildHealthSafetyPolicy($phpWord, $data);
         $this->buildCdmSection($phpWord, $data);
         $this->buildScopeOfWorks($phpWord, $data, $formData);
+        $this->buildEngineerFindingsByRoom($phpWord, $data);
         $this->buildRiskAssessment($phpWord, $data);
         $this->buildMethodStatement($phpWord, $data);
         $this->buildEmergencyProcedures($phpWord, $data, $formData);
@@ -357,6 +358,69 @@ class DocxBuilderService
 
         $section->addTextBreak(1);
 
+        // ── Site Logistics & Access (mirrors PDF — quick task 260503-tfb closure
+        //    via 260504-gho). Pure additive: empty/missing $data['site_logistics']
+        //    ⇒ this block adds NOTHING to the document, so legacy RAMS DOCX output
+        //    is byte-identical to pre-change. Same shape as rams.blade.php 714-734.
+        $siteLog = $data['site_logistics'] ?? [];
+        $hasSiteLog = is_array($siteLog) && (
+            ! empty($siteLog['comms_room_access_status']) ||
+            ! empty($siteLog['comms_room_access_notes']) ||
+            ! empty($siteLog['parking_restraints']) ||
+            ! empty($siteLog['distance_from_base_miles']) ||
+            ! empty($siteLog['distance_from_base_notes']) ||
+            ! empty($siteLog['site_access_notes']) ||
+            ! empty($siteLog['delivery_routes'])
+        );
+        if ($hasSiteLog) {
+            $section->addText(
+                'Site Logistics & Access (from site survey)',
+                $this->font(10, bold: true, colour: self::TEAL),
+                ['spaceBefore' => 80, 'spaceAfter' => 60],
+            );
+
+            $commsLabels = [
+                'yes' => 'Permission required', 'no' => 'Free access',
+                'outsourced' => 'Outsourced facilities team', 'unknown' => 'Status unknown',
+            ];
+
+            $logTable = $section->addTable($this->tableStyle());
+            $rowsLog = [];
+            if (! empty($siteLog['parking_restraints'])) {
+                $rowsLog[] = ['Parking arrangements', $siteLog['parking_restraints']];
+            }
+            if (! empty($siteLog['site_access_notes'])) {
+                $rowsLog[] = ['Site access notes', $siteLog['site_access_notes']];
+            }
+            if (! empty($siteLog['delivery_routes'])) {
+                $rowsLog[] = ['Delivery routes', $siteLog['delivery_routes']];
+            }
+            if (! empty($siteLog['comms_room_access_status']) || ! empty($siteLog['comms_room_access_notes'])) {
+                $statusLabel = $commsLabels[$siteLog['comms_room_access_status'] ?? ''] ?? '';
+                $parts = array_filter([$statusLabel, $siteLog['comms_room_access_notes'] ?? '']);
+                $rowsLog[] = ['Comms room access', implode(' — ', $parts)];
+            }
+            if (! empty($siteLog['distance_from_base_miles']) || ! empty($siteLog['distance_from_base_notes'])) {
+                $parts = array_filter([
+                    ! empty($siteLog['distance_from_base_miles'])
+                        ? $siteLog['distance_from_base_miles'] . ' miles from depot' : '',
+                    $siteLog['distance_from_base_notes'] ?? '',
+                ]);
+                $rowsLog[] = ['Distance from depot', implode(' — ', $parts)];
+            }
+
+            $altCellLog   = ['bgColor' => self::ROW_ALT];
+            $whiteCellLog = ['bgColor' => self::WHITE];
+            foreach ($rowsLog as $i => [$labelLog, $valueLog]) {
+                $bg = ($i % 2 === 0) ? $altCellLog : $whiteCellLog;
+                $rowLog = $logTable->addRow(380);
+                $rowLog->addCell(3000, $bg)->addText($labelLog, $this->font(9, bold: true));
+                $rowLog->addCell(6866, $bg)->addText($this->t((string) $valueLog), $this->font(9));
+            }
+
+            $section->addTextBreak(1);
+        }
+
         // ── Equipment schedule table ──────────────────────────────────────────
         // Columns: Activity | Item | Qty per Room | Notes  (total = W_PORT = 9866)
         $wAct  = 2600;
@@ -467,6 +531,200 @@ class DocxBuilderService
                 $dr->addCell($wItem, ['bgColor' => self::WHITE])->addText('No items listed', $bf);
                 $dr->addCell($wQty,  ['bgColor' => self::WHITE])->addText('', $bf);
                 $dr->addCell($wNote, ['bgColor' => self::WHITE])->addText('', $bf);
+            }
+        }
+    }
+
+    // =========================================================================
+    // SECTION 4.5 — Engineer Survey Findings (per room)
+    //
+    // Mirrors resources/views/pdf/rams.blade.php lines 781-1033 from quick task
+    // 260503-tfb (PDF) — added to DOCX in 260504-gho. Reads
+    // $data['rooms'][n]['engineer_feedback'] populated by ProjectContextBuilder.
+    // The whole section is suppressed when no rooms have any populated
+    // engineer_feedback fields — pre-260503 RAMS DOCX byte output is
+    // regression-safe.
+    // =========================================================================
+
+    private function buildEngineerFindingsByRoom(PhpWord $phpWord, array $data): void
+    {
+        $rooms = (array) ($data['rooms'] ?? []);
+        if (empty($rooms)) return;
+
+        // Pre-flight: any room with non-empty engineer_feedback?
+        $anyEf = false;
+        foreach ($rooms as $room) {
+            $ef = (array) ($room['engineer_feedback'] ?? []);
+            if (! empty($ef) && (
+                ! empty($ef['mounting_heights']) ||
+                ! empty($ef['work_at_height_methods']) ||
+                ! empty($ef['cable_routes']) ||
+                ! empty($ef['wall_construction']) ||
+                ! empty($ef['wall_needs_reinforcement']) ||
+                ! empty($ef['wall_needs_chase_out']) ||
+                ! empty($ef['wall_needs_conduit']) ||
+                ! empty($ef['brackets_required']) ||
+                ! empty($ef['table_info']) ||
+                ! empty($ef['floor_box_info'])
+            )) {
+                $anyEf = true; break;
+            }
+        }
+        if (! $anyEf) return;
+
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, 'Engineer Survey Findings');
+
+        $methodLabels = [
+            'ladder' => 'Ladder', 'podium' => 'Podium steps', 'tower' => 'Access tower',
+            'mewp' => 'MEWP', 'scaffold' => 'Scaffold', 'na' => 'Not required',
+        ];
+        $wallConstructionLabels = [
+            'ply_lined' => 'Ply-lined', 'solid' => 'Solid wall', 'plasterboard' => 'Plasterboard',
+            'masonry' => 'Masonry / brick', 'metal_stud' => 'Metal stud', 'concrete' => 'Concrete',
+        ];
+        $cableCategoryLabels = [
+            'ceiling_speakers' => 'Ceiling speakers', 'desk_cables' => 'Desk cables',
+            'mic_cables' => 'Microphone cables', 'booking_panel_cables' => 'Booking panel cables',
+            'screen_cables' => 'Screen / display cables', 'rack_to_room' => 'Rack to room',
+            'other' => 'Other',
+        ];
+
+        $vf = $this->font(9);
+        $bf = $this->font(9, bold: true);
+
+        foreach ($rooms as $room) {
+            $ef = (array) ($room['engineer_feedback'] ?? []);
+            $hasEF = ! empty($ef) && (
+                ! empty($ef['mounting_heights']) ||
+                ! empty($ef['work_at_height_methods']) ||
+                ! empty($ef['cable_routes']) ||
+                ! empty($ef['wall_construction']) ||
+                ! empty($ef['wall_needs_reinforcement']) ||
+                ! empty($ef['wall_needs_chase_out']) ||
+                ! empty($ef['wall_needs_conduit']) ||
+                ! empty($ef['brackets_required']) ||
+                ! empty($ef['table_info']) ||
+                ! empty($ef['floor_box_info'])
+            );
+            if (! $hasEF) continue;
+
+            $roomName = (string) ($room['name'] ?? 'Room');
+            $section->addText(
+                'Engineer Survey Findings — ' . $this->t($roomName),
+                $this->font(10, bold: true, colour: self::TEAL),
+                ['spaceBefore' => 100, 'spaceAfter' => 60],
+            );
+
+            // ── Mounting heights ─────────────────────────────────────────────
+            $mh = (array) ($ef['mounting_heights'] ?? []);
+            $heightRows = [];
+            foreach ([
+                'screen_h_m' => 'Screen', 'camera_h_m' => 'Camera',
+                'booking_panel_h_m' => 'Booking panel', 'speaker_h_m' => 'Speaker',
+            ] as $k => $lbl) {
+                if (! empty($mh[$k])) $heightRows[] = $lbl . ': ' . $mh[$k] . ' m';
+            }
+            foreach ((array) ($mh['other'] ?? []) as $other) {
+                $oLbl = trim((string) ($other['label'] ?? ''));
+                $oH = $other['h_m'] ?? null;
+                if ($oLbl !== '' && $oH !== null && $oH !== '') {
+                    $heightRows[] = $oLbl . ': ' . $oH . ' m';
+                }
+            }
+            if (! empty($heightRows)) {
+                $section->addText('Installation heights: ', $bf, ['spaceBefore' => 40]);
+                $section->addText($this->t(implode(' • ', $heightRows)), $vf, ['spaceAfter' => 40]);
+            }
+
+            // ── Working at height methods ────────────────────────────────────
+            $wahLabels = array_values(array_filter(array_map(
+                fn ($m) => $methodLabels[strtolower((string) $m)] ?? ucfirst((string) $m),
+                (array) ($ef['work_at_height_methods'] ?? [])
+            )));
+            if (! empty($wahLabels)) {
+                $section->addText('Working at height — methods on site: ', $bf, ['spaceBefore' => 40]);
+                $section->addText($this->t(implode(', ', $wahLabels)), $vf, ['spaceAfter' => 40]);
+            }
+
+            // ── Cable routes ─────────────────────────────────────────────────
+            $cableRoutes = (array) ($ef['cable_routes'] ?? []);
+            if (! empty($cableRoutes)) {
+                $section->addText('Cable routes planned:', $bf, ['spaceBefore' => 40, 'spaceAfter' => 40]);
+                foreach ($cableRoutes as $cr) {
+                    $catKey = (string) ($cr['category'] ?? '');
+                    $cat = $cableCategoryLabels[$catKey] ?? ucwords(str_replace('_', ' ', $catKey));
+                    $len = ! empty($cr['length_m']) ? ($cr['length_m'] . ' m') : '';
+                    $from = trim((string) ($cr['from'] ?? ''));
+                    $to = trim((string) ($cr['to'] ?? ''));
+                    $route = ($from && $to) ? ($from . ' → ' . $to) : ($from ?: $to);
+                    $note = trim((string) ($cr['notes'] ?? ''));
+                    $parts = array_filter([$cat, $route, $len, $note]);
+                    if (! empty($parts)) {
+                        $section->addText('•  ' . $this->t(implode(' — ', $parts)), $vf, ['spaceBefore' => 20, 'spaceAfter' => 20]);
+                    }
+                }
+            }
+
+            // ── Wall construction & prep ─────────────────────────────────────
+            $wcLabels = array_values(array_filter(array_map(
+                fn ($w) => $wallConstructionLabels[strtolower((string) $w)] ?? ucwords(str_replace('_', ' ', (string) $w)),
+                (array) ($ef['wall_construction'] ?? [])
+            )));
+            $prepFlags = [];
+            if (! empty($ef['wall_needs_reinforcement'])) $prepFlags[] = 'Reinforcement required';
+            if (! empty($ef['wall_needs_chase_out']))     $prepFlags[] = 'Chase-out required';
+            if (! empty($ef['wall_needs_conduit']))       $prepFlags[] = 'Conduit installation required';
+            if (! empty($wcLabels) || ! empty($prepFlags)) {
+                $section->addText('Wall construction: ', $bf, ['spaceBefore' => 40]);
+                $section->addText(! empty($wcLabels) ? $this->t(implode(', ', $wcLabels)) : '—', $vf);
+                if (! empty($prepFlags)) {
+                    $section->addText('Prep needed: ', $bf, ['spaceBefore' => 20]);
+                    $section->addText($this->t(implode(', ', $prepFlags)), $vf, ['spaceAfter' => 40]);
+                }
+            }
+
+            // ── Brackets ─────────────────────────────────────────────────────
+            $brackets = (array) ($ef['brackets_required'] ?? []);
+            if (! empty($brackets)) {
+                $section->addText('Brackets to source:', $bf, ['spaceBefore' => 40, 'spaceAfter' => 40]);
+                foreach ($brackets as $b) {
+                    $eq = trim((string) ($b['equipment'] ?? ''));
+                    $mod = trim((string) ($b['model'] ?? ''));
+                    $pull = ! empty($b['pull_out']) ? ' (pull-out)' : '';
+                    $note = trim((string) ($b['notes'] ?? ''));
+                    $line = trim($eq . ($mod ? ' — ' . $mod : '') . $pull);
+                    if ($note !== '') $line .= ' — ' . $note;
+                    if ($line !== '') {
+                        $section->addText('•  ' . $this->t($line), $vf, ['spaceBefore' => 20, 'spaceAfter' => 20]);
+                    }
+                }
+            }
+
+            // ── Table info ───────────────────────────────────────────────────
+            $ti = (array) ($ef['table_info'] ?? []);
+            if (! empty($ti) && (! empty($ti['has_grommets']) || ! empty($ti['notes']))) {
+                $tParts = [];
+                if (! empty($ti['has_grommets'])) {
+                    $tParts[] = ($ti['grommet_count'] ?? '?') . '× ' . trim((string) ($ti['grommet_size'] ?? '')) . ' grommets';
+                }
+                if (! empty($ti['notes'])) $tParts[] = $ti['notes'];
+                $section->addText('Table: ', $bf, ['spaceBefore' => 40]);
+                $section->addText($this->t(implode(' — ', array_filter($tParts))), $vf, ['spaceAfter' => 40]);
+            }
+
+            // ── Floor box info ───────────────────────────────────────────────
+            $fb = (array) ($ef['floor_box_info'] ?? []);
+            if (! empty($fb) && (! empty($fb['has_floor_box']) || ! empty($fb['notes']))) {
+                $fParts = [];
+                if (! empty($fb['has_floor_box'])) {
+                    $fParts[] = ($fb['power_outlets'] ?? 0) . ' power, ' . ($fb['data_outlets'] ?? 0) . ' data';
+                    if (! empty($fb['cable_space'])) $fParts[] = trim((string) $fb['cable_space']) . ' cable space';
+                }
+                if (! empty($fb['notes'])) $fParts[] = $fb['notes'];
+                $section->addText('Floor box: ', $bf, ['spaceBefore' => 40]);
+                $section->addText($this->t(implode(' — ', array_filter($fParts))), $vf, ['spaceAfter' => 40]);
             }
         }
     }
@@ -648,20 +906,32 @@ class DocxBuilderService
                 'lead engineer'    => 'CSCS Card, IPAF (if applicable), relevant AV experience',
                 'project manager'  => 'SMSTS or equivalent',
             ];
-            // Aggregate by role
+            // Aggregate by role, collecting names so the table reads
+            // "Lead Engineer — Simon Pittaway" instead of bare "Lead Engineer".
             $roleGroups = [];
             foreach ($team as $member) {
-                $role = (string)($member['role'] ?? 'Engineer');
-                $roleGroups[$role] = ($roleGroups[$role] ?? 0) + 1;
+                $role = (string) ($member['role'] ?? 'Engineer');
+                $name = trim((string) ($member['name'] ?? ''));
+                if (! isset($roleGroups[$role])) {
+                    $roleGroups[$role] = ['qty' => 0, 'names' => []];
+                }
+                $roleGroups[$role]['qty']++;
+                if ($name !== '') {
+                    $roleGroups[$role]['names'][] = $name;
+                }
             }
             $i = 0;
-            foreach ($roleGroups as $role => $qty) {
-                $bg  = ($i % 2 === 0) ? $vcWhite : $vcAlt;
-                $req = $reqMap[strtolower($role)] ?? 'CSCS Card, AV installation experience';
+            foreach ($roleGroups as $role => $info) {
+                $bg     = ($i % 2 === 0) ? $vcWhite : $vcAlt;
+                $req    = $reqMap[strtolower($role)] ?? 'CSCS Card, AV installation experience';
+                $names  = array_values(array_unique($info['names']));
+                $label  = $names
+                    ? $role . ' — ' . implode(', ', $names)
+                    : $role;
                 $row = $teamTable->addRow(400);
-                $row->addCell(2600, $bg)->addText($this->t($role), $vf);
-                $row->addCell(800,  $bg)->addText((string)$qty,    $vf, ['alignment' => Jc::CENTER]);
-                $row->addCell(6466, $bg)->addText($req,            $vf);
+                $row->addCell(2600, $bg)->addText($this->t($label),    $vf);
+                $row->addCell(800,  $bg)->addText((string)$info['qty'],$vf, ['alignment' => Jc::CENTER]);
+                $row->addCell(6466, $bg)->addText($req,                $vf);
                 $i++;
             }
         } else {
@@ -669,6 +939,32 @@ class DocxBuilderService
             $row->addCell(2600, $vcWhite)->addText('Lead Engineer',                         $vf);
             $row->addCell(800,  $vcWhite)->addText('1',                                     $vf, ['alignment' => Jc::CENTER]);
             $row->addCell(6466, $vcWhite)->addText('CSCS Card, AV installation experience', $vf);
+        }
+
+        // ── 6.1.1 Site Vehicles & Registrations ───────────────────────────────
+        // Engineer-supplied vehicle list (registration numbers required for
+        // site security / parking permits at locations like power stations).
+        $vehicles = array_values(array_filter(
+            array_map('trim', (array) ($data['site_vehicles'] ?? [])),
+            fn (string $v) => $v !== '',
+        ));
+        if (! empty($vehicles)) {
+            $section->addTextBreak(1);
+            $section->addText('Site Vehicles & Registrations', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 60]);
+            $vehTable = $section->addTable($this->tableStyle());
+            $this->tealHeader($vehTable, ['Vehicle Registration', 'Notes'], [3200, 6666]);
+            foreach ($vehicles as $vi => $entry) {
+                // Allow "REG123 - Description" style entries — split at first " - ".
+                $reg  = $entry;
+                $note = '';
+                if (str_contains($entry, ' - ')) {
+                    [$reg, $note] = explode(' - ', $entry, 2);
+                }
+                $bg = ($vi % 2 === 0) ? $vcWhite : $vcAlt;
+                $tr = $vehTable->addRow(360);
+                $tr->addCell(3200, $bg)->addText($this->t(trim($reg)),  $vf);
+                $tr->addCell(6666, $bg)->addText($this->t(trim($note)), $vf);
+            }
         }
 
         $section->addTextBreak(1);
