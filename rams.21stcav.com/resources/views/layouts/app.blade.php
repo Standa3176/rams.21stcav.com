@@ -1463,10 +1463,29 @@
                     this._trigger = null;
                     this._targetEl = null;
                     if (r) r(true);
-                    // If invoked from a form/button intercept, trigger the actual action
+                    // If invoked from a form/button intercept, trigger the actual action.
+                    // Uses requestSubmit() with the original submit button when available
+                    // — this preserves form association, hidden _method (DELETE/PUT) and
+                    // formaction/formmethod attributes that plain form.submit() can drop
+                    // on Safari + display:contents forms.
                     if (trig === 'submit' && tgt) {
                         tgt.removeAttribute('data-confirm');
-                        tgt.submit();
+                        const submitBtn = tgt.querySelector('button[type=submit], input[type=submit]');
+                        try {
+                            if (typeof tgt.requestSubmit === 'function') {
+                                // requestSubmit() fires a real submit event we already
+                                // intercepted once; data-confirm is now removed so the
+                                // capture handler short-circuits and the browser submits
+                                // natively, preserving _method spoof + CSRF.
+                                tgt.requestSubmit(submitBtn || undefined);
+                            } else {
+                                // Older browsers: fall back to plain submit().
+                                tgt.submit();
+                            }
+                        } catch (e) {
+                            // Last resort if requestSubmit throws (very old Safari):
+                            try { tgt.submit(); } catch (_) {}
+                        }
                     } else if (trig === 'click' && tgt) {
                         tgt.dataset._confirmBypass = '1';
                         tgt.click();
