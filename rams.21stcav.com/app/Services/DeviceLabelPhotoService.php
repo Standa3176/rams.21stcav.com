@@ -42,12 +42,20 @@ class DeviceLabelPhotoService
             default      => 'jpg',
         };
 
+        // Read the file bytes BEFORE Storage moves the temp upload — once
+        // putFileAs() runs, $file->getRealPath() points to a moved/missing
+        // path and file_get_contents() returns false → base64 of false is
+        // an empty string → Claude vision API receives an empty image →
+        // returns "I don't see any image attached" → ai_extracted is null.
+        $imageBytes = (string) @file_get_contents($file->getRealPath());
+        $mediaType  = $file->getMimeType() ?? 'image/jpeg';
+
         $basename  = (string) Str::uuid() . '.' . $extension;
         $directory = "projects/{$project->id}/labels";
         $storedPath = "{$directory}/{$basename}";
         Storage::disk('public')->putFileAs($directory, $file, $basename);
 
-        $aiExtracted = $this->extractWithAI($file);
+        $aiExtracted = $this->extractWithAI($imageBytes, $mediaType, $storedPath);
 
         $photo = DeviceLabelPhoto::create([
             'project_id'   => $project->id,
@@ -112,11 +120,36 @@ class DeviceLabelPhotoService
 
     // ── Private ──────────────────────────────────────────────────────────────
 
-    private function extractWithAI(UploadedFile $file): ?array
+    /**
+     * Extract part / serial / MAC / model / manufacturer from the captured
+     * label image via Claude vision.
+     *
+     * Takes the raw bytes (read before Storage::putFileAs moved the temp
+     * upload) plus a fallback storage path so we can re-read from the
+     * persisted location if the pre-upload read came back empty.
+     */
+    private function extractWithAI(string $imageBytes, string $mediaType, string $storedPath = ''): ?array
     {
+        // Defensive fallback: if the pre-upload read came back empty for any
+        // reason, try to re-read from the persisted file. This handles edge
+        // cases where the temp upload was moved before our read landed.
+        if ($imageBytes === '' && $storedPath !== '') {
+            try {
+                $imageBytes = (string) Storage::disk('public')->get($storedPath);
+            } catch (\Throwable $e) {
+                // fall through to the empty-bytes guard below
+            }
+        }
+
+        if ($imageBytes === '') {
+            Log::warning('DeviceLabelPhotoService: AI extraction skipped — image bytes are empty', [
+                'stored_path' => $storedPath,
+            ]);
+            return null;
+        }
+
         try {
-            $base64    = base64_encode(file_get_contents($file->getRealPath()));
-            $mediaType = $file->getMimeType() ?? 'image/jpeg';
+            $base64 = base64_encode($imageBytes);
 
             $prompt = (new LabelExtractionPrompt())->setImage($base64, $mediaType);
             $result = AIManager::run($prompt, []);
@@ -125,6 +158,8 @@ class DeviceLabelPhotoService
         } catch (\Throwable $e) {
             Log::warning('DeviceLabelPhotoService: AI extraction failed (engineer can still fill manually)', [
                 'error' => $e->getMessage(),
+                'image_bytes_len' => strlen($imageBytes),
+                'media_type' => $mediaType,
             ]);
 
             return null;
