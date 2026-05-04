@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Installation Programme & Field Management — SHIPPED 2026-04-25
 status: completed
-last_updated: "2026-05-04T15:55:00.000Z"
-last_activity: 2026-05-04 -- Completed quick task 260504-nbt: fix confirm modal DELETE/PUT method spoof on Safari (use requestSubmit())
+last_updated: "2026-05-04T18:30:00.000Z"
+last_activity: 2026-05-04 -- Completed quick task 260504-q19: Asset Register tab on project page + sign-off two-checkbox UX rework (plus 8 other fixes shipped today: confirm modal collision, label OCR cache + Opus model, file-handle bug, sticky save bar, image quality bump)
 progress:
   total_phases: 4
   completed_phases: 3
