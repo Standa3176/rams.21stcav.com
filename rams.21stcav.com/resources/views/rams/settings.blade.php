@@ -4,6 +4,10 @@
 
 @section('content')
 
+<x-edit-action-bar :form-id="'ai-settings-form'" :cancel-url="route('rams.index')">
+    <x-slot:title>AI Provider Settings</x-slot:title>
+</x-edit-action-bar>
+
 @php
 $currentProvider = $currentProvider ?? 'claude';
 $claudeModel     = $claudeModel ?? 'claude-sonnet-4-6';
@@ -67,7 +71,7 @@ API keys are stored in the <code>.env</code> file.
 Leave blank to keep existing keys.
 </div>
 
-<form method="POST" action="{{ route('rams.settings.save') }}">
+<form method="POST" action="{{ route('rams.settings.save') }}" id="ai-settings-form">
 @csrf
 
 {{-- Provider selection --}}
