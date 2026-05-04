@@ -111,6 +111,19 @@
                target="_blank"
                aria-label="Download Worksheet DOCX">↓ Download</a>
         @endif
+        @if(in_array($worksheet->status, ['draft', 'final', 'failed']))
+            <form method="POST"
+                  action="{{ route('worksheets.retry-generation', $worksheet) }}"
+                  onsubmit="return confirm('Regenerate this worksheet? The current DOCX will be replaced.');"
+                  style="display:inline;">
+                @csrf
+                <button type="submit"
+                        class="btn-outline btn-sm"
+                        aria-label="Regenerate Worksheet DOCX">
+                    ↻ Regenerate
+                </button>
+            </form>
+        @endif
         @if($worksheet->project)
             <a href="{{ route('projects.show', $worksheet->project) }}" class="btn-outline btn-sm">← Back to Project</a>
         @else
@@ -371,6 +384,19 @@
                aria-label="Download Worksheet DOCX">Download DOCX</a>
         @else
             <span style="font-size:.875rem;color:var(--text-muted);">DOCX available once generation is complete.</span>
+        @endif
+        @if(in_array($worksheet->status, ['draft', 'final', 'failed']))
+            <form method="POST"
+                  action="{{ route('worksheets.retry-generation', $worksheet) }}"
+                  onsubmit="return confirm('Regenerate this worksheet? The current DOCX will be replaced.');"
+                  style="display:inline;">
+                @csrf
+                <button type="submit"
+                        class="btn-outline btn-sm"
+                        aria-label="Regenerate Worksheet DOCX">
+                    ↻ Regenerate
+                </button>
+            </form>
         @endif
     </div>
     <div>

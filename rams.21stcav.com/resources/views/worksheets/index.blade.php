@@ -68,6 +68,18 @@
                                        target="_blank"
                                        aria-label="Download Worksheet DOCX">↓ Download</a>
                                 @endif
+                                @if(in_array($w->status, ['draft', 'final', 'failed']))
+                                    <form method="POST"
+                                          action="{{ route('worksheets.retry-generation', $w) }}"
+                                          onsubmit="return confirm('Regenerate this worksheet? The current DOCX will be replaced.');"
+                                          style="display:inline;">
+                                        @csrf
+                                        <button type="submit"
+                                                class="btn-outline btn-sm"
+                                                aria-label="Regenerate Worksheet DOCX"
+                                                title="Regenerate">↻</button>
+                                    </form>
+                                @endif
                             </td>
                         </tr>
                     @endforeach
