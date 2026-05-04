@@ -81,4 +81,18 @@ class LabelExtractionPrompt extends BasePrompt
     {
         return 0.2;
     }
+
+    /**
+     * Override the global Claude model for label OCR. Sonnet 4.6 (the global
+     * default) is too conservative on small/angled labels and consistently
+     * returns UNKNOWN, low-confidence even on legible text. Opus 4.7 has
+     * materially stronger vision/OCR and is the right model for this single
+     * vision-heavy use case. Falls back to the global default if the
+     * configured model is invalid (Anthropic returns 400 → AIManager retries
+     * once before raising AIGenerationException).
+     */
+    public function modelOverride(): ?string
+    {
+        return env('CLAUDE_VISION_MODEL', 'claude-opus-4-7');
+    }
 }

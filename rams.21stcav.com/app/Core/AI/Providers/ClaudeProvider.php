@@ -55,11 +55,62 @@ class ClaudeProvider implements AIProviderContract
             'prompt_class' => get_class($prompt),
         ];
 
+        // Per-prompt model override — vision-heavy prompts (e.g. label OCR)
+        // can request a stronger model than the global default. Falls
+        // through to $this->model when modelOverride() returns null.
+        if (method_exists($prompt, 'modelOverride')) {
+            $override = $prompt->modelOverride();
+            if (is_string($override) && $override !== '') {
+                $options['model_override'] = $override;
+            }
+        }
+
         if ($prompt->usesPdf()) {
             return $this->completeWithPdf($prompt->getPdfBase64(), $text, $options);
         }
 
+        if ($prompt->usesImage()) {
+            $payload = $this->buildImagePayload(
+                $prompt->getImageBase64(),
+                $prompt->getImageMediaType() ?? 'image/jpeg',
+                $text,
+                $options
+            );
+
+            return $this->dispatch($payload, $options);
+        }
+
         return $this->completeJson($text, $options);
+    }
+
+    private function buildImagePayload(string $imageBase64, string $mediaType, string $prompt, array $options): array
+    {
+        $payload = [
+            'model'      => $options['model_override'] ?? $this->model,
+            'max_tokens' => $options['max_tokens'] ?? 4096,
+            'messages'   => [
+                [
+                    'role'    => 'user',
+                    'content' => [
+                        [
+                            'type'   => 'image',
+                            'source' => [
+                                'type'       => 'base64',
+                                'media_type' => $mediaType,
+                                'data'       => $imageBase64,
+                            ],
+                        ],
+                        ['type' => 'text', 'text' => $prompt],
+                    ],
+                ],
+            ],
+        ];
+
+        if (! empty($options['system'])) {
+            $payload['system'] = $options['system'];
+        }
+
+        return $payload;
     }
 
     public function getProviderKey(): string
