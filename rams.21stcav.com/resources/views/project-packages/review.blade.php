@@ -259,7 +259,9 @@
     <div style="display:flex;gap:.5rem;align-items:center;">
         <span class="badge badge-grey" style="font-size:.75rem;">{{ ucfirst($package->status) }}</span>
         <form method="POST" action="{{ route('quote-import.reextract', $package) }}" style="margin:0;"
-              onsubmit="return confirm('Re-extract this package from the stored PDF?\n\nThis will refresh all data including Room Overviews. Any unsaved edits will be lost.');">
+              data-confirm="Re-extract this package from the stored PDF? This will refresh all data including Room Overviews. Any unsaved edits will be lost."
+              data-confirm-label="Re-extract"
+              data-confirm-danger="1">
             @csrf
             <button type="submit" class="btn btn-outline btn-sm" title="Re-run the parser against the stored PDF to refresh extracted data">
                 🔄 Re-extract PDF
@@ -983,6 +985,54 @@
                 </table>
             </div>
 
+            {{-- Site Vehicles & Registrations — required for site security
+                 / parking permits (e.g. power stations, MOD sites). One entry
+                 per row. Format: "REG ABC123 - Crew van" (notes after " - "). --}}
+            <div class="form-group" style="margin-top:1.25rem;">
+                <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;margin-bottom:.5rem;">
+                    <div>
+                        <label class="form-label" style="margin-bottom:.15rem;">Site Vehicles &amp; Registrations</label>
+                        <p style="font-size:.78rem;color:#666;margin:0;">
+                            One vehicle per line. Format <code>REG - Notes</code> (e.g. <code>AB12 CDE - Crew van</code>).
+                        </p>
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="addVehicleRow()">+ Add Vehicle</button>
+                </div>
+                <table class="programme-table">
+                    <thead>
+                        <tr>
+                            <th>Vehicle Reg / Notes</th>
+                            <th class="col-del"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="vehicles-tbody">
+                        @php
+                            $siteVehicles = old('programme.site_vehicles',
+                                $reviewPayload['programme']['site_vehicles'] ?? []);
+                        @endphp
+                        @forelse ($siteVehicles as $vi => $veh)
+                        <tr data-vehicle-row="1">
+                            <td>
+                                <input type="text"
+                                       name="programme[site_vehicles][{{ $vi }}]"
+                                       value="{{ is_array($veh) ? ($veh[0] ?? '') : $veh }}"
+                                       placeholder="AB12 CDE - Crew van" maxlength="120">
+                            </td>
+                            <td class="col-del">
+                                <button type="button" class="btn-remove" onclick="removeRow(this)" title="Remove">✕</button>
+                            </td>
+                        </tr>
+                        @empty
+                        <tr data-empty-vehicle-row="1">
+                            <td colspan="2" style="color:#888;font-size:.82rem;padding:.75rem 1rem;">
+                                No vehicles added yet.
+                            </td>
+                        </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
         </div>
     </div>
 
@@ -1321,10 +1371,10 @@
         </button>
 
         {{-- Approve: posts to the approve endpoint (generation triggered from project page) --}}
-        <button type="submit"
+        <button type="button"
                 id="btn-approve"
                 class="btn btn-teal"
-                onclick="return confirmApprove()">
+                onclick="confirmApprove().then(function(ok){ if(ok){ var f = document.getElementById('btn-approve').closest('form'); if (f) f.submit(); } });">
             ✓ Save &amp; Return
         </button>
     </div>
@@ -1435,8 +1485,8 @@ function addRow(tbodyId, templateFn, category) {
     if (first) first.focus();
 }
 
-function removeRow(btn) {
-    if (! confirm('Remove this row? This cannot be undone.')) return;
+async function removeRow(btn) {
+    if (!(await window.appConfirm('Remove this row? This cannot be undone.', { title:'Remove row?', confirmLabel:'Remove', danger:true }))) return;
     const row = btn.closest('tr');
     if (row) {
         const tbody = row.closest('tbody');
@@ -1457,7 +1507,7 @@ function equipAutoGrow(el) {
 // ─── AI line cleanup — normalises part numbers + shortens descriptions ───────
 async function cleanupEquipmentLines(btn) {
     if (!btn) return;
-    if (!confirm('Run AI to tidy every line item?\n\nThis rewrites part numbers (e.g. all-caps + dashes) and shortens product descriptions across the whole equipment list. Unsaved edits will be overwritten by the saved (server-side) data, so save first if you have uncommitted changes.')) return;
+    if (!(await window.appConfirm('Run AI to tidy every line item? This rewrites part numbers (e.g. all-caps + dashes) and shortens product descriptions across the whole equipment list. Unsaved edits will be overwritten by the saved (server-side) data, so save first if you have uncommitted changes.', { title:'Tidy line items?', confirmLabel:'Tidy' }))) return;
     const original = btn.textContent;
     btn.disabled    = true;
     btn.textContent = 'Tidying…';
@@ -1675,11 +1725,11 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 // ─── Approve confirmation ─────────────────────────────────────────────────────
+// Returns a Promise<boolean> — callers must use .then() / await.
 function confirmApprove() {
-    return confirm(
-        'Save this reviewed project data?\n\n' +
-        'This data will be used for all document generation. ' +
-        'You can still edit and re-save at any time.'
+    return window.appConfirm(
+        'Save this reviewed project data? This data will be used for all document generation. You can still edit and re-save at any time.',
+        { title:'Save reviewed data?', confirmLabel:'Save' }
     );
 }
 
@@ -1853,7 +1903,7 @@ async function generateWorksBullets(btn) {
         alert('Type or generate a scope / works overview first.');
         return;
     }
-    if (target.value.trim() !== '' && !confirm('This will replace the current bullets. Continue?')) {
+    if (target.value.trim() !== '' && !(await window.appConfirm('This will replace the current bullets. Continue?', { title:'Replace bullets?', confirmLabel:'Replace' }))) {
         return;
     }
 
@@ -2013,7 +2063,7 @@ function syncRoomNameToEquipment(input) {
 }
 
 // ─── Generate survey rooms for a hardware area ────────────────────────────────
-function generateSurveyRooms(area, btn) {
+async function generateSurveyRooms(area, btn) {
     const row       = btn.closest('tr');
     const input     = row ? row.querySelector('.room-gen-qty')   : null;
     const namesInp  = row ? row.querySelector('.room-gen-names') : null;
@@ -2034,9 +2084,10 @@ function generateSurveyRooms(area, btn) {
     const previewLabel = namesList.length > 0
         ? `${qty} room(s): ${namesList.join(', ')}`
         : `${qty} room(s)`;
-    if (! confirm(
-        `This will replace any existing "${area}" rooms in the linked survey with ${previewLabel}.\n\nContinue?`
-    )) {
+    if (!(await window.appConfirm(
+        `This will replace any existing "${area}" rooms in the linked survey with ${previewLabel}. Continue?`,
+        { title:'Replace survey rooms?', confirmLabel:'Replace' }
+    ))) {
         return;
     }
 
@@ -2113,6 +2164,23 @@ function addProgrammerRow() {
     tr.setAttribute('data-programmer-row', '1');
     tr.innerHTML = `
         <td><input type="text" name="programme[programmers][${idx}]" placeholder="Full name" maxlength="255"></td>
+        <td class="col-del"><button type="button" class="btn-remove" onclick="removeRow(this)" title="Remove">✕</button></td>`;
+    tbody.appendChild(tr);
+    tr.querySelector('input')?.focus();
+}
+
+// ─── Site vehicle rows ────────────────────────────────────────────────────────
+let vehicleCount = {{ count($reviewPayload['programme']['site_vehicles'] ?? []) }};
+
+function addVehicleRow() {
+    const tbody = document.getElementById('vehicles-tbody');
+    const emptyRow = tbody.querySelector('tr[data-empty-vehicle-row]');
+    if (emptyRow) emptyRow.remove();
+    const idx = vehicleCount++;
+    const tr = document.createElement('tr');
+    tr.setAttribute('data-vehicle-row', '1');
+    tr.innerHTML = `
+        <td><input type="text" name="programme[site_vehicles][${idx}]" placeholder="AB12 CDE - Crew van" maxlength="120"></td>
         <td class="col-del"><button type="button" class="btn-remove" onclick="removeRow(this)" title="Remove">✕</button></td>`;
     tbody.appendChild(tr);
     tr.querySelector('input')?.focus();

@@ -610,22 +610,25 @@
             <x-slot name="actions">
                 @if (! $project->isArchived() && $nextStatus)
                     @php $nextLabel = \App\Models\Project::STATUS_LABELS[$nextStatus]; @endphp
-                    <form method="POST" action="{{ route('projects.transition', $project) }}" class="m-0">
+                    <form method="POST" action="{{ route('projects.transition', $project) }}" class="m-0"
+                          data-confirm="Advance project to {{ $nextLabel }}?"
+                          data-confirm-label="Advance">
                         @csrf
                         <input type="hidden" name="to_status" value="{{ $nextStatus }}">
                         <button type="submit"
-                                class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm"
-                                onclick="return confirm('Advance project to {{ $nextLabel }}?')">
+                                class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">
                             Advance → {{ $nextLabel }}
                         </button>
                     </form>
                 @endif
                 @if (! $project->isArchived())
-                    <form method="POST" action="{{ route('projects.archive', $project) }}" class="m-0">
+                    <form method="POST" action="{{ route('projects.archive', $project) }}" class="m-0"
+                          data-confirm="Archive this project?"
+                          data-confirm-label="Archive"
+                          data-confirm-danger="1">
                         @csrf
                         <button type="submit"
-                                class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm"
-                                onclick="return confirm('Archive this project?')">
+                                class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">
                             Archive
                         </button>
                     </form>
@@ -743,7 +746,7 @@
                                 <span class="inline-flex items-center gap-2 text-sm text-gray-500"><svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 11-6.219-8.56" stroke-linecap="round"/></svg><span>Processing…</span></span>
                             @elseif ($primaryPackage && $primaryPackage->status === \App\Models\ProjectPackage::STATUS_REVIEWED)
                                 <form method="POST" action="{{ route('rams.from-project', $project) }}" class="m-0 inline-block"
-                                      onsubmit="return {{ $hasCompletedRams ? "confirm('Generate a new RAMS document from the current project data?')" : 'true' }};">
+                                      @if($hasCompletedRams) data-confirm="Generate a new RAMS document from the current project data?" data-confirm-label="Generate" @endif>
                                     @csrf
                                     <button type="submit"
                                             class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">
@@ -858,7 +861,8 @@
                                                 <a href="{{ route('site-surveys.edit', $survey) }}"
                                                    class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">Edit</a>
                                                 <form method="POST" action="{{ route('site-surveys.complete', $survey) }}" class="m-0 inline-block"
-                                                      onsubmit="return confirm('Mark this survey as completed?');">
+                                                      data-confirm="Mark this survey as completed?"
+                                                      data-confirm-label="Complete">
                                                     @csrf
                                                     <button type="submit"
                                                             class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">✓ Complete</button>
@@ -887,7 +891,9 @@
                                                 </a>
                                                 <div class="row-actions-divider"></div>
                                                 <form method="POST" action="{{ route('site-surveys.destroy', $survey) }}"
-                                                      onsubmit="return confirm('Delete this survey?');">
+                                                      data-confirm="Delete this survey?"
+                                                      data-confirm-label="Delete"
+                                                      data-confirm-danger="1">
                                                     @csrf @method('DELETE')
                                                     <button type="submit" class="row-actions-item row-actions-item--danger">
                                                         <span class="row-actions-item__icon" aria-hidden="true">🗑</span>
@@ -992,7 +998,8 @@
                                                         </a>
                                                         <div class="row-actions-divider"></div>
                                                         <form method="POST" action="{{ route('rams.retry-generation', $rams) }}"
-                                                              onsubmit="return confirm('Rebuild the DOCX from the approved data?');">
+                                                              data-confirm="Rebuild the DOCX from the approved data?"
+                                                              data-confirm-label="Regenerate">
                                                             @csrf
                                                             <button type="submit" class="row-actions-item">
                                                                 <span class="row-actions-item__icon" aria-hidden="true">↻</span>
@@ -1001,7 +1008,9 @@
                                                         </form>
                                                         <div class="row-actions-divider"></div>
                                                         <form method="POST" action="{{ route('rams.destroy', $rams) }}"
-                                                              onsubmit="return confirm('Delete this RAMS document? Admins can restore it later.');">
+                                                              data-confirm="Delete this RAMS document? Admins can restore it later."
+                                                              data-confirm-label="Delete"
+                                                              data-confirm-danger="1">
                                                             @csrf @method('DELETE')
                                                             <button type="submit" class="row-actions-item row-actions-item--danger">
                                                                 <span class="row-actions-item__icon" aria-hidden="true">🗑</span>
@@ -1048,7 +1057,8 @@
                                                         </a>
                                                         <div class="row-actions-divider"></div>
                                                         <form method="POST" action="{{ route('rams.retry-generation', $rams) }}"
-                                                              onsubmit="return confirm('Rebuild the DOCX from the approved data?');">
+                                                              data-confirm="Rebuild the DOCX from the approved data?"
+                                                              data-confirm-label="Regenerate">
                                                             @csrf
                                                             <button type="submit" class="row-actions-item">
                                                                 <span class="row-actions-item__icon" aria-hidden="true">↻</span>
@@ -1057,7 +1067,9 @@
                                                         </form>
                                                         <div class="row-actions-divider"></div>
                                                         <form method="POST" action="{{ route('rams.destroy', $rams) }}"
-                                                              onsubmit="return confirm('Delete this RAMS document? Admins can restore it later.');">
+                                                              data-confirm="Delete this RAMS document? Admins can restore it later."
+                                                              data-confirm-label="Delete"
+                                                              data-confirm-danger="1">
                                                             @csrf @method('DELETE')
                                                             <button type="submit" class="row-actions-item row-actions-item--danger">
                                                                 <span class="row-actions-item__icon" aria-hidden="true">🗑</span>
@@ -1071,7 +1083,9 @@
                                                 @if (empty($ramsHasMenu))
                                                     <x-row-actions-menu>
                                                         <form method="POST" action="{{ route('rams.destroy', $rams) }}"
-                                                              onsubmit="return confirm('Delete this RAMS document? Admins can restore it later.');">
+                                                              data-confirm="Delete this RAMS document? Admins can restore it later."
+                                                              data-confirm-label="Delete"
+                                                              data-confirm-danger="1">
                                                             @csrf @method('DELETE')
                                                             <button type="submit" class="row-actions-item row-actions-item--danger">
                                                                 <span class="row-actions-item__icon" aria-hidden="true">🗑</span>
@@ -1151,7 +1165,8 @@
                                                     <div class="row-actions-divider"></div>
                                                 @endif
                                                 <form method="POST" action="{{ route('worksheets.retry-generation', $ws) }}"
-                                                      onsubmit="return confirm('Rebuild this worksheet from the current project data?');">
+                                                      data-confirm="Rebuild this worksheet from the current project data?"
+                                                      data-confirm-label="Regenerate">
                                                     @csrf
                                                     <button type="submit" class="row-actions-item">
                                                         <span class="row-actions-item__icon" aria-hidden="true">↻</span>
@@ -1160,7 +1175,9 @@
                                                 </form>
                                                 <div class="row-actions-divider"></div>
                                                 <form method="POST" action="{{ route('worksheets.destroy', $ws) }}"
-                                                      onsubmit="return confirm('Delete this worksheet?');">
+                                                      data-confirm="Delete this worksheet?"
+                                                      data-confirm-label="Delete"
+                                                      data-confirm-danger="1">
                                                     @csrf @method('DELETE')
                                                     <button type="submit" class="row-actions-item row-actions-item--danger">
                                                         <span class="row-actions-item__icon" aria-hidden="true">🗑</span>
@@ -1228,7 +1245,9 @@
                                                 </form>
                                                 <div class="row-actions-divider"></div>
                                                 <form method="POST" action="{{ route('cable-schedules.destroy', $cs) }}"
-                                                      onsubmit="return confirm('Delete this cable schedule?');">
+                                                      data-confirm="Delete this cable schedule?"
+                                                      data-confirm-label="Delete"
+                                                      data-confirm-danger="1">
                                                     @csrf @method('DELETE')
                                                     <button type="submit" class="row-actions-item row-actions-item--danger">
                                                         <span class="row-actions-item__icon" aria-hidden="true">🗑</span>
@@ -1324,7 +1343,8 @@
                                                     </a>
                                                     <div class="row-actions-divider"></div>
                                                     <form method="POST" action="{{ route('om-manuals.retry-generation', $manual) }}"
-                                                          onsubmit="return confirm('Rebuild this O&M manual from the existing data?');">
+                                                          data-confirm="Rebuild this O&M manual from the existing data?"
+                                                          data-confirm-label="Regenerate">
                                                         @csrf
                                                         <button type="submit" class="row-actions-item">
                                                             <span class="row-actions-item__icon" aria-hidden="true">↻</span>
@@ -1333,7 +1353,9 @@
                                                     </form>
                                                     <div class="row-actions-divider"></div>
                                                     <form method="POST" action="{{ route('om-manuals.destroy', $manual) }}"
-                                                          onsubmit="return confirm('Delete this O&M manual?');">
+                                                          data-confirm="Delete this O&M manual?"
+                                                          data-confirm-label="Delete"
+                                                          data-confirm-danger="1">
                                                         @csrf @method('DELETE')
                                                         <button type="submit" class="row-actions-item row-actions-item--danger">
                                                             <span class="row-actions-item__icon" aria-hidden="true">🗑</span>
@@ -1352,7 +1374,9 @@
                                             @if (empty($omHasMenu))
                                                 <x-row-actions-menu>
                                                     <form method="POST" action="{{ route('om-manuals.destroy', $manual) }}"
-                                                          onsubmit="return confirm('Delete this O&M manual?');">
+                                                          data-confirm="Delete this O&M manual?"
+                                                          data-confirm-label="Delete"
+                                                          data-confirm-danger="1">
                                                         @csrf @method('DELETE')
                                                         <button type="submit" class="row-actions-item row-actions-item--danger">
                                                             <span class="row-actions-item__icon" aria-hidden="true">🗑</span>
@@ -1639,11 +1663,13 @@
     <p class="text-sm text-gray-600 mb-3">
         Permanently delete this project and all associated data. This cannot be undone.
     </p>
-    <form method="POST" action="{{ route('projects.destroy', $project) }}" class="m-0">
+    <form method="POST" action="{{ route('projects.destroy', $project) }}" class="m-0"
+          data-confirm="Permanently delete project &quot;{{ $project->name }}&quot;? This cannot be undone."
+          data-confirm-label="Delete Project"
+          data-confirm-danger="1">
         @csrf @method('DELETE')
         <button type="submit"
-                class="inline-flex items-center bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-md text-sm font-medium"
-                onclick="return confirm('Permanently delete project &quot;{{ addslashes($project->name) }}&quot;? This cannot be undone.')">
+                class="inline-flex items-center bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-md text-sm font-medium">
             Delete Project
         </button>
     </form>

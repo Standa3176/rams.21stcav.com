@@ -167,11 +167,13 @@ tr.suspended td { opacity: .55; background: #fafafa; }
                             @if (! $isSelf)
                                 <form method="POST"
                                       action="{{ route('admin.users.toggle-active', $u) }}"
+                                      data-confirm="{{ $u->is_active ? 'Suspend' : 'Reactivate' }} {{ $u->name }}?"
+                                      data-confirm-label="{{ $u->is_active ? 'Suspend' : 'Reactivate' }}"
+                                      @if($u->is_active) data-confirm-danger="1" @endif
                                       style="margin:0;">
                                     @csrf
                                     <button type="submit"
-                                            class="btn btn-sm {{ $u->is_active ? 'btn-warning' : 'btn-outline' }}"
-                                            onclick="return confirm('{{ $u->is_active ? 'Suspend' : 'Reactivate' }} {{ addslashes($u->name) }}?')">
+                                            class="btn btn-sm {{ $u->is_active ? 'btn-warning' : 'btn-outline' }}">
                                         {{ $u->is_active ? '⏸ Suspend' : '▶ Reactivate' }}
                                     </button>
                                 </form>
@@ -179,12 +181,14 @@ tr.suspended td { opacity: .55; background: #fafafa; }
                                 {{-- Delete --}}
                                 <form method="POST"
                                       action="{{ route('admin.users.destroy', $u) }}"
+                                      data-confirm="Permanently delete {{ $u->name }}? This cannot be undone."
+                                      data-confirm-label="Delete"
+                                      data-confirm-danger="1"
                                       style="margin:0;">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit"
-                                            class="btn btn-danger btn-sm"
-                                            onclick="return confirm('Permanently delete {{ addslashes($u->name) }}? This cannot be undone.')">
+                                            class="btn btn-danger btn-sm">
                                         ✕ Delete
                                     </button>
                                 </form>

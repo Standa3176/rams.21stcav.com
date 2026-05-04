@@ -251,7 +251,9 @@ tr.soft-deleted td.actions-cell * { pointer-events: auto; }
                                             <form method="POST"
                                                   action="{{ route('rams.force-destroy', $doc->id) }}"
                                                   style="margin:0;"
-                                                  onsubmit="return confirm('Permanently delete this RAMS document?\n\nThis CANNOT be undone — the record and file will be removed forever.');">
+                                                  data-confirm="Permanently delete this RAMS document? This CANNOT be undone — the record and file will be removed forever."
+                                                  data-confirm-label="Delete Forever"
+                                                  data-confirm-danger="1">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="btn btn-danger btn-sm" title="Permanently delete">
@@ -277,7 +279,8 @@ tr.soft-deleted td.actions-cell * { pointer-events: auto; }
                                     @elseif ($status === 'approved' && ! $doc->generated_data)
                                         <form method="POST"
                                               action="{{ route('rams.retry-generation', $doc) }}"
-                                              onsubmit="return confirm('Generate the RAMS document now? The AI will produce the method statement based on your approved data.');"
+                                              data-confirm="Generate the RAMS document now? The AI will produce the method statement based on your approved data."
+                                              data-confirm-label="Generate"
                                               style="margin:0;">
                                             @csrf
                                             <button type="submit" class="btn btn-teal btn-sm" title="Generate RAMS document">
@@ -314,7 +317,8 @@ tr.soft-deleted td.actions-cell * { pointer-events: auto; }
                                             @if (! $sup)
                                                 <form method="POST"
                                                       action="{{ route('rams.retry-generation', $doc) }}"
-                                                      onsubmit="return confirm('Rebuild the DOCX from the approved data? The document will be regenerated in the background.');"
+                                                      data-confirm="Rebuild the DOCX from the approved data? The document will be regenerated in the background."
+                                                      data-confirm-label="Regenerate"
                                                       style="margin:0;">
                                                     @csrf
                                                     <button type="submit" class="btn btn-outline btn-sm" title="Rebuild document">
@@ -326,7 +330,8 @@ tr.soft-deleted td.actions-cell * { pointer-events: auto; }
                                                 @if (! empty($doc->form_data['original_filename'] ?? null))
                                                     <form method="POST"
                                                           action="{{ route('rams.retry-extraction', $doc) }}"
-                                                          onsubmit="return confirm('Re-extract the quote PDF and rebuild the review data? This will overwrite the extracted data for this RAMS.');"
+                                                          data-confirm="Re-extract the quote PDF and rebuild the review data? This will overwrite the extracted data for this RAMS."
+                                                          data-confirm-label="Re-extract"
                                                           style="margin:0;">
                                                         @csrf
                                                         <button type="submit" class="btn btn-outline btn-sm" title="Re-extract quote PDF">
@@ -400,7 +405,9 @@ tr.soft-deleted td.actions-cell * { pointer-events: auto; }
                                     {{-- Delete — only for non-deleted records --}}
                                     <form method="POST"
                                           action="{{ route('rams.destroy', $doc) }}"
-                                          onsubmit="return confirm('Delete this RAMS document? Admins can restore it later.');"
+                                          data-confirm="Delete this RAMS document? Admins can restore it later."
+                                          data-confirm-label="Delete"
+                                          data-confirm-danger="1"
                                           style="margin:0;">
                                         @csrf
                                         @method('DELETE')

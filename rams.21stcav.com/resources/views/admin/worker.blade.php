@@ -134,18 +134,21 @@
         </div>
 
         <div class="btn-group">
-            <form method="POST" action="{{ route('admin.worker.restart') }}">
+            <form method="POST" action="{{ route('admin.worker.restart') }}"
+                  data-confirm="Send queue restart signal? The worker will reload its code on the next job cycle."
+                  data-confirm-label="Restart">
                 @csrf
-                <button class="btn btn-outline btn-sm"
-                        onclick="return confirm('Send queue restart signal? The worker will reload its code on the next job cycle.')">
+                <button class="btn btn-outline btn-sm">
                     ↺ Restart Worker
                 </button>
             </form>
             @if ($isRunning)
-                <form method="POST" action="{{ route('admin.worker.stop') }}">
+                <form method="POST" action="{{ route('admin.worker.stop') }}"
+                      data-confirm="Send stop signal to the worker?"
+                      data-confirm-label="Stop"
+                      data-confirm-danger="1">
                     @csrf
-                    <button class="btn btn-danger-outline btn-sm"
-                            onclick="return confirm('Send stop signal to the worker?')">
+                    <button class="btn btn-danger-outline btn-sm">
                         ⏹ Stop
                     </button>
                 </form>

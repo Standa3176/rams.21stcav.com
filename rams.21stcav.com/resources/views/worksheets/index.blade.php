@@ -71,7 +71,8 @@
                                 @if(in_array($w->status, ['draft', 'final', 'failed']))
                                     <form method="POST"
                                           action="{{ route('worksheets.retry-generation', $w) }}"
-                                          onsubmit="return confirm('Regenerate this worksheet? The current DOCX will be replaced.');"
+                                          data-confirm="Regenerate this worksheet? The current DOCX will be replaced."
+                                          data-confirm-label="Regenerate"
                                           style="display:inline;">
                                         @csrf
                                         <button type="submit"

@@ -57,7 +57,9 @@
                         <a href="{{ route('admin.solution-types.edit', $type) }}"
                            class="btn btn-outline btn-sm" style="font-size:.75rem;">Edit</a>
                         <form method="POST" action="{{ route('admin.solution-types.destroy', $type) }}"
-                              onsubmit="return confirm('Delete {{ addslashes($type->name) }}?');" style="margin:0;">
+                              data-confirm="Delete {{ $type->name }}?"
+                              data-confirm-label="Delete"
+                              data-confirm-danger="1" style="margin:0;">
                             @csrf @method('DELETE')
                             <button type="submit" class="btn btn-danger-outline btn-sm" style="font-size:.75rem;">Delete</button>
                         </form>

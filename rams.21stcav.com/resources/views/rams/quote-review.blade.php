@@ -931,10 +931,10 @@
         </button>
 
         {{-- Approve: posts to the approve endpoint (generation triggered from project page) --}}
-        <button type="submit"
+        <button type="button"
                 id="btn-approve"
                 class="btn btn-teal"
-                onclick="return confirmApprove()">
+                onclick="confirmApprove().then(function(ok){ if (ok) { var f = document.getElementById('review-form'); if (f) f.submit(); } });">
             ✓ Approve
         </button>
     </div>
@@ -1128,11 +1128,11 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 // ─── Approve confirmation ─────────────────────────────────────────────────────
+// Returns a Promise<boolean> — callers must `await` or `.then()`.
 function confirmApprove() {
-    return confirm(
-        'Approve this reviewed data?\n\n' +
-        'Once approved, return to the project page and click Generate to build the RAMS document. ' +
-        'You can still edit and re-approve at any time.'
+    return window.appConfirm(
+        'Approve this reviewed data? Once approved, return to the project page and click Generate to build the RAMS document. You can still edit and re-approve at any time.',
+        { title: 'Approve reviewed data?', confirmLabel: 'Approve' }
     );
 }
 </script>

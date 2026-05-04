@@ -101,7 +101,9 @@
                                         <button type="submit" class="btn btn-outline btn-sm">↩ Restore</button>
                                     </form>
                                     <form method="POST" action="{{ route('om-manuals.force-destroy', $manual->id) }}" style="margin:0;"
-                                          onsubmit="return confirm('Permanently delete this O&amp;M Manual?\n\nThis CANNOT be undone.');">
+                                          data-confirm="Permanently delete this O&amp;M Manual? This CANNOT be undone."
+                                          data-confirm-label="Delete Forever"
+                                          data-confirm-danger="1">
                                         @csrf @method('DELETE')
                                         <button type="submit" class="btn btn-danger btn-sm">✕ Delete Forever</button>
                                     </form>
@@ -191,7 +193,8 @@
                                 @if (! $manual->generated_data || ! $manual->filename)
                                     <form method="POST"
                                           action="{{ route('om-manuals.generate', $manual) }}"
-                                          onsubmit="return confirm('Generate the O&M Manual? This may take up to 2 minutes.');"
+                                          data-confirm="Generate the O&M Manual? This may take up to 2 minutes."
+                                          data-confirm-label="Generate"
                                           style="margin:0;">
                                         @csrf
                                         <button type="submit" class="btn btn-teal btn-sm" title="Run AI generation">
@@ -219,7 +222,9 @@
                                 {{-- Delete --}}
                                 <form method="POST"
                                       action="{{ route('om-manuals.destroy', $manual->id) }}"
-                                      onsubmit="return confirm('Delete this O&amp;M Manual? Admins can restore it later.');"
+                                      data-confirm="Delete this O&amp;M Manual? Admins can restore it later."
+                                      data-confirm-label="Delete"
+                                      data-confirm-danger="1"
                                       style="margin:0;">
                                     @csrf
                                     @method('DELETE')

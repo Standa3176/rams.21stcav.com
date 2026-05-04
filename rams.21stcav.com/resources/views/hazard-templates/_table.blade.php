@@ -88,7 +88,9 @@
                     <a href="{{ route('hazard-templates.edit', $t) }}"
                        class="btn btn-outline btn-sm">Edit</a>
                     <form method="POST" action="{{ route('hazard-templates.destroy', $t) }}"
-                          onsubmit="return confirm('Delete template: {{ addslashes($t->name) }}?');"
+                          data-confirm="Delete template: {{ $t->name }}?"
+                          data-confirm-label="Delete"
+                          data-confirm-danger="1"
                           style="margin:0;">
                         @csrf @method('DELETE')
                         <button type="submit"

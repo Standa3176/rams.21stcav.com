@@ -243,10 +243,12 @@
             <a href="{{ route('rams.download-pdf', $rams) }}" class="btn btn-outline btn-sm"
                onclick="triggerFileDownload(this.href); return false;">↓ PDF</a>
             <a href="{{ route('rams.download', $rams) }}" class="btn btn-outline btn-sm">↓ DOCX</a>
-            <form method="POST" action="{{ route('rams.regenerate', $rams) }}" style="margin:0;display:inline;">
+            <form method="POST" action="{{ route('rams.regenerate', $rams) }}"
+                  data-confirm="Regenerate this RAMS document? The current version will be replaced."
+                  data-confirm-label="Regenerate"
+                  style="margin:0;display:inline;">
                 @csrf
                 <button type="submit" class="btn-regen"
-                        onclick="return confirm('Regenerate this RAMS document? The current version will be replaced.')"
                         aria-label="Regenerate RAMS via AI">
                     ↺ Regenerate
                 </button>
@@ -275,9 +277,12 @@
     @if (session('rams_regen_prompt'))
         <script>
             document.addEventListener('DOMContentLoaded', function () {
-                if (window.confirm('Changes saved.\n\nRegenerate the RAMS document now? You will be taken to the project page where the new document will be generating.')) {
-                    document.getElementById('rams-regen-after-save').submit();
-                }
+                window.appConfirm(
+                    'Changes saved. Regenerate the RAMS document now? You will be taken to the project page where the new document will be generating.',
+                    { title: 'Regenerate RAMS?', confirmLabel: 'Regenerate' }
+                ).then(function (ok) {
+                    if (ok) document.getElementById('rams-regen-after-save').submit();
+                });
             });
         </script>
     @endif

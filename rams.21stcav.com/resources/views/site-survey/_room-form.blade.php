@@ -66,7 +66,7 @@
         @elseif($isModel && !$isNew)
             <span style="font-size:.72rem;font-weight:700;color:#92400E;background:#FDE68A;padding:.15rem .5rem;border-radius:20px;margin-right:.3rem;">In Progress</span>
         @endif
-        <button type="button" onclick="event.stopPropagation();if(confirm('Remove this space from the survey? This cannot be undone.'))this.closest('.room-card').remove()"
+        <button type="button" onclick="event.stopPropagation(); var b=this; window.appConfirm('Remove this space from the survey? This cannot be undone.', { title:'Remove space?', confirmLabel:'Remove', danger:true }).then(function(ok){ if(ok) b.closest('.room-card').remove(); });"
                 style="background:none;border:none;color:#c0392b;cursor:pointer;font-size:1rem;padding:0 .25rem;line-height:1;">&#10005;</button>
     </div>
 

@@ -473,8 +473,8 @@
                 this.sheet.open = true;
                 if (roomName) this.lastRoomName = roomName;
             },
-            dismissSheet() {
-                if (this.sheet.reason.trim() && !confirm('Discard this reason?')) return;
+            async dismissSheet() {
+                if (this.sheet.reason.trim() && !(await window.appConfirm('Discard this reason?', { title: 'Discard reason?', confirmLabel: 'Discard', danger: true }))) return;
                 this.sheet.open = false;
             },
             async submitSheet() {

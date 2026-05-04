@@ -61,7 +61,9 @@
                                     <button type="submit" class="btn btn-outline btn-sm">↩ Restore</button>
                                 </form>
                                 <form method="POST" action="{{ route('cable-schedules.force-destroy', $s->id) }}" style="margin:0;"
-                                      onsubmit="return confirm('Permanently delete this cable schedule?\n\nThis CANNOT be undone.');">
+                                      data-confirm="Permanently delete this cable schedule? This CANNOT be undone."
+                                      data-confirm-label="Delete Forever"
+                                      data-confirm-danger="1">
                                     @csrf @method('DELETE')
                                     <button type="submit" class="btn btn-danger btn-sm">✕ Delete Forever</button>
                                 </form>
@@ -124,7 +126,9 @@
                         <div class="actions">
                             <a href="{{ route('cable-schedules.edit', $s) }}" class="btn btn-outline btn-sm">Edit</a>
                             <form method="POST" action="{{ route('cable-schedules.destroy', $s->id) }}"
-                                  onsubmit="return confirm('Delete this cable schedule? Admins can restore it later.');" style="margin:0;">
+                                  data-confirm="Delete this cable schedule? Admins can restore it later."
+                                  data-confirm-label="Delete"
+                                  data-confirm-danger="1" style="margin:0;">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="btn btn-danger-outline btn-sm">✕</button>
                             </form>

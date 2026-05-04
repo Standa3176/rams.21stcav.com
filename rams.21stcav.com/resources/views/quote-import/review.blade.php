@@ -112,7 +112,8 @@
                     {{-- Re-extract --}}
                     <form method="POST" action="{{ route('quote-import.reextract', $package) }}"
                           style="margin:0;"
-                          onsubmit="return confirm('Re-run AI extraction? This will create a new revision.');">
+                          data-confirm="Re-run AI extraction? This will create a new revision."
+                          data-confirm-label="Re-extract">
                         @csrf
                         <button type="submit" class="btn btn-outline" style="color:#888;">
                             ↺ Re-extract

@@ -147,7 +147,9 @@
                                         <x-actions.secondary-button type="submit">↩ Restore</x-actions.secondary-button>
                                     </form>
                                     <form method="POST" action="{{ route('projects.force-destroy', $project->id) }}" class="form-bare"
-                                          onsubmit="return confirm('Permanently delete project &quot;{{ addslashes($project->name) }}&quot;?\n\nThis CANNOT be undone.');">
+                                          data-confirm="Permanently delete project &quot;{{ $project->name }}&quot;? This CANNOT be undone."
+                                          data-confirm-label="Delete Forever"
+                                          data-confirm-danger="1">
                                         @csrf @method('DELETE')
                                         <button type="submit" class="btn btn-danger btn-sm">✕ Delete Forever</button>
                                     </form>
@@ -236,7 +238,9 @@
                                     View
                                 </x-actions.secondary-button>
                                 <form method="POST" action="{{ route('projects.destroy', $project->id) }}" class="form-bare"
-                                      onsubmit="return confirm('Delete project &quot;{{ addslashes($project->name) }}&quot;?\n\nAdmins can restore it from the deleted projects view.');">
+                                      data-confirm="Delete project &quot;{{ $project->name }}&quot;? Admins can restore it from the deleted projects view."
+                                      data-confirm-label="Delete"
+                                      data-confirm-danger="1">
                                     @csrf @method('DELETE')
                                     <button type="submit" class="btn btn-danger-outline btn-sm" title="Delete project">✕</button>
                                 </form>

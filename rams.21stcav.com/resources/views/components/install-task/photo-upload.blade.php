@@ -87,7 +87,7 @@
         closeLightbox() { this.$refs.lightbox?.close(); this.lightboxUrl = null; },
         async deletePhoto(photo) {
             if (!photo) return;
-            if (!confirm('Delete this photo? This can\'t be undone.')) return;
+            if (!(await window.appConfirm('Delete this photo? This can\'t be undone.', { title: 'Delete photo?', confirmLabel: 'Delete', danger: true }))) return;
             try {
                 const res = await fetch('/install-task-photos/' + photo.id, {
                     method: 'DELETE',

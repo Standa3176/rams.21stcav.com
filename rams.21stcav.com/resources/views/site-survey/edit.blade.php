@@ -417,7 +417,7 @@ function roomCardHtml(i, type) {
              style="display:flex;align-items:center;gap:.6rem;padding:.75rem 1rem;cursor:pointer;user-select:none;border-radius:6px 6px 0 0;">
             <span class="room-card-chevron" style="color:#6B7280;font-size:.9rem;transition:transform 200ms;transform:rotate(90deg);">&#9654;</span>
             <strong class="room-card-label" style="color:#007B8A;flex:1;font-size:.9rem;">New Space</strong>
-            <button type="button" onclick="event.stopPropagation();if(confirm('Remove this space from the survey? This cannot be undone.'))this.closest('.room-card').remove()"
+            <button type="button" onclick="event.stopPropagation(); var b=this; window.appConfirm('Remove this space from the survey? This cannot be undone.', { title:'Remove space?', confirmLabel:'Remove', danger:true }).then(function(ok){ if(ok) b.closest('.room-card').remove(); });"
                     style="background:none;border:none;color:#c0392b;cursor:pointer;font-size:1rem;padding:0 .25rem;line-height:1;">&#10005;</button>
         </div>
         <div class="room-card-body" style="padding:0 1rem 1rem;">

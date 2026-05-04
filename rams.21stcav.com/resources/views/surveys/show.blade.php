@@ -1950,10 +1950,9 @@ function surveyWizard() {
             // photo subject. Engineer can override.
             const photoCount = Array.isArray(r.photos) ? r.photos.length : 0;
             if (photoCount === 0) {
-                const proceed = window.confirm(
-                    'No photos have been captured for this room.\n\n' +
-                    'Photos are critical for the office to plan the install ' +
-                    'without a return visit. Continue without photos?'
+                const proceed = await window.appConfirm(
+                    'No photos have been captured for this room. Photos are critical for the office to plan the install without a return visit. Continue without photos?',
+                    { title: 'No photos captured', confirmLabel: 'Continue', danger: true }
                 );
                 if (!proceed) return;
             }

@@ -36,10 +36,11 @@
         </span>
     </div>
     @if($programme->isDraft() && $programme->tasks->count() > 0)
-        <form method="POST" action="{{ route('install-programmes.activate', $programme) }}">
+        <form method="POST" action="{{ route('install-programmes.activate', $programme) }}"
+              data-confirm="Activate this install programme? This will make it visible to engineers."
+              data-confirm-label="Activate">
             @csrf
-            <button type="submit" class="btn btn-teal"
-                    onclick="return confirm('Activate this install programme? This will make it visible to engineers.')">
+            <button type="submit" class="btn btn-teal">
                 Activate Programme
             </button>
         </form>
@@ -114,7 +115,9 @@
                                 <td style="padding:.45rem .75rem;text-align:right;vertical-align:middle;">
                                     @if($programme->isDraft())
                                         <form method="POST" action="{{ route('install-tasks.destroy', $task) }}"
-                                              onsubmit="return confirm('Remove this task?')">
+                                              data-confirm="Remove this task?"
+                                              data-confirm-label="Remove"
+                                              data-confirm-danger="1">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit"
@@ -137,10 +140,11 @@
 {{-- Bottom activate button (duplicate for long pages) --}}
 @if($programme->isDraft() && $programme->tasks->count() > 0)
     <div style="margin-top:1.5rem;display:flex;justify-content:flex-end;">
-        <form method="POST" action="{{ route('install-programmes.activate', $programme) }}">
+        <form method="POST" action="{{ route('install-programmes.activate', $programme) }}"
+              data-confirm="Activate this install programme? This will make it visible to engineers."
+              data-confirm-label="Activate">
             @csrf
-            <button type="submit" class="btn btn-teal"
-                    onclick="return confirm('Activate this install programme? This will make it visible to engineers.')">
+            <button type="submit" class="btn btn-teal">
                 Activate Programme
             </button>
         </form>

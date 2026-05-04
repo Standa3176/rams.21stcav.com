@@ -2057,14 +2057,14 @@
     }
 
     // ── Confirm + submit final survey ──────────────────────────────────────
-    function confirmSubmit() {
+    async function confirmSubmit() {
         const name = document.getElementById('surveyor_name')?.value?.trim();
         if (!name) {
             alert('Please enter your name before submitting the survey.');
             document.getElementById('surveyor_name')?.focus();
             return;
         }
-        if (!confirm('Submit this survey? You will not be able to edit it after submission.')) {
+        if (!(await window.appConfirm('Submit this survey? You will not be able to edit it after submission.', { title: 'Submit survey?', confirmLabel: 'Submit' }))) {
             return;
         }
         syncHeaderFields();

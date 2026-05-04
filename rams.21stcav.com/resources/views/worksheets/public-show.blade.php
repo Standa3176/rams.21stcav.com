@@ -1430,7 +1430,7 @@
         }
 
         async function deleteWorksheetPhoto(photoId, token, btn) {
-            if (!confirm('Remove this photo?')) return;
+            if (!(await window.appConfirm('Remove this photo?', { title: 'Remove photo?', confirmLabel: 'Remove', danger: true }))) return;
             const url = '/worksheet/' + encodeURIComponent(token) + '/photos/' + photoId;
             try {
                 const resp = await fetch(url, {

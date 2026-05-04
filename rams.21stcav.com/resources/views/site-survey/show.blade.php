@@ -6,158 +6,122 @@
 <style>
 /* ── Progress strip ───────────────────────────────── */
 .survey-progress {
-    background:#fff;
-    border:1px solid var(--border);
-    border-radius:var(--radius);
-    padding:1rem 1.25rem;
-    margin-bottom:1.25rem;
-    display:flex;
-    align-items:center;
-    gap:1.25rem;
-    flex-wrap:wrap;
-    box-shadow:var(--shadow-sm);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+    box-shadow: var(--shadow-xs);
 }
-.survey-progress__stat {
-    text-align:center;
-    min-width:80px;
-}
+.survey-progress__stat { text-align: center; min-width: 80px; }
 .survey-progress__num {
-    font-size:1.75rem;
-    font-weight:800;
-    color:var(--teal);
-    line-height:1;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--teal);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
 }
 .survey-progress__label {
-    font-size:.72rem;
-    font-weight:600;
-    text-transform:uppercase;
-    letter-spacing:.05em;
-    color:var(--text-muted);
-    margin-top:.2rem;
+    font-size: .72rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .05em;
+    color: var(--text-muted);
+    margin-top: .2rem;
 }
-.survey-progress__bar-wrap {
-    flex:1;
-    min-width:160px;
-}
+.survey-progress__bar-wrap { flex: 1; min-width: 160px; }
 .survey-progress__bar-track {
-    background:#e5e7eb;
-    border-radius:6px;
-    height:10px;
-    overflow:hidden;
-    margin-bottom:.35rem;
+    background: var(--surface-deep);
+    border-radius: 6px;
+    height: 8px;
+    overflow: hidden;
+    margin-bottom: .35rem;
 }
 .survey-progress__bar-fill {
-    background: linear-gradient(90deg,#059669,#34d399);
-    height:100%;
-    border-radius:6px;
-    transition:width 400ms;
+    background: var(--teal);
+    height: 100%; border-radius: 6px;
+    transition: width 400ms ease;
 }
-.survey-progress__bar-label {
-    font-size:.8rem;
-    color:var(--text-muted);
-}
+.survey-progress__bar-label { font-size: .8rem; color: var(--text-muted); }
 
-/* ── Tier 1 readiness strip (mirrors survey-progress styling) ─── */
+/* ── Tier 1 readiness strip ──────────────────────── */
 .tier-one-strip {
-    background:#F0FDF4;
-    border:1px solid #A7F3D0;
-    border-radius:var(--radius);
-    padding:.9rem 1.1rem;
-    margin-bottom:1.25rem;
-    display:flex;
-    flex-wrap:wrap;
-    align-items:center;
-    gap:.75rem 1.5rem;
+    background: var(--success-light);
+    border: 1px solid #BBF7D0;
+    border-radius: var(--radius);
+    padding: .9rem 1.1rem;
+    margin-bottom: 1.25rem;
+    display: flex; flex-wrap: wrap;
+    align-items: center;
+    gap: .75rem 1.5rem;
 }
 .tier-one-strip__title {
-    font-size:.75rem;
-    font-weight:700;
-    letter-spacing:.04em;
-    text-transform:uppercase;
-    color:#065F46;
-    flex:0 0 auto;
+    font-size: .75rem; font-weight: 700;
+    letter-spacing: .04em; text-transform: uppercase;
+    color: #166534; flex: 0 0 auto;
 }
-.tier-one-strip__stat {
-    display:flex;
-    flex-direction:column;
-    line-height:1.15;
-}
+.tier-one-strip__stat { display: flex; flex-direction: column; line-height: 1.15; }
 .tier-one-strip__num {
-    font-size:1.35rem;
-    font-weight:700;
-    color:#047857;
+    font-size: 1.35rem; font-weight: 700;
+    color: var(--success);
+    font-variant-numeric: tabular-nums;
 }
-.tier-one-strip__num--muted  { color:#6B7280; }
-.tier-one-strip__num--flag   { color:#B45309; }
+.tier-one-strip__num--muted  { color: var(--text-muted); }
+.tier-one-strip__num--flag   { color: var(--warning); }
 .tier-one-strip__label {
-    font-size:.72rem;
-    color:#4B5563;
-    margin-top:.1rem;
-    letter-spacing:.02em;
+    font-size: .72rem; color: var(--text-muted);
+    margin-top: .1rem; letter-spacing: .02em;
 }
-/* Per-room Tier-1 badge placed inside the existing room header row */
 .tier-one-room-badge {
-    display:inline-flex;
-    align-items:center;
-    gap:.3rem;
-    font-size:.72rem;
-    font-weight:700;
-    border-radius:999px;
-    padding:.15rem .55rem;
-    letter-spacing:.02em;
-    margin-left:.4rem;
+    display: inline-flex; align-items: center; gap: .3rem;
+    font-size: .72rem; font-weight: 700;
+    border-radius: 999px; padding: .15rem .55rem;
+    letter-spacing: .02em; margin-left: .4rem;
 }
-.tier-one-room-badge--ready    { background:#D1FAE5; color:#065F46; }
-.tier-one-room-badge--partial  { background:#FEF3C7; color:#92400E; }
+.tier-one-room-badge--ready    { background: var(--success-light); color: #166534; }
+.tier-one-room-badge--partial  { background: var(--warning-light); color: #92400E; }
 
 /* ── Survey link banner ───────────────────────────── */
 .survey-link-banner {
-    background:#EBF8FA;
-    border:1px solid #94C4C9;
-    border-radius:var(--radius);
-    padding:.75rem 1rem;
-    margin-bottom:1.25rem;
-    display:flex;
-    align-items:center;
-    gap:.75rem;
-    flex-wrap:wrap;
-    font-size:.875rem;
+    background: var(--teal-light);
+    border: 1px solid var(--teal-mid);
+    border-radius: var(--radius);
+    padding: .75rem 1rem;
+    margin-bottom: 1.25rem;
+    display: flex; align-items: center;
+    gap: .75rem; flex-wrap: wrap;
+    font-size: .875rem;
 }
 .survey-link-url {
-    flex:1;
-    font-family:monospace;
-    font-size:.8rem;
-    color:#0B3C45;
-    word-break:break-all;
+    flex: 1;
+    font-family: var(--font-mono);
+    font-size: .8rem;
+    color: var(--teal-deep);
+    word-break: break-all;
 }
 .survey-link-copy {
-    background:#178A95;
-    color:#fff;
-    border:none;
-    border-radius:5px;
-    padding:.35rem .85rem;
-    font-size:.8rem;
-    font-weight:600;
-    cursor:pointer;
-    white-space:nowrap;
+    background: var(--teal); color: #fff;
+    border: none; border-radius: 5px;
+    padding: .35rem .85rem;
+    font-size: .8rem; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+    transition: background var(--transition);
 }
-.survey-link-copy:hover { background:#157B85; }
+.survey-link-copy:hover { background: var(--teal-hover); }
 
 /* ── Room cards ───────────────────────────────────── */
 .survey-room-card {
-    background:#fff;
-    border:1.5px solid #e5e7eb;
-    border-radius:8px;
-    margin-bottom:.75rem;
-    overflow:hidden;
-    box-shadow:var(--shadow-sm);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: .75rem;
+    overflow: hidden;
+    box-shadow: var(--shadow-xs);
 }
-.survey-room-card--complete {
-    border-color:#6EE7B7;
-}
-.survey-room-card--inprogress {
-    border-color:#FCD34D;
-}
+.survey-room-card--complete  { border-color: var(--success); }
+.survey-room-card--inprogress{ border-color: var(--warning); }
 .room-view-hdr {
     display:flex;
     align-items:center;
@@ -381,10 +345,12 @@
         </span>
 
         @if($survey->isDraft())
-            <form method="POST" action="{{ route('site-surveys.complete', $survey) }}" style="margin:0;">
+            <form method="POST" action="{{ route('site-surveys.complete', $survey) }}"
+                  data-confirm="Mark this survey as completed?"
+                  data-confirm-label="Mark Complete"
+                  style="margin:0;">
                 @csrf
-                <button type="submit" class="btn btn-teal btn-sm"
-                        onclick="return confirm('Mark this survey as completed?')">&#10003; Mark Complete</button>
+                <button type="submit" class="btn btn-teal btn-sm">&#10003; Mark Complete</button>
             </form>
         @endif
 
@@ -395,7 +361,12 @@
             type="survey"
             :id="$survey->id"
             label="Site Survey" />
-        @if(auth()->user()?->isAdmin())
+        {{-- Default back-link is the parent project (most common nav target).
+             Falls back to the admin-only Surveys index only when the survey
+             isn't tied to a project AND the viewer is an admin. --}}
+        @if($survey->project)
+            <a href="{{ route('projects.show', $survey->project) }}" class="btn btn-outline btn-sm">&#8592; Back to Project</a>
+        @elseif(auth()->user()?->isAdmin())
             <a href="{{ route('site-surveys.index') }}" class="btn btn-outline btn-sm">&#8592; All Surveys</a>
         @endif
     </div>
@@ -1103,7 +1074,9 @@
 {{-- Delete --}}
 <div style="margin-top:2rem;padding-top:1rem;border-top:1px solid #eee;display:flex;align-items:center;gap:1rem;">
     <form method="POST" action="{{ route('site-surveys.destroy', $survey) }}"
-          onsubmit="return confirm('Permanently delete this survey and all its photos?');" style="margin:0;">
+          data-confirm="Permanently delete this survey and all its photos?"
+          data-confirm-label="Delete Survey"
+          data-confirm-danger="1" style="margin:0;">
         @csrf @method('DELETE')
         <button type="submit" class="btn btn-danger-outline btn-sm">Delete Survey</button>
     </form>
@@ -1250,8 +1223,8 @@ function appendPhoto(roomId, data) {
     const photoBadge = card?.querySelector('[title]');
 }
 
-function deletePhoto(photoId, btn) {
-    if (!confirm('Delete this photo? This cannot be undone.')) return;
+async function deletePhoto(photoId, btn) {
+    if (!(await window.appConfirm('Delete this photo? This cannot be undone.', { title:'Delete photo?', confirmLabel:'Delete', danger:true }))) return;
     btn.disabled = true;
 
     fetch('/site-surveys/photos/' + photoId, {
