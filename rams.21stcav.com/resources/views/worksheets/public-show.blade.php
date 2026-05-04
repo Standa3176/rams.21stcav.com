@@ -1233,13 +1233,16 @@
 
             <p style="font-size:.88rem;color:#4B5563;margin-bottom:.95rem;">
                 By signing below you confirm you have reviewed the installation worksheet for this project.
-                If you have outstanding items, tick the box below and list them in the comments — your sign-off
-                is still recorded but the engineering team will be notified to follow up.
+                Tick which option applies — if you have outstanding items, list them below before signing.
             </p>
 
             <form method="POST"
                   action="{{ route('public-worksheet.sign', ['token' => $token]) }}"
                   id="signoff-form"
+                  x-data="{
+                      happy: {{ old('happy_with_work') ? 'true' : 'false' }},
+                      outstanding: {{ old('signed_with_comments') ? 'true' : 'false' }}
+                  }"
                   onsubmit="return prepareSignoff(this);">
                 @csrf
 
@@ -1266,23 +1269,37 @@
                     <input type="hidden" name="signature_image" id="signature_image" value="">
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label" for="comments">Outstanding Items / Comments</label>
+                {{-- 260504-q19 — two-checkbox gate: at least one must be ticked. --}}
+                <label class="checkbox-row">
+                    <input type="checkbox"
+                           name="happy_with_work"
+                           id="happy_with_work"
+                           value="1"
+                           x-model="happy"
+                           @change="window.refreshSignoffSubmitState && window.refreshSignoffSubmitState()">
+                    <span>I am happy with the work carried out.</span>
+                </label>
+
+                <label class="checkbox-row">
+                    <input type="checkbox"
+                           name="signed_with_comments"
+                           id="signed_with_comments"
+                           value="1"
+                           x-model="outstanding"
+                           @change="window.refreshSignoffSubmitState && window.refreshSignoffSubmitState()">
+                    <span>Outstanding items — list them in the comments below. The engineering team will follow up.</span>
+                </label>
+
+                {{-- Comments textarea — revealed only when "Outstanding items" is ticked. --}}
+                <div class="form-group" x-show="outstanding" x-cloak style="margin-top:.5rem;">
+                    <label class="form-label" for="comments">Outstanding Items / Comments <span class="req">*</span></label>
                     <textarea name="comments"
                               id="comments"
                               class="form-control"
                               rows="4"
                               maxlength="5000"
-                              placeholder="Optional — leave blank if everything is complete">{{ old('comments') }}</textarea>
+                              placeholder="List the outstanding items the engineering team needs to follow up on…">{{ old('comments') }}</textarea>
                 </div>
-
-                <label class="checkbox-row">
-                    <input type="checkbox"
-                           name="signed_with_comments"
-                           value="1"
-                           {{ old('signed_with_comments') ? 'checked' : '' }}>
-                    <span>I am signing with the outstanding items / comments above. The engineering team will follow up.</span>
-                </label>
 
                 <div class="submit-row">
                     <button type="submit"
@@ -1290,7 +1307,7 @@
                             class="btn btn-teal"
                             data-signoff-blocked="{{ $signOffBlocked ? '1' : '0' }}"
                             @disabled(true)
-                            title="{{ $signOffBlocked ? 'Review the survey for all rooms first: ' . implode(', ', $unreviewedRooms) : '' }}">Sign &amp; Submit</button>
+                            title="Please confirm you are happy with the work or list outstanding items, then draw your signature.">Sign &amp; Submit</button>
                 </div>
             </form>
         </div>
@@ -1312,6 +1329,20 @@
             let drawing = false;
             let dirty   = false;
             let lastX = 0, lastY = 0;
+
+            // 260504-q19 — central submit-state gate. Button is enabled only when
+            // all three are true: signature drawn, at least one checkbox ticked,
+            // and not soft-blocked by an unreviewed survey room.
+            window.__signoffSignatureDrawn = false;
+            window.refreshSignoffSubmitState = function () {
+                if (submit.dataset.signoffBlocked === '1') {
+                    submit.disabled = true;
+                    return;
+                }
+                const happy = !!document.getElementById('happy_with_work')?.checked;
+                const outstanding = !!document.getElementById('signed_with_comments')?.checked;
+                submit.disabled = !(window.__signoffSignatureDrawn && (happy || outstanding));
+            };
 
             function resizeCanvas() {
                 // Fit canvas internal pixel grid to displayed size for crisp lines.
@@ -1352,12 +1383,8 @@
                 lastX = p.x; lastY = p.y;
                 if (! dirty) {
                     dirty = true;
-                    // 260504-hqe — keep button disabled when soft-gate flag is set,
-                    // even after signature is drawn. Engineer must mark unreviewed
-                    // rooms first. Server still accepts the post (visual gate only).
-                    if (submit.dataset.signoffBlocked !== '1') {
-                        submit.disabled = false;
-                    }
+                    window.__signoffSignatureDrawn = true;
+                    window.refreshSignoffSubmitState();
                 }
             }
             function end(evt) {
@@ -1376,12 +1403,23 @@
             window.clearSignature = function () {
                 resizeCanvas();
                 dirty = false;
-                submit.disabled = true;
+                window.__signoffSignatureDrawn = false;
+                window.refreshSignoffSubmitState();
                 document.getElementById('signature_image').value = '';
             };
             window.prepareSignoff = function (form) {
                 if (! dirty) {
                     alert('Please draw your signature in the box before submitting.');
+                    return false;
+                }
+                const happy = !!document.getElementById('happy_with_work')?.checked;
+                const outstanding = !!document.getElementById('signed_with_comments')?.checked;
+                if (! happy && ! outstanding) {
+                    alert('Please tick "I am happy with the work carried out" or "Outstanding items" before signing.');
+                    return false;
+                }
+                if (outstanding && (document.getElementById('comments')?.value || '').trim() === '') {
+                    alert('Please list the outstanding items in the comments box.');
                     return false;
                 }
                 document.getElementById('signature_image').value = canvas.toDataURL('image/png');
@@ -1394,9 +1432,14 @@
                 // Reset on resize — drawing on resized canvas would be misaligned.
                 resizeCanvas();
                 dirty = false;
-                submit.disabled = true;
+                window.__signoffSignatureDrawn = false;
+                window.refreshSignoffSubmitState();
                 document.getElementById('signature_image').value = '';
             });
+
+            // Initial sync once DOM is ready (covers old() repopulation after a
+            // failed validation round-trip).
+            requestAnimationFrame(() => window.refreshSignoffSubmitState());
         })();
 
         // ── Photo upload (per-room) ─────────────────────────────────────────

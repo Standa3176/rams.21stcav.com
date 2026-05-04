@@ -283,16 +283,29 @@ class PublicWorksheetController extends Controller
         $data = $request->validate([
             'client_name'          => ['required', 'string', 'max:200'],
             'signature_image'      => ['required', 'string'],   // data:image/png;base64,...
+            'happy_with_work'      => ['nullable', 'boolean'],  // 260504-q19 — UX gate, NOT persisted
             'signed_with_comments' => ['nullable', 'boolean'],
             'comments'             => ['nullable', 'string', 'max:5000'],
         ]);
 
-        // Conditional rule: when the "signed with comments" checkbox is on,
-        // the comments textarea must hold non-whitespace text.
+        // 260504-q19 — at least one of the two checkboxes must be ticked.
+        // happy_with_work is a UX-only flag (not persisted) — a sign-off without
+        // outstanding items is implied by signed_with_comments=0. We still require
+        // the engineer to make an explicit choice on the form.
+        $happy        = filter_var($data['happy_with_work'] ?? false, FILTER_VALIDATE_BOOL);
         $withComments = filter_var($data['signed_with_comments'] ?? false, FILTER_VALIDATE_BOOL);
+
+        if (! $happy && ! $withComments) {
+            return back()
+                ->withErrors(['happy_with_work' => 'Please confirm you are happy with the work or list outstanding items before signing.'])
+                ->withInput();
+        }
+
+        // Conditional rule: when the "outstanding items" checkbox is on,
+        // the comments textarea must hold non-whitespace text.
         if ($withComments && trim((string) ($data['comments'] ?? '')) === '') {
             return back()
-                ->withErrors(['comments' => 'Comments are required when "signed with comments" is ticked.'])
+                ->withErrors(['comments' => 'Please list the outstanding items in the comments box.'])
                 ->withInput();
         }
 
