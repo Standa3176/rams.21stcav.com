@@ -450,12 +450,31 @@
             // and the drawer simply doesn't render — pre-260503-rgg worksheets stay
             // visually identical.
             $efByRoom = [];
+            $siteLogistics = [];
             if ($worksheet->project_id && class_exists(\App\Models\SiteSurvey::class)) {
                 $survey = \App\Models\SiteSurvey::with('rooms')
                     ->where('project_id', $worksheet->project_id)
                     ->latest('id')
                     ->first();
                 if ($survey) {
+                    // ── Site-level logistics (260504-gho) — single inline lookup
+                    //    reuses $survey already loaded for the per-room drawer
+                    //    so this is zero-net DB cost.
+                    $siteLogistics = [
+                        'comms_room_access_status' => (string) ($survey->comms_room_access_status ?? ''),
+                        'comms_room_access_notes'  => (string) ($survey->comms_room_access_notes  ?? ''),
+                        'parking_restraints'       => (string) ($survey->parking_restraints       ?? ''),
+                        'distance_from_base_miles' => $survey->distance_from_base_miles,
+                        'distance_from_base_notes' => (string) ($survey->distance_from_base_notes ?? ''),
+                        'site_access_notes'        => (string) ($survey->site_access_notes        ?? ''),
+                        'delivery_routes'          => (string) ($survey->delivery_routes          ?? ''),
+                    ];
+                    $hasSiteLogistics = false;
+                    foreach ($siteLogistics as $v) {
+                        if ($v !== '' && $v !== null) { $hasSiteLogistics = true; break; }
+                    }
+                    if (! $hasSiteLogistics) $siteLogistics = [];
+
                     foreach ($survey->rooms as $r) {
                         $key = strtolower(trim((string) ($r->room_name ?? '')));
                         if ($key === '') continue;
@@ -474,6 +493,10 @@
                     }
                 }
             }
+            $commsRoomLabels = [
+                'yes' => 'Permission required', 'no' => 'Free access',
+                'outsourced' => 'Outsourced facilities team', 'unknown' => 'Status unknown',
+            ];
 
             $methodLabels = [
                 'ladder' => 'Ladder', 'podium' => 'Podium steps', 'tower' => 'Access tower',
@@ -497,6 +520,63 @@
                 <p class="muted">No room data is available yet — please contact your project manager.</p>
             </div>
         @else
+            {{-- ── SITE LOGISTICS — project-level drawer (260504-gho) ──────────────
+                 Engineers arriving on site need parking / comms-room access /
+                 depot distance / delivery routes ONCE per visit, NOT per room.
+                 Defensive: $siteLogistics === [] when survey missing or all 7
+                 columns are NULL — drawer renders nothing for legacy projects. --}}
+            @if(! empty($siteLogistics))
+                <details class="room-drawer teal" style="margin-bottom:1rem;">
+                    <summary>
+                        <span>📋 Site Logistics — Arrival Info</span>
+                        <span class="chev">▾</span>
+                    </summary>
+                    <div class="room-drawer-body">
+                        @if(! empty($siteLogistics['parking_restraints']))
+                            <div style="margin-bottom:.65rem;">
+                                <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Parking arrangements</div>
+                                <div style="font-size:.88rem;color:#374151;white-space:pre-wrap;">{{ $siteLogistics['parking_restraints'] }}</div>
+                            </div>
+                        @endif
+                        @if(! empty($siteLogistics['site_access_notes']))
+                            <div style="margin-bottom:.65rem;">
+                                <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Site access notes</div>
+                                <div style="font-size:.88rem;color:#374151;white-space:pre-wrap;">{{ $siteLogistics['site_access_notes'] }}</div>
+                            </div>
+                        @endif
+                        @if(! empty($siteLogistics['delivery_routes']))
+                            <div style="margin-bottom:.65rem;">
+                                <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Delivery routes</div>
+                                <div style="font-size:.88rem;color:#374151;white-space:pre-wrap;">{{ $siteLogistics['delivery_routes'] }}</div>
+                            </div>
+                        @endif
+                        @if(! empty($siteLogistics['comms_room_access_status']) || ! empty($siteLogistics['comms_room_access_notes']))
+                            @php
+                                $statusLabel = $commsRoomLabels[$siteLogistics['comms_room_access_status'] ?? ''] ?? '';
+                                $parts = array_filter([$statusLabel, $siteLogistics['comms_room_access_notes'] ?? '']);
+                            @endphp
+                            <div style="margin-bottom:.65rem;">
+                                <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Comms room access</div>
+                                <div style="font-size:.88rem;color:#374151;">{{ implode(' — ', $parts) }}</div>
+                            </div>
+                        @endif
+                        @if(! empty($siteLogistics['distance_from_base_miles']) || ! empty($siteLogistics['distance_from_base_notes']))
+                            @php
+                                $parts = array_filter([
+                                    ! empty($siteLogistics['distance_from_base_miles'])
+                                        ? $siteLogistics['distance_from_base_miles'] . ' miles from depot' : '',
+                                    $siteLogistics['distance_from_base_notes'] ?? '',
+                                ]);
+                            @endphp
+                            <div style="margin-bottom:.65rem;">
+                                <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Distance from depot</div>
+                                <div style="font-size:.88rem;color:#374151;">{{ implode(' — ', $parts) }}</div>
+                            </div>
+                        @endif
+                    </div>
+                </details>
+            @endif
+
             <p class="muted" style="font-size:.85rem;margin-bottom:.85rem;">
                 Tap each space to expand. Use the drawers inside to switch between AV
                 works summary, kit list, and install steps. Photos required per space

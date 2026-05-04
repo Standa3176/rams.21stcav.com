@@ -58,9 +58,15 @@ class WorksheetDocxService
         //    renderInstallationReference() becomes a no-op.
         $efByRoom = $this->loadEngineerFeedbackByRoom($worksheet);
 
+        // ── Site-level logistics (parking, comms-room, depot distance, delivery
+        //    routes, access notes). Same defensive shape as $efByRoom: empty
+        //    array when project / survey / columns missing — buildCoverHeader
+        //    treats [] as "no Site Logistics block on the cover page".
+        $siteLogistics = $this->loadSiteLogistics($worksheet);
+
         // ── Cover ────────────────────────────────────────────────────────────
         $coverSection = $phpWord->addSection($this->sectionProps());
-        $this->buildCoverHeader($coverSection, $project, $worksheet);
+        $this->buildCoverHeader($coverSection, $project, $worksheet, $siteLogistics);
 
         // ── Project-level blockers ───────────────────────────────────────────
         if (! empty($blockers)) {
@@ -111,7 +117,7 @@ class WorksheetDocxService
 
     // ── Cover Header ─────────────────────────────────────────────────────────
 
-    private function buildCoverHeader($section, array $project, Worksheet $worksheet): void
+    private function buildCoverHeader($section, array $project, Worksheet $worksheet, array $siteLogistics = []): void
     {
         $section->addText('Installation Worksheet',
             ['name' => 'Arial', 'size' => 22, 'bold' => true, 'color' => self::TEAL], ['alignment' => Jc::START]);
@@ -130,6 +136,57 @@ class WorksheetDocxService
             $row = $table->addRow();
             $row->addCell(2000)->addText($label, ['bold' => true, 'size' => 10, 'color' => self::TEAL]);
             $row->addCell(7000)->addText($this->t((string) $value), ['size' => 10, 'color' => self::DARK]);
+        }
+
+        // ── Site Logistics block (260504-gho) ─────────────────────────────────
+        // Defensive: when $siteLogistics is empty (legacy projects pre-260503-rgg
+        // OR projects with all-NULL site columns), this block adds NOTHING — the
+        // rendered DOCX is byte-identical to the pre-change output.
+        if (! empty($siteLogistics)) {
+            $section->addTextBreak(1);
+            $section->addText('SITE LOGISTICS — FROM SITE SURVEY',
+                ['bold' => true, 'size' => 10, 'color' => self::TEAL, 'allCaps' => true],
+                ['spaceAfter' => 60]);
+
+            $commsLabels = [
+                'yes' => 'Permission required', 'no' => 'Free access',
+                'outsourced' => 'Outsourced facilities team', 'unknown' => 'Status unknown',
+            ];
+
+            $logisticsTable = $section->addTable([
+                'borderSize' => 0, 'borderColor' => self::MID,
+                'cellMarginLeft' => 100, 'cellMarginRight' => 100,
+            ]);
+
+            $rows = [];
+            if (! empty($siteLogistics['parking_restraints'])) {
+                $rows[] = ['Parking arrangements', $siteLogistics['parking_restraints']];
+            }
+            if (! empty($siteLogistics['site_access_notes'])) {
+                $rows[] = ['Site access notes', $siteLogistics['site_access_notes']];
+            }
+            if (! empty($siteLogistics['delivery_routes'])) {
+                $rows[] = ['Delivery routes', $siteLogistics['delivery_routes']];
+            }
+            if (! empty($siteLogistics['comms_room_access_status']) || ! empty($siteLogistics['comms_room_access_notes'])) {
+                $statusLabel = $commsLabels[$siteLogistics['comms_room_access_status'] ?? ''] ?? '';
+                $parts = array_filter([$statusLabel, $siteLogistics['comms_room_access_notes'] ?? '']);
+                $rows[] = ['Comms room access', implode(' — ', $parts)];
+            }
+            if (! empty($siteLogistics['distance_from_base_miles']) || ! empty($siteLogistics['distance_from_base_notes'])) {
+                $parts = array_filter([
+                    ! empty($siteLogistics['distance_from_base_miles'])
+                        ? $siteLogistics['distance_from_base_miles'] . ' miles from depot' : '',
+                    $siteLogistics['distance_from_base_notes'] ?? '',
+                ]);
+                $rows[] = ['Distance from depot', implode(' — ', $parts)];
+            }
+
+            foreach ($rows as [$label, $value]) {
+                $row = $logisticsTable->addRow();
+                $row->addCell(2000)->addText($label, ['bold' => true, 'size' => 10, 'color' => self::TEAL]);
+                $row->addCell(7000)->addText($this->t((string) $value), ['size' => 10, 'color' => self::DARK]);
+            }
         }
 
         $section->addTextBreak(1);
@@ -824,6 +881,43 @@ class WorksheetDocxService
             ];
         }
         return $out;
+    }
+
+    /**
+     * Load site-level logistics columns from the project's latest SiteSurvey.
+     *
+     * Returns [] when the worksheet has no project_id, the project has no
+     * SiteSurvey, OR every column is null/empty — caller treats [] as
+     * "no Site Logistics block on the cover page".
+     *
+     * @return array<string, mixed>
+     */
+    private function loadSiteLogistics(Worksheet $worksheet): array
+    {
+        if (! $worksheet->project_id) return [];
+
+        $survey = SiteSurvey::where('project_id', $worksheet->project_id)
+            ->latest('id')
+            ->first();
+
+        if ($survey === null) return [];
+
+        $out = [
+            'comms_room_access_status' => (string) ($survey->comms_room_access_status ?? ''),
+            'comms_room_access_notes'  => (string) ($survey->comms_room_access_notes  ?? ''),
+            'parking_restraints'       => (string) ($survey->parking_restraints       ?? ''),
+            'distance_from_base_miles' => $survey->distance_from_base_miles, // numeric or null
+            'distance_from_base_notes' => (string) ($survey->distance_from_base_notes ?? ''),
+            'site_access_notes'        => (string) ($survey->site_access_notes        ?? ''),
+            'delivery_routes'          => (string) ($survey->delivery_routes          ?? ''),
+        ];
+
+        // Strict empty test — all 7 keys empty ⇒ return [] so caller no-ops.
+        $hasAny = false;
+        foreach ($out as $v) {
+            if ($v !== '' && $v !== null) { $hasAny = true; break; }
+        }
+        return $hasAny ? $out : [];
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
