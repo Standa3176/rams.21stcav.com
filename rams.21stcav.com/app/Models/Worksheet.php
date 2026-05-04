@@ -204,4 +204,39 @@ class Worksheet extends Model
             default                 => 'badge-grey',
         };
     }
+
+    // ── Pre-install confirmation accessors (260504-iy4 — H4) ───────────────────
+    //
+    // Two-namespace JSON shape:
+    //   pre_install_confirmations:
+    //     survey_review:  { "Boardroom": {"reviewed_at":"...", "reviewed_by":"abc12345"} }
+    //     room_complete:  { "Boardroom": {"completed_at":"...", "completed_by":"abc12345"} }
+    //
+    // Defensive against:
+    //  - $this->pre_install_confirmations === null (fresh worksheet)
+    //  - Legacy flat shape from pre-260504-iy4 (returns null → engineer re-marks)
+    //  - Missing room key inside the namespace (returns null → engineer marks for the first time)
+    //
+    // The array-path form of data_get() treats each segment as opaque, so a room
+    // name like "Floor 2.5" with a literal dot is NOT parsed as nested keys.
+
+    public function surveyReviewedAt(string $roomName): ?string
+    {
+        return data_get($this->pre_install_confirmations, ['survey_review', $roomName, 'reviewed_at']);
+    }
+
+    public function surveyReviewedBy(string $roomName): ?string
+    {
+        return data_get($this->pre_install_confirmations, ['survey_review', $roomName, 'reviewed_by']);
+    }
+
+    public function roomCompletedAt(string $roomName): ?string
+    {
+        return data_get($this->pre_install_confirmations, ['room_complete', $roomName, 'completed_at']);
+    }
+
+    public function roomCompletedBy(string $roomName): ?string
+    {
+        return data_get($this->pre_install_confirmations, ['room_complete', $roomName, 'completed_by']);
+    }
 }

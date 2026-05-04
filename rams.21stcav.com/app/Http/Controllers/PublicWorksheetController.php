@@ -181,9 +181,9 @@ class PublicWorksheetController extends Controller
      * specific room. Validates `roomName` against the worksheet's own
      * `generated_data['rooms'][*]['name']` inclusion list — forged names are
      * rejected with 422 so a leaked token cannot inject arbitrary keys into
-     * the JSON column. Updates `worksheet.pre_install_confirmations` (array
-     * keyed by canonical room name) and redirects back to the show page with
-     * a flash success message (full-page reload pattern).
+     * the JSON column. Updates `worksheet.pre_install_confirmations` (260504-iy4
+     * namespaced shape: survey_review.{roomName}) and redirects back to the show
+     * page with a flash success message (full-page reload pattern).
      */
     public function markSurveyReviewed(Request $request, string $token, string $roomName): RedirectResponse
     {
@@ -204,9 +204,11 @@ class PublicWorksheetController extends Controller
             abort(422, 'Unknown room name.');
         }
 
+        // 260504-iy4 — H4: namespaced JSON shape. survey_review.{room} = {reviewed_at, reviewed_by}.
+        // room_complete is a sibling namespace handled by markRoomComplete (see Task 2).
         $confirmations = (array) ($worksheet->pre_install_confirmations ?? []);
         $now = now();
-        $confirmations[$roomName] = [
+        $confirmations['survey_review'][$roomName] = [
             'reviewed_at' => $now->toIso8601String(),
             'reviewed_by' => substr($token, 0, 8),
         ];
