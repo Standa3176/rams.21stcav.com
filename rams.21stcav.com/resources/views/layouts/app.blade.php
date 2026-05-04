@@ -6,31 +6,6 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Operations Platform') — 21st Century AV</title>
 
-    {{-- DIAGNOSTIC (TEMPORARY, to remove): wrap native dialogs so we can see
-         who's firing the empty-body popup on the project page. Loaded FIRST
-         in <head> so nothing else can fire before this installs. --}}
-    <script>
-        (function() {
-            const wrap = function(name, orig) {
-                return function(msg) {
-                    const stack = (new Error().stack || '').split('\n').slice(1, 4).join(' > ');
-                    const debugMsg = '[DIAG ' + name + '() called]\n\n'
-                        + 'Original message: ' + JSON.stringify(msg) + '\n\n'
-                        + 'URL: ' + (location && location.href) + '\n\n'
-                        + 'Caller:\n' + stack;
-                    try {
-                        const t = sessionStorage.getItem('__diag_log__') || '';
-                        sessionStorage.setItem('__diag_log__', t + '\n---\n' + debugMsg);
-                    } catch (e) {}
-                    return orig.call(this, debugMsg);
-                };
-            };
-            window.alert   = wrap('alert',   window.alert);
-            window.confirm = wrap('confirm', window.confirm);
-            window.prompt  = wrap('prompt',  window.prompt);
-        })();
-    </script>
-
     {{-- Modern dashboard typography: Inter (sans-only). --}}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1415,7 +1390,7 @@
            • window.appConfirm('...').then(ok=>...)   — programmatic Promise
          Optional attrs: data-confirm-title, data-confirm-label, data-confirm-danger="1"
     --}}
-    <div x-data="appConfirm()"
+    <div x-data="appConfirmModal()"
          x-show="open"
          x-transition.opacity
          @keydown.escape.window="cancel"
@@ -1440,33 +1415,12 @@
     </div>
 
     <script>
-        /* ── DIAGNOSTIC: log who calls window.confirm() ─────────────────
-           TEMPORARY — remove once the empty-popup mystery is resolved. */
-        (function() {
-            const origConfirm = window.confirm;
-            window.confirm = function(msg) {
-                const caller = (new Error().stack || 'no stack').split('\n').slice(1, 6).join(' | ');
-                const debugInfo = '🔎 confirm() called\n  msg: ' + JSON.stringify(msg) + '\n  caller: ' + caller;
-                // Persistent on-screen toast (top-left red banner) so iPad users can see it
-                let toast = document.getElementById('__confirm_diag__');
-                if (!toast) {
-                    toast = document.createElement('div');
-                    toast.id = '__confirm_diag__';
-                    toast.style.cssText = 'position:fixed;top:8px;left:8px;right:8px;background:#FEE2E2;color:#7F1D1D;border:2px solid #DC2626;border-radius:8px;padding:.75rem 1rem;font:11px/1.4 monospace;z-index:99999;white-space:pre-wrap;word-break:break-all;max-height:50vh;overflow:auto;box-shadow:0 4px 12px rgba(0,0,0,.2);';
-                    document.body && document.body.appendChild(toast);
-                }
-                toast.textContent = debugInfo + '\n\n[tap to dismiss]';
-                toast.onclick = () => toast.remove();
-                console.warn(debugInfo);
-                return origConfirm.call(this, msg);
-            };
-        })();
         /* ── SCC v2 styled confirm() replacement ──────────────────────────
            Alpine x-data component declared above; this script wires it up
            to capture-phase form submit + click handlers AND exposes
            window.appConfirm(message, opts) for programmatic JS use.
         ─────────────────────────────────────────────────────────────── */
-        function appConfirm() {
+        function appConfirmModal() {
             return {
                 open: false,
                 title: 'Are you sure?',
@@ -1544,7 +1498,7 @@
         // Global helper for inline JS calls (replaces window.confirm in app code)
         window.appConfirm = function(message, opts) {
             opts = opts || {};
-            const root = document.querySelector('[x-data="appConfirm()"]');
+            const root = document.querySelector('[x-data="appConfirmModal()"]');
             if (!root || !root._x_dataStack) {
                 // Fallback to native confirm if Alpine isn't ready
                 return Promise.resolve(window.confirm(message));
@@ -1561,7 +1515,7 @@
             if (!msg) return;
             e.preventDefault();
             e.stopPropagation();
-            const root = document.querySelector('[x-data="appConfirm()"]');
+            const root = document.querySelector('[x-data="appConfirmModal()"]');
             if (!root || !root._x_dataStack) {
                 if (window.confirm(msg)) form.submit();
                 return;
@@ -1585,7 +1539,7 @@
             if (el.tagName === 'FORM') return;  // forms handled by submit handler
             e.preventDefault();
             e.stopPropagation();
-            const root = document.querySelector('[x-data="appConfirm()"]');
+            const root = document.querySelector('[x-data="appConfirmModal()"]');
             if (!root || !root._x_dataStack) {
                 if (window.confirm(el.getAttribute('data-confirm'))) el.click();
                 return;
