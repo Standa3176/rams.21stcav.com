@@ -450,9 +450,11 @@
             // and the drawer simply doesn't render — pre-260503-rgg worksheets stay
             // visually identical.
             $efByRoom = [];
+            $photosByRoom = [];
+            $roomsRequiringReview = [];
             $siteLogistics = [];
             if ($worksheet->project_id && class_exists(\App\Models\SiteSurvey::class)) {
-                $survey = \App\Models\SiteSurvey::with('rooms')
+                $survey = \App\Models\SiteSurvey::with(['rooms', 'rooms.photos'])
                     ->where('project_id', $worksheet->project_id)
                     ->latest('id')
                     ->first();
@@ -490,6 +492,28 @@
                             'floor_box_info'           => (array) ($r->floor_box_info ?? []),
                             'brackets_required'        => (array) ($r->brackets_required ?? []),
                         ];
+                        $photosByRoom[$key] = $r->photos ?? collect();
+                    }
+                    // ── 260504-hqe — page-level "rooms whose drawer is visible" set
+                    //    drives the soft-disable on the Sign-Off button. The drawer
+                    //    only opens when EF data OR survey photos exist; we MUST
+                    //    match that condition or the engineer would be blocked from
+                    //    signing off without any UI to clear the gate.
+                    foreach ($efByRoom as $k => $efv) {
+                        $hasAnyEf = ! empty($efv['mounting_heights'])
+                            || ! empty($efv['work_at_height_methods'])
+                            || ! empty($efv['cable_routes'])
+                            || ! empty($efv['wall_construction'])
+                            || ! empty($efv['wall_needs_reinforcement'])
+                            || ! empty($efv['wall_needs_chase_out'])
+                            || ! empty($efv['wall_needs_conduit'])
+                            || ! empty($efv['brackets_required'])
+                            || (is_array($efv['table_info'] ?? null) && ! empty($efv['table_info']['has_grommets']))
+                            || (is_array($efv['floor_box_info'] ?? null) && ! empty($efv['floor_box_info']['has_floor_box']));
+                        $hasPhotos = isset($photosByRoom[$k]) && $photosByRoom[$k]->isNotEmpty();
+                        if ($hasAnyEf || $hasPhotos) {
+                            $roomsRequiringReview[] = $k;
+                        }
                     }
                 }
             }
@@ -582,6 +606,25 @@
                 works summary, kit list, and install steps. Photos required per space
                 before sign-off.
             </p>
+
+            @php
+                // ── Sign-off gate (260504-hqe) — collect rooms that have a survey but
+                //    have NOT yet been reviewed. The set drives the soft-disable on the
+                //    page-level Sign-Off button. Visual-only gate — never blocks server.
+                $confirmations    = (array) ($worksheet->pre_install_confirmations ?? []);
+                $unreviewedRooms  = [];
+                foreach ($rooms as $r) {
+                    $rName = (string) ($r['name'] ?? '');
+                    if ($rName === '') continue;
+                    $rKey  = strtolower(trim($rName));
+                    $hasSurveyForThisRoom = in_array($rKey, $roomsRequiringReview, true);
+                    if ($hasSurveyForThisRoom && empty($confirmations[$rName])) {
+                        $unreviewedRooms[] = $rName;
+                    }
+                }
+                $signOffBlocked = ! empty($unreviewedRooms);
+            @endphp
+
             @foreach($rooms as $idx => $room)
                 @php
                     $equipment    = $room['equipment'] ?? [];
@@ -604,7 +647,11 @@
                     //    badge in the drawer summary.
                     $efKey  = strtolower(trim((string) ($room['name'] ?? '')));
                     $ef     = $efByRoom[$efKey] ?? [];
-                    $hasEF  = ! empty($ef) && (
+                    // 260504-hqe — survey photos may exist even when zero EF data was
+                    // captured in the wizard. The drawer must still open in that case
+                    // so the engineer can review the photos and tap Mark Reviewed.
+                    $hasSurveyPhotos = isset($photosByRoom[$efKey]) && $photosByRoom[$efKey]->isNotEmpty();
+                    $hasEF  = $hasSurveyPhotos || (! empty($ef) && (
                         ! empty($ef['mounting_heights'])
                         || ! empty($ef['work_at_height_methods'])
                         || ! empty($ef['cable_routes'])
@@ -615,7 +662,7 @@
                         || ! empty($ef['brackets_required'])
                         || (is_array($ef['table_info'] ?? null) && ! empty($ef['table_info']['has_grommets']))
                         || (is_array($ef['floor_box_info'] ?? null) && ! empty($ef['floor_box_info']['has_floor_box']))
-                    );
+                    ));
                     $efItemCount = 0;
                     if ($hasEF) {
                         $efItemCount = (int) (! empty($ef['mounting_heights']) ? 1 : 0)
@@ -647,6 +694,30 @@
                                 <span class="chev">▾</span>
                             </summary>
                             <div class="room-drawer-body">
+
+                                {{-- ── Survey photos for this room (260504-hqe) ──
+                                     Token-gated proxy serves SiteSurveyPhoto rows linked to the same project.
+                                     If the room has no survey photos, render the muted "no photos" line instead. --}}
+                                @php $surveyPhotos = $photosByRoom[$efKey] ?? collect(); @endphp
+                                <div style="margin-bottom:.85rem;">
+                                    <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.4rem;">Survey photos</div>
+                                    @if($surveyPhotos->isEmpty())
+                                        <div class="muted" style="font-size:.8rem;">No survey photos for this room.</div>
+                                    @else
+                                        <div style="display:flex;flex-wrap:wrap;gap:.4rem;">
+                                            @foreach($surveyPhotos as $sp)
+                                                <a href="{{ route('public-worksheet.survey-photos.serve', ['token' => $token, 'photo' => $sp->id]) }}"
+                                                   target="_blank"
+                                                   style="display:inline-block;width:80px;height:80px;border-radius:6px;overflow:hidden;background:#F3F4F6;">
+                                                    <img src="{{ route('public-worksheet.survey-photos.serve', ['token' => $token, 'photo' => $sp->id]) }}"
+                                                         alt="{{ $sp->caption ?? '' }}"
+                                                         loading="lazy"
+                                                         style="width:100%;height:100%;object-fit:cover;">
+                                                </a>
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                </div>
 
                                 {{-- Mounting heights --}}
                                 @php
@@ -776,6 +847,42 @@
                                         </div>
                                     </div>
                                 @endif
+
+                                {{-- ── Review confirmation gate (260504-hqe) ──
+                                     Soft-block: when the engineer has not yet ticked "I have reviewed",
+                                     this room is flagged in $unreviewedRooms (page-level set computed
+                                     before the rooms loop) and the page-level Sign-Off button is
+                                     visually disabled. Once submitted, the row is stamped
+                                     {reviewed_at, reviewed_by} and a green badge replaces the form.
+                                     Gate is visual-only — the server does NOT block sign-off. --}}
+                                @php
+                                    $confirmations = (array) ($worksheet->pre_install_confirmations ?? []);
+                                    $thisRoomReview = $confirmations[$room['name']] ?? null;
+                                @endphp
+                                <div style="margin-top:1rem;padding-top:.75rem;border-top:1px solid #E5E7EB;">
+                                    @if($thisRoomReview)
+                                        @php
+                                            $rTime = $thisRoomReview['reviewed_at'] ?? null;
+                                            $rBy   = $thisRoomReview['reviewed_by'] ?? '';
+                                            try { $rDisplay = $rTime ? \Carbon\Carbon::parse($rTime)->format('d M Y H:i') : ''; }
+                                            catch (\Throwable $e) { $rDisplay = (string) $rTime; }
+                                        @endphp
+                                        <div style="display:inline-block;padding:.4rem .75rem;border-radius:9999px;background:#DCFCE7;color:#166534;font-size:.8rem;font-weight:600;">
+                                            ✓ Reviewed by {{ $rBy }} at {{ $rDisplay }}
+                                        </div>
+                                    @else
+                                        <form method="POST"
+                                              action="{{ route('public-worksheet.survey-reviewed', ['token' => $token, 'roomName' => $room['name']]) }}"
+                                              style="display:flex;flex-wrap:wrap;align-items:center;gap:.65rem;">
+                                            @csrf
+                                            <label style="display:inline-flex;align-items:center;gap:.4rem;font-size:.85rem;color:#374151;">
+                                                <input type="checkbox" required style="width:1rem;height:1rem;">
+                                                I have reviewed the survey for this room
+                                            </label>
+                                            <button type="submit" class="btn btn-outline btn-sm" style="font-size:.78rem;">Mark Reviewed</button>
+                                        </form>
+                                    @endif
+                                </div>
 
                             </div>
                         </details>
@@ -953,6 +1060,20 @@
         {{-- ── Sign-off card ─────────────────────────────────────────── --}}
         <div class="card">
             <div class="card-title">Client Sign-Off</div>
+
+            {{-- ── 260504-hqe — soft-block warning banner ──
+                 Renders only when one or more rooms with a linked survey have
+                 NOT yet been ticked "reviewed". Visual-only — server still
+                 accepts the sign-off POST so a stuck engineer cannot be locked
+                 out by a stale legacy survey. --}}
+            @if($signOffBlocked)
+                <div style="margin-bottom:.85rem;padding:.7rem .9rem;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:.85rem;">
+                    ⚠ Review the survey reference for these rooms before signing off:
+                    <strong>{{ implode(', ', $unreviewedRooms) }}</strong>.
+                    Open each room above, expand <em>📋 Survey Reference</em>, and tap <em>Mark Reviewed</em>.
+                </div>
+            @endif
+
             <p style="font-size:.88rem;color:#4B5563;margin-bottom:.95rem;">
                 By signing below you confirm you have reviewed the installation worksheet for this project.
                 If you have outstanding items, tick the box below and list them in the comments — your sign-off
@@ -1007,7 +1128,12 @@
                 </label>
 
                 <div class="submit-row">
-                    <button type="submit" id="signoff-submit" class="btn btn-teal" disabled>Sign &amp; Submit</button>
+                    <button type="submit"
+                            id="signoff-submit"
+                            class="btn btn-teal"
+                            data-signoff-blocked="{{ $signOffBlocked ? '1' : '0' }}"
+                            @disabled(true)
+                            title="{{ $signOffBlocked ? 'Review the survey for all rooms first: ' . implode(', ', $unreviewedRooms) : '' }}">Sign &amp; Submit</button>
                 </div>
             </form>
         </div>
@@ -1065,7 +1191,12 @@
                 lastX = p.x; lastY = p.y;
                 if (! dirty) {
                     dirty = true;
-                    submit.disabled = false;
+                    // 260504-hqe — keep button disabled when soft-gate flag is set,
+                    // even after signature is drawn. Engineer must mark unreviewed
+                    // rooms first. Server still accepts the post (visual gate only).
+                    if (submit.dataset.signoffBlocked !== '1') {
+                        submit.disabled = false;
+                    }
                 }
             }
             function end(evt) {
