@@ -386,6 +386,21 @@
             border: 1px solid #FBBF24; border-radius: 6px;
             padding: .55rem .75rem; font-size: .82rem; font-weight: 600;
         }
+
+        /* 260504-lat: loading spinner for Box Serial Label capture button */
+        .label-cap-busy::after {
+            content: '';
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            margin-left: 6px;
+            animation: lblPulse 1s ease-in-out infinite;
+        }
+        @keyframes lblPulse {
+            0%, 100% { opacity: 0.3; transform: scale(0.8); }
+            50%      { opacity: 1.0; transform: scale(1.1); }
+        }
     </style>
 </head>
 <body>
@@ -1470,7 +1485,44 @@
 
             const btn = input.closest('label');
             const orig = btn ? btn.textContent.trim() : '';
-            if (btn) btn.style.opacity = '.6';
+
+            // 260504-lat: visible loading state — pulsing spinner + progress text
+            // The button is a <label> with TEXT NODE + <input> as siblings. We mutate
+            // ONLY the first text node so we don't wipe the <input>.
+            const setBusy = (text) => {
+                if (!btn) return;
+                const textNode = Array.from(btn.childNodes).find(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
+                if (textNode) {
+                    textNode.textContent = text + ' ';
+                } else {
+                    let span = btn.querySelector('.label-cap-text');
+                    if (!span) {
+                        span = document.createElement('span');
+                        span.className = 'label-cap-text';
+                        btn.appendChild(span);
+                    }
+                    span.textContent = text + ' ';
+                }
+                btn.classList.add('label-cap-busy');
+                btn.style.opacity = '.75';
+                btn.style.pointerEvents = 'none';
+            };
+
+            const restoreBtn = () => {
+                if (!btn) return;
+                btn.classList.remove('label-cap-busy');
+                btn.style.opacity = '';
+                btn.style.pointerEvents = '';
+                const textNode = Array.from(btn.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
+                if (textNode) textNode.textContent = orig + ' ';
+                const span = btn.querySelector('.label-cap-text');
+                if (span) span.remove();
+                if (input) input.disabled = false;
+            };
+
+            // Disable input so taps mid-process don't re-trigger
+            if (input) input.disabled = true;
+            setBusy('⏳ Processing image...');
 
             // Convert to JPEG client-side — fixes iOS HEIC + downscales for faster upload.
             // On any failure, fall through with the original file unchanged.
@@ -1492,6 +1544,8 @@
             fd.append('item_part_number', input.dataset.part || '');
             fd.append('item_qty',         input.dataset.qty  || 1);
 
+            setBusy('📤 Uploading...');
+
             const url = '/worksheet/' + encodeURIComponent(token) + '/label-photo';
             try {
                 const resp = await fetch(url, {
@@ -1505,11 +1559,13 @@
                 if (!resp.ok) {
                     alert('Label upload failed. ' + (resp.statusText || ''));
                     input.value = '';
-                    if (btn) btn.style.opacity = '';
+                    restoreBtn();
                     return;
                 }
+                setBusy('🤖 Reading label...');
                 const data = await resp.json();
                 const ai = data.ai_extracted || {};
+                restoreBtn();
                 openLabelReview({
                     photoId: data.id,
                     token,
@@ -1525,7 +1581,7 @@
             } catch (e) {
                 alert('Network error. Please try again.');
                 input.value = '';
-                if (btn) btn.style.opacity = '';
+                restoreBtn();
             }
         }
 
