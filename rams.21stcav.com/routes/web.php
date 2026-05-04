@@ -109,6 +109,13 @@ Route::post('worksheet/{token}/rooms/{roomName}/survey-reviewed', [PublicWorkshe
     ->name('public-worksheet.survey-reviewed')->middleware('throttle:60,1')
     ->where('roomName', '.*');
 
+// 260504-iy4 H1 — Mark Room Complete. Mirrors the survey-reviewed route shape;
+// writes to pre_install_confirmations['room_complete'][$roomName]. No server-side
+// gate enforcement — soft gate is frontend-only (engineers on flaky networks).
+Route::post('worksheet/{token}/rooms/{roomName}/complete', [PublicWorksheetController::class, 'markRoomComplete'])
+    ->name('public-worksheet.room-complete')->middleware('throttle:60,1')
+    ->where('roomName', '.*');
+
 // Device label photo capture (engineer takes photo of equipment label,
 // AI extracts part / serial / MAC, engineer confirms → writes to devices).
 // The server finds-or-creates the device row by (project, room, description).

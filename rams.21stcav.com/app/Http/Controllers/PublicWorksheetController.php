@@ -220,6 +220,53 @@ class PublicWorksheetController extends Controller
             ->with('success', "Survey reviewed for: {$roomName}");
     }
 
+    /**
+     * POST /worksheet/{token}/rooms/{roomName}/complete
+     *
+     * Record that an engineer has marked a room "complete" — the room body
+     * auto-collapses on next render and a green ✓ Complete pill appears on the
+     * <summary> row.
+     *
+     * Server-side validation: forged room names rejected (422), mirrors
+     * markSurveyReviewed exactly. NO server-side enforcement of the gate (photos +
+     * survey-reviewed) — engineers may be on flaky networks and partial state must
+     * not block them. Frontend disables the button until the soft gate is
+     * satisfied; if the engineer hits the endpoint directly, the write succeeds.
+     *
+     * Writes pre_install_confirmations['room_complete'][$roomName] = {completed_at, completed_by}.
+     */
+    public function markRoomComplete(Request $request, string $token, string $roomName): RedirectResponse
+    {
+        $worksheet = $this->resolveWorksheet($token);
+
+        // Forged-room-name guard — mirrors markSurveyReviewed.
+        $validRoomNames = collect((array) ($worksheet->generated_data['rooms'] ?? []))
+            ->pluck('name')
+            ->filter()
+            ->values()
+            ->all();
+
+        abort_if(empty($validRoomNames), 422,
+            'Worksheet has no rooms — cannot mark a room complete.');
+
+        if (! in_array($roomName, $validRoomNames, true)) {
+            abort(422, 'Unknown room name.');
+        }
+
+        $confirmations = (array) ($worksheet->pre_install_confirmations ?? []);
+        $now = now();
+        $confirmations['room_complete'][$roomName] = [
+            'completed_at' => $now->toIso8601String(),
+            'completed_by' => substr($token, 0, 8),
+        ];
+        $worksheet->pre_install_confirmations = $confirmations;
+        $worksheet->save();
+
+        return redirect()
+            ->route('public-worksheet.show', ['token' => $token])
+            ->with('success', "Room marked complete: {$roomName}");
+    }
+
     // ─── Sign ────────────────────────────────────────────────────────────────
 
     /**
