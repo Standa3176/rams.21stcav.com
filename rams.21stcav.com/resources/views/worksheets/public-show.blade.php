@@ -1452,10 +1452,13 @@
         //
         // 260504-ktt: iOS Safari uploads HEIC files which Claude vision can't
         // read — we draw the image to a canvas and re-encode as JPEG client-side
-        // before upload. Also downscales to maxSide=1600 to keep payloads small.
+        // before upload. Downscales to maxSide=2400 (was 1600) at quality 0.92
+        // (was 0.85) — Claude vision OCR needs the extra resolution to read
+        // small label text reliably; the original 1600px @ 0.85 was making
+        // 5-8px text in the label too lossy for accurate extraction.
         // Falls back to the raw file if anything fails (very old browser, CORS,
         // out-of-memory) so the fix never makes uploads worse than they were.
-        async function convertToJpegBlob(file, maxSide = 1600, quality = 0.85) {
+        async function convertToJpegBlob(file, maxSide = 2400, quality = 0.92) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onerror = () => reject(new Error('FileReader failed'));

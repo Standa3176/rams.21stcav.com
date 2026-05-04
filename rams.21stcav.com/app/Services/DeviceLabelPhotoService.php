@@ -154,6 +154,21 @@ class DeviceLabelPhotoService
             $prompt = (new LabelExtractionPrompt())->setImage($base64, $mediaType);
             $result = AIManager::run($prompt, []);
 
+            // DIAGNOSTIC: log the raw extraction result + image stats so we
+            // can see exactly what Claude reported when fields come back
+            // UNKNOWN. Helps distinguish "Claude saw the image but returned
+            // UNKNOWN out of caution" vs "image quality too low" vs "API
+            // call returned a non-JSON response that got coerced".
+            $allUnknown = is_array($result) && collect(['part_number','serial_number','mac_address','model','manufacturer'])
+                ->every(fn($k) => strtoupper((string) ($result[$k] ?? '')) === 'UNKNOWN');
+            Log::info('DeviceLabelPhotoService: extraction outcome', [
+                'image_bytes_len' => strlen($imageBytes),
+                'media_type'      => $mediaType,
+                'all_unknown'     => $allUnknown,
+                'confidence'      => $result['confidence'] ?? null,
+                'raw_result'      => $result,
+            ]);
+
             return is_array($result) ? $result : null;
         } catch (\Throwable $e) {
             Log::warning('DeviceLabelPhotoService: AI extraction failed (engineer can still fill manually)', [
