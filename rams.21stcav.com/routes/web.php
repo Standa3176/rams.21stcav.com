@@ -326,6 +326,16 @@ Route::middleware('auth')->group(function () {
     Route::post('om-manuals/{id}/restore', [OmManualController::class, 'restore'])->name('om-manuals.restore');
     Route::delete('om-manuals/{id}/force-destroy', [OmManualController::class, 'forceDestroy'])->name('om-manuals.force-destroy');
 
+    // ── Mini O&M (260506-qa9) — auto-built client-facing PDF, on-demand ──────
+    // Distinct from the AI-assisted OmManual pipeline: NO row written to the
+    // om_manuals table. Persisted under documents/om-manuals/mini-om-*.pdf
+    // via DocumentArtifactStorage::TYPE_OM. See app/Services/MiniOmBuilderService.php
+    // for the data shape and resources/views/pdf/mini-om.blade.php for the Tier 1
+    // visual chrome. GET because each call is idempotent (D-LOCK-5 — fresh render
+    // every download, no DB cache v1).
+    Route::get('projects/{project}/mini-om/pdf', [\App\Http\Controllers\MiniOmController::class, 'generate'])
+        ->name('projects.mini-om.pdf');
+
     // ── v1.3 Phase 17/18 — Drawings (foundations + render UI + picker) ──────
     // Plan 17-01 wires the index/show/regenerate routes. Plan 17-03 adds the
     // create-schematic, per-format download, and updateStatus routes. Plan
