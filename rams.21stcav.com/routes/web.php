@@ -287,6 +287,12 @@ Route::middleware('auth')->group(function () {
     Route::get('site-surveys/from-project/{project}', [SiteSurveyController::class, 'createFromProject'])->name('site-surveys.from-project');
     Route::post('site-surveys/supersede-from-project/{project}', [SiteSurveyController::class, 'supersedeFromProject'])->name('site-surveys.supersede-from-project');
     Route::get('site-surveys/project-data/{project}', [SiteSurveyController::class, 'projectData'])->name('site-surveys.project-data');
+    // Confirm-rooms review screen between createFromProject and the heavy edit
+    // form (quick task 260506-fh0). Literal segment — registered before resource.
+    Route::get('site-surveys/{siteSurvey}/confirm-rooms', [SiteSurveyController::class, 'confirmRooms'])
+        ->name('site-surveys.confirm-rooms');
+    Route::post('site-surveys/{siteSurvey}/confirm-rooms', [SiteSurveyController::class, 'applyConfirmedRooms'])
+        ->name('site-surveys.confirm-rooms.apply');
     Route::resource('site-surveys', SiteSurveyController::class)
         ->only(['index', 'create', 'store', 'show', 'edit', 'update', 'destroy']);
     Route::post('site-surveys/{siteSurvey}/complete', [SiteSurveyController::class, 'complete'])->name('site-surveys.complete');

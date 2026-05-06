@@ -150,8 +150,8 @@ class SiteSurveyController extends Controller
         $user   = auth()->user();
         $survey = $this->service->createFromProject($project, $user);
 
-        return redirect()->route('site-surveys.edit', $survey)
-            ->with('success', 'Survey created and pre-filled from project data. Review the rooms below, then share the engineer link.');
+        return redirect()->route('site-surveys.confirm-rooms', $survey)
+            ->with('success', 'Survey created and pre-filled from project data. Confirm the rooms below.');
     }
 
     /**
@@ -172,8 +172,81 @@ class SiteSurveyController extends Controller
         $user   = auth()->user();
         $survey = $this->service->createFromProject($project, $user, supersede: true);
 
-        return redirect()->route('site-surveys.edit', $survey)
-            ->with('success', 'Previous survey archived. New survey created and pre-filled from project data.');
+        return redirect()->route('site-surveys.confirm-rooms', $survey)
+            ->with('success', 'Previous survey archived. Confirm the rooms below.');
+    }
+
+    // ─── Confirm Rooms (review step) ─────────────────────────────────────────
+
+    /**
+     * GET /site-surveys/{siteSurvey}/confirm-rooms
+     *
+     * Lightweight verify-rooms screen shown after createFromProject. Lets the
+     * user untick rooms that aren't physical spaces, bump qty for repeated
+     * room types, edit room names, and edit the survey-level works
+     * description before the survey enters the heavy edit form.
+     *
+     * Quick task 260506-fh0.
+     */
+    public function confirmRooms(SiteSurvey $siteSurvey): View
+    {
+        $this->authorizeSurvey($siteSurvey);
+        $siteSurvey->load('rooms');
+
+        return view('site-survey.confirm-rooms', [
+            'survey' => $siteSurvey,
+        ]);
+    }
+
+    /**
+     * POST /site-surveys/{siteSurvey}/confirm-rooms
+     *
+     * Applies the user's confirm-rooms choices: deletes excluded rooms,
+     * updates names + scope text, and expands qty>1 entries into N numbered
+     * copies via the existing SurveyService::update() qty-expansion logic.
+     *
+     * Quick task 260506-fh0.
+     */
+    public function applyConfirmedRooms(Request $request, SiteSurvey $siteSurvey): RedirectResponse
+    {
+        $this->authorizeSurvey($siteSurvey);
+
+        $validated = $request->validate([
+            'general_notes'              => ['nullable', 'string', 'max:3000'],
+            'rooms'                      => ['nullable', 'array'],
+            'rooms.*.id'                 => ['nullable', 'integer'],
+            'rooms.*.include'            => ['nullable', 'boolean'],
+            'rooms.*.room_name'          => ['required_with:rooms.*.include', 'string', 'max:150'],
+            'rooms.*.qty'                => ['nullable', 'integer', 'min:1', 'max:99'],
+            'rooms.*.av_requirements'    => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        // Build the rooms[] payload SurveyService::update() already understands.
+        // Excluded rooms are simply omitted — update() then prunes any stored room
+        // whose id is not in the incoming list.
+        $roomsPayload = [];
+        foreach ($validated['rooms'] ?? [] as $row) {
+            if (! ($row['include'] ?? false)) {
+                continue;
+            }
+            $roomsPayload[] = [
+                'id'              => $row['id'] ?? null,
+                'room_name'       => trim((string) $row['room_name']),
+                'qty'             => (int) ($row['qty'] ?? 1),
+                'av_requirements' => $row['av_requirements'] ?? null,
+            ];
+        }
+
+        /** @var \App\Models\User $user */
+        $user = auth()->user();
+        $this->service->update($siteSurvey, $user, [
+            'project_name'  => $siteSurvey->project_name,
+            'general_notes' => $validated['general_notes'] ?? $siteSurvey->general_notes,
+            'rooms'         => $roomsPayload,
+        ]);
+
+        return redirect()->route('site-surveys.edit', $siteSurvey)
+            ->with('success', 'Rooms confirmed. Add details and photos as needed.');
     }
 
     // ─── Edit ────────────────────────────────────────────────────────────────
