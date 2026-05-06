@@ -111,6 +111,35 @@
     @endif
 
     {{-- ─────────────────────────────────────────────────────────────────
+         Group 2.5 — Pre-install Checks (AI-generated SiteSurveyRoomQuestion rows)
+         Surfaces the questions GenerateSurveyQuestionsJob produces for rooms
+         with a matched solution type. Sorted by sort_order via the model
+         relation. Suppressed when the room has no questions (no empty heading).
+         Quick task 260506-jbu.
+         ───────────────────────────────────────────────────────────────── --}}
+    @if($room->questions->isNotEmpty())
+        @php
+            $answerLabels = ['yes' => 'Yes', 'no' => 'No', 'other' => 'Other'];
+        @endphp
+        <h3>Pre-install Checks</h3>
+        <table>
+            @foreach($room->questions as $q)
+                @php
+                    $answerKey   = strtolower((string) ($q->answer ?? ''));
+                    $answerLabel = $answerLabels[$answerKey] ?? '—';
+                    $other       = trim((string) ($q->other_text ?? ''));
+                @endphp
+                <tr>
+                    <td class="label">{{ $q->question }}</td>
+                    <td>
+                        {{ $answerLabel }}@if($answerKey === 'other' && $other !== '') — {{ $other }}@endif
+                    </td>
+                </tr>
+            @endforeach
+        </table>
+    @endif
+
+    {{-- ─────────────────────────────────────────────────────────────────
          Group 3 — Engineer Findings (the 7 sub-sections from 260503-rgg)
          Verbatim copy of rams.blade.php lines 903-1032 with $ef['x'] →
          $room->x (Eloquent attribute access, casts auto-decode). Each

@@ -26,7 +26,7 @@ class SurveyPdfService
      */
     public function buildSummary(SiteSurvey $survey): string
     {
-        $survey->loadMissing('rooms.photos');
+        $survey->loadMissing(['rooms.photos', 'rooms.questions']);
 
         $filename = 'site_survey_' . $survey->id . '_' . now()->format('Ymd_His') . '.pdf';
         $path     = Storage::disk('local')->path('site-surveys/' . $filename);
