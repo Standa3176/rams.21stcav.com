@@ -328,8 +328,8 @@ class MiniOmBuilderService
                 'manufacturer' => (string) (data_get($photo->ai_extracted, 'manufacturer') ?? ''),
                 'model'        => (string) (data_get($photo->ai_extracted, 'model') ?? ''),
                 'part_number'  => (string) (data_get($photo->ai_extracted, 'part_number') ?? ''),
-                'serial'       => (string) (data_get($photo->ai_extracted, 'serial') ?? ''),
-                'mac'          => (string) (data_get($photo->ai_extracted, 'mac') ?? ''),
+                'serial'       => (string) (data_get($photo->ai_extracted, 'serial_number') ?? ''),
+                'mac'          => (string) (data_get($photo->ai_extracted, 'mac_address') ?? ''),
             ];
         }
 
@@ -353,17 +353,26 @@ class MiniOmBuilderService
         $needle = strtolower(trim($roomName));
         $rows   = [];
 
+        // The QuoteParser populates equipment_list with shape:
+        //   ['quantity' => N, 'part_number' => '…', 'name' => '…',
+        //    'area' => 'Room Name', 'category' => 'hardware|services|consumables']
+        // Mini O&M only lists physical assets, so non-hardware lines (services
+        // like RAMS/INSTALL2/HANDOVER, consumables like DELIVERY/CABLES, etc.)
+        // are filtered out here. Engineers and clients shouldn't see "RAMS" or
+        // "PROGRAMMING1" listed as installed equipment.
         foreach ($package->equipment_list as $line) {
             if (! is_array($line)) continue;
-            $lineRoom = strtolower(trim((string) ($line['room'] ?? '')));
+            $category = strtolower(trim((string) ($line['category'] ?? 'hardware')));
+            if ($category !== 'hardware') continue;
+            $lineRoom = strtolower(trim((string) ($line['area'] ?? '')));
             if ($lineRoom !== $needle) continue;
 
             $rows[] = [
-                'manufacturer' => (string) ($line['manufacturer'] ?? ''),
-                'model'        => (string) ($line['model'] ?? ''),
-                'part_number'  => (string) ($line['part'] ?? $line['part_number'] ?? ''),
-                'description'  => (string) ($line['description'] ?? ''),
-                'qty'          => (int) ($line['qty'] ?? 0),
+                'manufacturer' => '',  // not present in equipment_list shape
+                'model'        => '',  // not present in equipment_list shape
+                'part_number'  => (string) ($line['part_number'] ?? ''),
+                'description'  => (string) ($line['name'] ?? ''),
+                'qty'          => (int) ($line['quantity'] ?? 0),
             ];
         }
 
@@ -542,8 +551,8 @@ class MiniOmBuilderService
                 'manufacturer' => (string) (data_get($photo->ai_extracted, 'manufacturer') ?? ''),
                 'model'        => (string) (data_get($photo->ai_extracted, 'model') ?? ''),
                 'part_number'  => (string) (data_get($photo->ai_extracted, 'part_number') ?? ''),
-                'serial'       => (string) (data_get($photo->ai_extracted, 'serial') ?? ''),
-                'mac'          => (string) (data_get($photo->ai_extracted, 'mac') ?? ''),
+                'serial'       => (string) (data_get($photo->ai_extracted, 'serial_number') ?? ''),
+                'mac'          => (string) (data_get($photo->ai_extracted, 'mac_address') ?? ''),
             ];
         }
         usort($confirmed, function ($a, $b) {
@@ -553,18 +562,24 @@ class MiniOmBuilderService
             );
         });
 
-        // -- Quoted: every equipment_list line NOT yet confirmed --
+        // -- Quoted: every HARDWARE line NOT yet confirmed --
+        // Same shape contract as quotedAssetsForRoom() — filter to category=hardware
+        // and read the QuoteParser-emitted keys (area/name/quantity/part_number).
+        // Services and consumables (RAMS/INSTALL2/HANDOVER/DELIVERY/CABLES/etc) are
+        // excluded because they aren't physical installed equipment.
         $alsoInstalled = [];
         if ($package !== null && is_array($package->equipment_list)) {
             foreach ($package->equipment_list as $line) {
                 if (! is_array($line)) continue;
+                $category = strtolower(trim((string) ($line['category'] ?? 'hardware')));
+                if ($category !== 'hardware') continue;
                 $alsoInstalled[] = [
-                    'room'         => (string) ($line['room'] ?? ''),
-                    'manufacturer' => (string) ($line['manufacturer'] ?? ''),
-                    'model'        => (string) ($line['model'] ?? ''),
-                    'part_number'  => (string) ($line['part'] ?? $line['part_number'] ?? ''),
-                    'description'  => (string) ($line['description'] ?? ''),
-                    'qty'          => (int) ($line['qty'] ?? 0),
+                    'room'         => (string) ($line['area'] ?? ''),
+                    'manufacturer' => '',  // not in equipment_list shape
+                    'model'        => '',  // not in equipment_list shape
+                    'part_number'  => (string) ($line['part_number'] ?? ''),
+                    'description'  => (string) ($line['name'] ?? ''),
+                    'qty'          => (int) ($line['quantity'] ?? 0),
                 ];
             }
         }

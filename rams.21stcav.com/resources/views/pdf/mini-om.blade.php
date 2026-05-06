@@ -422,14 +422,12 @@
             <table class="asset-table">
                 <thead>
                     <tr>
-                        <th>Manufacturer</th><th>Model</th><th>Part</th><th>Description</th><th style="text-align: right;">Qty</th>
+                        <th>Part</th><th>Description</th><th style="text-align: right;">Qty</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach ($room['assets']['quoted'] as $q)
                         <tr>
-                            <td>{{ $em($q['manufacturer']) }}</td>
-                            <td>{{ $em($q['model']) }}</td>
                             <td>{{ $em($q['part_number']) }}</td>
                             <td>{{ $em($q['description']) }}</td>
                             <td style="text-align: right;">{{ $q['qty'] ?: '—' }}</td>
@@ -521,14 +519,12 @@
             <div class="subsection-title">Also installed</div>
             <table class="register-table">
                 <thead>
-                    <tr><th>Room</th><th>Manufacturer</th><th>Model</th><th>Part</th><th>Description</th><th style="text-align: right;">Qty</th></tr>
+                    <tr><th>Room</th><th>Part</th><th>Description</th><th style="text-align: right;">Qty</th></tr>
                 </thead>
                 <tbody>
                     @foreach ($asset_register['also_installed'] as $a)
                         <tr>
                             <td>{{ $em($a['room']) }}</td>
-                            <td>{{ $em($a['manufacturer']) }}</td>
-                            <td>{{ $em($a['model']) }}</td>
                             <td>{{ $em($a['part_number']) }}</td>
                             <td>{{ $em($a['description']) }}</td>
                             <td style="text-align: right;">{{ $a['qty'] ?: '—' }}</td>
