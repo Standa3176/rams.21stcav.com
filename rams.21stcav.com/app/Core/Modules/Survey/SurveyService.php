@@ -209,15 +209,29 @@ class SurveyService
                     continue;
                 }
 
-                // Use solution type checklist as AV requirements if available,
-                // otherwise fall back to the overview text.
-                $avRequirements = trim((string) ($roomData['overview'] ?? $roomData['summary'] ?? ''));
+                // Quote-specific overview text is PRIMARY; the SolutionType's
+                // static survey_checklist is appended as a clearly-labelled
+                // supplementary block. Previously the checklist clobbered the
+                // overview entirely (every "Video Conferencing" room got the
+                // same 18-line generic checklist drowning out the actual
+                // scope) — see quick-task 260506-jbu.
+                $overview       = trim((string) ($roomData['overview'] ?? $roomData['summary'] ?? ''));
                 $solutionTypeId = (int) ($roomData['solution_type_id'] ?? 0) ?: null;
+                $checklist      = '';
                 if ($solutionTypeId) {
-                    $st = \App\Models\SolutionType::find($solutionTypeId);
-                    if ($st && $st->survey_checklist) {
-                        $avRequirements = $st->survey_checklist;
-                    }
+                    $checklist = trim((string) (\App\Models\SolutionType::find($solutionTypeId)?->survey_checklist ?? ''));
+                }
+
+                if ($overview !== '' && $checklist !== '') {
+                    $avRequirements = $overview . "\n\nStandard checks for this solution type:\n" . $checklist;
+                } elseif ($overview !== '') {
+                    $avRequirements = $overview;
+                } elseif ($checklist !== '') {
+                    // Preserves current fallback for rooms with no quote text
+                    // but a matched solution type — better than blank.
+                    $avRequirements = $checklist;
+                } else {
+                    $avRequirements = '';
                 }
 
                 // Deterministic per-room kit string. Falls back to the room's
