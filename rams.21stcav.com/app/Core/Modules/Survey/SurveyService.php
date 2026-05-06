@@ -211,28 +211,12 @@ class SurveyService
 
                 // Quote-specific overview text is PRIMARY; the SolutionType's
                 // static survey_checklist is appended as a clearly-labelled
-                // supplementary block. Previously the checklist clobbered the
-                // overview entirely (every "Video Conferencing" room got the
-                // same 18-line generic checklist drowning out the actual
-                // scope) — see quick-task 260506-jbu.
-                $overview       = trim((string) ($roomData['overview'] ?? $roomData['summary'] ?? ''));
+                // supplementary block. Resolved via a shared helper so the
+                // backfill snippet and createFromProject stay in lockstep.
+                // Solution-type id needed at create-time too for the kit-list
+                // dispatch below.
                 $solutionTypeId = (int) ($roomData['solution_type_id'] ?? 0) ?: null;
-                $checklist      = '';
-                if ($solutionTypeId) {
-                    $checklist = trim((string) (\App\Models\SolutionType::find($solutionTypeId)?->survey_checklist ?? ''));
-                }
-
-                if ($overview !== '' && $checklist !== '') {
-                    $avRequirements = $overview . "\n\nStandard checks for this solution type:\n" . $checklist;
-                } elseif ($overview !== '') {
-                    $avRequirements = $overview;
-                } elseif ($checklist !== '') {
-                    // Preserves current fallback for rooms with no quote text
-                    // but a matched solution type — better than blank.
-                    $avRequirements = $checklist;
-                } else {
-                    $avRequirements = '';
-                }
+                $avRequirements = $this->resolveAvRequirementsText($roomData);
 
                 // Deterministic per-room kit string. Falls back to the room's
                 // works_summary when the quote didn't itemise equipment under
@@ -347,6 +331,109 @@ class SurveyService
 
             return $survey->fresh();
         });
+    }
+
+    /**
+     * Apply the user's choices from the Confirm Rooms screen WITHOUT clobbering
+     * engineer-collected data. Existing rooms get a surgical update of only
+     * the three fields that screen controls (room_name, av_requirements,
+     * sort_order). Excluded existing rooms are deleted (with photos). New
+     * rooms (no `id`) go through the full create path with qty expansion.
+     *
+     * Distinct from update() which does a full attribute replacement via
+     * roomAttributes() and is intended for the heavy edit form. Calling
+     * update() from the confirm-rooms flow nuked every engineer-entered
+     * field on existing rooms — see hotfix to quick-task 260506-fh0.
+     */
+    public function applyConfirmedRoomsPatch(SiteSurvey $survey, User $user, array $data): SiteSurvey
+    {
+        return DB::transaction(function () use ($survey, $user, $data) {
+            if (array_key_exists('general_notes', $data)) {
+                $survey->update([
+                    'general_notes' => $data['general_notes'] ?? $survey->general_notes,
+                ]);
+            }
+
+            $rooms       = array_values($data['rooms'] ?? []);
+            $incomingIds = collect($rooms)->pluck('id')->filter()->all();
+
+            $survey->rooms()->whereNotIn('id', $incomingIds)->each(function (SiteSurveyRoom $r) {
+                $this->deleteRoomPhotos($r);
+                $r->delete();
+            });
+
+            $sortIndex = 0;
+            foreach ($rooms as $row) {
+                if (!empty($row['id'])) {
+                    $room = SiteSurveyRoom::find($row['id']);
+                    if ($room && $room->site_survey_id === $survey->id) {
+                        $patch = [
+                            'room_name'  => trim((string) ($row['room_name'] ?? $room->room_name)),
+                            'sort_order' => $sortIndex++,
+                        ];
+                        if (array_key_exists('av_requirements', $row)) {
+                            $patch['av_requirements'] = $row['av_requirements'] !== '' ? $row['av_requirements'] : null;
+                        }
+                        $room->update($patch);
+                        continue;
+                    }
+                }
+
+                // New room — full create with qty expansion.
+                $baseName = trim((string) ($row['room_name'] ?? ''));
+                if ($baseName === '') {
+                    continue;
+                }
+                $qty = max(1, (int) ($row['qty'] ?? 1));
+                if ($qty > 1) {
+                    for ($q = 1; $q <= $qty; $q++) {
+                        $copy              = $row;
+                        $copy['room_name'] = "{$baseName} {$q}";
+                        $this->createRoom($survey, $copy, $sortIndex++);
+                    }
+                } else {
+                    $this->createRoom($survey, $row, $sortIndex++);
+                }
+            }
+
+            if ($survey->project_id) {
+                $project = Project::find($survey->project_id);
+                if ($project) {
+                    $this->projects->logDocument($project, $user, 'site-survey', $survey->id, 'updated');
+                }
+            }
+
+            return $survey->fresh();
+        });
+    }
+
+    /**
+     * Resolve the canonical AV Requirements text for a room from its quote
+     * data. Quote-specific overview wins; the matched SolutionType's static
+     * survey_checklist is appended as supplementary "Standard checks for
+     * this solution type:" — never replaces the overview. Used by both
+     * createFromProject() at creation time and by the backfill snippet
+     * for surveys created before 260506-jbu landed.
+     */
+    public function resolveAvRequirementsText(array $roomData): ?string
+    {
+        $overview       = trim((string) ($roomData['overview'] ?? $roomData['summary'] ?? ''));
+        $solutionTypeId = (int) ($roomData['solution_type_id'] ?? 0) ?: null;
+        $checklist      = '';
+        if ($solutionTypeId) {
+            $checklist = trim((string) (\App\Models\SolutionType::find($solutionTypeId)?->survey_checklist ?? ''));
+        }
+
+        if ($overview !== '' && $checklist !== '') {
+            return $overview . "\n\nStandard checks for this solution type:\n" . $checklist;
+        }
+        if ($overview !== '') {
+            return $overview;
+        }
+        if ($checklist !== '') {
+            return $checklist;
+        }
+        return null;
     }
 
     /**

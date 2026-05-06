@@ -239,8 +239,13 @@ class SiteSurveyController extends Controller
 
         /** @var \App\Models\User $user */
         $user = auth()->user();
-        $this->service->update($siteSurvey, $user, [
-            'project_name'  => $siteSurvey->project_name,
+
+        // Use the surgical patch method — NOT update() — so engineer-collected
+        // fields on existing rooms (dimensions, ceiling type, mounting heights,
+        // cable routes, etc.) are preserved when the user re-submits the
+        // Confirm Rooms screen. update() does a full attribute replace via
+        // roomAttributes() which would null-out every untouched field.
+        $this->service->applyConfirmedRoomsPatch($siteSurvey, $user, [
             'general_notes' => $validated['general_notes'] ?? $siteSurvey->general_notes,
             'rooms'         => $roomsPayload,
         ]);
