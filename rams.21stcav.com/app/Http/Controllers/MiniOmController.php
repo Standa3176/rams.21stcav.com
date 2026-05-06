@@ -24,9 +24,11 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  *     -> PdfRenderService::fromBlade('pdf.mini-om')   (Browsershot Chromium)
  *     -> response()->download(...)                    (BinaryFileResponse)
  *
- * Authorisation: ProjectPolicy::view (owner OR admin) — same gate as the
- * project show page, since this PDF is just a different rendering of the
- * same data the user can already see.
+ * Authorisation: any authenticated user (D-15 — projects are shared across
+ * all authenticated users, mirroring ProjectController::show). The
+ * ProjectPolicy::view owner-or-admin gate exists in the codebase but is
+ * NOT the actual sharing model used in production — using it here would
+ * 403 anyone viewing a project they didn't personally create.
  */
 class MiniOmController extends Controller
 {
@@ -42,7 +44,7 @@ class MiniOmController extends Controller
 
     public function generate(Project $project): BinaryFileResponse
     {
-        $this->authorize('view', $project);
+        abort_unless(auth()->check(), 403);
 
         $data = $this->builder->build($project);
 
