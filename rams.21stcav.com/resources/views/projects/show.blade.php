@@ -518,6 +518,31 @@
             </a>
         @endif
 
+        {{-- 260506-qa9 Mini O&M — always-visible header action so it's not
+             gated behind a tab. Status pill conveys "ready vs awaiting photos". --}}
+        @php
+            $hasAnyWorksheetPhoto = $project->worksheets
+                ->loadMissing('photos')
+                ->sum(fn ($w) => $w->photos->count()) > 0;
+        @endphp
+        <a href="{{ route('projects.mini-om.pdf', $project) }}"
+           class="inline-flex items-center gap-2 border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium px-4 py-2 rounded-lg text-sm transition-colors"
+           title="Auto-built client-facing PDF — rooms, photos, asset list, sign-offs"
+           target="_blank" rel="noopener">
+            <span aria-hidden="true">📄</span>
+            <span>Mini O&amp;M</span>
+            @if ($hasAnyWorksheetPhoto)
+                <span class="ml-1 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-700 border border-green-200">
+                    ✓
+                </span>
+            @else
+                <span class="ml-1 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-200"
+                      title="Mini O&M still works — uses brand-only cover + placeholder room blocks until photos arrive">
+                    ⚠
+                </span>
+            @endif
+        </a>
+
         @if ($nextStep && ! empty($nextStep['cta']) && ! empty($nextStep['href']))
             <a href="{{ $nextStep['href'] }}"
                class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-medium px-5 py-2.5 rounded-lg text-sm shadow-sm hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm transition-all duration-150">
@@ -790,36 +815,9 @@
                                     + New O&M
                                 </a>
                             @endif
-
-                            {{-- 260506-qa9 Mini O&M auto-built PDF — D-LOCK-5 manual button.
-                                 Sits ALONGSIDE the heavyweight Generate O&M action above; this
-                                 is the always-available secondary affordance. --}}
-                            @php
-                                // Status pill: any worksheet photo across the project = "Photos captured".
-                                // loadMissing is defensive — the show controller may or may not have
-                                // already eager-loaded ->photos before this Blade renders.
-                                $hasAnyWorksheetPhoto = $project->worksheets
-                                    ->loadMissing('photos')
-                                    ->sum(fn ($w) => $w->photos->count()) > 0;
-                            @endphp
-                            <span class="inline-flex items-center gap-2 ml-2">
-                                <a href="{{ route('projects.mini-om.pdf', $project) }}"
-                                   class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm"
-                                   title="Auto-built client-facing PDF — rooms, photos, asset list, sign-offs"
-                                   target="_blank" rel="noopener">
-                                    📄 Generate Mini O&M
-                                </a>
-                                @if ($hasAnyWorksheetPhoto)
-                                    <span class="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
-                                        ✅ Photos captured
-                                    </span>
-                                @else
-                                    <span class="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5"
-                                          title="Mini O&M still works — uses brand-only cover + placeholder room blocks until photos arrive">
-                                        ⚠️ Awaiting photos
-                                    </span>
-                                @endif
-                            </span>
+                            {{-- 260506-qa9 Mini O&M button moved to the always-visible header
+                                 actions slot (alongside Drawings + Edit Project Data) so it's
+                                 not gated behind the O&M tab. --}}
                         </span>
                         <span x-show="activeTab==='cable'" x-cloak>
                             <form method="POST" action="{{ route('cable-schedules.generate-from-project', $project) }}" class="m-0 inline-block">
