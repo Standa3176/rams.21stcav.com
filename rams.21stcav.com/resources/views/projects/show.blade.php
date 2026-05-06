@@ -1515,14 +1515,24 @@
                     @endif
                 </div>
 
-                {{-- ───── Asset Register panel (260504-q19) ───── --}}
+                {{-- ───── Asset Register panel (260504-q19) ─────
+                     Hardware-only filter (260506-qa9 hotfix): only show devices
+                     whose part_no matches a quoted hardware line. Hides test
+                     photos and any orphan label captures from the asset view
+                     without touching the data — Project::hardwarePartNumbers()
+                     is the single source of truth, also used by the Mini O&M. --}}
                 <div x-show="activeTab==='assets'" x-cloak role="tabpanel">
                     @php
+                        $hardwareParts = $project->hardwarePartNumbers();
                         $assetDevices = \App\Models\Device::where('project_id', $project->id)
                             ->with(['labelPhotos' => fn($q) => $q->orderByDesc('captured_at')])
                             ->orderBy('room_name')
                             ->orderBy('description')
                             ->get()
+                            ->when(! empty($hardwareParts), fn($c) => $c->filter(function ($d) use ($hardwareParts) {
+                                $part = strtolower(trim((string) ($d->part_no ?? '')));
+                                return $part !== '' && in_array($part, $hardwareParts, true);
+                            })->values())
                             ->groupBy(fn($d) => $d->room_name ?: 'Unassigned room');
                         $totalDevices    = $assetDevices->flatten()->count();
                         $totalPhotos     = $assetDevices->flatten()->sum(fn($d) => $d->labelPhotos->count());

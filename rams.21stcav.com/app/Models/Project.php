@@ -196,6 +196,44 @@ class Project extends Model
         return $this->hasMany(Device::class);
     }
 
+    /**
+     * Lowercased, trimmed, deduped set of part numbers from the latest
+     * package's equipment_list filtered to category=hardware. Used by
+     * the Mini O&M and the Asset Register tab to hide test photos and
+     * non-physical line items (services, consumables) so the asset views
+     * only show items that are actually quoted hardware.
+     *
+     * Returns [] when no package or no hardware lines — callers should
+     * treat empty as "no filter applied" (show everything) so a fresh
+     * project before package import doesn't render an empty register.
+     *
+     * @return array<int, string>
+     */
+    public function hardwarePartNumbers(): array
+    {
+        $eq = $this->latestPackage?->equipment_list ?? [];
+        if (! is_array($eq)) {
+            return [];
+        }
+
+        $parts = [];
+        foreach ($eq as $line) {
+            if (! is_array($line)) {
+                continue;
+            }
+            $cat = strtolower(trim((string) ($line['category'] ?? 'hardware')));
+            if ($cat !== 'hardware') {
+                continue;
+            }
+            $part = strtolower(trim((string) ($line['part_number'] ?? '')));
+            if ($part !== '') {
+                $parts[$part] = true;
+            }
+        }
+
+        return array_keys($parts);
+    }
+
     public function appendices(): HasMany
     {
         return $this->hasMany(Appendix::class);

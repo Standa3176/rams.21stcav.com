@@ -94,6 +94,18 @@ class MiniOmBuilderService
             ->where('confirmed', true)
             ->get();
 
+        // Hardware-only filter for the asset views — hides test photos
+        // and any orphan label captures whose part_number isn't in the
+        // project's quoted hardware list. Empty array = no filter applied
+        // (e.g. fresh project pre-quote-import).
+        $hardwareParts = $project->hardwarePartNumbers();
+        if (! empty($hardwareParts)) {
+            $confirmedLabels = $confirmedLabels->filter(function (DeviceLabelPhoto $photo) use ($hardwareParts) {
+                $part = strtolower(trim((string) (data_get($photo->ai_extracted, 'part_number') ?? '')));
+                return $part !== '' && in_array($part, $hardwareParts, true);
+            })->values();
+        }
+
         $package      = $project->latestPackage;
         $latestSurvey = $this->latestActiveSurvey($project);
 
