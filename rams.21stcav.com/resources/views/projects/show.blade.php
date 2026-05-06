@@ -790,6 +790,36 @@
                                     + New O&M
                                 </a>
                             @endif
+
+                            {{-- 260506-qa9 Mini O&M auto-built PDF — D-LOCK-5 manual button.
+                                 Sits ALONGSIDE the heavyweight Generate O&M action above; this
+                                 is the always-available secondary affordance. --}}
+                            @php
+                                // Status pill: any worksheet photo across the project = "Photos captured".
+                                // loadMissing is defensive — the show controller may or may not have
+                                // already eager-loaded ->photos before this Blade renders.
+                                $hasAnyWorksheetPhoto = $project->worksheets
+                                    ->loadMissing('photos')
+                                    ->sum(fn ($w) => $w->photos->count()) > 0;
+                            @endphp
+                            <span class="inline-flex items-center gap-2 ml-2">
+                                <a href="{{ route('projects.mini-om.pdf', $project) }}"
+                                   class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm"
+                                   title="Auto-built client-facing PDF — rooms, photos, asset list, sign-offs"
+                                   target="_blank" rel="noopener">
+                                    📄 Generate Mini O&M
+                                </a>
+                                @if ($hasAnyWorksheetPhoto)
+                                    <span class="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
+                                        ✅ Photos captured
+                                    </span>
+                                @else
+                                    <span class="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5"
+                                          title="Mini O&M still works — uses brand-only cover + placeholder room blocks until photos arrive">
+                                        ⚠️ Awaiting photos
+                                    </span>
+                                @endif
+                            </span>
                         </span>
                         <span x-show="activeTab==='cable'" x-cloak>
                             <form method="POST" action="{{ route('cable-schedules.generate-from-project', $project) }}" class="m-0 inline-block">
