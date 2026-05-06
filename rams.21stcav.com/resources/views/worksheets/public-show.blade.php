@@ -809,7 +809,7 @@
                         </div>
                         <label class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:.4rem;cursor:pointer;">
                             📷 Add photo
-                            <input type="file" accept="image/*" capture="environment" style="display:none;"
+                            <input type="file" accept="image/*" style="display:none;"
                                    onchange="uploadWorksheetPhoto(this, '{{ $token }}', '{{ addslashes($room['name'] ?? '') }}')">
                         </label>
                         @if($photoCount === 0)
@@ -1140,7 +1140,6 @@
                                                         📷 Box Serial Label
                                                         <input type="file"
                                                                accept="image/*"
-                                                               capture="environment"
                                                                style="display:none;"
                                                                data-room="{{ $room['name'] ?? '' }}"
                                                                data-desc="{{ $itemDesc }}"

@@ -1654,7 +1654,7 @@
                                     <label class="photo-upload-btn" for="photo-input-{{ $room->id }}">
                                         📷 Add Photo
                                     </label>
-                                    <input type="file" accept="image/*" capture="environment"
+                                    <input type="file" accept="image/*"
                                            class="photo-file-input"
                                            id="photo-input-{{ $room->id }}"
                                            data-room-id="{{ $room->id }}"

@@ -36,7 +36,6 @@
             </svg>
             <input type="file"
                    accept="image/*"
-                   capture="environment"
                    data-category="{{ $category }}"
                    class="sr-only"
                    @change="uploadPhoto(currentRoom._ui.room_id, $event.target)">

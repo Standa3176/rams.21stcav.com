@@ -6,7 +6,7 @@
 
     UI-SPEC:
       - 80×80 thumbnails, horizontal scroll strip
-      - Dashed camera placeholder with capture="environment" for iOS camera
+      - Dashed camera placeholder — opens iOS/Android picker (camera OR photo library)
       - Caption input blur-saves to /install-task-photos/{photo}
       - Tap thumbnail opens native <dialog> lightbox
 
@@ -143,7 +143,6 @@
             <span x-show="!uploading" class="text-xs text-gray-500 mt-1">Add photo</span>
             <input type="file"
                    accept="image/*,image/heic,image/heif"
-                   capture="environment"
                    class="sr-only"
                    @change="upload($event.target)">
         </label>
