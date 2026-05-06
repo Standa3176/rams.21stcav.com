@@ -154,6 +154,24 @@ class SurveyService
             // area so case/whitespace variants collapse to the same room.
             $equipmentByRoomKey = $this->groupEquipmentByRoom($ctx['equipment'] ?? []);
 
+            // ── Mirror project / package works_description into general_notes ──
+            // Project-level value takes priority; falls back to the latest
+            // reviewed package's works_description; final fallback is null.
+            // Capped to 3000 chars to honour the survey edit form's maxlength
+            // constraint so the next save does not get rejected.
+            // Quick task 260506-fh0.
+            $package        = $project->relationLoaded('latestPackage')
+                ? $project->latestPackage
+                : $project->latestPackage()->first();
+            $worksDescription = trim((string) ($project->works_description ?? ''));
+            if ($worksDescription === '') {
+                $worksDescription = trim((string) ($package?->works_description ?? ''));
+            }
+            if ($worksDescription !== '' && mb_strlen($worksDescription) > 3000) {
+                $worksDescription = mb_substr($worksDescription, 0, 3000);
+            }
+            $generalNotes = $worksDescription !== '' ? $worksDescription : null;
+
             $survey = SiteSurvey::create([
                 'user_id'       => $user->id,
                 'project_id'    => $project->id,
@@ -163,10 +181,19 @@ class SurveyService
                 'site_address'  => $project->site_address,
                 'survey_date'   => null,
                 'surveyor_name' => null,
-                'general_notes' => null,
+                'general_notes' => $generalNotes,
                 'status'        => 'draft',
                 // access_token is auto-generated in SiteSurvey::boot()
             ]);
+
+            if ($generalNotes !== null) {
+                Log::info('SurveyService: seeded general_notes from works_description', [
+                    'project_id' => $project->id,
+                    'survey_id'  => $survey->id,
+                    'source'     => trim((string) ($project->works_description ?? '')) !== '' ? 'project' : 'package',
+                    'length'     => mb_strlen($generalNotes),
+                ]);
+            }
 
             // Seed one SiteSurveyRoom per room_overview entry. Skip "rooms"
             // that are actually quote line-items rather than physical spaces
