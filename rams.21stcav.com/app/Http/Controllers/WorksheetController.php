@@ -229,12 +229,19 @@ class WorksheetController extends Controller
             403
         );
 
+        $projectId = $worksheet->project_id;
+
         $worksheet->delete();
 
         Log::info('WorksheetController: worksheet soft-deleted', [
             'worksheet_id' => $worksheet->id,
             'user_id'      => auth()->id(),
         ]);
+
+        if ($projectId) {
+            return redirect()->route('projects.show', $projectId)
+                ->with('success', 'Worksheet deleted.');
+        }
 
         return redirect()->route('worksheets.index')
             ->with('success', 'Worksheet deleted.');

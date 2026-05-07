@@ -457,8 +457,14 @@ class OmManualController extends Controller
         $record = OmManual::findOrFail($omManual);
         $this->authorize('delete', $record);
 
+        $projectId = $record->project_id;
+
         // Soft-delete only — keep file on disk so it can be restored
         $record->delete();
+
+        if ($projectId) {
+            return redirect()->route('projects.show', $projectId)->with('success', 'O&M Manual deleted.');
+        }
 
         return redirect()->route('om-manuals.index')->with('success', 'O&M Manual deleted.');
     }

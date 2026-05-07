@@ -153,7 +153,13 @@ class CableScheduleController extends Controller
         $record = CableSchedule::findOrFail($cableSchedule);
         abort_unless($record->user_id === auth()->id() || auth()->user()->isAdmin(), 403);
 
+        $projectId = $record->project_id;
+
         $record->delete();
+
+        if ($projectId) {
+            return redirect()->route('projects.show', $projectId)->with('success', 'Cable schedule deleted.');
+        }
 
         return redirect()->route('cable-schedules.index')->with('success', 'Cable schedule deleted.');
     }
