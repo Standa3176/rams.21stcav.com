@@ -27,6 +27,7 @@ class RamsFormRequest extends FormRequest
             'lead_engineer'       => ['nullable', 'string', 'max:200'],
             'additional_engineers'=> ['nullable', 'string', 'max:500'],
             'programmer'          => ['nullable', 'string', 'max:200'],
+            'site_vehicles'       => ['nullable', 'string', 'max:2000'],
 
             // AI
             'ai_provider'         => ['nullable', 'string', 'in:claude,openai'],

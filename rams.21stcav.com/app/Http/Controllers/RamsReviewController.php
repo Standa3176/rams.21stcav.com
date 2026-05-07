@@ -273,6 +273,12 @@ class RamsReviewController extends Controller
             'lead_engineer'        => trim((string) ($p['lead_engineer']        ?? '')),
             'additional_engineers' => trim((string) ($p['additional_engineers'] ?? '')),
             'programmer'           => trim((string) ($p['programmer']           ?? '')),
+            'site_vehicles'        => array_values(array_filter(
+                array_map('trim', is_array($p['site_vehicles'] ?? null)
+                    ? (array) $p['site_vehicles']
+                    : preg_split('/\r?\n/', (string) ($p['site_vehicles'] ?? ''))),
+                fn (string $s) => $s !== '',
+            )),
             'overview'     => trim((string) ($p['overview']     ?? '')),
         ];
 

@@ -1000,6 +1000,12 @@ class ProjectPackageReviewController extends Controller
         $workingHours = in_array($prog['working_hours'] ?? '', ['in_hours', 'out_of_hours'], true)
             ? $prog['working_hours']
             : 'in_hours';
+        // Site vehicles & registrations — array of "REG ABC123 - Crew van" lines.
+        $siteVehicles = array_values(array_filter(
+            array_map('strval', (array) ($prog['site_vehicles'] ?? [])),
+            fn (string $s) => trim($s) !== '',
+        ));
+
         $raw['programme'] = [
             'project_manager_name'  => trim((string) ($prog['project_manager_name']  ?? '')),
             'project_manager_phone' => trim((string) ($prog['project_manager_phone'] ?? '')),
@@ -1008,6 +1014,7 @@ class ProjectPackageReviewController extends Controller
             'lead_engineer_phone'   => trim((string) ($prog['lead_engineer_phone']   ?? '')),
             'additional_engineers'  => $additionalEngineers,
             'programmers'           => $programmers,
+            'site_vehicles'         => $siteVehicles,
             'working_hours'         => $workingHours,
             'planned_start_date'    => trim((string) ($prog['planned_start_date'] ?? '')),
             'planned_end_date'      => trim((string) ($prog['planned_end_date']   ?? '')),
