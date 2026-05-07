@@ -5,94 +5,75 @@
 --}}
 @auth
 <style>
-    /* ── Sidebar nav ────────────────────────────────────────────── */
+    /* ── Sidebar nav — v2 style ─────────────────────── */
     .sidebar-nav {
         display: flex;
         flex-direction: column;
-        padding: 1rem 0 3rem;
+        gap: 2px;
+        padding: 18px 14px 4rem;
     }
 
     .snav-label {
-        padding: 1.25rem .875rem .3rem;
-        font-size: .625rem;
+        padding: 12px 8px 4px;
+        font-size: 9px;
         font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: .1em;
-        color: rgba(255,255,255,.3);
+        letter-spacing: .16em;
+        color: var(--sidebar-fg-mute);
         white-space: nowrap;
         user-select: none;
     }
 
     .snav-link {
-        position: relative;
         display: flex;
         align-items: center;
-        gap: .625rem;
-        padding: .5rem .875rem;
-        margin: 0 .5rem;
+        gap: 10px;
+        padding: 9px 10px;
         border-radius: 6px;
-        color: rgba(255,255,255,.65);
-        font-size: .875rem;
-        font-weight: 400;
+        color: var(--sidebar-fg);
+        font-size: 13px;
+        font-weight: 500;
         text-decoration: none;
-        transition: background 120ms ease, color 120ms ease;
+        transition: background .12s, color .12s;
         line-height: 1.3;
     }
     .snav-link:hover {
-        background: rgba(255,255,255,.07);
-        color: rgba(255,255,255,.95);
+        background: rgba(255,255,255,.04);
+        color: var(--sidebar-active-fg);
         text-decoration: none;
     }
     .snav-link.active {
-        background: rgba(23,138,149,.22);
-        color: #fff;
-        font-weight: 500;
-    }
-    .snav-link.active .snav-icon { color: #5DD6DF; }
-    .snav-link.active::before {
-        content: '';
-        position: absolute;
-        left: -.5rem;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 3px;
-        height: 60%;
-        background: var(--teal);
-        border-radius: 0 3px 3px 0;
+        background: var(--sidebar-active-bg);
+        color: var(--sidebar-active-fg);
+        font-weight: 600;
     }
 
     .snav-icon {
+        width: 16px; height: 16px;
         flex-shrink: 0;
-        color: rgba(255,255,255,.4);
-        transition: color 120ms ease;
+        opacity: .75;
     }
-    .snav-link:hover .snav-icon { color: rgba(255,255,255,.75); }
+    .snav-link.active .snav-icon { opacity: 1; }
 
     .snav-sep {
         height: 1px;
-        background: rgba(255,255,255,.07);
-        margin: .625rem .875rem;
+        background: rgba(255,255,255,.08);
+        margin: 10px 8px;
     }
 
     .snav-admin-dot {
         margin-left: auto;
-        width: 5px;
-        height: 5px;
+        width: 5px; height: 5px;
         border-radius: 50%;
-        background: #F5C542;
+        background: var(--gold-500);
         flex-shrink: 0;
     }
 
-    /* Admin-only nav styling (yellow) */
-    .snav-label.admin-only { color: #F5C542; }
-    .snav-link.admin-only { color: rgba(245,197,66,.9); }
-    .snav-link.admin-only .snav-icon { color: rgba(245,197,66,.85); }
-    .snav-link.admin-only:hover {
-        color: #FFD976;
-    }
-    .snav-link.admin-only:hover .snav-icon {
-        color: #FFD976;
-    }
+    /* Admin-only nav styling — gold tint */
+    .snav-label.admin-only { color: rgba(200,166,90,.75); }
+    .snav-link.admin-only { color: rgba(200,166,90,.85); }
+    .snav-link.admin-only .snav-icon { opacity: .85; }
+    .snav-link.admin-only:hover { color: var(--gold-500); background: rgba(200,166,90,.07); }
 </style>
 
 <nav class="sidebar-nav" aria-label="Main navigation">

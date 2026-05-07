@@ -120,14 +120,14 @@ class ProjectController extends Controller
         // Eager-load all related data to prevent N+1 queries on the show page.
         $project->load([
             'projectQuotes.uploadedBy',                              // quote history panel
-            'ramsDocuments'      => fn ($q) => $q->latest()->limit(5),
+            'ramsDocuments'      => fn ($q) => $q->latest()->limit(3),
             'latestPackage',
             'activityLog.user',
-            'omManuals'          => fn ($q) => $q->latest()->limit(5),
-            'siteSurveys'        => fn ($q) => $q->latest()->limit(5),
-            'cableSchedules'     => fn ($q) => $q->latest()->limit(5),
-            'worksheets'         => fn ($q) => $q->latest()->limit(5),
-            'installProgrammes'  => fn ($q) => $q->latest()->limit(5),
+            'omManuals'          => fn ($q) => $q->latest()->limit(3),
+            'siteSurveys'        => fn ($q) => $q->latest()->limit(3),
+            'cableSchedules'     => fn ($q) => $q->latest()->limit(3),
+            'worksheets'         => fn ($q) => $q->latest()->limit(3),
+            'installProgrammes'  => fn ($q) => $q->latest()->limit(3),
         ]);
 
         $nextStatus = $project->nextStatus();
