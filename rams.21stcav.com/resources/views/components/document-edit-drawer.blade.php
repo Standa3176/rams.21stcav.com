@@ -194,6 +194,16 @@
                             }
                         }
                     } catch (e) { /* ignore corrupt state */ }
+
+                    // Auto-open drawer when arriving with ?chat=1 (e.g. from
+                    // a project page shortcut). Defer to next tick so the
+                    // drawer DOM and event listeners are ready.
+                    try {
+                        const params = new URLSearchParams(window.location.search);
+                        if (params.get('chat') === '1') {
+                            this.$nextTick(() => this.openDrawer());
+                        }
+                    } catch (e) { /* ignore — non-critical */ }
                 },
 
                 async openDrawer() {
