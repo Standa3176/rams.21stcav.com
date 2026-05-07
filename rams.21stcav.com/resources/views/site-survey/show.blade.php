@@ -376,12 +376,13 @@
     <div class="alert alert-success">{{ session('success') }}</div>
 @endif
 
-{{-- Engineer link banner --}}
+{{-- Engineer link banner — uses the standardised <x-copy-link-button>
+     so the copy interaction matches the rest of the app (260507 housekeeping). --}}
 @if($survey->access_token && !$survey->isSubmitted())
 <div class="survey-link-banner">
     <span style="font-weight:700;color:#0B3C45;white-space:nowrap;">📱 Engineer Link:</span>
     <span class="survey-link-url" id="survey-link-text">{{ $surveyUrl }}</span>
-    <button class="survey-link-copy" onclick="copyLink(this)">Copy Link</button>
+    <x-copy-link-button :url="$surveyUrl" label="Copy Link" />
 </div>
 @endif
 

@@ -173,18 +173,20 @@
 {{-- Client Sign-Off Link — guarded for legacy worksheets that pre-date the
      access_token migration. publicUrl() throws when the token is null. --}}
 @if($worksheet->access_token)
-<div class="card card-sm" style="margin-bottom:1.25rem;" x-data="{ url: '{{ $worksheet->publicUrl() }}', copied: false }">
+@php $worksheetPublicUrl = $worksheet->publicUrl(); @endphp
+{{-- Client Sign-Off Link — Alpine state dropped, copy interaction now uses
+     the standardised <x-copy-link-button> so it matches the rest of the
+     app (260507 housekeeping). Input + Open link still inline-rendered. --}}
+<div class="card card-sm" style="margin-bottom:1.25rem;">
     <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:.4rem;">
         Client Sign-Off Link
     </div>
     <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
-        <input type="text" :value="url" readonly data-optional
+        <input type="text" value="{{ $worksheetPublicUrl }}" readonly data-optional
                style="flex:1;min-width:260px;font-size:.82rem;padding:.45rem .65rem;border:1px solid var(--border);border-radius:6px;background:#fafbfc;"
-               @click="$event.target.select()">
-        <button type="button" class="btn-outline btn-sm"
-                @click="navigator.clipboard.writeText(url); copied = true; setTimeout(() => copied = false, 1500);"
-                x-text="copied ? '✓ Copied' : 'Copy'"></button>
-        <a :href="url" target="_blank" class="btn-outline btn-sm">Open ↗</a>
+               onclick="this.select()">
+        <x-copy-link-button :url="$worksheetPublicUrl" label="Copy" />
+        <a href="{{ $worksheetPublicUrl }}" target="_blank" class="btn-outline btn-sm">Open ↗</a>
     </div>
     @if($worksheet->isSigned())
         @php $sig = $worksheet->latestSignoff(); @endphp
