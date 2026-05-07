@@ -24,6 +24,15 @@ abstract class BasePrompt
     /** Base64-encoded PDF bytes — only populated when $usesPdf is true. */
     protected ?string $pdfBase64 = null;
 
+    /** Whether this prompt sends an image (vision call). */
+    protected bool $usesImage = false;
+
+    /** Base64-encoded image bytes — only populated when $usesImage is true. */
+    protected ?string $imageBase64 = null;
+
+    /** Image MIME type, e.g. 'image/jpeg'. */
+    protected ?string $imageMediaType = null;
+
     // ── Subclass responsibilities ─────────────────────────────────────────────
 
     /**
@@ -83,6 +92,36 @@ abstract class BasePrompt
     {
         $this->usesPdf   = true;
         $this->pdfBase64 = $pdfBase64;
+
+        return $this;
+    }
+
+    // ── Image support ─────────────────────────────────────────────────────────
+
+    public function usesImage(): bool
+    {
+        return $this->usesImage;
+    }
+
+    public function getImageBase64(): ?string
+    {
+        return $this->imageBase64;
+    }
+
+    public function getImageMediaType(): ?string
+    {
+        return $this->imageMediaType;
+    }
+
+    /**
+     * Fluent setter — attach a base64-encoded image and its MIME type.
+     * Used by vision prompts (e.g. LabelExtractionPrompt).
+     */
+    public function setImage(string $imageBase64, string $mediaType = 'image/jpeg'): static
+    {
+        $this->usesImage      = true;
+        $this->imageBase64    = $imageBase64;
+        $this->imageMediaType = $mediaType;
 
         return $this;
     }
