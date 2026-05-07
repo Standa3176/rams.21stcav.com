@@ -31,3 +31,16 @@ storage/logs/
 
 # Build output
 /public/build/
+
+# Claude Code local cache (per-machine state, not source)
+.claude/
+
+# Loose document outputs at repo root — generated artifacts, not source.
+# Anchored to root with leading slash so .docx/.pdf inside subdirectories
+# (real fixtures, planning docs, view templates etc.) stay tracked.
+/*.docx
+/*.pdf
+
+# One-off local scripts and backup directories at repo root
+/make_phrasing_doc.py
+/backup/

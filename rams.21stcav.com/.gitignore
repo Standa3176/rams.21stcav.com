@@ -44,3 +44,24 @@ backup_before_cleanup.sql
 # worksheets/, cable-schedules/ — all runtime output, not source.
 /storage/app/documents/*
 !/storage/app/documents/.gitkeep
+
+# Private user uploads (label photos, scratch artifacts) — runtime data, not source.
+/storage/app/private/
+
+# Queue worker liveness file — written every tick, never source.
+/storage/worker-heartbeat
+
+# Claude Code per-machine state cache.
+.claude/
+
+# Local debug + scratch scripts (never deploy to live).
+/diag.php
+/render()
+/resources/views/site-survey/db.php
+
+# Manual view backups (engineer-friendly snapshots before risky edits).
+# Pattern catches *.bak-YYMMDD, *.pre-tailwind-bak, etc.
+/resources/views.backup-*/
+*.bak-*
+*.pre-tailwind-bak
+*.blade2903.php
