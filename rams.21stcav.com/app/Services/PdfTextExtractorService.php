@@ -167,6 +167,17 @@ class PdfTextExtractorService
      */
     private function extractWithPdfToText(string $path): string
     {
+        // Many managed PHP-FPM installs (CWP, cPanel, shared hosting) disable
+        // shell_exec via php.ini's disable_functions list. When that's the case
+        // we cannot invoke pdftotext at all — skip Stage 0 and let the pure-PHP
+        // fallbacks (Smalot → FlateDecode → raw → OCR) handle extraction.
+        if (! function_exists('shell_exec')) {
+            Log::info('PdfTextExtractorService: shell_exec disabled — skipping pdftotext stage', [
+                'path' => basename($path),
+            ]);
+            return '';
+        }
+
         // Hardcoded known Windows path (Git for Windows ships pdftotext.exe here).
         // Also try PATH-based detection as fallback.
         $candidates = [
@@ -174,6 +185,11 @@ class PdfTextExtractorService
             'C:\\Program Files (x86)\\Git\\mingw64\\bin\\pdftotext.exe',
             'C:\\poppler\\bin\\pdftotext.exe',
             'C:\\Program Files\\poppler\\bin\\pdftotext.exe',
+            // Common Linux locations — checked before PATH lookup so we work
+            // even if `which` is unavailable or shell_exec returns empty.
+            '/usr/bin/pdftotext',
+            '/usr/local/bin/pdftotext',
+            '/opt/poppler/bin/pdftotext',
         ];
 
         $binary = '';
@@ -186,14 +202,14 @@ class PdfTextExtractorService
 
         // PATH-based fallback: `where` on Windows, `which` on Unix
         if ($binary === '') {
-            $whereOutput = shell_exec('where pdftotext 2>NUL');
+            $whereOutput = @shell_exec('where pdftotext 2>NUL');
             if (is_string($whereOutput) && trim($whereOutput) !== '') {
                 $binary = trim(explode("\n", $whereOutput)[0]);
             }
         }
 
         if ($binary === '') {
-            $whichOutput = shell_exec('which pdftotext 2>/dev/null');
+            $whichOutput = @shell_exec('which pdftotext 2>/dev/null');
             if (is_string($whichOutput) && trim($whichOutput) !== '') {
                 $binary = trim($whichOutput);
             }

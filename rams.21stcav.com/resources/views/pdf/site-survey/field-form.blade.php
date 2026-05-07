@@ -7,7 +7,7 @@
     $package = $survey->project?->latestPackage;
 @endphp
 
-<div class="footer">21st Century AV Ltd — Field Survey Form | {{ $survey->project_name }} | Generated {{ now()->format('d/m/Y') }}</div>
+{{-- Running footer now supplied to Browsershot by SurveyPdfService::buildFieldFormContents. --}}
 <h1>Field Survey Form</h1>
 <p class="meta">Complete by hand on-site. Return to office for processing into the digital survey.</p>
 

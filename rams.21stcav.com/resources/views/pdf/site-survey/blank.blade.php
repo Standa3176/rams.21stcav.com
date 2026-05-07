@@ -3,7 +3,7 @@
 @include('pdf.site-survey._styles')
 </head><body>
 
-<div class="footer">21st Century AV Ltd — Site Survey Form | Confidential</div>
+{{-- Running footer now supplied to Browsershot by SurveyPdfService. --}}
 <h1>Site Survey Form</h1>
 <p class="meta">21st Century AV Ltd — Complete one form per site visit. Return to office for processing.</p>
 
