@@ -2711,15 +2711,30 @@ class QuoteParserService
 
     /**
      * Use the ship-email local part as prepared-by fallback, e.g. "jane.doe".
+     *
+     * SAFETY GUARD: SHIPEMAIL is the *client* contact email, not 21CAV. Using
+     * its local part as "Prepared By" puts the client's name on the RAMS doc,
+     * which is wrong (it should be the 21CAV preparer). Only honour this
+     * fallback when the email's domain is unambiguously a 21CAV-owned domain;
+     * otherwise return empty and let the upstream code fall back to the
+     * project owner / authenticated user.
      */
     private function extractPreparedByFromShipEmail(string $rawText): string
     {
-        if (! preg_match('/SHIPEMAILSTART\s*([A-Z0-9._%+\-]+)@/i', $rawText, $m)) {
+        if (! preg_match('/SHIPEMAILSTART\s*([A-Z0-9._%+\-]+)@([A-Z0-9.\-]+)/i', $rawText, $m)) {
             return '';
         }
 
-        $local = strtolower(trim((string) ($m[1] ?? '')));
-        if ($local === '') {
+        $local  = strtolower(trim((string) ($m[1] ?? '')));
+        $domain = strtolower(trim((string) ($m[2] ?? '')));
+        if ($local === '' || $domain === '') {
+            return '';
+        }
+
+        // Hard whitelist — only treat the SHIPEMAIL as the preparer when the
+        // domain is one of 21CAV's own. Any third-party domain is the client.
+        $cavDomains = ['21stcenturyav.com', '21stcav.com'];
+        if (! in_array($domain, $cavDomains, true)) {
             return '';
         }
 
@@ -3017,9 +3032,16 @@ class QuoteParserService
                 continue;
             }
 
-            // Duplicate row — keep the first occurrence's qty (do not sum).
-            // Same part number in the same area means the duplicate is an OCR
-            // or PDF-layout artifact, not a genuinely additional quantity.
+            // Duplicate row in the same area — SUM the quantities. Sales
+            // legitimately list the same part on multiple lines (e.g. one
+            // per sub-area, per setup pass, or per quote revision), and
+            // dropping rows under-counts the install. Description / location
+            // merge picks the richer value across the duplicate rows.
+            $existingQty = (int) ($deduped[$key]['qty'] ?? 0);
+            $newQty      = (int) ($item['qty'] ?? 0);
+            if ($newQty > 0) {
+                $deduped[$key]['qty'] = $existingQty + $newQty;
+            }
 
             $existingDesc = (string) ($deduped[$key]['description'] ?? '');
             $newDesc      = (string) ($item['description'] ?? '');

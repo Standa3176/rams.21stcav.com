@@ -88,9 +88,21 @@ class RamsDisplayPatchService
         }
 
         // doc_author drives "Prepared By" / "Author" on the cover and Document Control table.
-        // If it is empty or contains an email address (client data leaked from generated_data),
-        // override it with the resolved project_manager name (always a 21CAV person by this point).
-        if (empty($p['doc_author']) || filter_var($p['doc_author'], FILTER_VALIDATE_EMAIL)) {
+        // Three cases force a re-resolve to the 21CAV project_manager:
+        //   a) doc_author empty
+        //   b) doc_author is an email address (client data leak)
+        //   c) doc_author matches the client contact name — happens when the
+        //      quote parser falls back to deriving prepared_by from the client's
+        //      SHIPEMAIL local part (e.g. jamesscarlett@... → "James Scarlett",
+        //      who is the client, not the 21CAV author).
+        $authorNorm = strtolower(trim((string) ($p['doc_author'] ?? '')));
+        $clientNorm = strtolower(trim((string) ($p['client_contact_name'] ?? '')));
+        $authorIsClient = $authorNorm !== '' && $clientNorm !== '' && $authorNorm === $clientNorm;
+
+        if (empty($p['doc_author'])
+            || filter_var($p['doc_author'], FILTER_VALIDATE_EMAIL)
+            || $authorIsClient
+        ) {
             $p['doc_author'] = $p['project_manager'] ?: $ownerName;
         }
         if (empty($p['lead_engineer'])) {
