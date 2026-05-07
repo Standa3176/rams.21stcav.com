@@ -3,12 +3,16 @@ status: partial
 phase: 20-drawing-export-pipeline-o-m-integration
 source: [20-VERIFICATION.md]
 started: "2026-05-03T14:30:00Z"
-updated: "2026-05-03T14:30:00Z"
+updated: "2026-05-04T08:00:00Z"
 ---
 
 ## Current Test
 
-[awaiting human testing]
+number: 1
+name: End-to-end bound PDF download from a real project's drawings index
+expected: |
+  Browser receives a multi-page PDF (cover + register + per-drawing pages); each drawing's title block shows the AV-XXX sheet number
+awaiting: user response
 
 ## Tests
 
