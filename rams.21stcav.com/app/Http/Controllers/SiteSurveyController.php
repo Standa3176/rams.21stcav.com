@@ -260,7 +260,7 @@ class SiteSurveyController extends Controller
     {
         $this->authorizeSurvey($siteSurvey);
 
-        $siteSurvey->load('rooms.photos', 'rooms.questions');
+        $siteSurvey->load('rooms.photos', 'rooms.questions', 'variations.photo');
 
         $projects = Project::where('user_id', auth()->id())
             ->orderBy('name')

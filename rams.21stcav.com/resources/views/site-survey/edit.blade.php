@@ -261,6 +261,152 @@
     </div>
 </form>
 
+{{-- ════════════════════════════════════════════════════════════════════════
+     VARIATIONS & ADDITIONS — quick task 260508-v7g
+     Separate form (HTML5 doesn't allow nested forms). Each variation Add /
+     Edit / Delete posts directly to the variations CRUD endpoints.
+     D-LOCK-1: flat capture. D-LOCK-6: auth-only (controller enforces).
+     ════════════════════════════════════════════════════════════════════════ --}}
+<div class="form-section" x-data="variationsPanel()" style="margin-top:1.5rem;">
+    <div class="form-section__header" style="display:flex;align-items:center;justify-content:space-between;">
+        <h2 class="section-heading" style="margin:0;">Variations &amp; Additions</h2>
+        <button type="button" class="btn btn-teal btn-sm" @click="openAdd()">+ Add Variation</button>
+    </div>
+    <div class="form-section__body">
+        <p style="font-size:.875rem;color:#6B7280;margin:0 0 .75rem;">
+            Scope changes captured during or after the survey — extra hardware, cable changes,
+            access issues, client-provided changes. Renders in the client report PDF and the
+            downloadable Variations CSV (sales team uses for quote revisions).
+        </p>
+
+        @if ($survey->variations->isEmpty())
+            <p style="font-size:.875rem;color:#9CA3AF;font-style:italic;margin:0;">No variations recorded for this survey yet.</p>
+        @else
+            <div style="overflow-x:auto;">
+                <table style="width:100%;font-size:.875rem;border-collapse:collapse;">
+                    <thead>
+                        <tr style="border-bottom:2px solid #E5E7EB;">
+                            <th style="text-align:left;padding:.4rem .5rem;">Room</th>
+                            <th style="text-align:left;padding:.4rem .5rem;">Type</th>
+                            <th style="text-align:left;padding:.4rem .5rem;">Description</th>
+                            <th style="text-align:right;padding:.4rem .5rem;">Qty</th>
+                            <th style="text-align:left;padding:.4rem .5rem;">Status</th>
+                            <th style="text-align:left;padding:.4rem .5rem;">Photo</th>
+                            <th style="text-align:right;padding:.4rem .5rem;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($survey->variations as $variation)
+                            {{-- Read-only row --}}
+                            <tr x-data="{ editing: false }" :data-editing="editing"
+                                style="border-bottom:1px solid #F3F4F6;">
+                                <td x-show="!editing" style="padding:.4rem .5rem;vertical-align:top;">{{ $variation->room_name ?: '—' }}</td>
+                                <td x-show="!editing" style="padding:.4rem .5rem;vertical-align:top;">{{ str_replace('_', ' ', ucfirst($variation->type)) }}</td>
+                                <td x-show="!editing" style="padding:.4rem .5rem;vertical-align:top;">{{ $variation->description }}</td>
+                                <td x-show="!editing" style="padding:.4rem .5rem;text-align:right;vertical-align:top;">{{ $variation->qty }}</td>
+                                <td x-show="!editing" style="padding:.4rem .5rem;vertical-align:top;">
+                                    <span class="status-pill status-{{ $variation->status }}">{{ $variation->status }}</span>
+                                </td>
+                                <td x-show="!editing" style="padding:.4rem .5rem;vertical-align:top;">
+                                    @if ($variation->photo)
+                                        <a href="{{ route('site-surveys.photos.serve', $variation->photo) }}" target="_blank"
+                                           style="color:#178A95;text-decoration:underline;">📷 view</a>
+                                    @else
+                                        —
+                                    @endif
+                                </td>
+                                <td x-show="!editing" style="padding:.4rem .5rem;text-align:right;vertical-align:top;white-space:nowrap;">
+                                    <button type="button" class="btn btn-outline btn-xs" @click="editing = true">Edit</button>
+                                    <form method="POST" action="{{ route('site-surveys.variations.destroy', [$survey, $variation]) }}" style="display:inline;">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="btn btn-danger btn-xs"
+                                                data-confirm="Delete this variation? This cannot be undone.">Delete</button>
+                                    </form>
+                                </td>
+
+                                {{-- Inline-edit row --}}
+                                <td x-show="editing" colspan="7" x-cloak
+                                    style="padding:.75rem;background:#F9FAFB;border-left:3px solid #178A95;">
+                                    <form method="POST" action="{{ route('site-surveys.variations.update', [$survey, $variation]) }}">
+                                        @csrf @method('PATCH')
+                                        @include('site-survey._variation-fields', ['variation' => $variation, 'survey' => $survey])
+                                        <div style="display:flex;gap:.5rem;margin-top:.75rem;">
+                                            <button type="submit" class="btn btn-teal btn-sm">Save</button>
+                                            <button type="button" class="btn btn-outline btn-sm" @click="editing = false">Cancel</button>
+                                        </div>
+                                    </form>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+    </div>
+
+    {{-- Add modal — Alpine x-show, full-screen overlay --}}
+    <div x-show="showAdd" x-cloak class="variation-modal-backdrop"
+         @click.self="showAdd = false" @keydown.escape.window="showAdd = false">
+        <div class="variation-modal-card">
+            <h3 style="margin:0 0 1rem;color:#0B3C45;">Add Variation</h3>
+            <form method="POST" action="{{ route('site-surveys.variations.store', $survey) }}">
+                @csrf
+                @include('site-survey._variation-fields', ['variation' => null, 'survey' => $survey])
+                <div style="display:flex;gap:.5rem;margin-top:1rem;">
+                    <button type="submit" class="btn btn-teal">Save Variation</button>
+                    <button type="button" class="btn btn-outline" @click="showAdd = false">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+function variationsPanel() {
+    return {
+        showAdd: false,
+        openAdd() { this.showAdd = true; },
+    };
+}
+</script>
+<style>
+    /* Status pill colour scheme — matches the client-report PDF
+       (resources/views/pdf/site-survey/client-report.blade.php) */
+    .status-pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .03em;
+    }
+    .status-proposed { background: #FEF3C7; color: #92400E; }
+    .status-quoted   { background: #DBEAFE; color: #1E40AF; }
+    .status-approved { background: #D1FAE5; color: #065F46; }
+    .status-rejected { background: #FEE2E2; color: #991B1B; }
+
+    /* Variation Add modal */
+    .variation-modal-backdrop {
+        position: fixed; inset: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 100;
+    }
+    .variation-modal-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        max-width: 600px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+</style>
+@endpush
+
 @endsection
 
 @push('scripts')
