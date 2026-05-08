@@ -52,6 +52,16 @@ class DocumentArtifactStorage
     // multiply storage type constants per discriminator.
     public const TYPE_DRAWING = 'drawings';
 
+    // TYPE_SURVEY (quick task 260508-v7g) — client-facing survey reports.
+    // No LEGACY_ROOTS entry: surveys are post-H-07 (the engineer summary
+    // PDF still goes through the legacy storage/app/site-surveys/ root via
+    // SurveyPdfService::buildSummary() and is NOT managed by this storage
+    // type — that's a deliberate D-LOCK-4 boundary so existing summary-PDF
+    // code paths are byte-identical). New writes from buildClientReport()
+    // land at storage/app/documents/site-surveys/, distinct from the legacy
+    // root so the two outputs never collide.
+    public const TYPE_SURVEY = 'site-surveys';
+
     /**
      * Legacy absolute-path roots, relative to storage_path(). Used ONLY for
      * read-fallback so existing files remain accessible. New writes never go
@@ -155,6 +165,7 @@ class DocumentArtifactStorage
             self::TYPE_CABLE,
             self::TYPE_SNAGGING,
             self::TYPE_DRAWING,
+            self::TYPE_SURVEY,
         ];
     }
 

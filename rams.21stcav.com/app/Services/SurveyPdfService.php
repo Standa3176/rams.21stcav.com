@@ -91,6 +91,45 @@ class SurveyPdfService
         );
     }
 
+    /**
+     * Build a Tier 1 client-facing survey report and return its absolute path.
+     * Quick task 260508-v7g.
+     *
+     * Distinct from buildSummary() — that produces the engineer-internal report
+     * (technical jargon, all checklist artifacts). This produces a polished
+     * client-facing report matching the Mini O&M visual language (Tier 1 — same
+     * teal/orange brand chrome) per D-LOCK-3 / D-LOCK-4.
+     *
+     * Persists via DocumentArtifactStorage TYPE_SURVEY (post-H-07 storage
+     * convention) — distinct from buildSummary's legacy storage/app/site-surveys/
+     * path so the two outputs never collide:
+     *   buildSummary       → storage/app/site-surveys/site_survey_{id}_*.pdf
+     *   buildClientReport  → storage/app/documents/site-surveys/client-survey-{id}-*.pdf
+     */
+    public function buildClientReport(SiteSurvey $survey): string
+    {
+        $survey->loadMissing(['rooms.photos', 'variations.photo', 'project:id,name']);
+
+        $slug      = \Illuminate\Support\Str::slug($survey->project_name ?: ('survey-' . $survey->id));
+        $timestamp = now()->format('Ymd_His');
+        $filename  = "client-survey-{$survey->id}-{$slug}-{$timestamp}.pdf";
+
+        /** @var \App\Services\DocumentArtifactStorage $artifacts */
+        $artifacts = app(\App\Services\DocumentArtifactStorage::class);
+        $path      = $artifacts->writePath(\App\Services\DocumentArtifactStorage::TYPE_SURVEY, $filename);
+
+        $this->renderer->fromBlade(
+            'pdf.site-survey.client-report',
+            ['survey' => $survey],
+            $path,
+            $this->browsershotOptions(
+                'Site Survey Report | ' . $survey->project_name . ' | ' . now()->format('d/m/Y'),
+            ),
+        );
+
+        return $path;
+    }
+
     // ── Private ───────────────────────────────────────────────────────────────
 
     /**
