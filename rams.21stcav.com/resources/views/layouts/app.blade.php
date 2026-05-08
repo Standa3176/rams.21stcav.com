@@ -1568,6 +1568,13 @@
          expose its SignaturePad class (see 16-02-DPI-SPIKE-NOTES.md); this line
          fills that gap without forking the vendor bundle. --}}
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@5.1.3/dist/signature_pad.umd.min.js"></script>
+
+    {{-- Singleton photo lightbox — exposes window.openPhotoLightbox(photos, startIndex)
+         so any thumbnail across the app can pop a per-room cycler with prev/next nav.
+         Self-contained (own <style> + <script>) and @once-protected so multiple
+         layout includes / page-level references are safe. --}}
+    <x-photo-lightbox />
+
     @stack('scripts')
 
     <script>
