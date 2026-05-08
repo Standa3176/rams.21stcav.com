@@ -1640,13 +1640,26 @@
                                 @if($room->photos->isNotEmpty() || !$readonly)
                                 <hr class="divider">
                                 <div class="form-label" style="margin-bottom:.45rem;">Photos</div>
+                                @php
+                                    // 260508 — pre-compute photo set so engineers can cycle through
+                                    // all the photos they captured for this room with prev/next.
+                                    $surveyRoomPhotosLb = $room->photos->sortBy('sort_order')->values()->map(fn ($photo) => [
+                                        'url'     => route('survey.photos.serve', ['token' => $token, 'photo' => $photo->id]),
+                                        'caption' => $photo->original_name ?? '',
+                                    ])->all();
+                                @endphp
                                 <div class="photo-grid" id="photo-grid-{{ $room->id }}">
                                     @foreach($room->photos->sortBy('sort_order') as $photo)
-                                        <div class="photo-thumb" title="{{ $photo->original_name }}">
+                                        <a href="{{ route('survey.photos.serve', ['token' => $token, 'photo' => $photo->id]) }}"
+                                           target="_blank"
+                                           onclick="event.preventDefault(); openPhotoLightbox(@js($surveyRoomPhotosLb), {{ $loop->index }});"
+                                           class="photo-thumb"
+                                           title="{{ $photo->original_name }}"
+                                           style="display:block;cursor:zoom-in;">
                                             <img src="{{ route('survey.photos.serve', ['token' => $token, 'photo' => $photo->id]) }}"
                                                  alt="{{ $photo->original_name }}"
                                                  loading="lazy">
-                                        </div>
+                                        </a>
                                     @endforeach
                                 </div>
                                 @if(!$readonly)
