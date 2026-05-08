@@ -329,19 +329,12 @@
     $em = function ($v) { return ($v === null || $v === '') ? '—' : $v; };
 
     // Browsershot 5.x rejects HTML containing `file://` (security guard
-    // HtmlIsNotAllowedToContainFile). Embed each image as a base64 data URI
-    // instead. is_file() guard prevents broken-image markers when a photo
-    // is missing on disk; mime_content_type() with safe fallback handles
-    // hosts where the fileinfo extension might be disabled.
-    $imgSrc = function (?string $abs): string {
-        if (! $abs || ! is_file($abs)) {
-            return '';
-        }
-        $mime = function_exists('mime_content_type')
-            ? (mime_content_type($abs) ?: 'image/jpeg')
-            : 'image/jpeg';
-        return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($abs));
-    };
+    // HtmlIsNotAllowedToContainFile), so each image is embedded as a base64
+    // data URI. PdfImageEmbedder resizes to 1600px JPEG@80 first — without
+    // that step a photo-heavy Mini O&M produces 500MB+ HTML and times out
+    // Chromium's printToPDF (CDP protocolTimeout). Returns '' for missing
+    // files so callers don't need a separate guard.
+    $imgSrc = fn (?string $abs): string => \App\Support\PdfImageEmbedder::dataUri($abs);
 @endphp
 
 {{-- ============================================================

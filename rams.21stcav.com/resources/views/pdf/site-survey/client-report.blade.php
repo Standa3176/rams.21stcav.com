@@ -239,16 +239,17 @@
                 <p><strong>Site photos:</strong></p>
                 <div class="photo-grid">
                     @foreach ($room->photos as $photo)
-                        @php $abs = \Illuminate\Support\Facades\Storage::disk('local')->path($photo->storagePath()); @endphp
-                        @if (is_file($abs))
-                            @php
-                                $mime = function_exists('mime_content_type')
-                                    ? (mime_content_type($abs) ?: 'image/jpeg')
-                                    : 'image/jpeg';
-                                $b64  = base64_encode(file_get_contents($abs));
-                            @endphp
+                        @php
+                            $abs = \Illuminate\Support\Facades\Storage::disk('local')->path($photo->storagePath());
+                            // Resize-then-embed via PdfImageEmbedder. Phone photos
+                            // are 4–12MB at full resolution; resized to 1600px JPEG@80
+                            // they're typically 200–400KB. Critical for keeping the
+                            // PDF under sane size and the render under timeout.
+                            $dataUri = \App\Support\PdfImageEmbedder::dataUri($abs);
+                        @endphp
+                        @if ($dataUri !== '')
                             <div class="photo-cell">
-                                <img src="data:{{ $mime }};base64,{{ $b64 }}" alt="{{ $photo->caption ?? $photo->original_name }}">
+                                <img src="{{ $dataUri }}" alt="{{ $photo->caption ?? $photo->original_name }}">
                                 @if (filled($photo->caption))
                                     <div class="photo-caption">{{ $photo->caption }}</div>
                                 @endif
