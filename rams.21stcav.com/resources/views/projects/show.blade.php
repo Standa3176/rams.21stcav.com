@@ -1568,6 +1568,12 @@
                                         @php
                                             $photos = $d->labelPhotos;
                                             $confirmedCount = $photos->where('confirmed', true)->count();
+                                            // 260508 — full photo set (not just the first 3 thumbnails) so the
+                                            // lightbox can cycle through every label captured for this device.
+                                            $devicePhotosLb = $photos->values()->map(fn ($lp) => [
+                                                'url'     => \Illuminate\Support\Facades\Storage::url($lp->photo_path),
+                                                'caption' => trim(($d->description ?? '') . ' · ' . optional($lp->captured_at)->format('d M Y H:i'), ' ·'),
+                                            ])->all();
                                         @endphp
                                         <div class="flex items-start gap-3 p-2.5 border border-gray-200 rounded-md bg-gray-50">
                                             {{-- Photo thumbnails --}}
@@ -1576,6 +1582,7 @@
                                                     @foreach ($photos->take(3) as $lp)
                                                         <a href="{{ \Illuminate\Support\Facades\Storage::url($lp->photo_path) }}"
                                                            target="_blank" rel="noopener"
+                                                           onclick="event.preventDefault(); openPhotoLightbox(@js($devicePhotosLb), {{ $loop->index }});"
                                                            title="Captured {{ optional($lp->captured_at)->format('d M Y H:i') }}{{ $lp->confirmed ? ' • confirmed' : ' • pending' }}"
                                                            class="block w-12 h-12 rounded overflow-hidden border"
                                                            style="border-color: {{ $lp->confirmed ? '#86EFAC' : '#FCD34D' }};">
@@ -1584,9 +1591,15 @@
                                                         </a>
                                                     @endforeach
                                                     @if ($photos->count() > 3)
-                                                        <span class="inline-flex items-center justify-center w-12 h-12 rounded border border-dashed border-gray-300 text-xs text-gray-500 font-semibold">
+                                                        {{-- Overflow chip — clicking it opens the lightbox at the
+                                                             first hidden photo (index 3) so the user can flip to
+                                                             the rest without an extra click. --}}
+                                                        <button type="button"
+                                                                onclick="openPhotoLightbox(@js($devicePhotosLb), 3);"
+                                                                class="inline-flex items-center justify-center w-12 h-12 rounded border border-dashed border-gray-300 text-xs text-gray-500 font-semibold hover:bg-gray-100 cursor-pointer"
+                                                                title="View all {{ $photos->count() }} photos">
                                                             +{{ $photos->count() - 3 }}
-                                                        </span>
+                                                        </button>
                                                     @endif
                                                 </div>
                                             @else
