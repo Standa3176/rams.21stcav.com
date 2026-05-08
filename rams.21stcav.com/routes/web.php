@@ -305,6 +305,16 @@ Route::middleware('auth')->group(function () {
     Route::get('site-surveys/{siteSurvey}/pdf', [SiteSurveyController::class, 'downloadPdf'])->name('site-surveys.pdf');
     Route::get('site-surveys/blank-form', [SiteSurveyController::class, 'downloadBlankForm'])->name('site-surveys.blank-form');
 
+    // ── Survey variations (quick task 260508-v7g; D-LOCK-1 flat capture, D-LOCK-6 auth-only) ──
+    // Cross-survey forgery guard lives in the controller — verifies
+    // {variation}->site_survey_id === {siteSurvey}->id.
+    Route::post('site-surveys/{siteSurvey}/variations', [\App\Http\Controllers\SurveyVariationController::class, 'store'])
+        ->name('site-surveys.variations.store');
+    Route::patch('site-surveys/{siteSurvey}/variations/{variation}', [\App\Http\Controllers\SurveyVariationController::class, 'update'])
+        ->name('site-surveys.variations.update');
+    Route::delete('site-surveys/{siteSurvey}/variations/{variation}', [\App\Http\Controllers\SurveyVariationController::class, 'destroy'])
+        ->name('site-surveys.variations.destroy');
+
     // ── O&M Manuals ───────────────────────────────────────────────────────
     // Status polling route MUST be before the resource wildcard to prevent {omManual} swallowing 'status'
     Route::get('om-manuals/{omManual}/status', [OmManualController::class, 'status'])->name('om-manuals.status');
