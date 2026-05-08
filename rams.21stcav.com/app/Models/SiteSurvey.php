@@ -31,6 +31,8 @@ class SiteSurvey extends Model
         'site_risks',
         'access_constraints',
         'h_and_s_notes',
+        // Office review surface (quick task 260508-v7g)
+        'office_review_notes',
         // Engineer-feedback site logistics (quick task 260503-rgg)
         'comms_room_access_status',
         'comms_room_access_notes',
@@ -85,6 +87,15 @@ class SiteSurvey extends Model
     public function rooms(): HasMany
     {
         return $this->hasMany(SiteSurveyRoom::class)->orderBy('sort_order');
+    }
+
+    /**
+     * Office-side variations (quick task 260508-v7g — flat capture, no workflow).
+     * Ordered by created_at so the table renders in chronological capture order.
+     */
+    public function variations(): HasMany
+    {
+        return $this->hasMany(SurveyVariation::class)->orderBy('created_at');
     }
 
     // ─── Status helpers ───────────────────────────────────────────────────────

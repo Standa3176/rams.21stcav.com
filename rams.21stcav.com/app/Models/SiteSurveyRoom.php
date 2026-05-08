@@ -40,6 +40,8 @@ class SiteSurveyRoom extends Model
         // Access
         'access_notes',
         'notes',
+        // Office review surface (quick task 260508-v7g)
+        'office_notes',
         'sort_order',
         // Completion tracking
         'is_completed',
