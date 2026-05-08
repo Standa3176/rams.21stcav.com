@@ -230,17 +230,25 @@
                 </div>
             @endif
 
-            {{-- Photos — match summary.blade.php / mini-om.blade.php pattern
-                 (file:// abs path with is_file guard so missing photos don't
-                 produce broken-image markers in Chromium). --}}
+            {{-- Photos — base64-inlined as data URIs.
+                 Browsershot 5.x rejects any HTML containing `file://` as a
+                 security measure (HtmlIsNotAllowedToContainFile), so we
+                 must embed image bytes directly. is_file() guard prevents
+                 broken-image markers when a photo file is missing on disk. --}}
             @if ($room->photos->isNotEmpty())
                 <p><strong>Site photos:</strong></p>
                 <div class="photo-grid">
                     @foreach ($room->photos as $photo)
                         @php $abs = \Illuminate\Support\Facades\Storage::disk('local')->path($photo->storagePath()); @endphp
                         @if (is_file($abs))
+                            @php
+                                $mime = function_exists('mime_content_type')
+                                    ? (mime_content_type($abs) ?: 'image/jpeg')
+                                    : 'image/jpeg';
+                                $b64  = base64_encode(file_get_contents($abs));
+                            @endphp
                             <div class="photo-cell">
-                                <img src="file://{{ $abs }}" alt="{{ $photo->caption ?? $photo->original_name }}">
+                                <img src="data:{{ $mime }};base64,{{ $b64 }}" alt="{{ $photo->caption ?? $photo->original_name }}">
                                 @if (filled($photo->caption))
                                     <div class="photo-caption">{{ $photo->caption }}</div>
                                 @endif
