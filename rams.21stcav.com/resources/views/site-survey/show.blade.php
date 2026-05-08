@@ -356,6 +356,17 @@
 
         <a href="{{ route('site-surveys.edit', $survey) }}" class="btn btn-outline btn-sm">&#9998; Edit Survey</a>
         <a href="{{ route('site-surveys.pdf', $survey) }}" class="btn btn-outline btn-sm" target="_blank">&#128438; Download PDF</a>
+        {{-- Office-side report downloads (quick task 260508-v7g) --}}
+        <a href="{{ route('site-surveys.client-report', $survey) }}" class="btn btn-teal btn-sm" target="_blank">&#128196; Client Survey Report</a>
+        @php $variationCount = $survey->variations->count(); @endphp
+        <a href="{{ $variationCount > 0 ? route('site-surveys.variations.csv', $survey) : '#' }}"
+           class="btn btn-outline btn-sm"
+           @class(['opacity-50 cursor-not-allowed' => $variationCount === 0])
+           @if ($variationCount === 0)
+               onclick="return false;" title="No variations to export"
+           @endif>
+            &#128202; Variations CSV ({{ $variationCount }})
+        </a>
         <a href="{{ route('documents.revisions.view', ['type' => 'survey', 'id' => $survey->id]) }}" class="btn btn-outline btn-sm">&#8634; History</a>
         <x-document-edit-drawer
             type="survey"

@@ -51,7 +51,7 @@ class SiteSurveyController extends Controller
 
         // `rooms.questions` eager-loaded so SiteSurveyTierOneReadinessService
         // doesn't N+1 when counting answered pre-install checks.
-        $siteSurvey->load('rooms.photos', 'rooms.questions', 'project:id,name');
+        $siteSurvey->load('rooms.photos', 'rooms.questions', 'variations', 'project:id,name');
 
         $tierOne = $this->tierOne->assessSurvey($siteSurvey);
 
@@ -524,6 +524,66 @@ class SiteSurveyController extends Controller
         $path = $this->pdfService->buildBlank();
 
         return response()->download($path, 'site-survey-blank-form.pdf');
+    }
+
+    // ─── Office-side report downloads (quick task 260508-v7g) ────────────────
+
+    /**
+     * GET /site-surveys/{siteSurvey}/client-report
+     *
+     * Builds + streams the Tier 1 client-facing survey PDF (D-LOCK-3, distinct
+     * from downloadPdf which streams the engineer-internal summary).
+     */
+    public function clientReport(SiteSurvey $siteSurvey): BinaryFileResponse
+    {
+        $this->authorizeSurvey($siteSurvey);
+
+        $path = $this->pdfService->buildClientReport($siteSurvey);
+
+        $downloadName = 'client-survey-' . $siteSurvey->id . '-'
+            . \Illuminate\Support\Str::slug($siteSurvey->project_name ?: ('survey-' . $siteSurvey->id))
+            . '.pdf';
+
+        return response()->download($path, $downloadName);
+    }
+
+    /**
+     * GET /site-surveys/{siteSurvey}/variations.csv
+     *
+     * Streams a CSV of the survey's variations for sales-team quote-revision
+     * conversations. UTF-8 BOM ensures Excel renders the file cleanly without
+     * a manual encoding switch.
+     */
+    public function variationsCsv(SiteSurvey $siteSurvey): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $this->authorizeSurvey($siteSurvey);
+
+        $siteSurvey->load('variations.photo');
+
+        $filename = 'variations-survey-' . $siteSurvey->id . '-' . now()->format('Ymd') . '.csv';
+
+        return response()->streamDownload(function () use ($siteSurvey) {
+            $out = fopen('php://output', 'w');
+            // UTF-8 BOM so Excel renders accented chars cleanly.
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, ['Room', 'Type', 'Description', 'Qty', 'Status', 'Photo Filename', 'Notes', 'Created', 'Last Updated']);
+            foreach ($siteSurvey->variations as $variation) {
+                fputcsv($out, [
+                    $variation->room_name ?? '',
+                    str_replace('_', ' ', $variation->type),
+                    $variation->description,
+                    $variation->qty,
+                    $variation->status,
+                    $variation->photo?->original_name ?? '',
+                    $variation->notes ?? '',
+                    $variation->created_at?->format('Y-m-d H:i') ?? '',
+                    $variation->updated_at?->format('Y-m-d H:i') ?? '',
+                ]);
+            }
+            fclose($out);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────

@@ -920,6 +920,11 @@
                                                     <span class="row-actions-item__icon" aria-hidden="true">↓</span>
                                                     <span>Download PDF</span>
                                                 </a>
+                                                {{-- Client report (quick task 260508-v7g — Tier 1 client-facing PDF) --}}
+                                                <a href="{{ route('site-surveys.client-report', $survey) }}" target="_blank" class="row-actions-item">
+                                                    <span class="row-actions-item__icon" aria-hidden="true">📄</span>
+                                                    <span>Client Report</span>
+                                                </a>
                                                 <div class="row-actions-divider"></div>
                                                 <form method="POST" action="{{ route('site-surveys.destroy', $survey) }}"
                                                       data-confirm="Delete this survey?"

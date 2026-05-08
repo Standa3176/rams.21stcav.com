@@ -315,6 +315,16 @@ Route::middleware('auth')->group(function () {
     Route::delete('site-surveys/{siteSurvey}/variations/{variation}', [\App\Http\Controllers\SurveyVariationController::class, 'destroy'])
         ->name('site-surveys.variations.destroy');
 
+    // ── Client report PDF + Variations CSV (quick task 260508-v7g) ──
+    // Auth via authorizeSurvey() — same guard as the existing site-surveys.pdf
+    // engineer-summary download. Tighter than the variations CRUD endpoints
+    // because these are downloads of survey data; the looser D-LOCK-6 auth
+    // pattern only governs MODIFICATION endpoints.
+    Route::get('site-surveys/{siteSurvey}/client-report', [SiteSurveyController::class, 'clientReport'])
+        ->name('site-surveys.client-report');
+    Route::get('site-surveys/{siteSurvey}/variations.csv', [SiteSurveyController::class, 'variationsCsv'])
+        ->name('site-surveys.variations.csv');
+
     // ── O&M Manuals ───────────────────────────────────────────────────────
     // Status polling route MUST be before the resource wildcard to prevent {omManual} swallowing 'status'
     Route::get('om-manuals/{omManual}/status', [OmManualController::class, 'status'])->name('om-manuals.status');
