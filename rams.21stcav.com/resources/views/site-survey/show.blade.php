@@ -1033,10 +1033,20 @@
         <div class="room-section-hdr">📷 Photos ({{ $room->photos->count() }})</div>
 
         @if($room->photos->isNotEmpty())
+        @php
+            // 260508 — pre-compute the room photo set for the lightbox cycler.
+            // Sort matches the @foreach below so loop index aligns with array index.
+            $roomPhotosLb = $room->photos->sortBy('sort_order')->values()->map(fn ($photo) => [
+                'url'     => route('site-surveys.photos.serve', $photo),
+                'caption' => $photo->caption ?? $photo->original_name ?? '',
+            ])->all();
+        @endphp
         <div class="photo-grid-pm">
             @foreach($room->photos->sortBy('sort_order') as $photo)
             <div class="photo-pm" id="photo-{{ $photo->id }}">
-                <a href="{{ route('site-surveys.photos.serve', $photo) }}" target="_blank">
+                <a href="{{ route('site-surveys.photos.serve', $photo) }}"
+                   target="_blank"
+                   onclick="event.preventDefault(); openPhotoLightbox(@js($roomPhotosLb), {{ $loop->index }});">
                     <img src="{{ route('site-surveys.photos.serve', $photo) }}"
                          alt="{{ $photo->caption ?? $photo->original_name }}"
                          loading="lazy">
