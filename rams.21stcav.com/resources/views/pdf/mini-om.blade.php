@@ -327,6 +327,21 @@
 @php
     // Locked decisions surfaced as helper closures for clarity in the template.
     $em = function ($v) { return ($v === null || $v === '') ? '—' : $v; };
+
+    // Browsershot 5.x rejects HTML containing `file://` (security guard
+    // HtmlIsNotAllowedToContainFile). Embed each image as a base64 data URI
+    // instead. is_file() guard prevents broken-image markers when a photo
+    // is missing on disk; mime_content_type() with safe fallback handles
+    // hosts where the fileinfo extension might be disabled.
+    $imgSrc = function (?string $abs): string {
+        if (! $abs || ! is_file($abs)) {
+            return '';
+        }
+        $mime = function_exists('mime_content_type')
+            ? (mime_content_type($abs) ?: 'image/jpeg')
+            : 'image/jpeg';
+        return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($abs));
+    };
 @endphp
 
 {{-- ============================================================
@@ -340,7 +355,7 @@
     <div class="cover-accent-bar"></div>
 
     @if (! empty($cover['hero_photo_abs_path']))
-        <img class="cover-hero" src="file://{{ $cover['hero_photo_abs_path'] }}" alt="">
+        <img class="cover-hero" src="{{ $imgSrc($cover['hero_photo_abs_path']) }}" alt="">
     @else
         <div class="cover-hero-fallback"><span>Photos to be captured during install</span></div>
     @endif
@@ -446,7 +461,7 @@
             <div class="subsection-title">Installed</div>
             <div class="photo-grid">
                 @foreach ($afterCapped as $photo)
-                    <img src="file://{{ $photo['abs_path'] }}" alt="">
+                    <img src="{{ $imgSrc($photo['abs_path']) }}" alt="">
                 @endforeach
             </div>
 
@@ -454,7 +469,7 @@
                 <div class="subsection-title">Before</div>
                 <div class="photo-strip">
                     @foreach ($beforeCapped as $photo)
-                        <img src="file://{{ $photo['abs_path'] }}" alt="">
+                        <img src="{{ $imgSrc($photo['abs_path']) }}" alt="">
                     @endforeach
                 </div>
             @endif
@@ -463,7 +478,7 @@
             <div class="subsection-title">Site (pre-install)</div>
             <div class="photo-grid">
                 @foreach ($beforeCapped as $photo)
-                    <img src="file://{{ $photo['abs_path'] }}" alt="">
+                    <img src="{{ $imgSrc($photo['abs_path']) }}" alt="">
                 @endforeach
             </div>
         @else
