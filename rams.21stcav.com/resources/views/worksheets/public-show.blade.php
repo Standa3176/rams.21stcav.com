@@ -788,13 +788,23 @@
                     {{-- 260504-ij9 fix B3 — Photo tray moved to TOP of room body so engineers
                          see the action item (capture proof of completed work) FIRST, before
                          scrolling through Survey Reference / AV Works / Kit / Steps. --}}
+                    @php
+                        // 260508 — pre-compute the photo set as a plain array for the
+                        // x-photo-lightbox cycler. One array per room; each thumbnail's
+                        // onclick passes its own index so prev/next walks just this room.
+                        $roomPhotosLb = $roomPhotos->values()->map(fn ($p) => [
+                            'url'     => route('public-worksheet.photos.serve', ['token' => $token, 'photo' => $p->id]),
+                            'caption' => $p->caption ?? '',
+                        ])->all();
+                    @endphp
                     <div class="photo-tray" data-photo-tray data-room-key="{{ $roomKey }}" style="margin-top:0;padding-top:0;border-top:0;margin-bottom:1rem;padding-bottom:.85rem;border-bottom:1px dashed #E5E7EB;">
                         <div class="photo-tray-title">📷 Photos of completed work (<span data-photo-count>{{ $photoCount }}</span>)</div>
                         <div class="photo-thumbs" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.6rem;">
                             @foreach($roomPhotos as $p)
                                 <div style="position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;background:#F3F4F6;flex-shrink:0;">
                                     <a href="{{ route('public-worksheet.photos.serve', ['token' => $token, 'photo' => $p->id]) }}"
-                                       target="_blank">
+                                       target="_blank"
+                                       onclick="event.preventDefault(); openPhotoLightbox(@js($roomPhotosLb), {{ $loop->index }});">
                                         <img src="{{ route('public-worksheet.photos.serve', ['token' => $token, 'photo' => $p->id]) }}"
                                              alt="{{ $p->caption ?? '' }}"
                                              loading="lazy"
@@ -869,7 +879,14 @@
                                 {{-- ── Survey photos for this room (260504-hqe) ──
                                      Token-gated proxy serves SiteSurveyPhoto rows linked to the same project.
                                      If the room has no survey photos, render the muted "no photos" line instead. --}}
-                                @php $surveyPhotos = $photosByRoom[$efKey] ?? collect(); @endphp
+                                @php
+                                    $surveyPhotos = $photosByRoom[$efKey] ?? collect();
+                                    // 260508 — pre-compute survey photo set for the lightbox cycler.
+                                    $surveyPhotosLb = $surveyPhotos->values()->map(fn ($sp) => [
+                                        'url'     => route('public-worksheet.survey-photos.serve', ['token' => $token, 'photo' => $sp->id]),
+                                        'caption' => $sp->caption ?? '',
+                                    ])->all();
+                                @endphp
                                 <div style="margin-bottom:.85rem;">
                                     <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.4rem;">Survey photos</div>
                                     @if($surveyPhotos->isEmpty())
@@ -879,6 +896,7 @@
                                             @foreach($surveyPhotos as $sp)
                                                 <a href="{{ route('public-worksheet.survey-photos.serve', ['token' => $token, 'photo' => $sp->id]) }}"
                                                    target="_blank"
+                                                   onclick="event.preventDefault(); openPhotoLightbox(@js($surveyPhotosLb), {{ $loop->index }});"
                                                    style="display:inline-block;width:80px;height:80px;border-radius:6px;overflow:hidden;background:#F3F4F6;">
                                                     <img src="{{ route('public-worksheet.survey-photos.serve', ['token' => $token, 'photo' => $sp->id]) }}"
                                                          alt="{{ $sp->caption ?? '' }}"
