@@ -281,6 +281,8 @@ class SurveyService
                 'surveyor_name' => $data['surveyor_name'] ?? null,
                 'general_notes' => $data['general_notes'] ?? null,
                 'survey_type'   => $data['survey_type']   ?? $survey->survey_type,
+                // Office review surface (quick task 260508-v7g, D-LOCK-2)
+                'office_review_notes' => $data['office_review_notes'] ?? null,
                 // Engineer-feedback site logistics (quick task 260503-rgg)
                 'comms_room_access_status' => $data['comms_room_access_status'] ?? null,
                 'comms_room_access_notes'  => $data['comms_room_access_notes']  ?? null,
@@ -705,6 +707,8 @@ class SurveyService
             // Access
             'access_notes'              => $data['access_notes']              ?? null,
             'notes'                     => $data['notes']                     ?? null,
+            // Office review surface (quick task 260508-v7g, D-LOCK-2)
+            'office_notes'              => $data['office_notes']              ?? null,
             'sort_order'                => $index,
             // PA system
             'speaker_count'             => isset($data['speaker_count'])   ? (int) $data['speaker_count']   : null,

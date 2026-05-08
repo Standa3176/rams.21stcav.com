@@ -897,6 +897,23 @@
             </div>
         </div>
 
+        {{-- (h) Office Review Notes (quick task 260508-v7g) ───────────────────
+             Per D-LOCK-2: per-room office annotation surface. Sits inside the
+             engineer-feedback subsection group so the visual hierarchy mirrors
+             the rest of the office's review fields. Renders in the client
+             report PDF; NOT shown on the public engineer wizard. --}}
+        <div class="room-subsection subsection--office-notes" id="r{{ $ri }}_office_notes"
+             style="background:#FFFBEB;border:1.5px solid #FCD34D;">
+            <div class="room-subsection__heading" style="color:#92400E;">Office Review Notes</div>
+            <p style="font-size:.78rem;color:#6B7280;margin:0 0 .5rem;">
+                Office-side annotations on this room — context the engineer didn't capture, client clarifications, scope adjustments. Visible in the client report PDF.
+            </p>
+            <textarea name="rooms[{{ $ri }}][office_notes]"
+                      rows="3" maxlength="3000"
+                      class="form-control" data-optional
+                      placeholder="e.g. Client confirmed camera position is OK; engineer's photo shows older furniture, room being refurbished week of install.">{{ old("rooms.$ri.office_notes", $val('office_notes')) }}</textarea>
+        </div>
+
         {{-- ── Engineer sign-off ──────────────────────────────────────────────── --}}
         <div style="background:#F0FFF4;border:1.5px solid #86EFAC;border-radius:6px;padding:.75rem .85rem;margin-top:.75rem;">
             <div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#14532D;margin-bottom:.5rem;">

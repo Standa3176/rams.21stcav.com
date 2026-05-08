@@ -135,6 +135,25 @@
         </div>
     </div>
 
+    {{-- Office Review Notes — survey-level office annotation surface (quick task 260508-v7g, D-LOCK-2) --}}
+    <div class="form-section">
+        <div class="form-section__header">
+            <h2 class="section-heading">Office Review Notes</h2>
+        </div>
+        <div class="form-section__body">
+            <p style="font-size:.875rem;color:#6B7280;margin:0 0 .75rem;">
+                Survey-level office annotations — site-wide context, client conversations, scope summaries.
+                Renders on the cover of the client report PDF.
+            </p>
+            <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" for="office_review_notes">Notes</label>
+                <textarea id="office_review_notes" name="office_review_notes"
+                          class="form-control" rows="4" maxlength="5000" data-optional
+                          placeholder="e.g. Walk-through with client 06/05 — confirmed delivery window 7–10am Tuesday, parking permits issued by site, 2 access cards waiting at reception.">{{ old('office_review_notes', $survey->office_review_notes) }}</textarea>
+            </div>
+        </div>
+    </div>
+
     {{-- Site Logistics — engineer-feedback site-level capture (quick task 260503-rgg) --}}
     <div class="form-section">
         <div class="form-section__header">

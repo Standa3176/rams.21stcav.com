@@ -551,6 +551,8 @@ class SiteSurveyController extends Controller
             'pm_email'                              => ['nullable', 'email', 'max:150'],
             'general_notes'                         => ['nullable', 'string', 'max:3000'],
             'survey_type'                           => ['nullable', 'string', 'in:general,pa_system,infrastructure,signage,upgrade,mixed'],
+            // Office review surface (quick task 260508-v7g, D-LOCK-2)
+            'office_review_notes'                   => ['nullable', 'string', 'max:5000'],
             // Engineer-feedback site logistics (quick task 260503-rgg)
             'comms_room_access_status'              => ['nullable', 'string', 'in:yes,no,outsourced,unknown'],
             'comms_room_access_notes'               => ['nullable', 'string', 'max:2000'],
@@ -588,6 +590,8 @@ class SiteSurveyController extends Controller
             'rooms.*.requires_additional_power'     => ['nullable', 'boolean'],
             'rooms.*.access_notes'                  => ['nullable', 'string', 'max:500'],
             'rooms.*.notes'                         => ['nullable', 'string', 'max:500'],
+            // Office review surface (quick task 260508-v7g, D-LOCK-2)
+            'rooms.*.office_notes'                  => ['nullable', 'string', 'max:3000'],
             // PA system
             'rooms.*.speaker_count'                 => ['nullable', 'integer', 'min:0', 'max:999'],
             'rooms.*.speaker_type'                  => ['nullable', 'string', 'max:50'],
