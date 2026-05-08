@@ -337,6 +337,17 @@
                         ->with('device')
                         ->orderBy('created_at')
                         ->get();
+                    // 260508 — pre-compute label photo set for the lightbox cycler.
+                    // Caption uses device description + part for context when cycling.
+                    $labelPhotosLb = $labelPhotos->values()->map(function ($lp) {
+                        $ai      = $lp->ai_extracted ?? [];
+                        $caption = $lp->device?->description
+                            ?: ($ai['part_number'] ?? 'Equipment label');
+                        return [
+                            'url'     => \Illuminate\Support\Facades\Storage::url($lp->photo_path),
+                            'caption' => $caption,
+                        ];
+                    })->all();
                 @endphp
                 @if($labelPhotos->isNotEmpty())
                     <div class="room-section-hdr">Equipment Labels Captured ({{ $labelPhotos->count() }})</div>
@@ -346,6 +357,7 @@
                             <div style="border:1px solid var(--border);border-radius:8px;padding:.65rem;background:var(--surface-soft);font-size:.78rem;line-height:1.4;">
                                 <a href="{{ \Illuminate\Support\Facades\Storage::url($lp->photo_path) }}"
                                    target="_blank"
+                                   onclick="event.preventDefault(); openPhotoLightbox(@js($labelPhotosLb), {{ $loop->index }});"
                                    style="display:block;width:100%;height:120px;border-radius:6px;overflow:hidden;background:#F3F4F6;margin-bottom:.5rem;">
                                     <img src="{{ \Illuminate\Support\Facades\Storage::url($lp->photo_path) }}"
                                          alt="Equipment label" loading="lazy"
