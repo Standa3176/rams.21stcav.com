@@ -86,7 +86,14 @@ class PdfRenderService
             ->format('A4')
             ->showBackground()
             ->emulateMedia('print')
-            ->margins($marginTop, $marginRight, $marginBottom, $marginLeft);
+            ->margins($marginTop, $marginRight, $marginBottom, $marginLeft)
+            // Photo-heavy PDFs (Mini O&M, Survey Client Report) base64-inline
+            // images, which produces large HTML payloads. Puppeteer's default
+            // protocol timeout (30s) and process timeout aren't enough — bump
+            // both. Override per-call via options['timeoutSeconds'] /
+            // options['protocolTimeoutMs'].
+            ->timeout($options['timeoutSeconds'] ?? 180)
+            ->setOption('protocolTimeout', $options['protocolTimeoutMs'] ?? 180000);
 
         // Running header/footer repeated on every page (Chromium-native).
         // Whichever is supplied is enabled — the other side stays blank.
