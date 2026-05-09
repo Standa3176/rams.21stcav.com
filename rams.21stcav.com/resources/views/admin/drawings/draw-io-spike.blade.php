@@ -46,8 +46,7 @@
     x-ref="embed"
     src="{{ $embed_url }}"
     @load="onEmbedReady()"
-    class="w-full"
-    style="height: calc(100vh - 140px); border: 1px solid #d1d5db; background: #fff;"
+    style="display: block; width: 100%; height: calc(100vh - 140px); border: 1px solid #d1d5db; background: #fff;"
     allow="clipboard-read; clipboard-write"
   ></iframe>
 
