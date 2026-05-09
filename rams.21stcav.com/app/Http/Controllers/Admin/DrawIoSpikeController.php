@@ -17,7 +17,10 @@ use Illuminate\View\View;
  * Quick task 260509-ibx — admin-only draw.io embed spike controller.
  *
  * D-LOCK-7: admin middleware-gated, NOT linked from any user-facing page.
- * D-LOCK-1: spike Blade loads /vendor/drawio/embed.html (self-hosted).
+ * D-LOCK-1: spike Blade loads /vendor/drawio/index.html?embed=1 (self-hosted).
+ *           Modern draw.io (v20+) routes embed mode through index.html with
+ *           ?embed=1 query param — there is no separate embed.html in the
+ *           bundle. Earlier docs referencing embed.html are stale.
  * D-LOCK-2: saveXml delegates to DrawingService::saveSpikeXml (Task 5)
  *           which honours lock-on-edit + archive-prior.
  * D-LOCK-6: builder reads real ProjectPackage::extracted_data.
@@ -46,7 +49,7 @@ class DrawIoSpikeController extends Controller
             'drawing' => $drawing,
             'xml' => $xml,
             'is_locked' => ! empty($drawing->canvas_state),
-            'embed_url' => '/vendor/drawio/embed.html?embed=1&proto=json&libraries=1&spin=1',
+            'embed_url' => '/vendor/drawio/index.html?embed=1&proto=json&libraries=1&spin=1',
         ]);
     }
 
