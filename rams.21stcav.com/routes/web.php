@@ -210,6 +210,19 @@ Route::middleware('auth')->group(function () {
             Route::post('worker/stop', [WorkerMonitorController::class, 'stop'])->name('admin.worker.stop');
             Route::post('worker/restart', [WorkerMonitorController::class, 'restart'])->name('admin.worker.restart');
         });
+
+        // ── Quick task 260509-ibx — draw.io embed spike (D-LOCK-7 admin-only) ─
+        // Sandbox surface — NOT linked from any user-facing Blade. Spike
+        // outcome drives the v2.0 build-vs-buy decision at end of week 2.
+        Route::get('admin/drawings/draw-io-spike/{project}',
+            [\App\Http\Controllers\Admin\DrawIoSpikeController::class, 'show'])
+            ->name('admin.drawings.draw-io-spike.show');
+        Route::post('admin/drawings/draw-io-spike/{project}/save',
+            [\App\Http\Controllers\Admin\DrawIoSpikeController::class, 'saveXml'])
+            ->name('admin.drawings.draw-io-spike.save');
+        Route::post('admin/drawings/draw-io-spike/{project}/export-svg',
+            [\App\Http\Controllers\Admin\DrawIoSpikeController::class, 'exportSvg'])
+            ->name('admin.drawings.draw-io-spike.export-svg');
     });
 
     // ── Quote upload (before resource to prevent {rams} capturing "upload") ─
