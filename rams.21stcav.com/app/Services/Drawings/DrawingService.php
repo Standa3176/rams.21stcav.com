@@ -241,4 +241,110 @@ class DrawingService
             'superseded_by_id' => $newRow->id,
         ]);
     }
+
+    /**
+     * Quick task 260509-ibx — persist a draw.io spike's mxGraph XML edit.
+     *
+     * Lock-on-edit policy (D-LOCK-2, mirrors v1.3 Phase 18 P03 archive-prior):
+     *   - First save (canvas_state empty): write XML directly to the row's
+     *     canvas_state column. The act of writing flips the lock —
+     *     ProjectDrawing::hasUserEdits() now returns true.
+     *   - Subsequent save (canvas_state populated): replicate row, bump version,
+     *     write the new XML to the new row, archive the prior row via
+     *     archivePrior() (sets STATUS_SUPERSEDED + superseded_by_id link).
+     *
+     * Wrapped in DB::transaction so a failure rolls back BOTH the new row and
+     * the supersede flip. Uses canvas_state (mediumText, 16 MB) per D-LOCK-8 —
+     * existing column added in Phase 17 P01 with PITFALLS.md MOD-05 explicitly
+     * earmarking it for "Konva scene graph for user edits", a near-identical
+     * shape to mxGraph XML. NO migration.
+     *
+     * Returns the row that now holds the saved XML — same row on first save,
+     * a new versioned row on subsequent saves.
+     *
+     * @see DrawingService::archivePrior() — supersede helper called inside the txn.
+     * @see ProjectDrawing::hasUserEdits()  — lock-state predicate.
+     */
+    public function saveSpikeXml(ProjectDrawing $drawing, string $xml, int $userId): ProjectDrawing
+    {
+        if (! $drawing->hasUserEdits()) {
+            // ── First save — direct write, no archive-prior. ────────────────
+            $drawing->update([
+                'canvas_state' => $xml,
+                'generated_by' => $userId,
+            ]);
+
+            Log::info('DrawingService: spike XML first-save (lock flip)', [
+                'drawing_id' => $drawing->id,
+                'project_id' => $drawing->project_id,
+                'xml_bytes' => strlen($xml),
+            ]);
+
+            return $drawing;
+        }
+
+        // ── Subsequent save — replicate + bump + archive prior. ────────────
+        $newRow = DB::transaction(function () use ($drawing, $xml, $userId): ProjectDrawing {
+            $newRow = $drawing->replicate([
+                'canvas_state',
+                'generated_svg',
+                'thumbnail_png_path',
+                'filename',
+                'completion_email_sent_at',
+                'failed_email_sent_at',
+                'superseded_by_id',
+                'access_token',
+            ]);
+
+            $newRow->version = ((int) $drawing->version) + 1;
+            $newRow->status = ProjectDrawing::STATUS_DRAFT;
+            $newRow->generated_by = $userId;
+            $newRow->canvas_state = $xml;
+            $newRow->error_message = null;
+            $newRow->save();
+
+            $this->archivePrior($drawing, $newRow);
+
+            return $newRow;
+        });
+
+        Log::info('DrawingService: spike XML versioned save (archive-prior)', [
+            'old_drawing_id' => $drawing->id,
+            'new_drawing_id' => $newRow->id,
+            'version' => $newRow->version,
+            'xml_bytes' => strlen($xml),
+        ]);
+
+        return $newRow;
+    }
+
+    /**
+     * Quick task 260509-ibx — write the SVG export from the embed to disk
+     * via DocumentArtifactStorage::TYPE_DRAWING.
+     *
+     * Preview-only — D-LOCK-8 makes mxGraph XML the source of truth, SVG
+     * is for thumbnail/embed-in-PDF use only. Writes to:
+     *   storage/app/documents/drawings/spike-{drawing_id}.svg
+     *
+     * Returns the absolute path written (caller may basename() for client
+     * display).
+     */
+    public function saveSpikeSvg(ProjectDrawing $drawing, string $svg): string
+    {
+        $artifacts = app(\App\Services\DocumentArtifactStorage::class);
+        $filename = sprintf('spike-%d.svg', $drawing->id);
+        $path = $artifacts->writePath(\App\Services\DocumentArtifactStorage::TYPE_DRAWING, $filename);
+
+        if (file_put_contents($path, $svg) === false) {
+            throw new \RuntimeException("DrawingService::saveSpikeSvg: failed to write {$path}");
+        }
+
+        Log::info('DrawingService: spike SVG written', [
+            'drawing_id' => $drawing->id,
+            'path' => $path,
+            'svg_bytes' => strlen($svg),
+        ]);
+
+        return $path;
+    }
 }
