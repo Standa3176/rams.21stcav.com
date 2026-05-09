@@ -1,5 +1,13 @@
 @extends('layouts.app')
 
+{{-- Alpine.js CDN — the main app.blade.php layout doesn't include Alpine
+     globally, only specific pages load it. Mirror surveys/show.blade.php
+     line 24 which does the same. Without this, the x-data + @click +
+     postMessage handlers below silently do nothing. --}}
+@push('scripts')
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+@endpush
+
 @section('content')
 <div x-data="drawIoSpike({
     embedUrl: '{{ $embed_url }}',
