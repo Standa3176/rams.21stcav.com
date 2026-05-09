@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Installation Programme & Field Management — SHIPPED 2026-04-25
-status: completed
-last_updated: "2026-05-09T13:30:00.000Z"
-last_activity: 2026-05-09 -- Completed quick task 260509-ibx: draw.io / mxGraph embed spike — vendored draw.io v29.7.12 bundle (132MB), 5 hand-coded MTR stencils, deterministic builder, admin-only embed Blade with iframe + postMessage, lock-on-edit save flow reusing canvas_state column. 2-week visual-fidelity evaluation now begins; end-of-week-2 verdict drives v2.0 build-vs-buy decision
+milestone: between
+milestone_name: v1.3 SHIPPED 2026-05-09 — next milestone TBD via /gsd-new-milestone
+status: between-milestones
+last_updated: "2026-05-09T22:00:00.000Z"
+last_activity: 2026-05-09 -- Closed v1.3 Technical Drawings & Schematics milestone (3 phases / 7 plans / Phase 19 deferred to v2.0 999.1). Archived to .planning/milestones/v1.3-ROADMAP.md + v1.3-REQUIREMENTS.md. Companion draw.io spike 260509-ibx validated v2.0 rendering platform. Next session: /gsd-new-milestone — choose v2.0 Engineering-Grade Drawings or v1.4 Client Portal
 progress:
   total_phases: 4
   completed_phases: 3

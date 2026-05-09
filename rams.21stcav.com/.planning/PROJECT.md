@@ -1,5 +1,22 @@
 # RAMS Platform — AV Operations System
 
+## Current State (as of 2026-05-09)
+
+**Latest shipped milestone:** v1.3 Technical Drawings & Schematics (2026-05-09)
+
+The platform now generates the full document set from a single canonical dataset:
+RAMS, O&M Manuals, Site Surveys, Worksheets, Cable Schedules, Mini O&M, **and** technical
+drawings (system schematics + rack elevations + bound multi-page project PDFs). Drawings
+auto-embed in the O&M Manual handover. Production hardening complete (dedicated drawings
+queue, license audit, font fallback, Chrome version pinning).
+
+Companion to v1.3: a draw.io / mxGraph embed spike (260509-ibx) was built and validated as
+the rendering platform for the upcoming v2.0 Engineering-Grade Drawings milestone.
+
+**Next milestone:** TBD — strong candidates are v2.0 Engineering-Grade Drawings (build on
+spike, port catalog + port-aware cable routing) or v1.4 Client Portal (original roadmap order).
+Decision via `/gsd-new-milestone` in the next session.
+
 ## What This Is
 
 An internal operations platform for 21st Century AV Ltd that manages the full lifecycle of AV installation projects. Starting from a quoted job (PDF or QuoteWerks SQL), it flows through site survey, AI-assisted engineering review, and generates all compliance and technical documents (RAMS, Worksheets, O&M Manuals, Cable Schedules) from a single unified dataset. No duplicated data, no AI guessing — every output is driven by structured project data.

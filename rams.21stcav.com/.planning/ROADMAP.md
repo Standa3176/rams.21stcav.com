@@ -1,16 +1,16 @@
 ---
-milestone: v1.3
-milestone_name: Technical Drawings & Schematics
-last_updated: "2026-05-02"
+milestone: between
+milestone_name: v1.3 SHIPPED — next milestone TBD via /gsd-new-milestone
+last_updated: "2026-05-09"
 ---
 
 # Roadmap
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-04-30)
+See: `.planning/PROJECT.md` (updated 2026-05-09)
 
-**Current milestone:** v1.3 — Technical Drawings & Schematics
+**Current milestone:** between milestones — v1.3 shipped 2026-05-09; next milestone scoping pending. Strong candidates: **v2.0 Engineering-Grade Drawings** (drawings upgrade — draw.io spike validated) OR **v1.4 Client Portal** (original roadmap order).
 
 ## Roadmap Overview
 
@@ -19,7 +19,7 @@ See: `.planning/PROJECT.md` (updated 2026-04-30)
 | v1.0 | RAMS MVP | 01–07 | ✅ Shipped — [archive](milestones/v1.0-ROADMAP.md) |
 | v1.1 | Operations Dashboard & Notifications | 08–09 (10/11 deferred) | ✅ Shipped 2026-04-25 — [archive](milestones/v1.1-ROADMAP.md) |
 | v1.2 | Installation Programme & Field Management | 12–16 | ✅ Shipped 2026-04-25 — [archive](milestones/v1.2-ROADMAP.md) |
-| v1.3 | Technical Drawings & Schematics | 17–20 | 🚧 In progress |
+| v1.3 | Technical Drawings & Schematics | 17–20 (19 → v2.0) | ✅ Shipped 2026-05-09 — [archive](milestones/v1.3-ROADMAP.md) |
 | v1.4 | Client Portal & Project Visibility | 21–24 | 📋 Planned |
 | v1.5 | Financial & Proposal Engine | 25–28 | 📋 Planned |
 | v1.6 | Service & Inventory | 29–32 | 📋 Planned |
@@ -32,7 +32,14 @@ See: `.planning/PROJECT.md` (updated 2026-04-30)
 
 ---
 
-## 🚧 v1.3 Technical Drawings & Schematics (In Progress)
+## ✅ v1.3 Technical Drawings & Schematics — SHIPPED 2026-05-09
+
+3 phases, 7 plans — schematics (D2 CLI) + rack elevations (custom Blade SVG) + bound PDF / ZIP / O&M auto-embed. Phase 19 (Floor Plans / Konva) deferred mid-milestone to v2.0 backlog 999.1. Companion draw.io spike (260509-ibx) validated the v2.0 engineering-grade rendering platform. See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full details.
+
+---
+
+<details>
+<summary>v1.3 collapsed details (click to expand)</summary>
 
 **Milestone Goal:** Generate AV technical drawings — schematics + rack elevations — from the same canonical project data that powers RAMS, O&M, and worksheets. Internal engineers view drawings on tablets and print during install; clients receive them as part of the O&M Manual handover. Drawings derive from canonical project data only — AI may assist with layout but never invents equipment, cables, or rooms.
 
@@ -114,6 +121,8 @@ Floor plan drawing tool moved out of v1.3 scope on 2026-05-02 to avoid building 
   - `.planning/research/SUMMARY.md`
   - `.planning/research/PITFALLS.md` CRIT-03 (queue OOM), CRIT-04 (Chrome version drift), MOD-01 (DXF/DWG GPL trap), MOD-10 (O&M references), MOD-12 (notification timing)
   - `.planning/quick/260427-qvr-migrate-pdf-rendering-to-browsershot/260427-qvr-SUMMARY.md` — Browsershot deployment runbook precedent
+
+</details>
 
 ---
 
