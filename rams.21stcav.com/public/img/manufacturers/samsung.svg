@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Samsung wordmark — hand-drawn approximation for the 21CAV draw.io spike.
+  Source: hand-drawn, no logo file copied.
+  Internal-use-only — flag for re-licensing if 21CAV ever distributes externally.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 32" width="160" height="32">
+  <ellipse cx="80" cy="16" rx="78" ry="13" fill="none" stroke="#1428A0" stroke-width="0.5"/>
+  <text x="80" y="22" text-anchor="middle"
+        font-family="Inter, Helvetica, Arial, sans-serif"
+        font-size="18" font-weight="700" fill="#1428A0"
+        letter-spacing="1">SAMSUNG</text>
+</svg>

@@ -1,0 +1,116 @@
+{
+  "pack_id": "21cav.mtr.spike",
+  "pack_name": "21CAV — Small Teams Room Spike (260509-ibx)",
+  "pack_version": "0.1.0",
+  "license": "Internal use only — 21CAV — Apache 2.0 mxGraph base, hand-coded stencil definitions",
+  "palette": {
+    "heading_teal": "#1B7A7A",
+    "card_cream": "#FAFAF6",
+    "accent_orange": "#C07000",
+    "glyph_dark": "#333333",
+    "rail_grey": "#888888",
+    "label_grey": "#555555"
+  },
+  "stencils": [
+    {
+      "id": "21cav.mtr.neat-bar-pro",
+      "manufacturer": "Neat",
+      "model": "Bar Pro",
+      "role": "videobar",
+      "logo_url": "/img/manufacturers/neat.svg",
+      "default_size": {"w": 240, "h": 160},
+      "ports": [
+        {"id": "hdmi-in",    "label": "HDMI IN",  "type": "hdmi",         "direction": "in",  "side": "left",  "y_pct": 0.20},
+        {"id": "usb-c",      "label": "USB-C",    "type": "usb-c",        "direction": "io",  "side": "left",  "y_pct": 0.45},
+        {"id": "power",      "label": "PWR",      "type": "power",        "direction": "in",  "side": "left",  "y_pct": 0.85},
+        {"id": "hdmi-out",   "label": "HDMI OUT", "type": "hdmi",         "direction": "out", "side": "right", "y_pct": 0.20},
+        {"id": "lan",        "label": "LAN",      "type": "rj45",         "direction": "io",  "side": "right", "y_pct": 0.45},
+        {"id": "audio-out",  "label": "AUX",      "type": "audio-3.5mm",  "direction": "out", "side": "right", "y_pct": 0.70}
+      ],
+      "drawio_style": "shape=mxgraph.cisco_safe.architectural.collaboration_endpoint;html=1;fillColor=#FAFAF6;strokeColor=#1B7A7A;strokeWidth=2;fontColor=#1B7A7A;fontSize=11;fontStyle=1;verticalLabelPosition=top;align=center;verticalAlign=top;",
+      "mxgraph_shape_xml": "<shape name=\"21cav.mtr.neat-bar-pro\" h=\"160\" w=\"240\" aspect=\"variable\" strokewidth=\"inherit\"><connections><constraint x=\"0\" y=\"0.2\" perimeter=\"0\" name=\"hdmi-in\"/><constraint x=\"0\" y=\"0.45\" perimeter=\"0\" name=\"usb-c\"/><constraint x=\"0\" y=\"0.85\" perimeter=\"0\" name=\"power\"/><constraint x=\"1\" y=\"0.2\" perimeter=\"0\" name=\"hdmi-out\"/><constraint x=\"1\" y=\"0.45\" perimeter=\"0\" name=\"lan\"/><constraint x=\"1\" y=\"0.7\" perimeter=\"0\" name=\"audio-out\"/></connections><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"240\" h=\"160\" arcsize=\"8\"/><fillstroke/><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"240\" h=\"30\"/><fill/></background><foreground><fontcolor color=\"#FFFFFF\"/><fontsize size=\"12\"/><fontstyle style=\"1\"/><text str=\"NEAT  BAR  PRO\" x=\"120\" y=\"19\" align=\"center\"/><fontcolor color=\"#1B7A7A\"/><fontsize size=\"11\"/><fontstyle style=\"0\"/><text str=\"Videobar\" x=\"120\" y=\"55\" align=\"center\"/><fontcolor color=\"#555555\"/><fontsize size=\"9\"/><text str=\"HDMI\" x=\"4\" y=\"36\" align=\"start\"/><text str=\"USB-C\" x=\"4\" y=\"76\" align=\"start\"/><text str=\"PWR\" x=\"4\" y=\"140\" align=\"start\"/><text str=\"HDMI\" x=\"236\" y=\"36\" align=\"end\"/><text str=\"LAN\" x=\"236\" y=\"76\" align=\"end\"/><text str=\"AUX\" x=\"236\" y=\"116\" align=\"end\"/><strokecolor color=\"#C07000\"/><strokewidth width=\"1.5\"/><line x1=\"0\" y1=\"60\" x2=\"8\" y2=\"60\"/><line x1=\"0\" y1=\"100\" x2=\"8\" y2=\"100\"/><line x1=\"0\" y1=\"140\" x2=\"8\" y2=\"140\"/><line x1=\"232\" y1=\"60\" x2=\"240\" y2=\"60\"/><line x1=\"232\" y1=\"100\" x2=\"240\" y2=\"100\"/><line x1=\"232\" y1=\"140\" x2=\"240\" y2=\"140\"/><stroke/><strokecolor color=\"#333333\"/><strokewidth width=\"1\"/><rect x=\"100\" y=\"95\" w=\"40\" h=\"20\"/><stroke/><fontcolor color=\"#888888\"/><fontsize size=\"7\"/><text str=\"camera + mic\" x=\"120\" y=\"108\" align=\"center\"/></foreground></shape>"
+    },
+    {
+      "id": "21cav.mtr.samsung-display",
+      "manufacturer": "Samsung",
+      "model": "QM65C-T",
+      "role": "display",
+      "logo_url": "/img/manufacturers/samsung.svg",
+      "default_size": {"w": 280, "h": 180},
+      "ports": [
+        {"id": "hdmi-1",     "label": "HDMI 1",     "type": "hdmi",         "direction": "in",  "side": "left",  "y_pct": 0.18},
+        {"id": "hdmi-2",     "label": "HDMI 2",     "type": "hdmi",         "direction": "in",  "side": "left",  "y_pct": 0.32},
+        {"id": "hdmi-3",     "label": "HDMI 3",     "type": "hdmi",         "direction": "in",  "side": "left",  "y_pct": 0.46},
+        {"id": "displayport","label": "DP",         "type": "displayport",  "direction": "in",  "side": "left",  "y_pct": 0.60},
+        {"id": "power",      "label": "PWR",        "type": "power",        "direction": "in",  "side": "left",  "y_pct": 0.88},
+        {"id": "optical",    "label": "OPT OUT",    "type": "optical-audio","direction": "out", "side": "right", "y_pct": 0.20},
+        {"id": "audio-3-5",  "label": "3.5mm OUT",  "type": "audio-3.5mm",  "direction": "out", "side": "right", "y_pct": 0.40},
+        {"id": "lan",        "label": "LAN",        "type": "rj45",         "direction": "io",  "side": "right", "y_pct": 0.60},
+        {"id": "usb-host",   "label": "USB",        "type": "usb-a",        "direction": "io",  "side": "right", "y_pct": 0.80}
+      ],
+      "drawio_style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAF6;strokeColor=#1B7A7A;strokeWidth=2;",
+      "mxgraph_shape_xml": "<shape name=\"21cav.mtr.samsung-display\" h=\"180\" w=\"280\" aspect=\"variable\" strokewidth=\"inherit\"><connections><constraint x=\"0\" y=\"0.18\" perimeter=\"0\" name=\"hdmi-1\"/><constraint x=\"0\" y=\"0.32\" perimeter=\"0\" name=\"hdmi-2\"/><constraint x=\"0\" y=\"0.46\" perimeter=\"0\" name=\"hdmi-3\"/><constraint x=\"0\" y=\"0.60\" perimeter=\"0\" name=\"displayport\"/><constraint x=\"0\" y=\"0.88\" perimeter=\"0\" name=\"power\"/><constraint x=\"1\" y=\"0.20\" perimeter=\"0\" name=\"optical\"/><constraint x=\"1\" y=\"0.40\" perimeter=\"0\" name=\"audio-3-5\"/><constraint x=\"1\" y=\"0.60\" perimeter=\"0\" name=\"lan\"/><constraint x=\"1\" y=\"0.80\" perimeter=\"0\" name=\"usb-host\"/></connections><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"280\" h=\"180\" arcsize=\"5\"/><fillstroke/><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"280\" h=\"32\"/><fill/></background><foreground><fontcolor color=\"#FFFFFF\"/><fontsize size=\"12\"/><fontstyle style=\"1\"/><text str=\"SAMSUNG  QM65C-T\" x=\"140\" y=\"20\" align=\"center\"/><fontcolor color=\"#1B7A7A\"/><fontsize size=\"11\"/><fontstyle style=\"0\"/><text str=\"65&quot; Display\" x=\"140\" y=\"54\" align=\"center\"/><fillcolor color=\"#222222\"/><strokecolor color=\"#333333\"/><strokewidth width=\"1\"/><rect x=\"40\" y=\"66\" w=\"200\" h=\"96\"/><fillstroke/><fontcolor color=\"#888888\"/><fontsize size=\"8\"/><text str=\"screen\" x=\"140\" y=\"118\" align=\"center\"/><fontcolor color=\"#555555\"/><fontsize size=\"8\"/><text str=\"HDMI1\" x=\"4\" y=\"36\" align=\"start\"/><text str=\"HDMI2\" x=\"4\" y=\"61\" align=\"start\"/><text str=\"HDMI3\" x=\"4\" y=\"86\" align=\"start\"/><text str=\"DP\" x=\"4\" y=\"111\" align=\"start\"/><text str=\"PWR\" x=\"4\" y=\"161\" align=\"start\"/><text str=\"OPT\" x=\"276\" y=\"40\" align=\"end\"/><text str=\"3.5\" x=\"276\" y=\"76\" align=\"end\"/><text str=\"LAN\" x=\"276\" y=\"112\" align=\"end\"/><text str=\"USB\" x=\"276\" y=\"148\" align=\"end\"/><strokecolor color=\"#C07000\"/><strokewidth width=\"1.5\"/><line x1=\"0\" y1=\"32\" x2=\"8\" y2=\"32\"/><line x1=\"0\" y1=\"57\" x2=\"8\" y2=\"57\"/><line x1=\"0\" y1=\"82\" x2=\"8\" y2=\"82\"/><line x1=\"0\" y1=\"107\" x2=\"8\" y2=\"107\"/><line x1=\"0\" y1=\"158\" x2=\"8\" y2=\"158\"/><line x1=\"272\" y1=\"36\" x2=\"280\" y2=\"36\"/><line x1=\"272\" y1=\"72\" x2=\"280\" y2=\"72\"/><line x1=\"272\" y1=\"108\" x2=\"280\" y2=\"108\"/><line x1=\"272\" y1=\"144\" x2=\"280\" y2=\"144\"/><stroke/></foreground></shape>"
+    },
+    {
+      "id": "21cav.mtr.clickshare-bar-pro",
+      "manufacturer": "Barco",
+      "model": "ClickShare Bar Pro",
+      "role": "byod",
+      "logo_url": "/img/manufacturers/clickshare.svg",
+      "default_size": {"w": 240, "h": 160},
+      "ports": [
+        {"id": "hdmi-in",    "label": "HDMI IN",   "type": "hdmi",        "direction": "in",  "side": "left",  "y_pct": 0.22},
+        {"id": "usb-c-1",    "label": "USB-C 1",   "type": "usb-c",       "direction": "in",  "side": "left",  "y_pct": 0.42},
+        {"id": "usb-c-2",    "label": "USB-C 2",   "type": "usb-c",       "direction": "in",  "side": "left",  "y_pct": 0.62},
+        {"id": "power",      "label": "PWR",       "type": "power",       "direction": "in",  "side": "left",  "y_pct": 0.85},
+        {"id": "hdmi-out",   "label": "HDMI OUT",  "type": "hdmi",        "direction": "out", "side": "right", "y_pct": 0.22},
+        {"id": "lan",        "label": "LAN",       "type": "rj45",        "direction": "io",  "side": "right", "y_pct": 0.45},
+        {"id": "audio-io",   "label": "AUDIO",     "type": "audio-3.5mm", "direction": "io",  "side": "right", "y_pct": 0.70}
+      ],
+      "drawio_style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAF6;strokeColor=#1B7A7A;strokeWidth=2;",
+      "mxgraph_shape_xml": "<shape name=\"21cav.mtr.clickshare-bar-pro\" h=\"160\" w=\"240\" aspect=\"variable\" strokewidth=\"inherit\"><connections><constraint x=\"0\" y=\"0.22\" perimeter=\"0\" name=\"hdmi-in\"/><constraint x=\"0\" y=\"0.42\" perimeter=\"0\" name=\"usb-c-1\"/><constraint x=\"0\" y=\"0.62\" perimeter=\"0\" name=\"usb-c-2\"/><constraint x=\"0\" y=\"0.85\" perimeter=\"0\" name=\"power\"/><constraint x=\"1\" y=\"0.22\" perimeter=\"0\" name=\"hdmi-out\"/><constraint x=\"1\" y=\"0.45\" perimeter=\"0\" name=\"lan\"/><constraint x=\"1\" y=\"0.70\" perimeter=\"0\" name=\"audio-io\"/></connections><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"240\" h=\"160\" arcsize=\"8\"/><fillstroke/><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"240\" h=\"30\"/><fill/></background><foreground><fontcolor color=\"#FFFFFF\"/><fontsize size=\"12\"/><fontstyle style=\"1\"/><text str=\"CLICKSHARE  BAR  PRO\" x=\"120\" y=\"19\" align=\"center\"/><fontcolor color=\"#1B7A7A\"/><fontsize size=\"11\"/><fontstyle style=\"0\"/><text str=\"BYOD Wireless\" x=\"120\" y=\"55\" align=\"center\"/><fillcolor color=\"#E5232E\"/><strokecolor color=\"#E5232E\"/><ellipse x=\"108\" y=\"82\" w=\"24\" h=\"24\"/><fillstroke/><fillcolor color=\"#FFFFFF\"/><strokecolor color=\"#FFFFFF\"/><ellipse x=\"117\" y=\"91\" w=\"6\" h=\"6\"/><fillstroke/><fontcolor color=\"#888888\"/><fontsize size=\"8\"/><text str=\"button\" x=\"120\" y=\"122\" align=\"center\"/><fontcolor color=\"#555555\"/><fontsize size=\"9\"/><text str=\"HDMI\" x=\"4\" y=\"40\" align=\"start\"/><text str=\"USB-C\" x=\"4\" y=\"72\" align=\"start\"/><text str=\"USB-C\" x=\"4\" y=\"104\" align=\"start\"/><text str=\"PWR\" x=\"4\" y=\"140\" align=\"start\"/><text str=\"HDMI\" x=\"236\" y=\"40\" align=\"end\"/><text str=\"LAN\" x=\"236\" y=\"76\" align=\"end\"/><text str=\"AUDIO\" x=\"236\" y=\"116\" align=\"end\"/><strokecolor color=\"#C07000\"/><strokewidth width=\"1.5\"/><line x1=\"0\" y1=\"36\" x2=\"8\" y2=\"36\"/><line x1=\"0\" y1=\"68\" x2=\"8\" y2=\"68\"/><line x1=\"0\" y1=\"100\" x2=\"8\" y2=\"100\"/><line x1=\"0\" y1=\"136\" x2=\"8\" y2=\"136\"/><line x1=\"232\" y1=\"36\" x2=\"240\" y2=\"36\"/><line x1=\"232\" y1=\"72\" x2=\"240\" y2=\"72\"/><line x1=\"232\" y1=\"112\" x2=\"240\" y2=\"112\"/><stroke/></foreground></shape>"
+    },
+    {
+      "id": "21cav.mtr.sennheiser-tcc",
+      "manufacturer": "Sennheiser",
+      "model": "TeamConnect Ceiling 2",
+      "role": "ceiling-mic",
+      "logo_url": "/img/manufacturers/sennheiser.svg",
+      "default_size": {"w": 200, "h": 160},
+      "ports": [
+        {"id": "dante-poe",  "label": "Dante PoE+",  "type": "rj45-poe", "direction": "io",  "side": "right", "y_pct": 0.30},
+        {"id": "audio-line", "label": "LINE OUT",   "type": "line-in",  "direction": "out", "side": "right", "y_pct": 0.55},
+        {"id": "ctrl-lan",   "label": "CTRL LAN",   "type": "rj45",     "direction": "io",  "side": "right", "y_pct": 0.78},
+        {"id": "fw-usb",     "label": "FW USB-C",   "type": "usb-c",    "direction": "io",  "side": "left",  "y_pct": 0.78}
+      ],
+      "drawio_style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAF6;strokeColor=#1B7A7A;strokeWidth=2;",
+      "mxgraph_shape_xml": "<shape name=\"21cav.mtr.sennheiser-tcc\" h=\"160\" w=\"200\" aspect=\"variable\" strokewidth=\"inherit\"><connections><constraint x=\"1\" y=\"0.30\" perimeter=\"0\" name=\"dante-poe\"/><constraint x=\"1\" y=\"0.55\" perimeter=\"0\" name=\"audio-line\"/><constraint x=\"1\" y=\"0.78\" perimeter=\"0\" name=\"ctrl-lan\"/><constraint x=\"0\" y=\"0.78\" perimeter=\"0\" name=\"fw-usb\"/></connections><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"200\" h=\"160\" arcsize=\"8\"/><fillstroke/><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"200\" h=\"30\"/><fill/></background><foreground><fontcolor color=\"#FFFFFF\"/><fontsize size=\"11\"/><fontstyle style=\"1\"/><text str=\"SENNHEISER TCC2\" x=\"100\" y=\"19\" align=\"center\"/><fontcolor color=\"#1B7A7A\"/><fontsize size=\"10\"/><fontstyle style=\"0\"/><text str=\"Ceiling Array Mic\" x=\"100\" y=\"50\" align=\"center\"/><strokecolor color=\"#1B7A7A\"/><strokewidth width=\"1.5\"/><ellipse x=\"60\" y=\"66\" w=\"80\" h=\"50\"/><stroke/><fillcolor color=\"#1B7A7A\"/><strokecolor color=\"#1B7A7A\"/><ellipse x=\"96\" y=\"86\" w=\"8\" h=\"10\"/><fillstroke/><fontcolor color=\"#888888\"/><fontsize size=\"7\"/><text str=\"PoE / Dante\" x=\"100\" y=\"130\" align=\"center\"/><fontcolor color=\"#555555\"/><fontsize size=\"8\"/><text str=\"Dante PoE\" x=\"196\" y=\"52\" align=\"end\"/><text str=\"LINE\" x=\"196\" y=\"92\" align=\"end\"/><text str=\"CTRL\" x=\"196\" y=\"128\" align=\"end\"/><text str=\"FW USB-C\" x=\"4\" y=\"128\" align=\"start\"/><strokecolor color=\"#C07000\"/><strokewidth width=\"1.5\"/><line x1=\"192\" y1=\"48\" x2=\"200\" y2=\"48\"/><line x1=\"192\" y1=\"88\" x2=\"200\" y2=\"88\"/><line x1=\"192\" y1=\"125\" x2=\"200\" y2=\"125\"/><line x1=\"0\" y1=\"125\" x2=\"8\" y2=\"125\"/><stroke/></foreground></shape>"
+    },
+    {
+      "id": "21cav.mtr.netgear-poe-12pt",
+      "manufacturer": "Netgear",
+      "model": "GS312TP",
+      "role": "network-switch",
+      "logo_url": "/img/manufacturers/netgear.svg",
+      "default_size": {"w": 320, "h": 110},
+      "ports": [
+        {"id": "port-1",  "label": "1",  "type": "rj45-poe", "direction": "io", "side": "top", "x_pct": 0.10},
+        {"id": "port-2",  "label": "2",  "type": "rj45-poe", "direction": "io", "side": "top", "x_pct": 0.16},
+        {"id": "port-3",  "label": "3",  "type": "rj45-poe", "direction": "io", "side": "top", "x_pct": 0.22},
+        {"id": "port-4",  "label": "4",  "type": "rj45-poe", "direction": "io", "side": "top", "x_pct": 0.28},
+        {"id": "port-5",  "label": "5",  "type": "rj45-poe", "direction": "io", "side": "top", "x_pct": 0.34},
+        {"id": "port-6",  "label": "6",  "type": "rj45-poe", "direction": "io", "side": "top", "x_pct": 0.40},
+        {"id": "port-7",  "label": "7",  "type": "rj45-poe", "direction": "io", "side": "top", "x_pct": 0.46},
+        {"id": "port-8",  "label": "8",  "type": "rj45-poe", "direction": "io", "side": "top", "x_pct": 0.52},
+        {"id": "port-9",  "label": "9",  "type": "rj45-poe", "direction": "io", "side": "top", "x_pct": 0.58},
+        {"id": "port-10", "label": "10", "type": "rj45-poe", "direction": "io", "side": "top", "x_pct": 0.64},
+        {"id": "port-11", "label": "11", "type": "rj45-poe", "direction": "io", "side": "top", "x_pct": 0.70},
+        {"id": "port-12", "label": "12", "type": "rj45-poe", "direction": "io", "side": "top", "x_pct": 0.76},
+        {"id": "console", "label": "CON", "type": "rj45",     "direction": "in", "side": "right", "x_pct": null, "y_pct": 0.40},
+        {"id": "power",   "label": "PWR", "type": "power",    "direction": "in", "side": "right", "x_pct": null, "y_pct": 0.75}
+      ],
+      "drawio_style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAF6;strokeColor=#1B7A7A;strokeWidth=2;",
+      "mxgraph_shape_xml": "<shape name=\"21cav.mtr.netgear-poe-12pt\" h=\"110\" w=\"320\" aspect=\"variable\" strokewidth=\"inherit\"><connections><constraint x=\"0.10\" y=\"0\" perimeter=\"0\" name=\"port-1\"/><constraint x=\"0.16\" y=\"0\" perimeter=\"0\" name=\"port-2\"/><constraint x=\"0.22\" y=\"0\" perimeter=\"0\" name=\"port-3\"/><constraint x=\"0.28\" y=\"0\" perimeter=\"0\" name=\"port-4\"/><constraint x=\"0.34\" y=\"0\" perimeter=\"0\" name=\"port-5\"/><constraint x=\"0.40\" y=\"0\" perimeter=\"0\" name=\"port-6\"/><constraint x=\"0.46\" y=\"0\" perimeter=\"0\" name=\"port-7\"/><constraint x=\"0.52\" y=\"0\" perimeter=\"0\" name=\"port-8\"/><constraint x=\"0.58\" y=\"0\" perimeter=\"0\" name=\"port-9\"/><constraint x=\"0.64\" y=\"0\" perimeter=\"0\" name=\"port-10\"/><constraint x=\"0.70\" y=\"0\" perimeter=\"0\" name=\"port-11\"/><constraint x=\"0.76\" y=\"0\" perimeter=\"0\" name=\"port-12\"/><constraint x=\"1\" y=\"0.40\" perimeter=\"0\" name=\"console\"/><constraint x=\"1\" y=\"0.75\" perimeter=\"0\" name=\"power\"/></connections><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"320\" h=\"110\" arcsize=\"6\"/><fillstroke/><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"320\" h=\"22\"/><fill/></background><foreground><fontcolor color=\"#FFFFFF\"/><fontsize size=\"10\"/><fontstyle style=\"1\"/><text str=\"NETGEAR  GS312TP   12-Port PoE+\" x=\"160\" y=\"15\" align=\"center\"/><strokecolor color=\"#333333\"/><strokewidth width=\"0.8\"/><fillcolor color=\"#222222\"/><rect x=\"22\" y=\"36\" w=\"232\" h=\"34\"/><fillstroke/><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#FAFAF6\"/><rect x=\"26\" y=\"40\" w=\"14\" h=\"10\"/><fill/><rect x=\"45\" y=\"40\" w=\"14\" h=\"10\"/><fill/><rect x=\"64\" y=\"40\" w=\"14\" h=\"10\"/><fill/><rect x=\"83\" y=\"40\" w=\"14\" h=\"10\"/><fill/><rect x=\"102\" y=\"40\" w=\"14\" h=\"10\"/><fill/><rect x=\"121\" y=\"40\" w=\"14\" h=\"10\"/><fill/><rect x=\"140\" y=\"40\" w=\"14\" h=\"10\"/><fill/><rect x=\"159\" y=\"40\" w=\"14\" h=\"10\"/><fill/><rect x=\"178\" y=\"40\" w=\"14\" h=\"10\"/><fill/><rect x=\"197\" y=\"40\" w=\"14\" h=\"10\"/><fill/><rect x=\"216\" y=\"40\" w=\"14\" h=\"10\"/><fill/><rect x=\"235\" y=\"40\" w=\"14\" h=\"10\"/><fill/><fillcolor color=\"#C07000\"/><strokecolor color=\"#C07000\"/><rect x=\"26\" y=\"54\" w=\"14\" h=\"3\"/><fill/><rect x=\"45\" y=\"54\" w=\"14\" h=\"3\"/><fill/><rect x=\"64\" y=\"54\" w=\"14\" h=\"3\"/><fill/><rect x=\"83\" y=\"54\" w=\"14\" h=\"3\"/><fill/><rect x=\"102\" y=\"54\" w=\"14\" h=\"3\"/><fill/><rect x=\"121\" y=\"54\" w=\"14\" h=\"3\"/><fill/><rect x=\"140\" y=\"54\" w=\"14\" h=\"3\"/><fill/><rect x=\"159\" y=\"54\" w=\"14\" h=\"3\"/><fill/><rect x=\"178\" y=\"54\" w=\"14\" h=\"3\"/><fill/><rect x=\"197\" y=\"54\" w=\"14\" h=\"3\"/><fill/><rect x=\"216\" y=\"54\" w=\"14\" h=\"3\"/><fill/><rect x=\"235\" y=\"54\" w=\"14\" h=\"3\"/><fill/><fontcolor color=\"#FFFFFF\"/><fontsize size=\"7\"/><text str=\"1\" x=\"33\" y=\"66\" align=\"center\"/><text str=\"2\" x=\"52\" y=\"66\" align=\"center\"/><text str=\"3\" x=\"71\" y=\"66\" align=\"center\"/><text str=\"4\" x=\"90\" y=\"66\" align=\"center\"/><text str=\"5\" x=\"109\" y=\"66\" align=\"center\"/><text str=\"6\" x=\"128\" y=\"66\" align=\"center\"/><text str=\"7\" x=\"147\" y=\"66\" align=\"center\"/><text str=\"8\" x=\"166\" y=\"66\" align=\"center\"/><text str=\"9\" x=\"185\" y=\"66\" align=\"center\"/><text str=\"10\" x=\"204\" y=\"66\" align=\"center\"/><text str=\"11\" x=\"223\" y=\"66\" align=\"center\"/><text str=\"12\" x=\"242\" y=\"66\" align=\"center\"/><fontcolor color=\"#555555\"/><fontsize size=\"8\"/><text str=\"CON\" x=\"316\" y=\"48\" align=\"end\"/><text str=\"PWR\" x=\"316\" y=\"86\" align=\"end\"/><strokecolor color=\"#C07000\"/><strokewidth width=\"1.5\"/><line x1=\"312\" y1=\"44\" x2=\"320\" y2=\"44\"/><line x1=\"312\" y1=\"82\" x2=\"320\" y2=\"82\"/><stroke/><fillcolor color=\"#1B7A7A\"/><strokecolor color=\"#1B7A7A\"/><ellipse x=\"262\" y=\"42\" w=\"5\" h=\"5\"/><fillstroke/><ellipse x=\"272\" y=\"42\" w=\"5\" h=\"5\"/><fillstroke/><ellipse x=\"282\" y=\"42\" w=\"5\" h=\"5\"/><fillstroke/><fontcolor color=\"#888888\"/><fontsize size=\"6\"/><text str=\"PWR\" x=\"264\" y=\"57\" align=\"center\"/><text str=\"FAN\" x=\"274\" y=\"57\" align=\"center\"/><text str=\"NET\" x=\"284\" y=\"57\" align=\"center\"/><fontcolor color=\"#1B7A7A\"/><fontsize size=\"7\"/><text str=\"12-Port Gigabit PoE+ Smart Managed\" x=\"160\" y=\"100\" align=\"center\"/></foreground></shape>"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Neat wordmark — hand-drawn approximation for the 21CAV draw.io spike.
+  Source: hand-drawn from public Neat brand visuals, no logo file copied.
+  Internal-use-only — flag for re-licensing if 21CAV ever distributes externally.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 32" width="120" height="32">
+  <text x="0" y="22" font-family="Inter, Helvetica, Arial, sans-serif"
+        font-size="22" font-weight="700" fill="#000000"
+        letter-spacing="-0.5">neat.</text>
+  <circle cx="100" cy="20" r="2.4" fill="#000000"/>
+</svg>

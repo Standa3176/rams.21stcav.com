@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  NETGEAR wordmark — hand-drawn approximation for the 21CAV draw.io spike.
+  Source: hand-drawn, no logo file copied.
+  Internal-use-only — flag for re-licensing if 21CAV ever distributes externally.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 32" width="160" height="32">
+  <text x="0" y="22" font-family="Inter, Helvetica, Arial, sans-serif"
+        font-size="18" font-weight="800" fill="#000000"
+        letter-spacing="0.5">NETGEAR</text>
+  <path d="M 0 28 Q 35 24 70 28 T 140 28" fill="none" stroke="#1B6CB5" stroke-width="2"/>
+</svg>

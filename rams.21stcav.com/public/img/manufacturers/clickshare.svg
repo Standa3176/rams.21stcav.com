@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Barco ClickShare wordmark — hand-drawn approximation for the 21CAV draw.io spike.
+  Source: hand-drawn, no logo file copied.
+  Internal-use-only — flag for re-licensing if 21CAV ever distributes externally.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 32" width="180" height="32">
+  <circle cx="14" cy="16" r="11" fill="#E5232E"/>
+  <circle cx="14" cy="16" r="3.5" fill="#FFFFFF"/>
+  <text x="32" y="22" font-family="Inter, Helvetica, Arial, sans-serif"
+        font-size="18" font-weight="600" fill="#222222"
+        letter-spacing="-0.3">ClickShare</text>
+</svg>
