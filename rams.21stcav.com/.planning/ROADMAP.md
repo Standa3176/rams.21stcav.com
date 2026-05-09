@@ -1,6 +1,6 @@
 ---
-milestone: between
-milestone_name: v1.3 SHIPPED — next milestone TBD via /gsd-new-milestone
+milestone: v2.0
+milestone_name: Engineering-Grade AV Drawings
 last_updated: "2026-05-09"
 ---
 
@@ -10,7 +10,7 @@ last_updated: "2026-05-09"
 
 See: `.planning/PROJECT.md` (updated 2026-05-09)
 
-**Current milestone:** between milestones — v1.3 shipped 2026-05-09; next milestone scoping pending. Strong candidates: **v2.0 Engineering-Grade Drawings** (drawings upgrade — draw.io spike validated) OR **v1.4 Client Portal** (original roadmap order).
+**Current milestone:** v2.0 Engineering-Grade AV Drawings. Visual contract: XTEN-AV PAGING SYSTEM reference. Platform: draw.io / mxGraph (validated by spike `260509-ibx`).
 
 ## Roadmap Overview
 
@@ -20,9 +20,48 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
 | v1.1 | Operations Dashboard & Notifications | 08–09 (10/11 deferred) | ✅ Shipped 2026-04-25 — [archive](milestones/v1.1-ROADMAP.md) |
 | v1.2 | Installation Programme & Field Management | 12–16 | ✅ Shipped 2026-04-25 — [archive](milestones/v1.2-ROADMAP.md) |
 | v1.3 | Technical Drawings & Schematics | 17–20 (19 → v2.0) | ✅ Shipped 2026-05-09 — [archive](milestones/v1.3-ROADMAP.md) |
-| v1.4 | Client Portal & Project Visibility | 21–24 | 📋 Planned |
-| v1.5 | Financial & Proposal Engine | 25–28 | 📋 Planned |
-| v1.6 | Service & Inventory | 29–32 | 📋 Planned |
+| **v2.0** | **Engineering-Grade AV Drawings** | **21–25** | **🚧 In progress** |
+| v1.4 | Client Portal & Project Visibility | 26–29 | 📋 Planned (renumbered after v2.0) |
+| v1.5 | Financial & Proposal Engine | 30–33 | 📋 Planned |
+| v1.6 | Service & Inventory | 34–37 | 📋 Planned |
+
+---
+
+## 🚧 v2.0 Engineering-Grade AV Drawings (In Progress)
+
+**Milestone Goal:** Auto-generate AV technical drawings at the engineering-grade fidelity of XTEN-AV / D-Tools / Lucidchart. Custom device cards (manufacturer logo + name + model + port rails), port-to-port cable routing, signal-type colour coding, sub-room zones, multi-page paginator with title block, sheet border. Output renders in the draw.io / mxGraph embed validated by spike `260509-ibx`. Visual contract = the XTEN-AV PAGING SYSTEM reference user shared 2026-05-09.
+
+**Reference image:** XTEN-AV PAGING SYSTEM (saved in conversation 2026-05-09). Every PR is evaluated against "does it move us closer to this output?"
+
+**Platform decision:** draw.io / mxGraph self-hosted (Apache 2.0). Spike validated 2026-05-09. Native build was the alternative — saves ~5–7 weeks vs full Konva canvas + custom SVG renderer.
+
+**Phases:** 21–25 (5 phases, ~25-30 plans estimated, ~10–15 weeks)
+
+**Strategy summary:** Tier 1 (auto-generic stencil per part_number) + Tier 2 (engineer-curated catalog growth via UI) combined. AI port extraction (Tier 3) lands as polish in Phase 25. v1.3 D2-based renderer stays usable as fallback for projects without sufficient catalog coverage.
+
+### Phases
+
+- [ ] **Phase 21: Device Port Catalog + Stencil Cache** — `device_ports` + `device_stencils` tables; hand-curated top-50 device seed pack; auto-generic placeholder for uncatalogued parts; cross-project caching via `firstOrCreate` on part_number; manufacturer logo glyphs for top 20 brands. Foundation for all other phases. Estimate: 3–4 weeks.
+- [ ] **Phase 22: Cable Schedule with Port-Level FKs** — `source_port_id` + `dest_port_id` columns on `cable_schedule_items`; cascading dropdown UI (room → device → port); connector-compatibility validation; auto-derive from quote `cable_list` "X to Y" naming where unambiguous; one-shot backfill command. Depends on Phase 21. Estimate: 2–3 weeks.
+- [ ] **Phase 23: XTEN-AV-Style Renderer** — custom device-card stencils with port rails; port-to-port cable routing; signal-type colour coding (audio/video/control/network/USB); cable ID labels; sub-room zones (RACK / CEILING / etc) auto-derived + engineer-overridable; multi-page paginator (system + audio + video + control sub-sheets); standardised title block; sheet border. Depends on Phase 21+22. Estimate: 2–4 weeks (faster via draw.io vs ~4–5 weeks native).
+- [ ] **Phase 24: Stencil Curation UI** — admin route + edit screen for upgrading auto-generic stencils to engineer-curated ones; drag-port handles, label inputs, manufacturer-logo upload; "promote" action flips `device_stencils.source` from auto-generated → engineer-curated; cross-project propagation automatic via cache lookup. Depends on Phase 21. Estimate: 1–2 weeks.
+- [ ] **Phase 25: AI Assist + Replacement Wiring** — Claude vision over manufacturer datasheet PDFs → port JSON → engineer review/approve flow (covers long-tail devices); chat-edit operations on rendered drawings (`move_device_to_zone`, `add_cable_between_ports`, etc.) bounded by canonical-data validity; bound PDF (v1.3 Phase 20) + O&M Manual auto-embed (v1.3 Phase 17) swap from D2 output to engineering-grade output for projects with sufficient catalog coverage. Depends on Phase 21+22+23. Estimate: 2–3 weeks.
+
+### Out of scope for v2.0 (deferred to v2.1+)
+
+- DWG export — LibreDWG GPLv3 license blocker; Teigha is paid
+- Real-time multi-user collaborative drawing
+- Apple Pencil pressure / tilt
+- Mobile-first drawing creation (drawings stay desktop/tablet)
+- Custom symbol library editor in-app (symbols stay in `device_stencils` table)
+- **Floor plans** (DRAW-14..20 from v1.3 backlog) — held for v2.1 with the same renderer + room-shape stencils
+
+### Canonical refs
+
+- Visual contract: XTEN-AV PAGING SYSTEM reference image (conversation 2026-05-09)
+- Platform validation: `.planning/quick/260509-ibx-draw-io-embed-spike-sandbox-one-stencil-/260509-ibx-SUMMARY.md`
+- Native-build alternative (rejected — kept for diff): memory note `v2_engineering_grade_drawings_plan.md`
+- Spike seed data: `resources/data/draw-io-stencils/21cav-mtr-spike.json` (5 hand-coded MTR stencils — promoted to seed for Phase 21)
 
 ---
 

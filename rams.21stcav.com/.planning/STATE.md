@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: between
-milestone_name: v1.3 SHIPPED 2026-05-09 — next milestone TBD via /gsd-new-milestone
-status: between-milestones
-last_updated: "2026-05-09T22:00:00.000Z"
-last_activity: 2026-05-09 -- Closed v1.3 Technical Drawings & Schematics milestone (3 phases / 7 plans / Phase 19 deferred to v2.0 999.1). Archived to .planning/milestones/v1.3-ROADMAP.md + v1.3-REQUIREMENTS.md. Companion draw.io spike 260509-ibx validated v2.0 rendering platform. Next session: /gsd-new-milestone — choose v2.0 Engineering-Grade Drawings or v1.4 Client Portal
+milestone: v2.0
+milestone_name: Engineering-Grade AV Drawings
+status: planning
+last_updated: "2026-05-09T22:30:00.000Z"
+last_activity: 2026-05-09 -- Opened v2.0 Engineering-Grade AV Drawings milestone via /gsd-new-milestone. Visual contract: XTEN-AV PAGING SYSTEM reference (shared 2026-05-09). Platform: draw.io / mxGraph (validated by spike 260509-ibx). 5 phases scoped (21-25): Port Catalog → Cable Schedule FKs → XTEN-AV-style Renderer → Stencil Curation UI → AI Assist + Replacement Wiring. ~10-15 weeks estimate. Next session: /gsd-plan-phase 21 to start Phase 21 (Device Port Catalog + Stencil Cache)
 progress:
   total_phases: 4
   completed_phases: 3

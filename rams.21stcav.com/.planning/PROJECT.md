@@ -13,9 +13,11 @@ queue, license audit, font fallback, Chrome version pinning).
 Companion to v1.3: a draw.io / mxGraph embed spike (260509-ibx) was built and validated as
 the rendering platform for the upcoming v2.0 Engineering-Grade Drawings milestone.
 
-**Next milestone:** TBD — strong candidates are v2.0 Engineering-Grade Drawings (build on
-spike, port catalog + port-aware cable routing) or v1.4 Client Portal (original roadmap order).
-Decision via `/gsd-new-milestone` in the next session.
+**Next milestone:** v2.0 Engineering-Grade AV Drawings (Phases 21–25, ~10–15 weeks). Visual
+contract = the XTEN-AV PAGING SYSTEM reference shared 2026-05-09. Platform = draw.io / mxGraph
+self-hosted, validated by spike `260509-ibx`. Phase 21 (Device Port Catalog + Stencil Cache)
+is the foundation — every other phase depends on it. v1.4 Client Portal renumbered to phases
+26–29, follows v2.0.
 
 ## What This Is
 
