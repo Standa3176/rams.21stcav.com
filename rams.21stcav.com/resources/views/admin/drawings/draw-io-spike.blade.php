@@ -44,9 +44,9 @@
   ></iframe>
 
   <div x-show="status" x-text="status"
-       class="fixed bottom-4 right-4 px-3 py-2 rounded shadow text-sm"
+       class="fixed bottom-4 right-4 px-3 py-2 rounded shadow text-xs font-mono"
        :class="statusKind === 'error' ? 'bg-red-600 text-white' : 'bg-[#1B7A7A] text-white'"
-       style="display: none;">
+       style="display: none; max-width: 600px; max-height: 400px; overflow: auto; white-space: pre-wrap;">
   </div>
 </div>
 
@@ -69,27 +69,38 @@ function drawIoSpike(cfg) {
       // dispatch by event.event field (per
       // https://www.drawio.com/doc/faq/embed-mode).
       window.addEventListener('message', (e) => this.onMessage(e));
+      this.flashSticky('1/4 listener attached · xml=' + (this.initialXml || '').length + ' bytes', 'info');
     },
 
     onEmbedReady() {
-      // Editor iframe loaded but may not yet have processed the xml.
-      // The 'init' event from the embed signals readiness; we wait for it
-      // before sending the load action.
+      // Iframe finished loading draw.io's index.html. We don't send the
+      // load action here — we wait for draw.io's own 'init' postMessage
+      // first (per protocol). This handler exists for diagnostic flash.
+      this.flashSticky('2/4 iframe loaded — waiting for draw.io init event…', 'info');
     },
 
     onMessage(e) {
+      // Diagnostic: log EVERY message we receive, even ones we filter out,
+      // so we can see if draw.io is talking at all.
+      const sourceMatch = this.$refs.embed && e.source === this.$refs.embed.contentWindow;
+      const dataPreview = (typeof e.data === 'string' ? e.data : JSON.stringify(e.data) || '').substring(0, 60);
+      this.flashSticky('msg src=' + (sourceMatch ? 'iframe' : 'OTHER') + ' data=' + dataPreview, 'info');
+
       // T-260509-ibx-04 mitigation: filter to messages from our iframe only.
-      if (!this.$refs.embed || e.source !== this.$refs.embed.contentWindow) return;
+      if (!sourceMatch) return;
       let msg;
       try { msg = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; }
-      catch (_err) { return; }
-      if (!msg || !msg.event) return;
+      catch (_err) { this.flashSticky('parse failed: ' + dataPreview, 'error'); return; }
+      if (!msg || !msg.event) { this.flashSticky('no event field: ' + dataPreview, 'error'); return; }
 
       switch (msg.event) {
         case 'init':
           this.embedReady = true;
+          this.flashSticky('3/4 init received — sending load (' + (this.initialXml || '').length + ' bytes)', 'info');
           this.postToEmbed({ action: 'load', xml: this.initialXml, autosave: 1 });
-          this.flash('Editor ready', 'info');
+          break;
+        case 'load':
+          this.flashSticky('4/4 ✓ diagram loaded', 'info');
           break;
         case 'save':
           this.persistXml(msg.xml);
@@ -160,6 +171,16 @@ function drawIoSpike(cfg) {
     flash(msg, kind = 'info') {
       this.status = msg; this.statusKind = kind;
       setTimeout(() => { this.status = ''; }, 2500);
+    },
+
+    // Diagnostics — sticky version that doesn't auto-clear, so we can see
+    // every postMessage step while debugging the embed handshake.
+    // Appends to a running log instead of overwriting.
+    flashSticky(msg, kind = 'info') {
+      const ts = new Date().toLocaleTimeString();
+      const line = '[' + ts + '] ' + msg;
+      this.status = (this.status ? this.status + '\n' : '') + line;
+      this.statusKind = kind;
     },
   };
 }
