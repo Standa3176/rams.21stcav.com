@@ -1,6 +1,6 @@
 # RAMS Platform — AV Operations System
 
-## Current State (as of 2026-05-09)
+## Current State (as of 2026-05-10)
 
 **Latest shipped milestone:** v1.3 Technical Drawings & Schematics (2026-05-09)
 
@@ -11,13 +11,21 @@ auto-embed in the O&M Manual handover. Production hardening complete (dedicated 
 queue, license audit, font fallback, Chrome version pinning).
 
 Companion to v1.3: a draw.io / mxGraph embed spike (260509-ibx) was built and validated as
-the rendering platform for the upcoming v2.0 Engineering-Grade Drawings milestone.
+the rendering platform for the v2.0 Engineering-Grade Drawings milestone.
 
-**Next milestone:** v2.0 Engineering-Grade AV Drawings (Phases 21–25, ~10–15 weeks). Visual
+**Active milestone:** v2.0 Engineering-Grade AV Drawings (Phases 21–25, ~10–15 weeks). Visual
 contract = the XTEN-AV PAGING SYSTEM reference shared 2026-05-09. Platform = draw.io / mxGraph
-self-hosted, validated by spike `260509-ibx`. Phase 21 (Device Port Catalog + Stencil Cache)
-is the foundation — every other phase depends on it. v1.4 Client Portal renumbered to phases
-26–29, follows v2.0.
+self-hosted, validated by spike `260509-ibx`. v1.4 Client Portal renumbered to phases 26–29,
+follows v2.0.
+
+- ✅ **Phase 21: Device Port Catalog + Stencil Cache** — completed 2026-05-10. Two new generic
+  tables (`device_stencils`, `device_ports`), models with role-enum constants, cross-project
+  `firstOrCreate` cache (`DeviceStencilCacheService`), Tier 1 auto-generic placeholder
+  (`AutoGenericStencilGenerator`), 96-row engineer-curated seed pack covering 95% of top-50
+  21CAV-volume parts, top-20 manufacturer logos, and the draw.io builder rewired to read
+  from `device_stencils` (the spike admin route now consumes the live DB). 6/6 requirements
+  shipped (DRAW-31..36); 16/16 must-haves verified; zero regressions to the v1.3 D2
+  generator. Foundation for Phases 22–25.
 
 ## What This Is
 
@@ -199,4 +207,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-02 — Phase 17 (Schematics) shipped; v1.3 scope reduced to Phases 17 + 18 + 20 after Phase 19 (Floor Plans / Konva) deferred to v2.0 backlog 999.1. Reason: Konva canvas editor is the most likely throwaway when v2.0's engineering-grade renderer lands; v2.0 will rebuild floor plans properly with port catalog + zones. v1.3 ships ~3-4 weeks sooner.*
+*Last updated: 2026-05-10 — v2.0 Phase 21 (Device Port Catalog + Stencil Cache) shipped. DRAW-31..36 satisfied (16/16 must-haves verified, 75/1424 assertions GREEN, zero regressions to the v1.3 D2 generator). The draw.io builder now reads from the live `device_stencils` table — Tier 1 auto-generic placeholders are written through on first reference and cached cross-project via `firstOrCreate(part_number)`. Foundation for Phases 22 (port-level cable FKs), 23 (XTEN-AV-style renderer), 24 (curation UI), 25 (AI assist).*
