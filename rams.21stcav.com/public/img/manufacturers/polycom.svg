@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Polycom (Poly) wordmark — simplified text glyph for the 21CAV draw.io builder.
+  Resolver maps both 'polycom' and 'poly' needles to this asset.
+  viewBox 0 0 100 30 + currentColor per Plan 21-03 D-06.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 30" fill="currentColor">
+  <text x="50" y="22" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="700" text-anchor="middle" letter-spacing="0.5">POLYCOM</text>
+</svg>

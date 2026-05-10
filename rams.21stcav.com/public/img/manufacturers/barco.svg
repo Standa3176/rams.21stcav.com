@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Barco wordmark — simplified text glyph for the 21CAV draw.io builder.
+  D-14: this is a SEPARATE asset from clickshare.svg. The resolver matches
+  'clickshare' BEFORE 'barco' so Barco ClickShare products keep rendering
+  with the existing clickshare.svg; this barco.svg is for non-ClickShare
+  Barco products (F-series projectors, G-series cinema, etc.).
+  viewBox 0 0 100 30 + currentColor per Plan 21-03 D-06.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 30" fill="currentColor">
+  <text x="50" y="22" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" text-anchor="middle" letter-spacing="0.5">BARCO</text>
+</svg>
