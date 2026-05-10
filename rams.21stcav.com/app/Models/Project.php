@@ -234,6 +234,87 @@ class Project extends Model
         return array_keys($parts);
     }
 
+    /**
+     * Phase 21 Plan 01 — Project's hardware equipment lines paired with their
+     * DeviceStencil row (per CONTEXT.md D-07).
+     *
+     * Reads `latestPackage->extracted_data['equipment']` (fallback to
+     * `equipment_list` for legacy projects), filters to category=hardware
+     * (mirrors hardwarePartNumbers()), and joins each line to a DeviceStencil
+     * via the cross-project firstOrCreate cache (DeviceStencilCacheService).
+     *
+     * Output shape (one entry per hardware line):
+     *   [
+     *     'part_number'  => string,
+     *     'manufacturer' => ?string,
+     *     'model'        => ?string,
+     *     'name'         => string,
+     *     'quantity'     => int,
+     *     'area'         => ?string,
+     *     'stencil'      => ?DeviceStencil,
+     *   ]
+     *
+     * Lines with empty part_number are kept in the output with stencil = null
+     * so the renderer can surface a "no part_number" warning rather than
+     * silently dropping them.
+     *
+     * SIDE EFFECT (D-07): on first encounter of an uncatalogued part_number,
+     * the cache service writes a Tier 1 placeholder DeviceStencil row to the
+     * database. This is intentional — every project gets stencils on day 1,
+     * even uncatalogued items render *something*. Subsequent reads (this
+     * project OR any other project that references the same part_number)
+     * are pure SELECTs.
+     *
+     * RACE-SAFETY (D-03): NOT wrapped in DB::transaction. The unique index on
+     * device_stencils.part_number makes the underlying firstOrCreate atomic;
+     * concurrent first-calls converge to the same row. Wrapping in a
+     * transaction would block on the unique index without benefit and would
+     * actually HURT throughput (T-21.01-03 mitigation rationale).
+     *
+     * Phase 24's curation UI promotes auto-generated stencils to engineer-
+     * curated ones in-place; the cache key (part_number) means every
+     * project automatically picks up the upgrade on next render — no
+     * per-project re-association needed.
+     *
+     * @return array<int, array{part_number: string, manufacturer: ?string, model: ?string, name: string, quantity: int, area: ?string, stencil: ?\App\Models\DeviceStencil}>
+     */
+    public function devicesWithStencils(): array
+    {
+        $extracted = $this->latestPackage?->extracted_data ?? null;
+        $eq = (is_array($extracted) ? ($extracted['equipment'] ?? null) : null)
+            ?? $this->latestPackage?->equipment_list
+            ?? [];
+
+        if (! is_array($eq)) {
+            return [];
+        }
+
+        $lines = [];
+        foreach ($eq as $line) {
+            if (! is_array($line)) {
+                continue;
+            }
+            $cat = strtolower(trim((string) ($line['category'] ?? 'hardware')));
+            if ($cat !== 'hardware') {
+                continue;
+            }
+            $lines[] = [
+                'part_number'  => (string) ($line['part_number'] ?? ''),
+                'manufacturer' => $line['manufacturer'] ?? null,
+                'model'        => $line['model'] ?? null,
+                'name'         => (string) ($line['name'] ?? ''),
+                'quantity'     => (int) ($line['quantity'] ?? 1),
+                'area'         => $line['area'] ?? null,
+            ];
+        }
+
+        if ($lines === []) {
+            return [];
+        }
+
+        return app(\App\Services\Drawings\DeviceStencilCacheService::class)->resolveMany($lines);
+    }
+
     public function appendices(): HasMany
     {
         return $this->hasMany(Appendix::class);
