@@ -6,9 +6,9 @@ use App\Http\Controllers\Admin\DrawIoSpikeController;
 use App\Models\Project;
 use App\Models\ProjectPackage;
 use App\Models\User;
+use App\Services\Drawings\DrawingService;
 use App\Services\Drawings\DrawIoBuilderService;
 use App\Services\Drawings\DrawIoSpikeBuilderService;
-use App\Services\Drawings\DrawingService;
 use Database\Seeders\DeviceStencilSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use ReflectionClass;
@@ -58,25 +58,25 @@ class DrawIoBuilderServiceTest extends TestCase
         $user = User::factory()->create();
 
         $project = Project::create([
-            'user_id'      => $user->id,
-            'name'         => 'DrawIo Builder Test',
-            'ref'          => 'DIB-'.fake()->numerify('###'),
-            'client_name'  => 'Test Client Ltd',
+            'user_id' => $user->id,
+            'name' => 'DrawIo Builder Test',
+            'ref' => 'DIB-'.fake()->numerify('###'),
+            'client_name' => 'Test Client Ltd',
             'site_address' => '1 Builder Street, London',
-            'status'       => 'quote_imported',
+            'status' => 'quote_imported',
         ]);
 
         ProjectPackage::create([
-            'project_id'        => $project->id,
-            'user_id'           => $user->id,
-            'quote_filename'    => 'test-quote.pdf',
-            'quote_path'        => 'quotes/test-quote.pdf',
-            'extracted_data'    => ['equipment' => $equipment],
-            'equipment_list'    => $equipment,
-            'cable_list'        => $cableList,
+            'project_id' => $project->id,
+            'user_id' => $user->id,
+            'quote_filename' => 'test-quote.pdf',
+            'quote_path' => 'quotes/test-quote.pdf',
+            'extracted_data' => ['equipment' => $equipment],
+            'equipment_list' => $equipment,
+            'cable_list' => $cableList,
             'works_description' => 'Test works',
-            'revision'          => 1,
-            'status'            => ProjectPackage::STATUS_EXTRACTED,
+            'revision' => 1,
+            'status' => ProjectPackage::STATUS_EXTRACTED,
         ]);
 
         return $project->fresh();
@@ -134,12 +134,12 @@ class DrawIoBuilderServiceTest extends TestCase
         $user = User::factory()->create();
 
         $project = Project::create([
-            'user_id'      => $user->id,
-            'name'         => 'Empty Package Project',
-            'ref'          => 'EMPTY-001',
-            'client_name'  => 'Test',
+            'user_id' => $user->id,
+            'name' => 'Empty Package Project',
+            'ref' => 'EMPTY-001',
+            'client_name' => 'Test',
             'site_address' => '1 Empty Street',
-            'status'       => 'quote_imported',
+            'status' => 'quote_imported',
         ]);
 
         $builder = app(DrawIoBuilderService::class);

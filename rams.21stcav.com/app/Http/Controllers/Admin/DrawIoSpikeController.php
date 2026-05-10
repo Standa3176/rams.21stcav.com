@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Models\ProjectDrawing;
 use App\Services\Drawings\DrawingService;
-use App\Services\Drawings\DrawIoSpikeBuilderService;
+use App\Services\Drawings\DrawIoBuilderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -32,7 +32,7 @@ use Illuminate\View\View;
 class DrawIoSpikeController extends Controller
 {
     public function __construct(
-        private readonly DrawIoSpikeBuilderService $builder,
+        private readonly DrawIoBuilderService $builder,
         private readonly DrawingService $drawings,
     ) {}
 
