@@ -63,6 +63,16 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
 - Native-build alternative (rejected — kept for diff): memory note `v2_engineering_grade_drawings_plan.md`
 - Spike seed data: `resources/data/draw-io-stencils/21cav-mtr-spike.json` (5 hand-coded MTR stencils — promoted to seed for Phase 21)
 
+### Phase 21 Detail (planned 2026-05-10)
+
+**Goal:** Lay the device_ports + device_stencils tables, the firstOrCreate cross-project cache, the auto-generic Tier 1 placeholder generator, the hand-curated top-50 seed pack, the top-20 manufacturer logos, and the generalised draw.io builder reading from the new tables. Foundation for Phases 22-25.
+
+**Plans:** 3 plans, 2 waves
+
+- [x] 21-01-schema-models-cache-service-PLAN.md — Migration creating device_stencils + device_ports; DeviceStencil + DevicePort models; DeviceStencilCacheService (firstOrCreate-on-part_number); AutoGenericStencilGenerator (Tier 1 placeholder); Project::devicesWithStencils() accessor. Wave 1. Requirements: DRAW-31, DRAW-32, DRAW-34, DRAW-36.
+- [ ] 21-02-seed-pack-promote-and-curate-PLAN.md — Promote 5 spike stencils + selected v1.3 catalog entries into per-file curation manifests; hand-curate gap to top-50 from quote volume; idempotent DeviceStencilSeeder using whereRaw LOWER TRIM matching pattern. Wave 2 (parallel with 21-03). Requirements: DRAW-33.
+- [ ] 21-03-manufacturer-logos-builder-integration-PLAN.md — Top-15 new manufacturer logo SVGs (Crestron, Cisco, QSC, Bogen, Polycom, Logitech, Shure, Sony, Extron, Biamp, Yamaha, Atlona, Lightware, Q-SYS, Barco) bringing top-20 with the 5 spike logos; ManufacturerLogoResolver; rename DrawIoSpikeBuilderService → DrawIoBuilderService reading from device_stencils table; spike admin route preserved with shim. Wave 2 (parallel with 21-02). Requirements: DRAW-35.
+
 ---
 
 ## ✅ v1.2 Installation Programme & Field Management — SHIPPED 2026-04-25
@@ -90,7 +100,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
 
 - [x] **Phase 17: System Schematics + Shared Foundations** — Auto-generate per-room signal-flow SVG schematics via D2 CLI; lays the `project_drawings` table, model, policy, storage type, job pattern, and `waitForJs` PDF extension that Phases 18 + 20 depend on (completed 2026-05-01)
 - [x] **Phase 18: Rack Elevations** — 1U-precise rack drawings from equipment list with U-height + ventilation data; drag-reorder editor + per-rack totals footer; engineer always builds manually (no auto-place) (completed 2026-05-02)
-- [x] **Phase 20: Drawing Export Pipeline + O&M Integration** — Bound multi-page project PDF, drawing register, sheet numbering, revision tracking, status state machine; embeds drawings (schematic + rack only — floor plans deferred) in O&M handover via PNG flatten (completed 2026-05-03)
+- [x] **Phase 20: Drawing Export Pipeline + O&M Integration** — Bound multi-page project PDF, drawing register, sheet numbering, revision tracking, status state machine; embeds drawings (schematic + rack only — floor plans deferred) in O&M handover via PNG flatten
+ (completed 2026-05-03)
 - ⤳ ~~Phase 19: Floor Plans (Konva)~~ — **deferred to v2.0 backlog 999.1**
 
 ## Phase Details

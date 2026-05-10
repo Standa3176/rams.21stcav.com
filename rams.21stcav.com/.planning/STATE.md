@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
-status: planning
-last_updated: "2026-05-09T22:30:00.000Z"
-last_activity: 2026-05-09 -- Opened v2.0 Engineering-Grade AV Drawings milestone via /gsd-new-milestone. Visual contract: XTEN-AV PAGING SYSTEM reference (shared 2026-05-09). Platform: draw.io / mxGraph (validated by spike 260509-ibx). 5 phases scoped (21-25): Port Catalog → Cable Schedule FKs → XTEN-AV-style Renderer → Stencil Curation UI → AI Assist + Replacement Wiring. ~10-15 weeks estimate. Next session: /gsd-plan-phase 21 to start Phase 21 (Device Port Catalog + Stencil Cache)
+status: executing
+last_updated: "2026-05-10T08:41:36.821Z"
+last_activity: 2026-05-10
 progress:
-  total_phases: 4
+  total_phases: 5
   completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
-  percent: 100
+  total_plans: 10
+  completed_plans: 8
+  percent: 80
 ---
 
 ## Project Reference
@@ -18,14 +18,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-30)
 
 **Core value:** One dataset powers every document.
-**Current focus:** Phase 20 — drawing-export-pipeline-o-m-integration
+**Current focus:** Phase 21 — device-port-catalog-stencil-cache
 
 ## Current Position
 
-Phase: 999.1
-Plan: Not started
-Status: v1.3 milestone READY for /gsd-complete-milestone
-Last activity: 2026-05-03
+Phase: 21 (device-port-catalog-stencil-cache) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-05-10
 
 ## Milestone Progress (v1.3)
 
@@ -56,8 +56,13 @@ Last activity: 2026-05-03
 | Phase 18 P03 | 12min | 3 tasks | 15 files |
 | Phase 20 P01 | 35min | 3 tasks | 19 files |
 | Phase 20 P02 | 13min | 3 tasks | 12 files |
+| Phase 21 P01 | 13min | 3 tasks | 10 files |
 
 ## Accumulated Context
+
+### Key Decisions (v2.0)
+
+- **Plan 21-01 LANDED** (2026-05-10) — v2.0 Engineering-Grade Drawings foundation in place. Two new generic-named tables (device_stencils + device_ports per D-09) with FK cascade and compound unique on (device_stencil_id, port_id). DeviceStencil + DevicePort Eloquent models with enum-style SOURCE_AUTO_GENERATED/ENGINEER_CURATED/AI_EXTRACTED, SIDE_LEFT/RIGHT/TOP/BOTTOM, DIRECTION_IN/OUT/IO constants matching Device::ROLE_* convention. AutoGenericStencilGenerator emits a 220x140 brand-aligned `<shape>` per D-04 (teal #1B7A7A header / #FAFAF6 cream body, manufacturer/model/part_number text, "Tier 1 placeholder" annotation, NO port rails — Phase 24 adds them). XML-escapes every interpolated value via htmlspecialchars(ENT_XML1|ENT_QUOTES) — T-21.01-01 mitigation mirroring DrawIoSpikeBuilderService::xml() pattern. Deterministic across calls; DOMDocument::loadXML returns YES. DeviceStencilCacheService implements firstOrCreate(part_number) cross-project caching contract per D-03 with cache-hit short-circuit BEFORE building (Mockery-asserted: generator NOT invoked on hit). Race-safety rationale documented on docblock — no DB::transaction wrap; unique index makes firstOrCreate atomic; transaction would HURT throughput per T-21.01-03. resolveMany returns enriched lines with stencil = null for empty part_numbers. Project::devicesWithStencils() accessor reads latestPackage->extracted_data['equipment'] (fallback equipment_list), filters category=hardware, routes through cache service so uncatalogued part_numbers auto-create Tier 1 placeholders on first read. Side-effect + race-safety rationale documented in docblock per D-07 + D-03. 35 tests / 126 assertions pass. 89/330 tests in full drawings suite pass (1 pre-existing D2 skip). D-10 verified: zero diff against v1.3 D2 generator surface (DeviceCatalogService / SchematicGeneratorService / SchematicD2SourceBuilder / DrawingDataResolverService / device-port-catalog.json). Commits: 72f7e94+2e333ae (Task 1) + e63da58+06c9052 (Task 2) + 8711123+45ee705 (Task 3) — TDD RED→GREEN per task. Zero deviations. Plan 21-02 + 21-03 unblocked.
 
 ### Key Decisions (v1.3)
 
@@ -94,9 +99,13 @@ Last activity: 2026-05-03
 
 ## Session Continuity
 
-**Last session ended:** 2026-05-03 — Plan 20-02 (production hardening + O&M rack embed) completed in 13 minutes / 3 commits / 12 files. AuditDrawingLicensesCommand + drawings queue connection + CHROME_HEADLESS_SHELL_VERSION pin + 3 Blade @font-face declarations + public/fonts/.gitkeep + 218-line drawings-queue-runbook.md + PdfSmokeTestCommand rack arm extension + 7 tests/25 assertions. PhpWord <v:imagedata> not <w:drawing> + pre-existing GPL allowlist — two Rule-1/Rule-2 deviations auto-fixed. Phase 20 COMPLETE; v1.3 milestone READY for `/gsd-complete-milestone`.
+**Last session ended:** 2026-05-10 — Plan 21-01 (schema + models + cache service + Project accessor — v2.0 foundation) completed in 13 minutes / 6 commits (TDD RED→GREEN per task) / 10 files. Two new generic-named tables (device_stencils + device_ports per D-09), DeviceStencil + DevicePort Eloquent models with enum-style SOURCE_/SIDE_/DIRECTION_ constants matching Device::ROLE_* convention, AutoGenericStencilGenerator (Tier 1 mxGraph emitter — XML-escaped, deterministic, no port rails per D-04), DeviceStencilCacheService (firstOrCreate cross-project cache with cache-hit short-circuit; race-safety rationale documented per D-03), Project::devicesWithStencils() accessor with side-effect + race-safety docblock per D-07. 35 tests / 126 assertions pass. Zero regressions in full drawings suite (89/330). Zero deviations. D-10 verified: v1.3 D2 generator surface untouched.
 
-**Next session starts:** v1.3 milestone close-out via `/gsd-complete-milestone` — moves DRAW-01..13 + 21..28 + 30 to PROJECT.md Validated, archives v1.3 phase artifacts, opens v1.4 (Client Portal) milestone scoping. Optional: outstanding Phase 17/18 human UAT confirmation deferred to live-deploy session (drawings rendering on tablets/print during install — gate is deployment, not implementation).
+**Stopped at:** Completed 21-01-schema-models-cache-service-PLAN.md.
+
+**Next session starts:** Plan 21-02 — seed pack: promote 5 spike stencils + ALL 53 v1.3 device-port-catalog.json entries; hand-curate gap to top-50 21CAV-volume coverage; idempotent DeviceStencilSeeder. Live deploy required: 6 production files + `php artisan migrate` (creates the two new tables) + `php artisan cache:clear`.
+
+**Earlier session (2026-05-03):** Plan 20-02 (production hardening + O&M rack embed) completed in 13 minutes / 3 commits / 12 files — Phase 20 COMPLETE; v1.3 milestone READY for `/gsd-complete-milestone`.
 
 ## Roadmap Overview
 
