@@ -15,7 +15,7 @@
  *      NOT already covered by spike + v1.3 promotion). Hand-curated
  *      payloads per the action plan's HALT-and-confirm batched workflow.
  *
- *   2. tests/fixtures/seed-coverage/top-50-snapshot.json — the frozen
+ *   2. tests/Fixtures/seed-coverage/top-50-snapshot.json — the frozen
  *      top-50 reference list (provenance: live DB query at planning time)
  *      for the SeedPackCoverageTest fallback path per D-15.
  *
@@ -65,6 +65,21 @@ if (file_exists($v13Path)) {
 echo 'Already-covered part_numbers (spike + v1.3): '.count($covered).PHP_EOL;
 
 // 2. Derive top-volume part_numbers from the local DB.
+// Noise filter: numeric-only SKUs (likely freight/labour line items) and
+// engineer-typed "existing" placeholders are NOT real hardware part_numbers.
+// Excluding them from the snapshot makes the SeedPackCoverageTest assertion
+// meaningful (covers REAL parts, not free-text typos).
+$isNoise = function (string $pn): bool {
+    if ($pn === '') {
+        return true;
+    }
+    if (preg_match('/^\d+$/', $pn)) {
+        return true;
+    }
+
+    return in_array($pn, ['existing', 'clientexisting', 'clientexisiting', 'guidevelopment'], true);
+};
+
 /** @var Illuminate\Support\Collection<string, int> $counts */
 $counts = App\Models\ProjectPackage::query()
     ->whereNotNull('extracted_data')
@@ -76,6 +91,7 @@ $counts = App\Models\ProjectPackage::query()
         ->pluck('part_number'))
     ->map(fn ($pn) => strtolower(trim((string) $pn)))
     ->filter()
+    ->reject($isNoise)
     ->countBy()
     ->sortDesc();
 
@@ -91,13 +107,14 @@ foreach ($gap->take(10) as $pn => $c) {
 
 // 3. Emit the snapshot fixture (for SeedPackCoverageTest fallback per D-15).
 $snapshot = [
-    '_provenance' => 'Generated 2026-05-10 from local development DB (4 ProjectPackage rows mirroring production-shape data) — DO NOT regenerate from seed pack. This file exists to make SeedPackCoverageTest assertion non-circular per D-15. Production servers with >=50 packages should use the live-query path; smaller dev environments fall back to this snapshot.',
+    '_provenance' => 'Generated 2026-05-10 from local development DB (4 ProjectPackage rows mirroring production-shape data) — DO NOT regenerate from seed pack. This file exists to make SeedPackCoverageTest assertion non-circular per D-15. Production servers with >=50 packages should use the live-query path; smaller dev environments fall back to this snapshot. Numeric-only SKUs (likely freight/labour line items) and engineer-typed "existing" placeholders are filtered out before snapshot — these are not real hardware part_numbers worth measuring coverage against.',
     'generated_at' => '2026-05-10',
-    'source_query' => 'ProjectPackage::query()->whereNotNull(extracted_data)->orderBy(created_at, desc)->limit(200)->get()->flatMap(equipment where category=hardware)->pluck(part_number)->countBy()->sortDesc()->take(50)',
+    'source_query' => 'ProjectPackage::query()->whereNotNull(extracted_data)->orderBy(created_at, desc)->limit(200)->get()->flatMap(equipment where category=hardware)->pluck(part_number)->reject(noise)->countBy()->sortDesc()->take(50)',
+    'noise_filter' => 'Numeric-only SKUs (e.g. "700294"), and literal placeholders ("existing", "clientexisting", "clientexisiting", "guidevelopment") are excluded',
     'top_50' => array_keys($counts->take(50)->all()),
 ];
 
-$snapshotPath = __DIR__.'/../tests/fixtures/seed-coverage/top-50-snapshot.json';
+$snapshotPath = __DIR__.'/../tests/Fixtures/seed-coverage/top-50-snapshot.json';
 file_put_contents($snapshotPath, json_encode($snapshot, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
 echo PHP_EOL.'Wrote '.count($snapshot['top_50'])." part_numbers to {$snapshotPath}".PHP_EOL;
 

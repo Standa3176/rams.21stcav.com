@@ -20,7 +20,7 @@ use Tests\TestCase;
  *      path; fresh checkout dev DBs won't hit this.)
  *
  *   2. Frozen snapshot — fall back to
- *      tests/fixtures/seed-coverage/top-50-snapshot.json (generated
+ *      tests/Fixtures/seed-coverage/top-50-snapshot.json (generated
  *      2026-05-10 from local dev DB at planning time, with _provenance
  *      field documenting non-circular origin).
  *
@@ -33,7 +33,7 @@ use Tests\TestCase;
  * snapshot has exactly 50 part_numbers; threshold stays at 80%.
  *
  * @see resources/data/device-stencils-seed/_INDEX.md
- * @see tests/fixtures/seed-coverage/top-50-snapshot.json
+ * @see tests/Fixtures/seed-coverage/top-50-snapshot.json
  * @see .planning/phases/21-device-port-catalog-stencil-cache/21-CONTEXT.md (D-05 + D-15)
  */
 class SeedPackCoverageTest extends TestCase
@@ -75,7 +75,7 @@ class SeedPackCoverageTest extends TestCase
         // Path 2 — frozen snapshot (D-15 fallback). The fixture's
         // _provenance field documents non-circular origin; reading the
         // top_50 list here is independent of any seed-pack file.
-        $snapshotPath = __DIR__.'/../../fixtures/seed-coverage/top-50-snapshot.json';
+        $snapshotPath = __DIR__.'/../../Fixtures/seed-coverage/top-50-snapshot.json';
         $this->assertFileExists($snapshotPath,
             'top-50-snapshot.json must exist for the D-15 fallback path');
 
@@ -145,7 +145,7 @@ class SeedPackCoverageTest extends TestCase
         // provenance field documenting it was NOT generated from the seed
         // pack. This test reads the fixture file directly to enforce that
         // contract — the fixture must exist + its first key is _provenance.
-        $snapshotPath = __DIR__.'/../../fixtures/seed-coverage/top-50-snapshot.json';
+        $snapshotPath = __DIR__.'/../../Fixtures/seed-coverage/top-50-snapshot.json';
         $this->assertFileExists($snapshotPath);
 
         $snapshot = json_decode((string) file_get_contents($snapshotPath), true);
