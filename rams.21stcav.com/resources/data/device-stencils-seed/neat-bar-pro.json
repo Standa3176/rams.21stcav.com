@@ -1,0 +1,80 @@
+{
+    "part_number": "NEAT-BAR-PRO",
+    "slug": "neat-bar-pro",
+    "manufacturer": "Neat",
+    "model": "Bar Pro",
+    "display_name": "Neat Bar Pro Videobar",
+    "default_width": 240,
+    "default_height": 160,
+    "logo_svg_path": "/img/manufacturers/neat.svg",
+    "source": "engineer-curated",
+    "metadata": {
+        "provenance": "spike-260509-ibx",
+        "curated_by": "21CAV engineering",
+        "role": "videobar",
+        "drawio_style": "shape=mxgraph.cisco_safe.architectural.collaboration_endpoint;html=1;fillColor=#FAFAF6;strokeColor=#1B7A7A;strokeWidth=2;fontColor=#1B7A7A;fontSize=11;fontStyle=1;verticalLabelPosition=top;align=center;verticalAlign=top;"
+    },
+    "mxgraph_xml": "<shape name=\"21cav.neat-bar-pro\" h=\"160\" w=\"240\" aspect=\"variable\" strokewidth=\"inherit\"><connections><constraint x=\"0\" y=\"0.2\" perimeter=\"0\" name=\"hdmi-in\"/><constraint x=\"0\" y=\"0.45\" perimeter=\"0\" name=\"usb-c\"/><constraint x=\"0\" y=\"0.85\" perimeter=\"0\" name=\"power\"/><constraint x=\"1\" y=\"0.2\" perimeter=\"0\" name=\"hdmi-out\"/><constraint x=\"1\" y=\"0.45\" perimeter=\"0\" name=\"lan\"/><constraint x=\"1\" y=\"0.7\" perimeter=\"0\" name=\"audio-out\"/></connections><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"240\" h=\"160\" arcsize=\"8\"/><fillstroke/><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"240\" h=\"30\"/><fill/></background><foreground><fontcolor color=\"#FFFFFF\"/><fontsize size=\"12\"/><fontstyle style=\"1\"/><text str=\"NEAT  BAR  PRO\" x=\"120\" y=\"19\" align=\"center\"/><fontcolor color=\"#1B7A7A\"/><fontsize size=\"11\"/><fontstyle style=\"0\"/><text str=\"Videobar\" x=\"120\" y=\"55\" align=\"center\"/><fontcolor color=\"#555555\"/><fontsize size=\"9\"/><text str=\"HDMI\" x=\"4\" y=\"36\" align=\"start\"/><text str=\"USB-C\" x=\"4\" y=\"76\" align=\"start\"/><text str=\"PWR\" x=\"4\" y=\"140\" align=\"start\"/><text str=\"HDMI\" x=\"236\" y=\"36\" align=\"end\"/><text str=\"LAN\" x=\"236\" y=\"76\" align=\"end\"/><text str=\"AUX\" x=\"236\" y=\"116\" align=\"end\"/><strokecolor color=\"#C07000\"/><strokewidth width=\"1.5\"/><line x1=\"0\" y1=\"60\" x2=\"8\" y2=\"60\"/><line x1=\"0\" y1=\"100\" x2=\"8\" y2=\"100\"/><line x1=\"0\" y1=\"140\" x2=\"8\" y2=\"140\"/><line x1=\"232\" y1=\"60\" x2=\"240\" y2=\"60\"/><line x1=\"232\" y1=\"100\" x2=\"240\" y2=\"100\"/><line x1=\"232\" y1=\"140\" x2=\"240\" y2=\"140\"/><stroke/><strokecolor color=\"#333333\"/><strokewidth width=\"1\"/><rect x=\"100\" y=\"95\" w=\"40\" h=\"20\"/><stroke/><fontcolor color=\"#888888\"/><fontsize size=\"7\"/><text str=\"camera + mic\" x=\"120\" y=\"108\" align=\"center\"/></foreground></shape>",
+    "ports": [
+        {
+            "port_id": "hdmi-in",
+            "label": "HDMI IN",
+            "side": "left",
+            "connector_type": "hdmi",
+            "signal_type": "video",
+            "direction": "in",
+            "sort_order": 1,
+            "y_pct": 0.2
+        },
+        {
+            "port_id": "usb-c",
+            "label": "USB-C",
+            "side": "left",
+            "connector_type": "usb-c",
+            "signal_type": "usb",
+            "direction": "io",
+            "sort_order": 2,
+            "y_pct": 0.45
+        },
+        {
+            "port_id": "power",
+            "label": "PWR",
+            "side": "left",
+            "connector_type": "power",
+            "signal_type": "power",
+            "direction": "in",
+            "sort_order": 3,
+            "y_pct": 0.85
+        },
+        {
+            "port_id": "hdmi-out",
+            "label": "HDMI OUT",
+            "side": "right",
+            "connector_type": "hdmi",
+            "signal_type": "video",
+            "direction": "out",
+            "sort_order": 4,
+            "y_pct": 0.2
+        },
+        {
+            "port_id": "lan",
+            "label": "LAN",
+            "side": "right",
+            "connector_type": "rj45",
+            "signal_type": "network",
+            "direction": "io",
+            "sort_order": 5,
+            "y_pct": 0.45
+        },
+        {
+            "port_id": "audio-out",
+            "label": "AUX",
+            "side": "right",
+            "connector_type": "audio-3.5mm",
+            "signal_type": "audio",
+            "direction": "out",
+            "sort_order": 6,
+            "y_pct": 0.7
+        }
+    ]
+}

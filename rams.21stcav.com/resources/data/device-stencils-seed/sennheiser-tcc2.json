@@ -1,0 +1,60 @@
+{
+    "part_number": "SENNHEISER-TCC2",
+    "slug": "sennheiser-tcc2",
+    "manufacturer": "Sennheiser",
+    "model": "TeamConnect Ceiling 2",
+    "display_name": "Sennheiser TeamConnect Ceiling 2",
+    "default_width": 200,
+    "default_height": 160,
+    "logo_svg_path": "/img/manufacturers/sennheiser.svg",
+    "source": "engineer-curated",
+    "metadata": {
+        "provenance": "spike-260509-ibx",
+        "curated_by": "21CAV engineering",
+        "role": "ceiling-mic",
+        "drawio_style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAF6;strokeColor=#1B7A7A;strokeWidth=2;"
+    },
+    "mxgraph_xml": "<shape name=\"21cav.sennheiser-tcc2\" h=\"160\" w=\"200\" aspect=\"variable\" strokewidth=\"inherit\"><connections><constraint x=\"1\" y=\"0.30\" perimeter=\"0\" name=\"dante-poe\"/><constraint x=\"1\" y=\"0.55\" perimeter=\"0\" name=\"audio-line\"/><constraint x=\"1\" y=\"0.78\" perimeter=\"0\" name=\"ctrl-lan\"/><constraint x=\"0\" y=\"0.78\" perimeter=\"0\" name=\"fw-usb\"/></connections><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"200\" h=\"160\" arcsize=\"8\"/><fillstroke/><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"200\" h=\"30\"/><fill/></background><foreground><fontcolor color=\"#FFFFFF\"/><fontsize size=\"11\"/><fontstyle style=\"1\"/><text str=\"SENNHEISER TCC2\" x=\"100\" y=\"19\" align=\"center\"/><fontcolor color=\"#1B7A7A\"/><fontsize size=\"10\"/><fontstyle style=\"0\"/><text str=\"Ceiling Array Mic\" x=\"100\" y=\"50\" align=\"center\"/><strokecolor color=\"#1B7A7A\"/><strokewidth width=\"1.5\"/><ellipse x=\"60\" y=\"66\" w=\"80\" h=\"50\"/><stroke/><fillcolor color=\"#1B7A7A\"/><strokecolor color=\"#1B7A7A\"/><ellipse x=\"96\" y=\"86\" w=\"8\" h=\"10\"/><fillstroke/><fontcolor color=\"#888888\"/><fontsize size=\"7\"/><text str=\"PoE / Dante\" x=\"100\" y=\"130\" align=\"center\"/><fontcolor color=\"#555555\"/><fontsize size=\"8\"/><text str=\"Dante PoE\" x=\"196\" y=\"52\" align=\"end\"/><text str=\"LINE\" x=\"196\" y=\"92\" align=\"end\"/><text str=\"CTRL\" x=\"196\" y=\"128\" align=\"end\"/><text str=\"FW USB-C\" x=\"4\" y=\"128\" align=\"start\"/><strokecolor color=\"#C07000\"/><strokewidth width=\"1.5\"/><line x1=\"192\" y1=\"48\" x2=\"200\" y2=\"48\"/><line x1=\"192\" y1=\"88\" x2=\"200\" y2=\"88\"/><line x1=\"192\" y1=\"125\" x2=\"200\" y2=\"125\"/><line x1=\"0\" y1=\"125\" x2=\"8\" y2=\"125\"/><stroke/></foreground></shape>",
+    "ports": [
+        {
+            "port_id": "dante-poe",
+            "label": "Dante PoE+",
+            "side": "right",
+            "connector_type": "rj45-poe",
+            "signal_type": "network",
+            "direction": "io",
+            "sort_order": 1,
+            "y_pct": 0.3
+        },
+        {
+            "port_id": "audio-line",
+            "label": "LINE OUT",
+            "side": "right",
+            "connector_type": "line-in",
+            "signal_type": "audio",
+            "direction": "out",
+            "sort_order": 2,
+            "y_pct": 0.55
+        },
+        {
+            "port_id": "ctrl-lan",
+            "label": "CTRL LAN",
+            "side": "right",
+            "connector_type": "rj45",
+            "signal_type": "network",
+            "direction": "io",
+            "sort_order": 3,
+            "y_pct": 0.78
+        },
+        {
+            "port_id": "fw-usb",
+            "label": "FW USB-C",
+            "side": "left",
+            "connector_type": "usb-c",
+            "signal_type": "usb",
+            "direction": "io",
+            "sort_order": 4,
+            "y_pct": 0.78
+        }
+    ]
+}

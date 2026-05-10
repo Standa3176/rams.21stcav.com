@@ -1,0 +1,110 @@
+{
+    "part_number": "SAMSUNG-QM65C-T",
+    "slug": "samsung-qm65c-t",
+    "manufacturer": "Samsung",
+    "model": "QM65C-T",
+    "display_name": "Samsung QM65C-T 65\" Display",
+    "default_width": 280,
+    "default_height": 180,
+    "logo_svg_path": "/img/manufacturers/samsung.svg",
+    "source": "engineer-curated",
+    "metadata": {
+        "provenance": "spike-260509-ibx",
+        "curated_by": "21CAV engineering",
+        "role": "display",
+        "drawio_style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAF6;strokeColor=#1B7A7A;strokeWidth=2;"
+    },
+    "mxgraph_xml": "<shape name=\"21cav.samsung-qm65c-t\" h=\"180\" w=\"280\" aspect=\"variable\" strokewidth=\"inherit\"><connections><constraint x=\"0\" y=\"0.18\" perimeter=\"0\" name=\"hdmi-1\"/><constraint x=\"0\" y=\"0.32\" perimeter=\"0\" name=\"hdmi-2\"/><constraint x=\"0\" y=\"0.46\" perimeter=\"0\" name=\"hdmi-3\"/><constraint x=\"0\" y=\"0.60\" perimeter=\"0\" name=\"displayport\"/><constraint x=\"0\" y=\"0.88\" perimeter=\"0\" name=\"power\"/><constraint x=\"1\" y=\"0.20\" perimeter=\"0\" name=\"optical\"/><constraint x=\"1\" y=\"0.40\" perimeter=\"0\" name=\"audio-3-5\"/><constraint x=\"1\" y=\"0.60\" perimeter=\"0\" name=\"lan\"/><constraint x=\"1\" y=\"0.80\" perimeter=\"0\" name=\"usb-host\"/></connections><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"280\" h=\"180\" arcsize=\"5\"/><fillstroke/><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"280\" h=\"32\"/><fill/></background><foreground><fontcolor color=\"#FFFFFF\"/><fontsize size=\"12\"/><fontstyle style=\"1\"/><text str=\"SAMSUNG  QM65C-T\" x=\"140\" y=\"20\" align=\"center\"/><fontcolor color=\"#1B7A7A\"/><fontsize size=\"11\"/><fontstyle style=\"0\"/><text str=\"65&quot; Display\" x=\"140\" y=\"54\" align=\"center\"/><fillcolor color=\"#222222\"/><strokecolor color=\"#333333\"/><strokewidth width=\"1\"/><rect x=\"40\" y=\"66\" w=\"200\" h=\"96\"/><fillstroke/><fontcolor color=\"#888888\"/><fontsize size=\"8\"/><text str=\"screen\" x=\"140\" y=\"118\" align=\"center\"/><fontcolor color=\"#555555\"/><fontsize size=\"8\"/><text str=\"HDMI1\" x=\"4\" y=\"36\" align=\"start\"/><text str=\"HDMI2\" x=\"4\" y=\"61\" align=\"start\"/><text str=\"HDMI3\" x=\"4\" y=\"86\" align=\"start\"/><text str=\"DP\" x=\"4\" y=\"111\" align=\"start\"/><text str=\"PWR\" x=\"4\" y=\"161\" align=\"start\"/><text str=\"OPT\" x=\"276\" y=\"40\" align=\"end\"/><text str=\"3.5\" x=\"276\" y=\"76\" align=\"end\"/><text str=\"LAN\" x=\"276\" y=\"112\" align=\"end\"/><text str=\"USB\" x=\"276\" y=\"148\" align=\"end\"/><strokecolor color=\"#C07000\"/><strokewidth width=\"1.5\"/><line x1=\"0\" y1=\"32\" x2=\"8\" y2=\"32\"/><line x1=\"0\" y1=\"57\" x2=\"8\" y2=\"57\"/><line x1=\"0\" y1=\"82\" x2=\"8\" y2=\"82\"/><line x1=\"0\" y1=\"107\" x2=\"8\" y2=\"107\"/><line x1=\"0\" y1=\"158\" x2=\"8\" y2=\"158\"/><line x1=\"272\" y1=\"36\" x2=\"280\" y2=\"36\"/><line x1=\"272\" y1=\"72\" x2=\"280\" y2=\"72\"/><line x1=\"272\" y1=\"108\" x2=\"280\" y2=\"108\"/><line x1=\"272\" y1=\"144\" x2=\"280\" y2=\"144\"/><stroke/></foreground></shape>",
+    "ports": [
+        {
+            "port_id": "hdmi-1",
+            "label": "HDMI 1",
+            "side": "left",
+            "connector_type": "hdmi",
+            "signal_type": "video",
+            "direction": "in",
+            "sort_order": 1,
+            "y_pct": 0.18
+        },
+        {
+            "port_id": "hdmi-2",
+            "label": "HDMI 2",
+            "side": "left",
+            "connector_type": "hdmi",
+            "signal_type": "video",
+            "direction": "in",
+            "sort_order": 2,
+            "y_pct": 0.32
+        },
+        {
+            "port_id": "hdmi-3",
+            "label": "HDMI 3",
+            "side": "left",
+            "connector_type": "hdmi",
+            "signal_type": "video",
+            "direction": "in",
+            "sort_order": 3,
+            "y_pct": 0.46
+        },
+        {
+            "port_id": "displayport",
+            "label": "DP",
+            "side": "left",
+            "connector_type": "displayport",
+            "signal_type": "video",
+            "direction": "in",
+            "sort_order": 4,
+            "y_pct": 0.6
+        },
+        {
+            "port_id": "power",
+            "label": "PWR",
+            "side": "left",
+            "connector_type": "power",
+            "signal_type": "power",
+            "direction": "in",
+            "sort_order": 5,
+            "y_pct": 0.88
+        },
+        {
+            "port_id": "optical",
+            "label": "OPT OUT",
+            "side": "right",
+            "connector_type": "optical-audio",
+            "signal_type": "audio",
+            "direction": "out",
+            "sort_order": 6,
+            "y_pct": 0.2
+        },
+        {
+            "port_id": "audio-3-5",
+            "label": "3.5mm OUT",
+            "side": "right",
+            "connector_type": "audio-3.5mm",
+            "signal_type": "audio",
+            "direction": "out",
+            "sort_order": 7,
+            "y_pct": 0.4
+        },
+        {
+            "port_id": "lan",
+            "label": "LAN",
+            "side": "right",
+            "connector_type": "rj45",
+            "signal_type": "network",
+            "direction": "io",
+            "sort_order": 8,
+            "y_pct": 0.6
+        },
+        {
+            "port_id": "usb-host",
+            "label": "USB",
+            "side": "right",
+            "connector_type": "usb-a",
+            "signal_type": "usb",
+            "direction": "io",
+            "sort_order": 9,
+            "y_pct": 0.8
+        }
+    ]
+}

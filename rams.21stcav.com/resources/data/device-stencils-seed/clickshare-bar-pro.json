@@ -1,0 +1,91 @@
+{
+    "part_number": "BAR-PRO",
+    "slug": "clickshare-bar-pro",
+    "manufacturer": "Barco",
+    "model": "ClickShare Bar Pro",
+    "display_name": "ClickShare Bar Pro",
+    "default_width": 240,
+    "default_height": 160,
+    "logo_svg_path": "/img/manufacturers/clickshare.svg",
+    "source": "engineer-curated",
+    "metadata": {
+        "provenance": "spike-260509-ibx",
+        "curated_by": "21CAV engineering",
+        "role": "byod",
+        "d14_note": "manufacturer is Barco (true brand) but logo + slug stay clickshare per D-14 — preserves spike-shipped clickshare.svg + matches engineer mental model",
+        "drawio_style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAF6;strokeColor=#1B7A7A;strokeWidth=2;"
+    },
+    "mxgraph_xml": "<shape name=\"21cav.clickshare-bar-pro\" h=\"160\" w=\"240\" aspect=\"variable\" strokewidth=\"inherit\"><connections><constraint x=\"0\" y=\"0.22\" perimeter=\"0\" name=\"hdmi-in\"/><constraint x=\"0\" y=\"0.42\" perimeter=\"0\" name=\"usb-c-1\"/><constraint x=\"0\" y=\"0.62\" perimeter=\"0\" name=\"usb-c-2\"/><constraint x=\"0\" y=\"0.85\" perimeter=\"0\" name=\"power\"/><constraint x=\"1\" y=\"0.22\" perimeter=\"0\" name=\"hdmi-out\"/><constraint x=\"1\" y=\"0.45\" perimeter=\"0\" name=\"lan\"/><constraint x=\"1\" y=\"0.70\" perimeter=\"0\" name=\"audio-io\"/></connections><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"240\" h=\"160\" arcsize=\"8\"/><fillstroke/><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"240\" h=\"30\"/><fill/></background><foreground><fontcolor color=\"#FFFFFF\"/><fontsize size=\"12\"/><fontstyle style=\"1\"/><text str=\"CLICKSHARE  BAR  PRO\" x=\"120\" y=\"19\" align=\"center\"/><fontcolor color=\"#1B7A7A\"/><fontsize size=\"11\"/><fontstyle style=\"0\"/><text str=\"BYOD Wireless\" x=\"120\" y=\"55\" align=\"center\"/><fillcolor color=\"#E5232E\"/><strokecolor color=\"#E5232E\"/><ellipse x=\"108\" y=\"82\" w=\"24\" h=\"24\"/><fillstroke/><fillcolor color=\"#FFFFFF\"/><strokecolor color=\"#FFFFFF\"/><ellipse x=\"117\" y=\"91\" w=\"6\" h=\"6\"/><fillstroke/><fontcolor color=\"#888888\"/><fontsize size=\"8\"/><text str=\"button\" x=\"120\" y=\"122\" align=\"center\"/><fontcolor color=\"#555555\"/><fontsize size=\"9\"/><text str=\"HDMI\" x=\"4\" y=\"40\" align=\"start\"/><text str=\"USB-C\" x=\"4\" y=\"72\" align=\"start\"/><text str=\"USB-C\" x=\"4\" y=\"104\" align=\"start\"/><text str=\"PWR\" x=\"4\" y=\"140\" align=\"start\"/><text str=\"HDMI\" x=\"236\" y=\"40\" align=\"end\"/><text str=\"LAN\" x=\"236\" y=\"76\" align=\"end\"/><text str=\"AUDIO\" x=\"236\" y=\"116\" align=\"end\"/><strokecolor color=\"#C07000\"/><strokewidth width=\"1.5\"/><line x1=\"0\" y1=\"36\" x2=\"8\" y2=\"36\"/><line x1=\"0\" y1=\"68\" x2=\"8\" y2=\"68\"/><line x1=\"0\" y1=\"100\" x2=\"8\" y2=\"100\"/><line x1=\"0\" y1=\"136\" x2=\"8\" y2=\"136\"/><line x1=\"232\" y1=\"36\" x2=\"240\" y2=\"36\"/><line x1=\"232\" y1=\"72\" x2=\"240\" y2=\"72\"/><line x1=\"232\" y1=\"112\" x2=\"240\" y2=\"112\"/><stroke/></foreground></shape>",
+    "ports": [
+        {
+            "port_id": "hdmi-in",
+            "label": "HDMI IN",
+            "side": "left",
+            "connector_type": "hdmi",
+            "signal_type": "video",
+            "direction": "in",
+            "sort_order": 1,
+            "y_pct": 0.22
+        },
+        {
+            "port_id": "usb-c-1",
+            "label": "USB-C 1",
+            "side": "left",
+            "connector_type": "usb-c",
+            "signal_type": "usb",
+            "direction": "in",
+            "sort_order": 2,
+            "y_pct": 0.42
+        },
+        {
+            "port_id": "usb-c-2",
+            "label": "USB-C 2",
+            "side": "left",
+            "connector_type": "usb-c",
+            "signal_type": "usb",
+            "direction": "in",
+            "sort_order": 3,
+            "y_pct": 0.62
+        },
+        {
+            "port_id": "power",
+            "label": "PWR",
+            "side": "left",
+            "connector_type": "power",
+            "signal_type": "power",
+            "direction": "in",
+            "sort_order": 4,
+            "y_pct": 0.85
+        },
+        {
+            "port_id": "hdmi-out",
+            "label": "HDMI OUT",
+            "side": "right",
+            "connector_type": "hdmi",
+            "signal_type": "video",
+            "direction": "out",
+            "sort_order": 5,
+            "y_pct": 0.22
+        },
+        {
+            "port_id": "lan",
+            "label": "LAN",
+            "side": "right",
+            "connector_type": "rj45",
+            "signal_type": "network",
+            "direction": "io",
+            "sort_order": 6,
+            "y_pct": 0.45
+        },
+        {
+            "port_id": "audio-io",
+            "label": "AUDIO",
+            "side": "right",
+            "connector_type": "audio-3.5mm",
+            "signal_type": "audio",
+            "direction": "io",
+            "sort_order": 7,
+            "y_pct": 0.7
+        }
+    ]
+}

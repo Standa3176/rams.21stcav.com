@@ -34,21 +34,24 @@ class DeviceStencilSeedReaderTest extends TestCase
     {
         $stencils = $this->reader()->all();
 
-        $partNumbers = array_map(
-            fn (array $s) => strtolower($s['part_number']),
+        // Look up by slug (canonical filename identifier) — part_number reflects
+        // real QuoteWerks part_no values (e.g. BAR-PRO for ClickShare,
+        // GS312TP for Netgear) which don't all match the slug pattern.
+        $slugs = array_map(
+            fn (array $s) => strtolower($s['slug']),
             $stencils
         );
 
         // The 5 spike-promoted manifests MUST be present (per Task 1 ship list).
-        $this->assertContains('neat-bar-pro', $partNumbers,
+        $this->assertContains('neat-bar-pro', $slugs,
             'neat-bar-pro must be in seed pack');
-        $this->assertContains('samsung-qm65c-t', $partNumbers,
+        $this->assertContains('samsung-qm65c-t', $slugs,
             'samsung-qm65c-t must be in seed pack');
-        $this->assertContains('clickshare-bar-pro', $partNumbers,
+        $this->assertContains('clickshare-bar-pro', $slugs,
             'clickshare-bar-pro must be in seed pack');
-        $this->assertContains('sennheiser-tcc2', $partNumbers,
+        $this->assertContains('sennheiser-tcc2', $slugs,
             'sennheiser-tcc2 must be in seed pack');
-        $this->assertContains('netgear-gs312tp', $partNumbers,
+        $this->assertContains('netgear-gs312tp', $slugs,
             'netgear-gs312tp must be in seed pack');
     }
 
@@ -184,13 +187,13 @@ class DeviceStencilSeedReaderTest extends TestCase
             'netgear-gs312tp'    => 'NETGEAR',
         ];
 
-        foreach ($expectations as $partNumber => $needle) {
-            $stencil = $this->findStencil($stencils, $partNumber);
-            $this->assertNotNull($stencil, "{$partNumber} must be in seed pack");
+        foreach ($expectations as $slug => $needle) {
+            $stencil = $this->findStencil($stencils, $slug);
+            $this->assertNotNull($stencil, "{$slug} must be in seed pack");
             $this->assertStringContainsStringIgnoringCase(
                 $needle,
                 $stencil['mxgraph_xml'],
-                "{$partNumber} mxgraph_xml must contain manufacturer name {$needle}"
+                "{$slug} mxgraph_xml must contain manufacturer name {$needle}"
             );
         }
     }
@@ -209,11 +212,17 @@ class DeviceStencilSeedReaderTest extends TestCase
             'D-14: clickshare.svg path is preserved (NOT renamed to barco.svg)');
     }
 
-    /** @param array<int, array<string, mixed>> $stencils */
-    private function findStencil(array $stencils, string $partNumber): ?array
+    /**
+     * Look up by slug (canonical filename identifier). part_number reflects
+     * the actual QuoteWerks part_no value (e.g. BAR-PRO for ClickShare,
+     * GS312TP for Netgear) which doesn't always follow the slug pattern.
+     *
+     * @param  array<int, array<string, mixed>>  $stencils
+     */
+    private function findStencil(array $stencils, string $slug): ?array
     {
         foreach ($stencils as $stencil) {
-            if (strtolower((string) ($stencil['part_number'] ?? '')) === strtolower($partNumber)) {
+            if (strtolower((string) ($stencil['slug'] ?? '')) === strtolower($slug)) {
                 return $stencil;
             }
         }
