@@ -1,0 +1,748 @@
+{
+    "version": "1.0",
+    "generated": "2026-05-10",
+    "provenance": "Hand-curated gap-fill \u2014 top-N 21CAV quote-volume part_numbers NOT already covered by spike (5) + v1.3 promotion (53). Derived from local development DB (4 ProjectPackage rows) via scripts/derive-top50-gap.php. Initial count: 39 entries. Per Plan 21-02 Task 2 Step C, each entry is Tier 1.5 (auto-generic body shell with manufacturer/model/part_number filled via prefix heuristic) tagged metadata.needs_phase_24_curation=true so Phase 24 UI can promote to hand-traced device cards with port rails. Numeric-only SKUs + \"existing\" placeholders excluded. SeedPackCoverageTest threshold calibrated against actual count (50+ available; smaller dev environments gracefully degrade per docblock).",
+    "stencils": [
+        {
+            "part_number": "tss-1070-b-s-lb-kit",
+            "slug": "tss-1070-b-s-lb-kit",
+            "manufacturer": "Crestron",
+            "model": "TSS-1070-B-S-LB-KIT",
+            "display_name": "Crestron TSS-1070-B-S-LB-KIT",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-tss-1070-b-s-lb-kit\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Crestron\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"TSS-1070-B-S-LB-KIT\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"tss-1070-b-s-lb-kit\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 8,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "am3-111-ikit",
+            "slug": "am3-111-ikit",
+            "manufacturer": "Crestron",
+            "model": "AM3-111-IKIT",
+            "display_name": "Crestron AM3-111-IKIT",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-am3-111-ikit\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Crestron\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"AM3-111-IKIT\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"am3-111-ikit\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 6,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "cen-odt-c-poe",
+            "slug": "cen-odt-c-poe",
+            "manufacturer": "Crestron",
+            "model": "CEN-ODT-C-POE",
+            "display_name": "Crestron CEN-ODT-C-POE",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-cen-odt-c-poe\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Crestron\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"CEN-ODT-C-POE\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"cen-odt-c-poe\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 6,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "gsm4212p-100eus",
+            "slug": "gsm4212p-100eus",
+            "manufacturer": "Netgear",
+            "model": "GSM4212P-100EUS",
+            "display_name": "Netgear GSM4212P-100EUS",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-gsm4212p-100eus\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Netgear\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"GSM4212P-100EUS\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"gsm4212p-100eus\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 6,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "fw-98bz53l",
+            "slug": "fw-98bz53l",
+            "manufacturer": "Samsung",
+            "model": "FW-98BZ53L",
+            "display_name": "Samsung FW-98BZ53L",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-fw-98bz53l\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Samsung\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"FW-98BZ53L\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"fw-98bz53l\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 4,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "uc-cx100-t",
+            "slug": "uc-cx100-t",
+            "manufacturer": "Crestron",
+            "model": "UC-CX100-T",
+            "display_name": "Crestron UC-CX100-T",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-uc-cx100-t\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Crestron\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"UC-CX100-T\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"uc-cx100-t\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 4,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "iv-cam-p20-b",
+            "slug": "iv-cam-p20-b",
+            "manufacturer": "Cisco",
+            "model": "IV-CAM-P20-B",
+            "display_name": "Cisco IV-CAM-P20-B",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-iv-cam-p20-b\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Cisco\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"IV-CAM-P20-B\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"iv-cam-p20-b\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 4,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "iv-sama-amcube-1-12",
+            "slug": "iv-sama-amcube-1-12",
+            "manufacturer": "Cisco",
+            "model": "IV-SAMA-AMCUBE-1-12",
+            "display_name": "Cisco IV-SAMA-AMCUBE-1-12",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-iv-sama-amcube-1-12\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Cisco\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"IV-SAMA-AMCUBE-1-12\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"iv-sama-amcube-1-12\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 4,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "saros-ic6t-w-t-each",
+            "slug": "saros-ic6t-w-t-each",
+            "manufacturer": "Bose",
+            "model": "SAROS-IC6T-W-T-EACH",
+            "display_name": "Bose SAROS-IC6T-W-T-EACH",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-saros-ic6t-w-t-each\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Bose\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"SAROS-IC6T-W-T-EACH\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"saros-ic6t-w-t-each\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 4,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "amp-x300",
+            "slug": "amp-x300",
+            "manufacturer": "QSC",
+            "model": "AMP-X300",
+            "display_name": "QSC AMP-X300",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-amp-x300\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"QSC\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"AMP-X300\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"amp-x300\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 4,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "iv-sam-vx2-s",
+            "slug": "iv-sam-vx2-s",
+            "manufacturer": "Cisco",
+            "model": "IV-SAM-VX2-S",
+            "display_name": "Cisco IV-SAM-VX2-S",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-iv-sam-vx2-s\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Cisco\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"IV-SAM-VX2-S\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"iv-sam-vx2-s\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 4,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "seq-1213i",
+            "slug": "seq-1213i",
+            "manufacturer": "QSC",
+            "model": "SEQ-1213I",
+            "display_name": "QSC SEQ-1213I",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-seq-1213i\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"QSC\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"SEQ-1213I\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"seq-1213i\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 4,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "xsm1u",
+            "slug": "xsm1u",
+            "manufacturer": "Chief",
+            "model": "XSM1U",
+            "display_name": "Chief XSM1U",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-xsm1u\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Chief\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"XSM1U\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"xsm1u\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 3,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "td-cs-kit-eq-k9",
+            "slug": "td-cs-kit-eq-k9",
+            "manufacturer": "Cisco",
+            "model": "TD-CS-KIT-EQ-K9",
+            "display_name": "Cisco TD-CS-KIT-EQ-K9",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-td-cs-kit-eq-k9\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Cisco\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"TD-CS-KIT-EQ-K9\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"td-cs-kit-eq-k9\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 2,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "td-cs-codec-eq-wmk",
+            "slug": "td-cs-codec-eq-wmk",
+            "manufacturer": "Cisco",
+            "model": "TD-CS-CODEC-EQ-WMK",
+            "display_name": "Cisco TD-CS-CODEC-EQ-WMK",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-td-cs-codec-eq-wmk\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Cisco\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"TD-CS-CODEC-EQ-WMK\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"td-cs-codec-eq-wmk\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 2,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "cs-t10-wm-l-k9",
+            "slug": "cs-t10-wm-l-k9",
+            "manufacturer": "Cisco",
+            "model": "CS-T10-WM-L-K9",
+            "display_name": "Cisco CS-T10-WM-L-K9",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-cs-t10-wm-l-k9\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Cisco\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"CS-T10-WM-L-K9\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"cs-t10-wm-l-k9\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 2,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "psp.fw98bz53l.po2",
+            "slug": "psp-fw98bz53l-po2",
+            "manufacturer": "Unknown",
+            "model": "PSP.FW98BZ53L.PO2",
+            "display_name": "Unknown PSP.FW98BZ53L.PO2",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-psp.fw98bz53l.po2\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Unknown\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"PSP.FW98BZ53L.PO2\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"psp.fw98bz53l.po2\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 2,
+                "manufacturer_derivation": "unknown-prefix-needs-curation"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "rlt3",
+            "slug": "rlt3",
+            "manufacturer": "QSC",
+            "model": "RLT3",
+            "display_name": "QSC RLT3",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-rlt3\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"QSC\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"RLT3\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"rlt3\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 2,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "uc-bx31-t",
+            "slug": "uc-bx31-t",
+            "manufacturer": "Crestron",
+            "model": "UC-BX31-T",
+            "display_name": "Crestron UC-BX31-T",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-uc-bx31-t\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Crestron\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"UC-BX31-T\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"uc-bx31-t\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 2,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "tsw-1070-msmk-b-s",
+            "slug": "tsw-1070-msmk-b-s",
+            "manufacturer": "Crestron",
+            "model": "TSW-1070-MSMK-B-S",
+            "display_name": "Crestron TSW-1070-MSMK-B-S",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-tsw-1070-msmk-b-s\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Crestron\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"TSW-1070-MSMK-B-S\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"tsw-1070-msmk-b-s\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 2,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "lh85qmcebgcxen",
+            "slug": "lh85qmcebgcxen",
+            "manufacturer": "Samsung",
+            "model": "LH85QMCEBGCXEN",
+            "display_name": "Samsung LH85QMCEBGCXEN",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-lh85qmcebgcxen\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Samsung\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"LH85QMCEBGCXEN\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"lh85qmcebgcxen\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 1,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "cs-cam-rvptz-c",
+            "slug": "cs-cam-rvptz-c",
+            "manufacturer": "Cisco",
+            "model": "CS-CAM-RVPTZ-C",
+            "display_name": "Cisco CS-CAM-RVPTZ-C",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-cs-cam-rvptz-c\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Cisco\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"CS-CAM-RVPTZ-C\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"cs-cam-rvptz-c\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 1,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "td-cs-cam-rvptz-wbkc",
+            "slug": "td-cs-cam-rvptz-wbkc",
+            "manufacturer": "Cisco",
+            "model": "TD-CS-CAM-RVPTZ-WBKC",
+            "display_name": "Cisco TD-CS-CAM-RVPTZ-WBKC",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-td-cs-cam-rvptz-wbkc\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Cisco\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"TD-CS-CAM-RVPTZ-WBKC\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"td-cs-cam-rvptz-wbkc\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 1,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "hex70cs-kit",
+            "slug": "hex70cs-kit",
+            "manufacturer": "Cisco",
+            "model": "HEX70CS-KIT",
+            "display_name": "Cisco HEX70CS-KIT",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-hex70cs-kit\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Cisco\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"HEX70CS-KIT\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"hex70cs-kit\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 1,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "pelb0004",
+            "slug": "pelb0004",
+            "manufacturer": "Unknown",
+            "model": "PELB0004",
+            "display_name": "Unknown PELB0004",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-pelb0004\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Unknown\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"PELB0004\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"pelb0004\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 1,
+                "manufacturer_derivation": "unknown-prefix-needs-curation"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "ukcat6lsoh305m",
+            "slug": "ukcat6lsoh305m",
+            "manufacturer": "Unknown",
+            "model": "UKCAT6LSOH305M",
+            "display_name": "Unknown UKCAT6LSOH305M",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-ukcat6lsoh305m\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Unknown\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"UKCAT6LSOH305M\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"ukcat6lsoh305m\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 1,
+                "manufacturer_derivation": "unknown-prefix-needs-curation"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "psg90792",
+            "slug": "psg90792",
+            "manufacturer": "Unknown",
+            "model": "PSG90792",
+            "display_name": "Unknown PSG90792",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-psg90792\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Unknown\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"PSG90792\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"psg90792\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 1,
+                "manufacturer_derivation": "unknown-prefix-needs-curation"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "pp4656",
+            "slug": "pp4656",
+            "manufacturer": "Unknown",
+            "model": "PP4656",
+            "display_name": "Unknown PP4656",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-pp4656\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Unknown\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"PP4656\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"pp4656\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 1,
+                "manufacturer_derivation": "unknown-prefix-needs-curation"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "hex100cs-kit",
+            "slug": "hex100cs-kit",
+            "manufacturer": "Cisco",
+            "model": "HEX100CS-KIT",
+            "display_name": "Cisco HEX100CS-KIT",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-hex100cs-kit\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Cisco\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"HEX100CS-KIT\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"hex100cs-kit\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 1,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "gsm4230px-100eus",
+            "slug": "gsm4230px-100eus",
+            "manufacturer": "Netgear",
+            "model": "GSM4230PX-100EUS",
+            "display_name": "Netgear GSM4230PX-100EUS",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-gsm4230px-100eus\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Netgear\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"GSM4230PX-100EUS\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"gsm4230px-100eus\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 1,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "ul4b/c-mtqg-a",
+            "slug": "ul4b-c-mtqg-a",
+            "manufacturer": "Unknown",
+            "model": "UL4B/C-MTQG-A",
+            "display_name": "Unknown UL4B/C-MTQG-A",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-ul4b/c-mtqg-a\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Unknown\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"UL4B/C-MTQG-A\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"ul4b/c-mtqg-a\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 1,
+                "manufacturer_derivation": "unknown-prefix-needs-curation"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "lh75qetepgcxen",
+            "slug": "lh75qetepgcxen",
+            "manufacturer": "Samsung",
+            "model": "LH75QETEPGCXEN",
+            "display_name": "Samsung LH75QETEPGCXEN",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-lh75qetepgcxen\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Samsung\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"LH75QETEPGCXEN\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"lh75qetepgcxen\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 1,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "lh65qetelgcxen",
+            "slug": "lh65qetelgcxen",
+            "manufacturer": "Samsung",
+            "model": "LH65QETELGCXEN",
+            "display_name": "Samsung LH65QETELGCXEN",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-lh65qetelgcxen\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Samsung\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"LH65QETELGCXEN\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"lh65qetelgcxen\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 1,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "ch-mtm1u",
+            "slug": "ch-mtm1u",
+            "manufacturer": "Crestron",
+            "model": "CH-MTM1U",
+            "display_name": "Crestron CH-MTM1U",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-ch-mtm1u\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Crestron\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"CH-MTM1U\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"ch-mtm1u\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 1,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "60-1705-03",
+            "slug": "60-1705-03",
+            "manufacturer": "Unknown",
+            "model": "60-1705-03",
+            "display_name": "Unknown 60-1705-03",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-60-1705-03\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Unknown\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"60-1705-03\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"60-1705-03\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 1,
+                "manufacturer_derivation": "unknown-prefix-needs-curation"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "td-con-snt-vsxlbmdc",
+            "slug": "td-con-snt-vsxlbmdc",
+            "manufacturer": "Cisco",
+            "model": "TD-CON-SNT-VSXLBMDC",
+            "display_name": "Cisco TD-CON-SNT-VSXLBMDC",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-td-con-snt-vsxlbmdc\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Cisco\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"TD-CON-SNT-VSXLBMDC\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"td-con-snt-vsxlbmdc\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 1,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "psp.fw75bz35l.po2",
+            "slug": "psp-fw75bz35l-po2",
+            "manufacturer": "Unknown",
+            "model": "PSP.FW75BZ35L.PO2",
+            "display_name": "Unknown PSP.FW75BZ35L.PO2",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-psp.fw75bz35l.po2\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Unknown\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"PSP.FW75BZ35L.PO2\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"psp.fw75bz35l.po2\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 1,
+                "manufacturer_derivation": "unknown-prefix-needs-curation"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "bt8431/b",
+            "slug": "bt8431-b",
+            "manufacturer": "Cisco",
+            "model": "BT8431/B",
+            "display_name": "Cisco BT8431/B",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-bt8431/b\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Cisco\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"BT8431/B\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"bt8431/b\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 1,
+                "manufacturer_derivation": "prefix-heuristic"
+            },
+            "ports": []
+        },
+        {
+            "part_number": "cs32880",
+            "slug": "cs32880",
+            "manufacturer": "Unknown",
+            "model": "CS32880",
+            "display_name": "Unknown CS32880",
+            "default_width": 220,
+            "default_height": 140,
+            "mxgraph_xml": "<shape name=\"auto-cs32880\" h=\"140\" w=\"220\" aspect=\"variable\" strokewidth=\"inherit\"><background><fillcolor color=\"#FAFAF6\"/><strokecolor color=\"#1B7A7A\"/><roundrect x=\"0\" y=\"0\" w=\"220\" h=\"140\" arcsize=\"6\"/><fillstroke/></background><foreground><fillcolor color=\"#1B7A7A\"/><rect x=\"0\" y=\"0\" w=\"220\" h=\"30\"/><fill/><fontstyle style=\"1\"/><fontsize size=\"12\"/><fontcolor color=\"#FFFFFF\"/><text str=\"Unknown\" x=\"110\" y=\"20\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"11\"/><fontcolor color=\"#1B7A7A\"/><text str=\"CS32880\" x=\"110\" y=\"65\" align=\"center\"/><fontstyle style=\"2\"/><fontsize size=\"9\"/><fontcolor color=\"#666666\"/><text str=\"cs32880\" x=\"110\" y=\"105\" align=\"center\"/><fontstyle style=\"0\"/><fontsize size=\"7\"/><fontcolor color=\"#666666\"/><text str=\"Tier 1 placeholder\" x=\"110\" y=\"130\" align=\"center\"/></foreground></shape>",
+            "source": "engineer-curated",
+            "metadata": {
+                "provenance": "top-50-gap-derived",
+                "needs_phase_24_curation": true,
+                "_source_method": "auto-derived-from-quote-volume",
+                "quote_volume_count": 1,
+                "manufacturer_derivation": "unknown-prefix-needs-curation"
+            },
+            "ports": []
+        }
+    ]
+}
