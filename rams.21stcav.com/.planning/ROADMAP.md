@@ -41,7 +41,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
 
 ### Phases
 
-- [ ] **Phase 21: Device Port Catalog + Stencil Cache** — `device_ports` + `device_stencils` tables; hand-curated top-50 device seed pack; auto-generic placeholder for uncatalogued parts; cross-project caching via `firstOrCreate` on part_number; manufacturer logo glyphs for top 20 brands. Foundation for all other phases. Estimate: 3–4 weeks.
+- [x] **Phase 21: Device Port Catalog + Stencil Cache** — `device_ports` + `device_stencils` tables; hand-curated top-50 device seed pack; auto-generic placeholder for uncatalogued parts; cross-project caching via `firstOrCreate` on part_number; manufacturer logo glyphs for top 20 brands. Foundation for all other phases. ✅ COMPLETE 2026-05-10 (3/3 plans, ~43 min total exec time).
 - [ ] **Phase 22: Cable Schedule with Port-Level FKs** — `source_port_id` + `dest_port_id` columns on `cable_schedule_items`; cascading dropdown UI (room → device → port); connector-compatibility validation; auto-derive from quote `cable_list` "X to Y" naming where unambiguous; one-shot backfill command. Depends on Phase 21. Estimate: 2–3 weeks.
 - [ ] **Phase 23: XTEN-AV-Style Renderer** — custom device-card stencils with port rails; port-to-port cable routing; signal-type colour coding (audio/video/control/network/USB); cable ID labels; sub-room zones (RACK / CEILING / etc) auto-derived + engineer-overridable; multi-page paginator (system + audio + video + control sub-sheets); standardised title block; sheet border. Depends on Phase 21+22. Estimate: 2–4 weeks (faster via draw.io vs ~4–5 weeks native).
 - [ ] **Phase 24: Stencil Curation UI** — admin route + edit screen for upgrading auto-generic stencils to engineer-curated ones; drag-port handles, label inputs, manufacturer-logo upload; "promote" action flips `device_stencils.source` from auto-generated → engineer-curated; cross-project propagation automatic via cache lookup. Depends on Phase 21. Estimate: 1–2 weeks.
@@ -71,7 +71,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
 
 - [x] 21-01-schema-models-cache-service-PLAN.md — Migration creating device_stencils + device_ports; DeviceStencil + DevicePort models; DeviceStencilCacheService (firstOrCreate-on-part_number); AutoGenericStencilGenerator (Tier 1 placeholder); Project::devicesWithStencils() accessor. Wave 1. Requirements: DRAW-31, DRAW-32, DRAW-34, DRAW-36.
 - [x] 21-02-seed-pack-promote-and-curate-PLAN.md — Promote 5 spike stencils + selected v1.3 catalog entries into per-file curation manifests; hand-curate gap to top-50 from quote volume; idempotent DeviceStencilSeeder using whereRaw LOWER TRIM matching pattern. Wave 2 (parallel with 21-03). Requirements: DRAW-33.
-- [ ] 21-03-manufacturer-logos-builder-integration-PLAN.md — Top-15 new manufacturer logo SVGs (Crestron, Cisco, QSC, Bogen, Polycom, Logitech, Shure, Sony, Extron, Biamp, Yamaha, Atlona, Lightware, Q-SYS, Barco) bringing top-20 with the 5 spike logos; ManufacturerLogoResolver; rename DrawIoSpikeBuilderService → DrawIoBuilderService reading from device_stencils table; spike admin route preserved with shim. Wave 2 (parallel with 21-02). Requirements: DRAW-35.
+- [x] 21-03-manufacturer-logos-builder-integration-PLAN.md — Top-15 new manufacturer logo SVGs (Crestron, Cisco, QSC, Bogen, Polycom, Logitech, Shure, Sony, Extron, Biamp, Yamaha, Atlona, Lightware, Q-SYS, Barco) bringing top-20 with the 5 spike logos; ManufacturerLogoResolver; rename DrawIoSpikeBuilderService → DrawIoBuilderService reading from device_stencils table; spike admin route preserved with shim. Wave 2 (parallel with 21-02). Requirements: DRAW-35.
 
 ---
 
@@ -181,7 +181,7 @@ Floor plan drawing tool moved out of v1.3 scope on 2026-05-02 to avoid building 
 ### v1.4 Client Portal & Project Visibility
 *"Clients see what they need, when they need it"*
 
-- [ ] Phase 21: Client Portal — Branded project status page per client/site with secure access
+- [x] Phase 21: Client Portal — Branded project status page per client/site with secure access (completed 2026-05-10)
 - [ ] Phase 22: Document Access — Clients download RAMS, O&M, drawings and certificates from portal
 - [ ] Phase 23: Survey & Installation Progress — Live completion percentages per room visible to client
 - [ ] Phase 24: Notification & Communication — Client receives updates on project milestones and document availability

@@ -19,7 +19,7 @@ Foundation. Every hardware item that appears in a project's equipment_list gets 
 - [x] **DRAW-32**: `device_stencils` table — `part_number` (unique), `manufacturer`, `model`, `display_name`, `mxgraph_xml`, `logo_svg`, `source` enum (auto-generated / engineer-curated / ai-extracted)
 - [x] **DRAW-33**: Hand-curated seed pack: top 50 devices from last 12 months of 21CAV quote volume — Crestron RMC4 / Sony FW-displays / ClickShare Bar Pro / Cisco SF300 / Bogen NQ-* / Sennheiser TC mics / Netgear M4250 / Q-SYS Core / etc.
 - [x] **DRAW-34**: Auto-generic placeholder stencil for any uncatalogued `part_number` — rectangle with manufacturer+model+name, no port detail. `firstOrCreate` caches per part_number for cross-project reuse.
-- [ ] **DRAW-35**: Manufacturer logo glyphs (inline SVG) for top 20 brands present in the seed pack
+- [x] **DRAW-35**: Manufacturer logo glyphs (inline SVG) for top 20 brands present in the seed pack
 - [x] **DRAW-36**: `Project::devicesWithStencils()` accessor — returns equipment_list hardware items joined to device_stencils, ready for the renderer
 
 ### Phase 22 — Cable Schedule with Port-Level FKs

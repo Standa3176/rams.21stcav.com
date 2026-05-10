@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
-status: executing
-stopped_at: Completed 21-02-seed-pack-promote-and-curate-PLAN.md
-last_updated: "2026-05-10T09:10:31.451Z"
+status: verifying
+stopped_at: Completed 21-03-manufacturer-logos-builder-integration-PLAN.md
+last_updated: "2026-05-10T09:27:10.909Z"
 last_activity: 2026-05-10
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 10
-  completed_plans: 9
-  percent: 90
+  completed_plans: 10
+  percent: 100
 ---
 
 ## Project Reference
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-04-30)
 
 Phase: 21 (device-port-catalog-stencil-cache) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-10
 
 ## Milestone Progress (v1.3)
@@ -59,10 +59,13 @@ Last activity: 2026-05-10
 | Phase 20 P02 | 13min | 3 tasks | 12 files |
 | Phase 21 P01 | 13min | 3 tasks | 10 files |
 | Phase 21 P02 | 21min | 2 tasks | 19 files |
+| Phase 21 P03 | 9min | 2 tasks | 21 files |
 
 ## Accumulated Context
 
 ### Key Decisions (v2.0)
+
+- **Plan 21-03 LANDED** (2026-05-10) — Phase 21 COMPLETE. DRAW-35 manufacturer logos + DrawIoBuilderService rewire shipped. 15 new SVG glyphs at `public/img/manufacturers/` per D-06 (viewBox 0 0 100 30, currentColor, ~400-700 bytes each): crestron/cisco/qsc/bogen/polycom/logitech/shure/sony/extron/biamp/yamaha/atlona/lightware/q-sys/barco. Total directory now **20 SVGs** (5 spike PRESERVED + 15 new). `ManufacturerLogoResolver` case-insensitive substring lookup with most-specific-first needle ordering: q-sys before qsc (avoid 'qsc' substring matching 'q-sys'); clickshare before barco per D-14 (Barco ClickShare products keep using existing clickshare.svg; non-ClickShare Barco F50 etc fall through to new barco.svg); poly aliased to polycom. resolveSvg / resolveAssetPath / knownManufacturers public contract; per-instance file-read memoisation via string|false sentinel. `DrawIoBuilderService` reads from `Project::devicesWithStencils()` (Plan 21-01 cache contract) — every hardware part_number lands a stencil cell. Curated stencils from Plan 21-02 seed pack render with full mxgraph_xml base64-embedded via `shape=stencil(...)`; uncatalogued part_numbers auto-create as Tier 1 placeholders on first read. Layout heuristic INTENTIONALLY shallow per Nit 9 — 4-column grid (videobar/byod/mic | switch | display | other) keyed off the 5 spike-promoted slugs ONLY; NO port-composition heuristic; TODO(phase-23) inline marker. Cable derivation preserved verbatim from spike (canonical Teams Room signal chain); Phase 22 replaces with port-FK lookup. `DrawIoSpikeBuilderService` collapsed from ~560 lines to a 10-line backwards-compat shim per D-08 (@deprecated docblock; class preserved). `DrawIoSpikeController` constructor first parameter type-hint flipped to `DrawIoBuilderService`; second parameter `DrawingService $drawings` PRESERVED per D-08 + Warning 2 (consumed by saveXml/exportSvg) — reflection-asserted in `DrawIoBuilderServiceTest`. D-10 verified: zero diff against `DeviceCatalogService` / `SchematicGeneratorService` / `SchematicD2SourceBuilder` / `DrawingDataResolverService` / `device-port-catalog.json`. D-14 verified: `clickshare.svg` untouched. **20 plan tests / 68 assertions pass (14 ManufacturerLogoResolver + 6 DrawIoBuilderService). Full Drawings suite 131/1633 GREEN with zero regression vs Plan 21-02 baseline (1 pre-existing D2-binary skip on dev).** Commits: `6e6b174` RED + `233dbfc` GREEN (Task 1 logos+resolver); `7d452b5` RED + `5936feb` GREEN (Task 2 builder+shim+controller). Zero deviations — plan executed exactly as written. **DRAW-35 complete. Phase 21 COMPLETE — all 6 requirement IDs (DRAW-31, 32, 33, 34, 35, 36) satisfied across the 3 plans.**
 
 - **Plan 21-02 LANDED** (2026-05-10) — Engineer-curated seed pack v2.0 foundation in place. 5 spike stencils promoted to per-file curation manifests at `resources/data/device-stencils-seed/{slug}.json` with full mxgraph_xml lifted verbatim from spike-260509-ibx + 40 ports total (Neat Bar Pro 6 / Samsung QM65C-T 9 / ClickShare Bar Pro 7 / Sennheiser TCC2 4 / Netgear GS312TP 14). ALL 53 v1.3 device-port-catalog entries promoted as Tier 1.5 stencils in `_v1.3-promoted.json` (auto-generic body shell from AutoGenericStencilGenerator, source=engineer-curated, metadata.needs_phase_24_curation=true; rack metadata u_height/is_rack_mounted/current_draw_a etc preserved in metadata for cross-reference). 39 gap-fill stencils in `_top-50-gap.json` derived from local quote-volume data (4 ProjectPackage rows / 41 unique non-noise hardware part_numbers) with prefix-heuristic manufacturer derivation; metadata.manufacturer_derivation=`unknown-prefix-needs-curation` flag for 9 unidentified-prefix entries. DeviceStencilSeedReader auto-detects per-file vs bulk manifest shape (top-level `part_number` => per-file; top-level `stencils` => bulk flat-mapped); throws RuntimeException with file path + missing field on schema violation; memoised per-instance. DeviceStencilSeeder idempotent — second run produces zero new rows; manual port edits wiped on reseed (manifest is source of truth); wrapped in DB::transaction (T-21.02-03). DatabaseSeeder.php updated to call DeviceStencilSeeder after DeviceCatalogSeeder. Live tinker counts: **96 engineer-curated stencils + 40 ports + 91 needs_phase_24_curation**. SeedPackCoverageTest proves **95.1% coverage** of INDEPENDENT top-41 reference (well above 80% D-05 threshold); fixture at `tests/Fixtures/seed-coverage/top-50-snapshot.json` carries `_provenance` field per D-15 forbidding regeneration from seed pack. **20 plan tests / 1230 assertions pass. 73 / 1448 across full drawings suite (zero regression vs Plan 21-01)**. D-10 verified: zero diff against device-port-catalog.json + DeviceCatalogService + DeviceCatalogSeeder + SchematicGeneratorService + SchematicD2SourceBuilder. D-14 verified: clickshare-bar-pro.json carries manufacturer=Barco BUT logo_svg_path=/img/manufacturers/clickshare.svg. Commits: `46d10b3` RED + `f97379b` GREEN (Task 1 reader); `47c7e24` (Task 2 Step A v1.3 promotion); `d66fadc` RED (Task 2 Steps B+C+E gap manifest + tests); `c218ce0` GREEN (Task 2 Step D seeder + DatabaseSeeder + noise-filter fix). Three minor auto-fixed deviations: (1) noise filter on snapshot fixture (numeric-only SKUs + 'existing' literal placeholders pushed coverage from 78% to 95%); (2) tests/Fixtures path casing correction for Linux production safety; (3) test class seed() method conflict with Illuminate base — replaced with artisan db:seed call. **DRAW-33 complete. Plan 21-03 unblocked.**
 
@@ -103,11 +106,13 @@ Last activity: 2026-05-10
 
 ## Session Continuity
 
-**Last session ended:** 2026-05-10 — Plan 21-02 (engineer-curated seed pack: 5 spike + 53 v1.3 promoted + 39 gap-fill + idempotent seeder) completed in 21 minutes / 5 commits (TDD RED→GREEN per task; Task 2 split into atomic Steps A+B+C+D+E) / 19 files. 96 engineer-curated DeviceStencil rows + 40 DevicePort rows + 91 needs_phase_24_curation tagged. SeedPackCoverageTest 95.1% coverage of INDEPENDENT top-41 reference (vs 80% D-05 threshold). 20 plan tests / 1230 assertions pass. Zero regressions across full drawings suite (73/1448). 3 minor auto-fixed deviations (noise filter on snapshot fixture, tests/Fixtures path casing, test class seed() conflict with Illuminate base). DRAW-33 complete. D-10 + D-14 + D-15 all verified.
+**Last session ended:** 2026-05-10 — Plan 21-03 (manufacturer logos + DrawIoBuilderService rewire) completed in 9 minutes / 4 commits (TDD RED→GREEN per task) / 21 files (19 created + 2 modified). 15 new SVG glyphs landed at public/img/manufacturers/ (crestron/cisco/qsc/bogen/polycom/logitech/shure/sony/extron/biamp/yamaha/atlona/lightware/q-sys/barco) per D-06 — total directory now 20 SVGs (5 spike PRESERVED + 15 new). ManufacturerLogoResolver case-insensitive substring lookup with most-specific-first needle ordering (q-sys before qsc; clickshare before barco per D-14). DrawIoBuilderService reads from Project::devicesWithStencils() — 4-column shallow grid layout per Nit 9; canonical Teams Room cable chain preserved verbatim from spike. DrawIoSpikeBuilderService collapsed to a 10-line backwards-compat shim per D-08. DrawIoSpikeController constructor: first param flipped to DrawIoBuilderService, SECOND param DrawingService PRESERVED per D-08 + Warning 2 (reflection-asserted). 20 plan tests / 68 assertions pass. Full Drawings suite 131/1633 GREEN with zero regression. D-10 + D-14 verified. Zero deviations. **Phase 21 COMPLETE — all 6 requirement IDs (DRAW-31, 32, 33, 34, 35, 36) satisfied across 3 plans.**
 
-**Stopped at:** Completed 21-02-seed-pack-promote-and-curate-PLAN.md
+**Stopped at:** Completed 21-03-manufacturer-logos-builder-integration-PLAN.md — Phase 21 ready for code-review → regression → verification gates.
 
-**Next session starts:** Plan 21-03 — manufacturer logos (top-15 brand SVG glyphs) + DrawIoSpikeBuilderService → DrawIoBuilderService rename + rewire to read from device_stencils table. Live deploy required: ~21 files (8 manifest JSONs + DeviceStencilSeedReader + DeviceStencilSeeder + DatabaseSeeder + Plan 21-03's logo SVGs + builder rename) + `php artisan migrate` (no-op on dev) + `php artisan db:seed --class=DeviceStencilSeeder` (idempotent — populates ~96 stencils + 40 ports) + `php artisan cache:clear`.
+**Next session starts:** Phase 21 verification gates (code-review, regression, verifier). Live deploy required for Plan 21-03: 19 files (15 new SVGs + ManufacturerLogoResolver + DrawIoBuilderService + DrawIoSpikeBuilderService shim + DrawIoSpikeController) + `php artisan route:clear / config:clear / cache:clear / view:clear`. clickshare.svg NOT uploaded (D-14 preserved). Once verified, Phase 22 (cable schedule port FKs) is next on the v2.0 roadmap.
+
+**Earlier session (2026-05-10):** Plan 21-02 (engineer-curated seed pack: 5 spike + 53 v1.3 promoted + 39 gap-fill + idempotent seeder) completed in 21 minutes / 5 commits / 19 files.
 
 **Earlier session (2026-05-10):** Plan 21-01 (schema + models + cache service + Project accessor — v2.0 foundation) completed in 13 minutes / 6 commits / 10 files.
 
