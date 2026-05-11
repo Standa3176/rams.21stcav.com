@@ -73,6 +73,24 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
 - [x] 21-02-seed-pack-promote-and-curate-PLAN.md — Promote 5 spike stencils + selected v1.3 catalog entries into per-file curation manifests; hand-curate gap to top-50 from quote volume; idempotent DeviceStencilSeeder using whereRaw LOWER TRIM matching pattern. Wave 2 (parallel with 21-03). Requirements: DRAW-33.
 - [x] 21-03-manufacturer-logos-builder-integration-PLAN.md — Top-15 new manufacturer logo SVGs (Crestron, Cisco, QSC, Bogen, Polycom, Logitech, Shure, Sony, Extron, Biamp, Yamaha, Atlona, Lightware, Q-SYS, Barco) bringing top-20 with the 5 spike logos; ManufacturerLogoResolver; rename DrawIoSpikeBuilderService → DrawIoBuilderService reading from device_stencils table; spike admin route preserved with shim. Wave 2 (parallel with 21-02). Requirements: DRAW-35.
 
+### Phase 22: Cable Schedule with Port-Level FKs
+**Goal**: Cable schedule items become typed via four FK columns (`source_device_id`, `source_port_id`, `dest_device_id`, `dest_port_id`) referencing Phase 21's `devices` + `device_ports` tables. Cascading dropdown UI on the cable schedule edit screen lets engineers pick exact source-port → dest-port pairs filtered by signal_type compatibility. Connector-compatibility validation warns at save (engineer override allowed with note, not a hard block). A one-shot backfill command populates port FKs from quote `cable_list` "X to Y" naming where the device-side ports are unambiguous (single matching connector on each side); leaves nullable for ambiguous rows so engineers can resolve manually. Legacy cable_schedule_items without port FKs continue to render via existing v1.3 surfaces — strictly additive. This is the data layer Phase 23's port-to-port renderer reads from.
+**Depends on**: Phase 21 (device_ports table, DevicePort model with SIDE_*/DIRECTION_* constants, DeviceStencilCacheService cross-project caching)
+**Requirements**: DRAW-37, DRAW-38, DRAW-39, DRAW-40, DRAW-41
+**Success Criteria** (what must be TRUE):
+  1. Engineer can edit a cable_schedule_items row and pick source device → source port (filtered to ports on that device, ordered by side then position) → dest device → dest port (filtered by signal_type compatibility with the chosen source port) via cascading dropdowns
+  2. Form save warns the engineer (with override-with-note option) when chosen source and dest ports have incompatible connector types (e.g. HDMI → RJ45) — never a hard block
+  3. Running `php artisan cables:backfill-port-fks` on existing cable_schedule_items populates port FKs deterministically where the quote `cable_list` "X to Y" naming has exactly one matching connector on each side; leaves nullable where ambiguous; reports per-row decisions to stdout
+  4. Phase 23's renderer can consume `cable_schedule_items.source_port_id` + `dest_port_id` to draw port-to-port cable routing without further data layer work
+  5. v1.3 cable schedule XLSX export, schematic SVG generator, and bound-PDF cable-list section continue to render without regression for legacy rows where the new FK columns are NULL
+**Plans**: TBD — to be planned during `/gsd-plan-phase 22`
+**UI hint**: yes (cascading dropdown UI on cable schedule edit; backend command + form changes)
+**Canonical refs**:
+  - `.planning/phases/21-device-port-catalog-stencil-cache/21-CONTEXT.md` (Phase 21 decisions D-01..D-15 — port catalog contract)
+  - `.planning/phases/21-device-port-catalog-stencil-cache/21-01-schema-models-cache-service-SUMMARY.md` (DevicePort model API surface, side/direction enum constants, FK semantics)
+  - `.planning/REQUIREMENTS.md` §"Phase 22 — Cable Schedule with Port-Level FKs" (DRAW-37..41 acceptance criteria)
+  - Visual contract: XTEN-AV PAGING SYSTEM reference image (conversation 2026-05-09) — port-to-port routing pattern Phase 23 will render from this data
+
 ---
 
 ## ✅ v1.2 Installation Programme & Field Management — SHIPPED 2026-04-25
