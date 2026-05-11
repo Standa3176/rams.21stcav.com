@@ -59,20 +59,28 @@ class PublicWorksheetController extends Controller
     // ─── Photo upload / serve ────────────────────────────────────────────────
 
     /**
-     * POST /worksheet/{token}/rooms/{room_name}/photos
+     * POST /worksheet/{token}/photos
      *
      * Accept a photo upload from the public worksheet link and persist it
      * scoped to a specific room. Engineers must capture photos per room
      * before requesting client sign-off.
+     *
+     * room_name travels in the FormData body (not the URL path) so room
+     * names containing '/', '?', '#' or other reserved chars don't 404
+     * against the web server's encoded-slash rejection. See routes/web.php
+     * for the rationale.
      */
-    public function uploadPhoto(Request $request, string $token, string $roomName): \Illuminate\Http\JsonResponse
+    public function uploadPhoto(Request $request, string $token): \Illuminate\Http\JsonResponse
     {
         $worksheet = $this->resolveWorksheet($token);
 
         $request->validate([
-            'photo'   => ['required', 'file', 'image', 'max:10240'],
-            'caption' => ['nullable', 'string', 'max:200'],
+            'room_name' => ['required', 'string', 'max:200'],
+            'photo'     => ['required', 'file', 'image', 'max:10240'],
+            'caption'   => ['nullable', 'string', 'max:200'],
         ]);
+
+        $roomName = $request->input('room_name');
 
         $file = $request->file('photo');
         $extension = match ($file->getMimeType()) {

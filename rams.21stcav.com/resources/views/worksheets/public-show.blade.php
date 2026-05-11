@@ -1465,9 +1465,11 @@
             if (!file) return;
             const fd = new FormData();
             fd.append('photo', file);
-            const url = '/worksheet/' + encodeURIComponent(token)
-                      + '/rooms/'    + encodeURIComponent(roomName)
-                      + '/photos';
+            // room_name travels in the body, not the URL path, so names with
+            // '/', '?', '#' (e.g. "Comms Room (Next to Breakout/Townhall Area)")
+            // don't 404 against nginx/Apache's encoded-slash rejection.
+            fd.append('room_name', roomName);
+            const url = '/worksheet/' + encodeURIComponent(token) + '/photos';
             try {
                 const resp = await fetch(url, {
                     method: 'POST',

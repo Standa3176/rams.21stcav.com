@@ -93,9 +93,14 @@ Route::post('worksheet/{token}/sign', [PublicWorksheetController::class, 'sign']
 // Photo upload/serve/delete on the public worksheet link. Engineers attach
 // photos per room before requesting client acceptance. UUID gate + per-photo
 // worksheet ownership check prevents cross-worksheet enumeration.
-Route::post('worksheet/{token}/rooms/{room_name}/photos', [PublicWorksheetController::class, 'uploadPhoto'])
-    ->name('public-worksheet.photos.upload')->middleware('throttle:30,1')
-    ->where('room_name', '.*');
+//
+// room_name travels in the FormData body, NOT the URL path, so room names
+// containing '/', '?', '#' or other reserved chars (e.g. "Comms Room (Next
+// to Breakout/Townhall Area)") don't 404 against the web server's encoded-
+// slash rejection. The where('.*') trick on a route param doesn't help here
+// because nginx/Apache strip %2F before Laravel sees the request.
+Route::post('worksheet/{token}/photos', [PublicWorksheetController::class, 'uploadPhoto'])
+    ->name('public-worksheet.photos.upload')->middleware('throttle:30,1');
 Route::get('worksheet/{token}/photos/{photo}', [PublicWorksheetController::class, 'servePhoto'])
     ->name('public-worksheet.photos.serve');
 Route::delete('worksheet/{token}/photos/{photo}', [PublicWorksheetController::class, 'deletePhoto'])
