@@ -3,15 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
 status: verifying
-stopped_at: Completed 21-03-manufacturer-logos-builder-integration-PLAN.md — Phase 21 ready for code-review → regression → verification gates.
-last_updated: "2026-05-10T09:44:55.998Z"
+stopped_at: Phase 22 context gathered
+last_updated: "2026-05-11T19:07:53.248Z"
 last_activity: 2026-05-10
 progress:
-  total_phases: 5
-  completed_phases: 4
-  total_plans: 10
-  completed_plans: 10
-  percent: 100
+  total_phases: 1
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 ## Project Reference
@@ -108,7 +107,7 @@ Last activity: 2026-05-10
 
 **Last session ended:** 2026-05-10 — Plan 21-03 (manufacturer logos + DrawIoBuilderService rewire) completed in 9 minutes / 4 commits (TDD RED→GREEN per task) / 21 files (19 created + 2 modified). 15 new SVG glyphs landed at public/img/manufacturers/ (crestron/cisco/qsc/bogen/polycom/logitech/shure/sony/extron/biamp/yamaha/atlona/lightware/q-sys/barco) per D-06 — total directory now 20 SVGs (5 spike PRESERVED + 15 new). ManufacturerLogoResolver case-insensitive substring lookup with most-specific-first needle ordering (q-sys before qsc; clickshare before barco per D-14). DrawIoBuilderService reads from Project::devicesWithStencils() — 4-column shallow grid layout per Nit 9; canonical Teams Room cable chain preserved verbatim from spike. DrawIoSpikeBuilderService collapsed to a 10-line backwards-compat shim per D-08. DrawIoSpikeController constructor: first param flipped to DrawIoBuilderService, SECOND param DrawingService PRESERVED per D-08 + Warning 2 (reflection-asserted). 20 plan tests / 68 assertions pass. Full Drawings suite 131/1633 GREEN with zero regression. D-10 + D-14 verified. Zero deviations. **Phase 21 COMPLETE — all 6 requirement IDs (DRAW-31, 32, 33, 34, 35, 36) satisfied across 3 plans.**
 
-**Stopped at:** Completed 21-03-manufacturer-logos-builder-integration-PLAN.md — Phase 21 ready for code-review → regression → verification gates.
+**Stopped at:** Phase 22 context gathered
 
 **Next session starts:** Phase 21 verification gates (code-review, regression, verifier). Live deploy required for Plan 21-03: 19 files (15 new SVGs + ManufacturerLogoResolver + DrawIoBuilderService + DrawIoSpikeBuilderService shim + DrawIoSpikeController) + `php artisan route:clear / config:clear / cache:clear / view:clear`. clickshare.svg NOT uploaded (D-14 preserved). Once verified, Phase 22 (cable schedule port FKs) is next on the v2.0 roadmap.
 
