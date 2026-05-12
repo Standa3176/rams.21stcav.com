@@ -225,7 +225,10 @@ class CableScheduleController extends Controller
                     $item['source_device_id'] ?? null,
                     $item['dest_device_id']   ?? null,
                 ])
-                ->filter() // drops nulls and falsy values
+                // Explicit predicate (future-proof for non-int Device PKs, e.g. UUID
+                // post-SCC merge). DO NOT use callback-less filter() here — it would
+                // also drop integer 0 and the string "0", which is fragile.
+                ->filter(fn ($id) => $id !== null && $id !== '')
                 ->unique()
                 ->values()
                 ->all();
