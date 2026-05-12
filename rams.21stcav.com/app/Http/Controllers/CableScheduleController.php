@@ -220,36 +220,65 @@ class CableScheduleController extends Controller
         // port_id with the wrong device_id results in saved-but-mismatched data,
         // which the picker prevents and the backend does not re-verify.
         if ($cableSchedule->project_id !== null) {
-            $submittedDeviceIds = collect($request->input('items', []))
-                ->flatMap(fn ($item) => [
-                    $item['source_device_id'] ?? null,
-                    $item['dest_device_id']   ?? null,
+            // Build per-side maps: row key -> device id, so that when a device
+            // turns out to be cross-project we can key the validation error on
+            // the side (source vs dest) the engineer actually filled in. The
+            // older flat-list approach lost that signal and reported every
+            // offender under items.0.source_device_id even when the dest side
+            // was the only one populated.
+            $sourceSubmissions = collect($request->input('items', []))
+                ->map(fn ($item, $k) => [
+                    'key' => "items.{$k}.source_device_id",
+                    'id'  => $item['source_device_id'] ?? null,
                 ])
-                // Explicit predicate (future-proof for non-int Device PKs, e.g. UUID
-                // post-SCC merge). DO NOT use callback-less filter() here — it would
-                // also drop integer 0 and the string "0", which is fragile.
-                ->filter(fn ($id) => $id !== null && $id !== '')
+                ->filter(fn ($row) => $row['id'] !== null && $row['id'] !== '')
+                ->values();
+
+            $destSubmissions = collect($request->input('items', []))
+                ->map(fn ($item, $k) => [
+                    'key' => "items.{$k}.dest_device_id",
+                    'id'  => $item['dest_device_id'] ?? null,
+                ])
+                ->filter(fn ($row) => $row['id'] !== null && $row['id'] !== '')
+                ->values();
+
+            $submittedDeviceIds = $sourceSubmissions->pluck('id')
+                ->merge($destSubmissions->pluck('id'))
                 ->unique()
                 ->values()
                 ->all();
 
             if (! empty($submittedDeviceIds)) {
-                $wrongProjectCount = Device::query()
+                $offendingDeviceIds = Device::query()
                     ->whereIn('id', $submittedDeviceIds)
                     ->where('project_id', '!=', $cableSchedule->project_id)
-                    ->count();
+                    ->pluck('id')
+                    ->all();
 
-                if ($wrongProjectCount > 0) {
+                if (! empty($offendingDeviceIds)) {
                     Log::warning('CableScheduleController: cross-project FK injection blocked', [
-                        'cable_schedule_id' => $cableSchedule->id,
-                        'project_id'        => $cableSchedule->project_id,
-                        'user_id'           => auth()->id(),
-                        'submitted_device_ids' => $submittedDeviceIds,
+                        'cable_schedule_id'     => $cableSchedule->id,
+                        'project_id'            => $cableSchedule->project_id,
+                        'user_id'               => auth()->id(),
+                        'submitted_device_ids'  => $submittedDeviceIds,
+                        'offending_device_ids'  => $offendingDeviceIds,
                     ]);
 
-                    throw ValidationException::withMessages([
-                        'items.0.source_device_id' => 'One or more devices in this submission belong to a different project. Refresh the page and re-pick ports.',
-                    ]);
+                    $messages = [];
+                    $errorText = 'One or more devices in this submission belong to a different project. Refresh the page and re-pick ports.';
+
+                    foreach ($sourceSubmissions as $row) {
+                        if (in_array($row['id'], $offendingDeviceIds, true)) {
+                            $messages[$row['key']] = $errorText;
+                        }
+                    }
+                    foreach ($destSubmissions as $row) {
+                        if (in_array($row['id'], $offendingDeviceIds, true)) {
+                            $messages[$row['key']] = $errorText;
+                        }
+                    }
+
+                    throw ValidationException::withMessages($messages);
                 }
             }
         }

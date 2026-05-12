@@ -122,7 +122,16 @@ class CableScheduleCrossProjectFkInjectionTest extends TestCase
             ]);
 
         $response->assertStatus(302);
-        $response->assertSessionHasErrors(['items.0.source_device_id']);
+        // Phase 22 WR-02: per-side error keying — when only dest_device_id is the
+        // offender, the validation error must be attached to that field (not the
+        // unrelated source_device_id input). Locks the corrected behaviour.
+        $response->assertSessionHasErrors(['items.0.dest_device_id']);
+        $errorBag = session('errors');
+        $this->assertNotNull($errorBag);
+        $this->assertFalse(
+            $errorBag->has('items.0.source_device_id'),
+            'source_device_id should NOT carry an error when only dest_device_id is cross-project.'
+        );
     }
 
     public function test_cross_project_source_device_returns_422_for_json_request(): void
