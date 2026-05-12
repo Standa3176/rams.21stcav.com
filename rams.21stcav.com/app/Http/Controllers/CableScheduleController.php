@@ -149,7 +149,7 @@ class CableScheduleController extends Controller
                         $label .= ' — ' . $d->room_name;
                     }
 
-                    $ports = optional($d->stencil)?->ports ?? collect();
+                    $ports = $d->stencil?->ports ?? collect();
 
                     return [
                         'id'           => $d->id,
