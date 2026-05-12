@@ -77,7 +77,6 @@ class PdfRenderService
         $marginLeft = $options['marginLeft'] ?? 10;
 
         $shot = Browsershot::html($html)
-            ->setChromePath(env('CHROME_PATH', '/home/stcav/chrome'))
             ->noSandbox()
             ->addChromiumArguments([
                 'disable-dev-shm-usage' => null,
@@ -86,7 +85,15 @@ class PdfRenderService
             ->format('A4')
             ->showBackground()
             ->emulateMedia('print')
-            ->margins($marginTop, $marginRight, $marginBottom, $marginLeft)
+            ->margins($marginTop, $marginRight, $marginBottom, $marginLeft);
+
+        $chromePath = (string) env('CHROME_PATH', '/home/stcav/chrome');
+        if ($chromePath !== '' && is_file($chromePath)) {
+            $shot->setChromePath($chromePath);
+        }
+        // Otherwise: Browsershot/puppeteer will use the bundled Chromium from
+        // node_modules/puppeteer's download cache. Prod sets CHROME_PATH (or
+        // ships the binary at /home/stcav/chrome); dev falls back to bundled.
             // Photo-heavy PDFs (Mini O&M, Survey Client Report) base64-inline
             // images, which produces large HTML payloads. Puppeteer's default
             // protocol timeout (30s) and process timeout aren't enough — bump
@@ -168,7 +175,6 @@ class PdfRenderService
         $heightPx = (int) ($options['heightPx'] ?? intval($widthPx * 0.707));
 
         $shot = Browsershot::html($html)
-            ->setChromePath(env('CHROME_PATH', '/home/stcav/chrome'))
             ->noSandbox()
             ->addChromiumArguments([
                 'disable-dev-shm-usage' => null,
@@ -177,6 +183,12 @@ class PdfRenderService
             ->showBackground()
             ->emulateMedia('print')
             ->windowSize($widthPx, $heightPx);
+
+        $chromePath = (string) env('CHROME_PATH', '/home/stcav/chrome');
+        if ($chromePath !== '' && is_file($chromePath)) {
+            $shot->setChromePath($chromePath);
+        }
+        // Otherwise: bundled Chromium from puppeteer (same fallback as fromBlade).
 
         if (! empty($options['waitForJs'])) {
             $shot->waitUntilNetworkIdle()

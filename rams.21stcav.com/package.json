@@ -20,6 +20,7 @@
     },
     "dependencies": {
         "frappe-gantt": "^1.2.2",
+        "puppeteer": "^24.43.1",
         "sortablejs": "^1.15.6"
     }
 }
