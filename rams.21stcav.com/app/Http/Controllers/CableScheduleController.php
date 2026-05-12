@@ -111,9 +111,71 @@ class CableScheduleController extends Controller
     {
         abort_unless($cableSchedule->user_id === auth()->id(), 403);
 
-        $cableSchedule->load('items');
+        // Phase 22 D-10 guard: eager-load port relations AT THE CALL SITE only.
+        // NEVER add these to CableScheduleItem::$with — class-level eager loading
+        // would force 4 LEFT JOINs on every legacy NULL-FK row across XLSX
+        // export + bound-PDF + schematic generator read paths. Eloquent resolves
+        // belongsTo on NULL FKs to null without firing a query, so the picker
+        // page is the ONLY consumer of these joins.
+        $cableSchedule->load([
+            'items',
+            'items.sourceDevice', 'items.sourcePort',
+            'items.destDevice',   'items.destPort',
+        ]);
 
-        return view('cable-schedule.edit', ['schedule' => $cableSchedule]);
+        // ── Phase 22: build the devices+ports payload the picker modal binds to.
+        // Shape per row: { id, label, manufacturer, model, ports: [{id, port_id,
+        //   label, connector_type, signal_type, side, direction, sort_order}] }
+        //
+        // Project may be null on legacy standalone schedules — empty list is fine,
+        // the picker simply has no devices to pick.
+        //
+        // Per RESEARCH.md A2 we use a direct Device::query (NOT
+        // Project::devicesWithStencils) because a project may carry multiple
+        // physical units of the same model and engineers need to distinguish
+        // them by row.
+        $devicesWithPorts = [];
+        if ($cableSchedule->project_id) {
+            $devicesWithPorts = Device::query()
+                ->where('project_id', $cableSchedule->project_id)
+                ->with(['stencil.ports' => fn ($q) => $q->orderBy('side')->orderBy('sort_order')])
+                ->get()
+                ->map(function (Device $d) {
+                    $label = trim(($d->manufacturer ?? '') . ' ' . ($d->model ?? ''));
+                    if ($label === '') {
+                        $label = $d->part_no ?? ('Device #' . $d->id);
+                    }
+                    if ($d->room_name) {
+                        $label .= ' — ' . $d->room_name;
+                    }
+
+                    $ports = optional($d->stencil)?->ports ?? collect();
+
+                    return [
+                        'id'           => $d->id,
+                        'label'        => $label,
+                        'manufacturer' => $d->manufacturer,
+                        'model'        => $d->model,
+                        'ports'        => $ports->map(fn ($p) => [
+                            'id'             => $p->id,
+                            'port_id'        => $p->port_id,
+                            'label'          => $p->label,
+                            'connector_type' => $p->connector_type,
+                            'signal_type'    => $p->signal_type,
+                            'side'           => $p->side,
+                            'direction'      => $p->direction,
+                            'sort_order'     => $p->sort_order,
+                        ])->values()->all(),
+                    ];
+                })
+                ->values()
+                ->all();
+        }
+
+        return view('cable-schedule.edit', [
+            'schedule'         => $cableSchedule,
+            'devicesWithPorts' => $devicesWithPorts,
+        ]);
     }
 
     public function update(Request $request, CableSchedule $cableSchedule): RedirectResponse
