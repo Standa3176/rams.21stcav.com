@@ -330,21 +330,29 @@ class BackfillCablePortFksCommandTest extends TestCase
             'part_no'      => 'DM-NVX-360',
             'qty'          => 1,
         ]);
-        $ambiguousStencil = DeviceStencil::create([
-            'part_number' => DeviceStencil::normalisePartNumber('DM-NVX-360'),
-            'manufacturer' => 'Crestron', 'model' => 'DM-NVX-360',
-            'mxgraph_xml' => '<shape/>', 'source' => DeviceStencil::SOURCE_AUTO_GENERATED,
-        ]);
-        DevicePort::create([
-            'device_stencil_id' => $ambiguousStencil->id, 'label' => 'HDMI 1',
-            'side' => DevicePort::SIDE_LEFT, 'connector_type' => 'hdmi', 'signal_type' => 'video',
-            'direction' => DevicePort::DIRECTION_IN, 'sort_order' => 0, 'port_id' => 'hdmi-1',
-        ]);
-        DevicePort::create([
-            'device_stencil_id' => $ambiguousStencil->id, 'label' => 'HDMI 2',
-            'side' => DevicePort::SIDE_LEFT, 'connector_type' => 'hdmi', 'signal_type' => 'video',
-            'direction' => DevicePort::DIRECTION_IN, 'sort_order' => 1, 'port_id' => 'hdmi-2',
-        ]);
+        // Stencils are catalogued by part_number (UNIQUE across the system —
+        // cross-project shared). firstOrCreate so calling
+        // makeProjectWithThreeItems twice (the project-scoping test) doesn't
+        // hit a UNIQUE constraint on device_stencils.part_number.
+        $ambiguousStencil = DeviceStencil::firstOrCreate(
+            ['part_number' => DeviceStencil::normalisePartNumber('DM-NVX-360')],
+            [
+                'manufacturer' => 'Crestron', 'model' => 'DM-NVX-360',
+                'mxgraph_xml' => '<shape/>', 'source' => DeviceStencil::SOURCE_AUTO_GENERATED,
+            ]
+        );
+        if ($ambiguousStencil->ports()->count() === 0) {
+            DevicePort::create([
+                'device_stencil_id' => $ambiguousStencil->id, 'label' => 'HDMI 1',
+                'side' => DevicePort::SIDE_LEFT, 'connector_type' => 'hdmi', 'signal_type' => 'video',
+                'direction' => DevicePort::DIRECTION_IN, 'sort_order' => 0, 'port_id' => 'hdmi-1',
+            ]);
+            DevicePort::create([
+                'device_stencil_id' => $ambiguousStencil->id, 'label' => 'HDMI 2',
+                'side' => DevicePort::SIDE_LEFT, 'connector_type' => 'hdmi', 'signal_type' => 'video',
+                'direction' => DevicePort::DIRECTION_IN, 'sort_order' => 1, 'port_id' => 'hdmi-2',
+            ]);
+        }
 
         $items = [];
         // Item 0 — matched
