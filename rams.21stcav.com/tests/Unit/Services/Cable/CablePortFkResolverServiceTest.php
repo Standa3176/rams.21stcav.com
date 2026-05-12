@@ -85,17 +85,26 @@ class CablePortFkResolverServiceTest extends TestCase
             'cable_type'    => 'HDMI',
         ]);
 
+        // Two physical units of the same model share a stencil (part_number
+        // is uniquely indexed across the catalog — the same model maps to
+        // exactly one DeviceStencil row).
         [$device1, $port1] = $this->makeDeviceWithSinglePort($project, [
             'manufacturer' => 'Crestron',
             'model'        => 'HD-MD-400',
             'part_no'      => 'HD-MD-400',
         ], ['connector_type' => 'hdmi', 'signal_type' => 'video', 'label' => 'HDMI 1', 'port_id' => 'hdmi-1']);
 
-        [$device2] = $this->makeDeviceWithSinglePort($project, [
+        // Second unit: same stencil, second device row.
+        $device2 = Device::create([
+            'project_id'   => $project->id,
+            'description'  => 'Crestron HD-MD-400 (second unit)',
             'manufacturer' => 'Crestron',
             'model'        => 'HD-MD-400',
             'part_no'      => 'HD-MD-400',
-        ], ['connector_type' => 'hdmi', 'signal_type' => 'video', 'label' => 'HDMI 1', 'port_id' => 'hdmi-1']);
+            'qty'          => 1,
+        ]);
+        $existingStencil = DeviceStencil::where('part_number', DeviceStencil::normalisePartNumber('HD-MD-400'))->first();
+        $this->attachStencilToDevice($device2, $existingStencil);
 
         $decision = $this->resolver->resolve($item, collect([$device1, $device2]));
 
