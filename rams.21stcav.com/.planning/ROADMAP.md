@@ -86,7 +86,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
 **Plans**: 3 plans, 2 waves
   - [x] 22-01-PLAN.md — Schema migration (4 FK columns + override-note + port-pair index) + CableScheduleItem fillable + belongsTo relations + config/cables.php + CableConnectorCompatibilityService. Wave 1 — foundation. Requirements: DRAW-37, DRAW-39.
   - [x] 22-02-PLAN.md — Alpine.js port-picker modal (D-02 side-by-side) + chain-link icon column + extended CableScheduleController@update with cross-project FK injection guard (T-22-A4) + D-10 regression tests (XLSX byte-identity + SchematicGenerator NULL-FK case). Wave 2 — depends on 22-01. Requirements: DRAW-38, DRAW-39.
-  - [ ] 22-03-PLAN.md — CablePortFkResolverService (pure deterministic matcher) + cables:backfill-port-fks artisan command (dry-run-default with --apply flag, per-row 4-category report, idempotent, T-22-A5/A6 mitigated). Wave 2 — depends on 22-01. Requirements: DRAW-40, DRAW-41.
+  - [x] 22-03-PLAN.md — CablePortFkResolverService (pure deterministic matcher) + cables:backfill-port-fks artisan command (dry-run-default with --apply flag, per-row 4-category report, idempotent, T-22-A5/A6 mitigated). Wave 2 — depends on 22-01. Requirements: DRAW-40, DRAW-41.
 **UI hint**: yes (cascading dropdown UI on cable schedule edit; backend command + form changes)
 **Canonical refs**:
   - `.planning/phases/21-device-port-catalog-stencil-cache/21-CONTEXT.md` (Phase 21 decisions D-01..D-15 â€” port catalog contract)
@@ -203,7 +203,7 @@ Floor plan drawing tool moved out of v1.3 scope on 2026-05-02 to avoid building 
 *"Clients see what they need, when they need it"*
 
 - [x] Phase 21: Client Portal â€” Branded project status page per client/site with secure access (completed 2026-05-10)
-- [ ] Phase 22: Document Access â€” Clients download RAMS, O&M, drawings and certificates from portal
+- [x] Phase 22: Document Access â€” Clients download RAMS, O&M, drawings and certificates from portal (completed 2026-05-12)
 - [ ] Phase 23: Survey & Installation Progress â€” Live completion percentages per room visible to client
 - [ ] Phase 24: Notification & Communication â€” Client receives updates on project milestones and document availability
 
