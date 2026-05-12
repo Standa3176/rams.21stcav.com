@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\BuildCableScheduleJob;
 use App\Models\CableSchedule;
 use App\Models\CableScheduleItem;
+use App\Models\Device;
 use App\Models\Project;
 use App\Services\CableScheduleGeneratorService;
 use App\Services\PdfTextExtractorService;
@@ -16,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -128,7 +130,64 @@ class CableScheduleController extends Controller
             'items.*.cores'           => ['nullable', 'string', 'max:50'],
             'items.*.approx_length_m' => ['nullable', 'numeric', 'min:0'],
             'items.*.notes'           => ['nullable', 'string', 'max:500'],
+            // ── Phase 22 port-FK additions (DRAW-37, DRAW-38, DRAW-39) ────────
+            'items.*.source_device_id'        => ['nullable', 'integer', 'exists:devices,id'],
+            'items.*.source_port_id'          => ['nullable', 'integer', 'exists:device_ports,id'],
+            'items.*.dest_device_id'          => ['nullable', 'integer', 'exists:devices,id'],
+            'items.*.dest_port_id'            => ['nullable', 'integer', 'exists:device_ports,id'],
+            'items.*.connector_override_note' => ['nullable', 'string', 'max:500'],
         ]);
+
+        // ── T-22-A4 cross-project FK injection guard (HIGH severity) ──────────
+        // Per Phase 22 RESEARCH.md §"Security Domain": `exists:devices,id` is
+        // NECESSARY but NOT SUFFICIENT. An engineer working on project A could
+        // inject a device_id from project B and Eloquent would happily save it.
+        // Walk every submitted FK and assert the device's project_id matches the
+        // cable schedule's project_id. Reject with 422 on any mismatch BEFORE
+        // entering the DB::transaction so $cableSchedule->items()->delete() is
+        // never reached on failed validation (pre-seeded rows survive).
+        //
+        // NULL FKs are legitimate (legacy text-only rows) and skip the check.
+        // Cable schedules without a project_id (legacy standalone) skip the
+        // check too — no project to enforce membership against.
+        //
+        // Note: source_port_id / dest_port_id are NOT re-validated here — ports
+        // are stencil-scoped (cross-project shared) not project-scoped, so the
+        // standard `exists:device_ports,id` rule is sufficient. The picker UI
+        // enforces the device→port relationship; a malicious user picking a
+        // port_id with the wrong device_id results in saved-but-mismatched data,
+        // which the picker prevents and the backend does not re-verify.
+        if ($cableSchedule->project_id !== null) {
+            $submittedDeviceIds = collect($request->input('items', []))
+                ->flatMap(fn ($item) => [
+                    $item['source_device_id'] ?? null,
+                    $item['dest_device_id']   ?? null,
+                ])
+                ->filter() // drops nulls and falsy values
+                ->unique()
+                ->values()
+                ->all();
+
+            if (! empty($submittedDeviceIds)) {
+                $wrongProjectCount = Device::query()
+                    ->whereIn('id', $submittedDeviceIds)
+                    ->where('project_id', '!=', $cableSchedule->project_id)
+                    ->count();
+
+                if ($wrongProjectCount > 0) {
+                    Log::warning('CableScheduleController: cross-project FK injection blocked', [
+                        'cable_schedule_id' => $cableSchedule->id,
+                        'project_id'        => $cableSchedule->project_id,
+                        'user_id'           => auth()->id(),
+                        'submitted_device_ids' => $submittedDeviceIds,
+                    ]);
+
+                    throw ValidationException::withMessages([
+                        'items.0.source_device_id' => 'One or more devices in this submission belong to a different project. Refresh the page and re-pick ports.',
+                    ]);
+                }
+            }
+        }
 
         DB::transaction(function () use ($request, $cableSchedule) {
             $cableSchedule->update(['status' => $request->input('status', $cableSchedule->status)]);
