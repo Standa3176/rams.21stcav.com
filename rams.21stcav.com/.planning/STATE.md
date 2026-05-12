@@ -2,15 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
-status: verifying
-stopped_at: Phase 22 context gathered
-last_updated: "2026-05-11T19:07:53.248Z"
-last_activity: 2026-05-10
+status: executing
+stopped_at: Completed 22-01-PLAN.md
+last_updated: "2026-05-12T08:25:45.416Z"
+last_activity: 2026-05-12
 progress:
   total_phases: 1
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 3
+  completed_plans: 1
+  percent: 33
 ---
 
 ## Project Reference
@@ -18,14 +19,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-30)
 
 **Core value:** One dataset powers every document.
-**Current focus:** Phase 21 — device-port-catalog-stencil-cache
+**Current focus:** Phase 22 — Cable Schedule with Port-Level FKs
 
 ## Current Position
 
-Phase: 999.1
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-05-10
+Phase: 22 (Cable Schedule with Port-Level FKs) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-05-12
 
 ## Milestone Progress (v1.3)
 
@@ -59,10 +60,13 @@ Last activity: 2026-05-10
 | Phase 21 P01 | 13min | 3 tasks | 10 files |
 | Phase 21 P02 | 21min | 2 tasks | 19 files |
 | Phase 21 P03 | 9min | 2 tasks | 21 files |
+| Phase 22 P22-01 | 7min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
 ### Key Decisions (v2.0)
+
+- **Plan 22-01 LANDED** (2026-05-12) — Strictly-additive port-FK foundation for Phase 22. 5 nullable columns + 1 compound index on `cable_schedule_items` via `2026_05_15_000000_add_port_fks_to_cable_schedule_items` migration: `source_device_id` / `source_port_id` / `dest_device_id` / `dest_port_id` all `nullOnDelete` (preserves text rep on Device deletion — same state as never-FK'd legacy row), `connector_override_note` text nullable, `cable_schedule_items_port_pair_idx` on `(source_port_id, dest_port_id)` for Phase 23 renderer port-pair lookups. Generic D-09 naming (no rams_/project_ prefix) for SCC merge readiness. `CableScheduleItem` extended to 14 `$fillable` keys (9 originals + 5 Phase 22) + 4 belongsTo relations (sourceDevice/sourcePort/destDevice/destPort) — NO `$with` property (D-10 guard reflection-asserted via `ReflectionProperty(CableScheduleItem::class, 'with')`; class-level eager-load would force 4 LEFT JOINs across XLSX export + bound-PDF + schematic generator read paths). `config/cables.php` ships 4 bidirectional alias pairs (HDMI↔DP active adapter, USB-C↔Thunderbolt, RJ45↔SFP+, USB-C→HDMI Alt Mode) + 8-key `signal_type_colours` map for Phase 23 — single source of truth shared with picker UI via `@js(config('cables.compatibility_aliases'))`. `CableConnectorCompatibilityService::check(string $src, string $dst)` pure-function over config: exact match returns `{compatible:true, reason:null}`; case-insensitive trim normalisation; bidirectional allowlist match returns reason from `note` (A4 — HDMI↔DP works both ways); mismatch returns `Connector mismatch: $src → $dst`; Pitfall 4 — empty/whitespace connector_type returns compatible with "connector type not catalogued — assume compatible" (Tier 1.5 stencil tolerance: 91/96 seeded stencils still need Phase 24 curation). T-22-A1 mass-assignment mitigated by `$fillable` whitelist — `test_unknown_keys_are_dropped_by_fillable` proves unknown items[N][*] keys are silently dropped. **24 new tests pass (5 Feature migration + 7 Unit model relations + 12 Unit service / 77 assertions). 41 tests / 142 assertions across `--filter=Cable|Connector` GREEN with 1 pre-existing D2-binary skip.** D-10 verified: zero diff against SchematicGeneratorService / SchematicD2SourceBuilder / DrawingDataResolverService / CableScheduleXlsxService / CableScheduleGeneratorService. Migration roundtrip clean (`migrate:fresh` 244ms + `rollback --step=1` 308ms + re-apply 275ms). Commits: `ddf12db` (Task 1 migration + tests) + `7c1c55b` (Task 2 model + relation tests) + `040db26` (Task 3 config + service + tests) — TDD RED→GREEN per task. Two minor test-fixture deviations auto-fixed (Rule 3): (1) `Device::create` required `description` field in Task 1 nullOnDelete test fixture (SQLite NOT NULL constraint); (2) swapped `create()` for `forceFill()->save()` on the 2 Task 1 tests that exercise new FK columns before Task 2's `$fillable` whitelist lands — both are test-mechanics adjustments, no production-code change. Zero behavioural deviations. **DRAW-37 + DRAW-39 partially satisfied (schema + model + config + compat service — picker UI + update handler land in Plan 22-02; backfill command in Plan 22-03). Plans 22-02 + 22-03 both unblocked.**
 
 - **Plan 21-03 LANDED** (2026-05-10) — Phase 21 COMPLETE. DRAW-35 manufacturer logos + DrawIoBuilderService rewire shipped. 15 new SVG glyphs at `public/img/manufacturers/` per D-06 (viewBox 0 0 100 30, currentColor, ~400-700 bytes each): crestron/cisco/qsc/bogen/polycom/logitech/shure/sony/extron/biamp/yamaha/atlona/lightware/q-sys/barco. Total directory now **20 SVGs** (5 spike PRESERVED + 15 new). `ManufacturerLogoResolver` case-insensitive substring lookup with most-specific-first needle ordering: q-sys before qsc (avoid 'qsc' substring matching 'q-sys'); clickshare before barco per D-14 (Barco ClickShare products keep using existing clickshare.svg; non-ClickShare Barco F50 etc fall through to new barco.svg); poly aliased to polycom. resolveSvg / resolveAssetPath / knownManufacturers public contract; per-instance file-read memoisation via string|false sentinel. `DrawIoBuilderService` reads from `Project::devicesWithStencils()` (Plan 21-01 cache contract) — every hardware part_number lands a stencil cell. Curated stencils from Plan 21-02 seed pack render with full mxgraph_xml base64-embedded via `shape=stencil(...)`; uncatalogued part_numbers auto-create as Tier 1 placeholders on first read. Layout heuristic INTENTIONALLY shallow per Nit 9 — 4-column grid (videobar/byod/mic | switch | display | other) keyed off the 5 spike-promoted slugs ONLY; NO port-composition heuristic; TODO(phase-23) inline marker. Cable derivation preserved verbatim from spike (canonical Teams Room signal chain); Phase 22 replaces with port-FK lookup. `DrawIoSpikeBuilderService` collapsed from ~560 lines to a 10-line backwards-compat shim per D-08 (@deprecated docblock; class preserved). `DrawIoSpikeController` constructor first parameter type-hint flipped to `DrawIoBuilderService`; second parameter `DrawingService $drawings` PRESERVED per D-08 + Warning 2 (consumed by saveXml/exportSvg) — reflection-asserted in `DrawIoBuilderServiceTest`. D-10 verified: zero diff against `DeviceCatalogService` / `SchematicGeneratorService` / `SchematicD2SourceBuilder` / `DrawingDataResolverService` / `device-port-catalog.json`. D-14 verified: `clickshare.svg` untouched. **20 plan tests / 68 assertions pass (14 ManufacturerLogoResolver + 6 DrawIoBuilderService). Full Drawings suite 131/1633 GREEN with zero regression vs Plan 21-02 baseline (1 pre-existing D2-binary skip on dev).** Commits: `6e6b174` RED + `233dbfc` GREEN (Task 1 logos+resolver); `7d452b5` RED + `5936feb` GREEN (Task 2 builder+shim+controller). Zero deviations — plan executed exactly as written. **DRAW-35 complete. Phase 21 COMPLETE — all 6 requirement IDs (DRAW-31, 32, 33, 34, 35, 36) satisfied across the 3 plans.**
 
@@ -105,11 +109,13 @@ Last activity: 2026-05-10
 
 ## Session Continuity
 
-**Last session ended:** 2026-05-10 — Plan 21-03 (manufacturer logos + DrawIoBuilderService rewire) completed in 9 minutes / 4 commits (TDD RED→GREEN per task) / 21 files (19 created + 2 modified). 15 new SVG glyphs landed at public/img/manufacturers/ (crestron/cisco/qsc/bogen/polycom/logitech/shure/sony/extron/biamp/yamaha/atlona/lightware/q-sys/barco) per D-06 — total directory now 20 SVGs (5 spike PRESERVED + 15 new). ManufacturerLogoResolver case-insensitive substring lookup with most-specific-first needle ordering (q-sys before qsc; clickshare before barco per D-14). DrawIoBuilderService reads from Project::devicesWithStencils() — 4-column shallow grid layout per Nit 9; canonical Teams Room cable chain preserved verbatim from spike. DrawIoSpikeBuilderService collapsed to a 10-line backwards-compat shim per D-08. DrawIoSpikeController constructor: first param flipped to DrawIoBuilderService, SECOND param DrawingService PRESERVED per D-08 + Warning 2 (reflection-asserted). 20 plan tests / 68 assertions pass. Full Drawings suite 131/1633 GREEN with zero regression. D-10 + D-14 verified. Zero deviations. **Phase 21 COMPLETE — all 6 requirement IDs (DRAW-31, 32, 33, 34, 35, 36) satisfied across 3 plans.**
+**Last session ended:** 2026-05-12 — Plan 22-01 (schema + model + config + compatibility service — Phase 22 foundation) completed in 7 minutes / 3 commits (TDD RED→GREEN per task) / 7 files (6 created + 1 modified). 5 nullable port-FK columns + 1 compound index landed on `cable_schedule_items` via `2026_05_15_000000_add_port_fks_to_cable_schedule_items` migration with `nullOnDelete` FKs preserving text fallback on Device deletion. `CableScheduleItem` extended to 14 fillable keys + 4 belongsTo relations (sourceDevice/sourcePort/destDevice/destPort) with NO `$with` property — D-10 guard reflection-asserted. `config/cables.php` ships 4 bidirectional alias pairs + 8-key signal_type_colours for Phase 23. `CableConnectorCompatibilityService::check()` pure-function over config: exact match, case-insensitive trim, bidirectional allowlist, Pitfall-4 empty-tolerance for Tier 1.5 stencils. **24 new tests pass (5 + 7 + 12 / 77 assertions). 41 tests / 142 assertions across `--filter=Cable|Connector` GREEN.** D-10 verified: zero diff against SchematicGeneratorService + SchematicD2SourceBuilder + DrawingDataResolverService + CableScheduleXlsxService + CableScheduleGeneratorService. Migration roundtrip clean. Commits: `ddf12db` + `7c1c55b` + `040db26`. Two minor test-fixture deviations auto-fixed (Device.description NOT NULL + forceFill bypass before Task 2 $fillable lands). Zero behavioural deviations. **DRAW-37 + DRAW-39 partial (schema + model + config + compat service shipped; picker UI + update handler land in Plan 22-02; backfill in Plan 22-03). Plans 22-02 + 22-03 both unblocked.**
 
-**Stopped at:** Phase 22 context gathered
+**Stopped at:** Completed 22-01-PLAN.md
 
-**Next session starts:** Phase 21 verification gates (code-review, regression, verifier). Live deploy required for Plan 21-03: 19 files (15 new SVGs + ManufacturerLogoResolver + DrawIoBuilderService + DrawIoSpikeBuilderService shim + DrawIoSpikeController) + `php artisan route:clear / config:clear / cache:clear / view:clear`. clickshare.svg NOT uploaded (D-14 preserved). Once verified, Phase 22 (cable schedule port FKs) is next on the v2.0 roadmap.
+**Next session starts:** Plan 22-02 — picker UI + update handler (depends on 22-01). Live deploy for Plan 22-01: 4 files (1 migration + 1 modified model + 1 new config + 1 new service) — run `php artisan migrate --force` + `php artisan config:clear` on live AFTER upload. No view rebuild, no Composer/npm changes.
+
+**Earlier session (2026-05-10):** Plan 21-03 (manufacturer logos + DrawIoBuilderService rewire) completed in 9 minutes / 4 commits / 21 files. Phase 21 COMPLETE — all 6 DRAW IDs satisfied.
 
 **Earlier session (2026-05-10):** Plan 21-02 (engineer-curated seed pack: 5 spike + 53 v1.3 promoted + 39 gap-fill + idempotent seeder) completed in 21 minutes / 5 commits / 19 files.
 
