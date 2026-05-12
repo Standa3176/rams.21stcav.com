@@ -526,22 +526,22 @@ protected $description = 'Resolve and populate port-level FKs on cable_schedule_
 
 **A2 is the only assumption with material planning implications.** The planner should resolve it during Plan 22-02 design.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **What happens when a backfilled FK points at a device row that gets later deleted?**
    - What we know: `nullOnDelete()` ensures the FK clears but the row survives.
    - What's unclear: does anything need to re-derive the text representation if the device that originally provided the canonical label is gone?
-   - Recommendation: Document in CableScheduleItem docblock that "FK NULL after device deletion is the same state as a never-FK'd legacy row — text representation is preserved as-is, no auto-rewrite." Test this explicitly in Plan 22-02.
+   - RESOLVED: Document in CableScheduleItem docblock that "FK NULL after device deletion is the same state as a never-FK'd legacy row — text representation is preserved as-is, no auto-rewrite." Test this explicitly in Plan 22-02.
 
 2. **Should the picker support "free text" for legacy-style entries (engineer wants `From: Mains via 13A spur` and no FK)?**
    - What we know: CONTEXT D-04 says "engineers who want custom freeform text simply don't open the picker on that row" — so the answer is: yes, just don't open the picker.
    - What's unclear: should the picker have a "Clear ports" button to UNDO a previous pick?
-   - Recommendation: Yes — add a "Clear" button inside the picker that, on Apply, writes NULL to all 4 FK columns + the override-note, and toggles the chain-link icon back to faded. Plan 22-02 should include this as a small but UX-essential feature.
+   - RESOLVED: Yes — add a "Clear" button inside the picker that, on Apply, writes NULL to all 4 FK columns + the override-note, and toggles the chain-link icon back to faded. Plan 22-02 should include this as a small but UX-essential feature.
 
 3. **Does the legacy text-only rendering (XLSX export, bound-PDF section) need to surface the port FKs in any way?**
    - What we know: CONTEXT D-10 says "no behaviour change for existing data paths". XLSX export at `CableScheduleXlsxService.php` only reads `from_location` / `to_location` / `cable_type` etc. — never the new columns.
    - What's unclear: nothing — but the planner must include a regression test that proves XLSX byte-output is unchanged for a fixture with FK-populated rows.
-   - Recommendation: Plan 22-02 adds `CableScheduleXlsxRegressionTest` asserting byte-equivalent output across FK NULL and FK populated rows.
+   - RESOLVED: Plan 22-02 adds `CableScheduleXlsxRegressionTest` asserting byte-equivalent output across FK NULL and FK populated rows.
 
 ## Environment Availability
 
