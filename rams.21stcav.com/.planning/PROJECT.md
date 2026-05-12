@@ -1,6 +1,6 @@
 # RAMS Platform — AV Operations System
 
-## Current State (as of 2026-05-10)
+## Current State (as of 2026-05-12)
 
 **Latest shipped milestone:** v1.3 Technical Drawings & Schematics (2026-05-09)
 
@@ -26,6 +26,18 @@ follows v2.0.
   from `device_stencils` (the spike admin route now consumes the live DB). 6/6 requirements
   shipped (DRAW-31..36); 16/16 must-haves verified; zero regressions to the v1.3 D2
   generator. Foundation for Phases 22–25.
+- ✅ **Phase 22: Cable Schedule with Port-Level FKs** — completed 2026-05-12. 4 nullable FK
+  columns (`source_device_id`, `source_port_id`, `dest_device_id`, `dest_port_id`) +
+  `connector_override_note` on `cable_schedule_items` with `nullOnDelete` semantics, Alpine.js
+  modal port-picker (D-02 side-by-side SOURCE/DEST, D-03 chain-link icon column, D-04 canonical
+  label overwrite), `config/cables.php` bidirectional compatibility allowlist + Phase 23
+  signal-type colour map, pure-function `CableConnectorCompatibilityService`, T-22-A4 HIGH-severity
+  cross-project FK injection guard (form + JSON paths), and `cables:backfill-port-fks` artisan
+  command (dry-run default, `--apply` writes, 4 outcome categories, idempotent — `ambiguous`
+  leaves all 4 FKs NULL per W5). 5/5 requirements shipped (DRAW-37..41); 14/14 must-haves
+  verified; D-10 invariant locked (5 v1.3 surface files unchanged + XLSX byte-identity test
+  + schematic NULL-FK test). 74 Cable+Connector tests green / 331 assertions. 8 human UAT
+  items pending (modal UX + live-env byte-identity re-runs). Data layer ready for Phase 23.
 
 ## What This Is
 
