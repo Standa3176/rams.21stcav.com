@@ -210,8 +210,10 @@ class CableScheduleController extends Controller
         // never reached on failed validation (pre-seeded rows survive).
         //
         // NULL FKs are legitimate (legacy text-only rows) and skip the check.
-        // Cable schedules without a project_id (legacy standalone) skip the
-        // check too — no project to enforce membership against.
+        // Legacy standalone schedules (project_id IS NULL) have no project to
+        // enforce membership against, so we reject any non-null device FKs in
+        // the payload outright — these schedules are text-only by contract and
+        // the picker UI does not surface devices for them. See WR-01.
         //
         // Note: source_port_id / dest_port_id are NOT re-validated here — ports
         // are stencil-scoped (cross-project shared) not project-scoped, so the
@@ -219,7 +221,31 @@ class CableScheduleController extends Controller
         // enforces the device→port relationship; a malicious user picking a
         // port_id with the wrong device_id results in saved-but-mismatched data,
         // which the picker prevents and the backend does not re-verify.
-        if ($cableSchedule->project_id !== null) {
+        if ($cableSchedule->project_id === null) {
+            // WR-01: legacy standalone schedule — no project to enforce
+            // membership against. Reject any submitted source_device_id or
+            // dest_device_id outright. Without this guard, the @edit picker
+            // payload is empty (line 138 only builds it when project_id is
+            // non-null) but a crafted POST could still attach arbitrary
+            // device_ids and Eloquent would save them.
+            $hasFkInPayload = collect($request->input('items', []))
+                ->contains(fn ($item) => ! empty($item['source_device_id'])
+                    || ! empty($item['dest_device_id']));
+
+            if ($hasFkInPayload) {
+                Log::warning('CableScheduleController: port FKs submitted on legacy NULL-project schedule', [
+                    'cable_schedule_id' => $cableSchedule->id,
+                    'user_id'           => auth()->id(),
+                ]);
+
+                throw ValidationException::withMessages([
+                    'items.0.source_device_id' => 'Port FKs require a project-linked cable schedule. Legacy standalone schedules are text-only.',
+                ]);
+            }
+        } else {
+            // Project-linked schedule: walk every submitted device_id and
+            // assert membership in the schedule's project.
+            //
             // Build per-side maps: row key -> device id, so that when a device
             // turns out to be cross-project we can key the validation error on
             // the side (source vs dest) the engineer actually filled in. The

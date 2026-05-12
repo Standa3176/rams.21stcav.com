@@ -234,4 +234,63 @@ class CableScheduleCrossProjectFkInjectionTest extends TestCase
         // schedule owner unchanged
         $this->assertSame($user->id, $schedule->fresh()->user_id);
     }
+
+    public function test_legacy_schedule_rejects_port_fks_in_payload(): void
+    {
+        // Phase 22 WR-01 — legacy standalone schedules (project_id IS NULL) are
+        // text-only by contract. Without a project there is nothing to enforce
+        // device membership against, so any submitted source_device_id /
+        // dest_device_id MUST be rejected with 422. The picker UI already
+        // refuses to render the dropdown for these schedules (controller@edit
+        // line 138 gates the payload build on a non-null project_id), but the
+        // server-side guard is what protects against crafted POSTs.
+        $user = User::factory()->create();
+        $otherProject = Project::factory()->create(['user_id' => $user->id]);
+
+        // Legacy standalone schedule — NO project_id.
+        $schedule = CableSchedule::create([
+            'user_id'      => $user->id,
+            'project_id'   => null,
+            'project_name' => 'Standalone',
+            'status'       => CableSchedule::STATUS_DRAFT,
+        ]);
+
+        // A device that exists in the devices table but belongs to a different
+        // project — the standard `exists:devices,id` rule would accept this.
+        $foreignDevice = Device::create([
+            'project_id'   => $otherProject->id,
+            'description'  => 'Crestron HD-MD-400 HDMI Multiformat Receiver',
+            'manufacturer' => 'Crestron',
+            'model'        => 'HD-MD-400',
+            'qty'          => 1,
+        ]);
+
+        // Pre-seed a text-only item so we can verify the guard fires BEFORE
+        // items()->delete() — the existing row must survive the failed submit.
+        $schedule->items()->create([
+            'sort_order'    => 0,
+            'from_location' => 'Original-From',
+            'to_location'   => 'Original-To',
+            'cable_type'    => 'HDMI',
+        ]);
+
+        $response = $this->actingAs($user)
+            ->put(route('cable-schedules.update', $schedule), [
+                'items' => [
+                    [
+                        'from_location'    => 'Bar',
+                        'to_location'      => 'Display',
+                        'source_device_id' => $foreignDevice->id,
+                    ],
+                ],
+            ]);
+
+        $response->assertStatus(302);
+        $response->assertSessionHasErrors(['items.0.source_device_id']);
+
+        // Pre-seeded item unchanged — guard fired before items()->delete().
+        $fresh = $schedule->fresh();
+        $this->assertSame(1, $fresh->items()->count());
+        $this->assertSame('Original-From', $fresh->items->first()->from_location);
+    }
 }
