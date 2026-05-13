@@ -10,7 +10,7 @@ namespace App\Core\AI\Prompts;
  * `AIProviderContract::execute()`.
  *
  * Usage:
- *   $prompt = new RamsPrompt($hazards, $scope);
+ *   $prompt = new MethodStatementPrompt($scope);
  *   $data   = $manager->provider()->execute($prompt);
  */
 abstract class BasePrompt

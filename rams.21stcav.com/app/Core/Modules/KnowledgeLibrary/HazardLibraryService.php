@@ -12,10 +12,10 @@ use Illuminate\Support\Str;
  * Responsibilities:
  *   1. Resolve a RAMS hazard list from a mix of library template IDs and AI-seed strings.
  *   2. Guarantee mandatory baseline hazards always appear in every RAMS.
- *   3. Provide formatted data for RamsPrompt::build() context.
+ *   3. Provide formatted data for downstream method-statement prompt context.
  *   4. Offer the full library for JSON API / modal use.
  *
- * Usage inside RamsController / RamsGeneratorService:
+ * Usage inside RamsController / RamsBuilderService:
  *   $service = app(HazardLibraryService::class);
  *
  *   // From explicit IDs (RAMS create form):
@@ -24,7 +24,7 @@ use Illuminate\Support\Str;
  *   // From AI-extracted seeds (QuoteImport → auto-RAMS flow):
  *   $hazards = $service->resolveFromSeeds(auth()->id(), $extracted['hazards']);
  *
- *   // Pass to RamsPrompt:
+ *   // Pass into downstream prompt context (e.g. MethodStatementPrompt):
  *   $context['hazards'] = $service->toPromptData($hazards);
  */
 class HazardLibraryService
@@ -115,7 +115,7 @@ class HazardLibraryService
     // ── RAMS prompt formatting ────────────────────────────────────────────────
 
     /**
-     * Convert a resolved collection into the array format expected by RamsPrompt::build().
+     * Convert a resolved collection into the array format expected by downstream method-statement prompt context.
      *
      * Each item becomes: ['name' => '...', 'description' => '...', 'controls' => [...]]
      *

@@ -18,7 +18,7 @@ use RuntimeException;
  * convenience wrappers for the two common patterns:
  *
  *   1. Execute a typed Prompt DTO with automatic retry:
- *      $data = AIManager::run(new RamsPrompt(), $context);
+ *      $data = AIManager::run(new MethodStatementPrompt(), $context);
  *
  *   2. Execute against an explicit provider:
  *      $data = AIManager::make('claude')->execute($prompt);

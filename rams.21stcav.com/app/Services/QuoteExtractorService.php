@@ -14,7 +14,7 @@ use RuntimeException;
  * No third-party PDF parser is needed — the raw PDF bytes are base64-encoded
  * and sent directly to Claude, which reads the document natively.
  *
- * Returns an array with keys ready to drive RamsGeneratorService::generate().
+ * Returns an array with keys ready to drive downstream RAMS-extraction pipelines.
  */
 class QuoteExtractorService
 {
