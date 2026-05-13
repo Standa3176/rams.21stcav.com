@@ -460,7 +460,11 @@ class ProjectPackageReviewController extends Controller
         $roomLines = [];
         foreach ($roomOverviews as $ro) {
             $room    = trim((string) ($ro['room'] ?? ''));
-            $summary = trim((string) ($ro['works_summary'] ?? $ro['summary'] ?? ''));
+            // Phase 22.1 Plan 07: canonical key is `works_summary`. The legacy
+            // `summary` fallback is dead — read-side normaliser projects to the
+            // canonical 4-key shape before this point (see RamsReviewDataService
+            // ::normaliseRoomOverviews).
+            $summary = trim((string) ($ro['works_summary'] ?? ''));
             $overview = trim((string) ($ro['overview'] ?? ''));
             $stId    = (int) ($ro['solution_type_id'] ?? 0);
             $stName  = $stId ? (($solutionTypes[$stId] ?? null)?->name ?? '') : '';
