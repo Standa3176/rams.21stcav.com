@@ -299,15 +299,20 @@ class ExtractQuoteJob implements ShouldQueue
         }
         // Scaffold minimal room_overviews from rooms list when the tag-based path
         // produced nothing — ensures the review form always has rows to display.
+        //
+        // Phase 22.1 closure (Plan 07): emit the canonical 4-key shape only.
+        // `solution_type_id` is `null` not `''` to match the normaliser's
+        // expected type (RamsReviewDataService::normaliseRoomOverviews coerces
+        // both to null but `null` is the honest representation). The legacy
+        // `summary` and `description` keys are gone — RoomOverviewSummaryService
+        // now writes `works_summary` directly per the same plan.
         if (empty($ai['room_overviews']) && ! empty($ai['rooms'])) {
             $ai['room_overviews'] = array_values(array_map(
                 static fn (string $roomName): array => [
                     'room'             => $roomName,
                     'overview'         => '',
                     'works_summary'    => '',
-                    'solution_type_id' => '',
-                    'summary'          => '',
-                    'description'      => '',
+                    'solution_type_id' => null,
                 ],
                 (array) $ai['rooms']
             ));

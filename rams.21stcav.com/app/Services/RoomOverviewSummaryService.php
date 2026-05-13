@@ -10,14 +10,20 @@ use Illuminate\Support\Facades\Log;
 class RoomOverviewSummaryService
 {
     /**
-     * @param  array  $roomOverviews  [['room' => '', 'overview' => '', 'summary' => ''], ...]
-     * @return array  same structure with updated summaries
+     * @param  array  $roomOverviews  [['room' => '', 'overview' => '', 'works_summary' => ''], ...]
+     * @return array  same structure with updated works_summary bullets
      *
-     * Phase 22.1 D-01: the legacy `description` field is no longer persisted —
-     * the AI prompt (RoomOverviewSummaryPrompt) no longer instructs the model
-     * to produce it, and downstream services (MethodStatementService::
-     * buildRoomDescriptions) now read PM-typed `overview` directly. The single
-     * AI output is `summary` (bullet list).
+     * Phase 22.1 closure (Plan 07): the canonical persistence key is
+     * `works_summary` (single source of truth per D-07 in 22.1-CONTEXT.md).
+     * The AI's JSON output key is still `summary` (RoomOverviewSummaryPrompt
+     * contract — unchanged), but this service translates AI `summary` →
+     * canonical `works_summary` before returning. Callers persist the rows
+     * verbatim into `extracted_data['room_overviews']`.
+     *
+     * Phase 22.1 D-01: the legacy `description` field is not produced — the
+     * AI prompt no longer instructs the model to emit it, and downstream
+     * services (MethodStatementService::buildRoomDescriptions) read PM-typed
+     * `overview` directly.
      */
     public function summarize(array $roomOverviews): array
     {
@@ -40,7 +46,7 @@ class RoomOverviewSummaryService
 
         if (empty($roomsForAi)) {
             return array_map(function ($r) {
-                $r['summary'] = '';
+                $r['works_summary'] = '';
                 return $r;
             }, $roomOverviews);
         }
@@ -64,11 +70,11 @@ class RoomOverviewSummaryService
                 $room     = (string) ($r['room'] ?? '');
                 $overview = (string) ($r['overview'] ?? '');
                 if ($room !== '' && isset($summaries[$room])) {
-                    $r['summary'] = $summaries[$room]['summary'] !== ''
+                    $r['works_summary'] = $summaries[$room]['summary'] !== ''
                         ? $summaries[$room]['summary']
                         : $this->fallbackSummary($overview);
                 } else {
-                    $r['summary'] = $this->fallbackSummary($overview);
+                    $r['works_summary'] = $this->fallbackSummary($overview);
                 }
                 return $r;
             }, $roomOverviews);
@@ -79,7 +85,7 @@ class RoomOverviewSummaryService
         }
 
         return array_map(function ($r) {
-            $r['summary'] = $this->fallbackSummary((string) ($r['overview'] ?? ''));
+            $r['works_summary'] = $this->fallbackSummary((string) ($r['overview'] ?? ''));
             return $r;
         }, $roomOverviews);
     }
