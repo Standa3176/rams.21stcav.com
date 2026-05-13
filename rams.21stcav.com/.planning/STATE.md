@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
 status: executing
-stopped_at: Completed 22.1-02-PLAN.md
-last_updated: "2026-05-13T11:42:27.689Z"
+stopped_at: Completed 22.1-03-PLAN.md
+last_updated: "2026-05-13T12:03:59.259Z"
 last_activity: 2026-05-13
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 9
-  completed_plans: 5
-  percent: 56
+  completed_plans: 6
+  percent: 67
 ---
 
 ## Project Reference
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-04-30)
 ## Current Position
 
 Phase: 22.1 (rams-scope-room-data-consolidation) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Status: Ready to execute
 Last activity: 2026-05-13
 
@@ -65,10 +65,13 @@ Last activity: 2026-05-13
 | Phase 22 P22-03 | 12min | 2 tasks | 4 files |
 | Phase 22.1 P01 | 2min | 1 tasks | 1 files |
 | Phase 22.1 P02 | 5min | 1 tasks | 2 files |
+| Phase 22.1 P03 | 35m | 2 tasks | 9 files |
 
 ## Accumulated Context
 
 ### Key Decisions (v2.0)
+
+- **Plan 22.1-03 LANDED** (2026-05-13) — DATA-02 + DATA-04 shipped. Pure-function  +  artisan (dry-run-default,  persists, 4-category report — backfilled/already-set/both-set-no-action/neither-set, idempotent: re-run on backfilled rows lands in  because legacy summary preserved verbatim — Plan 06 owns the schema-trim of on-disk JSON). T-22.1-05 SQL-injection mitigated by  cast on  arg + Eloquent parameterised bindings (test runs  and asserts  survives). Schema-trim:  outputs exactly 4 keys (room/overview/works_summary/solution_type_id) — legacy // dropped, load-time backfill block removed. D-01 input swap:  reads  not , falls back to  joined-paragraph when overview empty. D-07 drop:  legacy fallback removed from  in BOTH  AND  (cache key). AI prompt:  no longer instructs description output — single surviving output is the summary bullet list. Controller shim:  returns engineer-typed  verbatim as the  JSON response key for front-end compat (legacy AI-generated prose is gone, but the response shape is preserved). **RamsRenderRegression canary STILL GREEN** (3/3 tests / 9 assertions) — D-LOCK D-10 byte-equivalence preserved across manual-form/quote-import/survey-derived fixtures. **35 Plan-03 tests / 105 assertions GREEN.** 3 Rule-1/3 deviations: (1) ProjectPackageReviewController downstream-consumer fix, (2) 6 existing MethodStatementServiceTest fixtures migrated description→overview, (3) prompt phrase changed from "overview description" to "overview paragraph" to avoid substring false-positive on schema-lock test. Commits:  (RED T1) +  (GREEN T1) +  (RED T2) +  (GREEN T2). **Deploy runbook (REQUIRED):** production must run  immediately after the code ships — legacy  rows with  set but  empty will render empty bullets until backfilled.
 
 - **Plan 22.1-01 LANDED** (2026-05-13) — DATA-01..05 acceptance criteria transcribed into REQUIREMENTS.md §"Phase 22.1 — RAMS Scope/Room-Data Consolidation" (lines 35-44, +10 lines net, strictly additive — verified by `git diff --stat`). Section landed between Phase 22 (line 25) and Phase 23 (now line 45), matching ROADMAP physical order. Wording verbatim from PLAN.md (no paraphrasing) — calibrated against ROADMAP success criteria #1-5 + CONTEXT.md D-LOCK (D-12 byte-equivalence, D-07 backfill pattern). Milestone-level 'Total requirements: 28' tally intentionally unchanged (DATA-XX are Phase 22.1 internal hygiene, not v2.0 milestone deliverables). All 5 bullets unchecked. Plans 02-06 now unblocked — `requirements: [DATA-0X]` citations resolve cleanly via gsd-tools requirement-coverage check. ROADMAP SC #6 (AI prompt audit) intentionally NOT transcribed — it is a CLAUDE.md compliance invariant satisfied transitively by DATA-03 (deletes `RamsPrompt` because its schema would AI-generate `hazards.controls` + `regulations`, violating the constraint). Zero deviations — 9/9 acceptance criteria PASS (grep checks + Phase 22 < 22.1 < 23 line-order + milestone tally preserved + valid markdown). `gsd-tools frontmatter validate` returned `valid=true`. Commit: `7d41d50`.
 
@@ -121,7 +124,7 @@ Last activity: 2026-05-13
 
 **Last session ended:** 2026-05-12 — Plan 22-02 (picker UI + cross-project FK guard + D-10 regression locked) completed in 28 minutes / 3 commits / 8 files (5 created + 3 modified). Alpine `x-data="portPicker(...)"` modal at `resources/views/cable-schedule/_port-picker-modal.blade.php` (single instance per page per D-01, side-by-side SOURCE/DEST per D-02, chain-link icon column inserted between From and To making the cable edit table 9-col per D-03, picker overwrites From/To with canonical `"{Manufacturer} {Model} ({Port label})"` on Apply per D-04, all 5 modal buttons carry `type="button"` per Pitfall 5). JS `isCompatible()` mirrors PHP `CableConnectorCompatibilityService::check` exactly (empty/empty → compat with Pitfall 4 note, exact → compat, bidirectional allowlist → compat with alias note, else mismatch); yellow override-warning + REQUIRED 500-char textarea blocks Apply until non-whitespace content (DRAW-39 client gate). "Clear ports on this row" button writes NULL to all 5 FK columns + leaves From/To text intact (Open Question 2). `CableScheduleController@update` extended with 5 new validation rules + T-22-A4 cross-project FK injection guard — single `Device::whereIn(...)->where('project_id', '!=', $cableSchedule->project_id)->count()` AFTER `validate()` and BEFORE `DB::transaction()` so `items()->delete()` never runs on failed validation (pre-seeded row canary proves no destructive write). `@edit` eager-loads `items.sourceDevice/sourcePort/destDevice/destPort` AT THE CALL SITE only (D-10 — never on `$with`) + builds `$devicesWithPorts` payload via direct `Device::where('project_id')->with(['stencil.ports' => fn ($q) => $q->orderBy('side')->orderBy('sort_order')])` (resolves A2 — engineers can distinguish multiple physical units of the same model). **12 dev tests pass + 3 env-skipped / 116 assertions; `--filter=Cable` 52 pass / 4 skip / 239 assertions GREEN.** D-10 grep gate verified: zero matches across 5 v1.3 surface files. T-22-A4 BLOCKING gate passes (5 tests / 18 assertions — form + JSON `putJson` + pre-seeded canary + nonexistent device + T-22-A1 mass-assignment). Commits: `9f72e87` + `21690ca` + `21db172`. Two Rule-3 test-fixture deviations auto-fixed (PhpSpreadsheet absent in dev env → `class_exists` skip mirroring D2 binary pattern + complementary static D-10 source-scan guard that runs everywhere; static guard regex tightened to `->sourceDevice/Port/destDevice/Port` method-invocation forms to avoid matching SchematicD2SourceBuilder Phase 17 local variable names). Zero behavioural deviations. **DRAW-38 + DRAW-39 COMPLETE (picker UI + server-side rules + override-note workflow + cross-project FK guard all shipped). Plan 22-03 (backfill command) unblocked.**
 
-**Stopped at:** Completed 22.1-02-PLAN.md
+**Stopped at:** Completed 22.1-03-PLAN.md
 
 **Next session starts:** Plan 22-03 — backfill command (depends on 22-01 + 22-02). Live deploy for Plan 22-02: 3 view/controller files modified + 5 test files created — run `php artisan view:clear` + `config:clear` on live AFTER upload. No new dependencies (no Composer/npm changes). Migration from Plan 22-01 must already be applied.
 
