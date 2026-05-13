@@ -443,30 +443,10 @@
                           placeholder="Click ✨ Generate or type a short executive summary here.">{{ old('works_overview', $reviewPayload['works_overview'] ?? '') }}</textarea>
             </div>
 
-            {{-- Works Bullets — install-action checklist generated from Scope
-                 of Works / Works Overview prose. Surfaces on the public site
-                 survey link and feeds into RAMS additional-info. Editable. --}}
-            <div class="form-group" style="margin-top:1rem;margin-bottom:0;">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
-                    <label class="form-label" for="works-bullets-field" style="margin:0;">
-                        AV Works Bullets
-                        <span style="color:var(--text-muted);font-weight:400;font-size:.8em;">(one install action per line — used in site surveys &amp; RAMS)</span>
-                    </label>
-                    <button type="button"
-                            id="btn-gen-bullets"
-                            class="btn btn-outline btn-sm"
-                            onclick="generateWorksBullets(this)"
-                            title="Convert Scope / Overview prose into clean install-action bullets">
-                        ✨ Convert to bullets
-                    </button>
-                </div>
-                <textarea id="works-bullets-field"
-                          name="works_bullets"
-                          class="form-control"
-                          rows="8"
-                          maxlength="6000"
-                          placeholder="Click ✨ Convert to bullets after writing your scope, or type one install action per line.&#10;e.g.&#10;Installation of Sony 98″ display within the Cinnamon room&#10;Deployment of Crestron Flex Integrator Kit across Cinnamon and Saffron rooms">{{ old('works_bullets', $reviewPayload['works_bullets'] ?? '') }}</textarea>
-            </div>
+            {{-- Phase 22.1 D-04: the standalone project-wide bullets textarea
+                 was removed here in Plan 22.1-04. The survey "Planned AV Works"
+                 drawer now derives per-room bullets from the union of
+                 room_overviews[*].works_summary below. --}}
         </div>
     </div>
 
@@ -1888,53 +1868,9 @@ function generateScopeOfWorks() {
 }
 
 // ─── AI generate Works Overview only (reuses scope-of-works endpoint) ─────────
-// ─── AI: Convert scope / overview prose to install-action bullets ────────────
-async function generateWorksBullets(btn) {
-    if (!btn) return;
-    const target = document.getElementById('works-bullets-field');
-    const scope  = document.getElementById('scope-of-works-field');
-    const ovw    = document.getElementById('works-overview-field');
-    if (!target) return;
-
-    // Prefer the longer of Scope of Works vs Works Overview as input — that
-    // way the engineer can type into either field and click Convert.
-    const sourceText = ((scope?.value ?? '') + '\n\n' + (ovw?.value ?? '')).trim();
-    if (sourceText === '') {
-        alert('Type or generate a scope / works overview first.');
-        return;
-    }
-    if (target.value.trim() !== '' && !(await window.appConfirm('This will replace the current bullets. Continue?', { title:'Replace bullets?', confirmLabel:'Replace' }))) {
-        return;
-    }
-
-    const originalText = btn.innerHTML;
-    btn.disabled  = true;
-    btn.innerHTML = 'Generating&hellip;';
-    try {
-        const resp = await fetch('{{ route("project-packages.works-bullets", $package) }}', {
-            method:  'POST',
-            headers: {
-                'Content-Type':  'application/json',
-                'X-CSRF-TOKEN':  '{{ csrf_token() }}',
-                'Accept':        'application/json',
-            },
-            body: JSON.stringify({ text: sourceText }),
-        });
-        if (!resp.ok) {
-            const err = await resp.json().catch(() => ({}));
-            alert(err.error ?? 'AI generation failed.');
-            return;
-        }
-        const data = await resp.json();
-        target.value = data.text ?? '';
-        target.focus();
-    } catch (e) {
-        alert('Network error during generation. Please try again.');
-    } finally {
-        btn.innerHTML = originalText;
-        btn.disabled  = false;
-    }
-}
+// Phase 22.1 D-04: the install-action "Convert to bullets" generator (and the
+// textarea it targeted) were removed by Plan 22.1-04. The survey "Planned AV
+// Works" drawer now derives bullets from room_overviews per-room summaries.
 
 function generateWorksOverviewFromScope() {
     const btn   = document.getElementById('btn-gen-overview');

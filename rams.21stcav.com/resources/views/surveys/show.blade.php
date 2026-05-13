@@ -314,29 +314,29 @@
                 {{-- Job context — per-room planned works, quote kit, and
                      checklist guidance count. Hidden by default; chevron in
                      the card header expands. Read-only, informational. --}}
-                <template x-if="expandedRoomIdx === idx && room._ctx && (room._ctx.av_requirements || room._ctx.av_equipment_list || room._ctx.question_count > 0 || (room._ctx.checklist_lines && room._ctx.checklist_lines.length > 0) || (room._ctx.works_bullets && room._ctx.works_bullets.length > 0))">
+                <template x-if="expandedRoomIdx === idx && room._ctx && (room._ctx.av_requirements || room._ctx.av_equipment_list || room._ctx.question_count > 0 || (room._ctx.checklist_lines && room._ctx.checklist_lines.length > 0) || (room._ctx.planned_actions && room._ctx.planned_actions.length > 0))">
                     <div class="px-3 pb-3 pt-2.5 border-t border-gray-100 bg-gray-50/60 text-xs space-y-2">
                         {{-- INSTALL ACTIONS — collapsed by default --}}
-                        <template x-if="room._ctx.works_bullets && room._ctx.works_bullets.length > 0">
+                        <template x-if="room._ctx.planned_actions && room._ctx.planned_actions.length > 0">
                             <details class="group bg-white rounded-xl border-2 border-brand-teal/30 shadow-sm overflow-hidden hover:border-brand-teal transition-colors">
                                 <summary class="px-3.5 py-3 cursor-pointer select-none flex items-center justify-between list-none bg-brand-teal/5 hover:bg-brand-teal/10 transition-colors min-h-[44px]">
                                     <span class="font-bold text-brand-teal flex items-center gap-2 text-sm">
                                         <span class="text-base">📋</span>
                                         <span>Install actions</span>
                                         <span class="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-full bg-brand-teal text-white text-[11px] font-bold tabular-nums"
-                                              x-text="room._ctx.works_bullets.length"></span>
+                                              x-text="room._ctx.planned_actions.length"></span>
                                     </span>
                                     <span class="text-brand-teal text-base group-open:rotate-180 transition-transform">▾</span>
                                 </summary>
                                 <ul class="list-disc pl-7 pr-3 pb-3 pt-2.5 text-gray-700 space-y-0.5 leading-snug">
-                                    <template x-for="(b, bi) in room._ctx.works_bullets" :key="bi">
+                                    <template x-for="(b, bi) in room._ctx.planned_actions" :key="bi">
                                         <li x-text="b.replace(/^[-•]\s*/, '')"></li>
                                     </template>
                                 </ul>
                             </details>
                         </template>
                         {{-- PLANNED AV WORKS prose (only when no bullet list) --}}
-                        <template x-if="room._ctx.av_requirements && (!room._ctx.works_bullets || room._ctx.works_bullets.length === 0)">
+                        <template x-if="room._ctx.av_requirements && (!room._ctx.planned_actions || room._ctx.planned_actions.length === 0)">
                             <details class="group bg-white rounded-xl border-2 border-brand-teal/30 shadow-sm overflow-hidden hover:border-brand-teal transition-colors">
                                 <summary class="px-3.5 py-3 cursor-pointer select-none flex items-center justify-between list-none bg-brand-teal/5 hover:bg-brand-teal/10 transition-colors min-h-[44px]">
                                     <span class="font-bold text-brand-teal flex items-center gap-2 text-sm">
@@ -514,17 +514,17 @@
                 {{-- WIZARD CONTEXT — current room only --}}
                 <template x-if="screen === 'step'">
                     <div class="space-y-4">
-                        <template x-if="(currentRoom?._ctx?.works_bullets ?? []).length > 0">
+                        <template x-if="(currentRoom?._ctx?.planned_actions ?? []).length > 0">
                             <div>
                                 <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">Install actions</p>
                                 <ul class="list-disc pl-5 text-gray-800 space-y-1 leading-snug">
-                                    <template x-for="(b, bi) in currentRoom._ctx.works_bullets" :key="bi">
+                                    <template x-for="(b, bi) in currentRoom._ctx.planned_actions" :key="bi">
                                         <li x-text="b.replace(/^[-•]\s*/, '')"></li>
                                     </template>
                                 </ul>
                             </div>
                         </template>
-                        <template x-if="currentRoom?._ctx?.av_requirements && (!currentRoom?._ctx?.works_bullets || currentRoom._ctx.works_bullets.length === 0)">
+                        <template x-if="currentRoom?._ctx?.av_requirements && (!currentRoom?._ctx?.planned_actions || currentRoom._ctx.planned_actions.length === 0)">
                             <div>
                                 <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">Planned AV works</p>
                                 <p class="text-gray-800 leading-snug" x-text="currentRoom._ctx.av_requirements"></p>
@@ -545,7 +545,7 @@
                                 </ul>
                             </div>
                         </template>
-                        <template x-if="!currentRoom?._ctx?.av_requirements && !currentRoom?._ctx?.checklist_lines?.length && (!currentRoom?._ctx?.works_bullets || currentRoom._ctx.works_bullets.length === 0)">
+                        <template x-if="!currentRoom?._ctx?.av_requirements && !currentRoom?._ctx?.checklist_lines?.length && (!currentRoom?._ctx?.planned_actions || currentRoom._ctx.planned_actions.length === 0)">
                             <p class="text-gray-500 italic">No description recorded for this room.</p>
                         </template>
                     </div>
@@ -557,17 +557,17 @@
                             <div class="border border-gray-200 rounded-xl p-3">
                                 <p class="font-semibold text-gray-900 mb-1.5"
                                    x-text="room.name || 'Unnamed room'"></p>
-                                <template x-if="(room._ctx?.works_bullets ?? []).length > 0">
+                                <template x-if="(room._ctx?.planned_actions ?? []).length > 0">
                                     <ul class="list-disc pl-5 text-gray-700 space-y-0.5 leading-snug text-xs">
-                                        <template x-for="(b, bi) in room._ctx.works_bullets" :key="bi">
+                                        <template x-for="(b, bi) in room._ctx.planned_actions" :key="bi">
                                             <li x-text="b.replace(/^[-•]\s*/, '')"></li>
                                         </template>
                                     </ul>
                                 </template>
-                                <template x-if="(!room._ctx?.works_bullets || room._ctx.works_bullets.length === 0) && room._ctx?.av_requirements">
+                                <template x-if="(!room._ctx?.planned_actions || room._ctx.planned_actions.length === 0) && room._ctx?.av_requirements">
                                     <p class="text-xs text-gray-700 leading-snug" x-text="room._ctx.av_requirements"></p>
                                 </template>
-                                <template x-if="(!room._ctx?.works_bullets || room._ctx.works_bullets.length === 0) && !room._ctx?.av_requirements">
+                                <template x-if="(!room._ctx?.planned_actions || room._ctx.planned_actions.length === 0) && !room._ctx?.av_requirements">
                                     <p class="text-xs text-gray-400 italic">No description.</p>
                                 </template>
                             </div>

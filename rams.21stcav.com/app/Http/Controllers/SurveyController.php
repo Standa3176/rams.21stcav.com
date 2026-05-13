@@ -475,12 +475,14 @@ class SurveyController extends Controller
                 // ── Job context — read-only per-room planning data from DB.
                 // Never written back to survey_data; informational only.
                 '_ctx' => [
-                    'av_requirements'    => $plannedWorks,
+                    'av_requirements'         => $plannedWorks,
                     // Per-room install-action bullets generated on the office
                     // review screen (Room/Space Overviews → AV Works Summary).
                     // One bullet per line, "- " prefix optional. Engineers see
                     // these in the Kit Info drawer as a checklist for THIS room.
-                    'works_bullets'      => array_values(array_filter(
+                    // Phase 22.1 D-04: derived from the per-room summary fields
+                    // (the project-wide payload key was removed by Plan 22.1-04).
+                    'planned_actions'         => array_values(array_filter(
                         array_map('trim', preg_split('/\r?\n/', (string) ($packageRoomBullets[strtolower((string) $dbRoom->room_name)] ?? ''))),
                         fn ($l) => $l !== ''
                     )),
