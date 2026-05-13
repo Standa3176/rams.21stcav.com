@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
-status: verifying
-stopped_at: Completed 22.1-06-PLAN.md — Phase 22.1 COMPLETE, ready for /gsd-verify-phase 22.1
-last_updated: "2026-05-13T13:02:23.726Z"
+status: executing
+stopped_at: Completed 22.1-07-PLAN.md — Phase 22.1 gap closure complete, ready for /gsd-verify-phase 22.1 --rerun
+last_updated: "2026-05-13T14:24:13.530Z"
 last_activity: 2026-05-13
 progress:
   total_phases: 2
   completed_phases: 2
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 10
+  completed_plans: 10
   percent: 100
 ---
 
@@ -23,10 +23,10 @@ See: .planning/PROJECT.md (updated 2026-04-30)
 
 ## Current Position
 
-Phase: 22.1 (rams-scope-room-data-consolidation) — EXECUTING
-Plan: 6 of 6
-Status: Phase complete — ready for verification
-Last activity: 2026-05-13
+Phase: 22.1 (rams-scope-room-data-consolidation) — COMPLETE (gap closure landed)
+Plan: 7 of 7
+Status: Ready for `/gsd-verify-phase 22.1 --rerun`
+Last activity: 2026-05-13 — Plan 22.1-07 LANDED (gap closure)
 
 ## Milestone Progress (v1.3)
 
@@ -69,10 +69,13 @@ Last activity: 2026-05-13
 | Phase 22.1 P04 | 30m | 3 tasks | 13 files |
 | Phase 22.1 P05 | 35m | 3 tasks | 10 files |
 | Phase 22.1 P06 | 25m | 3 tasks | 3 files |
+| Phase 22.1 P07 | 25m | 4 tasks | 5 files |
 
 ## Accumulated Context
 
 ### Key Decisions (v2.0)
+
+- **Plan 22.1-07 LANDED** (2026-05-13) — Phase 22.1 GAP CLOSURE complete. 9 write-site leaks the verifier flagged in 22.1-VERIFICATION.md closed across 5 files / 4 atomic tasks. **review.blade.php:** removed hidden `summary` input (both Blade static `[$ri]` variant AND JS `[${idx}]` row-template variant), removed `description` textarea + label, removed `data.description` JS branch in `generateRoomSummary()` callback. **ProjectPackageReviewController:** 4-key shape in `editPayload` / `parseReviewPayload` / `generateSurveyRooms`; `generateRoomSummary` consumes canonical `$results[0]['works_summary']`; JSON response shed `description` key; dead `$sourceDescription` source-trace logic + `current_description` validation rule removed. **ExtractQuoteJob:** scaffold emits canonical 4-key shape with `solution_type_id => null` (honest representation matching normaliser coercion target). **RoomOverviewSummaryService:** all 3 internal persistence writes renamed `$r['summary']` → `$r['works_summary']` per D-07 single-source-of-truth lock; AI input JSON key stays `summary` (RoomOverviewSummaryPrompt contract unchanged); single translation point inside service body. **ReviewedDataStructuralDiffTest:** 2 new write-side guard methods added (`test_write_side_parseReviewPayload_drops_legacy_summary_description_keys` invokes the private method via `ReflectionMethod` + `Request::create($payload)` wrapping — passing raw array would TypeError on the `Request $request` signature; `test_write_side_package_update_round_trips_canonical_shape_unchanged` covers the JSON-column cast). **Full Phase 22.1 combined corpus: 53 tests / 215 assertions GREEN** (was 51/200 — exactly +2 tests / +15 assertions from the 2 new methods). **RamsRenderRegression Wave-1 canary STILL GREEN 3/3 / 9 assertions** — D-12 byte-equivalence preserved across all 6 plans (5 production waves + closure). 8 NEW G1-G8 gap-closure ratchets all zero-hit (G5/G6/G7 minor hits all verified outside scope: classifier item map / generateRoomSummary INPUT array / equipment row mapping / removal-doc comment). 7 Plan-06 R1-R7 ratchets remain zero-hit (no regression in pre-existing invariants). **DATA-01 PARTIAL → SATISFIED. DATA-02 PARTIAL → SATISFIED.** Migration now self-stabilising AND CI-protected end-to-end on both read AND write paths. Zero deviations from plan. Zero new files. Zero schema changes. Zero new endpoints. Zero new AI calls. Commits: `79a0004` (Task 1 form+controller cleanup) + `048a633` (Task 2 service+scaffold rename) + `e4c9547` (Task 3 write-side guard tests). **PHASE 22.1 READY FOR `/gsd-verify-phase 22.1 --rerun`.**
 
 - **Plan 22.1-06 LANDED** (2026-05-13) — PHASE 22.1 COMPLETE. Final verification wave shipped two phase-level invariant guards: `ReviewedDataStructuralDiffTest` (D-13 structural JSON diff, 6 tests / 36 assertions — locks dropped keys `project.overview` + per-room `summary` / `description` / `scope` AND locks canonical 11-key project + 4-key per-room schema) + `Phase22_1InvariantGuardTest` (6 tests / 57 assertions — one test method per ROADMAP SC#1..#6 each citing its DATA-XX requirement ID in the PHPDoc). SC#6 (CLAUDE.md AI constraint audit) uses method-scoped `token_get_all()` check — body-only scan of `build()` / `*schema*` / `*response_format*` methods on every BasePrompt subclass under `app/Core/AI/Prompts/`; legitimate `systemMessage()` constraint text referencing forbidden literals does NOT false-positive (BasePrompt itself skipped). **Heuristic-robustness probe verified BOTH directions:** positive (literal `"hazards"` in `systemMessage()` body) PASSED with 40 assertions, negative (literal `"hazards"` in `build()` body) correctly FAILED with the SC#6 violation message, probe file deleted before final commit. **Full Phase 22.1 combined test corpus: 51 tests / 200 assertions GREEN.** Wave-1 `RamsRenderRegression` canary STILL GREEN after all 5 waves: 3/3 / 9 assertions (D-12 byte-equivalence preserved end-to-end). All 7 grep ratchets return zero non-guard hits (R1/R2/R3 hits only inside the 2 legitimate guard files; R4 finds only `scope_of_works_bullets` (a different canonical variable from Phase 22.1 D-06); R5 finds only the legacy fixture access inside the new structural-diff test; R6/R7 zero hits). DATA-01..05 coverage in REQUIREMENTS.md = 5 (one per requirement). 1 Rule-3 deviation: extended `DeadPathRemovalGuardTest` whitelist to recognise `Phase22_1InvariantGuardTest.php` as a legitimate downstream guard file (both legitimately cite the 3 deleted class basenames `RamsGeneratorService`/`RamsPrompt`/`WorksBulletsPrompt` as deletion-target listings). Commits: `dd4b37a` (Task 1 D-13 structural diff test) + `b01f07a` (Task 2 phase-level invariant guard) + `811c138` (Rule-3 DeadPathRemovalGuard whitelist extension). **PHASE 22.1 READY FOR `/gsd-verify-phase 22.1`**. Deferred to Phase 22.2: Survey↔RAMS sync; `ProjectPackage.works_description` column drop; `ProjectPackageRamsReviewService.php:78,85` orphan `project.overview` emission cleanup; `app/scripts/generate_rams_docx.js` confirmation.
 
@@ -135,7 +138,7 @@ Last activity: 2026-05-13
 
 **Earlier session (2026-05-12):** Plan 22-02 (picker UI + cross-project FK guard + D-10 regression locked) completed in 28 minutes / 3 commits / 8 files (5 created + 3 modified). Alpine `x-data="portPicker(...)"` modal at `resources/views/cable-schedule/_port-picker-modal.blade.php` (single instance per page per D-01, side-by-side SOURCE/DEST per D-02, chain-link icon column inserted between From and To making the cable edit table 9-col per D-03, picker overwrites From/To with canonical `"{Manufacturer} {Model} ({Port label})"` on Apply per D-04, all 5 modal buttons carry `type="button"` per Pitfall 5). JS `isCompatible()` mirrors PHP `CableConnectorCompatibilityService::check` exactly (empty/empty → compat with Pitfall 4 note, exact → compat, bidirectional allowlist → compat with alias note, else mismatch); yellow override-warning + REQUIRED 500-char textarea blocks Apply until non-whitespace content (DRAW-39 client gate). "Clear ports on this row" button writes NULL to all 5 FK columns + leaves From/To text intact (Open Question 2). `CableScheduleController@update` extended with 5 new validation rules + T-22-A4 cross-project FK injection guard — single `Device::whereIn(...)->where('project_id', '!=', $cableSchedule->project_id)->count()` AFTER `validate()` and BEFORE `DB::transaction()` so `items()->delete()` never runs on failed validation (pre-seeded row canary proves no destructive write). `@edit` eager-loads `items.sourceDevice/sourcePort/destDevice/destPort` AT THE CALL SITE only (D-10 — never on `$with`) + builds `$devicesWithPorts` payload via direct `Device::where('project_id')->with(['stencil.ports' => fn ($q) => $q->orderBy('side')->orderBy('sort_order')])` (resolves A2 — engineers can distinguish multiple physical units of the same model). **12 dev tests pass + 3 env-skipped / 116 assertions; `--filter=Cable` 52 pass / 4 skip / 239 assertions GREEN.** D-10 grep gate verified: zero matches across 5 v1.3 surface files. T-22-A4 BLOCKING gate passes (5 tests / 18 assertions — form + JSON `putJson` + pre-seeded canary + nonexistent device + T-22-A1 mass-assignment). Commits: `9f72e87` + `21690ca` + `21db172`. Two Rule-3 test-fixture deviations auto-fixed (PhpSpreadsheet absent in dev env → `class_exists` skip mirroring D2 binary pattern + complementary static D-10 source-scan guard that runs everywhere; static guard regex tightened to `->sourceDevice/Port/destDevice/Port` method-invocation forms to avoid matching SchematicD2SourceBuilder Phase 17 local variable names). Zero behavioural deviations. **DRAW-38 + DRAW-39 COMPLETE (picker UI + server-side rules + override-note workflow + cross-project FK guard all shipped). Plan 22-03 (backfill command) unblocked.**
 
-**Stopped at:** Completed 22.1-06-PLAN.md — Phase 22.1 COMPLETE, ready for /gsd-verify-phase 22.1
+**Stopped at:** Completed 22.1-07-PLAN.md — Phase 22.1 gap closure complete, ready for /gsd-verify-phase 22.1 --rerun
 
 **Next session starts:** Plan 22.1-06 — final verification wave (RamsRenderRegression re-run + structural-JSON-diff D-13 assertion against legacy → migrated reviewed_data shape + check the two forward flags surfaced by Plan 22.1-05: `RamsController.php:284` form_data write and `ProjectPackageRamsReviewService.php:78,85` orphan emissions). Live deploy: 7 PHP files + 1 Blade modified + 2 new test files — run `php artisan view:clear` + `config:clear` on live AFTER upload. No new dependencies. No migrations.
 

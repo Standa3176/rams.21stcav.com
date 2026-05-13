@@ -105,13 +105,14 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
   4. Backfill migration `summary` -> `works_summary` succeeds on all existing `reviewed_data` records (idempotent, dry-run-default with `--apply` flag)
   5. Regression test asserts byte-equivalence: existing `reviewed_data` records render byte-identical PDFs before and after the cleanup (golden-file in `tests/Feature/RamsRenderRegressionTest.php`)
   6. AI prompt audit confirms no prompt invents scope/equipment/design content (per CLAUDE.md constraint - AI is ONLY for formatting and method statement structuring)
-**Plans**: 6 plans, 5 waves
+**Plans**: 7 plans, 6 waves (Plan 07 = gap closure for write-side leaks identified in 22.1-VERIFICATION.md)
   - [x] 22.1-01-PLAN.md — Write DATA-01..05 acceptance criteria into REQUIREMENTS.md (closes the roadmap/requirements gap). Wave 1. Requirements: DATA-01, DATA-02, DATA-03, DATA-04, DATA-05.
   - [x] 22.1-02-PLAN.md — Byte-equivalence golden-file regression test scaffolding (D-12 canary; runs BEFORE production code changes so subsequent waves can detect render drift). Wave 1 — parallel with 22.1-01. Requirements: DATA-05.
   - [x] 22.1-03-PLAN.md — Per-room narrative consolidation: rams:backfill-room-overview-summary artisan + RamsReviewDataService schema trim to 4 keys + MethodStatementService overview-input swap + RoomOverviewSummaryPrompt description-output drop (D-01, D-07, D-08, D-09 per-room). Wave 2 — depends on 22.1-01 + 22.1-02. Requirements: DATA-02, DATA-04.
   - [x] 22.1-04-PLAN.md — Dead-path removal: delete RamsGeneratorService + RamsPrompt + WorksBulletsPrompt + works_bullets textarea + survey controller rewire + DeadPathRemovalGuardTest static guard (D-10, D-11, D-04). Wave 3 — depends on 22.1-03. Requirements: DATA-03.
   - [x] 22.1-05-PLAN.md — Project-wide narrative consolidation: stop auto-seeding Project.works_description + drop method_statement_notes mapping + remove PM-INSTRUCTIONS separator + approve-time scope_of_works_bullets persistence + pdf/rams.blade.php fallback chain simplified + reviewed_data.project.overview dropped (D-02, D-03, D-06, D-08, D-09 project-level). Wave 4 — depends on 22.1-03 + 22.1-04. Requirements: DATA-01.
   - [x] 22.1-06-PLAN.md — Final verification: ReviewedDataStructuralDiffTest (D-13) + Phase22_1InvariantGuardTest mapping each ROADMAP SC #1-6 to a CI-verifiable assertion + full grep-ratchet sweep. Wave 5 — depends on all prior. Requirements: DATA-01, DATA-02, DATA-03, DATA-04, DATA-05.
+  - [x] 22.1-07-PLAN.md — Gap closure for DATA-01 + DATA-02 (PARTIAL → SATISFIED): strip dead summary/description form fields + 4-key shape at all 4 canonical writers (editPayload, parseReviewPayload, generateSurveyRooms, ExtractQuoteJob scaffold) + RoomOverviewSummaryService canonical works_summary key rename + write-side guard test method added to ReviewedDataStructuralDiffTest. Wave 6 — depends on 22.1-06. Requirements: DATA-01, DATA-02.
 **UI hint**: yes (review-form field consolidation; possibly new edit UI for AI prose if D-03 lands on "surface it")
 **Canonical refs**:
   - `.planning/audits/rams-room-fields-audit-2026-05-13.md` - full audit with file:line citations
