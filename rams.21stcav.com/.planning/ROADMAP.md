@@ -94,6 +94,27 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
   - `.planning/REQUIREMENTS.md` Â§"Phase 22 â€” Cable Schedule with Port-Level FKs" (DRAW-37..41 acceptance criteria)
   - Visual contract: XTEN-AV PAGING SYSTEM reference image (conversation 2026-05-09) â€” port-to-port routing pattern Phase 23 will render from this data
 
+### Phase 22.1: RAMS Scope/Room-Data Consolidation
+**Goal**: Eliminate field-duplication across the 3-stage RAMS pipeline (`form_data` -> `reviewed_data` -> `generated_data`). Audit (2026-05-13) found 5 overlapping "scope/works/space narrative" fields at 3 granularities stored in 5 different JSON locations with inconsistent fallback chains, so a single scope edit can duplicate across all 5 - risking divergence between what engineers see in the review UI and what renders in the final PDF. This phase keeps `generated_data` shape backward-compatible (already-rendered RAMS docs unaffected) but consolidates the canonical source of truth, deprecates redundant fields with a backfill migration, removes dead-path code, and surfaces previously-invisible AI prose for engineer review. Survey<->RAMS sync rules + cross-document `Project.works_description` propagation rules DEFER to Phase 22.2 (touches in-flight workflows; needs a feature flag).
+**Depends on**: None (audit complete; safe to ship in parallel with v2.0 schematic work)
+**Requirements**: DATA-01, DATA-02, DATA-03, DATA-04, DATA-05
+**Success Criteria** (what must be TRUE):
+  1. A single project-wide scope edit propagates to ONE canonical JSON location only - the other 4 storage paths are deprecated, with a backfill migration mapping legacy values
+  2. Per-room narrative carries exactly TWO fields (`overview` + `works_summary`); `summary` and `description` are either deprecated or surfaced in the review UI (decision locked during discuss-phase)
+  3. Five dead-path files/paths removed per the audit: `RamsGeneratorService`, `RamsPrompt`, dead AI bullet-list capture path, `reviewed_data.project.overview` round-trip, related test scaffolding
+  4. Backfill migration `summary` -> `works_summary` succeeds on all existing `reviewed_data` records (idempotent, dry-run-default with `--apply` flag)
+  5. Regression test asserts byte-equivalence: existing `reviewed_data` records render byte-identical PDFs before and after the cleanup (golden-file in `tests/Feature/RamsRenderRegressionTest.php`)
+  6. AI prompt audit confirms no prompt invents scope/equipment/design content (per CLAUDE.md constraint - AI is ONLY for formatting and method statement structuring)
+**Plans**: TBD - to be planned during `/gsd-plan-phase 22.1`
+**UI hint**: yes (review-form field consolidation; possibly new edit UI for AI prose if D-03 lands on "surface it")
+**Canonical refs**:
+  - `.planning/audits/rams-room-fields-audit-2026-05-13.md` - full audit with file:line citations
+  - `.planning/REQUIREMENTS.md` Â§"Phase 22.1 - RAMS Scope/Room-Data Consolidation" (DATA-01..05)
+  - `app/Services/RamsBuilderService.php`, `app/Services/RamsReviewDataService.php`, `app/Services/RamsDataBuilderService.php` (3-stage pipeline core)
+  - `app/Models/RamsDocument.php` (form_data / extracted_data / reviewed_data / generated_data shape contracts)
+  - `app/Core/AI/Prompts/MethodStatementPrompt.php` (the only AI prompt in scope)
+  - CLAUDE.md (project constraints: AI is ONLY allowed for formatting and method statement structuring - never for inventing scope)
+
 ---
 
 ## âœ… v1.2 Installation Programme & Field Management â€” SHIPPED 2026-04-25
