@@ -136,7 +136,10 @@ class WorksheetGeneratorService
                     foreach ((array) $results as $r) {
                         if (! is_array($r)) continue;
                         $rname = strtolower(trim((string) ($r['room'] ?? '')));
-                        $bull  = trim((string) ($r['summary'] ?? ''));
+                        // Phase 22.1 Plan 07: RoomOverviewSummaryService now
+                        // writes `works_summary` (not `summary`) into each
+                        // returned row. See RoomOverviewSummaryService docblock.
+                        $bull  = trim((string) ($r['works_summary'] ?? ''));
                         if ($rname === '' || $bull === '') continue;
                         if (! str_starts_with($bull, '- ') && ! str_contains($bull, "\n- ")) continue;
                         $roomBullets[$rname] = $bull;
