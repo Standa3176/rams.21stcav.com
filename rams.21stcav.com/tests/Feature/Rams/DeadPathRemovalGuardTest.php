@@ -47,6 +47,15 @@ class DeadPathRemovalGuardTest extends TestCase
         $appPath      = base_path('app');
         $testsPath    = base_path('tests');
 
+        // Phase 22.1-06 extension: the phase-level invariant guard
+        // (Phase22_1InvariantGuardTest) intentionally cites the same deleted
+        // class names as deletion targets for SC #3. It is the legitimate
+        // downstream complement to this file and must be whitelisted too.
+        $whitelistedGuards = array_filter([
+            $thisTestPath,
+            realpath(base_path('tests/Feature/Rams/Phase22_1InvariantGuardTest.php')),
+        ]);
+
         $files = array_merge(
             $this->phpFilesUnder($appPath),
             $this->phpFilesUnder($testsPath),
@@ -55,8 +64,8 @@ class DeadPathRemovalGuardTest extends TestCase
         $offenders = [];
         foreach ($files as $file) {
             $real = realpath($file);
-            if ($real !== false && $real === $thisTestPath) {
-                continue; // whitelist: this guard file itself
+            if ($real !== false && in_array($real, $whitelistedGuards, true)) {
+                continue; // whitelist: this guard file + Phase 22.1-06 invariant guard
             }
             $contents = file_get_contents($file);
             if ($contents === false) {
