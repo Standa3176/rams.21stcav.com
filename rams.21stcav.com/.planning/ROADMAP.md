@@ -84,9 +84,9 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
   4. Phase 23's renderer can consume `cable_schedule_items.source_port_id` + `dest_port_id` to draw port-to-port cable routing without further data layer work
   5. v1.3 cable schedule XLSX export, schematic SVG generator, and bound-PDF cable-list section continue to render without regression for legacy rows where the new FK columns are NULL
 **Plans**: 3 plans, 2 waves
-  - [x] 22-01-PLAN.md — Schema migration (4 FK columns + override-note + port-pair index) + CableScheduleItem fillable + belongsTo relations + config/cables.php + CableConnectorCompatibilityService. Wave 1 — foundation. Requirements: DRAW-37, DRAW-39.
-  - [x] 22-02-PLAN.md — Alpine.js port-picker modal (D-02 side-by-side) + chain-link icon column + extended CableScheduleController@update with cross-project FK injection guard (T-22-A4) + D-10 regression tests (XLSX byte-identity + SchematicGenerator NULL-FK case). Wave 2 — depends on 22-01. Requirements: DRAW-38, DRAW-39.
-  - [x] 22-03-PLAN.md — CablePortFkResolverService (pure deterministic matcher) + cables:backfill-port-fks artisan command (dry-run-default with --apply flag, per-row 4-category report, idempotent, T-22-A5/A6 mitigated). Wave 2 — depends on 22-01. Requirements: DRAW-40, DRAW-41.
+  - [x] 22-01-PLAN.md ï¿½ Schema migration (4 FK columns + override-note + port-pair index) + CableScheduleItem fillable + belongsTo relations + config/cables.php + CableConnectorCompatibilityService. Wave 1 ï¿½ foundation. Requirements: DRAW-37, DRAW-39.
+  - [x] 22-02-PLAN.md ï¿½ Alpine.js port-picker modal (D-02 side-by-side) + chain-link icon column + extended CableScheduleController@update with cross-project FK injection guard (T-22-A4) + D-10 regression tests (XLSX byte-identity + SchematicGenerator NULL-FK case). Wave 2 ï¿½ depends on 22-01. Requirements: DRAW-38, DRAW-39.
+  - [x] 22-03-PLAN.md ï¿½ CablePortFkResolverService (pure deterministic matcher) + cables:backfill-port-fks artisan command (dry-run-default with --apply flag, per-row 4-category report, idempotent, T-22-A5/A6 mitigated). Wave 2 ï¿½ depends on 22-01. Requirements: DRAW-40, DRAW-41.
 **UI hint**: yes (cascading dropdown UI on cable schedule edit; backend command + form changes)
 **Canonical refs**:
   - `.planning/phases/21-device-port-catalog-stencil-cache/21-CONTEXT.md` (Phase 21 decisions D-01..D-15 â€” port catalog contract)
@@ -106,7 +106,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
   5. Regression test asserts byte-equivalence: existing `reviewed_data` records render byte-identical PDFs before and after the cleanup (golden-file in `tests/Feature/RamsRenderRegressionTest.php`)
   6. AI prompt audit confirms no prompt invents scope/equipment/design content (per CLAUDE.md constraint - AI is ONLY for formatting and method statement structuring)
 **Plans**: 6 plans, 5 waves
-  - [ ] 22.1-01-PLAN.md â€” Write DATA-01..05 acceptance criteria into REQUIREMENTS.md (closes the roadmap/requirements gap). Wave 1. Requirements: DATA-01, DATA-02, DATA-03, DATA-04, DATA-05.
+  - [x] 22.1-01-PLAN.md â€” Write DATA-01..05 acceptance criteria into REQUIREMENTS.md (closes the roadmap/requirements gap). Wave 1. Requirements: DATA-01, DATA-02, DATA-03, DATA-04, DATA-05.
   - [ ] 22.1-02-PLAN.md â€” Byte-equivalence golden-file regression test scaffolding (D-12 canary; runs BEFORE production code changes so subsequent waves can detect render drift). Wave 1 â€” parallel with 22.1-01. Requirements: DATA-05.
   - [ ] 22.1-03-PLAN.md â€” Per-room narrative consolidation: rams:backfill-room-overview-summary artisan + RamsReviewDataService schema trim to 4 keys + MethodStatementService overview-input swap + RoomOverviewSummaryPrompt description-output drop (D-01, D-07, D-08, D-09 per-room). Wave 2 â€” depends on 22.1-01 + 22.1-02. Requirements: DATA-02, DATA-04.
   - [ ] 22.1-04-PLAN.md â€” Dead-path removal: delete RamsGeneratorService + RamsPrompt + WorksBulletsPrompt + works_bullets textarea + survey controller rewire + DeadPathRemovalGuardTest static guard (D-10, D-11, D-04). Wave 3 â€” depends on 22.1-03. Requirements: DATA-03.

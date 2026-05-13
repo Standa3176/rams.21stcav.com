@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
 status: executing
-stopped_at: Phase 22.1 context gathered
-last_updated: "2026-05-13T11:07:03.568Z"
-last_activity: 2026-05-13 -- Phase 22.1 planning complete
+stopped_at: Completed 22.1-01-PLAN.md
+last_updated: "2026-05-13T11:34:12.903Z"
+last_activity: 2026-05-13
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 9
-  completed_plans: 3
-  percent: 33
+  completed_plans: 4
+  percent: 44
 ---
 
 ## Project Reference
@@ -19,14 +19,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-30)
 
 **Core value:** One dataset powers every document.
-**Current focus:** Phase 22 — Cable Schedule with Port-Level FKs
+**Current focus:** Phase 22.1 — rams-scope-room-data-consolidation
 
 ## Current Position
 
-Phase: 22
-Plan: Not started
+Phase: 22.1 (rams-scope-room-data-consolidation) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-05-13 -- Phase 22.1 planning complete
+Last activity: 2026-05-13
 
 ## Milestone Progress (v1.3)
 
@@ -63,10 +63,13 @@ Last activity: 2026-05-13 -- Phase 22.1 planning complete
 | Phase 22 P22-01 | 7min | 3 tasks | 7 files |
 | Phase 22 P22-02 | 28min | 3 tasks | 8 files |
 | Phase 22 P22-03 | 12min | 2 tasks | 4 files |
+| Phase 22.1 P01 | 2min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
 ### Key Decisions (v2.0)
+
+- **Plan 22.1-01 LANDED** (2026-05-13) — DATA-01..05 acceptance criteria transcribed into REQUIREMENTS.md §"Phase 22.1 — RAMS Scope/Room-Data Consolidation" (lines 35-44, +10 lines net, strictly additive — verified by `git diff --stat`). Section landed between Phase 22 (line 25) and Phase 23 (now line 45), matching ROADMAP physical order. Wording verbatim from PLAN.md (no paraphrasing) — calibrated against ROADMAP success criteria #1-5 + CONTEXT.md D-LOCK (D-12 byte-equivalence, D-07 backfill pattern). Milestone-level 'Total requirements: 28' tally intentionally unchanged (DATA-XX are Phase 22.1 internal hygiene, not v2.0 milestone deliverables). All 5 bullets unchecked. Plans 02-06 now unblocked — `requirements: [DATA-0X]` citations resolve cleanly via gsd-tools requirement-coverage check. ROADMAP SC #6 (AI prompt audit) intentionally NOT transcribed — it is a CLAUDE.md compliance invariant satisfied transitively by DATA-03 (deletes `RamsPrompt` because its schema would AI-generate `hazards.controls` + `regulations`, violating the constraint). Zero deviations — 9/9 acceptance criteria PASS (grep checks + Phase 22 < 22.1 < 23 line-order + milestone tally preserved + valid markdown). `gsd-tools frontmatter validate` returned `valid=true`. Commit: `7d41d50`.
 
 - **Plan 22-03 LANDED** (2026-05-12) — Phase 22 COMPLETE. Backfill artisan + pure deterministic resolver shipped. `cables:backfill-port-fks {project?} {--apply}` mirrors `RamsRefreshComplianceCommand` signature precedent but FLIPS the default (dry-run implicit, `--apply` opts in — safer for N-rows × M-projects backfill). 4 outcome categories: `matched` (atomic 4-FK write inside `DB::transaction`) / `ambiguous` (**ALL 4 FKs left NULL — D-LOCK + DRAW-41, NO partial writes** even when resolver returns partial source diagnostics; the only write branch is `if ($apply && $tag === 'matched')` with no else) / `no-device-match` (NULL) / `already-set` (resolver NOT called, row UNTOUCHED → idempotent). `CablePortFkResolverService` is PURE (zero DB writes verified by row-count-before-vs-after across `devices`/`device_ports`/`device_stencils`/`cable_schedule_items`); resolves per-side then aggregates: both matched→matched, both no-device→no-device, anything else→ambiguous with partial diagnostics in return shape. Strict matching against normalised `manufacturer model` / `manufacturer part_no` / bare `model` / bare `part_no` with `strlen($candidate) >= 3` guard — Pitfall 3 mitigation prevents trivial-substring cross-match. Empty `connector_type` ports excluded as unknown — Pitfall 4 mitigation, Tier 1.5 stencils (91/96 seeded per Phase 21 P02) explicitly fail deterministic match. `CABLE_TYPE_TO_CONNECTOR` map covers HDMI→hdmi, CAT6/CAT6a/CAT5e/UTP→rj45, USB/USB-C→usb-c, XLR/RS232/3.5mm/Speakon/Phoenix/DP. **T-22-A5 SQL injection** mitigated by `(int) $this->argument('project')` cast + Eloquent parameterised bindings — feature test runs `cables:backfill-port-fks "5; DROP TABLE devices;" --apply` and asserts `Schema::hasTable('devices')` survives. **T-22-A6 wrong-tenant write** impossible by construction — per-project `Device::where('project_id', $scheduleProjectId)->get()` INSIDE the iteration loop means Project A's devices are never loaded while iterating Project B's items; feature test proves cross-project text match leaves Project B's row entirely NULL even when `--apply` runs against ALL projects. Stencil attachment via `setRelation('stencil', $stencil)` because Device has no native `belongsTo(DeviceStencil)` — stencils are looked up by NORMALISED part_number, not FK; command pre-loads stencils per-project via `DeviceStencil::whereIn('part_number', $partNumbers)->with('ports')` and attaches so resolver reads `$device->stencil->ports` without N+1 inside the loop. **21 new tests / 91 assertions:** 10 unit (exact match / two-device ambiguous / zero-match / two-HDMI-ambiguous / Tier-1.5-zero-ports / source-matched-dest-ambiguous-partial / case-insensitive / CAT6→rj45 / empty-connector-excluded / resolver purity) + 11 feature (dry-run default / --apply persists / project arg scoping / idempotency / T-22-A5 / T-22-A6 / already-set skip / summary line contains all 5 category labels / empty DB / ambiguous→ALL 4 FKs NULL / dry-run tag). Full `--filter=Cable` suite: **73 pass + 4 env-skipped / 330 assertions GREEN** (was 52+4 after Plan 22-02 → +21 exactly accounted for, zero regression). **D-LOCK verified:** zero diff against `app/Services/CableScheduleGeneratorService.php` AND `app/Services/Drawings/*` (v1.3 surface invariant preserved across ALL 3 Phase 22 plans). Commits: `52c2e18` (Task 1 RED) + `ed02cdd` (Task 1 GREEN — resolver + fixture fix) + `2fa1c65` (Task 2 RED) + `a5d32f0` (Task 2 GREEN — command + fixture fix). Two Rule-3 fixture deviations (test mechanics only, zero production-code change): (1) two-device-ambiguous test shares stencil via `attachStencilToDevice` helper because catalog stencils are unique on part_number — matches production catalog-sharing semantics; (2) project-scoping fixture uses `DeviceStencil::firstOrCreate` so calling `makeProjectWithThreeItems()` twice doesn't violate the UNIQUE constraint. **DRAW-40 + DRAW-41 complete. PHASE 22 COMPLETE — all 5 requirement IDs (DRAW-37 schema/model, DRAW-38 picker UI, DRAW-39 compat warning + override note, DRAW-40 deterministic backfill, DRAW-41 one-shot artisan with categorised report) satisfied across the 3 plans. Phase 23 (port-to-port renderer) unblocked — can now consume populated FKs OR gracefully fall back to text-only for ambiguous/no-device-match/Tier-1.5 rows.**
 
@@ -117,7 +120,7 @@ Last activity: 2026-05-13 -- Phase 22.1 planning complete
 
 **Last session ended:** 2026-05-12 — Plan 22-02 (picker UI + cross-project FK guard + D-10 regression locked) completed in 28 minutes / 3 commits / 8 files (5 created + 3 modified). Alpine `x-data="portPicker(...)"` modal at `resources/views/cable-schedule/_port-picker-modal.blade.php` (single instance per page per D-01, side-by-side SOURCE/DEST per D-02, chain-link icon column inserted between From and To making the cable edit table 9-col per D-03, picker overwrites From/To with canonical `"{Manufacturer} {Model} ({Port label})"` on Apply per D-04, all 5 modal buttons carry `type="button"` per Pitfall 5). JS `isCompatible()` mirrors PHP `CableConnectorCompatibilityService::check` exactly (empty/empty → compat with Pitfall 4 note, exact → compat, bidirectional allowlist → compat with alias note, else mismatch); yellow override-warning + REQUIRED 500-char textarea blocks Apply until non-whitespace content (DRAW-39 client gate). "Clear ports on this row" button writes NULL to all 5 FK columns + leaves From/To text intact (Open Question 2). `CableScheduleController@update` extended with 5 new validation rules + T-22-A4 cross-project FK injection guard — single `Device::whereIn(...)->where('project_id', '!=', $cableSchedule->project_id)->count()` AFTER `validate()` and BEFORE `DB::transaction()` so `items()->delete()` never runs on failed validation (pre-seeded row canary proves no destructive write). `@edit` eager-loads `items.sourceDevice/sourcePort/destDevice/destPort` AT THE CALL SITE only (D-10 — never on `$with`) + builds `$devicesWithPorts` payload via direct `Device::where('project_id')->with(['stencil.ports' => fn ($q) => $q->orderBy('side')->orderBy('sort_order')])` (resolves A2 — engineers can distinguish multiple physical units of the same model). **12 dev tests pass + 3 env-skipped / 116 assertions; `--filter=Cable` 52 pass / 4 skip / 239 assertions GREEN.** D-10 grep gate verified: zero matches across 5 v1.3 surface files. T-22-A4 BLOCKING gate passes (5 tests / 18 assertions — form + JSON `putJson` + pre-seeded canary + nonexistent device + T-22-A1 mass-assignment). Commits: `9f72e87` + `21690ca` + `21db172`. Two Rule-3 test-fixture deviations auto-fixed (PhpSpreadsheet absent in dev env → `class_exists` skip mirroring D2 binary pattern + complementary static D-10 source-scan guard that runs everywhere; static guard regex tightened to `->sourceDevice/Port/destDevice/Port` method-invocation forms to avoid matching SchematicD2SourceBuilder Phase 17 local variable names). Zero behavioural deviations. **DRAW-38 + DRAW-39 COMPLETE (picker UI + server-side rules + override-note workflow + cross-project FK guard all shipped). Plan 22-03 (backfill command) unblocked.**
 
-**Stopped at:** Phase 22.1 context gathered
+**Stopped at:** Completed 22.1-01-PLAN.md
 
 **Next session starts:** Plan 22-03 — backfill command (depends on 22-01 + 22-02). Live deploy for Plan 22-02: 3 view/controller files modified + 5 test files created — run `php artisan view:clear` + `config:clear` on live AFTER upload. No new dependencies (no Composer/npm changes). Migration from Plan 22-01 must already be applied.
 
