@@ -165,7 +165,10 @@ class RamsComplianceUpgradeService
             $result = $byName[$name] ?? array_values($results)[$idx] ?? null;
             $idx++;
             if (! is_array($result)) continue;
-            $bullets = trim((string) ($result['summary'] ?? ''));
+            // Phase 22.1 Plan 07: RoomOverviewSummaryService now writes
+            // `works_summary` (not `summary`) into each returned row. See
+            // RoomOverviewSummaryService::summarize() docblock.
+            $bullets = trim((string) ($result['works_summary'] ?? ''));
             if ($bullets === '') continue;
             $rooms[$roomIdx]['works_summary'] = $bullets;
         }
