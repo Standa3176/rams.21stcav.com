@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
 status: verifying
-stopped_at: Completed 22.1-07-PLAN.md — Phase 22.1 gap closure complete, ready for /gsd-verify-phase 22.1 --rerun
-last_updated: "2026-05-13T15:58:03.539Z"
+stopped_at: Phase 23 context gathered
+last_updated: "2026-05-13T18:15:22.720Z"
 last_activity: 2026-05-13
 progress:
   total_phases: 2
@@ -138,7 +138,7 @@ Last activity: 2026-05-13
 
 **Earlier session (2026-05-12):** Plan 22-02 (picker UI + cross-project FK guard + D-10 regression locked) completed in 28 minutes / 3 commits / 8 files (5 created + 3 modified). Alpine `x-data="portPicker(...)"` modal at `resources/views/cable-schedule/_port-picker-modal.blade.php` (single instance per page per D-01, side-by-side SOURCE/DEST per D-02, chain-link icon column inserted between From and To making the cable edit table 9-col per D-03, picker overwrites From/To with canonical `"{Manufacturer} {Model} ({Port label})"` on Apply per D-04, all 5 modal buttons carry `type="button"` per Pitfall 5). JS `isCompatible()` mirrors PHP `CableConnectorCompatibilityService::check` exactly (empty/empty → compat with Pitfall 4 note, exact → compat, bidirectional allowlist → compat with alias note, else mismatch); yellow override-warning + REQUIRED 500-char textarea blocks Apply until non-whitespace content (DRAW-39 client gate). "Clear ports on this row" button writes NULL to all 5 FK columns + leaves From/To text intact (Open Question 2). `CableScheduleController@update` extended with 5 new validation rules + T-22-A4 cross-project FK injection guard — single `Device::whereIn(...)->where('project_id', '!=', $cableSchedule->project_id)->count()` AFTER `validate()` and BEFORE `DB::transaction()` so `items()->delete()` never runs on failed validation (pre-seeded row canary proves no destructive write). `@edit` eager-loads `items.sourceDevice/sourcePort/destDevice/destPort` AT THE CALL SITE only (D-10 — never on `$with`) + builds `$devicesWithPorts` payload via direct `Device::where('project_id')->with(['stencil.ports' => fn ($q) => $q->orderBy('side')->orderBy('sort_order')])` (resolves A2 — engineers can distinguish multiple physical units of the same model). **12 dev tests pass + 3 env-skipped / 116 assertions; `--filter=Cable` 52 pass / 4 skip / 239 assertions GREEN.** D-10 grep gate verified: zero matches across 5 v1.3 surface files. T-22-A4 BLOCKING gate passes (5 tests / 18 assertions — form + JSON `putJson` + pre-seeded canary + nonexistent device + T-22-A1 mass-assignment). Commits: `9f72e87` + `21690ca` + `21db172`. Two Rule-3 test-fixture deviations auto-fixed (PhpSpreadsheet absent in dev env → `class_exists` skip mirroring D2 binary pattern + complementary static D-10 source-scan guard that runs everywhere; static guard regex tightened to `->sourceDevice/Port/destDevice/Port` method-invocation forms to avoid matching SchematicD2SourceBuilder Phase 17 local variable names). Zero behavioural deviations. **DRAW-38 + DRAW-39 COMPLETE (picker UI + server-side rules + override-note workflow + cross-project FK guard all shipped). Plan 22-03 (backfill command) unblocked.**
 
-**Stopped at:** Completed 22.1-07-PLAN.md — Phase 22.1 gap closure complete, ready for /gsd-verify-phase 22.1 --rerun
+**Stopped at:** Phase 23 context gathered
 
 **Next session starts:** Plan 22.1-06 — final verification wave (RamsRenderRegression re-run + structural-JSON-diff D-13 assertion against legacy → migrated reviewed_data shape + check the two forward flags surfaced by Plan 22.1-05: `RamsController.php:284` form_data write and `ProjectPackageRamsReviewService.php:78,85` orphan emissions). Live deploy: 7 PHP files + 1 Blade modified + 2 new test files — run `php artisan view:clear` + `config:clear` on live AFTER upload. No new dependencies. No migrations.
 
