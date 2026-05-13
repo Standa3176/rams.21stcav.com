@@ -129,8 +129,11 @@ class WorksheetGeneratorService
                 try {
                     $summariser = app(\App\Services\RoomOverviewSummaryService::class);
                     $payload    = [];
+                    // Phase 22.1 Plan 07: canonical input is the 4-key shape.
+                    // The service only reads `room` + `overview`; no `summary`
+                    // input key is consumed.
                     foreach ($needBullets as $name => $prose) {
-                        $payload[] = ['room' => $name, 'overview' => $prose, 'summary' => ''];
+                        $payload[] = ['room' => $name, 'overview' => $prose];
                     }
                     $results = $summariser->summarize($payload);
                     foreach ((array) $results as $r) {

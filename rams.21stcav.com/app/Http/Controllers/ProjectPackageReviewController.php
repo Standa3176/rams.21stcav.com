@@ -540,11 +540,14 @@ class ProjectPackageReviewController extends Controller
         }
 
         try {
+            // Phase 22.1 Plan 07: canonical input is the 4-key shape. The
+            // service only reads `room` + `overview` — no `summary` input key
+            // is consumed. Solution-type fields are extra context, not part
+            // of the canonical row.
             $results      = $this->roomSummaryService->summarize([
                 [
                     'room'                => $room,
                     'overview'            => $overview,
-                    'summary'             => '',
                     'solution_type'       => $solutionTypeName,
                     'solution_method'     => $solutionTypeMethod,
                 ],
