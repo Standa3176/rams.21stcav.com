@@ -493,8 +493,6 @@
                                    maxlength="150"
                                    style="font-weight:600;color:#0f5460;"
                                    oninput="syncRoomNameToEquipment(this)">
-                            <input type="hidden" name="room_overviews[{{ $ri }}][summary]"
-                                   value="{{ old("room_overviews.{$ri}.summary", $ro['summary']) }}">
                             <button type="button" class="btn-remove"
                                     onclick="removeRow(this)"
                                     title="Remove space"
@@ -531,13 +529,6 @@
                                     style="margin-top:.4rem;font-size:.75rem;">
                                 ✨ Generate
                             </button>
-                            {{-- Room Description — O&M prose paragraph (D-01, D-17) --}}
-                            <label style="font-size:.75rem;color:var(--text-muted);margin-top:.6rem;display:block;">Room Description <span style="font-weight:400;">(O&amp;M prose paragraph)</span></label>
-                            <textarea name="room_overviews[{{ $ri }}][description]"
-                                      rows="3"
-                                      class="form-control av-room-description-textarea"
-                                      style="margin-top:.25rem;"
-                                      placeholder="2–4 sentence prose paragraph for O&amp;M room narrative. Click ✨ Generate on this row to populate.">{{ old("room_overviews.{$ri}.description", $ro['description'] ?? '') }}</textarea>
                         </td>
                     </tr>
                     @empty
@@ -1740,7 +1731,6 @@ function addRoomOverviewRow() {
                    style="font-weight:600;color:#0f5460;"
                    oninput="syncRoomNameToEquipment(this)"
                    data-original-room="">
-            <input type="hidden" name="room_overviews[${idx}][summary]" value="">
             <button type="button" class="btn-remove" onclick="removeRow(this)"
                     title="Remove space"
                     style="margin-top:.4rem;display:flex;align-items:center;gap:.3rem;font-size:.75rem;">
@@ -1809,16 +1799,6 @@ function generateRoomSummary(btn) {
             summaryEl.value = data.works_summary;
         } else if (data.error) {
             alert(data.error);
-        }
-        // Also populate description textarea if returned (D-12, D-17)
-        if (data.description !== undefined) {
-            const row = btn.closest('tr') || btn.closest('.room-overview-row');
-            if (row) {
-                const descTextarea = row.querySelector('textarea.av-room-description-textarea');
-                if (descTextarea) {
-                    descTextarea.value = data.description;
-                }
-            }
         }
     })
     .catch(() => alert('Generation failed. Please try again.'))

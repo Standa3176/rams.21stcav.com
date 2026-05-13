@@ -231,14 +231,16 @@ class ProjectPackageReviewController extends Controller
             }
         }
 
+        // Phase 22.1 closure (Plan 07): editPayload emits the canonical 4-key
+        // per-room shape only. The legacy `summary` and `description` keys are
+        // dropped — they were posted by dead form fields that have been removed
+        // from review.blade.php this same plan. See 22.1-VERIFICATION.md gaps.
         $raw['room_overviews'] = array_map(function (string $roomName) use ($savedOverviewsByRoom): array {
             $saved = $savedOverviewsByRoom[$roomName] ?? [];
             return [
                 'room'             => $roomName,
                 'overview'         => (string) ($saved['overview']         ?? ''),
                 'works_summary'    => (string) ($saved['works_summary']    ?? ''),
-                'summary'          => (string) ($saved['summary']          ?? ''),
-                'description'      => (string) ($saved['description']      ?? ''),
                 'solution_type_id' => (int)    ($saved['solution_type_id'] ?? 0) ?: null,
             ];
         }, $allRoomNames);
@@ -543,21 +545,17 @@ class ProjectPackageReviewController extends Controller
                     'solution_method'     => $solutionTypeMethod,
                 ],
             ]);
-            $worksSummary = $results[0]['summary'] ?? '';
-            // Phase 22.1 D-01: the AI no longer produces a `description` field —
-            // the engineer-typed `overview` is the canonical prose source for
-            // downstream services. Return the overview verbatim so any existing
-            // front-end consumer that still expects a `description` key in the
-            // JSON response stays renderable (it gets the same paragraph the
-            // engineer just typed). The legacy AI-generated prose is gone.
-            $description  = $overview;
+            // Phase 22.1 closure (Plan 07): consume the canonical `works_summary`
+            // key directly. The legacy `summary` shim is gone with Task 2's service
+            // rename. The legacy `description` JSON response field is gone with
+            // Task 1's blade-JS cleanup (Step 1c) — no remaining consumer.
+            $worksSummary = $results[0]['works_summary'] ?? '';
         } catch (\Throwable $e) {
             return response()->json(['error' => 'AI generation failed. Please try again.'], 500);
         }
 
         return response()->json([
             'works_summary' => $worksSummary,
-            'description'   => $description,
         ]);
     }
 
@@ -673,9 +671,10 @@ class ProjectPackageReviewController extends Controller
             // the rest of the pipeline keeps working.
             'names'            => ['nullable', 'string', 'max:1000'],
             // Current form values sent by JS so we don't need a prior save:
+            // Phase 22.1 closure (Plan 07): `current_description` dropped — the
+            // description textarea is gone from review.blade.php; no posted value.
             'current_overview'      => ['nullable', 'string'],
             'current_works_summary' => ['nullable', 'string'],
-            'current_description'   => ['nullable', 'string'],
             'current_solution_type_id' => ['nullable', 'integer'],
         ]);
 
@@ -730,7 +729,6 @@ class ProjectPackageReviewController extends Controller
         // FALLBACK: look up from extracted_data for exact/prefix match.
         $sourceOverview     = trim((string) ($data['current_overview']      ?? ''));
         $sourceWorksSummary = trim((string) ($data['current_works_summary'] ?? ''));
-        $sourceDescription  = trim((string) ($data['current_description']   ?? ''));
         $sourceSolutionId   = (int) ($data['current_solution_type_id'] ?? 0) ?: null;
 
         if ($sourceOverview === '' || $sourceSolutionId === null) {
@@ -743,9 +741,6 @@ class ProjectPackageReviewController extends Controller
                     }
                     if ($sourceWorksSummary === '') {
                         $sourceWorksSummary = trim((string) ($ro['works_summary'] ?? ''));
-                    }
-                    if ($sourceDescription === '') {
-                        $sourceDescription = trim((string) ($ro['description'] ?? ''));
                     }
                     if ($sourceSolutionId === null) {
                         $sourceSolutionId = (int) ($ro['solution_type_id'] ?? 0) ?: null;
@@ -778,13 +773,14 @@ class ProjectPackageReviewController extends Controller
                 return true;
             },
         ));
+        // Phase 22.1 closure (Plan 07): expanded survey rooms emit the
+        // canonical 4-key shape only — symmetric with the source row that
+        // editPayload + parseReviewPayload now produce. See 22.1-VERIFICATION.md.
         for ($i = 1; $i <= $qty; $i++) {
             $roomOverviews[] = [
                 'room'             => $resolveName($i),
                 'overview'         => $sourceOverview,
                 'works_summary'    => $sourceWorksSummary,
-                'summary'          => '',
-                'description'      => $sourceDescription,
                 'solution_type_id' => $sourceSolutionId,
             ];
         }
@@ -1018,6 +1014,10 @@ class ProjectPackageReviewController extends Controller
         ];
 
         // ── Room Overviews ────────────────────────────────────────────────────
+        // Phase 22.1 closure (Plan 07): parseReviewPayload persists the
+        // canonical 4-key shape only. Any `summary` / `description` keys that
+        // hostile or stale clients post are silently dropped. Pair with the
+        // editPayload + review.blade.php cleanups landing in the same plan.
         $roomOverviews = [];
         foreach (array_values($raw['room_overviews'] ?? []) as $ro) {
             $room = trim((string) ($ro['room'] ?? ''));
@@ -1029,8 +1029,6 @@ class ProjectPackageReviewController extends Controller
                 'room'             => $room,
                 'overview'         => trim((string) ($ro['overview']      ?? '')),
                 'works_summary'    => trim((string) ($ro['works_summary'] ?? '')),
-                'summary'          => trim((string) ($ro['summary']       ?? '')),
-                'description'      => trim((string) ($ro['description']   ?? '')),
                 'solution_type_id' => $solutionTypeId,
             ];
         }
