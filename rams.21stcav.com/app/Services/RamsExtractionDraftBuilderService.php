@@ -99,6 +99,12 @@ class RamsExtractionDraftBuilderService
             $siteName = $projectName !== '' ? $projectName : $client;
         }
 
+        // Phase 22.1 D-09: the `overview` key is dropped from the canonical
+        // project array. The raw QuoteWerks overview prose still lives at the
+        // top-level `extracted_data['overview']` (written by buildOverview() /
+        // QuoteParserService) — it is no longer mirrored inside the `project`
+        // sub-array. RamsReviewDataService::normaliseProject() also drops the
+        // key on the read side, so the round-trip stays clean.
         return [
             'project_name' => $projectName,
             'quote_ref'    => $ref,
@@ -106,10 +112,6 @@ class RamsExtractionDraftBuilderService
             'site_name'    => $siteName,
             'site_address' => $siteAddress,
             'prepared_by'  => $preparedBy,
-            // Overview text extracted from the QuoteWerks Overview section.
-            // Stored here so it is visible and editable in the review form,
-            // but NEVER used as a source of equipment items.
-            'overview'     => ($formData['overview'] ?? '') ?: ($parsed['overview'] ?? ''),
         ];
     }
 

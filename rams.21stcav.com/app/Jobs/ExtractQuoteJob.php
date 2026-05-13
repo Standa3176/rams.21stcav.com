@@ -114,23 +114,33 @@ class ExtractQuoteJob implements ShouldQueue
                     ->first();
             }
 
-            // Create project if none matched
+            // Create project if none matched.
+            //
+            // Phase 22.1 D-02: Project.works_description is NOT auto-seeded
+            // from $extracted['overview']. The raw QuoteWerks overview prose
+            // is still preserved at ProjectPackage.extracted_data['overview']
+            // (top-level) for the review form to surface as a starting-value
+            // suggestion in the scope textarea — but it does not flow into
+            // a compliance-document field until a PM explicitly approves it.
             if ($project === null && $this->createProject) {
                 $project = $projectService->create($this->user, [
                     'name'              => $extracted['project_name']  ?? ($clientName ?? 'AV Installation'),
                     'ref'               => $extracted['qw_number']     ?? null,
                     'client_name'       => $clientName ?? 'Client',
                     'site_address'      => $siteAddress ?? '',
-                    'works_description' => $extracted['overview']      ?? null,
                 ]);
             }
 
+            // Phase 22.1 D-02: ProjectPackage.works_description is also NO
+            // LONGER auto-seeded from $extracted['overview']. The raw text
+            // stays inside extracted_data['overview']; nothing downstream
+            // reads ProjectPackage.works_description as a canonical scope
+            // source after this plan ships.
             $this->package->update([
                 'project_id'        => $project?->id,
                 'extracted_data'    => $extracted,
                 'equipment_list'    => $extracted['equipment_list'] ?? [],
                 'cable_list'        => $extracted['cable_hints']    ?? [],
-                'works_description' => $extracted['overview']       ?? null,
                 'status'            => ProjectPackage::STATUS_EXTRACTED,
             ]);
 

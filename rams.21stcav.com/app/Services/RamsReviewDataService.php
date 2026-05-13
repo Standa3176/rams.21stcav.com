@@ -97,6 +97,12 @@ class RamsReviewDataService
 
     private function normaliseProject(mixed $raw): array
     {
+        // Phase 22.1 D-09: project shape is exactly 11 keys. The legacy
+        // `overview` field is dropped — nothing in the application reads
+        // reviewed_data.project.overview (audited 2026-05-13). The raw
+        // QuoteWerks overview prose continues to live at the top-level
+        // extracted_data['overview'] where the review form can still
+        // surface it as a starting-value suggestion.
         $p = is_array($raw) ? $raw : [];
         return [
             'project_name' => (string) ($p['project_name'] ?? ''),
@@ -110,7 +116,6 @@ class RamsReviewDataService
             'lead_engineer'        => (string) ($p['lead_engineer']        ?? ''),
             'additional_engineers' => (string) ($p['additional_engineers'] ?? ''),
             'programmer'           => (string) ($p['programmer']           ?? ''),
-            'overview'     => (string) ($p['overview']     ?? ''),
         ];
     }
 
