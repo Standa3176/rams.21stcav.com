@@ -1,4 +1,4 @@
-﻿---
+---
 milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
 last_updated: "2026-05-09"
@@ -16,52 +16,52 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
 
 | Milestone | Theme | Phases | Status |
 |-----------|-------|--------|--------|
-| v1.0 | RAMS MVP | 01â€“07 | âœ… Shipped â€” [archive](milestones/v1.0-ROADMAP.md) |
-| v1.1 | Operations Dashboard & Notifications | 08â€“09 (10/11 deferred) | âœ… Shipped 2026-04-25 â€” [archive](milestones/v1.1-ROADMAP.md) |
-| v1.2 | Installation Programme & Field Management | 12â€“16 | âœ… Shipped 2026-04-25 â€” [archive](milestones/v1.2-ROADMAP.md) |
-| v1.3 | Technical Drawings & Schematics | 17â€“20 (19 â†’ v2.0) | âœ… Shipped 2026-05-09 â€” [archive](milestones/v1.3-ROADMAP.md) |
-| **v2.0** | **Engineering-Grade AV Drawings** | **21â€“25** | **ðŸš§ In progress** |
-| v1.4 | Client Portal & Project Visibility | 26â€“29 | ðŸ“‹ Planned (renumbered after v2.0) |
-| v1.5 | Financial & Proposal Engine | 30â€“33 | ðŸ“‹ Planned |
-| v1.6 | Service & Inventory | 34â€“37 | ðŸ“‹ Planned |
+| v1.0 | RAMS MVP | 01–07 | ✅ Shipped — [archive](milestones/v1.0-ROADMAP.md) |
+| v1.1 | Operations Dashboard & Notifications | 08–09 (10/11 deferred) | ✅ Shipped 2026-04-25 — [archive](milestones/v1.1-ROADMAP.md) |
+| v1.2 | Installation Programme & Field Management | 12–16 | ✅ Shipped 2026-04-25 — [archive](milestones/v1.2-ROADMAP.md) |
+| v1.3 | Technical Drawings & Schematics | 17–20 (19 → v2.0) | ✅ Shipped 2026-05-09 — [archive](milestones/v1.3-ROADMAP.md) |
+| **v2.0** | **Engineering-Grade AV Drawings** | **21–25** | **🚧 In progress** |
+| v1.4 | Client Portal & Project Visibility | 26–29 | 📋 Planned (renumbered after v2.0) |
+| v1.5 | Financial & Proposal Engine | 30–33 | 📋 Planned |
+| v1.6 | Service & Inventory | 34–37 | 📋 Planned |
 
 ---
 
-## ðŸš§ v2.0 Engineering-Grade AV Drawings (In Progress)
+## 🚧 v2.0 Engineering-Grade AV Drawings (In Progress)
 
 **Milestone Goal:** Auto-generate AV technical drawings at the engineering-grade fidelity of XTEN-AV / D-Tools / Lucidchart. Custom device cards (manufacturer logo + name + model + port rails), port-to-port cable routing, signal-type colour coding, sub-room zones, multi-page paginator with title block, sheet border. Output renders in the draw.io / mxGraph embed validated by spike `260509-ibx`. Visual contract = the XTEN-AV PAGING SYSTEM reference user shared 2026-05-09.
 
 **Reference image:** XTEN-AV PAGING SYSTEM (saved in conversation 2026-05-09). Every PR is evaluated against "does it move us closer to this output?"
 
-**Platform decision:** draw.io / mxGraph self-hosted (Apache 2.0). Spike validated 2026-05-09. Native build was the alternative â€” saves ~5â€“7 weeks vs full Konva canvas + custom SVG renderer.
+**Platform decision:** draw.io / mxGraph self-hosted (Apache 2.0). Spike validated 2026-05-09. Native build was the alternative — saves ~5–7 weeks vs full Konva canvas + custom SVG renderer.
 
-**Phases:** 21â€“25 (5 phases, ~25-30 plans estimated, ~10â€“15 weeks)
+**Phases:** 21–25 (5 phases, ~25-30 plans estimated, ~10–15 weeks)
 
 **Strategy summary:** Tier 1 (auto-generic stencil per part_number) + Tier 2 (engineer-curated catalog growth via UI) combined. AI port extraction (Tier 3) lands as polish in Phase 25. v1.3 D2-based renderer stays usable as fallback for projects without sufficient catalog coverage.
 
 ### Phases
 
-- [x] **Phase 21: Device Port Catalog + Stencil Cache** â€” `device_ports` + `device_stencils` tables; hand-curated top-50 device seed pack; auto-generic placeholder for uncatalogued parts; cross-project caching via `firstOrCreate` on part_number; manufacturer logo glyphs for top 20 brands. Foundation for all other phases. âœ… COMPLETE 2026-05-10 (3/3 plans, ~43 min total exec time).
-- [ ] **Phase 22: Cable Schedule with Port-Level FKs** â€” `source_port_id` + `dest_port_id` columns on `cable_schedule_items`; cascading dropdown UI (room â†’ device â†’ port); connector-compatibility validation; auto-derive from quote `cable_list` "X to Y" naming where unambiguous; one-shot backfill command. Depends on Phase 21. Estimate: 2â€“3 weeks.
-- [ ] **Phase 23: XTEN-AV-Style Renderer** â€” custom device-card stencils with port rails; port-to-port cable routing; signal-type colour coding (audio/video/control/network/USB); cable ID labels; sub-room zones (RACK / CEILING / etc) auto-derived + engineer-overridable; multi-page paginator (system + audio + video + control sub-sheets); standardised title block; sheet border. Depends on Phase 21+22. Estimate: 2â€“4 weeks (faster via draw.io vs ~4â€“5 weeks native).
-- [ ] **Phase 24: Stencil Curation UI** â€” admin route + edit screen for upgrading auto-generic stencils to engineer-curated ones; drag-port handles, label inputs, manufacturer-logo upload; "promote" action flips `device_stencils.source` from auto-generated â†’ engineer-curated; cross-project propagation automatic via cache lookup. Depends on Phase 21. Estimate: 1â€“2 weeks.
-- [ ] **Phase 25: AI Assist + Replacement Wiring** â€” Claude vision over manufacturer datasheet PDFs â†’ port JSON â†’ engineer review/approve flow (covers long-tail devices); chat-edit operations on rendered drawings (`move_device_to_zone`, `add_cable_between_ports`, etc.) bounded by canonical-data validity; bound PDF (v1.3 Phase 20) + O&M Manual auto-embed (v1.3 Phase 17) swap from D2 output to engineering-grade output for projects with sufficient catalog coverage. Depends on Phase 21+22+23. Estimate: 2â€“3 weeks.
+- [x] **Phase 21: Device Port Catalog + Stencil Cache** — `device_ports` + `device_stencils` tables; hand-curated top-50 device seed pack; auto-generic placeholder for uncatalogued parts; cross-project caching via `firstOrCreate` on part_number; manufacturer logo glyphs for top 20 brands. Foundation for all other phases. ✅ COMPLETE 2026-05-10 (3/3 plans, ~43 min total exec time).
+- [ ] **Phase 22: Cable Schedule with Port-Level FKs** — `source_port_id` + `dest_port_id` columns on `cable_schedule_items`; cascading dropdown UI (room → device → port); connector-compatibility validation; auto-derive from quote `cable_list` "X to Y" naming where unambiguous; one-shot backfill command. Depends on Phase 21. Estimate: 2–3 weeks.
+- [ ] **Phase 23: XTEN-AV-Style Renderer** — custom device-card stencils with port rails; port-to-port cable routing; signal-type colour coding (audio/video/control/network/USB); cable ID labels; sub-room zones (RACK / CEILING / etc) auto-derived + engineer-overridable; multi-page paginator (system + audio + video + control sub-sheets); standardised title block; sheet border. Depends on Phase 21+22. Estimate: 2–4 weeks (faster via draw.io vs ~4–5 weeks native).
+- [ ] **Phase 24: Stencil Curation UI** — admin route + edit screen for upgrading auto-generic stencils to engineer-curated ones; drag-port handles, label inputs, manufacturer-logo upload; "promote" action flips `device_stencils.source` from auto-generated → engineer-curated; cross-project propagation automatic via cache lookup. Depends on Phase 21. Estimate: 1–2 weeks.
+- [ ] **Phase 25: AI Assist + Replacement Wiring** — Claude vision over manufacturer datasheet PDFs → port JSON → engineer review/approve flow (covers long-tail devices); chat-edit operations on rendered drawings (`move_device_to_zone`, `add_cable_between_ports`, etc.) bounded by canonical-data validity; bound PDF (v1.3 Phase 20) + O&M Manual auto-embed (v1.3 Phase 17) swap from D2 output to engineering-grade output for projects with sufficient catalog coverage. Depends on Phase 21+22+23. Estimate: 2–3 weeks.
 
 ### Out of scope for v2.0 (deferred to v2.1+)
 
-- DWG export â€” LibreDWG GPLv3 license blocker; Teigha is paid
+- DWG export — LibreDWG GPLv3 license blocker; Teigha is paid
 - Real-time multi-user collaborative drawing
 - Apple Pencil pressure / tilt
 - Mobile-first drawing creation (drawings stay desktop/tablet)
 - Custom symbol library editor in-app (symbols stay in `device_stencils` table)
-- **Floor plans** (DRAW-14..20 from v1.3 backlog) â€” held for v2.1 with the same renderer + room-shape stencils
+- **Floor plans** (DRAW-14..20 from v1.3 backlog) — held for v2.1 with the same renderer + room-shape stencils
 
 ### Canonical refs
 
 - Visual contract: XTEN-AV PAGING SYSTEM reference image (conversation 2026-05-09)
 - Platform validation: `.planning/quick/260509-ibx-draw-io-embed-spike-sandbox-one-stencil-/260509-ibx-SUMMARY.md`
-- Native-build alternative (rejected â€” kept for diff): memory note `v2_engineering_grade_drawings_plan.md`
-- Spike seed data: `resources/data/draw-io-stencils/21cav-mtr-spike.json` (5 hand-coded MTR stencils â€” promoted to seed for Phase 21)
+- Native-build alternative (rejected — kept for diff): memory note `v2_engineering_grade_drawings_plan.md`
+- Spike seed data: `resources/data/draw-io-stencils/21cav-mtr-spike.json` (5 hand-coded MTR stencils — promoted to seed for Phase 21)
 
 ### Phase 21 Detail (planned 2026-05-10)
 
@@ -69,30 +69,30 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
 
 **Plans:** 3 plans, 2 waves
 
-- [x] 21-01-schema-models-cache-service-PLAN.md â€” Migration creating device_stencils + device_ports; DeviceStencil + DevicePort models; DeviceStencilCacheService (firstOrCreate-on-part_number); AutoGenericStencilGenerator (Tier 1 placeholder); Project::devicesWithStencils() accessor. Wave 1. Requirements: DRAW-31, DRAW-32, DRAW-34, DRAW-36.
-- [x] 21-02-seed-pack-promote-and-curate-PLAN.md â€” Promote 5 spike stencils + selected v1.3 catalog entries into per-file curation manifests; hand-curate gap to top-50 from quote volume; idempotent DeviceStencilSeeder using whereRaw LOWER TRIM matching pattern. Wave 2 (parallel with 21-03). Requirements: DRAW-33.
-- [x] 21-03-manufacturer-logos-builder-integration-PLAN.md â€” Top-15 new manufacturer logo SVGs (Crestron, Cisco, QSC, Bogen, Polycom, Logitech, Shure, Sony, Extron, Biamp, Yamaha, Atlona, Lightware, Q-SYS, Barco) bringing top-20 with the 5 spike logos; ManufacturerLogoResolver; rename DrawIoSpikeBuilderService â†’ DrawIoBuilderService reading from device_stencils table; spike admin route preserved with shim. Wave 2 (parallel with 21-02). Requirements: DRAW-35.
+- [x] 21-01-schema-models-cache-service-PLAN.md — Migration creating device_stencils + device_ports; DeviceStencil + DevicePort models; DeviceStencilCacheService (firstOrCreate-on-part_number); AutoGenericStencilGenerator (Tier 1 placeholder); Project::devicesWithStencils() accessor. Wave 1. Requirements: DRAW-31, DRAW-32, DRAW-34, DRAW-36.
+- [x] 21-02-seed-pack-promote-and-curate-PLAN.md — Promote 5 spike stencils + selected v1.3 catalog entries into per-file curation manifests; hand-curate gap to top-50 from quote volume; idempotent DeviceStencilSeeder using whereRaw LOWER TRIM matching pattern. Wave 2 (parallel with 21-03). Requirements: DRAW-33.
+- [x] 21-03-manufacturer-logos-builder-integration-PLAN.md — Top-15 new manufacturer logo SVGs (Crestron, Cisco, QSC, Bogen, Polycom, Logitech, Shure, Sony, Extron, Biamp, Yamaha, Atlona, Lightware, Q-SYS, Barco) bringing top-20 with the 5 spike logos; ManufacturerLogoResolver; rename DrawIoSpikeBuilderService → DrawIoBuilderService reading from device_stencils table; spike admin route preserved with shim. Wave 2 (parallel with 21-02). Requirements: DRAW-35.
 
 ### Phase 22: Cable Schedule with Port-Level FKs
-**Goal**: Cable schedule items become typed via four FK columns (`source_device_id`, `source_port_id`, `dest_device_id`, `dest_port_id`) referencing Phase 21's `devices` + `device_ports` tables. Cascading dropdown UI on the cable schedule edit screen lets engineers pick exact source-port â†’ dest-port pairs filtered by signal_type compatibility. Connector-compatibility validation warns at save (engineer override allowed with note, not a hard block). A one-shot backfill command populates port FKs from quote `cable_list` "X to Y" naming where the device-side ports are unambiguous (single matching connector on each side); leaves nullable for ambiguous rows so engineers can resolve manually. Legacy cable_schedule_items without port FKs continue to render via existing v1.3 surfaces â€” strictly additive. This is the data layer Phase 23's port-to-port renderer reads from.
+**Goal**: Cable schedule items become typed via four FK columns (`source_device_id`, `source_port_id`, `dest_device_id`, `dest_port_id`) referencing Phase 21's `devices` + `device_ports` tables. Cascading dropdown UI on the cable schedule edit screen lets engineers pick exact source-port → dest-port pairs filtered by signal_type compatibility. Connector-compatibility validation warns at save (engineer override allowed with note, not a hard block). A one-shot backfill command populates port FKs from quote `cable_list` "X to Y" naming where the device-side ports are unambiguous (single matching connector on each side); leaves nullable for ambiguous rows so engineers can resolve manually. Legacy cable_schedule_items without port FKs continue to render via existing v1.3 surfaces — strictly additive. This is the data layer Phase 23's port-to-port renderer reads from.
 **Depends on**: Phase 21 (device_ports table, DevicePort model with SIDE_*/DIRECTION_* constants, DeviceStencilCacheService cross-project caching)
 **Requirements**: DRAW-37, DRAW-38, DRAW-39, DRAW-40, DRAW-41
 **Success Criteria** (what must be TRUE):
-  1. Engineer can edit a cable_schedule_items row and pick source device â†’ source port (filtered to ports on that device, ordered by side then position) â†’ dest device â†’ dest port (filtered by signal_type compatibility with the chosen source port) via cascading dropdowns
-  2. Form save warns the engineer (with override-with-note option) when chosen source and dest ports have incompatible connector types (e.g. HDMI â†’ RJ45) â€” never a hard block
+  1. Engineer can edit a cable_schedule_items row and pick source device → source port (filtered to ports on that device, ordered by side then position) → dest device → dest port (filtered by signal_type compatibility with the chosen source port) via cascading dropdowns
+  2. Form save warns the engineer (with override-with-note option) when chosen source and dest ports have incompatible connector types (e.g. HDMI → RJ45) — never a hard block
   3. Running `php artisan cables:backfill-port-fks` on existing cable_schedule_items populates port FKs deterministically where the quote `cable_list` "X to Y" naming has exactly one matching connector on each side; leaves nullable where ambiguous; reports per-row decisions to stdout
   4. Phase 23's renderer can consume `cable_schedule_items.source_port_id` + `dest_port_id` to draw port-to-port cable routing without further data layer work
   5. v1.3 cable schedule XLSX export, schematic SVG generator, and bound-PDF cable-list section continue to render without regression for legacy rows where the new FK columns are NULL
 **Plans**: 3 plans, 2 waves
-  - [x] 22-01-PLAN.md — Schema migration (4 FK columns + override-note + port-pair index) + CableScheduleItem fillable + belongsTo relations + config/cables.php + CableConnectorCompatibilityService. Wave 1 — foundation. Requirements: DRAW-37, DRAW-39.
-  - [x] 22-02-PLAN.md — Alpine.js port-picker modal (D-02 side-by-side) + chain-link icon column + extended CableScheduleController@update with cross-project FK injection guard (T-22-A4) + D-10 regression tests (XLSX byte-identity + SchematicGenerator NULL-FK case). Wave 2 — depends on 22-01. Requirements: DRAW-38, DRAW-39.
-  - [x] 22-03-PLAN.md — CablePortFkResolverService (pure deterministic matcher) + cables:backfill-port-fks artisan command (dry-run-default with --apply flag, per-row 4-category report, idempotent, T-22-A5/A6 mitigated). Wave 2 — depends on 22-01. Requirements: DRAW-40, DRAW-41.
+  - [x] 22-01-PLAN.md � Schema migration (4 FK columns + override-note + port-pair index) + CableScheduleItem fillable + belongsTo relations + config/cables.php + CableConnectorCompatibilityService. Wave 1 � foundation. Requirements: DRAW-37, DRAW-39.
+  - [x] 22-02-PLAN.md � Alpine.js port-picker modal (D-02 side-by-side) + chain-link icon column + extended CableScheduleController@update with cross-project FK injection guard (T-22-A4) + D-10 regression tests (XLSX byte-identity + SchematicGenerator NULL-FK case). Wave 2 � depends on 22-01. Requirements: DRAW-38, DRAW-39.
+  - [x] 22-03-PLAN.md � CablePortFkResolverService (pure deterministic matcher) + cables:backfill-port-fks artisan command (dry-run-default with --apply flag, per-row 4-category report, idempotent, T-22-A5/A6 mitigated). Wave 2 � depends on 22-01. Requirements: DRAW-40, DRAW-41.
 **UI hint**: yes (cascading dropdown UI on cable schedule edit; backend command + form changes)
 **Canonical refs**:
-  - `.planning/phases/21-device-port-catalog-stencil-cache/21-CONTEXT.md` (Phase 21 decisions D-01..D-15 â€” port catalog contract)
+  - `.planning/phases/21-device-port-catalog-stencil-cache/21-CONTEXT.md` (Phase 21 decisions D-01..D-15 — port catalog contract)
   - `.planning/phases/21-device-port-catalog-stencil-cache/21-01-schema-models-cache-service-SUMMARY.md` (DevicePort model API surface, side/direction enum constants, FK semantics)
-  - `.planning/REQUIREMENTS.md` Â§"Phase 22 â€” Cable Schedule with Port-Level FKs" (DRAW-37..41 acceptance criteria)
-  - Visual contract: XTEN-AV PAGING SYSTEM reference image (conversation 2026-05-09) â€” port-to-port routing pattern Phase 23 will render from this data
+  - `.planning/REQUIREMENTS.md` §"Phase 22 — Cable Schedule with Port-Level FKs" (DRAW-37..41 acceptance criteria)
+  - Visual contract: XTEN-AV PAGING SYSTEM reference image (conversation 2026-05-09) — port-to-port routing pattern Phase 23 will render from this data
 
 ### Phase 22.1: RAMS Scope/Room-Data Consolidation
 **Goal**: Eliminate field-duplication across the 3-stage RAMS pipeline (`form_data` -> `reviewed_data` -> `generated_data`). Audit (2026-05-13) found 5 overlapping "scope/works/space narrative" fields at 3 granularities stored in 5 different JSON locations with inconsistent fallback chains, so a single scope edit can duplicate across all 5 - risking divergence between what engineers see in the review UI and what renders in the final PDF. This phase keeps `generated_data` shape backward-compatible (already-rendered RAMS docs unaffected) but consolidates the canonical source of truth, deprecates redundant fields with a backfill migration, removes dead-path code, and surfaces previously-invisible AI prose for engineer review. Survey<->RAMS sync rules + cross-document `Project.works_description` propagation rules DEFER to Phase 22.2 (touches in-flight workflows; needs a feature flag).
@@ -105,11 +105,17 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
   4. Backfill migration `summary` -> `works_summary` succeeds on all existing `reviewed_data` records (idempotent, dry-run-default with `--apply` flag)
   5. Regression test asserts byte-equivalence: existing `reviewed_data` records render byte-identical PDFs before and after the cleanup (golden-file in `tests/Feature/RamsRenderRegressionTest.php`)
   6. AI prompt audit confirms no prompt invents scope/equipment/design content (per CLAUDE.md constraint - AI is ONLY for formatting and method statement structuring)
-**Plans**: TBD - to be planned during `/gsd-plan-phase 22.1`
+**Plans**: 6 plans, 5 waves
+  - [ ] 22.1-01-PLAN.md — Write DATA-01..05 acceptance criteria into REQUIREMENTS.md (closes the roadmap/requirements gap). Wave 1. Requirements: DATA-01, DATA-02, DATA-03, DATA-04, DATA-05.
+  - [ ] 22.1-02-PLAN.md — Byte-equivalence golden-file regression test scaffolding (D-12 canary; runs BEFORE production code changes so subsequent waves can detect render drift). Wave 1 — parallel with 22.1-01. Requirements: DATA-05.
+  - [ ] 22.1-03-PLAN.md — Per-room narrative consolidation: rams:backfill-room-overview-summary artisan + RamsReviewDataService schema trim to 4 keys + MethodStatementService overview-input swap + RoomOverviewSummaryPrompt description-output drop (D-01, D-07, D-08, D-09 per-room). Wave 2 — depends on 22.1-01 + 22.1-02. Requirements: DATA-02, DATA-04.
+  - [ ] 22.1-04-PLAN.md — Dead-path removal: delete RamsGeneratorService + RamsPrompt + WorksBulletsPrompt + works_bullets textarea + survey controller rewire + DeadPathRemovalGuardTest static guard (D-10, D-11, D-04). Wave 3 — depends on 22.1-03. Requirements: DATA-03.
+  - [ ] 22.1-05-PLAN.md — Project-wide narrative consolidation: stop auto-seeding Project.works_description + drop method_statement_notes mapping + remove PM-INSTRUCTIONS separator + approve-time scope_of_works_bullets persistence + pdf/rams.blade.php fallback chain simplified + reviewed_data.project.overview dropped (D-02, D-03, D-06, D-08, D-09 project-level). Wave 4 — depends on 22.1-03 + 22.1-04. Requirements: DATA-01.
+  - [ ] 22.1-06-PLAN.md — Final verification: ReviewedDataStructuralDiffTest (D-13) + Phase22_1InvariantGuardTest mapping each ROADMAP SC #1-6 to a CI-verifiable assertion + full grep-ratchet sweep. Wave 5 — depends on all prior. Requirements: DATA-01, DATA-02, DATA-03, DATA-04, DATA-05.
 **UI hint**: yes (review-form field consolidation; possibly new edit UI for AI prose if D-03 lands on "surface it")
 **Canonical refs**:
   - `.planning/audits/rams-room-fields-audit-2026-05-13.md` - full audit with file:line citations
-  - `.planning/REQUIREMENTS.md` Â§"Phase 22.1 - RAMS Scope/Room-Data Consolidation" (DATA-01..05)
+  - `.planning/REQUIREMENTS.md` §"Phase 22.1 - RAMS Scope/Room-Data Consolidation" (DATA-01..05)
   - `app/Services/RamsBuilderService.php`, `app/Services/RamsReviewDataService.php`, `app/Services/RamsDataBuilderService.php` (3-stage pipeline core)
   - `app/Models/RamsDocument.php` (form_data / extracted_data / reviewed_data / generated_data shape contracts)
   - `app/Core/AI/Prompts/MethodStatementPrompt.php` (the only AI prompt in scope)
@@ -117,22 +123,22 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
 
 ---
 
-## âœ… v1.2 Installation Programme & Field Management â€” SHIPPED 2026-04-25
+## ✅ v1.2 Installation Programme & Field Management — SHIPPED 2026-04-25
 
-5 phases, 21 plans â€” full installation delivery loop from auto-generated task list â†’ mobile field view â†’ time tracking â†’ commissioning sign-off with snagging PDF. See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full details.
+5 phases, 21 plans — full installation delivery loop from auto-generated task list → mobile field view → time tracking → commissioning sign-off with snagging PDF. See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full details.
 
 ---
 
-## âœ… v1.3 Technical Drawings & Schematics â€” SHIPPED 2026-05-09
+## ✅ v1.3 Technical Drawings & Schematics — SHIPPED 2026-05-09
 
-3 phases, 7 plans â€” schematics (D2 CLI) + rack elevations (custom Blade SVG) + bound PDF / ZIP / O&M auto-embed. Phase 19 (Floor Plans / Konva) deferred mid-milestone to v2.0 backlog 999.1. Companion draw.io spike (260509-ibx) validated the v2.0 engineering-grade rendering platform. See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full details.
+3 phases, 7 plans — schematics (D2 CLI) + rack elevations (custom Blade SVG) + bound PDF / ZIP / O&M auto-embed. Phase 19 (Floor Plans / Konva) deferred mid-milestone to v2.0 backlog 999.1. Companion draw.io spike (260509-ibx) validated the v2.0 engineering-grade rendering platform. See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full details.
 
 ---
 
 <details>
 <summary>v1.3 collapsed details (click to expand)</summary>
 
-**Milestone Goal:** Generate AV technical drawings â€” schematics + rack elevations â€” from the same canonical project data that powers RAMS, O&M, and worksheets. Internal engineers view drawings on tablets and print during install; clients receive them as part of the O&M Manual handover. Drawings derive from canonical project data only â€” AI may assist with layout but never invents equipment, cables, or rooms.
+**Milestone Goal:** Generate AV technical drawings — schematics + rack elevations — from the same canonical project data that powers RAMS, O&M, and worksheets. Internal engineers view drawings on tablets and print during install; clients receive them as part of the O&M Manual handover. Drawings derive from canonical project data only — AI may assist with layout but never invents equipment, cables, or rooms.
 
 **Phases:** 17, 18, 20 (3 phases, ~7 plans estimated)
 
@@ -140,16 +146,16 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
 
 ### Phases
 
-- [x] **Phase 17: System Schematics + Shared Foundations** â€” Auto-generate per-room signal-flow SVG schematics via D2 CLI; lays the `project_drawings` table, model, policy, storage type, job pattern, and `waitForJs` PDF extension that Phases 18 + 20 depend on (completed 2026-05-01)
-- [x] **Phase 18: Rack Elevations** â€” 1U-precise rack drawings from equipment list with U-height + ventilation data; drag-reorder editor + per-rack totals footer; engineer always builds manually (no auto-place) (completed 2026-05-02)
-- [x] **Phase 20: Drawing Export Pipeline + O&M Integration** â€” Bound multi-page project PDF, drawing register, sheet numbering, revision tracking, status state machine; embeds drawings (schematic + rack only â€” floor plans deferred) in O&M handover via PNG flatten
+- [x] **Phase 17: System Schematics + Shared Foundations** — Auto-generate per-room signal-flow SVG schematics via D2 CLI; lays the `project_drawings` table, model, policy, storage type, job pattern, and `waitForJs` PDF extension that Phases 18 + 20 depend on (completed 2026-05-01)
+- [x] **Phase 18: Rack Elevations** — 1U-precise rack drawings from equipment list with U-height + ventilation data; drag-reorder editor + per-rack totals footer; engineer always builds manually (no auto-place) (completed 2026-05-02)
+- [x] **Phase 20: Drawing Export Pipeline + O&M Integration** — Bound multi-page project PDF, drawing register, sheet numbering, revision tracking, status state machine; embeds drawings (schematic + rack only — floor plans deferred) in O&M handover via PNG flatten
  (completed 2026-05-03)
-- â¤³ ~~Phase 19: Floor Plans (Konva)~~ â€” **deferred to v2.0 backlog 999.1**
+- ⤳ ~~Phase 19: Floor Plans (Konva)~~ — **deferred to v2.0 backlog 999.1**
 
 ## Phase Details
 
 ### Phase 17: System Schematics + Shared Foundations
-**Goal**: Engineers can auto-generate per-room signal-flow schematics from canonical project data and download them as PDF or SVG. This phase also lays the shared drawings foundation (table, model, policy, storage type, job pattern, edit-adapter, mailable, `waitForJs` PDF flag) that Phases 18â€“20 build on as pure additions.
+**Goal**: Engineers can auto-generate per-room signal-flow schematics from canonical project data and download them as PDF or SVG. This phase also lays the shared drawings foundation (table, model, policy, storage type, job pattern, edit-adapter, mailable, `waitForJs` PDF flag) that Phases 18–20 build on as pure additions.
 **Depends on**: Nothing (first phase of v1.3; foundations land here)
 **Requirements**: DRAW-01, DRAW-02, DRAW-03, DRAW-04, DRAW-05, DRAW-06, DRAW-22, DRAW-24, DRAW-25, DRAW-26, DRAW-27, DRAW-30
 **Success Criteria** (what must be TRUE):
@@ -159,38 +165,38 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
   4. User can edit an auto-generated schematic and on regenerate the prior version is archived (never silently overwritten); regenerate prompts the user when canvas edits exist
   5. User can change a schematic's status (draft / for review / approved / superseded) and see drawings filed in the O&M Manual handover via PNG embed
 **Plans**: 3 plans
-- [x] 17-01-foundations-PLAN.md â€” project_drawings table + ProjectDrawing model + policy + TYPE_DRAWING storage + PdfRenderService::waitForJs extension + DrawingService/DrawingDataResolverService + DrawingEditAdapter scaffolding (DRAW-30) + BuildSchematicJob skeleton + DrawingReadyMail + Device::isSource/isDestination/isProcessor (CRIT-05) + routes + Project::drawings relation. Wave 1 â€” foundation. Requirements: DRAW-24, DRAW-25, DRAW-30 (scaffolding only).
-- [x] 17-02-schematic-generator-PLAN.md â€” SchematicGeneratorService (D2 CLI invocation) + SchematicD2SourceBuilder + ~25 AV symbol pack (resources/svg/av-symbols/) + DrawingDataResolverService::adjacencyForProject body + schematic Blade view + reusable title-block partial + config/drawings.php (D2 binary path, layout engine, signal-type colour map) + feature test. Wave 2 â€” depends on 17-01. Requirements: DRAW-01, DRAW-02, DRAW-03, DRAW-04, DRAW-22.
-- [x] 17-03-render-ui-handover-PLAN.md â€” DrawingExportRendererService (PDF/SVG/PNG via PdfRenderService + Browsershot) + drawings index + show + status pill + regenerate-confirm modal (lock-on-edit UX scaffolding for DRAW-05) + per-format download routes + status update via DrawingEditAdapter + OmManualDocxService Drawings section (PNG embed for DRAW-26) + pdf:smoke-test --drawings flag + Project::show page link. Wave 2 â€” depends on 17-01. Requirements: DRAW-05 (scaffolding only â€” full editor in Phase 19), DRAW-06, DRAW-26, DRAW-27.
+- [x] 17-01-foundations-PLAN.md — project_drawings table + ProjectDrawing model + policy + TYPE_DRAWING storage + PdfRenderService::waitForJs extension + DrawingService/DrawingDataResolverService + DrawingEditAdapter scaffolding (DRAW-30) + BuildSchematicJob skeleton + DrawingReadyMail + Device::isSource/isDestination/isProcessor (CRIT-05) + routes + Project::drawings relation. Wave 1 — foundation. Requirements: DRAW-24, DRAW-25, DRAW-30 (scaffolding only).
+- [x] 17-02-schematic-generator-PLAN.md — SchematicGeneratorService (D2 CLI invocation) + SchematicD2SourceBuilder + ~25 AV symbol pack (resources/svg/av-symbols/) + DrawingDataResolverService::adjacencyForProject body + schematic Blade view + reusable title-block partial + config/drawings.php (D2 binary path, layout engine, signal-type colour map) + feature test. Wave 2 — depends on 17-01. Requirements: DRAW-01, DRAW-02, DRAW-03, DRAW-04, DRAW-22.
+- [x] 17-03-render-ui-handover-PLAN.md — DrawingExportRendererService (PDF/SVG/PNG via PdfRenderService + Browsershot) + drawings index + show + status pill + regenerate-confirm modal (lock-on-edit UX scaffolding for DRAW-05) + per-format download routes + status update via DrawingEditAdapter + OmManualDocxService Drawings section (PNG embed for DRAW-26) + pdf:smoke-test --drawings flag + Project::show page link. Wave 2 — depends on 17-01. Requirements: DRAW-05 (scaffolding only — full editor in Phase 19), DRAW-06, DRAW-26, DRAW-27.
 **UI hint**: yes
 **Canonical refs**:
   - `.planning/research/SUMMARY.md`
-  - `.planning/research/STACK.md` Â§1 Schematic Engine + Â§5 AV Symbol Pack
-  - `.planning/research/ARCHITECTURE.md` Â§2 Data Model + Â§3 Service Layer + Â§4.3 PdfRenderService waitForJs extension + Â§8 Build Order
+  - `.planning/research/STACK.md` §1 Schematic Engine + §5 AV Symbol Pack
+  - `.planning/research/ARCHITECTURE.md` §2 Data Model + §3 Service Layer + §4.3 PdfRenderService waitForJs extension + §8 Build Order
   - `.planning/research/PITFALLS.md` CRIT-01 (Browsershot/React canvas), CRIT-02 (drift vs canonical), CRIT-05 (reversed signal flow)
 
 ### Phase 18: Rack Elevations
-**Goal**: Engineers can manually build 1U-precise rack elevations from rack-mounted equipment (with U-height + ventilation metadata) via a drag-into-U-slots editor, lock per-item U-positions, and download per-rack PDF/SVG with totals footer (weight, current, BTU, U-utilisation). A unified "+ Create Drawing" picker replaces the per-kind buttons on the drawings index. CRIT-06 enforced â€” devices outside the manufacturer JSON pack surface as "U-height unknown" warnings, never silent 1U guesses.
+**Goal**: Engineers can manually build 1U-precise rack elevations from rack-mounted equipment (with U-height + ventilation metadata) via a drag-into-U-slots editor, lock per-item U-positions, and download per-rack PDF/SVG with totals footer (weight, current, BTU, U-utilisation). A unified "+ Create Drawing" picker replaces the per-kind buttons on the drawings index. CRIT-06 enforced — devices outside the manufacturer JSON pack surface as "U-height unknown" warnings, never silent 1U guesses.
 **Depends on**: Phase 17 (foundations: `project_drawings` table, model, policy, `TYPE_DRAWING` storage, `BuildSchematicJob` pattern, `DrawingReadyMail`, edit-adapter pattern)
 **Requirements**: DRAW-07, DRAW-08, DRAW-09, DRAW-10, DRAW-11, DRAW-12, DRAW-13
 **Success Criteria** (what must be TRUE):
-  1. User clicks "+ Create Drawing" on a project's drawings page, picks Rack Elevation, and lands in an editor with a 42U rack scaffold + U-numbered side rail (1 at bottom, 42 at top â€” AVIXA convention)
+  1. User clicks "+ Create Drawing" on a project's drawings page, picks Rack Elevation, and lands in an editor with a 42U rack scaffold + U-numbered side rail (1 at bottom, 42 at top — AVIXA convention)
   2. User can drag equipment from a palette (rack-mounted equipment grouped first, all other equipment greyed but draggable second) into U-slots; each item respects its U-height; user can lock per-item U-position so subsequent reorders skip locked items (DRAW-10)
-  3. User can manage multiple racks per project (no single-rack limit) â€” each rack is its own ProjectDrawing row with its own status, revision, and download endpoints (DRAW-11)
-  4. User reads per-rack totals (weight, current draw, BTU, U-utilisation) in the footer of every rack drawing â€” partial data shows asterisks + ratio (e.g. "Weight: 28 kg* (4/7 known)") with tooltip listing unclassified devices (DRAW-12)
-  5. User can download each rack as PDF (landscape A4 with title block) or SVG (direct write of generated_svg); items with no U-height in the manufacturer JSON pack render with a 1U placeholder AND a "U-height unknown" warning region (CRIT-06 â€” never a silent 1U guess) (DRAW-13)
+  3. User can manage multiple racks per project (no single-rack limit) — each rack is its own ProjectDrawing row with its own status, revision, and download endpoints (DRAW-11)
+  4. User reads per-rack totals (weight, current draw, BTU, U-utilisation) in the footer of every rack drawing — partial data shows asterisks + ratio (e.g. "Weight: 28 kg* (4/7 known)") with tooltip listing unclassified devices (DRAW-12)
+  5. User can download each rack as PDF (landscape A4 with title block) or SVG (direct write of generated_svg); items with no U-height in the manufacturer JSON pack render with a 1U placeholder AND a "U-height unknown" warning region (CRIT-06 — never a silent 1U guess) (DRAW-13)
 **Plans**: 2 plans
-- [x] 18-01-picker-and-schema-PLAN.md â€” Device schema migration (u_height decimal, is_rack_mounted, ventilation gaps; all nullable) + hand-curated 53-entry manufacturer JSON pack at resources/data/device-port-catalog.json + DeviceCatalogService reader + idempotent DeviceCatalogSeeder + unified "+ Create Drawing" Alpine picker modal (Schematic with Yes/No auto-gen toggle, Rack with single Create button, Floor Plan disabled with "Coming in v2.0" tooltip) + ProjectDrawingController picker/createRack actions + DrawingService::generateInitial extended for kind=rack (synchronous, no job dispatched) + DrawingDataResolverService::rackStackForProject body. Wave 1 â€” foundation. Requirements: DRAW-08, DRAW-09 (palette ordering â€” partial), DRAW-11, DRAW-12. (LANDED 2026-05-02; commits 5ce6799 / 782e902 / 74b8fb4; 24 new test cases / 72 assertions)
-- [x] 18-03-rack-editor-PLAN.md â€” RackElevationRenderService (synchronous custom Blade SVG, ~340 LOC measured 0.06s for 42U/30-items, U-numbered rail + equipment rectangles + totals footer with asterisks/ratios + CRIT-06 unknown-U-height warnings + htmlspecialchars XSS protection) + pdf/drawings/rack.blade.php (landscape A4 with title block) + DrawingExportRendererService::bladeViewFor extended for kind=rack + ProjectDrawingController::editRack + saveRackCanvas (AJAX, throttled, validated) + flipRackMountedFlag endpoints (project-scoped against new App\Policies\ProjectPolicy â€” Blocker 2 fix) + Sortable.js drag-into-U-slots editor with cursor-walk lock-aware reorder algorithm + per-item U-position lock + new resources/js/rack-editor.js Vite entry + sortablejs ^1.15.6 added to package.json + show.blade.php Edit Rack button (existing line-66 kind-agnostic SVG render branch UNCHANGED â€” Warning 9 fix). Wave 2 â€” depends on 18-01. Requirements: DRAW-07, DRAW-08, DRAW-09 (partial), DRAW-10, DRAW-11, DRAW-12, DRAW-13. (LANDED 2026-05-02; commits dade6d8 / f3ad476 / ce981d9; 20 new test cases / 99 assertions)
+- [x] 18-01-picker-and-schema-PLAN.md — Device schema migration (u_height decimal, is_rack_mounted, ventilation gaps; all nullable) + hand-curated 53-entry manufacturer JSON pack at resources/data/device-port-catalog.json + DeviceCatalogService reader + idempotent DeviceCatalogSeeder + unified "+ Create Drawing" Alpine picker modal (Schematic with Yes/No auto-gen toggle, Rack with single Create button, Floor Plan disabled with "Coming in v2.0" tooltip) + ProjectDrawingController picker/createRack actions + DrawingService::generateInitial extended for kind=rack (synchronous, no job dispatched) + DrawingDataResolverService::rackStackForProject body. Wave 1 — foundation. Requirements: DRAW-08, DRAW-09 (palette ordering — partial), DRAW-11, DRAW-12. (LANDED 2026-05-02; commits 5ce6799 / 782e902 / 74b8fb4; 24 new test cases / 72 assertions)
+- [x] 18-03-rack-editor-PLAN.md — RackElevationRenderService (synchronous custom Blade SVG, ~340 LOC measured 0.06s for 42U/30-items, U-numbered rail + equipment rectangles + totals footer with asterisks/ratios + CRIT-06 unknown-U-height warnings + htmlspecialchars XSS protection) + pdf/drawings/rack.blade.php (landscape A4 with title block) + DrawingExportRendererService::bladeViewFor extended for kind=rack + ProjectDrawingController::editRack + saveRackCanvas (AJAX, throttled, validated) + flipRackMountedFlag endpoints (project-scoped against new App\Policies\ProjectPolicy — Blocker 2 fix) + Sortable.js drag-into-U-slots editor with cursor-walk lock-aware reorder algorithm + per-item U-position lock + new resources/js/rack-editor.js Vite entry + sortablejs ^1.15.6 added to package.json + show.blade.php Edit Rack button (existing line-66 kind-agnostic SVG render branch UNCHANGED — Warning 9 fix). Wave 2 — depends on 18-01. Requirements: DRAW-07, DRAW-08, DRAW-09 (partial), DRAW-10, DRAW-11, DRAW-12, DRAW-13. (LANDED 2026-05-02; commits dade6d8 / f3ad476 / ce981d9; 20 new test cases / 99 assertions)
 **UI hint**: yes
 **Canonical refs**:
   - `.planning/research/SUMMARY.md`
-  - `.planning/research/STACK.md` Â§1.2 Rack Elevations (custom Blade SVG)
-  - `.planning/research/FEATURES.md` Phase 18 â€” Rack Elevations
-  - `.planning/research/ARCHITECTURE.md` Â§4.2 Phase 18 render pipeline
+  - `.planning/research/STACK.md` §1.2 Rack Elevations (custom Blade SVG)
+  - `.planning/research/FEATURES.md` Phase 18 — Rack Elevations
+  - `.planning/research/ARCHITECTURE.md` §4.2 Phase 18 render pipeline
   - `.planning/research/PITFALLS.md` CRIT-06 (U-height accuracy)
 
-### â¤³ Phase 19: Floor Plans â€” DEFERRED to v2.0
+### ⤳ Phase 19: Floor Plans — DEFERRED to v2.0
 Floor plan drawing tool moved out of v1.3 scope on 2026-05-02 to avoid building Konva canvas + Browsershot+Konva PDF round-trip work that v2.0's engineering-grade renderer will replace. v2.0 needs to build floor plans properly with port catalog + sub-room zones anyway. DXF export (DRAW-29) moves with floor plans. See backlog 999.1 for the full v2.0 plan.
 
 **Requirements moved to v2.0:** DRAW-14, DRAW-15, DRAW-16, DRAW-17, DRAW-18, DRAW-19, DRAW-20, DRAW-29.
@@ -200,19 +206,19 @@ Floor plan drawing tool moved out of v1.3 scope on 2026-05-02 to avoid building 
 **Depends on**: Phase 17 (foundations) + Phase 18 (rack elevations as a second drawing kind to render)
 **Requirements**: DRAW-21, DRAW-23, DRAW-28
 **Success Criteria** (what must be TRUE):
-  1. User can download a single bound multi-page PDF per project that opens with a cover sheet, a drawing register table (sheet number / title / revision / date), and the paginated per-section drawings (schematics â†’ rack elevations)
+  1. User can download a single bound multi-page PDF per project that opens with a cover sheet, a drawing register table (sheet number / title / revision / date), and the paginated per-section drawings (schematics → rack elevations)
   2. User can configure sheet numbering per project (default `AV-201` schematics, `AV-301` racks) and see the chosen numbers on every drawing's title block
   3. User can download a ZIP bundle of all of a project's drawings (PDF + SVG + PNG) in one action
   4. User who opens an O&M Manual sees a "Drawings" section with each ready drawing embedded as a high-resolution PNG, one drawing per page, matching the bound PDF
   5. Production hardening: dedicated drawings queue (concurrency=1) + `pdf:smoke-test --drawings` + chrome-headless-shell version pin + `@font-face` + license audit
 **Plans**: 2 plans
-- [x] 20-01-bound-pdf-sheet-numbering-zip-PLAN.md â€” sheet_number column + SheetNumberAllocator + setasign/fpdi MIT install + BoundPdfBuilderService (cover+register Blade + per-drawing concat with isolated failures) + BuildBoundPdfJob + BoundPdfReadyMail + 3 routes (bound-pdf download, bound-pdf build, ZIP bundle) + drawings index UI (bound-PDF button + ZIP button + sheet column + 'regen needed' badge). Wave 1. Requirements: DRAW-21, DRAW-23, DRAW-28.
-- [x] 20-02-production-hardening-om-rack-embed-PLAN.md â€” O&M rack-embed regression test + pdf:smoke-test --drawings rack extension + drawings:audit-licenses command + drawings queue connection in config/queue.php + .env.example chrome-headless-shell version pin + @font-face declarations in 3 drawing Blade views + public/fonts/.gitkeep + drawings-queue-runbook.md. Wave 2 â€” depends on 20-01. Requirements: (none â€” pure hardening).
+- [x] 20-01-bound-pdf-sheet-numbering-zip-PLAN.md — sheet_number column + SheetNumberAllocator + setasign/fpdi MIT install + BoundPdfBuilderService (cover+register Blade + per-drawing concat with isolated failures) + BuildBoundPdfJob + BoundPdfReadyMail + 3 routes (bound-pdf download, bound-pdf build, ZIP bundle) + drawings index UI (bound-PDF button + ZIP button + sheet column + 'regen needed' badge). Wave 1. Requirements: DRAW-21, DRAW-23, DRAW-28.
+- [x] 20-02-production-hardening-om-rack-embed-PLAN.md — O&M rack-embed regression test + pdf:smoke-test --drawings rack extension + drawings:audit-licenses command + drawings queue connection in config/queue.php + .env.example chrome-headless-shell version pin + @font-face declarations in 3 drawing Blade views + public/fonts/.gitkeep + drawings-queue-runbook.md. Wave 2 — depends on 20-01. Requirements: (none — pure hardening).
 **UI hint**: yes
 **Canonical refs**:
   - `.planning/research/SUMMARY.md`
   - `.planning/research/PITFALLS.md` CRIT-03 (queue OOM), CRIT-04 (Chrome version drift), MOD-01 (DXF/DWG GPL trap), MOD-10 (O&M references), MOD-12 (notification timing)
-  - `.planning/quick/260427-qvr-migrate-pdf-rendering-to-browsershot/260427-qvr-SUMMARY.md` â€” Browsershot deployment runbook precedent
+  - `.planning/quick/260427-qvr-migrate-pdf-rendering-to-browsershot/260427-qvr-SUMMARY.md` — Browsershot deployment runbook precedent
 
 </details>
 
@@ -223,26 +229,26 @@ Floor plan drawing tool moved out of v1.3 scope on 2026-05-02 to avoid building 
 ### v1.4 Client Portal & Project Visibility
 *"Clients see what they need, when they need it"*
 
-- [x] Phase 21: Client Portal â€” Branded project status page per client/site with secure access (completed 2026-05-10)
-- [x] Phase 22: Document Access â€” Clients download RAMS, O&M, drawings and certificates from portal (completed 2026-05-12)
-- [ ] Phase 23: Survey & Installation Progress â€” Live completion percentages per room visible to client
-- [ ] Phase 24: Notification & Communication â€” Client receives updates on project milestones and document availability
+- [x] Phase 21: Client Portal — Branded project status page per client/site with secure access (completed 2026-05-10)
+- [x] Phase 22: Document Access — Clients download RAMS, O&M, drawings and certificates from portal (completed 2026-05-12)
+- [ ] Phase 23: Survey & Installation Progress — Live completion percentages per room visible to client
+- [ ] Phase 24: Notification & Communication — Client receives updates on project milestones and document availability
 
 ### v1.5 Financial & Proposal Engine
 *"From pricing rules to signed proposal"*
 
-- [ ] Phase 25: Pricing Engine â€” Multiplier-based config (HW value x multiplier with min/max), admin+sales accessible
-- [ ] Phase 26: Proposal Generator â€” New client + renewal flows, PDF/DOCX branded output
-- [ ] Phase 27: Budget Tracking â€” Project cost monitoring, margin alerts, forecast vs actual
-- [ ] Phase 28: Renewal Workflow â€” Auto-populate from existing contract hardware, year-on-year escalation
+- [ ] Phase 25: Pricing Engine — Multiplier-based config (HW value x multiplier with min/max), admin+sales accessible
+- [ ] Phase 26: Proposal Generator — New client + renewal flows, PDF/DOCX branded output
+- [ ] Phase 27: Budget Tracking — Project cost monitoring, margin alerts, forecast vs actual
+- [ ] Phase 28: Renewal Workflow — Auto-populate from existing contract hardware, year-on-year escalation
 
 ### v1.6 Service & Inventory
 *"Post-install lifecycle"*
 
-- [ ] Phase 29: Asset Registry â€” Track installed equipment as live assets with QR codes per item
-- [ ] Phase 30: Service Tickets â€” Contract search, room/asset select, auto-fill site/contact, callback scheduling
-- [ ] Phase 31: PMV Checklists â€” Per-equipment-type maintenance checks with fault diagnosis and sign-off
-- [ ] Phase 32: AI Troubleshooting â€” QR scan triggers AI-guided device-specific troubleshooting workflow
+- [ ] Phase 29: Asset Registry — Track installed equipment as live assets with QR codes per item
+- [ ] Phase 30: Service Tickets — Contract search, room/asset select, auto-fill site/contact, callback scheduling
+- [ ] Phase 31: PMV Checklists — Per-equipment-type maintenance checks with fault diagnosis and sign-off
+- [ ] Phase 32: AI Troubleshooting — QR scan triggers AI-guided device-specific troubleshooting workflow
 
 ---
 
@@ -250,13 +256,13 @@ Floor plan drawing tool moved out of v1.3 scope on 2026-05-02 to avoid building 
 
 ### Phase 999.1: v2.0 Engineering-Grade AV Drawings (BACKLOG)
 
-**Goal:** Captured for future planning â€” produce Lucidchart/Visio-grade auto-generated AV schematics, with port-aware device cards, port-to-port cable routing, Konva canvas editor for engineer overrides, and AI generate-from-project + chat-edit operations. Companion outputs: rack elevations + floor plans + DXF export at the same engineering-grade fidelity. Reference: Duke "Extron Concept" Lucidchart drawing the user shared.
+**Goal:** Captured for future planning — produce Lucidchart/Visio-grade auto-generated AV schematics, with port-aware device cards, port-to-port cable routing, Konva canvas editor for engineer overrides, and AI generate-from-project + chat-edit operations. Companion outputs: rack elevations + floor plans + DXF export at the same engineering-grade fidelity. Reference: Duke "Extron Concept" Lucidchart drawing the user shared.
 
 **Requirements absorbed from v1.3:**
-- DRAW-14, DRAW-15, DRAW-16, DRAW-17, DRAW-18, DRAW-19, DRAW-20 â€” Floor Plans (originally Phase 19, deferred 2026-05-02)
-- DRAW-29 â€” DXF export (originally Phase 20 stretch, moved with floor plans)
-- DRAW-05 functional schematic editor (Phase 17 ships scaffolding only â€” full editor needs port catalog)
-- DRAW-30 functional schematic chat (Phase 17 ships adapter scaffolding â€” functional impl needs editor)
+- DRAW-14, DRAW-15, DRAW-16, DRAW-17, DRAW-18, DRAW-19, DRAW-20 — Floor Plans (originally Phase 19, deferred 2026-05-02)
+- DRAW-29 — DXF export (originally Phase 20 stretch, moved with floor plans)
+- DRAW-05 functional schematic editor (Phase 17 ships scaffolding only — full editor needs port catalog)
+- DRAW-30 functional schematic chat (Phase 17 ships adapter scaffolding — functional impl needs editor)
 
 **Requirements net-new for v2.0:**
 - Per-device port catalog (manufacturer specs)
@@ -267,10 +273,10 @@ Floor plan drawing tool moved out of v1.3 scope on 2026-05-02 to avoid building 
 
 **Notes:**
 - Full plan in memory: `v2_engineering_grade_drawings_plan.md`
-- Run a 1-week build-vs-buy spike (Lucidchart API / draw.io embed / XTEN-AV / D-Tools) BEFORE committing to native build â€” could compress 14-19 weeks â†’ 3-4 weeks of integration work
+- Run a 1-week build-vs-buy spike (Lucidchart API / draw.io embed / XTEN-AV / D-Tools) BEFORE committing to native build — could compress 14-19 weeks → 3-4 weeks of integration work
 - Wave 1 (port catalog + cable FKs) parallelisable across 2 sessions (~30% time saving)
-- Phase 23 (renderer) and Phase 25 (AI) cannot parallelise â€” depend on prior waves
-- v1.3 ships at "passable basic" (schematics + racks + bound PDF + O&M handover) â€” this milestone is the engineering-deliverable-grade upgrade
+- Phase 23 (renderer) and Phase 25 (AI) cannot parallelise — depend on prior waves
+- v1.3 ships at "passable basic" (schematics + racks + bound PDF + O&M handover) — this milestone is the engineering-deliverable-grade upgrade
 
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
@@ -283,6 +289,6 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 17. System Schematics + Shared Foundations | v1.3 | 3/3 | Complete    | 2026-05-02 |
 | 18. Rack Elevations | v1.3 | 2/2 | Complete    | 2026-05-02 |
-| 19. Floor Plans (Konva) | v1.3 â†’ v2.0 | 0/0 | Deferred to backlog 999.1 | - |
+| 19. Floor Plans (Konva) | v1.3 → v2.0 | 0/0 | Deferred to backlog 999.1 | - |
 | 20. Drawing Export + O&M Integration | v1.3 | 2/2 | Complete    | 2026-05-03 |
 | 999.1. v2.0 Engineering-Grade AV Drawings (incl. floor plans + DXF) | Backlog | 0/0 | Backlog | - |
