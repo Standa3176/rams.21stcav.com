@@ -123,4 +123,32 @@ class RamsReviewDataServiceTest extends TestCase
         $missingOut = $this->service->normalise([])['room_overviews'];
         $this->assertSame([], $missingOut);
     }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // D-09 (Phase 22.1 Plan 05): reviewed_data.project.overview is dropped
+    // ══════════════════════════════════════════════════════════════════════════
+
+    public function test_normaliseProject_does_not_emit_overview_key(): void
+    {
+        $out = $this->service->normalise([
+            'project' => ['overview' => 'raw quote prose that no consumer reads'],
+        ])['project'];
+
+        $this->assertArrayNotHasKey('overview', $out,
+            'Phase 22.1 D-09: reviewed_data.project.overview is dropped — no consumer reads it.');
+    }
+
+    public function test_normaliseProject_output_has_exactly_canonical_keys(): void
+    {
+        $out = $this->service->normalise(['project' => []])['project'];
+
+        // Phase 22.1 D-09: project shape is exactly 11 keys — `overview` removed.
+        $expected = [
+            'project_name', 'quote_ref', 'client_name', 'site_name',
+            'site_address', 'site_contact', 'prepared_by',
+            'project_manager', 'lead_engineer', 'additional_engineers', 'programmer',
+        ];
+        $this->assertSame($expected, array_keys($out),
+            'Phase 22.1 D-09: project array must contain exactly the 11 canonical keys (overview removed).');
+    }
 }
