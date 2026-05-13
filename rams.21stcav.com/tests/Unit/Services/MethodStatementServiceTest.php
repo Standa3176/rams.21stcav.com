@@ -10,6 +10,12 @@ use Tests\TestCase;
  *
  * Verifies that generate() passes works_overview and room_descriptions
  * to the prompt context, and that buildRoomDescriptions() helper works correctly.
+ *
+ * Phase 22.1 D-01 update (2026-05-13): the helper now reads room_overviews[*].overview
+ * (PM-typed prose) instead of the legacy AI-generated `description` field. These
+ * tests were migrated from `description` → `overview` to lock the new contract.
+ * See MethodStatementServiceScopeTest for the works_summary paragraph-fallback
+ * coverage added in Plan 22.1-03.
  */
 class MethodStatementServiceTest extends TestCase
 {
@@ -63,8 +69,8 @@ class MethodStatementServiceTest extends TestCase
     {
         $parsed = $this->makeParsedQuote([
             'room_overviews' => [
-                ['room' => 'Board Room',    'description' => 'A room with a large display.'],
-                ['room' => 'Training Room', 'description' => 'A room with a projector.'],
+                ['room' => 'Board Room',    'overview' => 'A room with a large display.'],
+                ['room' => 'Training Room', 'overview' => 'A room with a projector.'],
             ],
         ]);
 
@@ -80,8 +86,8 @@ class MethodStatementServiceTest extends TestCase
     {
         $parsed = $this->makeParsedQuote([
             'room_overviews' => [
-                ['room' => 'Board Room',    'description' => ''],
-                ['room' => 'Training Room', 'description' => '   '],
+                ['room' => 'Board Room',    'overview' => ''],
+                ['room' => 'Training Room', 'overview' => '   '],
             ],
         ]);
 
@@ -96,8 +102,8 @@ class MethodStatementServiceTest extends TestCase
     {
         $parsed = $this->makeParsedQuote([
             'room_overviews' => [
-                ['room' => '',           'description' => 'Some description.'],
-                ['room' => 'Board Room', 'description' => 'Board room description.'],
+                ['room' => '',           'overview' => 'Some description.'],
+                ['room' => 'Board Room', 'overview' => 'Board room description.'],
             ],
         ]);
 
@@ -114,7 +120,7 @@ class MethodStatementServiceTest extends TestCase
         $parsed = $this->makeParsedQuote([
             'room_overviews' => [
                 'not_an_array',
-                ['room' => 'Board Room', 'description' => 'Valid description.'],
+                ['room' => 'Board Room', 'overview' => 'Valid description.'],
             ],
         ]);
 
@@ -140,9 +146,9 @@ class MethodStatementServiceTest extends TestCase
     {
         $parsed = $this->makeParsedQuote([
             'room_overviews' => [
-                ['room' => 'Room A', 'description' => 'Description A.'],
-                ['room' => 'Room B', 'description' => 'Description B.'],
-                ['room' => 'Room C', 'description' => 'Description C.'],
+                ['room' => 'Room A', 'overview' => 'Description A.'],
+                ['room' => 'Room B', 'overview' => 'Description B.'],
+                ['room' => 'Room C', 'overview' => 'Description C.'],
             ],
         ]);
 

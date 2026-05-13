@@ -12,6 +12,12 @@ class RoomOverviewSummaryService
     /**
      * @param  array  $roomOverviews  [['room' => '', 'overview' => '', 'summary' => ''], ...]
      * @return array  same structure with updated summaries
+     *
+     * Phase 22.1 D-01: the legacy `description` field is no longer persisted —
+     * the AI prompt (RoomOverviewSummaryPrompt) no longer instructs the model
+     * to produce it, and downstream services (MethodStatementService::
+     * buildRoomDescriptions) now read PM-typed `overview` directly. The single
+     * AI output is `summary` (bullet list).
      */
     public function summarize(array $roomOverviews): array
     {
@@ -34,15 +40,14 @@ class RoomOverviewSummaryService
 
         if (empty($roomsForAi)) {
             return array_map(function ($r) {
-                $r['summary']     = '';
-                $r['description'] = '';
+                $r['summary'] = '';
                 return $r;
             }, $roomOverviews);
         }
 
         try {
-            $prompt = (new RoomOverviewSummaryPrompt())->withContext(['rooms' => $roomsForAi]);
-            $result = AIManager::run($prompt, ['rooms' => $roomsForAi]);
+            $prompt  = (new RoomOverviewSummaryPrompt())->withContext(['rooms' => $roomsForAi]);
+            $result  = AIManager::run($prompt, ['rooms' => $roomsForAi]);
             $decoded = is_string($result) ? json_decode($result, true) : $result;
 
             $summaries = [];
@@ -50,8 +55,7 @@ class RoomOverviewSummaryService
                 $room = trim((string) ($item['room'] ?? ''));
                 if ($room !== '') {
                     $summaries[$room] = [
-                        'summary'     => trim((string) ($item['summary'] ?? '')),
-                        'description' => trim((string) ($item['description'] ?? '')),
+                        'summary' => trim((string) ($item['summary'] ?? '')),
                     ];
                 }
             }
@@ -60,13 +64,11 @@ class RoomOverviewSummaryService
                 $room     = (string) ($r['room'] ?? '');
                 $overview = (string) ($r['overview'] ?? '');
                 if ($room !== '' && isset($summaries[$room])) {
-                    $r['summary']     = $summaries[$room]['summary'] !== ''
+                    $r['summary'] = $summaries[$room]['summary'] !== ''
                         ? $summaries[$room]['summary']
                         : $this->fallbackSummary($overview);
-                    $r['description'] = $summaries[$room]['description'];
                 } else {
-                    $r['summary']     = $this->fallbackSummary($overview);
-                    $r['description'] = '';
+                    $r['summary'] = $this->fallbackSummary($overview);
                 }
                 return $r;
             }, $roomOverviews);
@@ -77,8 +79,7 @@ class RoomOverviewSummaryService
         }
 
         return array_map(function ($r) {
-            $r['summary']     = $this->fallbackSummary((string) ($r['overview'] ?? ''));
-            $r['description'] = '';
+            $r['summary'] = $this->fallbackSummary((string) ($r['overview'] ?? ''));
             return $r;
         }, $roomOverviews);
     }

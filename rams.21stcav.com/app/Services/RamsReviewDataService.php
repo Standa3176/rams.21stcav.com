@@ -50,14 +50,14 @@ class RamsReviewDataService
                     $key = mb_strtolower(trim((string) ($row['room'] ?? '')));
                     if ($key !== '' && isset($byRoom[$key])) {
                         $ex = $byRoom[$key];
+                        // Phase 22.1 D-01 / D-07: only the canonical `overview` field
+                        // is backfilled from extracted_data. The legacy `summary` and
+                        // `description` backfills are removed — the one-off
+                        // `summary → works_summary` migration is handled by
+                        // rams:backfill-room-overview-summary (Plan 03 Task 1) and the
+                        // schema-trim drops both keys from the normaliser output.
                         if (trim((string) ($row['overview'] ?? '')) === '') {
                             $row['overview'] = (string) ($ex['overview'] ?? '');
-                        }
-                        if (trim((string) ($row['summary'] ?? '')) === '') {
-                            $row['summary'] = (string) ($ex['summary'] ?? '');
-                        }
-                        if (trim((string) ($row['description'] ?? '')) === '') {
-                            $row['description'] = (string) ($ex['description'] ?? '');
                         }
                     }
                     return $row;
@@ -184,13 +184,17 @@ class RamsReviewDataService
             return [];
         }
 
+        // Phase 22.1 D-02 / D-07 / D-08 / D-01: canonical shape is exactly
+        // 4 keys (room / overview / works_summary / solution_type_id).
+        // Legacy `summary` / `description` / `scope` are intentionally
+        // dropped — the one-off `summary → works_summary` migration is
+        // handled by `rams:backfill-room-overview-summary` (Plan 03 Task
+        // 1) BEFORE any reader stops consuming the summary key.
         return array_values(array_map(
             fn ($r) => [
                 'room'             => (string) ($r['room']             ?? ''),
                 'overview'         => (string) ($r['overview']         ?? ''),
                 'works_summary'    => (string) ($r['works_summary']    ?? ''),
-                'summary'          => (string) ($r['summary']          ?? ''),
-                'description'      => (string) ($r['description']      ?? ''),
                 'solution_type_id' => (int)    ($r['solution_type_id'] ?? 0) ?: null,
             ],
             $raw,

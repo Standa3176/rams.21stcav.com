@@ -520,7 +520,13 @@ class ProjectPackageReviewController extends Controller
                 ],
             ]);
             $worksSummary = $results[0]['summary'] ?? '';
-            $description  = trim((string) ($results[0]['description'] ?? ''));
+            // Phase 22.1 D-01: the AI no longer produces a `description` field —
+            // the engineer-typed `overview` is the canonical prose source for
+            // downstream services. Return the overview verbatim so any existing
+            // front-end consumer that still expects a `description` key in the
+            // JSON response stays renderable (it gets the same paragraph the
+            // engineer just typed). The legacy AI-generated prose is gone.
+            $description  = $overview;
         } catch (\Throwable $e) {
             return response()->json(['error' => 'AI generation failed. Please try again.'], 500);
         }

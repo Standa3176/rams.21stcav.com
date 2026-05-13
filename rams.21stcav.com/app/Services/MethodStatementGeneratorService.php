@@ -286,8 +286,12 @@ class MethodStatementGeneratorService
 
         $parts = [];
         foreach ($rows as $row) {
-            $room     = trim((string) ($row['room']          ?? ''));
-            $summary  = trim((string) ($row['works_summary'] ?? $row['summary'] ?? ''));
+            $room = trim((string) ($row['room'] ?? ''));
+            // Phase 22.1 D-07: dropped the `?? $row['summary']` legacy fallback.
+            // `works_summary` is the single canonical source. The one-off
+            // `summary → works_summary` backfill is handled by
+            // rams:backfill-room-overview-summary (Plan 03 Task 1).
+            $summary  = trim((string) ($row['works_summary'] ?? ''));
             $overview = trim((string) ($row['overview']      ?? ''));
 
             if ($room === '') {

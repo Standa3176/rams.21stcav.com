@@ -16,8 +16,7 @@ namespace App\Core\AI\Prompts;
  *     "summaries": [
  *       {
  *         "room": "Boardroom",
- *         "summary": "- Installation of Sony 98″ display within …\n- Deployment of Crestron Flex Integrator Kit …",
- *         "description": "2–4 sentence prose paragraph describing room type, AV solution, and any notable infrastructure detail."
+ *         "summary": "- Installation of Sony 98″ display within …\n- Deployment of Crestron Flex Integrator Kit …"
  *       },
  *       ...
  *     ]
@@ -25,8 +24,14 @@ namespace App\Core\AI\Prompts;
  *
  * The summary for each room is a list of install-action bullets (one per line,
  * each prefixed with "- ") suitable for inclusion in RAMS, O&M, worksheet, and
- * site survey documents. The description is a plain prose paragraph for cover
- * pages and document headers.
+ * site survey documents.
+ *
+ * Phase 22.1 D-01 (2026-05-13): the legacy AI-generated `description` prose
+ * field is dropped. Engineers consume the PM-typed `overview` directly as
+ * the prose source for downstream services (MethodStatementService::
+ * buildRoomDescriptions reads it), keeping the "AI output must be reviewable"
+ * principle from CLAUDE.md intact — the AI no longer produces an invisible
+ * field that no edit UI exposes.
  */
 class RoomOverviewSummaryPrompt extends BasePrompt
 {
@@ -35,7 +40,7 @@ class RoomOverviewSummaryPrompt extends BasePrompt
         return implode("\n", [
             'You are an AV integration specialist writing install-action checklists for technical documents.',
             '',
-            'For each room you receive a phrased overview description. Convert it into a list of',
+            'For each room you receive a phrased overview paragraph. Convert it into a list of',
             'install-action bullet points — one concrete action per line — that an engineer can',
             'tick off on site and that drops cleanly into RAMS, O&M, worksheets, and site surveys.',
             '',
@@ -75,13 +80,6 @@ class RoomOverviewSummaryPrompt extends BasePrompt
             '  - Installation of Sennheiser ceiling microphones for improved audio capture',
             '  - Installation of Crestron occupancy sensor within Cinnamon and Saffron rooms',
             '  - Provision of power via Crestron PoE+ switch to support occupancy sensors and room booking panels',
-            '',
-            'For EACH room also produce a `description` field:',
-            '- 2–4 sentence prose paragraph. Plain British English. No bullet points, no field labels, no markdown.',
-            '- Describe: (1) the room type / purpose, (2) the main AV solution being installed,',
-            '  (3) any notable infrastructure detail (power, data, cabling, mounting, or access constraints).',
-            '- If the overview contains insufficient detail, write only what can be stated confidently — do not invent.',
-            '- CRITICAL JSON RULE: `description` must be a single-line JSON string. Use \\n to represent line breaks if needed, but prefer continuous prose without line breaks.',
             '',
             'Output valid JSON only.',
         ]);
@@ -128,8 +126,7 @@ class RoomOverviewSummaryPrompt extends BasePrompt
             ? "\nWhere a solution_type is provided, use it to flavour the bullets so the install actions\nmatch the typical fit-out for that solution. Where solution_method is provided, the listed\nsteps may inspire individual bullets (e.g. \"Configuration of …\", \"Commissioning of …\").\n"
             : '';
 
-        $exampleSummary     = '- Installation of 65″ Samsung Interactive display, wall-mounted on the presentation wall\\n- Deployment of ClickShare Bar PRO under the display for wireless video conferencing\\n- Provision of wireless BYOD presentation via USB-C buttons with optional USB connection\\n- Provision of 2× new mains sockets and 2× Cat6 data points at the display and rack locations';
-        $exampleDescription = 'This small meeting room receives a 65-inch Samsung interactive display wall-mounted above the presentation wall, together with a ClickShare Bar PRO for wireless video conferencing. Signal distribution is via USB-C buttons supplemented by an optional USB connection. New power and data points are required at the display and rack locations.';
+        $exampleSummary = '- Installation of 65″ Samsung Interactive display, wall-mounted on the presentation wall\\n- Deployment of ClickShare Bar PRO under the display for wireless video conferencing\\n- Provision of wireless BYOD presentation via USB-C buttons with optional USB connection\\n- Provision of 2× new mains sockets and 2× Cat6 data points at the display and rack locations';
 
         return <<<PROMPT
 Generate an install-action bullet list AV works summary for each room below.
@@ -144,16 +141,11 @@ Use the two-character escape sequence \\n (backslash followed by n) to represent
 line breaks between bullets. Do NOT insert actual line breaks / newlines inside
 a JSON string value — this produces invalid JSON that cannot be parsed.
 
-CRITICAL JSON RULE: The "description" field must also be a single-line JSON string.
-Prefer continuous prose without line breaks. Do NOT insert actual newlines inside
-the description string value.
-
 {
   "summaries": [
     {
       "room": "Room Name",
-      "summary": "- Installation of …\\n- Deployment of …\\n- Provision of …",
-      "description": "2–4 sentence prose paragraph describing room type, AV solution, and any notable infrastructure detail."
+      "summary": "- Installation of …\\n- Deployment of …\\n- Provision of …"
     }
   ]
 }
@@ -163,8 +155,7 @@ Example of a correctly formatted single-room response:
   "summaries": [
     {
       "room": "Small Meeting Room",
-      "summary": "{$exampleSummary}",
-      "description": "{$exampleDescription}"
+      "summary": "{$exampleSummary}"
     }
   ]
 }

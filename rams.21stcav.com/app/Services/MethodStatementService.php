@@ -222,8 +222,12 @@ class MethodStatementService
 
         $parts = [];
         foreach ($rows as $row) {
-            $room     = trim((string) ($row['room']          ?? ''));
-            $summary  = trim((string) ($row['works_summary'] ?? $row['summary'] ?? ''));
+            $room = trim((string) ($row['room'] ?? ''));
+            // Phase 22.1 D-07: dropped the `?? $row['summary']` legacy fallback.
+            // `works_summary` is the single canonical source. The one-off
+            // `summary → works_summary` backfill is handled by
+            // rams:backfill-room-overview-summary (Plan 03 Task 1).
+            $summary  = trim((string) ($row['works_summary'] ?? ''));
             $overview = trim((string) ($row['overview']      ?? ''));
 
             if ($room === '') {
@@ -259,25 +263,50 @@ class MethodStatementService
     }
 
     /**
-     * Build a newline-delimited "Room: prose" block from room_overviews[].description.
-     * Omits entries with blank room name or blank description.
+     * Build a newline-delimited "Room: prose" block for the MethodStatementPrompt
+     * AI input.
+     *
+     * Phase 22.1 D-01: reads room_overviews[*].overview (PM-typed prose) as the
+     * primary AI prompt input. Falls back to joining the works_summary bullets
+     * into a single paragraph when overview is empty.
+     *
+     * The legacy AI-generated `description` field is dropped — using human-
+     * authored `overview` as AI input keeps the CLAUDE.md "AI output must be
+     * reviewable" principle intact (description was AI-written and never edited).
      */
     private function buildRoomDescriptions(array $parsed): string
     {
         $rows = array_filter(
             (array) ($parsed['room_overviews'] ?? []),
             static fn ($r): bool => is_array($r)
-                && trim((string) ($r['room']        ?? '')) !== ''
-                && trim((string) ($r['description'] ?? '')) !== ''
+                && trim((string) ($r['room'] ?? '')) !== ''
         );
 
         $parts = [];
         foreach ($rows as $row) {
-            $room        = trim((string) ($row['room']        ?? ''));
-            $description = trim((string) ($row['description'] ?? ''));
-            if ($room !== '' && $description !== '') {
-                $parts[] = "{$room}: {$description}";
+            $room     = trim((string) ($row['room']     ?? ''));
+            $overview = trim((string) ($row['overview'] ?? ''));
+
+            if ($overview === '') {
+                // ── Fallback: join works_summary bullets into prose paragraph ──
+                // Strip leading "- " / "• " bullet markers and join with ". ".
+                $bullets = trim((string) ($row['works_summary'] ?? ''));
+                if ($bullets === '') {
+                    continue;
+                }
+                $lines      = preg_split('/\r?\n/', $bullets) ?: [];
+                $cleanLines = array_values(array_filter(array_map(
+                    static fn ($l) => trim((string) preg_replace('/^[-•]\s*/', '', (string) $l)),
+                    $lines,
+                ), static fn (string $l): bool => $l !== ''));
+
+                if (empty($cleanLines)) {
+                    continue;
+                }
+                $overview = implode('. ', $cleanLines) . '.';
             }
+
+            $parts[] = "{$room}: {$overview}";
         }
 
         return $parts ? implode("\n", $parts) : '';
@@ -295,9 +324,10 @@ class MethodStatementService
 
         $rooms = [];
         foreach ($rows as $row) {
-            $room = trim((string) ($row['room'] ?? ''));
+            $room     = trim((string) ($row['room'] ?? ''));
             $overview = trim((string) ($row['overview'] ?? ''));
-            $summary = trim((string) ($row['summary'] ?? ''));
+            // Phase 22.1 D-07: read `works_summary` (canonical) not legacy `summary`.
+            $summary  = trim((string) ($row['works_summary'] ?? ''));
             if ($room === '') {
                 continue;
             }
