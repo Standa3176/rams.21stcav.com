@@ -6,6 +6,7 @@ use App\Models\Project;
 use App\Models\RamsDocument;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -13,7 +14,9 @@ use Tests\TestCase;
  * Phase 22.1 Plan 03 Task 1 — Feature tests for the
  * rams:backfill-room-overview-summary artisan command.
  *
- * Mirrors the Phase 22 BackfillCablePortFksCommandTest precedent:
+ * Mirrors the Phase 22 BackfillCablePortFksCommandTest precedent
+ * (Artisan::call + Artisan::output pattern — expectsOutputToContain
+ * matches whole lines and the summary line is one long string):
  * - dry-run default (no writes without --apply)
  * - --apply persists changes inside a DB::transaction
  * - per-row 4-outcome category report (backfilled / already-set /
@@ -37,7 +40,7 @@ use Tests\TestCase;
  *
  * @see app/Console/Commands/BackfillRoomOverviewSummaryCommand.php
  * @see app/Services/Rams/RoomOverviewSummaryBackfillService.php
- * @see tests/Feature/Console/BackfillCablePortFksCommandTest.php (template)
+ * @see tests/Feature/Cable/BackfillCablePortFksCommandTest.php (template)
  */
 class BackfillRoomOverviewSummaryCommandTest extends TestCase
 {
@@ -72,10 +75,12 @@ class BackfillRoomOverviewSummaryCommandTest extends TestCase
             ['room' => 'Boardroom', 'overview' => 'PM prose.', 'works_summary' => '', 'summary' => '- Legacy bullet'],
         ]);
 
-        $this->artisan('rams:backfill-room-overview-summary')
-            ->expectsOutputToContain('[DRY RUN]')
-            ->expectsOutputToContain('backfilled: 1')
-            ->assertExitCode(0);
+        $exit = Artisan::call('rams:backfill-room-overview-summary');
+        $this->assertSame(0, $exit);
+
+        $output = Artisan::output();
+        $this->assertStringContainsString('[DRY RUN]', $output);
+        $this->assertMatchesRegularExpression('/backfilled: 1/', $output);
 
         $fresh = $rams->fresh();
         $this->assertSame('', $fresh->reviewed_data['room_overviews'][0]['works_summary'],
@@ -94,11 +99,13 @@ class BackfillRoomOverviewSummaryCommandTest extends TestCase
             ['room' => 'Boardroom', 'overview' => 'PM prose.', 'works_summary' => '', 'summary' => "- Install 98\" display\n- Deploy Crestron Flex"],
         ]);
 
-        $this->artisan('rams:backfill-room-overview-summary', ['--apply' => true])
-            ->expectsOutputToContain('APPLYING writes')
-            ->expectsOutputToContain('backfilled: 1')
-            ->expectsOutputToContain('rows-written: 1')
-            ->assertExitCode(0);
+        $exit = Artisan::call('rams:backfill-room-overview-summary', ['--apply' => true]);
+        $this->assertSame(0, $exit);
+
+        $output = Artisan::output();
+        $this->assertStringContainsString('APPLYING writes', $output);
+        $this->assertMatchesRegularExpression('/backfilled: 1/', $output);
+        $this->assertMatchesRegularExpression('/rows-written: 1/', $output);
 
         $fresh = $rams->fresh();
         $this->assertSame("- Install 98\" display\n- Deploy Crestron Flex",
@@ -119,10 +126,12 @@ class BackfillRoomOverviewSummaryCommandTest extends TestCase
             ['room' => 'Cinnamon', 'overview' => 'Prose.', 'works_summary' => '- Already done', 'summary' => ''],
         ]);
 
-        $this->artisan('rams:backfill-room-overview-summary', ['--apply' => true])
-            ->expectsOutputToContain('already-set: 1')
-            ->expectsOutputToContain('rows-written: 0')
-            ->assertExitCode(0);
+        $exit = Artisan::call('rams:backfill-room-overview-summary', ['--apply' => true]);
+        $this->assertSame(0, $exit);
+
+        $output = Artisan::output();
+        $this->assertMatchesRegularExpression('/already-set: 1/', $output);
+        $this->assertMatchesRegularExpression('/rows-written: 0/', $output);
 
         $fresh = $rams->fresh();
         $this->assertSame('- Already done', $fresh->reviewed_data['room_overviews'][0]['works_summary'],
@@ -139,10 +148,12 @@ class BackfillRoomOverviewSummaryCommandTest extends TestCase
             ['room' => 'Cafe', 'overview' => 'Prose.', 'works_summary' => '- New canonical bullet', 'summary' => '- Legacy ambiguous bullet'],
         ]);
 
-        $this->artisan('rams:backfill-room-overview-summary', ['--apply' => true])
-            ->expectsOutputToContain('both-set-no-action: 1')
-            ->expectsOutputToContain('rows-written: 0')
-            ->assertExitCode(0);
+        $exit = Artisan::call('rams:backfill-room-overview-summary', ['--apply' => true]);
+        $this->assertSame(0, $exit);
+
+        $output = Artisan::output();
+        $this->assertMatchesRegularExpression('/both-set-no-action: 1/', $output);
+        $this->assertMatchesRegularExpression('/rows-written: 0/', $output);
 
         $fresh = $rams->fresh();
         $this->assertSame('- New canonical bullet', $fresh->reviewed_data['room_overviews'][0]['works_summary'],
@@ -161,10 +172,12 @@ class BackfillRoomOverviewSummaryCommandTest extends TestCase
             ['room' => 'EmptyRoom', 'overview' => 'Only the overview is set.', 'works_summary' => '', 'summary' => ''],
         ]);
 
-        $this->artisan('rams:backfill-room-overview-summary', ['--apply' => true])
-            ->expectsOutputToContain('neither-set: 1')
-            ->expectsOutputToContain('rows-written: 0')
-            ->assertExitCode(0);
+        $exit = Artisan::call('rams:backfill-room-overview-summary', ['--apply' => true]);
+        $this->assertSame(0, $exit);
+
+        $output = Artisan::output();
+        $this->assertMatchesRegularExpression('/neither-set: 1/', $output);
+        $this->assertMatchesRegularExpression('/rows-written: 0/', $output);
 
         $fresh = $rams->fresh();
         $this->assertSame('', $fresh->reviewed_data['room_overviews'][0]['works_summary']);
@@ -182,18 +195,20 @@ class BackfillRoomOverviewSummaryCommandTest extends TestCase
         ]);
 
         // First run: backfills.
-        $this->artisan('rams:backfill-room-overview-summary', ['--apply' => true])
-            ->expectsOutputToContain('backfilled: 1')
-            ->expectsOutputToContain('rows-written: 1')
-            ->assertExitCode(0);
+        $exit1 = Artisan::call('rams:backfill-room-overview-summary', ['--apply' => true]);
+        $this->assertSame(0, $exit1);
+        $output1 = Artisan::output();
+        $this->assertMatchesRegularExpression('/backfilled: 1/', $output1);
+        $this->assertMatchesRegularExpression('/rows-written: 1/', $output1);
 
         // Second run: works_summary and summary are now BOTH populated — falls
         // into both-set-no-action. NO new writes.
-        $this->artisan('rams:backfill-room-overview-summary', ['--apply' => true])
-            ->expectsOutputToContain('backfilled: 0')
-            ->expectsOutputToContain('both-set-no-action: 1')
-            ->expectsOutputToContain('rows-written: 0')
-            ->assertExitCode(0);
+        $exit2 = Artisan::call('rams:backfill-room-overview-summary', ['--apply' => true]);
+        $this->assertSame(0, $exit2);
+        $output2 = Artisan::output();
+        $this->assertMatchesRegularExpression('/backfilled: 0/', $output2);
+        $this->assertMatchesRegularExpression('/both-set-no-action: 1/', $output2);
+        $this->assertMatchesRegularExpression('/rows-written: 0/', $output2);
 
         $fresh = $rams->fresh();
         $this->assertSame('- Legacy bullet to backfill', $fresh->reviewed_data['room_overviews'][0]['works_summary']);
@@ -213,13 +228,15 @@ class BackfillRoomOverviewSummaryCommandTest extends TestCase
             ['room' => 'B', 'overview' => '', 'works_summary' => '', 'summary' => '- B bullet'],
         ]);
 
-        $this->artisan('rams:backfill-room-overview-summary', [
+        $exit = Artisan::call('rams:backfill-room-overview-summary', [
             'rams'    => $a->id,
             '--apply' => true,
-        ])
-            ->expectsOutputToContain('backfilled: 1')
-            ->expectsOutputToContain('rows-written: 1')
-            ->assertExitCode(0);
+        ]);
+        $this->assertSame(0, $exit);
+
+        $output = Artisan::output();
+        $this->assertMatchesRegularExpression('/backfilled: 1/', $output);
+        $this->assertMatchesRegularExpression('/rows-written: 1/', $output);
 
         // Record A: backfilled.
         $this->assertSame('- A bullet', $a->fresh()->reviewed_data['room_overviews'][0]['works_summary']);
@@ -241,10 +258,11 @@ class BackfillRoomOverviewSummaryCommandTest extends TestCase
 
         // Junk after the first non-numeric char is silently dropped by PHP's int cast.
         // "5; DROP TABLE rams_documents;" → (int) === 5.
-        $this->artisan('rams:backfill-room-overview-summary', [
+        $exit = Artisan::call('rams:backfill-room-overview-summary', [
             'rams'    => '5; DROP TABLE rams_documents;',
             '--apply' => true,
-        ])->assertExitCode(0);
+        ]);
+        $this->assertSame(0, $exit);
 
         $this->assertTrue(Schema::hasTable('rams_documents'),
             'T-22.1-05: rams_documents table must survive a SQL-injection arg payload.');
@@ -263,13 +281,15 @@ class BackfillRoomOverviewSummaryCommandTest extends TestCase
             ['room' => 'D', 'overview' => '', 'works_summary' => '',            'summary' => ''],
         ]);
 
-        $this->artisan('rams:backfill-room-overview-summary')
-            ->expectsOutputToContain('backfilled:')
-            ->expectsOutputToContain('already-set:')
-            ->expectsOutputToContain('both-set-no-action:')
-            ->expectsOutputToContain('neither-set:')
-            ->expectsOutputToContain('rows-written:')
-            ->assertExitCode(0);
+        $exit = Artisan::call('rams:backfill-room-overview-summary');
+        $this->assertSame(0, $exit);
+
+        $output = Artisan::output();
+        $this->assertMatchesRegularExpression('/backfilled:/', $output);
+        $this->assertMatchesRegularExpression('/already-set:/', $output);
+        $this->assertMatchesRegularExpression('/both-set-no-action:/', $output);
+        $this->assertMatchesRegularExpression('/neither-set:/', $output);
+        $this->assertMatchesRegularExpression('/rows-written:/', $output);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -278,8 +298,10 @@ class BackfillRoomOverviewSummaryCommandTest extends TestCase
 
     public function test_empty_database_returns_success_with_no_records_message(): void
     {
-        $this->artisan('rams:backfill-room-overview-summary')
-            ->expectsOutputToContain('No rams_documents found.')
-            ->assertExitCode(0);
+        $exit = Artisan::call('rams:backfill-room-overview-summary');
+        $this->assertSame(0, $exit);
+
+        $output = Artisan::output();
+        $this->assertStringContainsString('No rams_documents found.', $output);
     }
 }
