@@ -1,6 +1,6 @@
 # RAMS Platform — AV Operations System
 
-## Current State (as of 2026-05-12)
+## Current State (as of 2026-05-13)
 
 **Latest shipped milestone:** v1.3 Technical Drawings & Schematics (2026-05-09)
 
@@ -38,6 +38,18 @@ follows v2.0.
   verified; D-10 invariant locked (5 v1.3 surface files unchanged + XLSX byte-identity test
   + schematic NULL-FK test). 74 Cable+Connector tests green / 331 assertions. 8 human UAT
   items pending (modal UX + live-env byte-identity re-runs). Data layer ready for Phase 23.
+- ✅ **Phase 22.1: RAMS Scope/Room Data Consolidation** — completed 2026-05-13. Decimal gap-closure
+  phase that consolidated the RAMS per-room narrative on the canonical 4-key shape (`room`, `overview`,
+  `works_summary`, `solution_type_id`) across both read and write paths. Removed dead `summary` hidden
+  input and `description` textarea from the review form; converged 4 controller writers
+  (`editPayload`, `parseReviewPayload`, `generateSurveyRooms`, `generateRoomSummary`) plus
+  `ExtractQuoteJob` scaffold on the 4-key shape; renamed `RoomOverviewSummaryService` output key
+  `summary` → `works_summary` and propagated to all 4 consumer sites (incl. post-CR-fix at
+  `RamsComplianceUpgradeService` + `WorksheetGeneratorService`); added 2 write-side guard methods
+  to `ReviewedDataStructuralDiffTest`. 5/5 requirements shipped (DATA-01..05); 6/6 must-haves
+  programmatically verified. 64 RAMS-corpus tests green / 234 assertions. Wave-1 byte-equivalence
+  canary preserved. 3 browser-side human UAT items pending. Migration now self-stabilising — no
+  periodic `rams:backfill-room-overview-summary` re-run needed.
 
 ## What This Is
 
