@@ -119,9 +119,14 @@ class MethodStatementService
      */
     private function buildScope(array $parsed, array $classified): string
     {
-        // User-supplied PM notes (method_statement_notes) live in $parsed['works_summary'] +
-        // $parsed['tasks'][0]. They are *instructions* that must always reach the AI, never be
-        // dropped in favour of the auto-generated scope_of_works paragraph.
+        // Phase 22.1 D-03: PM-INSTRUCTIONS suffix removed. method_statement_notes
+        // is merged into scope_of_works at the data layer — the AI reads
+        // scope_of_works directly because the PM-curated text already lives
+        // inside it. PM scope edits propagate to ONE canonical location.
+        //
+        // The `$parsed['works_summary']` legacy alias is still tolerated as a
+        // task-source hint (line ~131 below) so existing callers that pass it
+        // do not regress, but no separator suffix is appended.
         $pmNotes = trim((string) ($parsed['works_summary'] ?? ''));
 
         // Primary scope: pre-generated scope_of_works, or fall through to lower-priority sources.
@@ -138,13 +143,6 @@ class MethodStatementService
 
         if ($primaryScope === '') {
             $primaryScope = $this->buildEquipmentSummary($parsed) ?: 'AV installation works as per quotation';
-        }
-
-        // Append PM notes as explicit instructions — AI is prompted to honour them as hard constraints.
-        if ($pmNotes !== '' && stripos($primaryScope, $pmNotes) === false) {
-            return $primaryScope
-                . "\n\nPM INSTRUCTIONS (must be honoured — override generic defaults if they conflict):\n"
-                . $pmNotes;
         }
 
         return $primaryScope;

@@ -335,7 +335,12 @@ class ProjectPackageReviewController extends Controller
             'status'         => ProjectPackage::STATUS_REVIEWED,
         ]);
 
-        // Update core project fields so all docs stay in sync
+        // Update core project fields so all docs stay in sync.
+        //
+        // Phase 22.1 D-03: Project.works_description is no longer auto-written
+        // from method_statement_notes. The PM sets works_description explicitly
+        // via the project-edit form (Projects::edit); the package-review form
+        // persists scope text into reviewed_data.scope_of_works only.
         if ($package->project) {
             $project = $package->project;
             $proj    = $payload['project'] ?? [];
@@ -345,7 +350,6 @@ class ProjectPackageReviewController extends Controller
                 'ref'               => $proj['quote_ref'] ?? $project->ref,
                 'client_name'       => $proj['client_name'] ?? $project->client_name,
                 'site_address'      => $proj['site_address'] ?? $project->site_address,
-                'works_description' => $payload['method_statement_notes'] ?? $project->works_description,
             ]);
         }
 
@@ -382,6 +386,10 @@ class ProjectPackageReviewController extends Controller
             'status'         => ProjectPackage::STATUS_REVIEWED,
         ]);
 
+        // Phase 22.1 D-03: same invariant as save() — Project.works_description
+        // is no longer auto-written from method_statement_notes during approve.
+        // scope_of_works is the canonical project-wide scope store; the PM
+        // edits works_description explicitly through the project-edit form.
         if ($package->project) {
             $project = $package->project;
             $proj    = $payload['project'] ?? [];
@@ -390,7 +398,6 @@ class ProjectPackageReviewController extends Controller
                 'ref'               => $proj['quote_ref'] ?? $project->ref,
                 'client_name'       => $proj['client_name'] ?? $project->client_name,
                 'site_address'      => $proj['site_address'] ?? $project->site_address,
-                'works_description' => $payload['method_statement_notes'] ?? $project->works_description,
             ]);
         }
 

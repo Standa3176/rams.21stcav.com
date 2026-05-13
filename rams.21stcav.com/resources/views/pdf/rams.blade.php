@@ -831,7 +831,11 @@ p { margin: 3pt 0; }
             // 'room' is the canonical key in reviewed_data room_overviews
             $rvName    = $roomOv['room'] ?? ($roomOv['room_name'] ?? ($roomOv['name'] ?? ''));
             $rvBullets = trim((string) ($roomOv['works_summary'] ?? ''));
-            $rvDesc    = $roomOv['overview']  ?? ($roomOv['description'] ?? ($roomOv['scope'] ?? ''));
+            // Phase 22.1 D-08: per-room fallback chain simplified. `description`
+            // and `scope` are no longer canonical room_overviews keys after
+            // Plan 22.1-03 trimmed the normaliser to overview / works_summary /
+            // solution_type_id. `overview` is the sole prose source.
+            $rvDesc    = $roomOv['overview'] ?? '';
 
             // Parse bullet list when works_summary contains "- " markers.
             $rvBulletLines = [];
