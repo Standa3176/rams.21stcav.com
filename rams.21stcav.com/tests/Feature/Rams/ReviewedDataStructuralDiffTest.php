@@ -209,4 +209,118 @@ class ReviewedDataStructuralDiffTest extends TestCase
         $this->assertIsArray($out['programme']);
         $this->assertIsArray($out['site_logistics']);
     }
+
+    // ── Write-side guards (Plan 07 — closure for 22.1-VERIFICATION.md gaps) ──
+    //
+    // The 6 READ-side methods above exercise RamsReviewDataService::normalise()
+    // only. The verifier (2026-05-13) found that the WRITE path
+    // (ProjectPackageReviewController::parseReviewPayload + $package->update)
+    // was still re-introducing legacy keys on every save, undoing the backfill
+    // artisan's migration for any record the PM touched. These two methods
+    // close that gap.
+
+    public function test_write_side_parseReviewPayload_drops_legacy_summary_description_keys(): void
+    {
+        // Simulate a stale-client POST that includes all 6 legacy keys per row.
+        // After Phase 22.1 closure, parseReviewPayload must silently drop the
+        // `summary` and `description` keys, persisting exactly the 4 canonical
+        // keys.
+        $hostilePayload = [
+            'room_overviews' => [
+                [
+                    'room'             => 'Boardroom',
+                    'overview'         => 'PM prose.',
+                    'works_summary'    => "- Install display",
+                    'summary'          => 'LEGACY — stale client posted this.',
+                    'description'      => 'LEGACY — dead textarea reposted.',
+                    'solution_type_id' => 1,
+                ],
+                [
+                    'room'             => 'Cinnamon',
+                    'overview'         => '',
+                    'works_summary'    => '',
+                    'summary'          => 'LEGACY',
+                    'description'      => 'LEGACY',
+                    'solution_type_id' => 0,
+                ],
+            ],
+        ];
+
+        // Invoke the private parseReviewPayload via reflection — this is the
+        // exact code path a real form POST traverses. parseReviewPayload's
+        // signature is `parseReviewPayload(Request $request): array` and its
+        // first line is `$request->except([...])`, so the reflection call
+        // MUST construct a real Request from the raw payload before invoking
+        // — passing a raw array throws TypeError.
+        $controller = app(\App\Http\Controllers\ProjectPackageReviewController::class);
+        $reflection = new \ReflectionMethod($controller, 'parseReviewPayload');
+        $reflection->setAccessible(true);
+        $request = \Illuminate\Http\Request::create('/dummy', 'POST', $hostilePayload);
+        $parsed  = $reflection->invoke($controller, $request);
+
+        $this->assertArrayHasKey('room_overviews', $parsed,
+            'parseReviewPayload must always return a room_overviews key.');
+        $this->assertCount(2, $parsed['room_overviews']);
+
+        $expectedKeys = ['room', 'overview', 'works_summary', 'solution_type_id'];
+        sort($expectedKeys);
+
+        foreach ($parsed['room_overviews'] as $idx => $row) {
+            $actualKeys = array_keys($row);
+            sort($actualKeys);
+            $this->assertSame($expectedKeys, $actualKeys,
+                "Row {$idx}: parseReviewPayload must persist exactly the 4 canonical keys. "
+                . "Found: " . implode(', ', $actualKeys) . '. '
+                . "Phase 22.1 closure (Plan 07) — see 22.1-VERIFICATION.md gaps.");
+            $this->assertArrayNotHasKey('summary',     $row, "Row {$idx}: legacy summary key leaked through parseReviewPayload.");
+            $this->assertArrayNotHasKey('description', $row, "Row {$idx}: legacy description key leaked through parseReviewPayload.");
+        }
+    }
+
+    public function test_write_side_package_update_round_trips_canonical_shape_unchanged(): void
+    {
+        // The JSON-column cast must not re-introduce or strip keys. A payload
+        // with exactly the 4 canonical keys must round-trip unchanged through
+        // $package->update(...) + $package->fresh().
+        $user = \App\Models\User::factory()->create();
+        $project = \App\Models\Project::factory()->create(['user_id' => $user->id]);
+        $package = \App\Models\ProjectPackage::create([
+            'user_id'       => $user->id,
+            'project_id'    => $project->id,
+            'extracted_data' => [],
+        ]);
+
+        $canonicalPayload = [
+            'room_overviews' => [
+                [
+                    'room'             => 'Boardroom',
+                    'overview'         => 'PM prose.',
+                    'works_summary'    => "- Install display",
+                    'solution_type_id' => 1,
+                ],
+            ],
+        ];
+
+        $package->update(['extracted_data' => $canonicalPayload]);
+        $persisted = $package->fresh()->extracted_data;
+
+        $this->assertIsArray($persisted);
+        $this->assertArrayHasKey('room_overviews', $persisted);
+        $this->assertCount(1, $persisted['room_overviews']);
+
+        $row = $persisted['room_overviews'][0];
+        $expectedKeys = ['room', 'overview', 'works_summary', 'solution_type_id'];
+        sort($expectedKeys);
+        $actualKeys = array_keys($row);
+        sort($actualKeys);
+
+        $this->assertSame($expectedKeys, $actualKeys,
+            'Round-trip through $package->update + fresh() must preserve exactly the 4 canonical keys. '
+            . 'Phase 22.1 closure (Plan 07).');
+
+        // Sanity — the values survive the cast intact.
+        $this->assertSame('Boardroom', $row['room']);
+        $this->assertSame("- Install display", $row['works_summary']);
+        $this->assertSame(1, $row['solution_type_id']);
+    }
 }
