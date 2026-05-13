@@ -380,6 +380,23 @@ class ProjectPackageReviewController extends Controller
 
         $merged = array_merge($package->extracted_data ?? [], $payload);
 
+        // Phase 22.1 D-06: compute and persist scope_of_works_bullets at
+        // approve-time (not at render-time). Locks the bullets to the
+        // approved snapshot so post-approval equipment changes cannot drift
+        // the rendered scope. The render-time RamsComplianceUpgradeService::
+        // upgradeScopeOfWorks() short-circuits when this field is non-empty
+        // (read-through cache).
+        $projectContext = [
+            'rooms' => $merged['room_overviews'] ?? [],
+        ];
+        $bullets = \App\Services\Rams\RamsComplianceUpgradeService::computeScopeOfWorksBulletsForApprove(
+            $merged,
+            $projectContext,
+        );
+        if (! empty($bullets)) {
+            $merged['scope_of_works_bullets'] = $bullets;
+        }
+
         $package->update([
             'extracted_data' => $merged,
             'equipment_list' => $payload['equipment'] ?? [],

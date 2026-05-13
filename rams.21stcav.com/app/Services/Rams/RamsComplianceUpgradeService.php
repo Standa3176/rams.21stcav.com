@@ -42,6 +42,50 @@ class RamsComplianceUpgradeService
     }
 
     /**
+     * Phase 22.1 D-06 — approve-time bullet computation.
+     *
+     * Invoked by ProjectPackageReviewController::approve() to compute and
+     * persist scope_of_works_bullets into reviewed_data BEFORE the package
+     * is saved. After persistence the render-time upgradeScopeOfWorks()
+     * sees the populated array and short-circuits its heuristic (read-through
+     * cache pattern) — locking the bullets to the approved snapshot so
+     * post-approval edits to equipment_list cannot drift the rendered scope.
+     *
+     * Returns the bullet array (possibly empty). The caller is responsible
+     * for writing the result into $reviewedData['scope_of_works_bullets']
+     * and persisting via $package->update(['extracted_data' => $merged]).
+     *
+     * The synthetic $data payload deliberately omits scope_of_works_bullets
+     * so the heuristic ALWAYS runs (cache miss path); the result is then
+     * extracted and returned to the caller. This keeps the heuristic logic
+     * in one location — the render-time and approve-time invocations share
+     * the same implementation.
+     *
+     * @param  array  $reviewedData    The PM-approved review payload (may contain
+     *                                 cable_requirements + equipment).
+     * @param  array  $projectContext  Project-context hints, e.g. rooms list
+     *                                 derived from $reviewedData['room_overviews'].
+     * @return array                   Array of bullet strings (may be empty).
+     */
+    public static function computeScopeOfWorksBulletsForApprove(array $reviewedData, array $projectContext): array
+    {
+        // Build a synthetic heuristic-input payload. Intentionally NO
+        // scope_of_works_bullets key so the cache hit guard does not
+        // short-circuit and the heuristic body runs.
+        $synthetic = [
+            'rooms'              => $projectContext['rooms']             ?? [],
+            'cable_requirements' => $reviewedData['cable_requirements']  ?? [],
+            'quote'              => [
+                'line_items' => $reviewedData['equipment'] ?? [],
+            ],
+        ];
+
+        $upgraded = self::upgradeScopeOfWorks($synthetic);
+
+        return (array) ($upgraded['scope_of_works_bullets'] ?? []);
+    }
+
+    /**
      * Ensure every per-room overview has an install-action bullet list.
      *
      * §4 Scope of Works renders works_summary (bullets) when present and
@@ -67,9 +111,13 @@ class RamsComplianceUpgradeService
         foreach ($rooms as $i => $room) {
             if (! is_array($room)) continue;
             $existing = trim((string) ($room['works_summary'] ?? ''));
-            $overview = trim((string) (
-                $room['overview']    ?? $room['description'] ?? $room['scope'] ?? ''
-            ));
+            // Phase 22.1 D-01: dropped $room['description'] and $room['scope']
+            // from the fallback chain. After Plan 22.1-03 the canonical
+            // room_overviews schema is exactly 4 keys (room / overview /
+            // works_summary / solution_type_id). Reading the dead `description`
+            // / `scope` keys would pollute the bullet heuristic with legacy
+            // AI prose that nothing else in the pipeline still consumes.
+            $overview = trim((string) ($room['overview'] ?? ''));
             // Skip rooms that already have bullet output.
             if ($existing !== '' && (str_starts_with($existing, '- ') || str_contains($existing, "\n- "))) {
                 continue;
@@ -132,6 +180,21 @@ class RamsComplianceUpgradeService
 
     private static function upgradeScopeOfWorks(array $data): array
     {
+        // Phase 22.1 D-06: read-through cache. When scope_of_works_bullets has
+        // been persisted at approve-time (see ProjectPackageReviewController::
+        // approve() and ::computeScopeOfWorksBulletsForApprove() below), the
+        // heuristic short-circuits. This locks the approved bullets to the
+        // snapshot taken at approve — the equipment_list can change after
+        // approval without drifting the rendered scope.
+        //
+        // Backward compatibility: records without persisted bullets (any
+        // record approved before this plan ships) still run the heuristic at
+        // render time, preserving the Wave-1 byte-equivalence canary.
+        $persisted = $data['scope_of_works_bullets'] ?? null;
+        if (is_array($persisted) && ! empty($persisted)) {
+            return $data;
+        }
+
         $rooms             = (array) ($data['rooms']              ?? []);
         $cableRequirements = (array) ($data['cable_requirements'] ?? []);
         $quoteLineItems    = (array) ($data['quote']['line_items'] ?? []);

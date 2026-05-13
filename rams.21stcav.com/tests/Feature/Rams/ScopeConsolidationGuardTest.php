@@ -176,12 +176,19 @@ class ScopeConsolidationGuardTest extends TestCase
 
         $body = substr($contents, $startOffset, $endOffset - $startOffset);
 
+        // Strip PHP comments from the body so a "Phase 22.1 D-01: dropped
+        // $room['description']..." comment does not falsely trip the guard.
+        // We only want to catch ACTUAL code reads of the dead key.
+        $bodyNoComments = preg_replace('~//[^\n]*~', '', $body);                 // // line comments
+        $bodyNoComments = preg_replace('~/\*.*?\*/~s', '', (string) $bodyNoComments); // /* block */
+
         // The fallback chain at line ~71 reads `$room['description']`. After
         // D-01 the canonical schema has dropped description — this read must
-        // be gone from the method body.
+        // be gone from the actual code (comments may still mention it as
+        // historical/explanatory context, which is fine).
         $this->assertStringNotContainsString(
             "\$room['description']",
-            $body,
+            (string) $bodyNoComments,
             'Phase 22.1 D-01 violated: ensurePerRoomBullets() must not fall back to $room[\'description\'] — description is no longer a canonical room_overviews key.'
         );
     }
