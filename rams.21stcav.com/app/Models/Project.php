@@ -118,6 +118,10 @@ class Project extends Model
         'completed_at',
         'archived_at',
         'notes',
+        // Phase 23 — drawing_checked_by + force_sheets keys.
+        // See .planning/phases/23-xten-av-style-renderer/23-CONTEXT.md D-06/D-08.
+        // Writes must validate shape at the controller boundary (T-23-01-01).
+        'metadata',
         // Phase 4 — Tier 1 OM lifecycle dates
         'handover_date',
         'defects_liability_end',
@@ -135,6 +139,8 @@ class Project extends Model
         // Phase 4 — Tier 1 OM lifecycle dates (date-only, no time component)
         'handover_date' => 'date',
         'defects_liability_end' => 'date',
+        // Phase 23 — JSON array cast for drawing_checked_by + force_sheets.
+        'metadata' => 'array',
     ];
 
     // ── Relationships ─────────────────────────────────────────────────────────
