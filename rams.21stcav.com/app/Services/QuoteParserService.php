@@ -1529,6 +1529,12 @@ class QuoteParserService
      *   2. QUOTENUM  family: leading "Q" → "a" / "q", inner "T" → "r" (e.g.
      *      QUOTENUMSTART → auotenumsTart, QUOTENUMEND → quorenumend) with
      *      sporadic case modulation across the rest of the token.
+     *   3. PARTDESC  family: leading "P" dropped AND/OR inner "D" → "O" (e.g.
+     *      PARTDESCEND → ARTOESCEND, PARTOESCEND, ARTDESCEND). When the closer
+     *      is garbled, the tuple-extraction regex on parseTagBased() non-greedy-
+     *      consumes the NEXT canonical PARTDESCEND, merging two adjacent rows
+     *      into one mangled row and silently dropping any rows in between.
+     *      Observed on the Light Forms 21CQ30451-01-OPS quote (package 124).
      *
      * We rewrite the known garbled forms here ONCE at the entry point so every
      * downstream strip regex sees consistent input. Regexes are conservative:
@@ -1552,6 +1558,24 @@ class QuoteParserService
         $rawText = (string) preg_replace(
             '/\b[aAqQ]uo[trTR]enum(start|end)\b/i',
             'QUOTENUM$1',
+            $rawText
+        );
+
+        // PARTDESC family — prefix and inner-D corruption. Canonical token is
+        // PARTDESC{START,END}. Observed garble: "ARTOESCEND" (leading P dropped
+        // AND D→O substitution). Pattern accepts:
+        //   - optional leading P (allows P-dropped form)
+        //   - literal AR (the next two chars are stable across observed corruption)
+        //   - optional T (defensive: covers an unobserved AR(_)DESCEND variant)
+        //   - one of [DO] for the canonical D or its O substitution
+        //   - literal ESC (stable)
+        //   - the canonical (START|END) suffix as the anchor
+        // The ESC + (START|END) tail is unique enough that no English prose word
+        // matches (no real word ends in "OESCEND" or "DESCSTART") so the rewrite
+        // is safe even with the loosened prefix.
+        $rawText = (string) preg_replace(
+            '/\bP?AR[Tt]?[DOdo]ESC(START|END)\b/i',
+            'PARTDESC$1',
             $rawText
         );
 
