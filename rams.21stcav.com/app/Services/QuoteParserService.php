@@ -140,6 +140,13 @@ class QuoteParserService
      */
     public function parse(string $rawText): array
     {
+        // PDF text extractors (smalot/pdfparser, pdftotext) occasionally garble
+        // the QuoteWerks marker tokens by substituting "V" with "y" — e.g.
+        // OVERVIEWTXTEND is extracted as "oyERVIEWTXTEND". Normalise the known
+        // garbled forms back to canonical uppercase BEFORE any downstream regex
+        // runs, so every strip/match site sees consistent input.
+        $rawText = $this->normaliseQuoteWerksMarkers($rawText);
+
         // Structured RAMS PDF tags are present — use the reliable tag-based parser.
         // Falls back to the heuristic path below for untagged legacy PDFs.
         if ($this->hasStructuredTags($rawText)) {
@@ -1512,6 +1519,28 @@ class QuoteParserService
     }
 
     /**
+     * Normalise OCR-garbled QuoteWerks marker tokens back to their canonical form.
+     *
+     * Some PDF text extractors substitute "V" with "y" inside the OVERVIEW tag
+     * family — e.g. "OVERVIEWTXTEND" gets extracted as "oyERVIEWTXTEND" and the
+     * fragment then leaks into prose because the downstream strip regexes only
+     * match the canonical letter sequence. We rewrite the known garbled forms
+     * here ONCE at the entry point so every parser site sees clean input.
+     *
+     * Conservative: only rewrites tokens that are immediately followed by the
+     * canonical suffix (TITLE|TXT)(START|END). This avoids false positives in
+     * legitimate prose containing the word "OYE" etc.
+     */
+    private function normaliseQuoteWerksMarkers(string $rawText): string
+    {
+        return (string) preg_replace(
+            '/\bO[yY]ERVIEW(TITLE|TXT)(START|END)\b/i',
+            'OVERVIEW$1$2',
+            $rawText
+        );
+    }
+
+    /**
      * Full tag-based parse for structured RAMS PDFs.
      *
      * Tag layout (both quote types supported):
@@ -1831,11 +1860,18 @@ class QuoteParserService
         // ── 7. Room overviews — map parsed sections to review-form structure ─
         // Each OVERVIEWTITLE section becomes one room_overviews entry so the
         // review form pre-populates with extracted narrative text.
+        //
+        // EXCEPT: QuoteWerks templates reuse OVERVIEWTITLE blocks for document-
+        // structure headers (Summary, Hardware, Services, etc.) that are NOT
+        // actual rooms. These are skipped so room_overviews stays clean.
         $roomOverviews = [];
         foreach ($sections as $section) {
             $rTitle = trim((string) ($section['title'] ?? ''));
             $rText  = trim((string) ($section['text'] ?? ''));
             if ($rTitle === '' && $rText === '') {
+                continue;
+            }
+            if ($rTitle !== '' && $this->isNonRoomSectionTitle($rTitle)) {
                 continue;
             }
             $roomOverviews[] = [
@@ -2360,6 +2396,42 @@ class QuoteParserService
         }
 
         return true;
+    }
+
+    /**
+     * Return true when the section title is a known QuoteWerks document-structure
+     * header rather than an actual room/space.
+     *
+     * The QuoteWerks template reuses OVERVIEWTITLE blocks for both room narratives
+     * AND document-organisational headings (the trailing "Summary" footer, the
+     * "Hardware"/"Services" equipment-section labels, etc.). The latter must not
+     * pollute room_overviews — they're not rooms, just structural labels.
+     *
+     * Internal whitespace is collapsed before comparison so column-layout PDF
+     * extractions like "Su mmary" still match "summary".
+     */
+    private function isNonRoomSectionTitle(string $title): bool
+    {
+        // Whitespace is removed (not just collapsed) before comparison so column-
+        // layout PDF extractions like "Su mmary" / "Pro fessional Services" still
+        // match. Real multi-word room names ("Service Yard", "Hardware Room") are
+        // unaffected because they don't reduce to a filter keyword once spaces
+        // are removed.
+        static $nonRoomTitles = [
+            'summary',
+            'hardware',
+            'cables',
+            'consumables',
+            'services',
+            'professionalservices',
+            'notes',
+            'terms',
+            'termsandconditions',
+            'generalterms',
+        ];
+
+        $normalised = strtolower((string) preg_replace('/\s+/', '', trim($title)));
+        return in_array($normalised, $nonRoomTitles, true);
     }
 
     /**

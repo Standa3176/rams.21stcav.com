@@ -923,6 +923,213 @@ class QuoteParserServiceTest extends TestCase
         $this->assertStringNotContainsString('Volkswagen National',       $overview);
     }
 
+    // =========================================================================
+    // OCR-GARBLED MARKER NORMALISATION (Light Forms 21CQ30451 defect class)
+    // =========================================================================
+
+    public function test_garbled_overview_marker_oyERVIEWTXTEND_is_stripped_from_prose(): void
+    {
+        // Regression test for the Light Forms Ltd 21CQ30451-01-OPS quote where
+        // smalot/pdfparser extracted "OVERVIEWTXTEND" as "oyERVIEWTXTEND" (V→y
+        // substitution in a serif-font glyph). The fragment then leaked into the
+        // phrased overview because every downstream strip regex matched only the
+        // canonical letter sequence. parse() now normalises garbled markers at
+        // the entry point so all downstream regexes see clean input.
+        $text = implode("\n", [
+            'OVERVIEWTITLESTART Boardroom OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART The Client\'s Boardroom has a legacy display mounted oyERVIEWTXTEND',
+            'off centre to the current display, also installed is a touch panel.',
+            'PARTSTART FW-85BZ40L PARTEND PARTDESCSTART 21st Engineering AV Team PARTDESCEND QTYSTART 1.00 QTYEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $overviews = $result['room_overviews'] ?? [];
+        $boardroom = null;
+        foreach ($overviews as $ro) {
+            if (trim((string) ($ro['room'] ?? '')) === 'Boardroom') {
+                $boardroom = $ro;
+                break;
+            }
+        }
+        $this->assertNotNull($boardroom, 'Boardroom overview must be present');
+
+        $overview = (string) ($boardroom['overview'] ?? '');
+        $this->assertStringContainsString('The Client\'s Boardroom has a legacy display mounted', $overview);
+        $this->assertStringContainsString('off centre to the current display', $overview);
+
+        // The garbled fragment must NOT leak through — neither as the garbled form
+        // nor as the canonical form (it's a marker, not prose).
+        $this->assertStringNotContainsString('oyERVIEW', $overview);
+        $this->assertStringNotContainsString('OYERVIEW', $overview);
+        $this->assertStringNotContainsString('OVERVIEWTXT', $overview);
+    }
+
+    public function test_garbled_overview_marker_uppercase_OY_form_also_normalised(): void
+    {
+        // Some extractors produce "OYERVIEWTXTEND" (uppercase OY). Same fix should
+        // catch this via the case-insensitive regex.
+        $text = implode("\n", [
+            'OVERVIEWTITLESTART Reception OVERVIEWTITLEEND',
+            'OYERVIEWTXTSTART Reception area scope OYERVIEWTXTEND',
+            'PARTSTART PA20 PARTEND PARTDESCSTART Yealink PA20 PARTDESCEND QTYSTART 1.00 QTYEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $overviews = $result['room_overviews'] ?? [];
+        $reception = null;
+        foreach ($overviews as $ro) {
+            if (trim((string) ($ro['room'] ?? '')) === 'Reception') {
+                $reception = $ro;
+                break;
+            }
+        }
+        $this->assertNotNull($reception, 'Reception overview must be present');
+        $this->assertStringContainsString('Reception area scope', (string) $reception['overview']);
+        $this->assertStringNotContainsString('OYERVIEW', (string) $reception['overview']);
+    }
+
+    public function test_normalisation_does_not_corrupt_legitimate_prose_containing_oye(): void
+    {
+        // Conservative regex must NOT match arbitrary "oye" substrings in prose.
+        // Only the exact OVERVIEW(TITLE|TXT)(START|END) garble is rewritten.
+        $text = implode("\n", [
+            'OVERVIEWTITLESTART Lobby OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART The Foyer hosts an oyeing display unit. OVERVIEWTXTEND',
+            'PARTSTART X PARTEND PARTDESCSTART Display PARTDESCEND QTYSTART 1.00 QTYEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $overviews = $result['room_overviews'] ?? [];
+        $lobby = null;
+        foreach ($overviews as $ro) {
+            if (trim((string) ($ro['room'] ?? '')) === 'Lobby') {
+                $lobby = $ro;
+                break;
+            }
+        }
+        $this->assertNotNull($lobby);
+        $this->assertStringContainsString('oyeing display', (string) $lobby['overview']);
+    }
+
+    // =========================================================================
+    // NON-ROOM SECTION FILTER (Light Forms 21CQ30451 "Summary"-as-room defect)
+    // =========================================================================
+
+    public function test_summary_section_is_not_added_to_room_overviews(): void
+    {
+        // QuoteWerks templates emit OVERVIEWTITLESTART Summary OVERVIEWTITLEEND at
+        // the bottom of every quote as the document footer. The Summary section
+        // has body text (the standard "Quotation for…" disclaimer) so the empty-
+        // text fall-through doesn't filter it. It must be explicitly excluded
+        // from room_overviews because it's not a room.
+        $text = implode("\n", [
+            'OVERVIEWTITLESTART Boardroom OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART The Boardroom scope. OVERVIEWTXTEND',
+            'PARTSTART FW-85BZ40L PARTEND PARTDESCSTART Display PARTDESCEND QTYSTART 1.00 QTYEND',
+            'OVERVIEWTITLESTART Summary OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART Quotation for Audio-Visual Installation. OVERVIEWTXTEND',
+            'Thank you for considering 21st Century AV.',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $overviewRoomNames = array_map(
+            fn (array $ro): string => trim((string) ($ro['room'] ?? '')),
+            $result['room_overviews'] ?? []
+        );
+
+        $this->assertContains('Boardroom', $overviewRoomNames);
+        $this->assertNotContains('Summary',  $overviewRoomNames);
+    }
+
+    public function test_organisational_section_headers_are_excluded_from_room_overviews(): void
+    {
+        // Hardware / Cables / Consumables / Services / Professional Services
+        // are equipment-list section labels in the QuoteWerks template, not
+        // rooms. All must be filtered out of room_overviews.
+        $text = implode("\n", [
+            'OVERVIEWTITLESTART Meeting Room 1 OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART Real room scope. OVERVIEWTXTEND',
+            'PARTSTART X PARTEND PARTDESCSTART X PARTDESCEND QTYSTART 1.00 QTYEND',
+            'OVERVIEWTITLESTART Hardware OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART Hardware section. OVERVIEWTXTEND',
+            'OVERVIEWTITLESTART Cables OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART Cables section. OVERVIEWTXTEND',
+            'OVERVIEWTITLESTART Professional Services OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART Pro services. OVERVIEWTXTEND',
+            'OVERVIEWTITLESTART Services OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART Services. OVERVIEWTXTEND',
+            'OVERVIEWTITLESTART Consumables OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART Consumables. OVERVIEWTXTEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $names = array_map(
+            fn (array $ro): string => trim((string) ($ro['room'] ?? '')),
+            $result['room_overviews'] ?? []
+        );
+
+        $this->assertContains('Meeting Room 1', $names);
+        $this->assertNotContains('Hardware', $names);
+        $this->assertNotContains('Cables', $names);
+        $this->assertNotContains('Professional Services', $names);
+        $this->assertNotContains('Services', $names);
+        $this->assertNotContains('Consumables', $names);
+    }
+
+    public function test_summary_filter_tolerates_column_layout_whitespace_corruption(): void
+    {
+        // Column-layout PDF extraction sometimes splits a single word across
+        // adjacent columns — "Summary" becomes "Su mmary". The non-room filter
+        // collapses internal whitespace before comparison so this still matches.
+        $text = implode("\n", [
+            'OVERVIEWTITLESTART Boardroom OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART Room scope. OVERVIEWTXTEND',
+            'PARTSTART X PARTEND PARTDESCSTART X PARTDESCEND QTYSTART 1.00 QTYEND',
+            'OVERVIEWTITLESTART Su mmary OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART Footer text. OVERVIEWTXTEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $names = array_map(
+            fn (array $ro): string => trim((string) ($ro['room'] ?? '')),
+            $result['room_overviews'] ?? []
+        );
+
+        $this->assertContains('Boardroom', $names);
+        $this->assertNotContains('Summary', $names);
+        $this->assertNotContains('Su mmary', $names);
+    }
+
+    public function test_real_room_names_resembling_filter_keywords_still_pass(): void
+    {
+        // Defensive: room names that CONTAIN non-room keywords as part of a
+        // longer name (e.g. "Service Yard" vs "Services") must still be kept.
+        // The filter uses exact normalised equality, not substring matching.
+        $text = implode("\n", [
+            'OVERVIEWTITLESTART Service Yard OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART Yard scope. OVERVIEWTXTEND',
+            'PARTSTART X PARTEND PARTDESCSTART X PARTDESCEND QTYSTART 1.00 QTYEND',
+            'OVERVIEWTITLESTART Hardware Room OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART Server cabinet location. OVERVIEWTXTEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $names = array_map(
+            fn (array $ro): string => trim((string) ($ro['room'] ?? '')),
+            $result['room_overviews'] ?? []
+        );
+
+        $this->assertContains('Service Yard', $names);
+        $this->assertContains('Hardware Room', $names);
+    }
+
     public function test_tagged_equipment_deduplicates_same_area_and_part_number(): void
     {
         $text = implode("\n", [
