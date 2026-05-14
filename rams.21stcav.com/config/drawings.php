@@ -47,4 +47,73 @@ return [
     // Minimum set per CONTEXT.md "Claude's Discretion".
     // Phase 20 may extend with "Checked by" / "Approved by" once status workflow matures.
     'title_block_fields' => ['project_ref', 'client', 'drawn_by', 'date', 'revision', 'status'],
+
+    // ── Phase 23 zone derivation (DRAW-46) ────────────────────────────────
+    // Per CONTEXT D-01 + D-04. Vocab is the canonical enum; engineer can
+    // type free-text in the review-form dropdown to create a separate
+    // dashed group (D-04 escape hatch). The category_to_zone map shape
+    // depends on Plan 01 Task 1's OQ-1 disposition — see
+    // .planning/phases/23-xten-av-style-renderer/23-DISCOVERY-OQ-1-CATEGORIES.md.
+    //
+    // Per OQ-1 Path B disposition: real production category strings are the
+    // 7 high-level keys from review.blade.php $categoryOptions. The map
+    // below mirrors this — only `hardware` is renderer-relevant (other
+    // categories are filtered out upstream by Project::devicesWithStencils()).
+    // ZoneGrouper falls through to a name-keyword secondary derivation when
+    // category lookup returns null OR 'OTHER'.
+    //
+    // Renderer resolution (Plan 02 ZoneGrouper):
+    //   1. $line['zone'] if set (engineer override D-02, free-text D-04 supported)
+    //   2. $config['category_to_zone'][$line['category']] if not null/OTHER
+    //   3. name-keyword scan (ceiling/rack/display/etc — Plan 02 NAME_KEYWORD_TO_ZONE)
+    //   4. fallback 'OTHER'
+    'zone_vocab' => [
+        'RACK', 'CEILING', 'WALL', 'TABLE',
+        'RECEPTION', 'FLOOR', 'PAGING_STATION',
+        'EXTERNAL', 'OTHER',
+    ],
+    'category_to_zone' => [
+        // Per OQ-1 Path B (Plan 23-01 Task 1): real production keys map
+        // through to the keyword derivation for hardware; everything else
+        // resolves OTHER (and is filtered out before reaching the renderer).
+        'hardware'          => null,          // fall through to name-keyword (Plan 02)
+        'cables'            => 'OTHER',
+        'consumables'       => 'OTHER',
+        'services'          => 'OTHER',
+        'service_contracts' => 'OTHER',
+        'customer_supplied' => 'OTHER',
+        'option'            => 'OTHER',
+    ],
+
+    // ── Phase 23 paginator threshold (DRAW-47, per D-06) ──────────────────
+    // Sub-sheet emits when BOTH cable-count >= min_cables_per_signal
+    // AND device-count touching that signal >= min_devices_touching_signal.
+    // Engineer tinker override via Project.metadata.force_sheets = ['audio', ...]
+    // (Phase 24 ships the proper UI per CONTEXT D-06 deferred line).
+    'sub_sheet_thresholds' => [
+        'min_cables_per_signal'       => 5,
+        'min_devices_touching_signal' => 3,
+    ],
+
+    // ── Phase 23 sheet numbering (DRAW-47/48, per D-08) ───────────────────
+    // Extends v1.3 Phase 20 AV-201..299 schematic range. The SheetPaginator
+    // (Plan 23-04) maps emitted sheets to these strings; AV-201 always
+    // emits (system overview); AV-202..205 are conditional per threshold.
+    'sheet_number_format' => [
+        'system_overview' => 'AV-201',
+        'audio'           => 'AV-202',
+        'video'           => 'AV-203',
+        'control'         => 'AV-204',
+        'network'         => 'AV-205',
+    ],
+
+    // ── Phase 23 layout dimensions ────────────────────────────────────────
+    // Page bounds for each emitted <diagram>. Matches the current builder's
+    // implicit 1600x1000 landscape. Sheet border (DRAW-49) insets 20 px.
+    'page_dimensions' => [
+        'width'         => 1600,
+        'height'        => 1000,
+        'border_inset'  => 20,
+        'title_block_y' => 940,   // y-coordinate where the title block row starts
+    ],
 ];
