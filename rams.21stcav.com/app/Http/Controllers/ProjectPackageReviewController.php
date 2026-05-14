@@ -183,13 +183,42 @@ class ProjectPackageReviewController extends Controller
             }
         }
 
+        // ── room_summaries → room_overviews defensive map ─────────────────────
+        // The Claude PDF-vision extractor (QuoteExtractorService, invoked by
+        // QuoteImportService::import / ::reimport) writes per-room data under
+        // `room_summaries` with shape [{room, summary}, ...]. ExtractQuoteJob
+        // normalises this into `room_overviews` via mergeParsedQuoteData(), but
+        // the QuoteImportService path does not. Without this seed, packages
+        // imported via that path render "No spaces detected" on first load
+        // even when room data is present in extracted_data.
+        //
+        // We project to the canonical 4-key shape here so the room_overviews
+        // gate at line 193 fires AND the row carries the AI's summary text as
+        // the initial overview value (the PM can edit on first save).
+        //
+        // room_summaries remains intact in extracted_data — it has independent
+        // readers (resources/views/pdf/rams.blade.php, WordDocumentService,
+        // resources/views/quote-import/review.blade.php).
+        $summaryByRoom = [];
+        foreach (($raw['room_summaries'] ?? []) as $rs) {
+            if (! is_array($rs)) {
+                continue;
+            }
+            $rsName = trim((string) ($rs['room'] ?? ''));
+            if ($rsName === '' || in_array(strtolower($rsName), $excludedAreaWords, true)) {
+                continue;
+            }
+            $summaryByRoom[$rsName] = trim((string) ($rs['summary'] ?? ''));
+        }
+
         // ── Build canonical room list ──────────────────────────────────────────
         // CURATED MODE (room_overviews already saved): use saved list as authority.
         // This prevents rooms the PM explicitly deleted from re-appearing on reload.
         // Equipment areas not yet in the curated list are appended so genuinely new
         // areas (e.g. after a re-extraction) still surface.
         //
-        // FIRST-LOAD MODE (room_overviews empty): derive from equipment + parser rooms.
+        // FIRST-LOAD MODE (room_overviews empty): derive from equipment + parser
+        // rooms + Claude PDF-vision room_summaries (see $summaryByRoom above).
         if (! empty($raw['room_overviews'])) {
             // ── Curated mode: room_overviews has been saved at least once ──────
             // The PM's saved list is the SOLE authority.
@@ -207,7 +236,7 @@ class ProjectPackageReviewController extends Controller
                 }
             }
         } else {
-            // ── First load: derive from equipment + parser rooms ───────────────
+            // ── First load: derive from equipment + parser rooms + AI room_summaries
             $allRoomNames = $roomNamesFromEquip;
             foreach (($raw['rooms'] ?? []) as $room) {
                 $name = is_string($room) ? $room : (string) ($room['room'] ?? $room['name'] ?? '');
@@ -215,6 +244,13 @@ class ProjectPackageReviewController extends Controller
                 if ($name === '' || in_array(strtolower($name), $excludedAreaWords, true)) {
                     continue;
                 }
+                if (! in_array($name, $allRoomNames, true)) {
+                    $allRoomNames[] = $name;
+                }
+            }
+            // Seed from Claude PDF-vision room_summaries so packages re-extracted
+            // via QuoteImportService::reimport surface their AI-detected rooms.
+            foreach (array_keys($summaryByRoom) as $name) {
                 if (! in_array($name, $allRoomNames, true)) {
                     $allRoomNames[] = $name;
                 }
@@ -235,11 +271,20 @@ class ProjectPackageReviewController extends Controller
         // per-room shape only. The legacy `summary` and `description` keys are
         // dropped — they were posted by dead form fields that have been removed
         // from review.blade.php this same plan. See 22.1-VERIFICATION.md gaps.
-        $raw['room_overviews'] = array_map(function (string $roomName) use ($savedOverviewsByRoom): array {
+        //
+        // Sidebar fix 2026-05-14: when no saved row exists for a room but the
+        // Claude PDF-vision extractor returned a summary, use it as the seed
+        // `overview` value so the PM sees the AI-detected prose on first load.
+        // See .planning/notes/2026-05-14-extracted-data-room-key-mismatch.md.
+        $raw['room_overviews'] = array_map(function (string $roomName) use ($savedOverviewsByRoom, $summaryByRoom): array {
             $saved = $savedOverviewsByRoom[$roomName] ?? [];
+            $overview = (string) ($saved['overview'] ?? '');
+            if ($overview === '' && isset($summaryByRoom[$roomName])) {
+                $overview = $summaryByRoom[$roomName];
+            }
             return [
                 'room'             => $roomName,
-                'overview'         => (string) ($saved['overview']         ?? ''),
+                'overview'         => $overview,
                 'works_summary'    => (string) ($saved['works_summary']    ?? ''),
                 'solution_type_id' => (int)    ($saved['solution_type_id'] ?? 0) ?: null,
             ];
