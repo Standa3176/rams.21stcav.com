@@ -224,10 +224,13 @@ class CableRouterTest extends TestCase
     public function test_unknown_signal_type_falls_back_to_unknown_colour(): void
     {
         // Set every port's signal_type to a key not in config — should fall to
-        // 'unknown' (#000000) per signal_type_colours.
-        DB::table('device_ports')->update(['signal_type' => 'made-up-signal']);
+        // 'unknown' (#000000) per signal_type_colours. UPDATE the ports AFTER
+        // the fixture builds them, then re-fresh the project so loadMissing
+        // picks up the mutated values.
         $f = $this->makeProjectWithCables();
-        $edges = $this->router->emitCables($f['project'], $f['deviceCells']);
+        DB::table('device_ports')->update(['signal_type' => 'made-up-signal']);
+        $project = $f['project']->fresh();
+        $edges = $this->router->emitCables($project, $f['deviceCells']);
         $edge = collect($edges)->firstWhere('kind', 'edge');
         $expected = config('cables.signal_type_colours.unknown');
         $this->assertStringContainsString("strokeColor={$expected}", $edge['style']);
