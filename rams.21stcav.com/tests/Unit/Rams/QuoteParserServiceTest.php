@@ -990,6 +990,94 @@ class QuoteParserServiceTest extends TestCase
         $this->assertStringNotContainsString('OYERVIEW', (string) $reception['overview']);
     }
 
+    public function test_garbled_quotenum_marker_auotenumsTart_is_stripped_from_address(): void
+    {
+        // Second-pass regression for the Light Forms Ltd 21CQ30451-01-OPS quote.
+        // After the OVERVIEW fix shipped, the site address field still leaked
+        // "auotenumsTart 21CQ30451-01-OPS quorenumend" because the same PDF
+        // extractor corrupts the QUOTENUM tag family with a different glyph
+        // substitution (Q→a + case shuffle on START, T→r + lowercase on END).
+        // The normaliser now rewrites both garbled forms to canonical QUOTENUMSTART
+        // / QUOTENUMEND so the SHIPADD strip pipeline catches them.
+        $text = implode("\n", [
+            'SITENAMESTART Light Forms Ltd - Boardoom SITENAMEEND',
+            'SHIPADDSTART 21CQ30451-01-OPS',
+            '8 Richfield Avenue',
+            'Reading',
+            'Berkshire',
+            'RG1 8EQ',
+            'auotenumsTart quorenumend',
+            'SHIPADDEND',
+            'OVERVIEWTITLESTART Boardroom OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART Boardroom scope. OVERVIEWTXTEND',
+            'PARTSTART X PARTEND PARTDESCSTART X PARTDESCEND QTYSTART 1.00 QTYEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $site = (string) ($result['site'] ?? '');
+
+        // Real address content must survive.
+        $this->assertStringContainsString('8 Richfield Avenue', $site);
+        $this->assertStringContainsString('Reading', $site);
+        $this->assertStringContainsString('RG1 8EQ', $site);
+
+        // Garbled marker fragments must NOT leak through — neither the corrupted
+        // forms nor the canonical token names (they're markers, not address text).
+        $this->assertStringNotContainsString('auotenums', $site);
+        $this->assertStringNotContainsString('quorenum',  $site);
+        $this->assertStringNotContainsString('QUOTENUM',  $site);
+    }
+
+    public function test_garbled_quotenum_uppercase_AUOTENUMSTART_form_also_normalised(): void
+    {
+        // Defensive variant — same corruption family but with the leading letter
+        // capitalised. The case-insensitive regex catches both.
+        $text = implode("\n", [
+            'SHIPADDSTART 17 High Street',
+            'Cambridge',
+            'AUOTENUMSTART REF-001 QUORENUMEND',
+            'SHIPADDEND',
+            'OVERVIEWTITLESTART Reception OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART Scope. OVERVIEWTXTEND',
+            'PARTSTART X PARTEND PARTDESCSTART X PARTDESCEND QTYSTART 1.00 QTYEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $site = (string) ($result['site'] ?? '');
+        $this->assertStringContainsString('17 High Street', $site);
+        $this->assertStringNotContainsString('AUOTENUM',  $site);
+        $this->assertStringNotContainsString('QUORENUM',  $site);
+        $this->assertStringNotContainsString('QUOTENUM',  $site);
+    }
+
+    public function test_quotenum_normalisation_preserves_legitimate_words(): void
+    {
+        // The conservative regex MUST NOT touch real prose words. "Auto" /
+        // "quorum" / "quote" do not match because the regex requires the
+        // (NUM)(START|END) suffix immediately after.
+        $text = implode("\n", [
+            'OVERVIEWTITLESTART Lobby OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART The auto-detect quorum is started. Quote follows. OVERVIEWTXTEND',
+            'PARTSTART X PARTEND PARTDESCSTART X PARTDESCEND QTYSTART 1.00 QTYEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $overviews = $result['room_overviews'] ?? [];
+        $lobby = null;
+        foreach ($overviews as $ro) {
+            if (trim((string) ($ro['room'] ?? '')) === 'Lobby') {
+                $lobby = $ro;
+                break;
+            }
+        }
+        $this->assertNotNull($lobby);
+        $this->assertStringContainsString('auto-detect quorum is started',  (string) $lobby['overview']);
+        $this->assertStringContainsString('Quote follows',                   (string) $lobby['overview']);
+    }
+
     public function test_normalisation_does_not_corrupt_legitimate_prose_containing_oye(): void
     {
         // Conservative regex must NOT match arbitrary "oye" substrings in prose.

@@ -1521,23 +1521,41 @@ class QuoteParserService
     /**
      * Normalise OCR-garbled QuoteWerks marker tokens back to their canonical form.
      *
-     * Some PDF text extractors substitute "V" with "y" inside the OVERVIEW tag
-     * family — e.g. "OVERVIEWTXTEND" gets extracted as "oyERVIEWTXTEND" and the
-     * fragment then leaks into prose because the downstream strip regexes only
-     * match the canonical letter sequence. We rewrite the known garbled forms
-     * here ONCE at the entry point so every parser site sees clean input.
+     * Some PDF text extractors substitute characters inside QuoteWerks marker
+     * tokens due to custom-font glyph subsetting. Two corruption families have
+     * been observed on production quotes:
      *
-     * Conservative: only rewrites tokens that are immediately followed by the
-     * canonical suffix (TITLE|TXT)(START|END). This avoids false positives in
-     * legitimate prose containing the word "OYE" etc.
+     *   1. OVERVIEW family: "V" → "y" (e.g. OVERVIEWTXTEND → oyERVIEWTXTEND).
+     *   2. QUOTENUM  family: leading "Q" → "a" / "q", inner "T" → "r" (e.g.
+     *      QUOTENUMSTART → auotenumsTart, QUOTENUMEND → quorenumend) with
+     *      sporadic case modulation across the rest of the token.
+     *
+     * We rewrite the known garbled forms here ONCE at the entry point so every
+     * downstream strip regex sees consistent input. Regexes are conservative:
+     * they only match when the suffix is the canonical (START|END) / (TITLE|TXT)
+     * pair, so legitimate prose words ("oye", "auto", "quorum") are safe.
+     *
+     * New corruption variants get added here as they're observed on real PDFs.
      */
     private function normaliseQuoteWerksMarkers(string $rawText): string
     {
-        return (string) preg_replace(
+        // OVERVIEW family — V↔Y substitution on the second character.
+        $rawText = (string) preg_replace(
             '/\bO[yY]ERVIEW(TITLE|TXT)(START|END)\b/i',
             'OVERVIEW$1$2',
             $rawText
         );
+
+        // QUOTENUM family — leading [aAqQ] (instead of Q) and inner [trTR]
+        // (instead of T) covering both observed variants. The "\b" boundaries
+        // protect any prose word that happens to start with "auo" or "quo".
+        $rawText = (string) preg_replace(
+            '/\b[aAqQ]uo[trTR]enum(start|end)\b/i',
+            'QUOTENUM$1',
+            $rawText
+        );
+
+        return $rawText;
     }
 
     /**
