@@ -9,29 +9,30 @@ use App\Models\User;
 use App\Services\Drawings\DrawingService;
 use App\Services\Drawings\DrawIoBuilderService;
 use App\Services\Drawings\DrawIoSpikeBuilderService;
+use Carbon\Carbon;
 use Database\Seeders\DeviceStencilSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use ReflectionClass;
 use Tests\TestCase;
 
 /**
- * Phase 21 Plan 03 Task 2 — locks DrawIoBuilderService end-to-end behaviour
- * per CONTEXT.md D-08 (admin route + saveXml/exportSvg pipelines preserved)
- * and Nit 9 (shallow role inference scoped to manufacturer-logo placement +
- * 4-column grid; Phase 23 replaces with real layout engine).
+ * Phase 21 Plan 03 Task 2 — locks DrawIoBuilderService end-to-end behaviour.
+ * Phase 23 Plan 05 — assertions evolved for the new `<mxfile>` multi-sheet
+ * wrapper while Phase 21 P03 invariants (empty-graph shape, base64 stencil
+ * embed, determinism, spike controller signature, shim delegation) all stay
+ * green.
  *
  * Asserts:
- *   - build() emits a valid mxGraphModel XML string starting with
- *     `<mxGraphModel`
- *   - Curated seed-pack stencils land as vertex cells
- *   - Auto-generic Tier 1 placeholders for unseen part_numbers also land
- *   - Cable / service category lines are filtered out (no spurious cells)
- *   - Empty package case still emits a valid empty mxGraphModel
- *   - Two builds of the same project produce byte-identical output
- *     (deterministic — Phase 22's port-FK migration depends on this)
+ *   - Non-empty projects emit `<mxfile>` wrapper (Phase 23 new contract)
+ *   - Curated seed-pack stencils + auto-generic Tier 1 placeholders both
+ *     land as device vertex cells (Phase 21 D-04 carry-forward)
+ *   - Cable / service category lines are filtered out (Phase 21 P03)
+ *   - Empty package case still emits the legacy single `<mxGraphModel>`
+ *     shape — backwards-compat per Phase 21 P03
+ *   - Two builds of the same project produce byte-identical output (D-LOCK-5/6)
  *   - Curated stencil's mxgraph_xml is base64-embedded via shape=stencil(...)
  *   - DrawIoSpikeBuilderService still exists as a thin shim delegating to
- *     DrawIoBuilderService
+ *     DrawIoBuilderService (Phase 21 D-08)
  *   - DrawIoSpikeController constructor still has 2 parameters per D-08 +
  *     Warning 2 (DrawingService dependency MUST NOT be dropped)
  *
@@ -39,6 +40,7 @@ use Tests\TestCase;
  * @see app/Services/Drawings/DrawIoSpikeBuilderService.php
  * @see app/Http/Controllers/Admin/DrawIoSpikeController.php
  * @see .planning/phases/21-device-port-catalog-stencil-cache/21-CONTEXT.md (D-08, D-14, Nit 9)
+ * @see .planning/phases/23-xten-av-style-renderer/23-05-drawio-builder-orchestrator-rewire-PLAN.md
  */
 class DrawIoBuilderServiceTest extends TestCase
 {
@@ -51,6 +53,17 @@ class DrawIoBuilderServiceTest extends TestCase
         // neat-bar-pro which one of the test projects below references.
         $this->artisan('db:seed', ['--class' => DeviceStencilSeeder::class])
             ->assertExitCode(0);
+
+        // Phase 23 Plan 05 — title block now interpolates now()->format('Y-m-d'),
+        // so the determinism test needs a frozen clock. Same value used by the
+        // multi-sheet harness (DrawIoBuilderServiceMultiSheetTest::setUp).
+        Carbon::setTestNow('2026-05-14 12:00:00');
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
     }
 
     private function makeProjectWithEquipment(array $equipment, array $cableList = []): Project
@@ -98,15 +111,24 @@ class DrawIoBuilderServiceTest extends TestCase
         $builder = app(DrawIoBuilderService::class);
         $xml = $builder->build($project);
 
-        $this->assertStringStartsWith('<mxGraphModel', $xml,
-            'Output must be a well-formed mxGraphModel document');
-        $this->assertStringContainsString('</mxGraphModel>', $xml);
+        // Phase 23 Plan 05 — non-empty projects are now wrapped in `<mxfile>`
+        // for multi-sheet draw.io format support. Per-sheet `<mxGraphModel>`
+        // lives inside each `<diagram>` child.
+        $this->assertStringStartsWith('<mxfile', $xml,
+            'Non-empty project output must be wrapped in `<mxfile>` (Phase 23 multi-sheet format)');
+        $this->assertStringContainsString('<mxGraphModel', $xml,
+            'Each diagram still contains an mxGraphModel');
+        $this->assertStringContainsString('</mxfile>', $xml);
         $this->assertStringContainsString('<root>', $xml);
 
-        // Exactly 2 vertex cells: NEAT-BAR-PRO + NOT-IN-SEED-XYZ-001.
-        $vertexCount = substr_count($xml, 'vertex="1"');
-        $this->assertSame(2, $vertexCount,
-            "Builder must emit exactly 2 vertex cells (curated + auto-generic); got {$vertexCount}");
+        // Devices land as device vertex cells (kind=device). The new layout
+        // engine also emits zone container vertex cells, page border, and
+        // 8 title-block field cells per sheet — so simply count that BOTH
+        // hardware device labels are present.
+        $this->assertStringContainsString('Neat Bar Pro', $xml,
+            'Curated stencil device label must appear in output');
+        $this->assertStringContainsString('Mystery Device', $xml,
+            'Auto-generic Tier 1 device label must appear in output');
 
         // Cable line must NOT appear as a vertex.
         $this->assertStringNotContainsString('CAB-HDMI-3M', $xml,
