@@ -304,6 +304,11 @@ class ProjectPackageReviewController extends Controller
     {
         $this->authorizePackage($package);
 
+        // Phase 23 Plan 06 — DRAW-46 D-03 zone validation.
+        // Pitfall 8 XSS mitigation (T-23-06-A1/A2): reject any zone string
+        // that doesn't match the Unicode-letter regex allowlist.
+        $this->validateEquipmentZones($request);
+
         $payload = $this->parseReviewPayload($request);
 
         // Carry over meta from extracted_data if not in payload.
@@ -363,6 +368,9 @@ class ProjectPackageReviewController extends Controller
     public function approve(Request $request, ProjectPackage $package): RedirectResponse
     {
         $this->authorizePackage($package);
+
+        // Phase 23 Plan 06 — DRAW-46 D-03 zone validation (mirrors update()).
+        $this->validateEquipmentZones($request);
 
         $payload = $this->parseReviewPayload($request);
 
@@ -862,6 +870,35 @@ class ProjectPackageReviewController extends Controller
     }
 
     /**
+     * Phase 23 Plan 06 — DRAW-46 D-03 zone validation.
+     *
+     * Enforces the Pitfall 8 XSS regex allowlist on every posted
+     * equipment[N][zone] value. Threats T-23-06-A1 (XSS via free-text zone
+     * persisted into mxGraph value attribute) and T-23-06-A2 (form bypass
+     * posting arbitrary string) are mitigated here at the network boundary.
+     *
+     * Regex `^[\p{L}\p{N} _\-]+$/u` is Unicode-letter friendly — engineers
+     * can label zones in non-ASCII scripts (e.g. "Régie") without tripping
+     * validation. Defence-in-depth: Plan 02 XtenAvLayoutEngine::xml() also
+     * passes every zone string through htmlspecialchars(ENT_XML1|ENT_QUOTES)
+     * before interpolating into the mxGraph XML.
+     *
+     * Used by update() AND approve() — both pipelines hit parseReviewPayload
+     * and both must reject hostile payloads.
+     */
+    private function validateEquipmentZones(Request $request): void
+    {
+        $request->validate([
+            'equipment.*.zone' => [
+                'nullable',
+                'string',
+                'max:50',
+                'regex:/^[\p{L}\p{N} _\-]+$/u',
+            ],
+        ]);
+    }
+
+    /**
      * Parse and sanitise the raw request payload into the canonical review schema.
      */
     private function parseReviewPayload(Request $request): array
@@ -875,13 +912,25 @@ class ProjectPackageReviewController extends Controller
                 continue;
             }
             $category = $this->normaliseEquipmentCategory($item);
-            $equipment[] = [
+            $entry = [
                 'quantity'    => max(1, (int) ($item['quantity']    ?? 1)),
                 'part_number' => trim((string) ($item['part_number'] ?? '')),
                 'name'        => trim((string) ($item['name']        ?? '')),
                 'area'        => trim((string) ($item['area']        ?? '')),
                 'category'    => $category,
             ];
+
+            // Phase 23 Plan 06 — zone (DRAW-46 D-02 per-device override;
+            // D-04 free-text escape hatch). Empty / whitespace-only zone is
+            // OMITTED so it falls through to the D-01 category default in
+            // the renderer. Validation already happened in update()/approve()
+            // via validateEquipmentZones() — this is the persistence step.
+            $zone = trim((string) ($item['zone'] ?? ''));
+            if ($zone !== '') {
+                $entry['zone'] = $zone;
+            }
+
+            $equipment[] = $entry;
         }
         $raw['equipment'] = $equipment;
 
