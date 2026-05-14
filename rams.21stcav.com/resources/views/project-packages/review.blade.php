@@ -652,6 +652,8 @@
                             <th style="width:140px;">Part Number</th>
                             <th>Equipment / Item Description</th>
                             <th style="width:150px;">Category</th>
+                            {{-- Phase 23 Plan 06 — DRAW-46 D-03 zone column (additive). --}}
+                            <th style="width:160px;">Zone</th>
                             <th class="col-area">Title / Section</th>
                             <th class="col-del"></th>
                         </tr>
@@ -670,7 +672,7 @@
                         @endphp
                         @forelse ($rowsByRoom as $roomName => $roomRows)
                             <tr data-room-row="1" style="background:var(--bg);">
-                                <td colspan="6" style="font-weight:600;color:#0f5460;padding:.4rem .75rem;border-bottom:1px solid var(--border);">
+                                <td colspan="7" style="font-weight:600;color:#0f5460;padding:.4rem .75rem;border-bottom:1px solid var(--border);">
                                     <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;">
                                         <span class="eq-area-label">{{ $roomName }}</span>
                                         @if($catKey === 'hardware')
@@ -744,6 +746,49 @@
                                         @endforeach
                                     </select>
                                 </td>
+                                {{-- Phase 23 Plan 06 — DRAW-46 D-03 zone dropdown column (additive). --}}
+                                @php
+                                    $zoneVocab    = config('drawings.zone_vocab', []);
+                                    $currentZone  = old("equipment.{$i}.zone", $item['zone'] ?? '');
+                                    $isVocabValue = $currentZone !== '' && in_array($currentZone, $zoneVocab, true);
+                                    $isFreeText   = $currentZone !== '' && ! $isVocabValue;
+                                @endphp
+                                <td style="width:160px;">
+                                    <div x-data="zonePicker(@js($currentZone), @js($zoneVocab), {{ $isFreeText ? 'true' : 'false' }})"
+                                         class="zone-picker">
+                                        <select x-show="!isFreeText"
+                                                x-model="selected"
+                                                @change="onChange"
+                                                :name="isFreeText ? '' : 'equipment[{{ $i }}][zone]'"
+                                                style="font-size:.82rem;width:100%;">
+                                            <option value="">— default by category —</option>
+                                            <template x-for="z in vocab" :key="z">
+                                                <option :value="z" x-text="z"></option>
+                                            </template>
+                                            <option value="__other__">Other (free text)…</option>
+                                        </select>
+                                        <input x-show="isFreeText"
+                                               type="text"
+                                               x-model="freeText"
+                                               :name="isFreeText ? 'equipment[{{ $i }}][zone]' : ''"
+                                               maxlength="50"
+                                               pattern="^[\p{L}\p{N} _\-]+$"
+                                               placeholder="e.g. Server Cabinet"
+                                               style="font-size:.82rem;width:100%;" />
+                                        <button type="button"
+                                                x-show="isFreeText"
+                                                @click="cancelFreeText"
+                                                style="font-size:.7rem;color:#777;background:none;border:0;padding:2px 4px;cursor:pointer;">
+                                            ↩ use dropdown
+                                        </button>
+                                        <small class="form-hint" style="display:block;font-size:.65rem;color:#666;margin-top:2px;line-height:1.2;">
+                                            Free text creates a separate group on the diagram — use the dropdown for consistency.
+                                        </small>
+                                    </div>
+                                    @error("equipment.{$i}.zone")
+                                        <p class="form-error">{{ $message }}</p>
+                                    @enderror
+                                </td>
                                 <td class="col-area">
                                     <input type="text"
                                            name="equipment[{{ $i }}][area]"
@@ -757,10 +802,10 @@
                                 </td>
                                 </tr>
                             @endforeach
-                            <tr data-room-row="1"><td colspan="6" style="height:6px;border:0;"></td></tr>
+                            <tr data-room-row="1"><td colspan="7" style="height:6px;border:0;"></td></tr>
                         @empty
                             <tr data-empty-row="1">
-                                <td colspan="6" style="color:#888;font-size:.82rem;padding:.75rem 1rem;">
+                                <td colspan="7" style="color:#888;font-size:.82rem;padding:.75rem 1rem;">
                                     No items in this category yet.
                                 </td>
                             </tr>
@@ -1366,6 +1411,37 @@ let equipmentCount  = {{ count($reviewPayload['equipment']) }};
 let activityCount   = {{ count($reviewPayload['activities']) }};
 let hazardCount     = {{ count($reviewPayload['hazards']) }};
 
+// ─── Phase 23 Plan 06 — zone vocab + Alpine zonePicker() factory ───────────────
+// DRAW-46 D-03/D-04: dropdown + "Other (free text)" escape hatch per equipment
+// row. Published to window so the addRow() JS row template can reuse the same
+// vocab without re-rendering Blade.
+window.__zoneVocab = @js(config('drawings.zone_vocab', []));
+
+function zonePicker(initial, vocab, isFreeTextInitial) {
+    const initialIsVocab = !!initial && Array.isArray(vocab) && vocab.includes(initial);
+    return {
+        vocab: Array.isArray(vocab) ? vocab : [],
+        // When initial is a vocab value, show it selected; when it's free text,
+        // freeze the select on "__other__" so re-entering free-text mode preserves it.
+        selected: initial === '' ? '' : (initialIsVocab ? initial : '__other__'),
+        freeText: initialIsVocab ? '' : (initial || ''),
+        isFreeText: !!isFreeTextInitial,
+        onChange() {
+            if (this.selected === '__other__') {
+                this.isFreeText = true;
+            } else {
+                this.isFreeText = false;
+                this.freeText = '';
+            }
+        },
+        cancelFreeText() {
+            this.isFreeText = false;
+            this.freeText = '';
+            this.selected = '';
+        },
+    };
+}
+
 // ─── Row templates ────────────────────────────────────────────────────────────
 function equipmentRowTemplate(idx, category) {
     return `<tr data-equip-row="1">
@@ -1392,6 +1468,27 @@ function equipmentRowTemplate(idx, category) {
                 <option value="customer_supplied" ${category === 'customer_supplied' ? 'selected' : ''}>Customer Supplied</option>
                 <option value="option" ${category === 'option' ? 'selected' : ''}>Option (Optional Items)</option>
             </select>
+        </td>
+        <td style="width:160px;">
+            <div x-data="zonePicker('', window.__zoneVocab || [], false)" class="zone-picker">
+                <select x-show="!isFreeText" x-model="selected" @change="onChange"
+                        :name="isFreeText ? '' : 'equipment[${idx}][zone]'"
+                        style="font-size:.82rem;width:100%;">
+                    <option value="">— default by category —</option>
+                    <template x-for="z in vocab" :key="z">
+                        <option :value="z" x-text="z"></option>
+                    </template>
+                    <option value="__other__">Other (free text)…</option>
+                </select>
+                <input x-show="isFreeText" type="text" x-model="freeText"
+                       :name="isFreeText ? 'equipment[${idx}][zone]' : ''"
+                       maxlength="50" pattern="^[\\p{L}\\p{N} _\\-]+$"
+                       placeholder="e.g. Server Cabinet"
+                       style="font-size:.82rem;width:100%;" />
+                <button type="button" x-show="isFreeText" @click="cancelFreeText"
+                        style="font-size:.7rem;color:#777;background:none;border:0;padding:2px 4px;cursor:pointer;">↩ use dropdown</button>
+                <small class="form-hint" style="display:block;font-size:.65rem;color:#666;margin-top:2px;line-height:1.2;">Free text creates a separate group on the diagram — use the dropdown for consistency.</small>
+            </div>
         </td>
         <td class="col-area">
             <input type="text" name="equipment[${idx}][area]" placeholder="e.g. Meeting Room 1"
