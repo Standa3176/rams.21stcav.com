@@ -95,16 +95,21 @@ class DocxBuilderService
         $phpWord->setDefaultFontName('Arial');
         $phpWord->setDefaultFontSize(10);
 
-        // Build all sections in order
+        // Build all sections in order.
+        //
+        // D9 — buildCdmSection() relocated from before-scope to the
+        //      post-method-statement compliance block, matching the PDF
+        //      order (rams.blade.php emits CDM after Permits & Authorisations
+        //      and before COSHH).
         $this->buildCoverPage($phpWord, $data, $formData, $record);
         $this->buildDocumentControl($phpWord, $data, $record);
         $this->buildCompanyInformation($phpWord, $data);
         $this->buildHealthSafetyPolicy($phpWord, $data);
-        $this->buildCdmSection($phpWord, $data);
         $this->buildScopeOfWorks($phpWord, $data, $formData, $record);
         $this->buildEngineerFindingsByRoom($phpWord, $data);
         $this->buildRiskAssessment($phpWord, $data);
         $this->buildMethodStatement($phpWord, $data);
+        $this->buildCdmSection($phpWord, $data);
         $this->buildEmergencyProcedures($phpWord, $data, $formData);
         $this->buildDocumentSignOff($phpWord, $data);
 
@@ -889,30 +894,64 @@ class DocxBuilderService
             ],
         );
 
-        // ── Risk Colour Key (Tier 1 upgrade) ─────────────────────────────────
-        $riskKey = $data['risk_colour_key'] ?? [];
-        if (! empty($riskKey)) {
-            $keyTable = $section->addTable($this->tableStyle());
+        // ── D6 — 5×5 Risk Matrix grid (matches PDF rams.blade.php:1197-1215) ──
+        //   Header row: empty | Severity 1..5 (Minor → Fatal)
+        //   Body rows : Likelihood 1..5 (Unlikely → Almost Certain) + 5 L×S cells
+        //   Cell bg   : riskColour(L*S) — 3-band palette (green/amber/red)
+        $section->addText(
+            'The risk scoring matrix below is used throughout this assessment. Likelihood (L) × Severity (S) = Risk Score (R).',
+            $this->font(9),
+            ['spaceBefore' => 60, 'spaceAfter' => 80, 'alignment' => Jc::BOTH],
+        );
 
-            $keyHdr = $keyTable->addRow(380);
-            $keyHdr->addCell(2000, ['bgColor' => self::TEAL])->addText('Risk Level',  $this->font(9, bold: true, colour: self::WHITE), ['alignment' => Jc::CENTER]);
-            $keyHdr->addCell(1500, ['bgColor' => self::TEAL])->addText('Score Range', $this->font(9, bold: true, colour: self::WHITE), ['alignment' => Jc::CENTER]);
-            $keyHdr->addCell(5000, ['bgColor' => self::TEAL])->addText('Description', $this->font(9, bold: true, colour: self::WHITE));
-            $keyHdr->addCell(6638, ['bgColor' => self::TEAL])->addText('Action',      $this->font(9, bold: true, colour: self::WHITE));
+        $matrixTable = $section->addTable($this->tableStyle());
+        $matrixCellW = 2380; // 5 severity cols + 1 row-header col, sum ≈ 14280 (fits W_LAND).
+        $matrixHdrFont = $this->font(9, bold: true, colour: self::WHITE);
+        $matrixCellFont = $this->font(9, bold: true);
 
-            $keyColours = ['LOW' => self::RISK_GREEN, 'MEDIUM' => self::RISK_AMBER, 'HIGH' => self::RISK_RED];
-            foreach ($riskKey as $entry) {
-                $level  = (string) ($entry['level'] ?? '');
-                $colour = $keyColours[$level] ?? self::WHITE;
-                $kr = $keyTable->addRow(380);
-                $kr->addCell(2000, ['bgColor' => $colour])->addText($level,                                    $this->font(9, bold: true), ['alignment' => Jc::CENTER]);
-                $kr->addCell(1500, ['bgColor' => $colour])->addText($this->t((string) ($entry['range'] ?? '')),       $this->font(9), ['alignment' => Jc::CENTER]);
-                $kr->addCell(5000, ['bgColor' => $colour])->addText($this->t((string) ($entry['description'] ?? '')), $this->font(9));
-                $kr->addCell(6638, ['bgColor' => $colour])->addText($this->t((string) ($entry['action'] ?? '')),      $this->font(9));
-            }
-
-            $section->addTextBreak(1);
+        // Top header row
+        $sevLabels = [1 => 'Minor', 2 => 'Moderate', 3 => 'Serious', 4 => 'Major', 5 => 'Fatal'];
+        $hdrRow = $matrixTable->addRow(420);
+        $hdrRow->addCell($matrixCellW, ['bgColor' => self::DARK_GREY])->addText('', $matrixHdrFont);
+        foreach ($sevLabels as $s => $label) {
+            $hdrRow->addCell($matrixCellW, ['bgColor' => self::TEAL])
+                ->addText("Severity {$s} — {$label}", $matrixHdrFont, ['alignment' => Jc::CENTER]);
         }
+
+        // Body rows — one per likelihood level
+        $likeLabels = [1 => 'Unlikely', 2 => 'Possible', 3 => 'Likely', 4 => 'Probable', 5 => 'Almost Certain'];
+        foreach ($likeLabels as $l => $lLabel) {
+            $bodyRow = $matrixTable->addRow(380);
+            $bodyRow->addCell($matrixCellW, ['bgColor' => self::TEAL])
+                ->addText("Likelihood {$l} — {$lLabel}", $matrixHdrFont, ['alignment' => Jc::CENTER]);
+            foreach ([1, 2, 3, 4, 5] as $s) {
+                $score = $l * $s;
+                $bodyRow->addCell($matrixCellW, ['bgColor' => $this->riskColour($score)])
+                    ->addText((string) $score, $matrixCellFont, ['alignment' => Jc::CENTER]);
+            }
+        }
+
+        $section->addTextBreak(1);
+
+        // ── D6 — 3-band footer legend (matches PDF rams.blade.php:1218-1227) ──
+        $legendTable = $section->addTable($this->tableStyle());
+        $bandW = 1200; // band cell
+        $descW = 3850; // description cell
+        $lr = $legendTable->addRow(420);
+        $lr->addCell($bandW, ['bgColor' => self::RISK_GREEN])
+            ->addText("1–4\nLOW", $this->font(9, bold: true), ['alignment' => Jc::CENTER]);
+        $lr->addCell($descW, ['bgColor' => self::WHITE])
+            ->addText('Acceptable. Monitor and maintain controls.', $this->font(9));
+        $lr->addCell($bandW, ['bgColor' => self::RISK_AMBER])
+            ->addText("5–9\nMEDIUM", $this->font(9, bold: true), ['alignment' => Jc::CENTER]);
+        $lr->addCell($descW, ['bgColor' => self::WHITE])
+            ->addText('Action required to reduce risk.', $this->font(9));
+        $lr->addCell($bandW, ['bgColor' => self::RISK_RED])
+            ->addText("10+\nHIGH", $this->font(9, bold: true), ['alignment' => Jc::CENTER]);
+        $lr->addCell(($matrixCellW * 6) - (3 * $bandW) - (2 * $descW), ['bgColor' => self::WHITE])
+            ->addText('Stop work. Implement immediate controls.', $this->font(9));
+
+        $section->addTextBreak(1);
 
         // Column widths (sum = W_LAND = 15138)
         $wRef = self::COL_REF;      // 600
@@ -1227,9 +1266,15 @@ class DocxBuilderService
         foreach ($phases as $i => $phase) {
             $rawTitle = trim((string)($phase['title'] ?? ''));
 
-            // Strip any leading "N. " or "N — " prefix the AI may have added, then
-            // rebuild as "Step N — Title" so format is always consistent.
-            $cleanTitle = preg_replace('/^\d+[\.\-–—\s]+/', '', $rawTitle);
+            // D8 — extended regex matches PDF rams.blade.php:1534. Strips any
+            //      leading "Step N — ", "Phase N — ", or "N. "/"N — " prefix
+            //      from the AI title BEFORE we prepend our own "Step N — "
+            //      label, preventing "Step 1 — Step 1 — Title" duplication.
+            $cleanTitle = preg_replace(
+                '/^\s*(step\s+\d+[\.\-–—\s]*|phase\s+\d+[\.\-–—\s]*|\d+[\.\-–—\s]+)/i',
+                '',
+                $rawTitle,
+            );
             $stepTitle  = 'Step ' . ($i + 1) . ' — ' . $cleanTitle;
 
             $section->addText(
@@ -1532,23 +1577,40 @@ class DocxBuilderService
         return (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $text);
     }
 
-    /** Return the risk-score background colour. */
+    /**
+     * Return the risk-score background colour.
+     *
+     * D6/D7 — collapsed to PDF's 3-band palette (rams.blade.php:443-447):
+     *   1-4   = LOW    (green)
+     *   5-9   = MEDIUM (amber)
+     *   10+   = HIGH   (red)
+     *
+     * The legacy 4-band palette (RISK_ORANGE) is no longer used.
+     */
     private function riskColour(int $score): string
     {
         return match (true) {
-            $score <= 6  => self::RISK_GREEN,
+            $score <= 4  => self::RISK_GREEN,
             $score <= 9  => self::RISK_AMBER,
-            $score <= 14 => self::RISK_ORANGE,
             default      => self::RISK_RED,
         };
     }
 
-    /** Return a SHORT risk badge label for the given score. */
+    /**
+     * Return a SHORT risk badge label for the given score.
+     *
+     * D7 — thresholds aligned with PDF rams.blade.php:448-452:
+     *   <5    = LOW
+     *   5-9   = MED
+     *   10+   = HIGH
+     *
+     * Previous DOCX threshold (>= 7 => MED) mis-labelled scores 5-6 as LOW.
+     */
     private function riskBadge(int $score): string
     {
         return match (true) {
             $score >= 10 => 'HIGH',
-            $score >= 7  => 'MED',
+            $score >= 5  => 'MED',
             default      => 'LOW',
         };
     }
