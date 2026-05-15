@@ -128,10 +128,17 @@ class QuoteExtractorService
         $raw = $response->json('content.0.text', '');
         $raw = $this->stripMarkdownFences($raw);
 
-        // Remove control characters that are invalid inside JSON strings
-        // (literal newlines/tabs in values cause JSON_ERROR_CTRL_CHAR).
-        // Keep: 0x09 tab, 0x0A newline, 0x0D carriage return — JSON structural chars.
-        $raw = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $raw);
+        // Remove ALL control characters 0x00-0x1F + 0x7F. Inside JSON string
+        // values these bytes are invalid (JSON_ERROR_CTRL_CHAR) — paragraph
+        // breaks must be escaped as `\n` (two chars), not literal byte 0x0A.
+        // The previous regex preserved 0x09/0x0A/0x0D on the mistaken belief
+        // that they were "JSON structural chars"; in JSON they're only valid
+        // as inter-token whitespace, never inside strings. Stripping them
+        // collapses pretty-printing (harmless — multi-space is valid JSON
+        // whitespace) and unblocks string values with stray literal newlines.
+        // Triggered by Claude responses for projects with multi-paragraph
+        // `works_description` (e.g. Tilda 21CQ29531-05-OPS, package 110).
+        $raw = preg_replace('/[\x00-\x1F\x7F]/', '', $raw);
 
         $decoded = json_decode($raw, true);
 
