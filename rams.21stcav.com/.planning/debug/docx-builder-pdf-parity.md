@@ -1,8 +1,8 @@
 ---
-status: implementing_commit_3
+status: awaiting_uat
 trigger: "Fix RAMS DOCX builder to match PDF output — 12 defects (D1-D12)"
 created: 2026-05-14T22:00:00Z
-updated: 2026-05-15T09:30:00Z
+updated: 2026-05-15T09:40:00Z
 ---
 
 ## Current Focus
@@ -152,3 +152,8 @@ files_changed:
 - 2026-05-15T09:23Z — Commit 2 landed: da83d61 fix(rams-docx): risk matrix grid + medium-risk threshold + step header + CDM placement (D6-D9). Surface: app/Services/DocxBuilderService.php (94 ins / 32 del). Tests: +5 cases (riskBadge thresholds, riskColour palette, 5x5 grid, step de-duplication, CDM positional ordering).
 - 2026-05-15T09:30Z — Commit 3 staging: D10-D12 missing sections. 9 new private methods in DocxBuilderService.php (buildMaterialHandling, buildPermitAndIsolation, buildFixingsControl, buildSupervisionAndQA, buildPermitsAndAuthorisations, buildCoshhAssessment, buildEnvironmentalManagement, buildWelfareArrangements, buildAppendixA). Interleaved in build() in the same order as PDF. 9 new tests in DocxBuilderPdfParityTest.php (one per section).
 - 2026-05-15T09:32Z — Pre-commit verification: php -l clean on both files. DocxBuilderPdfParityTest 22/22 green (134 assertions). Phase23InvariantGuardTest + V13SurfacesUntouchedTest + RamsRenderRegressionTest 20/20 green (174 assertions). No regressions.
+- 2026-05-15T09:35Z — Commit 3 landed: 9a615b4 fix(rams-docx): missing compliance sections — material handling, permits, COSHH, environmental, welfare, appendix A (D10-D12). Surface: app/Services/DocxBuilderService.php (395 ins / 8 del) + tests/Feature/Rams/DocxBuilderPdfParityTest.php (18 ins / 10 del). Test file casing tightened to match sectionHeading() uppercase behaviour.
+- 2026-05-15T09:37Z — Planning artifacts committed: 59587d3 docs(rams-docx): debug log + sidebar note for DOCX/PDF parity fix (D1-D12). Two new files.
+- 2026-05-15T09:40Z — Final test sweep: 42/42 green (308 assertions) across DocxBuilderPdfParityTest + Phase23InvariantGuardTest + V13SurfacesUntouchedTest + RamsRenderRegressionTest. No regressions detected.
+- 2026-05-15T09:40Z — Post-fix DOCX regeneration of RamsDocument 81 skipped: local dev DB contains zero rams_documents rows. UAT target lives on live host only. Test fixture coverage stands as canonical verification (22 parity tests, every D1-D12 path).
+- 2026-05-15T09:40Z — Status → awaiting_uat. Three commits stay LOCAL (145c7a3, da83d61, 9a615b4) + one docs commit (59587d3). Orchestrator must push to live and instruct user to pull + regenerate DOCX for RamsDocument 81 before UAT comparison vs the PDF "21CQ30451-01-OPS - Light Forms Ltd.pdf".
