@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\RamsDocument;
 use App\Services\DocumentArtifactStorage;
 use App\Services\DocumentTemplateService;
+use App\Services\Rams\RamsDisplayPatchService;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
 use PhpOffice\PhpWord\Settings;
@@ -36,6 +37,7 @@ class DocxBuilderService
     public function __construct(
         private readonly DocumentTemplateService $templates,
         private readonly DocumentArtifactStorage $artifacts = new DocumentArtifactStorage(),
+        private readonly RamsDisplayPatchService $patchService = new RamsDisplayPatchService(),
     ) {}
 
     // ─── Brand colours ────────────────────────────────────────────────────────
@@ -76,6 +78,17 @@ class DocxBuilderService
         // Ensure PHPWord escapes &, <, > in text content (off by default).
         Settings::setOutputEscapingEnabled(true);
 
+        // ── Sidebar fix 2026-05-14 — docx-builder-pdf-parity (D1, D3, D5) ─────
+        // Apply the same display patches the PDF download path applies. This
+        // overwrites stale/leaked doc_author (client email leak), resolves the
+        // personnel chain from programme → reviewed_data → owner, normalises
+        // rooms_text + scope_items, and infers client_contact_name. Mutation
+        // is transient (no $record->save() inside the patch service) — the
+        // patched generated_data is read back below and supersedes the
+        // caller-provided $data so cover/scope/contact rows match the PDF.
+        $this->patchService->patch($record);
+        $data = $record->generated_data ?? $data;
+
         $formData = $record->form_data ?? [];
 
         $phpWord = new PhpWord();
@@ -83,12 +96,12 @@ class DocxBuilderService
         $phpWord->setDefaultFontSize(10);
 
         // Build all sections in order
-        $this->buildCoverPage($phpWord, $data, $formData);
-        $this->buildDocumentControl($phpWord, $data);
+        $this->buildCoverPage($phpWord, $data, $formData, $record);
+        $this->buildDocumentControl($phpWord, $data, $record);
         $this->buildCompanyInformation($phpWord, $data);
         $this->buildHealthSafetyPolicy($phpWord, $data);
         $this->buildCdmSection($phpWord, $data);
-        $this->buildScopeOfWorks($phpWord, $data, $formData);
+        $this->buildScopeOfWorks($phpWord, $data, $formData, $record);
         $this->buildEngineerFindingsByRoom($phpWord, $data);
         $this->buildRiskAssessment($phpWord, $data);
         $this->buildMethodStatement($phpWord, $data);
@@ -112,19 +125,24 @@ class DocxBuilderService
     // COVER PAGE — Portrait, two info tables
     // =========================================================================
 
-    private function buildCoverPage(PhpWord $phpWord, array $data, array $formData): void
+    private function buildCoverPage(PhpWord $phpWord, array $data, array $formData, ?RamsDocument $record = null): void
     {
         $section = $phpWord->addSection($this->portraitStyle());
         $this->attachFooter($section);
 
         $project = $data['project'] ?? [];
 
-        // ── Build a filtered rooms string (exclude non-physical-space entries) ─
-        $roomsFiltered = array_values(array_filter(
-            $project['rooms'] ?? [],
-            fn ($r) => $r !== '' && ! preg_match('/\b(licen[cs]|cabling|cables?|wiring|network|software|service|warranty|support|delivery|carriage)\b/i', $r)
-        ));
-        $roomsDisplay = ! empty($roomsFiltered) ? implode(', ', $roomsFiltered) : ($project['rooms_text'] ?? '');
+        // ── Rooms resolution chain (D3 — match PDF rams.blade.php:324-345) ────
+        // Priority: reviewed_data['rooms'] → reviewed_data['room_overviews'][n]['room']
+        //           → $project['rooms_text']. Non-physical-space entries
+        //           (cabling/services/warranty etc) are filtered out.
+        $roomsList = $this->resolveRoomsList($data, $record);
+        $roomsDisplay = ! empty($roomsList) ? implode(', ', $roomsList) : ($project['rooms_text'] ?? '');
+
+        // ── Document date (D2 — match PDF rams.blade.php:347-349) ─────────────
+        // PDF uses $record->created_at->format('d/m/Y') — NOT the stale
+        // "F Y" placeholder written into $project['date'] at build time.
+        $docDate = $record?->created_at?->format('d/m/Y') ?: now()->format('d/m/Y');
 
         // ── Company name + RAMS title ─────────────────────────────────────────
         $section->addText(
@@ -157,7 +175,7 @@ class DocxBuilderService
             ['SITE',              $project['site_address'] ?? ''],
             ['PROJECT REFERENCE', $project['ref']          ?? ''],
             ['ROOMS',             $roomsDisplay],
-            ['DATE',              $project['date']         ?? now()->format('F Y')],
+            ['DATE',              $docDate],
         ];
         foreach ($rows1 as [$label, $value]) {
             $row = $table->addRow(420);
@@ -174,11 +192,13 @@ class DocxBuilderService
             ($project['client_contact_name'] ?? '') .
             (($project['client_contact_email'] ?? '') !== '' ? "\n" . $project['client_contact_email'] : '')
         );
+        // Match PDF: fall back to "TBC at site induction" when no client contact.
+        $clientContactDisplay = $clientContact !== '' ? $clientContact : 'TBC at site induction';
 
         $rows2 = [
             ['PREPARED BY',    $project['doc_author']      ?? ''],
             ['TELEPHONE',      config('rams.company_phone')],
-            ['CLIENT CONTACT', $clientContact],
+            ['CLIENT CONTACT', $clientContactDisplay],
             ['REVISION',       $project['revision']        ?? 'Rev 1.0'],
             ['STATUS',         $project['document_status'] ?? 'For Issue'],
         ];
@@ -187,13 +207,130 @@ class DocxBuilderService
             $row->addCell($colW, $tealCell) ->addText($label,           $labelFont);
             $row->addCell($colW, $whiteCell)->addText($this->t($value), $valueFont);
         }
+
+        $section->addTextBreak(1);
+
+        // ── Third table: PROJECT MANAGER, LEAD ENGINEER, ENGINEERS, PROGRAMMER,
+        //                 VEHICLE REGS (D4 expansion — match PDF lines 586-611)
+        $table3 = $section->addTable($this->tableStyle());
+
+        $docAuthor = (string) ($project['doc_author'] ?? '');
+        $leadEng   = (string) ($project['lead_engineer'] ?? '');
+        $addEngs   = (string) ($project['additional_engineers'] ?? '');
+        $programmer = (string) ($project['programmer'] ?? '');
+
+        $vehSrc = $project['site_vehicles'] ?? ($data['site_vehicles'] ?? null);
+        if (is_string($vehSrc)) {
+            $vehSrc = preg_split('/\r?\n/', $vehSrc) ?: [];
+        }
+        $coverVehiclesList = array_values(array_filter(
+            array_map('trim', (array) ($vehSrc ?? [])),
+            fn (string $v) => $v !== '',
+        ));
+        $coverVehiclesDisplay = ! empty($coverVehiclesList) ? implode(', ', $coverVehiclesList) : '—';
+
+        $rows3 = [
+            ['PROJECT MANAGER', $docAuthor !== '' ? $docAuthor : '—'],
+            ['LEAD ENGINEER',   $leadEng   !== '' ? $leadEng   : '—'],
+            ['ENGINEERS',       $addEngs   !== '' ? $addEngs   : '—'],
+            ['PROGRAMMER',      $programmer !== '' ? $programmer : '—'],
+            ['VEHICLE REGS',    $coverVehiclesDisplay],
+        ];
+        foreach ($rows3 as [$label, $value]) {
+            $row = $table3->addRow(420);
+            $row->addCell($colW, $tealCell) ->addText($label,           $labelFont);
+            $row->addCell($colW, $whiteCell)->addText($this->t($value), $valueFont);
+        }
+    }
+
+    /**
+     * Resolve the rooms list for cover + scope-of-works rendering.
+     *
+     * Mirrors the PDF priority chain in rams.blade.php:324-345 so the DOCX
+     * cover ROOMS field is populated even when the legacy $project['rooms']
+     * array is empty:
+     *   1. $record->reviewed_data['rooms']            (curated names)
+     *   2. $record->reviewed_data['room_overviews'][n]['room']  (PM-edited)
+     *   3. $data['project']['rooms']                  (legacy)
+     *   4. $data['project']['rooms_text']             (parser fallback)
+     *
+     * Non-physical-space entries (cabling, services, warranty, etc.) are
+     * filtered out using the same regex as the PDF blade.
+     *
+     * @return array<int, string> ordered list of unique room names.
+     */
+    private function resolveRoomsList(array $data, ?RamsDocument $record): array
+    {
+        $excludeRe = '/\b(licen[cs]|cabling|cables?|wiring|network|software|service|warranty|support|delivery|carriage)\b/i';
+        $filter = fn ($r) => is_string($r) && $r !== '' && ! preg_match($excludeRe, $r);
+
+        $list = [];
+
+        // 1. reviewed_data['rooms'] (curated names list — highest priority).
+        $reviewedRooms = $record?->reviewed_data['rooms'] ?? [];
+        if (is_array($reviewedRooms) && ! empty($reviewedRooms)) {
+            foreach ($reviewedRooms as $r) {
+                if (is_array($r)) {
+                    $name = (string) ($r['name'] ?? ($r['room_name'] ?? ''));
+                } else {
+                    $name = (string) $r;
+                }
+                if ($filter($name)) {
+                    $list[] = $name;
+                }
+            }
+        }
+
+        // 2. reviewed_data['room_overviews'][n]['room'] (PM-edited overviews).
+        if (empty($list)) {
+            $roomOverviews = $record?->reviewed_data['room_overviews'] ?? [];
+            if (is_array($roomOverviews)) {
+                foreach ($roomOverviews as $ro) {
+                    if (! is_array($ro)) {
+                        continue;
+                    }
+                    $name = (string) ($ro['room'] ?? ($ro['room_name'] ?? ($ro['name'] ?? '')));
+                    if ($filter($name)) {
+                        $list[] = $name;
+                    }
+                }
+            }
+        }
+
+        // 3. $project['rooms'] (legacy generated_data array).
+        if (empty($list)) {
+            $projectRooms = $data['project']['rooms'] ?? [];
+            if (is_array($projectRooms)) {
+                foreach ($projectRooms as $r) {
+                    $name = (string) $r;
+                    if ($filter($name)) {
+                        $list[] = $name;
+                    }
+                }
+            }
+        }
+
+        // 4. $project['rooms_text'] (parser fallback, comma/newline separated).
+        if (empty($list)) {
+            $roomsText = (string) ($data['project']['rooms_text'] ?? '');
+            if ($roomsText !== '') {
+                $parts = array_filter(array_map('trim', preg_split('/[,\n]+/', $roomsText) ?: []));
+                foreach ($parts as $name) {
+                    if ($filter($name)) {
+                        $list[] = $name;
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique($list));
     }
 
     // =========================================================================
     // SECTION 1 — Document Control
     // =========================================================================
 
-    private function buildDocumentControl(PhpWord $phpWord, array $data): void
+    private function buildDocumentControl(PhpWord $phpWord, array $data, ?RamsDocument $record = null): void
     {
         $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
         $this->attachFooter($section);
@@ -209,10 +346,13 @@ class DocxBuilderService
         $whiteCell = ['bgColor' => self::WHITE];
         $vf        = $this->font(9);
 
+        // D2 — use document creation date (dd/mm/yyyy) not the "F Y" placeholder.
+        $docDate = $record?->created_at?->format('d/m/Y') ?: now()->format('d/m/Y');
+
         // Pre-filled row
         $row = $table->addRow(400);
         $row->addCell(800,  $altCell)  ->addText($this->t($project['revision']        ?? 'Rev 1.0'),     $vf);
-        $row->addCell(1800, $whiteCell)->addText($this->t($project['date']             ?? now()->format('F Y')), $vf);
+        $row->addCell(1800, $whiteCell)->addText($this->t($docDate), $vf);
         $row->addCell(2500, $whiteCell)->addText($this->t($project['doc_author']       ?? ''),           $vf);
         $row->addCell(3500, $whiteCell)->addText('Initial Issue',                                        $vf);
         $row->addCell(1266, $whiteCell)->addText($this->t($project['document_status']  ?? 'For Issue'),  $vf);
@@ -306,19 +446,16 @@ class DocxBuilderService
     // SECTION 4 — Scope of Works
     // =========================================================================
 
-    private function buildScopeOfWorks(PhpWord $phpWord, array $data, array $formData): void
+    private function buildScopeOfWorks(PhpWord $phpWord, array $data, array $formData, ?RamsDocument $record = null): void
     {
         $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
         $this->attachFooter($section);
 
         $project = $data['project'] ?? [];
 
-        // ── Filtered rooms (exclude non-physical-space entries) ───────────────
-        $roomsFiltered = array_values(array_filter(
-            $project['rooms'] ?? [],
-            fn ($r) => $r !== '' && ! preg_match('/\b(licen[cs]|cabling|cables?|wiring|network|software|service|warranty|support|delivery|carriage)\b/i', $r)
-        ));
-        $roomsDisplay = ! empty($roomsFiltered) ? implode(', ', $roomsFiltered) : ($project['rooms_text'] ?? '');
+        // ── Rooms resolution chain (D3 — match PDF rams.blade.php:324-345) ────
+        $roomsList = $this->resolveRoomsList($data, $record);
+        $roomsDisplay = ! empty($roomsList) ? implode(', ', $roomsList) : ($project['rooms_text'] ?? '');
 
         $this->sectionHeading($section, '4. Scope of Works');
 
@@ -900,17 +1037,48 @@ class DocxBuilderService
         $teamTable = $section->addTable($this->tableStyle());
         $this->tealHeader($teamTable, ['Role', 'Qty', 'Requirements'], [2600, 800, 6466]);
 
-        $team = $data['team'] ?? [];
+        // D4 — Team list with empty-team fallback that synthesises members
+        //       from $project personnel string fields. Matches PDF lines
+        //       1304-1324 (rams.blade.php) so DOCX renders the same row set.
+        $team = is_array($data['team'] ?? null) ? $data['team'] : [];
+        $project = $data['project'] ?? [];
+        if (empty($team)) {
+            $pmName  = trim((string) ($project['project_manager']      ?? ''));
+            $leName  = trim((string) ($project['lead_engineer']        ?? ''));
+            $progStr = trim((string) ($project['programmer']           ?? ''));
+            $addStr  = trim((string) ($project['additional_engineers'] ?? ''));
+            if ($pmName !== '') {
+                $team[] = ['role' => 'Project Manager', 'name' => $pmName];
+            }
+            if ($leName !== '') {
+                $team[] = ['role' => 'Lead Engineer', 'name' => $leName];
+            }
+            foreach (preg_split('/[,;]+/', $addStr) ?: [] as $eng) {
+                $eng = trim($eng);
+                if ($eng !== '') {
+                    $team[] = ['role' => 'Engineer', 'name' => $eng];
+                }
+            }
+            if ($progStr !== '') {
+                $team[] = ['role' => 'Programmer', 'name' => $progStr];
+            }
+        }
+
         if (! empty($team)) {
+            // D4 — full $reqMap ported verbatim from rams.blade.php lines 1338-1344.
             $reqMap = [
-                'lead engineer'    => 'CSCS Card, IPAF (if applicable), relevant AV experience',
-                'project manager'  => 'SMSTS or equivalent',
+                'lead av engineer' => 'Qualified AV installation engineer. CSCS/ECS Card required. Competent with display installation, structured cabling, Biamp DSP configuration, and AV commissioning. IPAF/PASMA required if working at height.',
+                'lead engineer'    => 'Qualified AV installation engineer. CSCS/ECS Card required. Competent with display installation, structured cabling, and AV commissioning. IPAF/PASMA required if working at height.',
+                'av engineer'      => 'Qualified AV installation engineer. CSCS/ECS Card required. Experienced in structured AV cabling, rack builds, and equipment installation.',
+                'engineer'         => 'Qualified AV installation engineer. CSCS/ECS Card required. Experienced in structured AV cabling and equipment installation.',
+                'project manager'  => 'SMSTS or equivalent. CSCS Card. First Aid at Work certificate. Responsible for site management and client liaison.',
+                'programmer'       => 'AV programmer competent in control system configuration and DSP programming. CSCS Card.',
             ];
             // Aggregate by role, collecting names so the table reads
             // "Lead Engineer — Simon Pittaway" instead of bare "Lead Engineer".
             $roleGroups = [];
             foreach ($team as $member) {
-                $role = (string) ($member['role'] ?? 'Engineer');
+                $role = trim((string) ($member['role'] ?? 'Engineer'));
                 $name = trim((string) ($member['name'] ?? ''));
                 if (! isset($roleGroups[$role])) {
                     $roleGroups[$role] = ['qty' => 0, 'names' => []];
@@ -923,7 +1091,7 @@ class DocxBuilderService
             $i = 0;
             foreach ($roleGroups as $role => $info) {
                 $bg     = ($i % 2 === 0) ? $vcWhite : $vcAlt;
-                $req    = $reqMap[strtolower($role)] ?? 'CSCS Card, AV installation experience';
+                $req    = $reqMap[strtolower($role)] ?? 'Qualified AV installation engineer. CSCS Card.';
                 $names  = array_values(array_unique($info['names']));
                 $label  = $names
                     ? $role . ' — ' . implode(', ', $names)
@@ -931,14 +1099,15 @@ class DocxBuilderService
                 $row = $teamTable->addRow(400);
                 $row->addCell(2600, $bg)->addText($this->t($label),    $vf);
                 $row->addCell(800,  $bg)->addText((string)$info['qty'],$vf, ['alignment' => Jc::CENTER]);
-                $row->addCell(6466, $bg)->addText($req,                $vf);
+                $row->addCell(6466, $bg)->addText($this->t($req),      $vf);
                 $i++;
             }
         } else {
+            // Last-resort fallback when no team and no project personnel strings.
             $row = $teamTable->addRow(400);
-            $row->addCell(2600, $vcWhite)->addText('Lead Engineer',                         $vf);
-            $row->addCell(800,  $vcWhite)->addText('1',                                     $vf, ['alignment' => Jc::CENTER]);
-            $row->addCell(6466, $vcWhite)->addText('CSCS Card, AV installation experience', $vf);
+            $row->addCell(2600, $vcWhite)->addText('Lead AV Engineer',                       $vf);
+            $row->addCell(800,  $vcWhite)->addText('1',                                      $vf, ['alignment' => Jc::CENTER]);
+            $row->addCell(6466, $vcWhite)->addText('Qualified AV installation engineer. CSCS/ECS Card required. Competent with display installation, structured cabling, Biamp DSP configuration, and AV commissioning. IPAF/PASMA required if working at height.', $vf);
         }
 
         // ── 6.1.1 Site Vehicles & Registrations ───────────────────────────────
@@ -1121,7 +1290,17 @@ class DocxBuilderService
         $hRow->addCell($colW, $teal)->addText('Contact',      $bfWhite);
         $hRow->addCell($colW, $teal)->addText('Number',       $bfWhite);
 
-        $siteContact = $project['site_contact'] ?? $formData['site_contact'] ?? '';
+        // D5 — extend the resolution chain to match PDF line 1835.
+        //       Falls back through client_contact (name + email concat),
+        //       site_contact, form_data.site_contact, and finally the
+        //       literal "TBC at site induction" placeholder.
+        $clientContactName  = (string) ($project['client_contact_name']  ?? '');
+        $clientContactEmail = (string) ($project['client_contact_email'] ?? '');
+        $clientContact      = trim($clientContactName . ($clientContactEmail !== '' ? ' | ' . $clientContactEmail : ''));
+        $siteContactValue   = (string) ($project['site_contact'] ?? $formData['site_contact'] ?? '');
+        $siteContact = $clientContact !== ''
+            ? $clientContact
+            : ($siteContactValue !== '' ? $siteContactValue : 'TBC at site induction');
 
         $contactRows = [
             ['Emergency Services (Fire, Police, Ambulance)', '999'],
