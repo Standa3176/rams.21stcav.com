@@ -95,12 +95,15 @@ class DocxBuilderService
         $phpWord->setDefaultFontName('Arial');
         $phpWord->setDefaultFontSize(10);
 
-        // Build all sections in order.
-        //
-        // D9 — buildCdmSection() relocated from before-scope to the
-        //      post-method-statement compliance block, matching the PDF
-        //      order (rams.blade.php emits CDM after Permits & Authorisations
-        //      and before COSHH).
+        // Build all sections in order — match PDF rams.blade.php section
+        // order (sec-heading hits):
+        //   Cover → Doc Control → Company Info → H&S Policy →
+        //   Scope of Works → Engineer Findings → Risk Assessment →
+        //   Method Statement (6.1-6.6) → §6.7 Material Handling →
+        //   §6.8 Permit & Isolation → §6.9 Fixings → §6.10 Supervision/QA →
+        //   Permits & Authorisations → CDM Duty Holders → COSHH →
+        //   Environmental Management → Welfare Arrangements →
+        //   Emergency Procedures → Sign-Off → Appendix A Toolbox Talk
         $this->buildCoverPage($phpWord, $data, $formData, $record);
         $this->buildDocumentControl($phpWord, $data, $record);
         $this->buildCompanyInformation($phpWord, $data);
@@ -109,9 +112,21 @@ class DocxBuilderService
         $this->buildEngineerFindingsByRoom($phpWord, $data);
         $this->buildRiskAssessment($phpWord, $data);
         $this->buildMethodStatement($phpWord, $data);
+        // ── D10 — §6.7-6.10 added inline after Method of Works ───────────
+        $this->buildMaterialHandling($phpWord, $data);
+        $this->buildPermitAndIsolation($phpWord, $data);
+        $this->buildFixingsControl($phpWord, $data);
+        $this->buildSupervisionAndQA($phpWord, $data);
+        // ── D11 — Compliance / environment / welfare block ───────────────
+        $this->buildPermitsAndAuthorisations($phpWord, $data);
         $this->buildCdmSection($phpWord, $data);
+        $this->buildCoshhAssessment($phpWord, $data);
+        $this->buildEnvironmentalManagement($phpWord, $data);
+        $this->buildWelfareArrangements($phpWord, $data);
         $this->buildEmergencyProcedures($phpWord, $data, $formData);
         $this->buildDocumentSignOff($phpWord, $data);
+        // ── D12 — Appendix A Toolbox Talk Record at the end ──────────────
+        $this->buildAppendixA($phpWord, $data);
 
         // Write file to the unified documents disk (H-07).
         $filename = 'rams_' . $record->id . '_' . now()->format('Ymd_His') . '.docx';
@@ -1491,6 +1506,381 @@ class DocxBuilderService
                 $this->font(8, italic: true, colour: self::MID_GREY),
                 ['spaceBefore' => 60],
             );
+        }
+    }
+
+    // =========================================================================
+    // D10/D11/D12 — Sections previously missing from the DOCX renderer
+    //
+    // The PDF blade (rams.blade.php) renders 9 additional sections after
+    // the Method of Works that the DOCX builder never emitted. All input
+    // data is already present in $data post-RamsComplianceUpgradeService.
+    // Each method below mirrors the PDF blade's content for that section;
+    // styling (PhpWord) cannot match dompdf exactly but content semantics
+    // and section presence are byte-for-byte parity assertions.
+    // =========================================================================
+
+    /**
+     * §6.7 Material Handling — D10.
+     * Mirrors PDF lines 1553-1607. Renders user-specified items first, then
+     * falls back to derived items, then to the static statement.
+     */
+    private function buildMaterialHandling(PhpWord $phpWord, array $data): void
+    {
+        $mh = $data['material_handling_derived'] ?? null;
+        $userMh = $data['material_handling']['large_items'] ?? [];
+        $mhNotes = (string) ($data['material_handling']['handling_notes'] ?? '');
+        $hasUserMh = is_array($userMh) && ! empty($userMh);
+        $hasDerivedMh = is_array($mh['items'] ?? null) && ! empty($mh['items']);
+        $hasHeavy = ! empty($mh['has_heavy_items']) || $hasUserMh;
+
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, '6.7 Material Handling');
+
+        $vf = $this->font(9);
+
+        if ($hasUserMh) {
+            $tbl = $section->addTable($this->tableStyle());
+            $this->tealHeader($tbl, ['Item Description', 'Weight (approx.)', 'Handling Method / Controls'], [3946, 2000, 3920]);
+            foreach ($userMh as $mhi) {
+                if (empty($mhi['item'])) {
+                    continue;
+                }
+                $row = $tbl->addRow(380);
+                $row->addCell(3946)->addText($this->t((string) $mhi['item']), $vf);
+                $row->addCell(2000)->addText(
+                    ! empty($mhi['weight_kg']) ? $this->t($mhi['weight_kg'] . ' kg') : '—',
+                    $vf,
+                    ['alignment' => Jc::CENTER],
+                );
+                $row->addCell(3920)->addText($this->t((string) ($mhi['handling_method'] ?? '—')), $vf);
+            }
+        } elseif ($hasDerivedMh) {
+            $tbl = $section->addTable($this->tableStyle());
+            $this->tealHeader($tbl, ['Qty', 'Item', 'Handling Method / Controls'], [1000, 3866, 5000]);
+            foreach ($mh['items'] as $di) {
+                $row = $tbl->addRow(380);
+                $row->addCell(1000)->addText($this->t((string) ($di['qty'] ?? 1)), $vf, ['alignment' => Jc::CENTER]);
+                $row->addCell(3866)->addText($this->t((string) ($di['item'] ?? '')), $vf);
+                $row->addCell(5000)->addText(
+                    $this->t((string) ($di['handling_method'] ?? 'Assess weight before lifting. Team lift for items over 20 kg.')),
+                    $vf,
+                );
+            }
+        }
+
+        $statement = (string) ($mh['statement'] ?? ($hasHeavy
+            ? 'Manual handling controls apply — team lift for items over 20 kg, use mechanical aids where available.'
+            : 'No significant heavy or bulky items identified. Standard manual handling precautions apply.'));
+        $section->addText($this->t($statement), $vf, ['spaceBefore' => 80, 'spaceAfter' => 40, 'alignment' => Jc::BOTH]);
+
+        if ($mhNotes !== '') {
+            $section->addText('Handling Notes: ', $this->font(9, bold: true), ['spaceBefore' => 40]);
+            $section->addText($this->t($mhNotes), $vf, ['spaceAfter' => 40]);
+        }
+    }
+
+    /**
+     * §6.8 Permit & Isolation Requirements — D10.
+     * Mirrors PDF lines 1609-1618. Renders only when rules data is present.
+     */
+    private function buildPermitAndIsolation(PhpWord $phpWord, array $data): void
+    {
+        $rules = $data['permit_and_isolation']['rules'] ?? [];
+        if (! is_array($rules) || empty($rules)) {
+            return;
+        }
+
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, '6.8 Permit & Isolation Requirements');
+
+        $vf = $this->font(9);
+        foreach ($rules as $rule) {
+            $section->addText('•  ' . $this->t((string) $rule), $vf, ['spaceBefore' => 40, 'spaceAfter' => 40]);
+        }
+    }
+
+    /**
+     * §6.9 Fixings & Installation Control — D10.
+     * Mirrors PDF lines 1620-1629.
+     */
+    private function buildFixingsControl(PhpWord $phpWord, array $data): void
+    {
+        $rules = $data['fixings_control']['rules'] ?? [];
+        if (! is_array($rules) || empty($rules)) {
+            return;
+        }
+
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, '6.9 Fixings & Installation Control');
+
+        $vf = $this->font(9);
+        foreach ($rules as $rule) {
+            $section->addText('•  ' . $this->t((string) $rule), $vf, ['spaceBefore' => 40, 'spaceAfter' => 40]);
+        }
+    }
+
+    /**
+     * §6.10 Supervision & Quality Assurance — D10.
+     * Mirrors PDF lines 1631-1640.
+     */
+    private function buildSupervisionAndQA(PhpWord $phpWord, array $data): void
+    {
+        $resp = $data['supervision_and_qa']['responsibilities'] ?? [];
+        if (! is_array($resp) || empty($resp)) {
+            return;
+        }
+
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, '6.10 Supervision & Quality Assurance');
+
+        $vf = $this->font(9);
+        foreach ($resp as $item) {
+            $section->addText('•  ' . $this->t((string) $item), $vf, ['spaceBefore' => 40, 'spaceAfter' => 40]);
+        }
+    }
+
+    /**
+     * Permits & Authorisations — D11.
+     * Mirrors PDF lines 1671-1695. Always renders. Reads
+     * reviewed_data['permits_required'] when populated; otherwise derives
+     * from scope text. We use the deterministic prose-fallback (no scope
+     * read) since the DOCX builder doesn't currently consult reviewed_data
+     * directly — when no project-specific permits exist the PDF renders a
+     * single paragraph saying "No project-specific permits…". DOCX matches.
+     */
+    private function buildPermitsAndAuthorisations(PhpWord $phpWord, array $data): void
+    {
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, 'Permits & Authorisations');
+
+        $vf = $this->font(9);
+
+        // Caller (RamsBuilderService) may pre-populate $data['permits_required']
+        // by reading reviewed_data; otherwise leave empty.
+        $permits = $data['permits_required'] ?? [];
+        $permits = is_array($permits) ? array_values(array_filter($permits, fn ($p) => is_array($p) && ! empty($p['required']))) : [];
+
+        if (! empty($permits)) {
+            $tbl = $section->addTable($this->tableStyle());
+            $this->tealHeader($tbl, ['Permit Type', 'Notes / Requirements'], [3000, 6866]);
+            foreach ($permits as $permit) {
+                $row = $tbl->addRow(380);
+                $row->addCell(3000)->addText($this->t((string) ($permit['type'] ?? '')), $this->font(9, bold: true));
+                $row->addCell(6866)->addText(
+                    $this->t((string) ($permit['notes'] ?? 'Permit to be obtained from site/client before works commence.')),
+                    $vf,
+                );
+            }
+            $section->addTextBreak(1);
+            $section->addText(
+                'All permits must be obtained and displayed on site before relevant works commence. Engineers must not start permit-controlled activities without a valid, signed permit.',
+                $this->font(8, italic: true, colour: self::MID_GREY),
+                ['spaceBefore' => 40, 'spaceAfter' => 40, 'alignment' => Jc::BOTH],
+            );
+        } else {
+            $section->addText(
+                'No project-specific permits have been pre-identified. Standard site requirements still apply: any permits called out in the Method Statement (e.g. permit-to-work for ceiling penetrations, electrical isolations) must be obtained from the site / client representative before the relevant activity commences.',
+                $vf,
+                ['spaceBefore' => 60, 'spaceAfter' => 80, 'alignment' => Jc::BOTH],
+            );
+        }
+    }
+
+    /**
+     * COSHH Assessment — D11.
+     * Mirrors PDF lines 1745-1772. Static prose + optional site-specific
+     * entries from $data['coshh'].
+     */
+    private function buildCoshhAssessment(PhpWord $phpWord, array $data): void
+    {
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, 'COSHH Assessment');
+
+        $bodyFont = $this->font(9);
+        $boldFont = $this->font(9, bold: true);
+        $paraStyle = ['spaceBefore' => 60, 'spaceAfter' => 80, 'alignment' => Jc::BOTH];
+
+        $section->addText(
+            'AV installation works on this project involve the use of the following substances or processes that may present a health hazard under the Control of Substances Hazardous to Health Regulations 2002 (COSHH):',
+            $bodyFont,
+            $paraStyle,
+        );
+
+        $coshhBoilerplate = [
+            ['Cable conduit adhesives / sealants', 'used in limited quantities. Ensure adequate ventilation. Wear nitrile gloves and safety glasses. Avoid skin contact. Store according to manufacturer data sheet.'],
+            ['Dust generated by drilling / cutting', 'use FFP2 dust masks when drilling into plasterboard, masonry or MDF. Use dust extraction where practicable.'],
+            ['Electrical flux (soldering)', 'only where cable terminations require soldering. Ensure ventilation. Avoid inhalation of fumes. Use flux-specific respiratory protection if repeated soldering is required.'],
+            ['Battery acid (UPS batteries if applicable)', 'handle sealed VRLA batteries per manufacturer instructions. Wear chemical-resistant gloves and eye protection.'],
+        ];
+        foreach ($coshhBoilerplate as [$head, $body]) {
+            $textRun = $section->addTextRun(['spaceBefore' => 40, 'spaceAfter' => 40]);
+            $textRun->addText('•  ' . $head . ' — ', $boldFont);
+            $textRun->addText($this->t($body), $bodyFont);
+        }
+
+        $section->addText(
+            'Engineers must report any unexpected COSHH hazard (e.g. discovery of asbestos-containing materials, chemical spills) to the Project Manager and cease work in the affected area immediately. No work to recommence until the hazard is assessed and controlled.',
+            $bodyFont,
+            $paraStyle,
+        );
+
+        $coshhExtra = $data['coshh'] ?? [];
+        if (is_array($coshhExtra) && ! empty($coshhExtra)) {
+            $section->addText('Site-specific COSHH entries:', $boldFont, ['spaceBefore' => 60, 'spaceAfter' => 40]);
+            foreach ($coshhExtra as $item) {
+                $line = is_string($item) ? $item : (string) ($item['item'] ?? '');
+                if ($line !== '') {
+                    $section->addText('•  ' . $this->t($line), $bodyFont, ['spaceBefore' => 20, 'spaceAfter' => 20]);
+                }
+            }
+        }
+    }
+
+    /**
+     * Environmental Management — D11.
+     * Mirrors PDF lines 1774-1802. Two sub-sections (Waste + Noise/Dust).
+     */
+    private function buildEnvironmentalManagement(PhpWord $phpWord, array $data): void
+    {
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, 'Environmental Management');
+
+        $bodyFont = $this->font(9);
+        $boldFont = $this->font(9, bold: true);
+        $paraStyle = ['spaceBefore' => 60, 'spaceAfter' => 80, 'alignment' => Jc::BOTH];
+
+        // ── Waste Disposal sub-section ────────────────────────────────────
+        $section->addText('Waste Disposal', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 40]);
+        $section->addText(
+            'All waste generated during the works — including packaging materials, cable off-cuts, redundant equipment, and general site waste — will be managed in accordance with the Environmental Protection Act 1990 and the Waste (England and Wales) Regulations 2011.',
+            $bodyFont,
+            $paraStyle,
+        );
+
+        $wasteParty = $data['programme']['waste_removal_party'] ?? null;
+        $wasteNotes = (string) ($data['programme']['waste_removal_notes'] ?? '');
+        $wasteLabels = ['client' => 'Client', '21cav' => '21st Century AV Ltd', 'other' => 'Other'];
+        $wasteLabel = $wasteLabels[$wasteParty] ?? '';
+        if ($wasteLabel !== '' || $wasteNotes !== '') {
+            $tr = $section->addTextRun(['spaceBefore' => 40, 'spaceAfter' => 60]);
+            $tr->addText('Waste removal responsibility: ', $boldFont);
+            $tr->addText(
+                $this->t($wasteLabel . ($wasteNotes !== '' ? ($wasteLabel !== '' ? ' — ' : '') . $wasteNotes : '')),
+                $bodyFont,
+            );
+        } else {
+            $section->addText(
+                'Waste removal responsibility to be confirmed with client prior to works.',
+                $bodyFont,
+                ['spaceBefore' => 40, 'spaceAfter' => 60],
+            );
+        }
+
+        $wasteBullets = [
+            "No waste to be disposed of via client's trade waste unless agreed in writing.",
+            'Hazardous waste (e.g. batteries, lamps, WEEE) to be disposed of via registered carriers only.',
+            'Site to be left clean and tidy at the end of each working day.',
+        ];
+        foreach ($wasteBullets as $b) {
+            $section->addText('•  ' . $b, $bodyFont, ['spaceBefore' => 20, 'spaceAfter' => 20]);
+        }
+
+        // ── Noise, Dust & Vibration sub-section ───────────────────────────
+        $section->addTextBreak(1);
+        $section->addText('Noise, Dust & Vibration', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 40]);
+        $noiseBullets = [
+            'Noisy operations (drilling, chasing) to be carried out during agreed working hours only and with prior notification to the site/client representative.',
+            'Dust suppression measures (dust sheets, vacuuming, wet methods) to be used where practical.',
+            'Hand-arm vibration exposure to be minimised; use of powered tools to comply with the Control of Vibration at Work Regulations 2005. Engineers to use anti-vibration PPE where required.',
+            'Any spill of materials on site (cable lubricants, adhesives) to be contained and cleaned immediately.',
+        ];
+        foreach ($noiseBullets as $b) {
+            $section->addText('•  ' . $b, $bodyFont, ['spaceBefore' => 20, 'spaceAfter' => 20]);
+        }
+    }
+
+    /**
+     * Welfare Arrangements — D11.
+     * Mirrors PDF lines 1804-1817.
+     */
+    private function buildWelfareArrangements(PhpWord $phpWord, array $data): void
+    {
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, 'Welfare Arrangements');
+
+        $bodyFont = $this->font(9);
+        $boldFont = $this->font(9, bold: true);
+        $welfareNotes = (string) ($data['programme']['welfare_notes'] ?? '');
+        $toiletSuffix = $welfareNotes !== '' ? '' : ' Location to be confirmed at site induction.';
+
+        $items = [
+            ['Toilets:',           'Engineers will use welfare facilities provided or indicated by the site/client representative.' . $toiletSuffix],
+            ['Washing facilities:', 'Adequate washing facilities with hot and cold water to be made available on site.'],
+            ['Rest area:',          'Engineers will use designated rest areas as directed by the site manager. No eating or drinking in work areas.'],
+            ['First Aid:',          'At least one engineer on site will hold a current First Aid at Work or Emergency First Aid at Work certificate. First aid kit carried at all times. Nearest hospital A&E to be identified at site induction.'],
+            ['Drinking water:',     'Engineers to carry their own supply; confirm availability of potable water with site contact.'],
+        ];
+        foreach ($items as [$head, $body]) {
+            $tr = $section->addTextRun(['spaceBefore' => 40, 'spaceAfter' => 40]);
+            $tr->addText('•  ' . $head . ' ', $boldFont);
+            $tr->addText($this->t($body), $bodyFont);
+        }
+
+        if ($welfareNotes !== '') {
+            $tr = $section->addTextRun(['spaceBefore' => 60]);
+            $tr->addText('Site-specific welfare notes: ', $boldFont);
+            $tr->addText($this->t($welfareNotes), $bodyFont);
+        }
+    }
+
+    /**
+     * Appendix A — Toolbox Talk Record — D12.
+     * Mirrors PDF lines 1942-1972. Static prose + 5-row signature table.
+     */
+    private function buildAppendixA(PhpWord $phpWord, array $data): void
+    {
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, 'Appendix A — Toolbox Talk Record');
+
+        $bodyFont = $this->font(9);
+        $boldFont = $this->font(9, bold: true);
+
+        $section->addText(
+            'Prior to commencement of works, the lead engineer or Project Manager must conduct a toolbox talk covering the key risks, controls, and procedures in this RAMS document. All attending personnel must sign below to confirm attendance and understanding.',
+            $bodyFont,
+            ['spaceBefore' => 60, 'spaceAfter' => 80, 'alignment' => Jc::BOTH],
+        );
+
+        $headerRun = $section->addTextRun(['spaceBefore' => 40, 'spaceAfter' => 80]);
+        $headerRun->addText('Date of toolbox talk:   ', $boldFont);
+        $headerRun->addText('________________   ', $bodyFont);
+        $headerRun->addText('Conducted by:   ', $boldFont);
+        $headerRun->addText('________________   ', $bodyFont);
+        $headerRun->addText('Location:   ', $boldFont);
+        $headerRun->addText('________________', $bodyFont);
+
+        $tbl = $section->addTable($this->tableStyle());
+        $wName = 3000;
+        $wCompany = 2500;
+        $wDate = 2000;
+        $wSig = self::W_PORT - $wName - $wCompany - $wDate;
+        $this->tealHeader($tbl, ['Name', 'Company', 'Date', 'Signature'], [$wName, $wCompany, $wDate, $wSig]);
+        for ($i = 0; $i < 5; $i++) {
+            $row = $tbl->addRow(700);
+            $row->addCell($wName)->addText('', $bodyFont);
+            $row->addCell($wCompany)->addText('', $bodyFont);
+            $row->addCell($wDate)->addText('', $bodyFont);
+            $row->addCell($wSig)->addText('', $bodyFont);
         }
     }
 

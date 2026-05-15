@@ -450,7 +450,8 @@ class DocxBuilderPdfParityTest extends TestCase
 
         $xml = $this->renderDocumentXml($record);
 
-        $this->assertStringContainsString('Material Handling', $xml);
+        // sectionHeading() uppercases — match the rendered case.
+        $this->assertStringContainsString('MATERIAL HANDLING', $xml);
         $this->assertStringContainsString('Sony 85', $xml);
         $this->assertStringContainsString('Team lift', $xml);
     }
@@ -470,8 +471,9 @@ class DocxBuilderPdfParityTest extends TestCase
 
         $xml = $this->renderDocumentXml($record);
 
-        $this->assertStringContainsString('Permit', $xml);
-        $this->assertStringContainsString('Isolation', $xml);
+        // Section heading "6.8 PERMIT & ISOLATION REQUIREMENTS" — & is XML-escaped.
+        $this->assertStringContainsString('PERMIT', $xml);
+        $this->assertStringContainsString('ISOLATION', $xml);
         $this->assertStringContainsString('locked off', $xml);
     }
 
@@ -489,7 +491,7 @@ class DocxBuilderPdfParityTest extends TestCase
 
         $xml = $this->renderDocumentXml($record);
 
-        $this->assertStringContainsString('Fixings', $xml);
+        $this->assertStringContainsString('FIXINGS', $xml);
         $this->assertStringContainsString('torque-rated', $xml);
     }
 
@@ -507,7 +509,7 @@ class DocxBuilderPdfParityTest extends TestCase
 
         $xml = $this->renderDocumentXml($record);
 
-        $this->assertStringContainsString('Supervision', $xml);
+        $this->assertStringContainsString('SUPERVISION', $xml);
         $this->assertStringContainsString('supervisor present', $xml);
     }
 
@@ -517,9 +519,9 @@ class DocxBuilderPdfParityTest extends TestCase
 
         $xml = $this->renderDocumentXml($record);
 
-        // Static prose section — always renders.
-        $this->assertStringContainsString('Permits', $xml);
-        $this->assertStringContainsString('Authorisations', $xml);
+        // Static prose section — always renders. sectionHeading() uppercases.
+        $this->assertStringContainsString('PERMITS', $xml);
+        $this->assertStringContainsString('AUTHORISATIONS', $xml);
     }
 
     public function test_coshh_assessment_section_renders(): void
@@ -539,8 +541,10 @@ class DocxBuilderPdfParityTest extends TestCase
 
         $xml = $this->renderDocumentXml($record);
 
-        $this->assertStringContainsString('Environmental Management', $xml);
+        $this->assertStringContainsString('ENVIRONMENTAL MANAGEMENT', $xml);
         // Both sub-sections present (Waste Disposal + Noise/Dust/Vibration).
+        // Sub-headings are NOT uppercased (rendered via $section->addText with
+        // a teal-bold font, not sectionHeading()).
         $this->assertStringContainsString('Waste Disposal', $xml);
         $this->assertStringContainsString('Noise', $xml);
     }
@@ -551,7 +555,7 @@ class DocxBuilderPdfParityTest extends TestCase
 
         $xml = $this->renderDocumentXml($record);
 
-        $this->assertStringContainsString('Welfare', $xml);
+        $this->assertStringContainsString('WELFARE', $xml);
         $this->assertStringContainsString('First Aid', $xml);
     }
 
@@ -561,7 +565,8 @@ class DocxBuilderPdfParityTest extends TestCase
 
         $xml = $this->renderDocumentXml($record);
 
-        $this->assertStringContainsString('Appendix A', $xml);
-        $this->assertStringContainsString('Toolbox Talk', $xml);
+        // sectionHeading() emits "APPENDIX A — TOOLBOX TALK RECORD".
+        $this->assertStringContainsString('APPENDIX A', $xml);
+        $this->assertStringContainsString('TOOLBOX TALK', $xml);
     }
 }
