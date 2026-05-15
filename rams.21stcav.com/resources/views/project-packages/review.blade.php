@@ -261,10 +261,13 @@
         <form method="POST" action="{{ route('quote-import.reextract', $package) }}" style="margin:0;"
               data-confirm="Re-extract this package from the stored PDF? This will refresh all data including Room Overviews. Any unsaved edits will be lost."
               data-confirm-label="Re-extract"
-              data-confirm-danger="1">
+              data-confirm-danger="1"
+              x-data="{ pending: false }"
+              @submit="if (! $el.hasAttribute('data-confirm')) pending = true">
             @csrf
-            <button type="submit" class="btn btn-outline btn-sm" title="Re-run the parser against the stored PDF to refresh extracted data">
-                🔄 Re-extract PDF
+            <button type="submit" :disabled="pending" class="btn btn-outline btn-sm" title="Re-run the parser against the stored PDF to refresh extracted data">
+                <span x-show="! pending">🔄 Re-extract PDF</span>
+                <span x-show="pending" x-cloak>⏳ Extracting…</span>
             </button>
         </form>
         @if ($package->project_id)
