@@ -804,6 +804,18 @@
                                         + {{ $hasCompletedOm ? 'New Version' : 'Generate O&M' }}
                                     </button>
                                 </form>
+                                {{-- Draft mode — seeds [TBC] placeholders for handover_date + drawings
+                                     so early-stage projects (no scheduled handover, no engineering
+                                     drawings yet) can still produce a preview O&M. Final-issue mode
+                                     stays the default to preserve Tier-1 NO-TBC compliance. --}}
+                                <form method="POST" action="{{ route('om-manuals.generate-from-project', $project) }}?draft=1" class="m-0 inline-block ml-1">
+                                    @csrf
+                                    <button type="submit"
+                                            class="inline-flex items-center border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 px-3 py-1.5 rounded-md text-sm"
+                                            title="Generate a draft O&M with [TBC] placeholders for handover date and drawings. Use when those fields aren't ready yet.">
+                                        + Draft (TBC)
+                                    </button>
+                                </form>
                             @elseif ($primaryPackage)
                                 <a href="{{ route('project-packages.review.show', $primaryPackage) }}"
                                    class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">

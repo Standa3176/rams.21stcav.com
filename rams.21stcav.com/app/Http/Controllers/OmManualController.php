@@ -150,9 +150,18 @@ class OmManualController extends Controller
 
     // ── generateFromProject (create + generate immediately) ─────────────────
 
-    public function generateFromProject(Project $project): RedirectResponse
+    public function generateFromProject(Request $request, Project $project): RedirectResponse
     {
         abort_if($project->user_id !== auth()->id() && ! auth()->user()?->isAdmin(), 403);
+
+        // Draft mode (?draft=1) — generates the manual even when post-engineering
+        // fields aren't ready yet (handover_date, drawings). The generator seeds
+        // those gates with `[TBC]` placeholders so the validator passes while
+        // still producing a useful early-stage document. Required for projects
+        // in `quote_imported` / `survey_pending` status that don't yet have a
+        // scheduled handover or attached drawings. Final-issue mode (no flag)
+        // continues to enforce the strict Tier-1 NO-TBC policy.
+        $isDraft = $request->boolean('draft');
 
         // Pass 1 replacement (D-07, D-08): Build extracted_data from ProjectDataService.
         // ProjectDataService::resolve() returns reviewed, merged canonical data.
@@ -166,6 +175,10 @@ class OmManualController extends Controller
             ]);
             return back()->with('error', 'Could not read project data: ' . $e->getMessage());
         }
+
+        // Persist the draft flag inside extracted_data so it survives Retry
+        // re-dispatches (no new column needed, picked up by the generator).
+        $context['_draft_mode'] = $isDraft;
 
         // Create the OmManual record with pre-built extracted_data.
         // Status starts as 'generating' — BuildOmManualJob will advance to 'draft' on success.
@@ -184,12 +197,17 @@ class OmManualController extends Controller
         Log::info('OmManualController: generateFromProject queued', [
             'project_id'   => $project->id,
             'om_manual_id' => $manual->id,
+            'draft_mode'   => $isDraft,
         ]);
 
         app(WorkerMonitorService::class)->ensureRunning();
         BuildOmManualJob::dispatch($manual->id);
 
-        return back()->with('success', 'O&M generation queued — the document will be ready to download shortly.');
+        $message = $isDraft
+            ? 'Draft O&M generation queued — the document will use [TBC] placeholders for handover date and drawings until those are finalised.'
+            : 'O&M generation queued — the document will be ready to download shortly.';
+
+        return back()->with('success', $message);
     }
 
     // ── status (JSON polling endpoint for Alpine.js — D-17) ──────────────────

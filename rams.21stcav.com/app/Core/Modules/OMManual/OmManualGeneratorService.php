@@ -397,8 +397,37 @@ class OmManualGeneratorService
         $prompt  = OmManualPrompt::forContent();
         $context = $this->buildContentContext($manual);
 
+        // Draft mode (set by OmManualController::generateFromProject when
+        // `?draft=1` is passed) — seeds [TBC] placeholders for the two
+        // validator gates that block early-stage projects: handover_date
+        // and drawings. Other gates (project_name, client_name, narrative,
+        // rooms, equipment) still enforce strictly — those are inherent
+        // to a useful document at any stage, draft or final.
+        //
+        // The flag is read from $manual->extracted_data['_draft_mode']
+        // (persisted at create time) so the Retry path preserves it
+        // without a new column on om_manuals.
+        $isDraft = (bool) ($manual->extracted_data['_draft_mode'] ?? false);
+        if ($isDraft) {
+            if (trim((string) ($context['handover_date'] ?? '')) === '') {
+                $context['handover_date'] = '[TBC] — handover date to be scheduled';
+            }
+            $drawings = is_array($context['drawings'] ?? null) ? $context['drawings'] : [];
+            if (empty($drawings)) {
+                $context['drawings'] = [
+                    [
+                        'name' => '[TBC] — engineering drawings to follow',
+                        'type' => 'placeholder',
+                    ],
+                ];
+            }
+        }
+
         // Tier 1 NO-TBC POLICY — fail fast on missing required fields so weak
-        // documents never reach the AI / DOCX / PDF render stages.
+        // documents never reach the AI / DOCX / PDF render stages. In draft
+        // mode the gates above receive [TBC] seeds; the validator accepts
+        // them as non-blank, so the document generates with placeholders
+        // visible to the reader.
         $this->validator->validateOmData($context);
 
         $generated = AIManager::run($prompt, $context, $provider);
