@@ -128,30 +128,7 @@ class QuoteExtractorService
 
         $raw = $response->json('content.0.text', '');
         $raw = $this->stripMarkdownFences($raw);
-
-        // Three-stage sanitisation before json_decode — Claude's response can
-        // contain three classes of byte that trip JSON_ERROR_CTRL_CHAR:
-        //
-        // 1. C0 controls + DEL (0x00-0x1F, 0x7F) — literal newlines/tabs
-        //    inside string values (paragraph breaks in works_description).
-        //    Must be `\n` (two chars) in JSON, not raw byte 0x0A.
-        // 2. High-bit Unicode line/paragraph separators — U+0085 NEL,
-        //    U+2028 LINE SEPARATOR, U+2029 PARAGRAPH SEPARATOR. These pass
-        //    the C0 strip but newer PHP json_decode still rejects them
-        //    inside strings.
-        // 3. Malformed UTF-8 multi-byte sequences — Claude occasionally
-        //    emits stray bytes that don't form valid UTF-8 codepoints.
-        //    mb_convert_encoding('UTF-8','UTF-8',...) normalises them
-        //    (invalid byte → replacement char which is then strippable).
-        //
-        // Plus JSON_INVALID_UTF8_IGNORE as a belt-and-braces on json_decode
-        // itself (PHP 7.2+) so any remaining invalid UTF-8 doesn't blow up.
-        //
-        // Triggered by Claude responses for projects with multi-paragraph
-        // works_description (e.g. Tilda 21CQ29531-05-OPS, package 110).
-        $raw = mb_convert_encoding($raw, 'UTF-8', 'UTF-8');
-        $raw = preg_replace('/[\x00-\x1F\x7F]/u', '', $raw);
-        $raw = preg_replace('/[\x{0085}\x{2028}\x{2029}]/u', '', $raw);
+        $raw = self::sanitiseRawJson($raw);
 
         $decoded = json_decode($raw, true, 512, JSON_INVALID_UTF8_IGNORE);
 
@@ -172,6 +149,48 @@ class QuoteExtractorService
         }
 
         return $decoded;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Three-stage sanitisation of raw Claude response text before json_decode.
+     *
+     * Public + static for testability — pure function with no I/O dependencies,
+     * unit-testable without mocking the Claude HTTP call.
+     *
+     * Handles three byte-classes that trip JSON_ERROR_CTRL_CHAR:
+     *
+     * 1. **C0 controls + DEL (0x00-0x1F, 0x7F)** — literal newlines/tabs
+     *    inside JSON string values (paragraph breaks in works_description).
+     *    Must be escaped as `\n` (two chars) in JSON, not raw byte 0x0A.
+     * 2. **High-bit Unicode line/paragraph separators** — U+0085 NEL,
+     *    U+2028 LINE SEPARATOR, U+2029 PARAGRAPH SEPARATOR. These pass the
+     *    C0 strip but recent PHP json_decode still rejects them inside
+     *    strings.
+     * 3. **Malformed UTF-8 multi-byte sequences** — Claude occasionally
+     *    emits stray bytes that don't form valid UTF-8 codepoints.
+     *    mb_convert_encoding('UTF-8','UTF-8',...) normalises them
+     *    (invalid byte → U+FFFD replacement which is then strippable).
+     *
+     * Use JSON_INVALID_UTF8_IGNORE on the json_decode call as belt-and-braces
+     * for anything that escapes this sanitisation.
+     *
+     * Bug trail:
+     *   - 2026-05-16: Tilda 21CQ29531-05-OPS package 110 — three different
+     *     classes of byte hit in sequence as Claude regenerated different
+     *     responses on retry. Triggered the full ladder of fixes.
+     *
+     * @param  string  $raw  Raw text from Claude response (post-fence-strip).
+     * @return string        Sanitised text safe for json_decode.
+     */
+    public static function sanitiseRawJson(string $raw): string
+    {
+        $raw = mb_convert_encoding($raw, 'UTF-8', 'UTF-8');
+        $raw = preg_replace('/[\x00-\x1F\x7F]/u', '', $raw);
+        $raw = preg_replace('/[\x{0085}\x{2028}\x{2029}]/u', '', $raw);
+
+        return $raw;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
