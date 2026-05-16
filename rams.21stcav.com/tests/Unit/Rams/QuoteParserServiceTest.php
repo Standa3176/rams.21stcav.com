@@ -1102,6 +1102,136 @@ class QuoteParserServiceTest extends TestCase
         $this->assertStringContainsString('oyeing display', (string) $lobby['overview']);
     }
 
+    public function test_garbled_partdescend_artoescend_does_not_merge_rows(): void
+    {
+        // Third-pass regression for the Light Forms Ltd 21CQ30451-01-OPS quote
+        // (package 124). After the OVERVIEW + QUOTENUM fixes shipped, the
+        // equipment list still came back wrong: only ONE hardware row was
+        // present with two rows' worth of content mangled into a single
+        // description, including the literal substring "ARTOESCEND".
+        //
+        // The PDF text extractor garbles PARTDESCEND → "ARTOESCEND" (leading P
+        // dropped + D→O substitution). The tuple-extraction regex on
+        // parseTagBased() only tolerates the canonical PARTDESCEND closer, so
+        // its non-greedy capture for the description block keeps consuming
+        // until the NEXT canonical PARTDESCEND — which lives one or more rows
+        // away. Result: two rows are merged into one mangled row and any rows
+        // in between silently disappear.
+        //
+        // The fix normalises the garbled closer back to canonical at the
+        // parse() entry point so the tuple regex bounds each row correctly.
+        $text = implode("\n", [
+            'OVERVIEWTITLESTART Boardroom OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART Boardroom scope. OVERVIEWTXTEND',
+            'PARTSTART FW-85BZ40L PARTEND PARTDESCSTART Sony 85 inch Anti Glare Display ARTOESCEND QTYSTART 1.00 QTYEND',
+            'PARTSTART BT9910/B   PARTEND PARTDESCSTART XL Heavy Duty Universal Flat Screen Wall Mount with Tilt ARTOESCEND QTYSTART 1.00 QTYEND',
+            'PARTSTART PA20       PARTEND PARTDESCSTART Yealink PA20 Wireless Sharing Dongle PARTDESCEND QTYSTART 1.00 QTYEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+        $equipment = $result['equipment'] ?? [];
+
+        // All three hardware rows must survive — the merge bug dropped some.
+        $this->assertCount(3, $equipment, 'All three tuples must be extracted as separate rows');
+
+        // Each row's description must remain its own — no merging.
+        $byPart = [];
+        foreach ($equipment as $row) {
+            $byPart[(string) ($row['part_number'] ?? '')] = (string) ($row['description'] ?? '');
+        }
+        $this->assertArrayHasKey('FW-85BZ40L', $byPart, 'FW-85BZ40L row must be present (was previously dropped)');
+        $this->assertArrayHasKey('BT9910/B',   $byPart, 'BT9910/B row must be present');
+        $this->assertArrayHasKey('PA20',       $byPart, 'PA20 row must be present');
+
+        $this->assertStringContainsString('Sony',                 $byPart['FW-85BZ40L']);
+        $this->assertStringContainsString('Wall Mount with Tilt', $byPart['BT9910/B']);
+        $this->assertStringContainsString('Yealink',              $byPart['PA20']);
+
+        // No row should contain a foreign part number or the garbled marker.
+        $this->assertStringNotContainsString('PA20',       $byPart['BT9910/B']);
+        $this->assertStringNotContainsString('Yealink',    $byPart['BT9910/B']);
+        $this->assertStringNotContainsString('ARTOESCEND', $byPart['BT9910/B']);
+        $this->assertStringNotContainsString('ARTOESCEND', $byPart['FW-85BZ40L']);
+        $this->assertStringNotContainsString('ARTOESCEND', $byPart['PA20']);
+    }
+
+    public function test_partdescend_pdropped_only_form_artdescend_is_normalised(): void
+    {
+        // Defensive variant — leading P dropped but inner D preserved
+        // ("ARTDESCEND" instead of full "ARTOESCEND"). The same conservative
+        // regex must catch it because the [DOdo] character class accepts both.
+        $text = implode("\n", [
+            'PARTSTART AAA PARTEND PARTDESCSTART First item description ARTDESCEND QTYSTART 1.00 QTYEND',
+            'PARTSTART BBB PARTEND PARTDESCSTART Second item description PARTDESCEND QTYSTART 2.00 QTYEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+        $equipment = $result['equipment'] ?? [];
+
+        $this->assertCount(2, $equipment, 'Both rows must survive when only the first closer is garbled');
+
+        $byPart = [];
+        foreach ($equipment as $row) {
+            $byPart[(string) ($row['part_number'] ?? '')] = (string) ($row['description'] ?? '');
+        }
+        $this->assertArrayHasKey('AAA', $byPart);
+        $this->assertArrayHasKey('BBB', $byPart);
+        $this->assertStringContainsString('First item description',  $byPart['AAA']);
+        $this->assertStringContainsString('Second item description', $byPart['BBB']);
+        $this->assertStringNotContainsString('Second item', $byPart['AAA']);
+    }
+
+    public function test_partdescend_donly_substitution_partoescend_is_normalised(): void
+    {
+        // Defensive variant — leading P retained but inner D→O substituted
+        // ("PARTOESCEND"). Same regex must catch this.
+        $text = implode("\n", [
+            'PARTSTART CCC PARTEND PARTDESCSTART Third item description PARTOESCEND QTYSTART 1.00 QTYEND',
+            'PARTSTART DDD PARTEND PARTDESCSTART Fourth item description PARTDESCEND QTYSTART 4.00 QTYEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+        $equipment = $result['equipment'] ?? [];
+
+        $this->assertCount(2, $equipment);
+        $byPart = [];
+        foreach ($equipment as $row) {
+            $byPart[(string) ($row['part_number'] ?? '')] = (string) ($row['description'] ?? '');
+        }
+        $this->assertArrayHasKey('CCC', $byPart);
+        $this->assertArrayHasKey('DDD', $byPart);
+        $this->assertStringContainsString('Third item description',  $byPart['CCC']);
+        $this->assertStringContainsString('Fourth item description', $byPart['DDD']);
+        $this->assertStringNotContainsString('Fourth', $byPart['CCC']);
+    }
+
+    public function test_partdesc_normalisation_preserves_legitimate_prose(): void
+    {
+        // The conservative regex anchors on the canonical (START|END) suffix
+        // immediately after the ESC sequence. Real prose words ("descend",
+        // "ascend", "transcend") do NOT match because no English word is
+        // followed by literal START or END right after its ESC chars.
+        $text = implode("\n", [
+            'OVERVIEWTITLESTART Atrium OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART The display descends from the ceiling. Engineers ascend the ladder. OVERVIEWTXTEND',
+            'PARTSTART X PARTEND PARTDESCSTART Display PARTDESCEND QTYSTART 1.00 QTYEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $overviews = $result['room_overviews'] ?? [];
+        $atrium = null;
+        foreach ($overviews as $ro) {
+            if (trim((string) ($ro['room'] ?? '')) === 'Atrium') {
+                $atrium = $ro;
+                break;
+            }
+        }
+        $this->assertNotNull($atrium);
+        $this->assertStringContainsString('descends from the ceiling', (string) $atrium['overview']);
+        $this->assertStringContainsString('ascend the ladder',         (string) $atrium['overview']);
+    }
+
     // =========================================================================
     // NON-ROOM SECTION FILTER (Light Forms 21CQ30451 "Summary"-as-room defect)
     // =========================================================================

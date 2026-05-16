@@ -261,11 +261,27 @@
         <form method="POST" action="{{ route('quote-import.reextract', $package) }}" style="margin:0;"
               data-confirm="Re-extract this package from the stored PDF? This will refresh all data including Room Overviews. Any unsaved edits will be lost."
               data-confirm-label="Re-extract"
-              data-confirm-danger="1">
+              data-confirm-danger="1"
+              x-data="{ pending: false }"
+              @submit="if (! $el.hasAttribute('data-confirm')) pending = true">
             @csrf
-            <button type="submit" class="btn btn-outline btn-sm" title="Re-run the parser against the stored PDF to refresh extracted data">
-                🔄 Re-extract PDF
+            <button type="submit"
+                    :disabled="pending"
+                    class="btn btn-sm"
+                    :class="pending ? '' : 'btn-outline'"
+                    :style="pending
+                        ? 'background:#d97706;color:#fff;border:1px solid #b45309;cursor:not-allowed;pointer-events:none;opacity:1;padding-right:.9rem;'
+                        : ''"
+                    title="Re-run the parser against the stored PDF to refresh extracted data">
+                <span x-show="! pending">🔄 Re-extract PDF</span>
+                <span x-show="pending" x-cloak style="display:inline-flex;align-items:center;gap:.45rem;">
+                    <span style="display:inline-block;width:12px;height:12px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:reextract-spin .8s linear infinite;"></span>
+                    <span>Extracting… please wait (30–60s, do not refresh)</span>
+                </span>
             </button>
+            <style>
+                @keyframes reextract-spin { to { transform: rotate(360deg); } }
+            </style>
         </form>
         @if ($package->project_id)
         <a href="{{ route('projects.show', $package->project_id) }}" class="btn btn-outline btn-sm">← Back to Project</a>

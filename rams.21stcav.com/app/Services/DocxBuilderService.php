@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\RamsDocument;
 use App\Services\DocumentArtifactStorage;
 use App\Services\DocumentTemplateService;
+use App\Services\Rams\RamsDisplayPatchService;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
 use PhpOffice\PhpWord\Settings;
@@ -36,6 +37,7 @@ class DocxBuilderService
     public function __construct(
         private readonly DocumentTemplateService $templates,
         private readonly DocumentArtifactStorage $artifacts = new DocumentArtifactStorage(),
+        private readonly RamsDisplayPatchService $patchService = new RamsDisplayPatchService(),
     ) {}
 
     // ─── Brand colours ────────────────────────────────────────────────────────
@@ -76,24 +78,55 @@ class DocxBuilderService
         // Ensure PHPWord escapes &, <, > in text content (off by default).
         Settings::setOutputEscapingEnabled(true);
 
+        // ── Sidebar fix 2026-05-14 — docx-builder-pdf-parity (D1, D3, D5) ─────
+        // Apply the same display patches the PDF download path applies. This
+        // overwrites stale/leaked doc_author (client email leak), resolves the
+        // personnel chain from programme → reviewed_data → owner, normalises
+        // rooms_text + scope_items, and infers client_contact_name. Mutation
+        // is transient (no $record->save() inside the patch service) — the
+        // patched generated_data is read back below and supersedes the
+        // caller-provided $data so cover/scope/contact rows match the PDF.
+        $this->patchService->patch($record);
+        $data = $record->generated_data ?? $data;
+
         $formData = $record->form_data ?? [];
 
         $phpWord = new PhpWord();
         $phpWord->setDefaultFontName('Arial');
         $phpWord->setDefaultFontSize(10);
 
-        // Build all sections in order
-        $this->buildCoverPage($phpWord, $data, $formData);
-        $this->buildDocumentControl($phpWord, $data);
+        // Build all sections in order — match PDF rams.blade.php section
+        // order (sec-heading hits):
+        //   Cover → Doc Control → Company Info → H&S Policy →
+        //   Scope of Works → Engineer Findings → Risk Assessment →
+        //   Method Statement (6.1-6.6) → §6.7 Material Handling →
+        //   §6.8 Permit & Isolation → §6.9 Fixings → §6.10 Supervision/QA →
+        //   Permits & Authorisations → CDM Duty Holders → COSHH →
+        //   Environmental Management → Welfare Arrangements →
+        //   Emergency Procedures → Sign-Off → Appendix A Toolbox Talk
+        $this->buildCoverPage($phpWord, $data, $formData, $record);
+        $this->buildDocumentControl($phpWord, $data, $record);
         $this->buildCompanyInformation($phpWord, $data);
         $this->buildHealthSafetyPolicy($phpWord, $data);
-        $this->buildCdmSection($phpWord, $data);
-        $this->buildScopeOfWorks($phpWord, $data, $formData);
+        $this->buildScopeOfWorks($phpWord, $data, $formData, $record);
         $this->buildEngineerFindingsByRoom($phpWord, $data);
         $this->buildRiskAssessment($phpWord, $data);
         $this->buildMethodStatement($phpWord, $data);
+        // ── D10 — §6.7-6.10 added inline after Method of Works ───────────
+        $this->buildMaterialHandling($phpWord, $data);
+        $this->buildPermitAndIsolation($phpWord, $data);
+        $this->buildFixingsControl($phpWord, $data);
+        $this->buildSupervisionAndQA($phpWord, $data);
+        // ── D11 — Compliance / environment / welfare block ───────────────
+        $this->buildPermitsAndAuthorisations($phpWord, $data);
+        $this->buildCdmSection($phpWord, $data);
+        $this->buildCoshhAssessment($phpWord, $data);
+        $this->buildEnvironmentalManagement($phpWord, $data);
+        $this->buildWelfareArrangements($phpWord, $data);
         $this->buildEmergencyProcedures($phpWord, $data, $formData);
         $this->buildDocumentSignOff($phpWord, $data);
+        // ── D12 — Appendix A Toolbox Talk Record at the end ──────────────
+        $this->buildAppendixA($phpWord, $data);
 
         // Write file to the unified documents disk (H-07).
         $filename = 'rams_' . $record->id . '_' . now()->format('Ymd_His') . '.docx';
@@ -112,19 +145,24 @@ class DocxBuilderService
     // COVER PAGE — Portrait, two info tables
     // =========================================================================
 
-    private function buildCoverPage(PhpWord $phpWord, array $data, array $formData): void
+    private function buildCoverPage(PhpWord $phpWord, array $data, array $formData, ?RamsDocument $record = null): void
     {
         $section = $phpWord->addSection($this->portraitStyle());
         $this->attachFooter($section);
 
         $project = $data['project'] ?? [];
 
-        // ── Build a filtered rooms string (exclude non-physical-space entries) ─
-        $roomsFiltered = array_values(array_filter(
-            $project['rooms'] ?? [],
-            fn ($r) => $r !== '' && ! preg_match('/\b(licen[cs]|cabling|cables?|wiring|network|software|service|warranty|support|delivery|carriage)\b/i', $r)
-        ));
-        $roomsDisplay = ! empty($roomsFiltered) ? implode(', ', $roomsFiltered) : ($project['rooms_text'] ?? '');
+        // ── Rooms resolution chain (D3 — match PDF rams.blade.php:324-345) ────
+        // Priority: reviewed_data['rooms'] → reviewed_data['room_overviews'][n]['room']
+        //           → $project['rooms_text']. Non-physical-space entries
+        //           (cabling/services/warranty etc) are filtered out.
+        $roomsList = $this->resolveRoomsList($data, $record);
+        $roomsDisplay = ! empty($roomsList) ? implode(', ', $roomsList) : ($project['rooms_text'] ?? '');
+
+        // ── Document date (D2 — match PDF rams.blade.php:347-349) ─────────────
+        // PDF uses $record->created_at->format('d/m/Y') — NOT the stale
+        // "F Y" placeholder written into $project['date'] at build time.
+        $docDate = $record?->created_at?->format('d/m/Y') ?: now()->format('d/m/Y');
 
         // ── Company name + RAMS title ─────────────────────────────────────────
         $section->addText(
@@ -157,7 +195,7 @@ class DocxBuilderService
             ['SITE',              $project['site_address'] ?? ''],
             ['PROJECT REFERENCE', $project['ref']          ?? ''],
             ['ROOMS',             $roomsDisplay],
-            ['DATE',              $project['date']         ?? now()->format('F Y')],
+            ['DATE',              $docDate],
         ];
         foreach ($rows1 as [$label, $value]) {
             $row = $table->addRow(420);
@@ -174,11 +212,13 @@ class DocxBuilderService
             ($project['client_contact_name'] ?? '') .
             (($project['client_contact_email'] ?? '') !== '' ? "\n" . $project['client_contact_email'] : '')
         );
+        // Match PDF: fall back to "TBC at site induction" when no client contact.
+        $clientContactDisplay = $clientContact !== '' ? $clientContact : 'TBC at site induction';
 
         $rows2 = [
             ['PREPARED BY',    $project['doc_author']      ?? ''],
             ['TELEPHONE',      config('rams.company_phone')],
-            ['CLIENT CONTACT', $clientContact],
+            ['CLIENT CONTACT', $clientContactDisplay],
             ['REVISION',       $project['revision']        ?? 'Rev 1.0'],
             ['STATUS',         $project['document_status'] ?? 'For Issue'],
         ];
@@ -187,13 +227,130 @@ class DocxBuilderService
             $row->addCell($colW, $tealCell) ->addText($label,           $labelFont);
             $row->addCell($colW, $whiteCell)->addText($this->t($value), $valueFont);
         }
+
+        $section->addTextBreak(1);
+
+        // ── Third table: PROJECT MANAGER, LEAD ENGINEER, ENGINEERS, PROGRAMMER,
+        //                 VEHICLE REGS (D4 expansion — match PDF lines 586-611)
+        $table3 = $section->addTable($this->tableStyle());
+
+        $docAuthor = (string) ($project['doc_author'] ?? '');
+        $leadEng   = (string) ($project['lead_engineer'] ?? '');
+        $addEngs   = (string) ($project['additional_engineers'] ?? '');
+        $programmer = (string) ($project['programmer'] ?? '');
+
+        $vehSrc = $project['site_vehicles'] ?? ($data['site_vehicles'] ?? null);
+        if (is_string($vehSrc)) {
+            $vehSrc = preg_split('/\r?\n/', $vehSrc) ?: [];
+        }
+        $coverVehiclesList = array_values(array_filter(
+            array_map('trim', (array) ($vehSrc ?? [])),
+            fn (string $v) => $v !== '',
+        ));
+        $coverVehiclesDisplay = ! empty($coverVehiclesList) ? implode(', ', $coverVehiclesList) : '—';
+
+        $rows3 = [
+            ['PROJECT MANAGER', $docAuthor !== '' ? $docAuthor : '—'],
+            ['LEAD ENGINEER',   $leadEng   !== '' ? $leadEng   : '—'],
+            ['ENGINEERS',       $addEngs   !== '' ? $addEngs   : '—'],
+            ['PROGRAMMER',      $programmer !== '' ? $programmer : '—'],
+            ['VEHICLE REGS',    $coverVehiclesDisplay],
+        ];
+        foreach ($rows3 as [$label, $value]) {
+            $row = $table3->addRow(420);
+            $row->addCell($colW, $tealCell) ->addText($label,           $labelFont);
+            $row->addCell($colW, $whiteCell)->addText($this->t($value), $valueFont);
+        }
+    }
+
+    /**
+     * Resolve the rooms list for cover + scope-of-works rendering.
+     *
+     * Mirrors the PDF priority chain in rams.blade.php:324-345 so the DOCX
+     * cover ROOMS field is populated even when the legacy $project['rooms']
+     * array is empty:
+     *   1. $record->reviewed_data['rooms']            (curated names)
+     *   2. $record->reviewed_data['room_overviews'][n]['room']  (PM-edited)
+     *   3. $data['project']['rooms']                  (legacy)
+     *   4. $data['project']['rooms_text']             (parser fallback)
+     *
+     * Non-physical-space entries (cabling, services, warranty, etc.) are
+     * filtered out using the same regex as the PDF blade.
+     *
+     * @return array<int, string> ordered list of unique room names.
+     */
+    private function resolveRoomsList(array $data, ?RamsDocument $record): array
+    {
+        $excludeRe = '/\b(licen[cs]|cabling|cables?|wiring|network|software|service|warranty|support|delivery|carriage)\b/i';
+        $filter = fn ($r) => is_string($r) && $r !== '' && ! preg_match($excludeRe, $r);
+
+        $list = [];
+
+        // 1. reviewed_data['rooms'] (curated names list — highest priority).
+        $reviewedRooms = $record?->reviewed_data['rooms'] ?? [];
+        if (is_array($reviewedRooms) && ! empty($reviewedRooms)) {
+            foreach ($reviewedRooms as $r) {
+                if (is_array($r)) {
+                    $name = (string) ($r['name'] ?? ($r['room_name'] ?? ''));
+                } else {
+                    $name = (string) $r;
+                }
+                if ($filter($name)) {
+                    $list[] = $name;
+                }
+            }
+        }
+
+        // 2. reviewed_data['room_overviews'][n]['room'] (PM-edited overviews).
+        if (empty($list)) {
+            $roomOverviews = $record?->reviewed_data['room_overviews'] ?? [];
+            if (is_array($roomOverviews)) {
+                foreach ($roomOverviews as $ro) {
+                    if (! is_array($ro)) {
+                        continue;
+                    }
+                    $name = (string) ($ro['room'] ?? ($ro['room_name'] ?? ($ro['name'] ?? '')));
+                    if ($filter($name)) {
+                        $list[] = $name;
+                    }
+                }
+            }
+        }
+
+        // 3. $project['rooms'] (legacy generated_data array).
+        if (empty($list)) {
+            $projectRooms = $data['project']['rooms'] ?? [];
+            if (is_array($projectRooms)) {
+                foreach ($projectRooms as $r) {
+                    $name = (string) $r;
+                    if ($filter($name)) {
+                        $list[] = $name;
+                    }
+                }
+            }
+        }
+
+        // 4. $project['rooms_text'] (parser fallback, comma/newline separated).
+        if (empty($list)) {
+            $roomsText = (string) ($data['project']['rooms_text'] ?? '');
+            if ($roomsText !== '') {
+                $parts = array_filter(array_map('trim', preg_split('/[,\n]+/', $roomsText) ?: []));
+                foreach ($parts as $name) {
+                    if ($filter($name)) {
+                        $list[] = $name;
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique($list));
     }
 
     // =========================================================================
     // SECTION 1 — Document Control
     // =========================================================================
 
-    private function buildDocumentControl(PhpWord $phpWord, array $data): void
+    private function buildDocumentControl(PhpWord $phpWord, array $data, ?RamsDocument $record = null): void
     {
         $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
         $this->attachFooter($section);
@@ -209,10 +366,13 @@ class DocxBuilderService
         $whiteCell = ['bgColor' => self::WHITE];
         $vf        = $this->font(9);
 
+        // D2 — use document creation date (dd/mm/yyyy) not the "F Y" placeholder.
+        $docDate = $record?->created_at?->format('d/m/Y') ?: now()->format('d/m/Y');
+
         // Pre-filled row
         $row = $table->addRow(400);
         $row->addCell(800,  $altCell)  ->addText($this->t($project['revision']        ?? 'Rev 1.0'),     $vf);
-        $row->addCell(1800, $whiteCell)->addText($this->t($project['date']             ?? now()->format('F Y')), $vf);
+        $row->addCell(1800, $whiteCell)->addText($this->t($docDate), $vf);
         $row->addCell(2500, $whiteCell)->addText($this->t($project['doc_author']       ?? ''),           $vf);
         $row->addCell(3500, $whiteCell)->addText('Initial Issue',                                        $vf);
         $row->addCell(1266, $whiteCell)->addText($this->t($project['document_status']  ?? 'For Issue'),  $vf);
@@ -306,19 +466,16 @@ class DocxBuilderService
     // SECTION 4 — Scope of Works
     // =========================================================================
 
-    private function buildScopeOfWorks(PhpWord $phpWord, array $data, array $formData): void
+    private function buildScopeOfWorks(PhpWord $phpWord, array $data, array $formData, ?RamsDocument $record = null): void
     {
         $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
         $this->attachFooter($section);
 
         $project = $data['project'] ?? [];
 
-        // ── Filtered rooms (exclude non-physical-space entries) ───────────────
-        $roomsFiltered = array_values(array_filter(
-            $project['rooms'] ?? [],
-            fn ($r) => $r !== '' && ! preg_match('/\b(licen[cs]|cabling|cables?|wiring|network|software|service|warranty|support|delivery|carriage)\b/i', $r)
-        ));
-        $roomsDisplay = ! empty($roomsFiltered) ? implode(', ', $roomsFiltered) : ($project['rooms_text'] ?? '');
+        // ── Rooms resolution chain (D3 — match PDF rams.blade.php:324-345) ────
+        $roomsList = $this->resolveRoomsList($data, $record);
+        $roomsDisplay = ! empty($roomsList) ? implode(', ', $roomsList) : ($project['rooms_text'] ?? '');
 
         $this->sectionHeading($section, '4. Scope of Works');
 
@@ -752,30 +909,64 @@ class DocxBuilderService
             ],
         );
 
-        // ── Risk Colour Key (Tier 1 upgrade) ─────────────────────────────────
-        $riskKey = $data['risk_colour_key'] ?? [];
-        if (! empty($riskKey)) {
-            $keyTable = $section->addTable($this->tableStyle());
+        // ── D6 — 5×5 Risk Matrix grid (matches PDF rams.blade.php:1197-1215) ──
+        //   Header row: empty | Severity 1..5 (Minor → Fatal)
+        //   Body rows : Likelihood 1..5 (Unlikely → Almost Certain) + 5 L×S cells
+        //   Cell bg   : riskColour(L*S) — 3-band palette (green/amber/red)
+        $section->addText(
+            'The risk scoring matrix below is used throughout this assessment. Likelihood (L) × Severity (S) = Risk Score (R).',
+            $this->font(9),
+            ['spaceBefore' => 60, 'spaceAfter' => 80, 'alignment' => Jc::BOTH],
+        );
 
-            $keyHdr = $keyTable->addRow(380);
-            $keyHdr->addCell(2000, ['bgColor' => self::TEAL])->addText('Risk Level',  $this->font(9, bold: true, colour: self::WHITE), ['alignment' => Jc::CENTER]);
-            $keyHdr->addCell(1500, ['bgColor' => self::TEAL])->addText('Score Range', $this->font(9, bold: true, colour: self::WHITE), ['alignment' => Jc::CENTER]);
-            $keyHdr->addCell(5000, ['bgColor' => self::TEAL])->addText('Description', $this->font(9, bold: true, colour: self::WHITE));
-            $keyHdr->addCell(6638, ['bgColor' => self::TEAL])->addText('Action',      $this->font(9, bold: true, colour: self::WHITE));
+        $matrixTable = $section->addTable($this->tableStyle());
+        $matrixCellW = 2380; // 5 severity cols + 1 row-header col, sum ≈ 14280 (fits W_LAND).
+        $matrixHdrFont = $this->font(9, bold: true, colour: self::WHITE);
+        $matrixCellFont = $this->font(9, bold: true);
 
-            $keyColours = ['LOW' => self::RISK_GREEN, 'MEDIUM' => self::RISK_AMBER, 'HIGH' => self::RISK_RED];
-            foreach ($riskKey as $entry) {
-                $level  = (string) ($entry['level'] ?? '');
-                $colour = $keyColours[$level] ?? self::WHITE;
-                $kr = $keyTable->addRow(380);
-                $kr->addCell(2000, ['bgColor' => $colour])->addText($level,                                    $this->font(9, bold: true), ['alignment' => Jc::CENTER]);
-                $kr->addCell(1500, ['bgColor' => $colour])->addText($this->t((string) ($entry['range'] ?? '')),       $this->font(9), ['alignment' => Jc::CENTER]);
-                $kr->addCell(5000, ['bgColor' => $colour])->addText($this->t((string) ($entry['description'] ?? '')), $this->font(9));
-                $kr->addCell(6638, ['bgColor' => $colour])->addText($this->t((string) ($entry['action'] ?? '')),      $this->font(9));
-            }
-
-            $section->addTextBreak(1);
+        // Top header row
+        $sevLabels = [1 => 'Minor', 2 => 'Moderate', 3 => 'Serious', 4 => 'Major', 5 => 'Fatal'];
+        $hdrRow = $matrixTable->addRow(420);
+        $hdrRow->addCell($matrixCellW, ['bgColor' => self::DARK_GREY])->addText('', $matrixHdrFont);
+        foreach ($sevLabels as $s => $label) {
+            $hdrRow->addCell($matrixCellW, ['bgColor' => self::TEAL])
+                ->addText("Severity {$s} — {$label}", $matrixHdrFont, ['alignment' => Jc::CENTER]);
         }
+
+        // Body rows — one per likelihood level
+        $likeLabels = [1 => 'Unlikely', 2 => 'Possible', 3 => 'Likely', 4 => 'Probable', 5 => 'Almost Certain'];
+        foreach ($likeLabels as $l => $lLabel) {
+            $bodyRow = $matrixTable->addRow(380);
+            $bodyRow->addCell($matrixCellW, ['bgColor' => self::TEAL])
+                ->addText("Likelihood {$l} — {$lLabel}", $matrixHdrFont, ['alignment' => Jc::CENTER]);
+            foreach ([1, 2, 3, 4, 5] as $s) {
+                $score = $l * $s;
+                $bodyRow->addCell($matrixCellW, ['bgColor' => $this->riskColour($score)])
+                    ->addText((string) $score, $matrixCellFont, ['alignment' => Jc::CENTER]);
+            }
+        }
+
+        $section->addTextBreak(1);
+
+        // ── D6 — 3-band footer legend (matches PDF rams.blade.php:1218-1227) ──
+        $legendTable = $section->addTable($this->tableStyle());
+        $bandW = 1200; // band cell
+        $descW = 3850; // description cell
+        $lr = $legendTable->addRow(420);
+        $lr->addCell($bandW, ['bgColor' => self::RISK_GREEN])
+            ->addText("1–4\nLOW", $this->font(9, bold: true), ['alignment' => Jc::CENTER]);
+        $lr->addCell($descW, ['bgColor' => self::WHITE])
+            ->addText('Acceptable. Monitor and maintain controls.', $this->font(9));
+        $lr->addCell($bandW, ['bgColor' => self::RISK_AMBER])
+            ->addText("5–9\nMEDIUM", $this->font(9, bold: true), ['alignment' => Jc::CENTER]);
+        $lr->addCell($descW, ['bgColor' => self::WHITE])
+            ->addText('Action required to reduce risk.', $this->font(9));
+        $lr->addCell($bandW, ['bgColor' => self::RISK_RED])
+            ->addText("10+\nHIGH", $this->font(9, bold: true), ['alignment' => Jc::CENTER]);
+        $lr->addCell(($matrixCellW * 6) - (3 * $bandW) - (2 * $descW), ['bgColor' => self::WHITE])
+            ->addText('Stop work. Implement immediate controls.', $this->font(9));
+
+        $section->addTextBreak(1);
 
         // Column widths (sum = W_LAND = 15138)
         $wRef = self::COL_REF;      // 600
@@ -900,17 +1091,48 @@ class DocxBuilderService
         $teamTable = $section->addTable($this->tableStyle());
         $this->tealHeader($teamTable, ['Role', 'Qty', 'Requirements'], [2600, 800, 6466]);
 
-        $team = $data['team'] ?? [];
+        // D4 — Team list with empty-team fallback that synthesises members
+        //       from $project personnel string fields. Matches PDF lines
+        //       1304-1324 (rams.blade.php) so DOCX renders the same row set.
+        $team = is_array($data['team'] ?? null) ? $data['team'] : [];
+        $project = $data['project'] ?? [];
+        if (empty($team)) {
+            $pmName  = trim((string) ($project['project_manager']      ?? ''));
+            $leName  = trim((string) ($project['lead_engineer']        ?? ''));
+            $progStr = trim((string) ($project['programmer']           ?? ''));
+            $addStr  = trim((string) ($project['additional_engineers'] ?? ''));
+            if ($pmName !== '') {
+                $team[] = ['role' => 'Project Manager', 'name' => $pmName];
+            }
+            if ($leName !== '') {
+                $team[] = ['role' => 'Lead Engineer', 'name' => $leName];
+            }
+            foreach (preg_split('/[,;]+/', $addStr) ?: [] as $eng) {
+                $eng = trim($eng);
+                if ($eng !== '') {
+                    $team[] = ['role' => 'Engineer', 'name' => $eng];
+                }
+            }
+            if ($progStr !== '') {
+                $team[] = ['role' => 'Programmer', 'name' => $progStr];
+            }
+        }
+
         if (! empty($team)) {
+            // D4 — full $reqMap ported verbatim from rams.blade.php lines 1338-1344.
             $reqMap = [
-                'lead engineer'    => 'CSCS Card, IPAF (if applicable), relevant AV experience',
-                'project manager'  => 'SMSTS or equivalent',
+                'lead av engineer' => 'Qualified AV installation engineer. CSCS/ECS Card required. Competent with display installation, structured cabling, Biamp DSP configuration, and AV commissioning. IPAF/PASMA required if working at height.',
+                'lead engineer'    => 'Qualified AV installation engineer. CSCS/ECS Card required. Competent with display installation, structured cabling, and AV commissioning. IPAF/PASMA required if working at height.',
+                'av engineer'      => 'Qualified AV installation engineer. CSCS/ECS Card required. Experienced in structured AV cabling, rack builds, and equipment installation.',
+                'engineer'         => 'Qualified AV installation engineer. CSCS/ECS Card required. Experienced in structured AV cabling and equipment installation.',
+                'project manager'  => 'SMSTS or equivalent. CSCS Card. First Aid at Work certificate. Responsible for site management and client liaison.',
+                'programmer'       => 'AV programmer competent in control system configuration and DSP programming. CSCS Card.',
             ];
             // Aggregate by role, collecting names so the table reads
             // "Lead Engineer — Simon Pittaway" instead of bare "Lead Engineer".
             $roleGroups = [];
             foreach ($team as $member) {
-                $role = (string) ($member['role'] ?? 'Engineer');
+                $role = trim((string) ($member['role'] ?? 'Engineer'));
                 $name = trim((string) ($member['name'] ?? ''));
                 if (! isset($roleGroups[$role])) {
                     $roleGroups[$role] = ['qty' => 0, 'names' => []];
@@ -923,7 +1145,7 @@ class DocxBuilderService
             $i = 0;
             foreach ($roleGroups as $role => $info) {
                 $bg     = ($i % 2 === 0) ? $vcWhite : $vcAlt;
-                $req    = $reqMap[strtolower($role)] ?? 'CSCS Card, AV installation experience';
+                $req    = $reqMap[strtolower($role)] ?? 'Qualified AV installation engineer. CSCS Card.';
                 $names  = array_values(array_unique($info['names']));
                 $label  = $names
                     ? $role . ' — ' . implode(', ', $names)
@@ -931,14 +1153,15 @@ class DocxBuilderService
                 $row = $teamTable->addRow(400);
                 $row->addCell(2600, $bg)->addText($this->t($label),    $vf);
                 $row->addCell(800,  $bg)->addText((string)$info['qty'],$vf, ['alignment' => Jc::CENTER]);
-                $row->addCell(6466, $bg)->addText($req,                $vf);
+                $row->addCell(6466, $bg)->addText($this->t($req),      $vf);
                 $i++;
             }
         } else {
+            // Last-resort fallback when no team and no project personnel strings.
             $row = $teamTable->addRow(400);
-            $row->addCell(2600, $vcWhite)->addText('Lead Engineer',                         $vf);
-            $row->addCell(800,  $vcWhite)->addText('1',                                     $vf, ['alignment' => Jc::CENTER]);
-            $row->addCell(6466, $vcWhite)->addText('CSCS Card, AV installation experience', $vf);
+            $row->addCell(2600, $vcWhite)->addText('Lead AV Engineer',                       $vf);
+            $row->addCell(800,  $vcWhite)->addText('1',                                      $vf, ['alignment' => Jc::CENTER]);
+            $row->addCell(6466, $vcWhite)->addText('Qualified AV installation engineer. CSCS/ECS Card required. Competent with display installation, structured cabling, Biamp DSP configuration, and AV commissioning. IPAF/PASMA required if working at height.', $vf);
         }
 
         // ── 6.1.1 Site Vehicles & Registrations ───────────────────────────────
@@ -1058,9 +1281,15 @@ class DocxBuilderService
         foreach ($phases as $i => $phase) {
             $rawTitle = trim((string)($phase['title'] ?? ''));
 
-            // Strip any leading "N. " or "N — " prefix the AI may have added, then
-            // rebuild as "Step N — Title" so format is always consistent.
-            $cleanTitle = preg_replace('/^\d+[\.\-–—\s]+/', '', $rawTitle);
+            // D8 — extended regex matches PDF rams.blade.php:1534. Strips any
+            //      leading "Step N — ", "Phase N — ", or "N. "/"N — " prefix
+            //      from the AI title BEFORE we prepend our own "Step N — "
+            //      label, preventing "Step 1 — Step 1 — Title" duplication.
+            $cleanTitle = preg_replace(
+                '/^\s*(step\s+\d+[\.\-–—\s]*|phase\s+\d+[\.\-–—\s]*|\d+[\.\-–—\s]+)/i',
+                '',
+                $rawTitle,
+            );
             $stepTitle  = 'Step ' . ($i + 1) . ' — ' . $cleanTitle;
 
             $section->addText(
@@ -1121,7 +1350,17 @@ class DocxBuilderService
         $hRow->addCell($colW, $teal)->addText('Contact',      $bfWhite);
         $hRow->addCell($colW, $teal)->addText('Number',       $bfWhite);
 
-        $siteContact = $project['site_contact'] ?? $formData['site_contact'] ?? '';
+        // D5 — extend the resolution chain to match PDF line 1835.
+        //       Falls back through client_contact (name + email concat),
+        //       site_contact, form_data.site_contact, and finally the
+        //       literal "TBC at site induction" placeholder.
+        $clientContactName  = (string) ($project['client_contact_name']  ?? '');
+        $clientContactEmail = (string) ($project['client_contact_email'] ?? '');
+        $clientContact      = trim($clientContactName . ($clientContactEmail !== '' ? ' | ' . $clientContactEmail : ''));
+        $siteContactValue   = (string) ($project['site_contact'] ?? $formData['site_contact'] ?? '');
+        $siteContact = $clientContact !== ''
+            ? $clientContact
+            : ($siteContactValue !== '' ? $siteContactValue : 'TBC at site induction');
 
         $contactRows = [
             ['Emergency Services (Fire, Police, Ambulance)', '999'],
@@ -1271,6 +1510,381 @@ class DocxBuilderService
     }
 
     // =========================================================================
+    // D10/D11/D12 — Sections previously missing from the DOCX renderer
+    //
+    // The PDF blade (rams.blade.php) renders 9 additional sections after
+    // the Method of Works that the DOCX builder never emitted. All input
+    // data is already present in $data post-RamsComplianceUpgradeService.
+    // Each method below mirrors the PDF blade's content for that section;
+    // styling (PhpWord) cannot match dompdf exactly but content semantics
+    // and section presence are byte-for-byte parity assertions.
+    // =========================================================================
+
+    /**
+     * §6.7 Material Handling — D10.
+     * Mirrors PDF lines 1553-1607. Renders user-specified items first, then
+     * falls back to derived items, then to the static statement.
+     */
+    private function buildMaterialHandling(PhpWord $phpWord, array $data): void
+    {
+        $mh = $data['material_handling_derived'] ?? null;
+        $userMh = $data['material_handling']['large_items'] ?? [];
+        $mhNotes = (string) ($data['material_handling']['handling_notes'] ?? '');
+        $hasUserMh = is_array($userMh) && ! empty($userMh);
+        $hasDerivedMh = is_array($mh['items'] ?? null) && ! empty($mh['items']);
+        $hasHeavy = ! empty($mh['has_heavy_items']) || $hasUserMh;
+
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, '6.7 Material Handling');
+
+        $vf = $this->font(9);
+
+        if ($hasUserMh) {
+            $tbl = $section->addTable($this->tableStyle());
+            $this->tealHeader($tbl, ['Item Description', 'Weight (approx.)', 'Handling Method / Controls'], [3946, 2000, 3920]);
+            foreach ($userMh as $mhi) {
+                if (empty($mhi['item'])) {
+                    continue;
+                }
+                $row = $tbl->addRow(380);
+                $row->addCell(3946)->addText($this->t((string) $mhi['item']), $vf);
+                $row->addCell(2000)->addText(
+                    ! empty($mhi['weight_kg']) ? $this->t($mhi['weight_kg'] . ' kg') : '—',
+                    $vf,
+                    ['alignment' => Jc::CENTER],
+                );
+                $row->addCell(3920)->addText($this->t((string) ($mhi['handling_method'] ?? '—')), $vf);
+            }
+        } elseif ($hasDerivedMh) {
+            $tbl = $section->addTable($this->tableStyle());
+            $this->tealHeader($tbl, ['Qty', 'Item', 'Handling Method / Controls'], [1000, 3866, 5000]);
+            foreach ($mh['items'] as $di) {
+                $row = $tbl->addRow(380);
+                $row->addCell(1000)->addText($this->t((string) ($di['qty'] ?? 1)), $vf, ['alignment' => Jc::CENTER]);
+                $row->addCell(3866)->addText($this->t((string) ($di['item'] ?? '')), $vf);
+                $row->addCell(5000)->addText(
+                    $this->t((string) ($di['handling_method'] ?? 'Assess weight before lifting. Team lift for items over 20 kg.')),
+                    $vf,
+                );
+            }
+        }
+
+        $statement = (string) ($mh['statement'] ?? ($hasHeavy
+            ? 'Manual handling controls apply — team lift for items over 20 kg, use mechanical aids where available.'
+            : 'No significant heavy or bulky items identified. Standard manual handling precautions apply.'));
+        $section->addText($this->t($statement), $vf, ['spaceBefore' => 80, 'spaceAfter' => 40, 'alignment' => Jc::BOTH]);
+
+        if ($mhNotes !== '') {
+            $section->addText('Handling Notes: ', $this->font(9, bold: true), ['spaceBefore' => 40]);
+            $section->addText($this->t($mhNotes), $vf, ['spaceAfter' => 40]);
+        }
+    }
+
+    /**
+     * §6.8 Permit & Isolation Requirements — D10.
+     * Mirrors PDF lines 1609-1618. Renders only when rules data is present.
+     */
+    private function buildPermitAndIsolation(PhpWord $phpWord, array $data): void
+    {
+        $rules = $data['permit_and_isolation']['rules'] ?? [];
+        if (! is_array($rules) || empty($rules)) {
+            return;
+        }
+
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, '6.8 Permit & Isolation Requirements');
+
+        $vf = $this->font(9);
+        foreach ($rules as $rule) {
+            $section->addText('•  ' . $this->t((string) $rule), $vf, ['spaceBefore' => 40, 'spaceAfter' => 40]);
+        }
+    }
+
+    /**
+     * §6.9 Fixings & Installation Control — D10.
+     * Mirrors PDF lines 1620-1629.
+     */
+    private function buildFixingsControl(PhpWord $phpWord, array $data): void
+    {
+        $rules = $data['fixings_control']['rules'] ?? [];
+        if (! is_array($rules) || empty($rules)) {
+            return;
+        }
+
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, '6.9 Fixings & Installation Control');
+
+        $vf = $this->font(9);
+        foreach ($rules as $rule) {
+            $section->addText('•  ' . $this->t((string) $rule), $vf, ['spaceBefore' => 40, 'spaceAfter' => 40]);
+        }
+    }
+
+    /**
+     * §6.10 Supervision & Quality Assurance — D10.
+     * Mirrors PDF lines 1631-1640.
+     */
+    private function buildSupervisionAndQA(PhpWord $phpWord, array $data): void
+    {
+        $resp = $data['supervision_and_qa']['responsibilities'] ?? [];
+        if (! is_array($resp) || empty($resp)) {
+            return;
+        }
+
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, '6.10 Supervision & Quality Assurance');
+
+        $vf = $this->font(9);
+        foreach ($resp as $item) {
+            $section->addText('•  ' . $this->t((string) $item), $vf, ['spaceBefore' => 40, 'spaceAfter' => 40]);
+        }
+    }
+
+    /**
+     * Permits & Authorisations — D11.
+     * Mirrors PDF lines 1671-1695. Always renders. Reads
+     * reviewed_data['permits_required'] when populated; otherwise derives
+     * from scope text. We use the deterministic prose-fallback (no scope
+     * read) since the DOCX builder doesn't currently consult reviewed_data
+     * directly — when no project-specific permits exist the PDF renders a
+     * single paragraph saying "No project-specific permits…". DOCX matches.
+     */
+    private function buildPermitsAndAuthorisations(PhpWord $phpWord, array $data): void
+    {
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, 'Permits & Authorisations');
+
+        $vf = $this->font(9);
+
+        // Caller (RamsBuilderService) may pre-populate $data['permits_required']
+        // by reading reviewed_data; otherwise leave empty.
+        $permits = $data['permits_required'] ?? [];
+        $permits = is_array($permits) ? array_values(array_filter($permits, fn ($p) => is_array($p) && ! empty($p['required']))) : [];
+
+        if (! empty($permits)) {
+            $tbl = $section->addTable($this->tableStyle());
+            $this->tealHeader($tbl, ['Permit Type', 'Notes / Requirements'], [3000, 6866]);
+            foreach ($permits as $permit) {
+                $row = $tbl->addRow(380);
+                $row->addCell(3000)->addText($this->t((string) ($permit['type'] ?? '')), $this->font(9, bold: true));
+                $row->addCell(6866)->addText(
+                    $this->t((string) ($permit['notes'] ?? 'Permit to be obtained from site/client before works commence.')),
+                    $vf,
+                );
+            }
+            $section->addTextBreak(1);
+            $section->addText(
+                'All permits must be obtained and displayed on site before relevant works commence. Engineers must not start permit-controlled activities without a valid, signed permit.',
+                $this->font(8, italic: true, colour: self::MID_GREY),
+                ['spaceBefore' => 40, 'spaceAfter' => 40, 'alignment' => Jc::BOTH],
+            );
+        } else {
+            $section->addText(
+                'No project-specific permits have been pre-identified. Standard site requirements still apply: any permits called out in the Method Statement (e.g. permit-to-work for ceiling penetrations, electrical isolations) must be obtained from the site / client representative before the relevant activity commences.',
+                $vf,
+                ['spaceBefore' => 60, 'spaceAfter' => 80, 'alignment' => Jc::BOTH],
+            );
+        }
+    }
+
+    /**
+     * COSHH Assessment — D11.
+     * Mirrors PDF lines 1745-1772. Static prose + optional site-specific
+     * entries from $data['coshh'].
+     */
+    private function buildCoshhAssessment(PhpWord $phpWord, array $data): void
+    {
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, 'COSHH Assessment');
+
+        $bodyFont = $this->font(9);
+        $boldFont = $this->font(9, bold: true);
+        $paraStyle = ['spaceBefore' => 60, 'spaceAfter' => 80, 'alignment' => Jc::BOTH];
+
+        $section->addText(
+            'AV installation works on this project involve the use of the following substances or processes that may present a health hazard under the Control of Substances Hazardous to Health Regulations 2002 (COSHH):',
+            $bodyFont,
+            $paraStyle,
+        );
+
+        $coshhBoilerplate = [
+            ['Cable conduit adhesives / sealants', 'used in limited quantities. Ensure adequate ventilation. Wear nitrile gloves and safety glasses. Avoid skin contact. Store according to manufacturer data sheet.'],
+            ['Dust generated by drilling / cutting', 'use FFP2 dust masks when drilling into plasterboard, masonry or MDF. Use dust extraction where practicable.'],
+            ['Electrical flux (soldering)', 'only where cable terminations require soldering. Ensure ventilation. Avoid inhalation of fumes. Use flux-specific respiratory protection if repeated soldering is required.'],
+            ['Battery acid (UPS batteries if applicable)', 'handle sealed VRLA batteries per manufacturer instructions. Wear chemical-resistant gloves and eye protection.'],
+        ];
+        foreach ($coshhBoilerplate as [$head, $body]) {
+            $textRun = $section->addTextRun(['spaceBefore' => 40, 'spaceAfter' => 40]);
+            $textRun->addText('•  ' . $head . ' — ', $boldFont);
+            $textRun->addText($this->t($body), $bodyFont);
+        }
+
+        $section->addText(
+            'Engineers must report any unexpected COSHH hazard (e.g. discovery of asbestos-containing materials, chemical spills) to the Project Manager and cease work in the affected area immediately. No work to recommence until the hazard is assessed and controlled.',
+            $bodyFont,
+            $paraStyle,
+        );
+
+        $coshhExtra = $data['coshh'] ?? [];
+        if (is_array($coshhExtra) && ! empty($coshhExtra)) {
+            $section->addText('Site-specific COSHH entries:', $boldFont, ['spaceBefore' => 60, 'spaceAfter' => 40]);
+            foreach ($coshhExtra as $item) {
+                $line = is_string($item) ? $item : (string) ($item['item'] ?? '');
+                if ($line !== '') {
+                    $section->addText('•  ' . $this->t($line), $bodyFont, ['spaceBefore' => 20, 'spaceAfter' => 20]);
+                }
+            }
+        }
+    }
+
+    /**
+     * Environmental Management — D11.
+     * Mirrors PDF lines 1774-1802. Two sub-sections (Waste + Noise/Dust).
+     */
+    private function buildEnvironmentalManagement(PhpWord $phpWord, array $data): void
+    {
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, 'Environmental Management');
+
+        $bodyFont = $this->font(9);
+        $boldFont = $this->font(9, bold: true);
+        $paraStyle = ['spaceBefore' => 60, 'spaceAfter' => 80, 'alignment' => Jc::BOTH];
+
+        // ── Waste Disposal sub-section ────────────────────────────────────
+        $section->addText('Waste Disposal', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 40]);
+        $section->addText(
+            'All waste generated during the works — including packaging materials, cable off-cuts, redundant equipment, and general site waste — will be managed in accordance with the Environmental Protection Act 1990 and the Waste (England and Wales) Regulations 2011.',
+            $bodyFont,
+            $paraStyle,
+        );
+
+        $wasteParty = $data['programme']['waste_removal_party'] ?? null;
+        $wasteNotes = (string) ($data['programme']['waste_removal_notes'] ?? '');
+        $wasteLabels = ['client' => 'Client', '21cav' => '21st Century AV Ltd', 'other' => 'Other'];
+        $wasteLabel = $wasteLabels[$wasteParty] ?? '';
+        if ($wasteLabel !== '' || $wasteNotes !== '') {
+            $tr = $section->addTextRun(['spaceBefore' => 40, 'spaceAfter' => 60]);
+            $tr->addText('Waste removal responsibility: ', $boldFont);
+            $tr->addText(
+                $this->t($wasteLabel . ($wasteNotes !== '' ? ($wasteLabel !== '' ? ' — ' : '') . $wasteNotes : '')),
+                $bodyFont,
+            );
+        } else {
+            $section->addText(
+                'Waste removal responsibility to be confirmed with client prior to works.',
+                $bodyFont,
+                ['spaceBefore' => 40, 'spaceAfter' => 60],
+            );
+        }
+
+        $wasteBullets = [
+            "No waste to be disposed of via client's trade waste unless agreed in writing.",
+            'Hazardous waste (e.g. batteries, lamps, WEEE) to be disposed of via registered carriers only.',
+            'Site to be left clean and tidy at the end of each working day.',
+        ];
+        foreach ($wasteBullets as $b) {
+            $section->addText('•  ' . $b, $bodyFont, ['spaceBefore' => 20, 'spaceAfter' => 20]);
+        }
+
+        // ── Noise, Dust & Vibration sub-section ───────────────────────────
+        $section->addTextBreak(1);
+        $section->addText('Noise, Dust & Vibration', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 40]);
+        $noiseBullets = [
+            'Noisy operations (drilling, chasing) to be carried out during agreed working hours only and with prior notification to the site/client representative.',
+            'Dust suppression measures (dust sheets, vacuuming, wet methods) to be used where practical.',
+            'Hand-arm vibration exposure to be minimised; use of powered tools to comply with the Control of Vibration at Work Regulations 2005. Engineers to use anti-vibration PPE where required.',
+            'Any spill of materials on site (cable lubricants, adhesives) to be contained and cleaned immediately.',
+        ];
+        foreach ($noiseBullets as $b) {
+            $section->addText('•  ' . $b, $bodyFont, ['spaceBefore' => 20, 'spaceAfter' => 20]);
+        }
+    }
+
+    /**
+     * Welfare Arrangements — D11.
+     * Mirrors PDF lines 1804-1817.
+     */
+    private function buildWelfareArrangements(PhpWord $phpWord, array $data): void
+    {
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, 'Welfare Arrangements');
+
+        $bodyFont = $this->font(9);
+        $boldFont = $this->font(9, bold: true);
+        $welfareNotes = (string) ($data['programme']['welfare_notes'] ?? '');
+        $toiletSuffix = $welfareNotes !== '' ? '' : ' Location to be confirmed at site induction.';
+
+        $items = [
+            ['Toilets:',           'Engineers will use welfare facilities provided or indicated by the site/client representative.' . $toiletSuffix],
+            ['Washing facilities:', 'Adequate washing facilities with hot and cold water to be made available on site.'],
+            ['Rest area:',          'Engineers will use designated rest areas as directed by the site manager. No eating or drinking in work areas.'],
+            ['First Aid:',          'At least one engineer on site will hold a current First Aid at Work or Emergency First Aid at Work certificate. First aid kit carried at all times. Nearest hospital A&E to be identified at site induction.'],
+            ['Drinking water:',     'Engineers to carry their own supply; confirm availability of potable water with site contact.'],
+        ];
+        foreach ($items as [$head, $body]) {
+            $tr = $section->addTextRun(['spaceBefore' => 40, 'spaceAfter' => 40]);
+            $tr->addText('•  ' . $head . ' ', $boldFont);
+            $tr->addText($this->t($body), $bodyFont);
+        }
+
+        if ($welfareNotes !== '') {
+            $tr = $section->addTextRun(['spaceBefore' => 60]);
+            $tr->addText('Site-specific welfare notes: ', $boldFont);
+            $tr->addText($this->t($welfareNotes), $bodyFont);
+        }
+    }
+
+    /**
+     * Appendix A — Toolbox Talk Record — D12.
+     * Mirrors PDF lines 1942-1972. Static prose + 5-row signature table.
+     */
+    private function buildAppendixA(PhpWord $phpWord, array $data): void
+    {
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, 'Appendix A — Toolbox Talk Record');
+
+        $bodyFont = $this->font(9);
+        $boldFont = $this->font(9, bold: true);
+
+        $section->addText(
+            'Prior to commencement of works, the lead engineer or Project Manager must conduct a toolbox talk covering the key risks, controls, and procedures in this RAMS document. All attending personnel must sign below to confirm attendance and understanding.',
+            $bodyFont,
+            ['spaceBefore' => 60, 'spaceAfter' => 80, 'alignment' => Jc::BOTH],
+        );
+
+        $headerRun = $section->addTextRun(['spaceBefore' => 40, 'spaceAfter' => 80]);
+        $headerRun->addText('Date of toolbox talk:   ', $boldFont);
+        $headerRun->addText('________________   ', $bodyFont);
+        $headerRun->addText('Conducted by:   ', $boldFont);
+        $headerRun->addText('________________   ', $bodyFont);
+        $headerRun->addText('Location:   ', $boldFont);
+        $headerRun->addText('________________', $bodyFont);
+
+        $tbl = $section->addTable($this->tableStyle());
+        $wName = 3000;
+        $wCompany = 2500;
+        $wDate = 2000;
+        $wSig = self::W_PORT - $wName - $wCompany - $wDate;
+        $this->tealHeader($tbl, ['Name', 'Company', 'Date', 'Signature'], [$wName, $wCompany, $wDate, $wSig]);
+        for ($i = 0; $i < 5; $i++) {
+            $row = $tbl->addRow(700);
+            $row->addCell($wName)->addText('', $bodyFont);
+            $row->addCell($wCompany)->addText('', $bodyFont);
+            $row->addCell($wDate)->addText('', $bodyFont);
+            $row->addCell($wSig)->addText('', $bodyFont);
+        }
+    }
+
+    // =========================================================================
     // TEMPLATE LOADER (kept for potential future use)
     // =========================================================================
 
@@ -1353,23 +1967,40 @@ class DocxBuilderService
         return (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $text);
     }
 
-    /** Return the risk-score background colour. */
+    /**
+     * Return the risk-score background colour.
+     *
+     * D6/D7 — collapsed to PDF's 3-band palette (rams.blade.php:443-447):
+     *   1-4   = LOW    (green)
+     *   5-9   = MEDIUM (amber)
+     *   10+   = HIGH   (red)
+     *
+     * The legacy 4-band palette (RISK_ORANGE) is no longer used.
+     */
     private function riskColour(int $score): string
     {
         return match (true) {
-            $score <= 6  => self::RISK_GREEN,
+            $score <= 4  => self::RISK_GREEN,
             $score <= 9  => self::RISK_AMBER,
-            $score <= 14 => self::RISK_ORANGE,
             default      => self::RISK_RED,
         };
     }
 
-    /** Return a SHORT risk badge label for the given score. */
+    /**
+     * Return a SHORT risk badge label for the given score.
+     *
+     * D7 — thresholds aligned with PDF rams.blade.php:448-452:
+     *   <5    = LOW
+     *   5-9   = MED
+     *   10+   = HIGH
+     *
+     * Previous DOCX threshold (>= 7 => MED) mis-labelled scores 5-6 as LOW.
+     */
     private function riskBadge(int $score): string
     {
         return match (true) {
             $score >= 10 => 'HIGH',
-            $score >= 7  => 'MED',
+            $score >= 5  => 'MED',
             default      => 'LOW',
         };
     }
