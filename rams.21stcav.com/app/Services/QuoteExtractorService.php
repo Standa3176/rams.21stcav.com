@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
@@ -128,21 +129,42 @@ class QuoteExtractorService
         $raw = $response->json('content.0.text', '');
         $raw = $this->stripMarkdownFences($raw);
 
-        // Remove ALL control characters 0x00-0x1F + 0x7F. Inside JSON string
-        // values these bytes are invalid (JSON_ERROR_CTRL_CHAR) — paragraph
-        // breaks must be escaped as `\n` (two chars), not literal byte 0x0A.
-        // The previous regex preserved 0x09/0x0A/0x0D on the mistaken belief
-        // that they were "JSON structural chars"; in JSON they're only valid
-        // as inter-token whitespace, never inside strings. Stripping them
-        // collapses pretty-printing (harmless — multi-space is valid JSON
-        // whitespace) and unblocks string values with stray literal newlines.
+        // Three-stage sanitisation before json_decode — Claude's response can
+        // contain three classes of byte that trip JSON_ERROR_CTRL_CHAR:
+        //
+        // 1. C0 controls + DEL (0x00-0x1F, 0x7F) — literal newlines/tabs
+        //    inside string values (paragraph breaks in works_description).
+        //    Must be `\n` (two chars) in JSON, not raw byte 0x0A.
+        // 2. High-bit Unicode line/paragraph separators — U+0085 NEL,
+        //    U+2028 LINE SEPARATOR, U+2029 PARAGRAPH SEPARATOR. These pass
+        //    the C0 strip but newer PHP json_decode still rejects them
+        //    inside strings.
+        // 3. Malformed UTF-8 multi-byte sequences — Claude occasionally
+        //    emits stray bytes that don't form valid UTF-8 codepoints.
+        //    mb_convert_encoding('UTF-8','UTF-8',...) normalises them
+        //    (invalid byte → replacement char which is then strippable).
+        //
+        // Plus JSON_INVALID_UTF8_IGNORE as a belt-and-braces on json_decode
+        // itself (PHP 7.2+) so any remaining invalid UTF-8 doesn't blow up.
+        //
         // Triggered by Claude responses for projects with multi-paragraph
-        // `works_description` (e.g. Tilda 21CQ29531-05-OPS, package 110).
-        $raw = preg_replace('/[\x00-\x1F\x7F]/', '', $raw);
+        // works_description (e.g. Tilda 21CQ29531-05-OPS, package 110).
+        $raw = mb_convert_encoding($raw, 'UTF-8', 'UTF-8');
+        $raw = preg_replace('/[\x00-\x1F\x7F]/u', '', $raw);
+        $raw = preg_replace('/[\x{0085}\x{2028}\x{2029}]/u', '', $raw);
 
-        $decoded = json_decode($raw, true);
+        $decoded = json_decode($raw, true, 512, JSON_INVALID_UTF8_IGNORE);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
+            // Log full response for forensics — user-facing preview is
+            // truncated but operators need the offending byte to diagnose
+            // novel corruption families.
+            Log::error('QuoteExtractor: invalid JSON after sanitisation', [
+                'error'      => json_last_error_msg(),
+                'raw_length' => strlen($raw),
+                'raw_head'   => mb_substr($raw, 0, 1000),
+                'raw_tail'   => mb_substr($raw, max(0, mb_strlen($raw) - 500)),
+            ]);
             throw new RuntimeException(
                 'Quote extraction returned invalid JSON: ' . json_last_error_msg()
                 . ' — Raw response: ' . mb_substr($raw, 0, 300)
