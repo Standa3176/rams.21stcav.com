@@ -195,7 +195,7 @@ class ReviewRoomSummariesSeedTest extends TestCase
         $this->assertSame('Boardroom', $f['package']->extracted_data['room_overviews'][0]['room']);
 
         // Step 4: room_summaries MUST still be present — other consumers
-        // (PDF rams.blade.php, WordDocumentService) depend on it.
+        // (PDF rams.blade.php, DocxBuilderService) depend on it.
         $this->assertNotEmpty($f['package']->extracted_data['room_summaries'] ?? []);
     }
 }

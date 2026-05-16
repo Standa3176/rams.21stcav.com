@@ -204,7 +204,7 @@ class RiskMatrixService
      *
      * @param  string[]  $activities        Activity keys (e.g. 'ceiling_works', 'display_installation')
      * @param  bool      $drillingRequired  Whether drilling/fixing operations are needed
-     * @return array     Hazard rows ready for use in RamsBuilderService / WordDocumentService
+     * @return array     Hazard rows ready for use in RamsBuilderService / DocxBuilderService
      */
     public function getHazards(array $activities = [], bool $drillingRequired = false): array
     {

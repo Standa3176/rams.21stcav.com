@@ -19,7 +19,6 @@ use App\Services\RamsBuilderService;
 use App\Services\RamsDocumentRendererService;
 use App\Services\RamsReviewDataService;
 use App\Services\RamsReviewValidatorService;
-use App\Services\WordDocumentService;
 use App\Services\WorkerMonitorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -37,7 +36,6 @@ class RamsController extends Controller
 
     public function __construct(
         private readonly RamsBuilderService  $ramsBuilder,
-        private readonly WordDocumentService $wordDoc,
         private readonly RamsDocumentRendererService $ramsRenderer,
         private readonly PdfService          $pdfService,
         private readonly ProjectPackageRamsReviewService $packageToReview,

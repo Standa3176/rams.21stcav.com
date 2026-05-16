@@ -197,7 +197,7 @@ class ProjectPackageReviewController extends Controller
         // the initial overview value (the PM can edit on first save).
         //
         // room_summaries remains intact in extracted_data — it has independent
-        // readers (resources/views/pdf/rams.blade.php, WordDocumentService,
+        // readers (resources/views/pdf/rams.blade.php, DocxBuilderService,
         // resources/views/quote-import/review.blade.php).
         $summaryByRoom = [];
         foreach (($raw['room_summaries'] ?? []) as $rs) {
