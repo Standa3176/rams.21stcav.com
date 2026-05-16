@@ -106,6 +106,35 @@ class OmDraftModeTest extends TestCase
         $this->assertTrue(true, 'validator accepts draft-seeded context without throwing');
     }
 
+    public function test_validator_accepts_draft_seeded_narrative_placeholder(): void
+    {
+        // Per-room narrative gate — the third draft-mode seed (observed on
+        // Tilda 21CQ29531-05-OPS / OmManual #10: ROOM BOOKING PANELS came
+        // through with empty narrative because the per-room overview
+        // wasn't authored at quote-import time).
+        $validator = new OmManualValidationService();
+
+        $context = [
+            'project_name'  => 'Test Project',
+            'client_name'   => 'Test Client',
+            'site_address'  => '1 Test Way',
+            'document_date' => '17 May 2026',
+            'handover_date' => '[TBC] — handover date to be scheduled',
+            'rooms'         => [[
+                'name'      => 'ROOM BOOKING PANELS',
+                'equipment' => [['name' => 'Crestron 10.1 Panel']],
+                'narrative' => '[TBC] — narrative for ROOM BOOKING PANELS to be added',
+            ]],
+            'drawings'      => [[
+                'name' => '[TBC] — engineering drawings to follow',
+                'type' => 'placeholder',
+            ]],
+        ];
+
+        $validator->validateOmData($context);
+        $this->assertTrue(true, 'validator accepts [TBC] narrative seed');
+    }
+
     public function test_validator_still_rejects_blank_handover_and_zero_drawings(): void
     {
         // Negative control: prove the strict rules are still enforced when

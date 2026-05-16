@@ -398,11 +398,11 @@ class OmManualGeneratorService
         $context = $this->buildContentContext($manual);
 
         // Draft mode (set by OmManualController::generateFromProject when
-        // `?draft=1` is passed) — seeds [TBC] placeholders for the two
-        // validator gates that block early-stage projects: handover_date
-        // and drawings. Other gates (project_name, client_name, narrative,
-        // rooms, equipment) still enforce strictly — those are inherent
-        // to a useful document at any stage, draft or final.
+        // `?draft=1` is passed) — seeds [TBC] placeholders for the three
+        // validator gates that block early-stage projects: handover_date,
+        // drawings, and per-room narrative. Other gates (project_name,
+        // client_name, rooms, equipment) still enforce strictly — those
+        // are inherent to any useful document at any stage, draft or final.
         //
         // The flag is read from $manual->extracted_data['_draft_mode']
         // (persisted at create time) so the Retry path preserves it
@@ -420,6 +420,27 @@ class OmManualGeneratorService
                         'type' => 'placeholder',
                     ],
                 ];
+            }
+            // Per-room narrative seed — covers rooms that don't yet have a
+            // reviewed phrased overview (typically project areas added late
+            // in the quote that the PM hasn't filled in yet). Common case
+            // observed on Tilda 21CQ29531-05-OPS / OmManual #10: ROOM
+            // BOOKING PANELS came through the AI extractor with empty
+            // narrative because the per-room overview wasn't authored.
+            if (is_array($context['rooms'] ?? null)) {
+                $context['rooms'] = array_map(static function (array $room): array {
+                    if (trim((string) ($room['narrative'] ?? '')) === '') {
+                        $name = trim((string) ($room['name'] ?? 'this room'));
+                        $tbc  = '[TBC] — narrative for ' . $name . ' to be added';
+                        $room['narrative']   = $tbc;
+                        // Mirror to description for legacy template back-compat
+                        // (some O&M sections still read $room['description']).
+                        if (trim((string) ($room['description'] ?? '')) === '') {
+                            $room['description'] = $tbc;
+                        }
+                    }
+                    return $room;
+                }, $context['rooms']);
             }
         }
 
