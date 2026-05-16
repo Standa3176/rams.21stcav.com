@@ -273,18 +273,26 @@ class OmManualGeneratorService
         if ($linkedPackage !== null) {
             foreach ((array) ($linkedPackage->extracted_data['room_overviews'] ?? []) as $ro) {
                 $roomName = trim((string) ($ro['room'] ?? ''));
-                $desc     = trim((string) ($ro['description'] ?? ''));
+                // Phase 22.1 D-01: room_overviews carries 4 canonical keys
+                // (room / overview / works_summary / solution_type_id).
+                // The legacy 'description' key is actively stripped by
+                // RamsReviewDataService::normaliseRoomOverviews(), so any
+                // package extracted post-Phase-22.1 (every project since late
+                // April 2026) returns empty for 'description'. The validator
+                // then rejects O&M generation with "narrative for {room}
+                // missing". Read 'overview' as canonical with 'description'
+                // as legacy fallback for pre-22.1 records.
+                $desc = trim((string) ($ro['overview'] ?? $ro['description'] ?? ''));
                 if ($roomName !== '' && $desc !== '') {
                     $descriptionsByRoom[$roomName] = $desc;
                 }
             }
         }
 
-        // Merge descriptions into each room entry. Phase 1 added 'narrative'
-        // as the canonical key for the per-room overview the validator
-        // checks; we populate both 'description' (legacy template / back-compat)
-        // and 'narrative' (Tier 1 spec) from the same source so existing
-        // room_overviews data unblocks generation without a data migration.
+        // Merge descriptions into each room entry. The validator checks
+        // 'narrative' (Tier 1 spec); we populate both 'description' (legacy
+        // template back-compat) and 'narrative' (canonical) from the same
+        // source so existing templates render and the validator passes.
         $rooms = array_map(function (array $room) use ($descriptionsByRoom): array {
             $name        = $room['name'] ?? '';
             $description = $descriptionsByRoom[$name] ?? '';
