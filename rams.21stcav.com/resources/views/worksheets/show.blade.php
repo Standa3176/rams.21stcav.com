@@ -263,6 +263,33 @@
                     </table>
                 @endif
 
+                {{-- Section A2: Engineer Work Summary — F-WS-02 parity fix
+                     (audit 2026-05-17). Renders works_summary_bullets when
+                     available, else falls back to the prose paragraph in
+                     room_works_description. Mirrors WorksheetDocxService
+                     lines 278-279 so the web view matches the DOCX a user
+                     downloads. --}}
+                @php
+                    $worksBullets = (array) ($room['works_summary_bullets'] ?? []);
+                    $worksBullets = array_values(array_filter(array_map(
+                        fn ($b) => trim((string) $b),
+                        $worksBullets
+                    ), fn ($b) => $b !== ''));
+                    $worksDescription = trim((string) ($room['room_works_description'] ?? ''));
+                @endphp
+                @if(! empty($worksBullets) || $worksDescription !== '')
+                    <div class="room-section-hdr">Engineer Work Summary</div>
+                    @if(! empty($worksBullets))
+                        <ul style="margin:0 0 1rem 1.25rem;padding:0;font-size:.875rem;line-height:1.6;color:var(--text);">
+                            @foreach($worksBullets as $bullet)
+                                <li style="margin-bottom:.25rem;">{{ $bullet }}</li>
+                            @endforeach
+                        </ul>
+                    @else
+                        <p style="font-size:.875rem;line-height:1.6;color:var(--text);white-space:pre-wrap;margin-bottom:1rem;">{{ $worksDescription }}</p>
+                    @endif
+                @endif
+
                 {{-- Section B: Install Steps --}}
                 <div class="room-section-hdr">Install Steps</div>
                 @if(! empty($room['install_steps']))
