@@ -194,6 +194,16 @@ class QuoteImportController extends Controller
     {
         $this->authorizePackage($package);
 
+        // Claude PDF-vision extraction can take 60-90s on complex multi-room
+        // quotes; default PHP max_execution_time (30s on most FPM pools)
+        // kills the process before persistence, leaving zero new packages
+        // despite the apparent 504 Gateway Timeout in the browser. Lift the
+        // limit and keep working even if the client disconnects so the new
+        // package row lands and the user can refresh to find it. Proper fix
+        // is a queued job (ReimportQuoteJob) — tracked for follow-up.
+        set_time_limit(0);
+        ignore_user_abort(true);
+
         $provider = $request->input('ai_provider');
 
         try {
