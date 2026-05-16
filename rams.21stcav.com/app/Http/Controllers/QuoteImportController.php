@@ -4,9 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Core\AI\AIManager;
 use App\Core\Modules\QuoteImport\QuoteImportService;
-use App\Exceptions\AIGenerationException;
 use App\Http\Requests\QuoteImportRequest;
 use App\Jobs\ExtractQuoteJob;
+use App\Jobs\ReimportQuoteJob;
 use App\Models\Project;
 use App\Models\ProjectPackage;
 use App\Services\WorkerMonitorService;
@@ -194,31 +194,39 @@ class QuoteImportController extends Controller
     {
         $this->authorizePackage($package);
 
-        // Claude PDF-vision extraction can take 60-90s on complex multi-room
-        // quotes; default PHP max_execution_time (30s on most FPM pools)
-        // kills the process before persistence, leaving zero new packages
-        // despite the apparent 504 Gateway Timeout in the browser. Lift the
-        // limit and keep working even if the client disconnects so the new
-        // package row lands and the user can refresh to find it. Proper fix
-        // is a queued job (ReimportQuoteJob) — tracked for follow-up.
-        set_time_limit(0);
-        ignore_user_abort(true);
-
-        $provider = $request->input('ai_provider');
-
+        // Re-extraction is queued — the Claude PDF-vision call can take 60-90s
+        // on dense multi-room quotes (Tilda 21CQ29531-05-OPS was the canonical
+        // defect). Running it inside the HTTP request killed PHP at
+        // max_execution_time and surfaced a 504 to the browser before the new
+        // package row could land. We now:
+        //   1. Create the new package immediately with status=EXTRACTING
+        //      via reimportPending() — atomic, sub-second.
+        //   2. Dispatch ReimportQuoteJob to do the slow Claude call in the
+        //      background via the existing database queue worker.
+        //   3. Redirect to the extracting status page (same one initial
+        //      imports use) — it polls extractStatus and redirects to the
+        //      review page once status flips to EXTRACTED.
+        // No more PHP timeouts, no more 504s on slow quotes.
         try {
-            $newPackage = $this->service->reimport(
+            $newPackage = $this->service->reimportPending(
                 user:     auth()->user(),
                 existing: $package,
-                provider: $provider,
             );
-        } catch (AIGenerationException $e) {
+        } catch (\RuntimeException $e) {
             return back()->with('error', 'Re-extraction failed: ' . $e->getMessage());
         }
 
+        $this->workerMonitor->ensureRunning();
+        ReimportQuoteJob::dispatch(
+            $newPackage,
+            auth()->user(),
+            $package,
+            $request->input('ai_provider'),
+        );
+
         return redirect()
-            ->route('project-packages.review.show', $newPackage)
-            ->with('success', 'Quote re-extracted (revision ' . $newPackage->revision . '). Please review the updated data.');
+            ->route('quote-import.extracting', $newPackage)
+            ->with('info', 'Re-extraction queued (revision ' . $newPackage->revision . ') — running in the background.');
     }
 
     // ── Private ───────────────────────────────────────────────────────────────

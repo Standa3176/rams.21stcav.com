@@ -239,6 +239,94 @@ class QuoteImportService
         });
     }
 
+    // ── Async re-extract (revision bump, queued background extraction) ─────────
+
+    /**
+     * Create the placeholder for a queued re-extraction.
+     *
+     * Mirrors importPending() but for the re-extract revision path:
+     *   - validates the source PDF still exists on disk
+     *   - creates a new ProjectPackage row immediately with
+     *     status=EXTRACTING + revision++ + same quote_path/filename
+     *   - returns the new package straight away (no Claude call here)
+     *
+     * The actual extraction runs asynchronously in ReimportQuoteJob,
+     * which calls completePendingReimport() below. This decouples the
+     * 60-90s Claude API call from the synchronous HTTP request so the
+     * controller can return immediately and the user lands on the
+     * extracting status page (same one the initial-import flow uses).
+     *
+     * @throws RuntimeException  When the stored PDF is missing.
+     */
+    public function reimportPending(User $user, ProjectPackage $existing): ProjectPackage
+    {
+        if (! Storage::exists($existing->quote_path)) {
+            throw new RuntimeException(
+                "Cannot re-extract package #{$existing->id}: stored PDF not found at '{$existing->quote_path}'."
+            );
+        }
+
+        return ProjectPackage::create([
+            'project_id'        => $existing->project_id,
+            'user_id'           => $user->id,
+            'quote_filename'    => $existing->quote_filename,
+            'quote_path'        => $existing->quote_path,
+            'extracted_data'    => [],
+            'equipment_list'    => [],
+            'cable_list'        => [],
+            'works_description' => null,
+            'revision'          => $existing->revision + 1,
+            'status'            => ProjectPackage::STATUS_EXTRACTING,
+        ]);
+    }
+
+    /**
+     * Complete a queued re-extraction. Called by ReimportQuoteJob.
+     *
+     * Runs the slow Claude call, then atomically writes the extracted_data
+     * + flips status to EXTRACTED + logs activity. If the Claude call
+     * throws, the job's failed() hook flips status to FAILED so the
+     * extracting page can surface the failure to the user.
+     *
+     * @throws AIGenerationException  Bubbles up from QuoteExtractorService.
+     */
+    public function completePendingReimport(
+        ProjectPackage $pending,
+        User           $user,
+        ?ProjectPackage $previousRevision = null,
+        ?string        $provider = null,
+    ): ProjectPackage {
+        $extracted = $this->extract($pending->quote_path, $provider);
+
+        return DB::transaction(function () use ($pending, $user, $extracted, $previousRevision) {
+            $pending->update([
+                'extracted_data'    => $extracted,
+                'equipment_list'    => $extracted['equipment_list'] ?? [],
+                'cable_list'        => $extracted['cable_hints']    ?? [],
+                'works_description' => $extracted['works_description'] ?? null,
+                'status'            => ProjectPackage::STATUS_EXTRACTED,
+            ]);
+
+            if ($pending->project_id) {
+                $project = $pending->project;
+                if ($project !== null) {
+                    $this->projectService->log(
+                        project:     $project,
+                        user:        $user,
+                        action:      ProjectActivityLog::ACTION_PACKAGE_IMPORTED,
+                        description: "{$user->name} re-extracted quote (revision {$pending->revision}).",
+                        metadata:    [
+                            'package_id'  => $pending->id,
+                            'previous_id' => $previousRevision?->id,
+                        ],
+                    );
+                }
+            }
+
+            return $pending->fresh();
+        });
+    }
+
     // ── Array-based import (test / SQL-import helper) ─────────────────────────
 
     /**
