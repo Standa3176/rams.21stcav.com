@@ -410,8 +410,8 @@ class ExtractQuoteJob implements ShouldQueue
      * Return values (applied in order):
      *   customer_supplied   — CS / C/S prefix: client-procured hardware, no supply cost
      *   service_contract    — Subscription, warranty, SLA, or support-plan line
-     *   consumable          — Bulk materials: cables, fixings, delivery, waste, etc.
-     *   professional_service — Labour, documentation, travel, surveys
+     *   consumable          — Bulk materials: cables, fixings, sundries, waste, etc.
+     *   professional_service — Labour, documentation, travel, surveys, delivery
      *   hardware            — Everything else (physically installed product)
      *
      * Used to split equipment_list into hardware_list (RAMS/O&M) and
@@ -451,8 +451,12 @@ class ExtractQuoteJob implements ShouldQueue
 
         // ── Consumables ───────────────────────────────────────────────────────
         // Bulk materials — not individually identifiable hardware pieces.
+        // NOTE: DELIVERY/CARRIAGE/POSTAGE were previously here but moved to
+        // $servicePrefixes — transportation is a service, not a consumable
+        // bulk material. QuoteWerks templates list them under "Services"
+        // alongside SURVEY/RAMS/INSTALL (see 21CQ30451-01-OPS).
         $consumablePrefixes = [
-            'CONSUMABLE', 'DELIVERY', 'CABLES', 'CABLE', 'MISC', 'PACKING', 'WASTE',
+            'CONSUMABLE', 'CABLES', 'CABLE', 'MISC', 'PACKING', 'WASTE',
             'SUNDRY', 'SUNDRIES', 'MATERIALS', 'TRUNKING', 'HDMI', 'WALLMOUNT',
             'BRACKET', 'FASTENER', 'FIXINGS', 'CONDUIT', 'CATCABLE', 'PATCH',
         ];
@@ -467,7 +471,7 @@ class ExtractQuoteJob implements ShouldQueue
             $consumableDescKeywords = [
                 'cable', 'cabling', 'trunking', 'conduit', 'patch', 'hdmi',
                 'bracket', 'fixings', 'fixings', 'fastener', 'wall mount',
-                'delivery', 'carriage', 'postage', 'sundry', 'materials',
+                'sundry', 'materials',
             ];
             foreach ($consumableDescKeywords as $kw) {
                 if (str_contains($desc, $kw)) {
@@ -477,11 +481,12 @@ class ExtractQuoteJob implements ShouldQueue
         }
 
         // ── Professional services ─────────────────────────────────────────────
-        // Labour, documentation, travel, surveys — not physically installed items.
+        // Labour, documentation, travel, surveys, transportation —
+        // not physically installed items.
         $servicePrefixes = [
             'INSTALL', 'FIRSTFIX', 'SECONDFIX', 'THIRDFIX', 'COMMISSION',
             'RAMS', 'SSV', 'PM', 'PROJMAN', 'PROJECTMAN', 'TRAINING',
-            'TRAVEL', 'TRAV', 'MILEAGE',
+            'TRAVEL', 'TRAV', 'MILEAGE', 'DELIVERY', 'CARRIAGE', 'POSTAGE',
             'OMANUAL', 'CABLESCH', 'PROSER', 'PROGRAM', 'CONSULT',
             'DRAWING', 'SNAG', 'CALLOUT', 'SUPPORT', 'CONFIG', 'HANDOVER',
             'DERIG', 'DECOMM', 'SURVEY', 'ATTEND', 'VISIT', 'RACK',
@@ -498,6 +503,7 @@ class ExtractQuoteJob implements ShouldQueue
             'site survey', 'install', 'commissioning', 'labour', 'travel',
             'training', 'project management', 'risk assessment', 'method statement',
             'call out', 'callout', 'consultation', 'engineer',
+            'delivery', 'carriage', 'postage',
         ];
         foreach ($serviceDescKeywords as $kw) {
             if (str_contains($desc, $kw)) {
