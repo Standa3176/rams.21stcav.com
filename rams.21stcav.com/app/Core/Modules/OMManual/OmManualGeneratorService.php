@@ -414,10 +414,23 @@ class OmManualGeneratorService
             }
             $drawings = is_array($context['drawings'] ?? null) ? $context['drawings'] : [];
             if (empty($drawings)) {
+                // Full canonical drawing shape — the PDF blade iterates
+                // $drawings and accesses every key without ?? defaults
+                // (resources/views/pdf/om-manual.blade.php:858-865). A
+                // sparse placeholder ({name, type} only) crashed PDF
+                // generation with "Undefined array key reference_number"
+                // even after the validator passed. Keys mirror the live
+                // appendices->drawing mapping at om-manual.blade.php:268.
                 $context['drawings'] = [
                     [
-                        'name' => '[TBC] — engineering drawings to follow',
-                        'type' => 'placeholder',
+                        'reference_number' => '[TBC]',
+                        'title'            => 'Engineering drawings to follow',
+                        'revision'         => '',
+                        'date'             => '',
+                        'file_path'        => '',
+                        // Legacy keys for any consumer still reading them.
+                        'name'             => '[TBC] — engineering drawings to follow',
+                        'type'             => 'placeholder',
                     ],
                 ];
             }
