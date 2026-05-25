@@ -57,17 +57,19 @@ class InstallTaskNotesTest extends TestCase
         $this->assertSame('', (string) $task->fresh()->notes);
     }
 
-    public function test_unrelated_user_cannot_save_notes(): void
+    public function test_any_authenticated_user_can_save_notes(): void
     {
+        // Shared workspace (260525-s8b): a non-owner, non-assigned user succeeds.
         [, $task] = $this->scaffold();
         $stranger = User::factory()->create();
 
         $response = $this->actingAs($stranger)->patchJson(
             "/install-tasks/{$task->id}/notes",
-            ['notes' => 'sneaky'],
+            ['notes' => 'shared workspace note'],
         );
 
-        $response->assertForbidden();
+        $response->assertOk();
+        $this->assertSame('shared workspace note', $task->fresh()->notes);
     }
 
     private function scaffold(array $taskAttrs = []): array

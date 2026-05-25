@@ -92,8 +92,9 @@ class TimeEntryTest extends TestCase
         $response->assertStatus(422);
     }
 
-    public function test_unrelated_user_cannot_clock_in(): void
+    public function test_any_authenticated_user_can_clock_in(): void
     {
+        // Shared workspace (260525-s8b): a non-owner, non-assigned user succeeds.
         $owner = User::factory()->create();
         $stranger = User::factory()->create();
         $project = Project::factory()->create(['user_id' => $owner->id]);
@@ -103,7 +104,14 @@ class TimeEntryTest extends TestCase
             ['category' => TimeEntry::CATEGORY_INSTALLATION],
         );
 
-        $response->assertForbidden();
+        $response->assertOk();
+        $response->assertJsonStructure(['id', 'category', 'clocked_in_at']);
+        $this->assertDatabaseHas('time_entries', [
+            'project_id'     => $project->id,
+            'user_id'        => $stranger->id,
+            'category'       => TimeEntry::CATEGORY_INSTALLATION,
+            'clocked_out_at' => null,
+        ]);
     }
 
     public function test_one_user_can_open_entries_on_different_projects(): void

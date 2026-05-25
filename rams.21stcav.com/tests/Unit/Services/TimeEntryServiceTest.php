@@ -213,8 +213,10 @@ class TimeEntryServiceTest extends TestCase
         ]);
     }
 
-    public function test_edit_entry_by_stranger_throws(): void
+    public function test_edit_entry_by_any_user_succeeds_and_writes_audit(): void
     {
+        // Shared workspace (260525-s8b): a non-owner, non-admin user may retro-edit
+        // any entry; the audit row records them as editor (accountability preserved).
         $owner    = User::factory()->create();
         $stranger = User::factory()->create();
         $project  = Project::factory()->create(['user_id' => $owner->id]);
@@ -225,19 +227,22 @@ class TimeEntryServiceTest extends TestCase
             'category'   => TimeEntry::CATEGORY_INSTALLATION,
         ]);
 
-        try {
-            $this->service->editEntry(
-                $entry,
-                $stranger,
-                TimeEntryAudit::FIELD_CATEGORY,
-                TimeEntry::CATEGORY_TESTING,
-            );
-            $this->fail('Expected AuthorizationException');
-        } catch (AuthorizationException) {
-            // expected
-        }
+        $fresh = $this->service->editEntry(
+            $entry,
+            $stranger,
+            TimeEntryAudit::FIELD_CATEGORY,
+            TimeEntry::CATEGORY_TESTING,
+        );
 
-        $this->assertSame(0, TimeEntryAudit::count());
+        $this->assertSame(TimeEntry::CATEGORY_TESTING, $fresh->category);
+        $this->assertSame(1, TimeEntryAudit::count());
+        $this->assertDatabaseHas('time_entry_audits', [
+            'time_entry_id'     => $entry->id,
+            'edited_by_user_id' => $stranger->id,
+            'field'             => TimeEntryAudit::FIELD_CATEGORY,
+            'old_value'         => TimeEntry::CATEGORY_INSTALLATION,
+            'new_value'         => TimeEntry::CATEGORY_TESTING,
+        ]);
     }
 
     public function test_edit_entry_rejects_open_entry(): void

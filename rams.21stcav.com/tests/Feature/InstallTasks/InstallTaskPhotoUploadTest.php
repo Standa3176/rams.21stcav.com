@@ -118,29 +118,61 @@ class InstallTaskPhotoUploadTest extends TestCase
         $this->assertSame('Rack after tidy', $photo->fresh()->caption);
     }
 
-    public function test_unrelated_user_cannot_upload(): void
+    public function test_any_authenticated_user_can_upload_photo(): void
     {
+        // Shared workspace (260525-s8b): a non-owner, non-assigned user succeeds.
+        Storage::fake('local');
         [, $task] = $this->scaffold();
         $stranger = User::factory()->create();
 
-        $file = UploadedFile::fake()->image('sneaky.jpg');
+        $file = new UploadedFile(
+            base_path('tests/Fixtures/sample.jpg'),
+            'shared.jpg',
+            'image/jpeg',
+            null,
+            true,
+        );
 
         $response = $this->actingAs($stranger)->post(
             "/install-tasks/{$task->id}/photos",
             ['photo' => $file],
         );
 
-        $response->assertForbidden();
+        $response->assertCreated();
+        $response->assertJsonStructure(['id', 'filename', 'original_name', 'url']);
+        $this->assertDatabaseCount('install_task_photos', 1);
+
+        $photo = InstallTaskPhoto::first();
+        Storage::disk('local')->assertExists($photo->filename);
     }
 
-    public function test_unrelated_user_cannot_view_photo(): void
+    public function test_any_authenticated_user_can_view_photo(): void
     {
-        [, , $photo] = $this->setupWithPhoto();
+        // Shared workspace (260525-s8b): a non-owner, non-assigned user can view.
+        // Upload a real file first (the file-existence 404 guard is preserved),
+        // then prove a stranger streams it back with a 200 — not a 403.
+        Storage::fake('local');
+        [$owner, $task] = $this->scaffold();
+
+        $file = new UploadedFile(
+            base_path('tests/Fixtures/sample.jpg'),
+            'site.jpg',
+            'image/jpeg',
+            null,
+            true,
+        );
+
+        $this->actingAs($owner)
+            ->post("/install-tasks/{$task->id}/photos", ['photo' => $file])
+            ->assertCreated();
+
+        $photo = InstallTaskPhoto::first();
         $stranger = User::factory()->create();
 
         $response = $this->actingAs($stranger)->get("/install-task-photos/{$photo->id}");
 
-        $response->assertForbidden();
+        $response->assertOk();
+        $this->assertStringStartsWith('image/', (string) $response->headers->get('Content-Type'));
     }
 
     public function test_original_filename_with_traversal_is_sanitised(): void

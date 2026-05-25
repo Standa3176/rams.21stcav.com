@@ -118,8 +118,9 @@ class InstallTaskStatusUpdateTest extends TestCase
         ]);
     }
 
-    public function test_unrelated_user_gets_403(): void
+    public function test_any_authenticated_user_can_update_status(): void
     {
+        // Shared workspace (260525-s8b): a non-owner, non-assigned user succeeds.
         [, $task] = $this->scaffold();
         $stranger = User::factory()->create();
 
@@ -128,7 +129,12 @@ class InstallTaskStatusUpdateTest extends TestCase
             ['status' => InstallTask::STATUS_IN_PROGRESS],
         );
 
-        $response->assertForbidden();
+        $response->assertOk();
+        $response->assertJsonPath('status', InstallTask::STATUS_IN_PROGRESS);
+        $this->assertDatabaseHas('install_tasks', [
+            'id'     => $task->id,
+            'status' => InstallTask::STATUS_IN_PROGRESS,
+        ]);
     }
 
     public function test_status_rejects_invalid_value(): void

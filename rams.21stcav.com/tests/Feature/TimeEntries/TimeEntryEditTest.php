@@ -90,8 +90,11 @@ class TimeEntryEditTest extends TestCase
         ]);
     }
 
-    public function test_stranger_cannot_edit_foreign_entry(): void
+    public function test_any_authenticated_user_can_edit_any_entry(): void
     {
+        // Shared workspace (260525-s8b): a non-owner, non-admin user may retro-edit
+        // any entry. The append-only audit row records them as editor — accountability
+        // is preserved by the trail, not by an ownership gate.
         $owner    = User::factory()->create();
         $stranger = User::factory()->create();
         $project  = Project::factory()->create(['user_id' => $owner->id]);
@@ -106,8 +109,17 @@ class TimeEntryEditTest extends TestCase
             'value' => TimeEntry::CATEGORY_TESTING,
         ]);
 
-        $response->assertForbidden();
-        $this->assertSame(0, TimeEntryAudit::count());
+        $response->assertOk();
+        $this->assertDatabaseHas('time_entries', [
+            'id'       => $entry->id,
+            'category' => TimeEntry::CATEGORY_TESTING,
+        ]);
+        $this->assertSame(1, TimeEntryAudit::count());
+        $this->assertDatabaseHas('time_entry_audits', [
+            'time_entry_id'     => $entry->id,
+            'edited_by_user_id' => $stranger->id,
+            'field'             => TimeEntryAudit::FIELD_CATEGORY,
+        ]);
     }
 
     public function test_cannot_edit_open_entry(): void

@@ -57,8 +57,9 @@ class FieldPageTest extends TestCase
         $response->assertOk();
     }
 
-    public function test_unrelated_user_gets_403(): void
+    public function test_any_authenticated_user_can_view_field_page(): void
     {
+        // Shared workspace (260525-s8b): a non-owner, non-assigned user gets 200.
         $owner = User::factory()->create();
         $stranger = User::factory()->create();
         $project = Project::factory()->create(['user_id' => $owner->id]);
@@ -66,7 +67,7 @@ class FieldPageTest extends TestCase
 
         $response = $this->actingAs($stranger)->get("/projects/{$project->id}/programme");
 
-        $response->assertForbidden();
+        $response->assertOk();
     }
 
     public function test_unauthenticated_user_is_redirected_to_login(): void
@@ -78,9 +79,11 @@ class FieldPageTest extends TestCase
         $response->assertRedirect('/login');
     }
 
-    public function test_engineer_sees_only_assigned_tasks_by_default(): void
+    public function test_any_authenticated_user_sees_all_tasks_by_default(): void
     {
-        // INST-03b / D-02 — engineer default scope
+        // Shared workspace (260525-s8b): the listing is un-scoped, so every
+        // authenticated user defaults to scope=all and sees ALL tasks — including
+        // those assigned to someone else. (Was the INST-03b/D-02 assigned-only filter.)
         $owner = User::factory()->create();
         $engineer = User::factory()->create();
         $otherEngineer = User::factory()->create();
@@ -102,7 +105,7 @@ class FieldPageTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('My assigned task');
-        $response->assertDontSee('Someone else task');
+        $response->assertSee('Someone else task');
     }
 
     public function test_owner_sees_all_tasks_including_unassigned(): void

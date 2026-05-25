@@ -10,16 +10,16 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * T-16-03 — ownership guard on every commissioning endpoint. Engineers
- * assigned to project A cannot mutate project B's items.
- *
- * Red until Plan 03 ships authoriseEdit + authoriseView guards.
+ * Shared workspace (260525-s8b) — every commissioning endpoint is open to any
+ * authenticated user. The 3-person team shares all field-ops surfaces, so a
+ * non-owner, non-assigned user can view the checklist and patch any project's
+ * items. (Was the T-16-03 owner/assigned-engineer 403 model pre-260525-s8b.)
  */
 class OwnershipGuardTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_stranger_gets_403_on_checklist_view(): void
+    public function test_any_authenticated_user_can_view_checklist(): void
     {
         $owner = User::factory()->create();
         $stranger = User::factory()->create();
@@ -29,10 +29,10 @@ class OwnershipGuardTest extends TestCase
 
         $this->actingAs($stranger)
             ->get("/projects/{$project->id}/commissioning")
-            ->assertForbidden();
+            ->assertOk();
     }
 
-    public function test_stranger_gets_403_on_status_patch(): void
+    public function test_any_authenticated_user_can_patch_status(): void
     {
         $owner = User::factory()->create();
         $stranger = User::factory()->create();
@@ -41,18 +41,26 @@ class OwnershipGuardTest extends TestCase
         $programme = InstallProgramme::factory()->create(['project_id' => $project->id]);
         $item = CommissioningItem::factory()->create(['install_programme_id' => $programme->id]);
 
-        $this->actingAs($stranger)
+        $response = $this->actingAs($stranger)
             ->patchJson("/commissioning-items/{$item->id}/status", [
                 'status' => CommissioningItem::STATUS_PASS,
-            ])
-            ->assertForbidden();
+            ]);
+
+        $response->assertOk();
+        $response->assertJsonStructure([
+            'id',
+            'status',
+            'counters' => [
+                'programme' => ['complete', 'total', 'unlocked'],
+            ],
+        ]);
     }
 
-    public function test_engineer_assigned_to_project_a_cannot_patch_project_b_item(): void
+    public function test_any_authenticated_user_can_patch_any_project_item(): void
     {
-        // Two projects / two engineers
+        // Two projects / two engineers — proves a user with NO relationship to
+        // project B can still patch project B's item under the shared model.
         $engineerA = User::factory()->create();
-        $engineerB = User::factory()->create();
 
         $ownerA = User::factory()->create();
         $ownerB = User::factory()->create();
@@ -77,6 +85,6 @@ class OwnershipGuardTest extends TestCase
             ->patchJson("/commissioning-items/{$itemB->id}/status", [
                 'status' => CommissioningItem::STATUS_PASS,
             ])
-            ->assertForbidden();
+            ->assertOk();
     }
 }
