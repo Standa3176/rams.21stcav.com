@@ -56,9 +56,8 @@ class WorksheetController extends Controller
     {
         $isAdmin = auth()->user()->isAdmin();
 
-        $worksheets = $isAdmin
-            ? Worksheet::with('project')->latest()->paginate(15)
-            : auth()->user()->worksheets()->with('project')->latest()->paginate(15);
+        // Shared workspace: every authenticated user sees ALL worksheets.
+        $worksheets = Worksheet::with('project')->latest()->paginate(15);
 
         return view('worksheets.index', compact('worksheets', 'isAdmin'));
     }

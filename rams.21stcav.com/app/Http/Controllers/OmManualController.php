@@ -40,9 +40,8 @@ class OmManualController extends Controller
             return view('om-manual.index', compact('manuals', 'isAdmin', 'showDeleted'));
         }
 
-        $manuals = $isAdmin
-            ? OmManual::with(['user', 'project'])->latest()->paginate(15)
-            : auth()->user()->omManuals()->with('project')->latest()->paginate(15);
+        // Shared workspace: every authenticated user sees ALL O&M manuals.
+        $manuals = OmManual::with(['user', 'project'])->latest()->paginate(15);
 
         return view('om-manual.index', compact('manuals', 'isAdmin', 'showDeleted'));
     }
@@ -53,7 +52,8 @@ class OmManualController extends Controller
     {
         $defaultProvider = config('ai.default');
 
-        $projects = Project::forUser(auth()->id())
+        // Shared workspace: list ALL projects in the dropdown.
+        $projects = Project::query()
             ->orderByDesc('updated_at')
             ->get(['id', 'name', 'ref', 'client_name']);
 
@@ -63,7 +63,6 @@ class OmManualController extends Controller
 
         if ($selectedProjectId) {
             $selectedProject = Project::where('id', $selectedProjectId)
-                ->where('user_id', auth()->id())
                 ->with('latestPackage')
                 ->first();
             $latestPackage = $selectedProject?->latestPackage;
@@ -86,7 +85,7 @@ class OmManualController extends Controller
         $projectId = $request->input('project_id');
 
         $project = $projectId
-            ? Project::where('id', $projectId)->where('user_id', auth()->id())->firstOrFail()
+            ? Project::where('id', $projectId)->firstOrFail()
             : null;
 
         // Move to a temp directory for extraction

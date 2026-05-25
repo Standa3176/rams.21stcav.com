@@ -54,14 +54,12 @@ class RamsController extends Controller
 
         $showTrashed = $isAdmin && request()->boolean('show_deleted');
 
-        $query = $isAdmin
-            ? RamsDocument::query()->with(['user', 'omManual'])
-            : auth()->user()->ramsDocuments()->with('omManual');
+        // Shared workspace: every authenticated user sees ALL RAMS.
+        // Viewing trashed/soft-deleted rows stays admin-only.
+        $query = RamsDocument::query()->with(['user', 'omManual']);
 
         if ($showTrashed) {
-            $query = $isAdmin
-                ? RamsDocument::onlyTrashed()->with(['user', 'omManual'])
-                : auth()->user()->ramsDocuments()->onlyTrashed()->with('omManual');
+            $query = RamsDocument::onlyTrashed()->with(['user', 'omManual']);
         }
 
         $rams = $query->latest()->paginate(15);

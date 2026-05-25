@@ -40,7 +40,8 @@ class CableScheduleController extends Controller
             return view('cable-schedule.index', compact('schedules', 'isAdmin', 'showDeleted'));
         }
 
-        $schedules = CableSchedule::where('user_id', auth()->id())
+        // Shared workspace: every authenticated user sees ALL cable schedules.
+        $schedules = CableSchedule::query()
             ->withCount('items')
             ->latest()
             ->paginate(15);

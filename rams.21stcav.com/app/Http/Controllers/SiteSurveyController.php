@@ -36,7 +36,8 @@ class SiteSurveyController extends Controller
             return view('site-survey.index', compact('surveys', 'isAdmin', 'showDeleted'));
         }
 
-        $surveys = SiteSurvey::where('user_id', auth()->id())
+        // Shared workspace: every authenticated user sees ALL surveys.
+        $surveys = SiteSurvey::query()
             ->with('project:id,name')
             ->withCount('rooms')
             ->latest()
@@ -65,7 +66,7 @@ class SiteSurveyController extends Controller
 
     public function create(Request $request): View
     {
-        $projects = Project::where('user_id', auth()->id())
+        $projects = Project::query() // Shared workspace: list ALL projects.
             ->orderBy('name')
             ->get(['id', 'name']);
 
@@ -125,7 +126,7 @@ class SiteSurveyController extends Controller
 
         if ($existingSurvey) {
             // Render the create form with the supersede confirmation block.
-            $projects = Project::where('user_id', auth()->id())
+            $projects = Project::query() // Shared workspace: list ALL projects.
                 ->orderBy('name')
                 ->get(['id', 'name']);
 
@@ -250,7 +251,7 @@ class SiteSurveyController extends Controller
 
         $siteSurvey->load('rooms.photos', 'rooms.questions', 'variations.photo');
 
-        $projects = Project::where('user_id', auth()->id())
+        $projects = Project::query() // Shared workspace: list ALL projects.
             ->orderBy('name')
             ->get(['id', 'name']);
 

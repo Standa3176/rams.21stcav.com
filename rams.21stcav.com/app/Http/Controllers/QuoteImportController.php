@@ -25,7 +25,8 @@ class QuoteImportController extends Controller
 
     public function create(Request $request): View
     {
-        $projects        = Project::forUser(auth()->id())
+        // Shared workspace: list ALL projects in the dropdown.
+        $projects        = Project::query()
             ->orderByDesc('updated_at')
             ->get(['id', 'name', 'ref', 'client_name', 'status']);
         $defaultProvider = AIManager::defaultProvider();
@@ -102,7 +103,8 @@ class QuoteImportController extends Controller
 
         $package->load('project');
 
-        $projects = Project::forUser(auth()->id())
+        // Shared workspace: list ALL projects in the dropdown.
+        $projects = Project::query()
             ->orderByDesc('updated_at')
             ->get(['id', 'name', 'ref', 'client_name']);
 
