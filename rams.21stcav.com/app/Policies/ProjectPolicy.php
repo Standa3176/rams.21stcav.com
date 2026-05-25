@@ -27,18 +27,27 @@ use App\Models\User;
  */
 class ProjectPolicy
 {
+    /**
+     * Shared team workspace: any authenticated user may view a Project (auth middleware guarantees a logged-in user here).
+     */
     public function view(User $user, Project $project): bool
     {
-        return $user->id === $project->user_id || $user->isAdmin();
+        return true;
     }
 
+    /**
+     * Shared team workspace: any authenticated user may update a Project (auth middleware guarantees a logged-in user here).
+     */
     public function update(User $user, Project $project): bool
     {
-        return $user->id === $project->user_id || $user->isAdmin();
+        return true;
     }
 
+    /**
+     * Shared team workspace: any authenticated user may delete a Project (auth middleware guarantees a logged-in user here).
+     */
     public function delete(User $user, Project $project): bool
     {
-        return $user->id === $project->user_id || $user->isAdmin();
+        return true;
     }
 }

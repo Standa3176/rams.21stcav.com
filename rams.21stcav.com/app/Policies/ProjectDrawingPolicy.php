@@ -25,27 +25,27 @@ use App\Models\User;
 class ProjectDrawingPolicy
 {
     /**
-     * Allow the drawing's generator OR any admin to view/download the drawing.
+     * Shared team workspace: any authenticated user may view/download the drawing (auth middleware guarantees a logged-in user here).
      */
     public function view(User $user, ProjectDrawing $drawing): bool
     {
-        return $user->id === $drawing->generated_by || $user->isAdmin();
+        return true;
     }
 
     /**
-     * Allow the drawing's generator OR any admin to update (status change,
-     * regenerate) the drawing.
+     * Shared team workspace: any authenticated user may update (status change,
+     * regenerate) the drawing (auth middleware guarantees a logged-in user here).
      */
     public function update(User $user, ProjectDrawing $drawing): bool
     {
-        return $user->id === $drawing->generated_by || $user->isAdmin();
+        return true;
     }
 
     /**
-     * Allow the drawing's generator OR any admin to delete the drawing.
+     * Shared team workspace: any authenticated user may delete the drawing (auth middleware guarantees a logged-in user here).
      */
     public function delete(User $user, ProjectDrawing $drawing): bool
     {
-        return $user->id === $drawing->generated_by || $user->isAdmin();
+        return true;
     }
 }

@@ -19,26 +19,26 @@ use App\Models\User;
 class RamsDocumentPolicy
 {
     /**
-     * Allow the document owner OR any admin to view/download a RAMS record.
+     * Shared team workspace: any authenticated user may view/download a RAMS record (auth middleware guarantees a logged-in user here).
      */
     public function view(User $user, RamsDocument $rams): bool
     {
-        return $user->id === $rams->user_id || $user->isAdmin();
+        return true;
     }
 
     /**
-     * Allow the document owner OR any admin to update (status change, regenerate) a RAMS record.
+     * Shared team workspace: any authenticated user may update (status change, regenerate) a RAMS record (auth middleware guarantees a logged-in user here).
      */
     public function update(User $user, RamsDocument $rams): bool
     {
-        return $user->id === $rams->user_id || $user->isAdmin();
+        return true;
     }
 
     /**
-     * Allow the document owner OR any admin to delete a RAMS record.
+     * Shared team workspace: any authenticated user may delete a RAMS record (auth middleware guarantees a logged-in user here).
      */
     public function delete(User $user, RamsDocument $rams): bool
     {
-        return $user->id === $rams->user_id || $user->isAdmin();
+        return true;
     }
 }
