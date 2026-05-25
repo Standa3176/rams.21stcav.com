@@ -91,16 +91,28 @@ class ItemPhotoUploadTest extends TestCase
             ->assertStatus(422);
     }
 
-    public function test_upload_requires_ownership(): void
+    public function test_any_authenticated_user_can_upload_photo(): void
     {
+        // Shared workspace (260525-s8b): a non-owner, non-assigned user may upload
+        // commissioning evidence photos — the same relaxation applied across the
+        // field-ops cluster. (Was the owner/assigned-engineer 403 model pre-260525-s8b.)
+        Storage::fake('local');
         [, $item] = $this->scaffoldItem();
         $stranger = User::factory()->create();
 
-        $file = UploadedFile::fake()->image('sneaky.jpg');
+        $file = new UploadedFile(
+            base_path('tests/Fixtures/sample.jpg'),
+            'shared-evidence.jpg',
+            'image/jpeg',
+            null,
+            true,
+        );
 
         $this->actingAs($stranger)
             ->post("/commissioning-items/{$item->id}/photo", ['photo' => $file])
-            ->assertForbidden();
+            ->assertCreated();
+
+        $this->assertNotNull($item->fresh()->evidence_photo_path);
     }
 
     public function test_delete_photo_clears_column_and_removes_file(): void
