@@ -47,26 +47,16 @@ class CommissioningController extends Controller
      */
     public function show(Request $request, Project $project): View
     {
-        $user = auth()->user();
-        $isOwnerOrAdmin = $project->user_id === $user->id || $user->isAdmin();
+        // Shared workspace: any authenticated user has full access.
+        abort_unless(auth()->check(), 403);
+
+        // In a shared workspace everyone is effectively an owner; the view uses
+        // this only to decide owner-only chrome.
+        $isOwnerOrAdmin = true;
 
         // Resolve active programme or fall back to latest (mirrors field() pattern).
         $programme = $project->activeInstallProgramme
             ?? $project->installProgrammes()->latest()->first();
-
-        // Field engineer scope: must be assigned to at least one task on the
-        // active programme. Mirrors InstallProgrammeController::field() exactly.
-        $assignedToProgramme = false;
-        if (! $isOwnerOrAdmin && $programme !== null) {
-            $assignedToProgramme = $programme->tasks()
-                ->where('assigned_to', $user->id)
-                ->exists();
-        }
-
-        abort_if(
-            ! $isOwnerOrAdmin && ! $assignedToProgramme,
-            403,
-        );
 
         // Pull items grouped by room → equipment → category (Claude's Discretion
         // item ordering per 16-CONTEXT.md). orderBy is stable because room_name

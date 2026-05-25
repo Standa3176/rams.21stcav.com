@@ -52,10 +52,8 @@ class InstallProgrammeController extends Controller
      */
     public function generate(Project $project): RedirectResponse
     {
-        abort_if(
-            $project->user_id !== auth()->id() && ! auth()->user()->isAdmin(),
-            403
-        );
+        // Shared workspace: any authenticated user has full access.
+        abort_unless(auth()->check(), 403);
 
         $programme = $this->service->createForProject($project, auth()->user());
 
@@ -84,10 +82,8 @@ class InstallProgrammeController extends Controller
     {
         $programme->load(['tasks', 'project']);
 
-        abort_if(
-            $programme->project->user_id !== auth()->id() && ! auth()->user()->isAdmin(),
-            403
-        );
+        // Shared workspace: any authenticated user has full access.
+        abort_unless(auth()->check(), 403);
 
         return view('install-programmes.review', compact('programme'));
     }
@@ -106,10 +102,8 @@ class InstallProgrammeController extends Controller
     {
         $programme->load('project');
 
-        abort_if(
-            $programme->project->user_id !== auth()->id() && ! auth()->user()->isAdmin(),
-            403
-        );
+        // Shared workspace: any authenticated user has full access.
+        abort_unless(auth()->check(), 403);
 
         $this->service->activate($programme);
 
@@ -142,14 +136,12 @@ class InstallProgrammeController extends Controller
     {
         $programme->load(['project', 'tasks.assignedUser']);
 
-        $isOwnerOrAdmin = $programme->project->user_id === auth()->id()
-            || auth()->user()->isAdmin();
+        // Shared workspace: any authenticated user has full access.
+        abort_unless(auth()->check(), 403);
 
-        // Field engineers must be assigned to at least one task to access the schedule.
-        // If user has no assigned tasks and is not owner/admin, deny access.
-        $hasTasks = $programme->tasks->where('assigned_to', auth()->id())->isNotEmpty();
-
-        abort_if(! $isOwnerOrAdmin && ! $hasTasks, 403);
+        // In a shared workspace everyone sees ALL tasks (the ternary below yields
+        // the full task collection when this is true).
+        $isOwnerOrAdmin = true;
 
         // INST-02g: filter tasks for field engineers
         $tasks = $isOwnerOrAdmin
@@ -253,21 +245,18 @@ class InstallProgrammeController extends Controller
     public function field(\Illuminate\Http\Request $request, Project $project): View
     {
         $user = auth()->user();
-        $isOwnerOrAdmin = $project->user_id === $user->id || $user->isAdmin();
+
+        // Shared workspace: any authenticated user has full access.
+        abort_unless(auth()->check(), 403);
+
+        // In a shared workspace everyone defaults to the 'all' scope (sees ALL
+        // tasks); the ?scope=mine toggle still works for anyone who wants it.
+        $isOwnerOrAdmin = true;
 
         // Resolve active programme (null = none yet; view shows an empty state)
         $programme = $project->activeInstallProgramme()
             ->with(['tasks.assignedUser', 'tasks.photos'])
             ->first();
-
-        // Field engineers (non-owner, non-admin) must be assigned to at least one task
-        // on the active programme to access the field view. This mirrors the
-        // schedule() gate above and prevents random employees from browsing.
-        if (! $isOwnerOrAdmin) {
-            $hasAssigned = $programme
-                && $programme->tasks->where('assigned_to', $user->id)->isNotEmpty();
-            abort_if(! $hasAssigned, 403);
-        }
 
         // Scope toggle: D-02. Default for engineer = 'mine'. Default for owner/admin = 'all'.
         $scope = $request->query('scope', $isOwnerOrAdmin ? 'all' : 'mine');
@@ -332,10 +321,8 @@ class InstallProgrammeController extends Controller
     {
         $task->load('programme.project');
 
-        abort_if(
-            $task->programme->project->user_id !== auth()->id() && ! auth()->user()->isAdmin(),
-            403
-        );
+        // Shared workspace: any authenticated user has full access.
+        abort_unless(auth()->check(), 403);
 
         $programmeId = $task->install_programme_id;
 

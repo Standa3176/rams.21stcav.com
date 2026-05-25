@@ -8,7 +8,6 @@ use App\Http\Requests\HeartbeatTimeEntryRequest;
 use App\Http\Requests\StartTimeEntryRequest;
 use App\Http\Requests\StopTimeEntryRequest;
 use App\Http\Requests\UpdateTimeEntryRequest;
-use App\Models\InstallTask;
 use App\Models\Project;
 use App\Models\TimeEntry;
 use App\Models\User;
@@ -206,17 +205,7 @@ class TimeEntryController extends Controller
 
     private function authoriseProjectAccess(Project $project, User $user): void
     {
-        $isOwnerOrAdmin = $project->user_id === $user->id || $user->isAdmin();
-        if ($isOwnerOrAdmin) {
-            return;
-        }
-
-        $programme = $project->activeInstallProgramme;
-        $hasAssigned = $programme
-            && InstallTask::where('install_programme_id', $programme->id)
-                ->where('assigned_to', $user->id)
-                ->exists();
-
-        abort_if(! $hasAssigned, 403);
+        // Shared workspace: any authenticated user has full access.
+        abort_unless(auth()->check(), 403);
     }
 }

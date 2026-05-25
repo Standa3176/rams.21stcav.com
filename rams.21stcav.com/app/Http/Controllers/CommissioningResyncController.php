@@ -53,22 +53,11 @@ class CommissioningResyncController extends Controller
     }
 
     /**
-     * T-16-01 / T-16-03 ownership guard — same rule as the checklist surface.
-     * abort_if keeps the control-flow matching the Phase 14 / Plan 03 canonical
-     * pattern.
+     * Shared workspace — any authenticated user may resync commissioning items.
      */
     private function authorise(InstallProgramme $programme): void
     {
-        $programme->loadMissing('project');
-        $user = auth()->user();
-
-        $isOwnerOrAdmin = $programme->project->user_id === $user->id
-            || $user->isAdmin();
-
-        $isAssignedEngineer = $programme->tasks()
-            ->where('assigned_to', $user->id)
-            ->exists();
-
-        abort_if(! $isOwnerOrAdmin && ! $isAssignedEngineer, 403);
+        // Shared workspace: any authenticated user has full access.
+        abort_unless(auth()->check(), 403);
     }
 }

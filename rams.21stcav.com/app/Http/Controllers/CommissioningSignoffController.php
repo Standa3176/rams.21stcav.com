@@ -147,22 +147,12 @@ class CommissioningSignoffController extends Controller
     }
 
     /**
-     * T-16-06 ownership guard — project owner, admin, or engineer assigned to
-     * at least one task on the programme. Mirrors CommissioningController::show
-     * so the finalise surface uses the same rule as the checklist surface.
+     * Shared workspace — any authenticated user may preview/finalise/download
+     * the commissioning signoff.
      */
     private function authorise(InstallProgramme $programme): void
     {
-        $programme->loadMissing('project');
-        $user = auth()->user();
-
-        $isOwnerOrAdmin = $programme->project->user_id === $user->id
-            || $user->isAdmin();
-
-        $isAssignedEngineer = $programme->tasks()
-            ->where('assigned_to', $user->id)
-            ->exists();
-
-        abort_if(! $isOwnerOrAdmin && ! $isAssignedEngineer, 403);
+        // Shared workspace: any authenticated user has full access.
+        abort_unless(auth()->check(), 403);
     }
 }

@@ -379,26 +379,12 @@ class CommissioningItemController extends Controller
     // =========================================================================
 
     /**
-     * Canonical ownership guard — project owner, admin, or engineer assigned
-     * to at least one task on the item's programme. Mirrors Phase 14's
-     * TaskStatusController::authoriseTaskMutation with one extension: the
-     * engineer doesn't need to be assigned to the specific task that spawned
-     * this commissioning item — assignment to any task on the same programme
-     * grants access (commissioning is a programme-level concern).
+     * Shared workspace — any authenticated user may mutate commissioning items.
      */
     private function authoriseEdit(CommissioningItem $item): void
     {
-        $item->loadMissing('programme.project');
-        $user = auth()->user();
-
-        $isOwnerOrAdmin = $item->programme->project->user_id === $user->id
-            || $user->isAdmin();
-
-        $isAssignedEngineer = $item->programme->tasks()
-            ->where('assigned_to', $user->id)
-            ->exists();
-
-        abort_if(! $isOwnerOrAdmin && ! $isAssignedEngineer, 403);
+        // Shared workspace: any authenticated user has full access.
+        abort_unless(auth()->check(), 403);
     }
 
     /**

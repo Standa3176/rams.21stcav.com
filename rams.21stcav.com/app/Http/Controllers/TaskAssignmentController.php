@@ -49,11 +49,8 @@ class TaskAssignmentController extends Controller
     {
         $task->load('programme.project');
 
-        // T-13-01: ownership guard — task owner or admin only
-        abort_if(
-            $task->programme->project->user_id !== auth()->id() && ! auth()->user()->isAdmin(),
-            403
-        );
+        // Shared workspace: any authenticated user has full access.
+        abort_unless(auth()->check(), 403);
 
         $validated = $request->validate([
             'user_id'            => ['nullable', 'integer', 'exists:users,id'],
@@ -101,11 +98,8 @@ class TaskAssignmentController extends Controller
     {
         $programme->load('project');
 
-        // T-13-03: ownership guard — programme owner or admin only
-        abort_if(
-            $programme->project->user_id !== auth()->id() && ! auth()->user()->isAdmin(),
-            403
-        );
+        // Shared workspace: any authenticated user has full access.
+        abort_unless(auth()->check(), 403);
 
         $validated = $request->validate([
             'user_id'   => ['nullable', 'integer', 'exists:users,id'],
@@ -149,11 +143,8 @@ class TaskAssignmentController extends Controller
     {
         $programme->load('project');
 
-        // T-13-03: ownership guard — programme owner or admin only
-        abort_if(
-            $programme->project->user_id !== auth()->id() && ! auth()->user()->isAdmin(),
-            403
-        );
+        // Shared workspace: any authenticated user has full access.
+        abort_unless(auth()->check(), 403);
 
         $validated = $request->validate([
             'user_id' => ['nullable', 'integer', 'exists:users,id'],

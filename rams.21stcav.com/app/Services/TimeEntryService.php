@@ -171,6 +171,8 @@ class TimeEntryService
      */
     public function recordHeartbeat(TimeEntry $entry, User $user): void
     {
+        // PRESERVED: strict owner-only liveness guard — a peer must not keep
+        // another user's session alive (integrity, not access control).
         if ($entry->user_id !== $user->id) {
             throw new AuthorizationException(
                 "User {$user->id} does not own entry {$entry->id}.",
@@ -189,11 +191,12 @@ class TimeEntryService
     // =========================================================================
 
     /**
-     * Retro-edit a CLOSED time entry's category or notes. Owner OR admin may
-     * edit. Writes a TimeEntryAudit row atomically with the update
-     * (mitigates T-15-02-02 — retcon of peer's timesheet / repudiation).
+     * Retro-edit a CLOSED time entry's category or notes. Shared workspace —
+     * any authenticated user may edit. Writes a TimeEntryAudit row atomically
+     * with the update (preserves accountability for T-15-02-02 by recording
+     * edited_by_user_id — repudiation is mitigated by the audit trail, not by
+     * an ownership gate).
      *
-     * @throws AuthorizationException  when $editor is neither owner nor admin
      * @throws TimeEntryEditException  for open entries, invalid field, invalid value
      */
     public function editEntry(
@@ -202,13 +205,9 @@ class TimeEntryService
         string $field,
         ?string $newValue,
     ): TimeEntry {
-        // Ownership / role gate (owner OR admin)
-        $isOwner = $entry->user_id === $editor->id;
-        if (! $isOwner && ! $editor->isAdmin()) {
-            throw new AuthorizationException(
-                "User {$editor->id} cannot edit entry {$entry->id}.",
-            );
-        }
+        // Shared workspace: any authenticated user may retro-edit any time entry.
+        // The append-only TimeEntryAudit row (written below) preserves accountability
+        // by recording edited_by_user_id, so relaxing the gate does not lose the audit trail.
 
         // State gate — retro-edit is for CLOSED entries only (D-04)
         if ($entry->clocked_out_at === null) {

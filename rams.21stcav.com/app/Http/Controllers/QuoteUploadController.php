@@ -262,14 +262,12 @@ class QuoteUploadController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * Abort with 403 unless the current user owns this RAMS document or is admin.
+     * Abort with 403 unless the request is authenticated. Shared workspace —
+     * any authenticated user may view RAMS extraction status.
      */
     private function authoriseRamsAccess(Request $request, RamsDocument $rams): void
     {
-        $user = $request->user();
-
-        if ($user->id !== $rams->user_id && ! $user->isAdmin()) {
-            abort(403);
-        }
+        // Shared workspace: any authenticated user has full access.
+        abort_unless(auth()->check(), 403);
     }
 }

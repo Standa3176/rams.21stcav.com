@@ -195,14 +195,11 @@ class TaskPhotoController extends Controller
     // =========================================================================
 
     /**
-     * Canonical ownership guard: project owner, admin, or assigned engineer may mutate.
+     * Shared workspace — any authenticated user may mutate tasks (upload/delete/view photos).
      */
     private function authoriseTaskMutation(InstallTask $task): void
     {
-        $user = auth()->user();
-        $isOwnerOrAdmin = $task->programme->project->user_id === $user->id || $user->isAdmin();
-        $isAssigned = $task->assigned_to === $user->id;
-
-        abort_if(! $isOwnerOrAdmin && ! $isAssigned, 403);
+        // Shared workspace: any authenticated user has full access.
+        abort_unless(auth()->check(), 403);
     }
 }
