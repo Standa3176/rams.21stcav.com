@@ -411,9 +411,6 @@ class ProjectController extends Controller
 
     private function authorizeProject(Project $project): void
     {
-        abort_unless(
-            $project->user_id === auth()->id() || auth()->user()?->role === 'admin',
-            403
-        );
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
     }
 }

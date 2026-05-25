@@ -75,10 +75,7 @@ class WorksheetController extends Controller
      */
     public function show(Worksheet $worksheet): View
     {
-        abort_if(
-            $worksheet->user_id !== auth()->id() && ! auth()->user()->isAdmin(),
-            403
-        );
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
 
         $worksheet->load('project');
 
@@ -97,10 +94,7 @@ class WorksheetController extends Controller
      */
     public function generateFromProject(Project $project): RedirectResponse
     {
-        abort_if(
-            $project->user_id !== auth()->id() && ! auth()->user()->isAdmin(),
-            403
-        );
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
 
         $worksheet = Worksheet::create([
             'user_id'      => auth()->id(),
@@ -135,10 +129,7 @@ class WorksheetController extends Controller
      */
     public function status(Worksheet $worksheet): JsonResponse
     {
-        abort_if(
-            $worksheet->user_id !== auth()->id() && ! auth()->user()->isAdmin(),
-            403
-        );
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
 
         $downloadUrl = in_array($worksheet->status, [Worksheet::STATUS_DRAFT, Worksheet::STATUS_FINAL])
             ? route('worksheets.download', $worksheet)
@@ -162,10 +153,7 @@ class WorksheetController extends Controller
      */
     public function download(Worksheet $worksheet): BinaryFileResponse
     {
-        abort_if(
-            $worksheet->user_id !== auth()->id() && ! auth()->user()->isAdmin(),
-            403
-        );
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
 
         if (! $worksheet->filename) {
             abort(404, 'Worksheet DOCX not found. Try regenerating.');
@@ -198,10 +186,7 @@ class WorksheetController extends Controller
      */
     public function retryGeneration(Worksheet $worksheet): RedirectResponse
     {
-        abort_if(
-            $worksheet->user_id !== auth()->id() && ! auth()->user()->isAdmin(),
-            403
-        );
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
 
         if ($worksheet->status === Worksheet::STATUS_GENERATING) {
             return back()->with('error', 'This worksheet is already being generated. Please wait.');
@@ -224,10 +209,7 @@ class WorksheetController extends Controller
 
     public function destroy(Worksheet $worksheet): RedirectResponse
     {
-        abort_if(
-            $worksheet->user_id !== auth()->id() && ! auth()->user()->isAdmin(),
-            403
-        );
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
 
         $projectId = $worksheet->project_id;
 

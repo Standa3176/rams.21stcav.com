@@ -128,8 +128,8 @@ class QuoteImportController extends Controller
 
         // Determine project assignment
         if (! empty($validated['project_id'])) {
+            // Shared workspace: any authenticated user may reassign a package to any project.
             $project = Project::where('id', $validated['project_id'])
-                ->where('user_id', auth()->id())
                 ->firstOrFail();
 
             // Update package's project_id if it changed
@@ -233,9 +233,6 @@ class QuoteImportController extends Controller
 
     private function authorizePackage(ProjectPackage $package): void
     {
-        abort_unless(
-            $package->user_id === auth()->id() || auth()->user()?->role === 'admin',
-            403
-        );
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
     }
 }

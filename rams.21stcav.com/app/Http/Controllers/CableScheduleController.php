@@ -109,7 +109,7 @@ class CableScheduleController extends Controller
 
     public function edit(CableSchedule $cableSchedule): View
     {
-        abort_unless($cableSchedule->user_id === auth()->id(), 403);
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
 
         // Phase 22 D-10 guard: eager-load port relations AT THE CALL SITE only.
         // NEVER add these to CableScheduleItem::$with — class-level eager loading
@@ -180,7 +180,7 @@ class CableScheduleController extends Controller
 
     public function update(Request $request, CableSchedule $cableSchedule): RedirectResponse
     {
-        abort_unless($cableSchedule->user_id === auth()->id(), 403);
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
 
         $request->validate([
             'status'            => ['nullable', 'in:draft,final'],
@@ -330,7 +330,7 @@ class CableScheduleController extends Controller
     public function destroy($cableSchedule): RedirectResponse
     {
         $record = CableSchedule::findOrFail($cableSchedule);
-        abort_unless($record->user_id === auth()->id() || auth()->user()->isAdmin(), 403);
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
 
         $projectId = $record->project_id;
 
@@ -375,7 +375,7 @@ class CableScheduleController extends Controller
      */
     public function generateFromProject(Project $project): RedirectResponse
     {
-        abort_if($project->user_id !== auth()->id() && ! auth()->user()?->isAdmin(), 403);
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
 
         $schedule = CableSchedule::create([
             'user_id'      => auth()->id(),
@@ -407,7 +407,7 @@ class CableScheduleController extends Controller
      */
     public function status(CableSchedule $cableSchedule): JsonResponse
     {
-        abort_if($cableSchedule->user_id !== auth()->id() && ! auth()->user()?->isAdmin(), 403);
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
 
         $downloadUrl = in_array($cableSchedule->status, [CableSchedule::STATUS_DRAFT, CableSchedule::STATUS_FINAL])
             ? route('cable-schedules.download', $cableSchedule)
@@ -430,7 +430,7 @@ class CableScheduleController extends Controller
      */
     public function download(CableSchedule $cableSchedule): BinaryFileResponse|RedirectResponse
     {
-        abort_if($cableSchedule->user_id !== auth()->id() && ! auth()->user()?->isAdmin(), 403);
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
 
         // Resolve filename: source_filename is the reliable column (always exists on table).
         // Fall back to filename for forward compatibility if that column is added later.
@@ -469,7 +469,7 @@ class CableScheduleController extends Controller
 
     public function retryGeneration(CableSchedule $cableSchedule): RedirectResponse
     {
-        abort_if($cableSchedule->user_id !== auth()->id() && ! auth()->user()?->isAdmin(), 403);
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
 
         if ($cableSchedule->status === CableSchedule::STATUS_GENERATING) {
             return back()->with('error', 'This cable schedule is already being generated. Please wait.');

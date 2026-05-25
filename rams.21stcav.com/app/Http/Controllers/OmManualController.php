@@ -126,7 +126,7 @@ class OmManualController extends Controller
 
     public function storeFromProject(Request $request, Project $project): RedirectResponse
     {
-        abort_if($project->user_id !== auth()->id() && ! auth()->user()?->isAdmin(), 403);
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
 
         $package = $project->latestPackage;
 
@@ -152,7 +152,7 @@ class OmManualController extends Controller
 
     public function generateFromProject(Request $request, Project $project): RedirectResponse
     {
-        abort_if($project->user_id !== auth()->id() && ! auth()->user()?->isAdmin(), 403);
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
 
         // Draft mode (?draft=1) — generates the manual even when post-engineering
         // fields aren't ready yet (handover_date, drawings). The generator seeds
@@ -214,7 +214,7 @@ class OmManualController extends Controller
 
     public function status(OmManual $omManual): JsonResponse
     {
-        abort_if($omManual->user_id !== auth()->id() && ! auth()->user()?->isAdmin(), 403);
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
 
         $downloadUrl = in_array($omManual->status, [OmManual::STATUS_DRAFT, OmManual::STATUS_FINAL])
             ? route('om-manuals.download', $omManual)
@@ -234,7 +234,7 @@ class OmManualController extends Controller
      */
     public function retryGeneration(OmManual $omManual): RedirectResponse
     {
-        abort_if($omManual->user_id !== auth()->id() && ! auth()->user()?->isAdmin(), 403);
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
 
         if (empty($omManual->extracted_data)) {
             return back()->with('error', 'Cannot retry — extracted data is missing. Please create a new O&M manual.');

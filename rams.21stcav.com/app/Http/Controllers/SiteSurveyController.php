@@ -86,14 +86,8 @@ class SiteSurveyController extends Controller
     {
         $data = $this->validateSurvey($request);
 
-        // ── Ownership check when a project_id is present ────────────────────
-        if (! empty($data['project_id'])) {
-            $project = Project::find($data['project_id']);
-            abort_if(
-                $project && $project->user_id !== auth()->id() && ! auth()->user()?->isAdmin(),
-                403
-            );
-        }
+        // Shared workspace: any authenticated user may create a survey on any project.
+        abort_unless(auth()->check(), 403);
 
         // Extract supersede flag from the form submission.
         $data['supersede'] = $request->boolean('supersede');
@@ -120,11 +114,8 @@ class SiteSurveyController extends Controller
      */
     public function createFromProject(Project $project): \Illuminate\Http\Response|RedirectResponse
     {
-        // Only the project owner or an admin may create a survey for this project.
-        abort_if(
-            $project->user_id !== auth()->id() && ! auth()->user()?->isAdmin(),
-            403
-        );
+        // Shared workspace: any authenticated user has full access.
+        abort_unless(auth()->check(), 403);
 
         // Check for an existing active survey.
         $existingSurvey = SiteSurvey::where('project_id', $project->id)
@@ -163,10 +154,7 @@ class SiteSurveyController extends Controller
      */
     public function supersedeFromProject(Project $project): RedirectResponse
     {
-        abort_if(
-            $project->user_id !== auth()->id() && ! auth()->user()?->isAdmin(),
-            403
-        );
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
 
         /** @var \App\Models\User $user */
         $user   = auth()->user();
@@ -303,10 +291,7 @@ class SiteSurveyController extends Controller
      */
     public function projectData(Project $project): JsonResponse
     {
-        abort_unless(
-            $project->user_id === auth()->id() || auth()->user()?->isAdmin(),
-            403
-        );
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
 
         return response()->json([
             'name'         => $project->name,
@@ -590,7 +575,7 @@ class SiteSurveyController extends Controller
 
     private function authorizeSurvey(SiteSurvey $survey): void
     {
-        abort_unless($survey->user_id === auth()->id() || auth()->user()?->isAdmin(), 403);
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
     }
 
     private function validateSurvey(Request $request): array

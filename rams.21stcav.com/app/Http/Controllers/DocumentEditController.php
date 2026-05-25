@@ -505,9 +505,13 @@ class DocumentEditController extends Controller
     }
 
     /**
-     * Ownership + accessibility check for a document. Returns null when the
-     * current user may access the row; otherwise returns a 403/404 response.
-     * Admins bypass ownership checks.
+     * Accessibility check for a document edit thread. Returns null when the
+     * current (authenticated) user may access the row; otherwise returns a
+     * 401 (unauthenticated) or 404 (document does not exist) response.
+     *
+     * Shared team workspace: any authenticated user may open/parse/apply edit
+     * threads on any existing document — there is no per-owner 403. ownerIdFor()
+     * is still consulted purely to distinguish a missing document (→ 404).
      */
     private function authorizeDocument(Request $request, string $type, int $id): ?JsonResponse
     {
@@ -515,15 +519,12 @@ class DocumentEditController extends Controller
         if ($user === null) {
             return $this->jsonError('unauthenticated', 'Authentication required', 401);
         }
-        $isAdmin = method_exists($user, 'isAdmin') ? $user->isAdmin() : false;
 
         $ownerId = $this->ownerIdFor($type, $id);
         if ($ownerId === null) {
             return $this->jsonError('document_not_found', "{$type} #{$id} not found", 404);
         }
-        if (! $isAdmin && (int) $ownerId !== (int) $user->id) {
-            return $this->jsonError('document_forbidden', "You do not have access to this {$type}", 403);
-        }
+
         return null;
     }
 

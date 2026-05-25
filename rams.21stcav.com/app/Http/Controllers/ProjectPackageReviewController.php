@@ -908,10 +908,7 @@ class ProjectPackageReviewController extends Controller
 
     private function authorizePackage(ProjectPackage $package): void
     {
-        abort_unless(
-            $package->user_id === auth()->id() || auth()->user()?->role === 'admin',
-            403
-        );
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
     }
 
     /**

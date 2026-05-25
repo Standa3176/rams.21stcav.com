@@ -131,9 +131,7 @@ class RamsController extends Controller
         if ($projectId = request()->query('project_id')) {
             $candidate = \App\Models\Project::find((int) $projectId);
             if ($candidate) {
-                if ($candidate->user_id !== auth()->id() && ! auth()->user()->isAdmin()) {
-                    abort(403, 'You do not own this project.');
-                }
+                // Shared workspace: any authenticated user has full access.
                 $project = $candidate;
             }
         }
@@ -230,8 +228,8 @@ class RamsController extends Controller
 
     public function generateFromProject(Project $project): RedirectResponse
     {
-        // Only owner/admin may create
-        abort_if($project->user_id !== auth()->id() && auth()->user()?->role !== 'admin', 403);
+        // Shared workspace: any authenticated user has full access.
+        abort_unless(auth()->check(), 403);
 
         $package = $project->latestPackage;
 
