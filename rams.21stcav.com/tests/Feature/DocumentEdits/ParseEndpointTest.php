@@ -186,19 +186,22 @@ class ParseEndpointTest extends TestCase
             ->assertStatus(401);
     }
 
-    public function test_non_owner_gets_403(): void
+    public function test_non_owner_can_parse_on_shared_document(): void
     {
         $owner    = User::factory()->create();
-        $intruder = User::factory()->create();
+        $intruder = User::factory()->create(); // default role = 'user' — non-owner
         $this->currentUser = $owner;
         $ws = $this->makeWorksheet();
         $this->actingAs($owner);
         $thread = $this->postJson("/documents/worksheet/{$ws->id}/threads")->json('thread');
 
+        $this->mockAi($this->validOpsResponse());
+
+        // Shared workspace: a non-owner, non-admin user may parse on any document.
         $this->actingAs($intruder);
         $this->postJson("/documents/worksheet/{$ws->id}/threads/{$thread['id']}/parse", [
-            'message' => 'hi',
-        ])->assertStatus(403)
-            ->assertJsonPath('error', 'document_forbidden');
+            'message' => 'Please add a power blocker for the Boardroom.',
+        ])->assertStatus(201)
+            ->assertJsonPath('parse_status', 'validated');
     }
 }

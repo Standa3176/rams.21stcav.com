@@ -55,22 +55,29 @@ class ActualHoursWidgetTest extends TestCase
              ->assertSee('Actual Hours');
     }
 
-    public function test_non_owner_non_admin_does_not_see_widget(): void
+    public function test_any_authenticated_user_sees_actual_hours_widget(): void
     {
         $owner    = User::factory()->create();
-        $stranger = User::factory()->create(['role' => 'user']);
+        $stranger = User::factory()->create(['role' => 'user']); // non-owner, non-admin
         $project  = Project::factory()->create(['user_id' => $owner->id]);
+        TimeEntry::create([
+            'project_id'     => $project->id,
+            'user_id'        => $owner->id,
+            'category'       => TimeEntry::CATEGORY_INSTALLATION,
+            'clocked_in_at'  => now()->subHours(3),
+            'clocked_out_at' => now()->subHours(1),   // 2h = 120 min
+        ]);
 
-        // If projects.show is open to any auth'd user, the widget must NOT render.
-        // If projects.show 403s non-owners, that's also acceptable — widget stays hidden either way.
-        $response = $this->actingAs($stranger)
-                         ->get(route('projects.show', $project));
+        // Shared workspace: a non-owner, non-admin user gets the SAME outcome
+        // as the owner on the project show page — full access, no 403. The
+        // actual-hours visibility gate (ProjectController::show) was relaxed to
+        // auth()->check(), so the stranger is no longer privacy-blocked.
+        $ownerStatus    = $this->actingAs($owner)->get(route('projects.show', $project))->getStatusCode();
+        $strangerStatus = $this->actingAs($stranger)->get(route('projects.show', $project))->getStatusCode();
 
-        if ($response->status() === 200) {
-            $response->assertDontSee('Actual Hours');
-        } else {
-            $this->assertSame(403, $response->status());
-        }
+        $this->assertSame(200, $strangerStatus, 'Shared workspace: stranger must reach the project show page.');
+        $this->assertSame($ownerStatus, $strangerStatus, 'Stranger must get the same outcome as the owner.');
+        $this->assertNotSame(403, $strangerStatus, 'Stranger must NOT be forbidden from actual-hours data.');
     }
 
     public function test_widget_shows_empty_state_when_no_entries(): void

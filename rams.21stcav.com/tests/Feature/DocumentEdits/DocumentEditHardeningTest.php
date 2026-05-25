@@ -35,16 +35,16 @@ class DocumentEditHardeningTest extends TestCase
         ]);
     }
 
-    public function test_other_users_cannot_open_a_thread_on_someone_elses_worksheet(): void
+    public function test_any_authenticated_user_can_open_a_thread_on_a_shared_worksheet(): void
     {
         $owner  = User::factory()->create();
-        $intruder = User::factory()->create();
+        $intruder = User::factory()->create(); // default role = 'user' — non-owner
         $ws = $this->makeWorksheet($owner);
 
+        // Shared workspace: a non-owner, non-admin user may open an edit thread.
         $this->actingAs($intruder);
         $this->postJson("/documents/worksheet/{$ws->id}/threads")
-            ->assertStatus(403)
-            ->assertJsonPath('error', 'document_forbidden');
+            ->assertStatus(201);
     }
 
     public function test_admin_bypasses_ownership(): void
@@ -139,15 +139,17 @@ class DocumentEditHardeningTest extends TestCase
             ->assertSee('Document History', false);
     }
 
-    public function test_revisions_view_forbidden_for_other_user(): void
+    public function test_revisions_view_accessible_to_any_authenticated_user(): void
     {
         $owner    = User::factory()->create();
         $ws       = $this->makeWorksheet($owner);
-        $intruder = User::factory()->create();
+        $intruder = User::factory()->create(); // default role = 'user' — non-owner
         $this->actingAs($intruder);
 
+        // Shared workspace: a non-owner, non-admin user may view document history.
         $this->get("/documents/worksheet/{$ws->id}/revisions-view")
-            ->assertStatus(403);
+            ->assertStatus(200)
+            ->assertSee('Document History', false);
     }
 
     public function test_existing_worksheet_show_route_still_works(): void

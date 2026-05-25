@@ -245,23 +245,26 @@ class OmManualProjectLinkageTest extends TestCase
     // 5. Authorization
     // ═════════════════════════════════════════════════════════════════════════
 
-    public function test_om_edit_page_is_forbidden_for_another_user(): void
+    public function test_om_edit_page_is_accessible_to_any_authenticated_user(): void
     {
         $owner = User::factory()->create();
-        $other = User::factory()->create();
+        $other = User::factory()->create(); // default role = 'user' — non-owner
 
         $project = $this->makeProject($owner);
         $manual  = $this->makeManual($owner, $project);
 
+        // Shared workspace: a non-owner, non-admin user may open any O&M edit page.
         $response = $this->actingAs($other)->get(route('om-manuals.edit', $manual));
 
-        $response->assertForbidden();
+        $response->assertOk();
     }
 
-    public function test_om_download_is_forbidden_for_another_user(): void
+    public function test_om_download_is_accessible_to_any_authenticated_user(): void
     {
+        \Illuminate\Support\Facades\Storage::fake(\App\Services\DocumentArtifactStorage::DISK);
+
         $owner = User::factory()->create();
-        $other = User::factory()->create();
+        $other = User::factory()->create(); // default role = 'user' — non-owner
 
         $project = $this->makeProject($owner);
         $manual  = $this->makeManual($owner, $project, [
@@ -270,9 +273,15 @@ class OmManualProjectLinkageTest extends TestCase
             'filename'       => 'om_test.docx',
         ]);
 
+        // Place the artifact via the H-07 storage seam so readPath() resolves it.
+        $path = app(\App\Services\DocumentArtifactStorage::class)
+            ->writePath(\App\Services\DocumentArtifactStorage::TYPE_OM, 'om_test.docx');
+        file_put_contents($path, 'PK fake-docx-bytes');
+
+        // Shared workspace: a non-owner, non-admin user may download any O&M.
         $response = $this->actingAs($other)->get(route('om-manuals.download', $manual));
 
-        $response->assertForbidden();
+        $response->assertOk();
     }
 
     public function test_om_manual_owner_can_access_edit_page(): void
@@ -287,10 +296,10 @@ class OmManualProjectLinkageTest extends TestCase
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // 6. O&M index — user isolation
+    // 6. O&M index — shared workspace (every user sees ALL manuals)
     // ═════════════════════════════════════════════════════════════════════════
 
-    public function test_om_index_only_shows_current_users_manuals(): void
+    public function test_om_index_shows_all_manuals_to_any_authenticated_user(): void
     {
         $userA = User::factory()->create();
         $userB = User::factory()->create();
@@ -301,11 +310,12 @@ class OmManualProjectLinkageTest extends TestCase
         $this->makeManual($userA, $projectA, ['project_name' => 'User A Manual']);
         $this->makeManual($userB, $projectB, ['project_name' => 'User B Manual']);
 
+        // Shared workspace: userA's index lists BOTH manuals.
         $response = $this->actingAs($userA)->get(route('om-manuals.index'));
 
         $response->assertOk();
         $response->assertSee('User A Manual');
-        $response->assertDontSee('User B Manual');
+        $response->assertSee('User B Manual');
     }
 
     // ═════════════════════════════════════════════════════════════════════════

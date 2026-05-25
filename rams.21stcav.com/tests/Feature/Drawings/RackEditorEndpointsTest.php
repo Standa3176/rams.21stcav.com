@@ -108,19 +108,20 @@ class RackEditorEndpointsTest extends TestCase
         $response->assertNotFound();
     }
 
-    // ── 3. Edit page 403 for non-owner / non-admin ────────────────────────
+    // ── 3. Edit page accessible to any authenticated user ─────────────────
 
-    public function test_edit_page_403s_for_non_owner_non_admin(): void
+    public function test_edit_page_accessible_to_any_authenticated_user(): void
     {
         $owner = User::factory()->create();
-        $intruder = User::factory()->create(); // default role = 'user'
+        $intruder = User::factory()->create(); // default role = 'user' — non-owner
         $project = $this->makeProjectForUser($owner);
         $drawing = $this->makeRackDrawing($project);
 
+        // Shared workspace: a non-owner, non-admin user may open the rack editor.
         $response = $this->actingAs($intruder)
             ->get(route('projects.drawings.edit', [$project, $drawing]));
 
-        $response->assertForbidden();
+        $response->assertOk();
     }
 
     // ── 4. Save rack canvas — happy path ──────────────────────────────────
@@ -423,12 +424,12 @@ class RackEditorEndpointsTest extends TestCase
         $this->assertSame(false, (bool) $device->is_rack_mounted);
     }
 
-    // ── 11. flipRackMounted forbids non-owner non-admin ───────────────────
+    // ── 11. flipRackMounted allowed for any authenticated user ────────────
 
-    public function test_flip_rack_mounted_403s_for_non_owner(): void
+    public function test_flip_rack_mounted_allowed_for_any_authenticated_user(): void
     {
         $owner = User::factory()->create();
-        $intruder = User::factory()->create();
+        $intruder = User::factory()->create(); // default role = 'user' — non-owner
         $project = $this->makeProjectForUser($owner);
 
         Device::create([
@@ -438,17 +439,19 @@ class RackEditorEndpointsTest extends TestCase
             'is_rack_mounted' => null,
         ]);
 
+        // Shared workspace: a non-owner, non-admin user may flip the flag.
         $response = $this->actingAs($intruder)
             ->postJson(
                 route('projects.drawings.flip-rack-mounted', $project),
                 ['part_no' => 'PN-FOO', 'is_rack_mounted' => true],
             );
 
-        $response->assertForbidden();
+        $response->assertOk();
+        $response->assertJson(['ok' => true, 'updated' => 1]);
 
         $device = Device::where('project_id', $project->id)
             ->where('part_no', 'PN-FOO')
             ->first();
-        $this->assertNull($device->is_rack_mounted, 'Device flag must remain unchanged on 403');
+        $this->assertSame(true, (bool) $device->is_rack_mounted, 'Device flag must be updated for the shared workspace.');
     }
 }

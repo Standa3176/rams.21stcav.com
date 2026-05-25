@@ -165,19 +165,24 @@ class BoundPdfDownloadTest extends TestCase
             'Response body must begin with the PDF magic header.');
     }
 
-    // ── 2. Non-owner gets 403 ─────────────────────────────────────────────
+    // ── 2. Non-owner can download the shared bound PDF ────────────────────
 
-    public function test_non_owner_gets_403(): void
+    public function test_non_owner_can_download_shared_bound_pdf(): void
     {
         $owner = User::factory()->create();
-        $intruder = User::factory()->create(); // default role = 'user'
+        $intruder = User::factory()->create(); // default role = 'user' — non-owner
         $project = $this->makeProject($owner);
         $this->makeReadySchematic($project, 'AV-201');
 
+        // Shared workspace: a non-owner, non-admin user may download any bound PDF.
         $response = $this->actingAs($intruder)
             ->get(route('projects.drawings.bound-pdf', $project));
 
-        $response->assertForbidden();
+        $response->assertOk();
+        $this->assertSame('application/pdf', $response->headers->get('Content-Type'));
+        $body = $response->streamedContent() ?: $response->getContent();
+        $this->assertStringStartsWith('%PDF', substr((string) $body, 0, 4),
+            'Response body must begin with the PDF magic header.');
     }
 
     // ── 3. Regen-needed badge surfaces when drawings touched after bound PDF ─

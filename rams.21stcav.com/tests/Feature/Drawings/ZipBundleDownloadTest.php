@@ -254,18 +254,24 @@ class ZipBundleDownloadTest extends TestCase
         }
     }
 
-    // ── 3. Non-owner gets 403 ─────────────────────────────────────────────
+    // ── 3. Non-owner can download the shared bundle ───────────────────────
 
-    public function test_non_owner_gets_403(): void
+    public function test_non_owner_can_download_shared_bundle(): void
     {
         $owner = User::factory()->create();
-        $intruder = User::factory()->create();
+        $intruder = User::factory()->create(); // default role = 'user' — non-owner
         $project = $this->makeProject($owner);
         $this->makeReadyDrawing($project, ProjectDrawing::KIND_SCHEMATIC, 'AV-201');
 
+        // Shared workspace: a non-owner, non-admin user may download any bundle.
         $response = $this->actingAs($intruder)
             ->get(route('projects.drawings.bundle', $project));
 
-        $response->assertForbidden();
+        $response->assertOk();
+        $this->assertSame('application/zip', $response->headers->get('Content-Type'));
+
+        $body = $this->captureZipResponse($response);
+        $entries = $this->listZipEntries($body);
+        $this->assertContains('drawing-register.csv', $entries);
     }
 }

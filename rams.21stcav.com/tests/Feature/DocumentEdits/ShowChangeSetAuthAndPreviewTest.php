@@ -77,20 +77,22 @@ class ShowChangeSetAuthAndPreviewTest extends TestCase
             ->assertStatus(401);
     }
 
-    public function test_non_owner_returns_403(): void
+    public function test_non_owner_can_view_shared_change_set(): void
     {
         $owner    = User::factory()->create();
-        $intruder = User::factory()->create();
+        $intruder = User::factory()->create(); // default role = 'user' — non-owner
         $ws = $this->makeWorksheet($owner);
 
         $this->actingAs($owner);
         $thread = $this->openThread($ws);
         $cs = $this->createValidatedChangeSet($thread, $ws);
 
+        // Shared workspace: a non-owner, non-admin user may view any change-set.
         $this->actingAs($intruder);
         $this->getJson("/documents/worksheet/{$ws->id}/changes/{$cs->id}")
-            ->assertStatus(403)
-            ->assertJsonPath('error', 'document_forbidden');
+            ->assertStatus(200)
+            ->assertJsonPath('change_set.id', $cs->id)
+            ->assertJsonPath('change_set.status', 'validated');
     }
 
     public function test_unknown_document_type_returns_404(): void

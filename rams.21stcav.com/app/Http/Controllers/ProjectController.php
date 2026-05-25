@@ -242,11 +242,9 @@ class ProjectController extends Controller
 
         $canonicalData = $this->projectDataService->resolve($project);
 
-        // ── Phase 15 D-13/D-16: Actual Hours widget visibility ────────────────
-        // Owner + admin only — assigned engineers must NOT see aggregate actuals
-        // (per CONTEXT.md Deferred: "Per-engineer roll-up … declined for privacy").
-        $canSeeActualHours = $project->user_id === auth()->id()
-            || auth()->user()?->isAdmin();
+        // ── Actual Hours widget visibility ────────────────────────────────────
+        // Shared workspace: all authenticated users see actual hours.
+        $canSeeActualHours = auth()->check();
 
         $actualHours = $canSeeActualHours
             ? $this->timeEntryService->summaryForProject($project)
