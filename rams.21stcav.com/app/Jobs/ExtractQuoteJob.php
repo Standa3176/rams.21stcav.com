@@ -466,17 +466,20 @@ class ExtractQuoteJob implements ShouldQueue
             }
         }
 
-        // Description-based consumable detection for blank part numbers.
-        if ($upper === '') {
-            $consumableDescKeywords = [
-                'cable', 'cabling', 'trunking', 'conduit', 'patch', 'hdmi',
-                'bracket', 'fixings', 'fixings', 'fastener', 'wall mount',
-                'sundry', 'materials',
-            ];
-            foreach ($consumableDescKeywords as $kw) {
-                if (str_contains($desc, $kw)) {
-                    return 'consumable';
-                }
+        // Description-keyword fallback runs for ANY part# — real-part-numbered
+        // cables (CS17461, AV16131) and extension leads (PL12980) belong in
+        // consumables. Unknown items with no keyword match still hit
+        // `return 'hardware'` at the bottom (intentional — user decision per
+        // quick task 260528-h8e Bug B).
+        // Mirrors the unconditional $serviceDescKeywords loop below.
+        $consumableDescKeywords = [
+            'bracket', 'cable', 'cabling', 'conduit', 'extension lead',
+            'fastener', 'fixings', 'hdmi', 'mains extension', 'materials',
+            'patch', 'power lead', 'rj45', 'sundry', 'trunking', 'wall mount',
+        ];
+        foreach ($consumableDescKeywords as $kw) {
+            if (str_contains($desc, $kw)) {
+                return 'consumable';
             }
         }
 
