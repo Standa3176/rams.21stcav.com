@@ -7,6 +7,7 @@ use App\Jobs\GenerateSurveyQuestionsJob;
 use App\Mail\SurveySubmittedMail;
 use App\Models\Project;
 use App\Models\ProjectActivityLog;
+use App\Models\ProjectPackage;
 use App\Models\SiteSurvey;
 use App\Models\SiteSurveyPhoto;
 use App\Models\SiteSurveyRoom;
@@ -154,23 +155,17 @@ class SurveyService
             // area so case/whitespace variants collapse to the same room.
             $equipmentByRoomKey = $this->groupEquipmentByRoom($ctx['equipment'] ?? []);
 
-            // ── Mirror project / package works_description into general_notes ──
-            // Project-level value takes priority; falls back to the latest
-            // reviewed package's works_description; final fallback is null.
-            // Capped to 3000 chars to honour the survey edit form's maxlength
-            // constraint so the next save does not get rejected.
-            // Quick task 260506-fh0.
-            $package        = $project->relationLoaded('latestPackage')
+            // ── Seed general_notes from the canonical post-Phase-22.1 scope ──
+            // Replaces the old works_description-only read that broke after
+            // Phase 22.1 D-LOCK stopped writing both works_description columns.
+            // resolveProjectScopeForSurvey polls the canonical sources in
+            // priority order (scope_of_works_bullets → overview → room_overviews →
+            // legacy works_description) and returns null when all are empty.
+            // Quick task 260528-h8e — Bug C: 21CQ30485-03-OPS.
+            $package = $project->relationLoaded('latestPackage')
                 ? $project->latestPackage
                 : $project->latestPackage()->first();
-            $worksDescription = trim((string) ($project->works_description ?? ''));
-            if ($worksDescription === '') {
-                $worksDescription = trim((string) ($package?->works_description ?? ''));
-            }
-            if ($worksDescription !== '' && mb_strlen($worksDescription) > 3000) {
-                $worksDescription = mb_substr($worksDescription, 0, 3000);
-            }
-            $generalNotes = $worksDescription !== '' ? $worksDescription : null;
+            $generalNotes = $this->resolveProjectScopeForSurvey($project, $package);
 
             $survey = SiteSurvey::create([
                 'user_id'       => $user->id,
@@ -187,10 +182,9 @@ class SurveyService
             ]);
 
             if ($generalNotes !== null) {
-                Log::info('SurveyService: seeded general_notes from works_description', [
+                Log::info('SurveyService: seeded general_notes via resolveProjectScopeForSurvey', [
                     'project_id' => $project->id,
                     'survey_id'  => $survey->id,
-                    'source'     => trim((string) ($project->works_description ?? '')) !== '' ? 'project' : 'package',
                     'length'     => mb_strlen($generalNotes),
                 ]);
             }
@@ -853,6 +847,95 @@ class SurveyService
         }
 
         return true;
+    }
+
+    /**
+     * Resolve the canonical scope text for a new survey's general_notes.
+     *
+     * Priority ladder (first non-empty wins):
+     *   1. $package->extracted_data['scope_of_works_bullets']
+     *      Post-Phase-22.1 D-06 canonical. Computed at approve-time by
+     *      RamsComplianceUpgradeService::computeScopeOfWorksBulletsForApprove
+     *      and persisted via $package->update(['extracted_data' => $merged]).
+     *      Joined one bullet per line — survey general_notes is plain text,
+     *      not Markdown.
+     *   2. $package->extracted_data['overview']
+     *      Preserved verbatim from QuoteWerks per Phase 22.1 D-02.
+     *   3. $package->extracted_data['room_overviews'][*]['overview']
+     *      Concatenated as "{room}: {overview}" joined by blank lines so
+     *      multi-room quotes still seed something useful.
+     *   4. $project->works_description  (legacy, kept as last-resort tail per
+     *      planner constraint for older projects that haven't been re-extracted).
+     *   5. $package->works_description  (legacy, same rationale).
+     *
+     * Returns null if all five sources are empty. Result is capped at 3000
+     * characters via mb_substr to match the survey edit form's maxlength.
+     *
+     * Quick task 260528-h8e — Bug C: 21CQ30485-03-OPS. Replaces the prior
+     * works_description-only read that broke after Phase 22.1 D-LOCK
+     * intentionally stopped writing both works_description columns.
+     */
+    public function resolveProjectScopeForSurvey(?Project $project, ?ProjectPackage $package): ?string
+    {
+        $extracted = (array) ($package?->extracted_data ?? []);
+
+        // Priority 1: post-22.1 canonical scope bullets.
+        $bullets = (array) ($extracted['scope_of_works_bullets'] ?? []);
+        $bulletLines = [];
+        foreach ($bullets as $bullet) {
+            $line = trim((string) $bullet);
+            if ($line !== '') {
+                $bulletLines[] = $line;
+            }
+        }
+        if (! empty($bulletLines)) {
+            return $this->capScope(implode("\n", $bulletLines));
+        }
+
+        // Priority 2: QuoteWerks overview verbatim.
+        $overview = trim((string) ($extracted['overview'] ?? ''));
+        if ($overview !== '') {
+            return $this->capScope($overview);
+        }
+
+        // Priority 3: concatenated room overviews.
+        $roomOverviews = (array) ($extracted['room_overviews'] ?? []);
+        $roomLines = [];
+        foreach ($roomOverviews as $ro) {
+            if (! is_array($ro)) continue;
+            $roomName = trim((string) ($ro['room'] ?? ''));
+            $roomText = trim((string) ($ro['overview'] ?? ''));
+            if ($roomText === '') continue;
+            $roomLines[] = $roomName !== ''
+                ? "{$roomName}: {$roomText}"
+                : $roomText;
+        }
+        if (! empty($roomLines)) {
+            return $this->capScope(implode("\n\n", $roomLines));
+        }
+
+        // Priority 4: legacy project works_description.
+        $projectLegacy = trim((string) ($project?->works_description ?? ''));
+        if ($projectLegacy !== '') {
+            return $this->capScope($projectLegacy);
+        }
+
+        // Priority 5: legacy package works_description.
+        $packageLegacy = trim((string) ($package?->works_description ?? ''));
+        if ($packageLegacy !== '') {
+            return $this->capScope($packageLegacy);
+        }
+
+        return null;
+    }
+
+    /**
+     * Cap a scope string at 3000 chars (UTF-8 safe) — matches the survey
+     * edit form's maxlength so the next save isn't rejected.
+     */
+    private function capScope(string $text): string
+    {
+        return mb_strlen($text) > 3000 ? mb_substr($text, 0, 3000) : $text;
     }
 
     /**
