@@ -1864,6 +1864,13 @@ class QuoteParserService
                 if (trim((string) ($section['title'] ?? '')) === '') {
                     continue;
                 }
+                // Skip QuoteWerks document-structure headers (Hardware /
+                // Services / Summary) — they're not rooms (see
+                // isNonRoomSectionTitle for the canonical list).
+                // Quick task 260528-h8e — Bug A: 21CQ30485-03-OPS.
+                if ($this->isNonRoomSectionTitle((string) $section['title'])) {
+                    continue;
+                }
                 if ($tupleOffset >= $section['start']) {
                     $area = $section['title'];
                     break;
@@ -1884,8 +1891,11 @@ class QuoteParserService
                 'location'    => $this->detectRoom($rawDesc),
             ];
 
-            // Collect unique area names for the rooms list.
-            if ($area !== '') {
+            // Collect unique area names for the rooms list. Symmetric guard:
+            // never let a document-structure header pollute the rooms list
+            // (see area-picker filter above + isNonRoomSectionTitle).
+            // Quick task 260528-h8e — Bug A: 21CQ30485-03-OPS.
+            if ($area !== '' && ! $this->isNonRoomSectionTitle($area)) {
                 $areaKey = strtolower($area);
                 if (! isset($seenRooms[$areaKey])) {
                     $seenRooms[$areaKey] = true;

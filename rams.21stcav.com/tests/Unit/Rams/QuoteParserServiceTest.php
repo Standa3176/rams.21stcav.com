@@ -1363,6 +1363,82 @@ class QuoteParserServiceTest extends TestCase
     }
 
     // =========================================================================
+    // BUG A REGRESSION (quick task 260528-h8e — 21CQ30485-03-OPS)
+    // =========================================================================
+
+    /**
+     * BMRS-shaped quote: each real room is followed by a "Hardware" sub-header
+     * OVERVIEWTITLE that exists purely as a document-structure label, then the
+     * PART rows for that room. The area picker used to walk back to the
+     * CLOSEST OVERVIEWTITLE — which was always "Hardware", never the real
+     * room above it. Equipment items must now carry the real room name as
+     * their `area`, and the document-structure headers must NOT appear.
+     *
+     * @see app/Services/QuoteParserService.php area-picker loop ~1860
+     */
+    public function test_area_skips_non_room_section_header_between_real_rooms(): void
+    {
+        $text = implode("\n", [
+            'OVERVIEWTITLESTART Larger Mtg Room OVERVIEWTITLEEND',
+            'OVERVIEWTITLESTART Hardware OVERVIEWTITLEEND',
+            'PARTSTART FW-75BZ30L PARTEND PARTDESCSTART Sharp 75" display PARTDESCEND QTYSTART 1.00 QTYEND',
+            'OVERVIEWTITLESTART Smaller Meeting Room OVERVIEWTITLEEND',
+            'OVERVIEWTITLESTART Hardware OVERVIEWTITLEEND',
+            'PARTSTART FW-55BZ30L PARTEND PARTDESCSTART Sharp 55" display PARTDESCEND QTYSTART 1.00 QTYEND',
+            'OVERVIEWTITLESTART Professional Services OVERVIEWTITLEEND',
+            'OVERVIEWTITLESTART Services OVERVIEWTITLEEND',
+            'PARTSTART DELIVERY PARTEND PARTDESCSTART Delivery to site PARTDESCEND QTYSTART 1.00 QTYEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $areasByPart = [];
+        foreach ($result['equipment'] as $item) {
+            $areasByPart[(string) ($item['part_number'] ?? '')] = (string) ($item['area'] ?? '');
+        }
+
+        $this->assertSame('Larger Mtg Room',     $areasByPart['FW-75BZ30L'] ?? '__MISSING__');
+        $this->assertSame('Smaller Meeting Room', $areasByPart['FW-55BZ30L'] ?? '__MISSING__');
+
+        // Delivery row may carry "Professional Services" (a legitimate non-room
+        // bucket from the source) OR fall through to '' — but MUST NOT
+        // carry the document-structure label "Hardware" or "Services".
+        $deliveryArea = $areasByPart['DELIVERY'] ?? '__MISSING__';
+        $this->assertNotSame('Hardware', $deliveryArea);
+        $this->assertNotSame('Services', $deliveryArea);
+
+        // None of the hardware rows may end up with the structural header.
+        foreach ($result['equipment'] as $item) {
+            $this->assertNotSame('Hardware', (string) ($item['area'] ?? ''), 'Equipment area must never be "Hardware"');
+            $this->assertNotSame('Services', (string) ($item['area'] ?? ''), 'Equipment area must never be "Services"');
+        }
+    }
+
+    public function test_non_room_section_titles_do_not_appear_in_rooms_list(): void
+    {
+        $text = implode("\n", [
+            'OVERVIEWTITLESTART Larger Mtg Room OVERVIEWTITLEEND',
+            'OVERVIEWTITLESTART Hardware OVERVIEWTITLEEND',
+            'PARTSTART FW-75BZ30L PARTEND PARTDESCSTART Sharp 75" display PARTDESCEND QTYSTART 1.00 QTYEND',
+            'OVERVIEWTITLESTART Smaller Meeting Room OVERVIEWTITLEEND',
+            'OVERVIEWTITLESTART Hardware OVERVIEWTITLEEND',
+            'PARTSTART FW-55BZ30L PARTEND PARTDESCSTART Sharp 55" display PARTDESCEND QTYSTART 1.00 QTYEND',
+            'OVERVIEWTITLESTART Professional Services OVERVIEWTITLEEND',
+            'OVERVIEWTITLESTART Services OVERVIEWTITLEEND',
+            'PARTSTART DELIVERY PARTEND PARTDESCSTART Delivery to site PARTDESCEND QTYSTART 1.00 QTYEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $rooms = $result['rooms'] ?? [];
+
+        $this->assertContains('Larger Mtg Room',     $rooms);
+        $this->assertContains('Smaller Meeting Room', $rooms);
+        $this->assertNotContains('Hardware', $rooms);
+        $this->assertNotContains('Services', $rooms);
+    }
+
+    // =========================================================================
     // NORMALISATION
     // =========================================================================
 
