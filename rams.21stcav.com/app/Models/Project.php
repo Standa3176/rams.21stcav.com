@@ -195,6 +195,16 @@ class Project extends Model
         return $this->hasMany(Worksheet::class);
     }
 
+    /**
+     * Quick task 260601-r4c — engineer reference files (uploaded artifacts:
+     * site plans, CAD drawings, cable schedules, method statements). See
+     * App\Models\ProjectReferenceFile for the per-file shape.
+     */
+    public function referenceFiles(): HasMany
+    {
+        return $this->hasMany(ProjectReferenceFile::class);
+    }
+
     // ── Phase 4 — Tier 1 OM data model relationships ─────────────────────────
 
     public function devices(): HasMany

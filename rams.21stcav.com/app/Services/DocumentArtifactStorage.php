@@ -62,6 +62,16 @@ class DocumentArtifactStorage
     // root so the two outputs never collide.
     public const TYPE_SURVEY = 'site-surveys';
 
+    // TYPE_REFERENCE (quick task 260601-r4c) — engineer reference files
+    // uploaded against a Project (site plans, CAD drawings, cable
+    // schedules, method statements, data sheets). Per-project nesting
+    // (reference-files/{project_id}/{filename}) is enforced by
+    // ProjectReferenceFileService — the constant itself is flat-by-design
+    // to keep DocumentArtifactStorage callers symmetric across types.
+    // NO LEGACY_ROOTS entry — new feature, no pre-H-07 history
+    // (matches TYPE_SNAGGING / TYPE_DRAWING / TYPE_SURVEY precedent).
+    public const TYPE_REFERENCE = 'reference-files';
+
     /**
      * Legacy absolute-path roots, relative to storage_path(). Used ONLY for
      * read-fallback so existing files remain accessible. New writes never go
@@ -166,6 +176,7 @@ class DocumentArtifactStorage
             self::TYPE_SNAGGING,
             self::TYPE_DRAWING,
             self::TYPE_SURVEY,
+            self::TYPE_REFERENCE,
         ];
     }
 
