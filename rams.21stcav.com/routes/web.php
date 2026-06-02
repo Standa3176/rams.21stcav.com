@@ -78,6 +78,13 @@ Route::post('survey/{token}/rooms/{room}/questions/{question}', [PublicSurveyCon
 Route::get('survey/{token}/photos/{photo}', [PublicSurveyController::class, 'servePhoto'])->name('survey.photos.serve');
 Route::patch('survey/{token}/photos/{photo}', [PublicSurveyController::class, 'updatePhoto'])->name('survey.photos.update')->middleware('throttle:60,1');
 
+// Engineer reference files — public download (quick task 260601-r4c).
+// Cross-tenant 403 guard lives in the controller (file->project_id must
+// match $survey->project_id) BEFORE any storage I/O. Implicit route-model
+// binding resolves {file} to App\Models\ProjectReferenceFile.
+Route::get('survey/{token}/files/{file}', [PublicSurveyController::class, 'downloadReferenceFile'])
+    ->name('public-survey.files.serve')->middleware('throttle:60,1');
+
 /*
 |--------------------------------------------------------------------------
 | Public Worksheet Sign-Off Routes — no authentication required
@@ -131,6 +138,13 @@ Route::post('worksheet/{token}/label-photos/{photo}/confirm', [PublicWorksheetCo
     ->name('public-worksheet.label-photo.confirm')->middleware('throttle:60,1');
 Route::delete('worksheet/{token}/label-photos/{photo}', [PublicWorksheetController::class, 'deleteLabelPhoto'])
     ->name('public-worksheet.label-photo.delete')->middleware('throttle:30,1');
+
+// Engineer reference files — public download (quick task 260601-r4c).
+// Cross-tenant 403 guard lives in the controller (file->project_id must
+// match $worksheet->project_id) BEFORE any storage I/O. Implicit
+// route-model binding resolves {file} to App\Models\ProjectReferenceFile.
+Route::get('worksheet/{token}/files/{file}', [PublicWorksheetController::class, 'downloadReferenceFile'])
+    ->name('public-worksheet.files.serve')->middleware('throttle:60,1');
 
 /*
 |--------------------------------------------------------------------------

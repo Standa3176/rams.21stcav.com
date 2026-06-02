@@ -547,6 +547,30 @@ class PublicSurveyController extends Controller
         ]);
     }
 
+    // ─── Engineer reference files (quick task 260601-r4c) ────────────────────
+
+    /**
+     * GET /survey/{token}/files/{file}
+     *
+     * Stream a project-level engineer reference file attached to the same
+     * project as the survey identified by $token.
+     *
+     * **CROSS-TENANT GUARD** (T-r4c-02) — `abort_unless($file->project_id
+     * === $survey->project_id, 403)` runs BEFORE any storage I/O.
+     * Mirrors PublicWorksheetController::downloadReferenceFile shape.
+     */
+    public function downloadReferenceFile(
+        string $token,
+        \App\Models\ProjectReferenceFile $file,
+    ): \Symfony\Component\HttpFoundation\Response {
+        $survey = $this->resolveSurvey($token);
+
+        abort_unless($file->project_id === $survey->project_id, 403);
+
+        return app(\App\Services\ProjectReferenceFileService::class)
+            ->streamResponse($file);
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
     /**

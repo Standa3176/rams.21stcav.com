@@ -116,13 +116,21 @@ class ProjectReferenceFileService
 
     /**
      * Compose the Content-Disposition header for a stored reference file.
-     * - PDF / image/* → inline (renders in browser tab / iframe).
-     * - everything else → attachment (forces download — CAD/Office/CSV).
+     *
+     * Gated by EXTENSION (not MIME) because some CAD formats sniff under
+     * the `image/*` family — finfo reports DWG as `image/vnd.dwg`, which
+     * would naively trigger an inline render that browsers can't honour
+     * anyway. The user-visible filename extension is the canonical
+     * inline-vs-attachment signal here.
+     *
+     * - pdf / png / jpg / jpeg / webp → inline (browser-native viewers)
+     * - everything else (CAD / Office / CSV / unknown) → attachment
      */
     public function dispositionFor(ProjectReferenceFile $file): string
     {
-        $mime = strtolower((string) $file->mime_type);
-        $inline = $mime === 'application/pdf' || str_starts_with($mime, 'image/');
+        $ext = strtolower(pathinfo($file->original_filename, PATHINFO_EXTENSION));
+        $inlineExts = ['pdf', 'png', 'jpg', 'jpeg', 'webp'];
+        $inline = in_array($ext, $inlineExts, true);
 
         $disposition = $inline ? 'inline' : 'attachment';
 

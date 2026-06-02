@@ -452,6 +452,33 @@ class PublicWorksheetController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    // ─── Engineer reference files (quick task 260601-r4c) ────────────────────
+
+    /**
+     * GET /worksheet/{token}/files/{file}
+     *
+     * Stream a project-level engineer reference file (uploaded site plan,
+     * CAD drawing, cable schedule, method statement, etc.) attached to the
+     * same project as the worksheet identified by $token.
+     *
+     * **CROSS-TENANT GUARD** (T-r4c-01) — `abort_unless($file->project_id
+     * === $worksheet->project_id, 403)` runs BEFORE any storage I/O. A
+     * leaked Project-A worksheet token MUST NOT be usable to enumerate
+     * Project-B's reference files; the project_id-mismatch check tested
+     * explicitly in PublicWorksheetDownloadTest.
+     */
+    public function downloadReferenceFile(
+        string $token,
+        \App\Models\ProjectReferenceFile $file,
+    ): \Symfony\Component\HttpFoundation\Response {
+        $worksheet = $this->resolveWorksheet($token);
+
+        abort_unless($file->project_id === $worksheet->project_id, 403);
+
+        return app(\App\Services\ProjectReferenceFileService::class)
+            ->streamResponse($file);
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
     /**
