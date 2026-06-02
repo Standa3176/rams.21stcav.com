@@ -1951,6 +1951,11 @@ class QuoteParserService
             'room_overviews' => $roomOverviews,
             'project_name'   => '',
             'works_summary'  => '',
+            // 260602-mlt — surface QuoteWerks SHIPCONT / SHIPPHONE so the engineer
+            // worksheet + survey public headers can render a "Site contact: {name} · {tel-link}"
+            // line. extractTagContent() returns '' (never null) when tags are absent.
+            'ship_contact'   => $this->extractTagContent($rawText, 'SHIPCONTSTART', 'SHIPCONTEND'),
+            'ship_phone'     => $this->extractTagContent($rawText, 'SHIPPHONESTART', 'SHIPPHONEEND'),
             'confidence'     => $confidence,
         ];
     }
@@ -3057,13 +3062,23 @@ class QuoteParserService
             return '';
         }
 
-        // Truncate at the first page-break line ("1 of 5", "2 of 5", etc.).
-        // Description text never spans a page boundary; everything after the
-        // page-number line is repeated page-header content (contact, address, etc.)
-        // and must not bleed into the item description.
-        if (preg_match('/\r?\n[^\r\n]*\b\d+\s+of\s+\d+\b[^\r\n]*/i', $chunk, $pm, PREG_OFFSET_CAPTURE)) {
-            $chunk = substr($chunk, 0, (int) $pm[0][1]);
-        }
+        // 260602-mlt — EXCISE page-banner blocks instead of truncating at them.
+        //
+        // QuoteWerks PDFs that span a page boundary mid-description insert a
+        // repeating "Page N of M" banner followed by 1-6 lines of repeated
+        // tagged header noise (SHIPCONT/SHIPPHONE/SHIPCOMP/SITENAME/QUOTENUM/
+        // PREPAREDBY pairs). The next PARTSTART boundary (already computed
+        // above) remains the hard terminator for the description chunk.
+        //
+        // Cap at ONE occurrence per chunk so we never silently swallow legitimate
+        // description text that happens to contain digits matching "N of M".
+        $chunk = preg_replace(
+            '/\r?\n[^\r\n]*\b\d+\s+of\s+\d+\b[^\r\n]*'
+                . '(?:\r?\n[^\r\n]*(?:SHIPCONT|SHIPPHONE|SHIPCOMP|SHIPADD|SITENAME|QUOTENUM|PREPAREDBY)(?:START|END)[^\r\n]*){0,6}/i',
+            ' ',
+            $chunk,
+            1
+        );
 
         // Strip tag tokens and header noise.
         $chunk = preg_replace('/\b(?:OVERVIEWTXTSTART|OVERVIEWTXTEND|OVERVIEWTITLESTART|OVERVIEWTITLEEND|'
