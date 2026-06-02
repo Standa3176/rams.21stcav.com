@@ -117,6 +117,22 @@ class ProjectReferenceFileServiceTest extends TestCase
         $this->service->store($file, $this->project, $this->user, null);
     }
 
+    public function test_zip_sniffed_bytes_accepted_when_extension_is_xlsx(): void
+    {
+        // finfo on a minimal PK\x03\x04 header returns application/zip — XLSX
+        // is a ZIP container, so accepting it under the xlsx extension is the
+        // production-correct behaviour. Plain .zip (above) is still rejected
+        // because the extension is not in the allowlist.
+        $file = $this->makeUploadedFileWithContent(
+            'cable-schedule.xlsx',
+            "PK\x03\x04" . str_repeat("\x00", 200),
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        );
+
+        $row = $this->service->store($file, $this->project, $this->user, null);
+        $this->assertSame('cable-schedule.xlsx', $row->original_filename);
+    }
+
     public function test_svg_rejected_by_deny_extension(): void
     {
         // SVG is in DENY_EXTENSIONS — must reject even though image/svg+xml

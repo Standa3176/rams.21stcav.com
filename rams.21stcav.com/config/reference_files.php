@@ -36,6 +36,7 @@ return [
         'text/csv',
         'text/plain', // CSV is often sniffed as text/plain
         'application/octet-stream', // DWG/DXF commonly sniff as octet-stream — extension-gated in service
+        'application/zip', // XLSX/DOCX sometimes sniff as bare zip — extension-gated in service
         'image/vnd.dwg',
         'application/acad',
         'application/dxf',

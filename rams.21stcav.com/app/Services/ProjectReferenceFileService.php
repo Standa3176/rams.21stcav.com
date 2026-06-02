@@ -225,6 +225,18 @@ class ProjectReferenceFileService
                 'file' => 'File type not allowed.',
             ]);
         }
+
+        // 5. application/zip is only valid when the extension is an
+        //    Office Open XML format (xlsx/docx are ZIP containers; finfo
+        //    may report bare application/zip when the internal markers
+        //    don't trigger the more specific OOXML detection). For any
+        //    other extension, application/zip is a generic archive →
+        //    reject (zip is NOT in the allowed extensions list anyway).
+        if ($mime === 'application/zip' && ! in_array($ext, ['xlsx', 'docx'], true)) {
+            throw ValidationException::withMessages([
+                'file' => 'File type not allowed.',
+            ]);
+        }
     }
 
     private function sniffFileMime(string $absolutePath): ?string
