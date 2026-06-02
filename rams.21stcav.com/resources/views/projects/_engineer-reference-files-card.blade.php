@@ -56,8 +56,7 @@
             <input type="text" name="label" maxlength="200"
                    placeholder="Optional label (e.g. Site plan)"
                    class="flex-1 text-sm border border-gray-300 rounded-md p-2">
-            <button type="submit"
-                    class="inline-flex items-center justify-center bg-brand-teal hover:opacity-90 text-white px-4 py-2 rounded-md text-sm font-medium">
+            <button type="submit" class="btn btn-teal">
                 Upload
             </button>
         </div>
@@ -78,7 +77,7 @@
                         <span>{{ $chipEmoji }}</span><span>{{ $chipText }}</span>
                     </span>
                     <a href="{{ route('projects.reference-files.show', [$project, $f]) }}"
-                       class="flex-1 text-gray-900 hover:text-brand-teal hover:underline truncate"
+                       class="flex-1 text-gray-900 hover:text-teal-700 hover:underline truncate"
                        target="_blank">
                         {{ $f->original_filename }}
                         @if($f->label)
