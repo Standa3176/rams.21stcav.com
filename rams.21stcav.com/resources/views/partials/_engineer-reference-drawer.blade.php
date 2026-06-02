@@ -16,9 +16,13 @@
     When $files is empty the drawer renders nothing — keeps the page clean
     on projects with no reference uploads.
 
-    NO new global CSS — minimal inline styling using the brand teal #178A95
-    so the drawer renders identically on both pages without depending on
-    .room-drawer rules that only exist in the worksheet view.
+    NO new global CSS — minimal inline styling using accent amber #C07000
+    (visually distinct from the teal kit-list drawer) so the drawer renders
+    identically on both pages without depending on .room-drawer rules that
+    only exist in the worksheet view.
+
+    260602-mlt: drawer is OPEN by default + amber accents so engineers
+    actually NOTICE the reference files in the field.
 --}}
 
 @php
@@ -59,12 +63,12 @@
 @endphp
 
 @if($files->isNotEmpty())
-<details class="erf-drawer"
-         style="background:#fff;border:1.5px solid rgba(23,138,149,.35);border-left:4px solid #178A95;border-radius:10px;margin-bottom:1rem;overflow:hidden;">
+<details class="erf-drawer" open
+         style="background:#fff;border:1.5px solid rgba(192,112,0,.35);border-left:4px solid #C07000;border-radius:10px;margin-bottom:1rem;overflow:hidden;">
     <summary
-        style="list-style:none;cursor:pointer;padding:.7rem 1rem;display:flex;align-items:center;justify-content:space-between;min-height:44px;font-size:.9rem;font-weight:700;background:rgba(23,138,149,.06);color:#0B3C45;user-select:none;">
+        style="list-style:none;cursor:pointer;padding:.7rem 1rem;display:flex;align-items:center;justify-content:space-between;min-height:44px;font-size:.9rem;font-weight:700;background:rgba(192,112,0,.15);color:#0B3C45;user-select:none;">
         <span>📎 Engineer Reference Files ({{ $files->count() }})</span>
-        <span style="font-size:1.1rem;color:#178A95;">▾</span>
+        <span style="font-size:1.1rem;color:#C07000;">▾</span>
     </summary>
     <div style="padding:.85rem 1rem;">
 
@@ -72,7 +76,7 @@
             @php $group = $byKind->get($kind, collect()); @endphp
             @if($group->isNotEmpty())
                 <div style="margin-bottom:.85rem;">
-                    <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.4rem;">
+                    <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#C07000;margin-bottom:.4rem;">
                         {{ $chipFor[$kind] }}
                     </div>
 
@@ -82,7 +86,7 @@
                             <details style="border:1px solid #E5E7EB;border-radius:8px;margin-bottom:.45rem;background:#FAFAFA;">
                                 <summary style="cursor:pointer;padding:.55rem .7rem;min-height:44px;font-size:.88rem;color:#0B3C45;display:flex;align-items:center;justify-content:space-between;">
                                     <span>📄 {{ $f->original_filename }} ({{ $humanSize((int) $f->size_bytes) }})</span>
-                                    <span style="font-size:.95rem;color:#178A95;">▾</span>
+                                    <span style="font-size:.95rem;color:#C07000;">▾</span>
                                 </summary>
                                 <div style="padding:.6rem .7rem;background:#fff;">
                                     <iframe src="{{ $url }}#view=FitH"
@@ -90,7 +94,7 @@
                                             loading="lazy"></iframe>
                                     <div style="margin-top:.5rem;text-align:right;">
                                         <a href="{{ $url }}" download
-                                           style="display:inline-block;padding:.45rem .85rem;background:#178A95;color:#fff;border-radius:6px;text-decoration:none;font-size:.82rem;font-weight:600;min-height:44px;line-height:1;">
+                                           style="display:inline-block;padding:.45rem .85rem;background:#C07000;color:#fff;border-radius:6px;text-decoration:none;font-size:.82rem;font-weight:600;min-height:44px;line-height:1;">
                                             ↓ Download
                                         </a>
                                     </div>
@@ -116,10 +120,10 @@
                             @php $url = route($serveRouteName, ['token' => $token, 'file' => $f->id]); @endphp
                             <a href="{{ $url }}"
                                style="display:flex;align-items:center;gap:.6rem;padding:.6rem .75rem;margin-bottom:.4rem;background:#FAFAFA;border:1px solid #E5E7EB;border-radius:8px;text-decoration:none;color:#0B3C45;font-size:.88rem;min-height:44px;">
-                                <span style="font-weight:700;color:#178A95;white-space:nowrap;">{{ $chipFor[$kind] }}</span>
+                                <span style="font-weight:700;color:#C07000;white-space:nowrap;">{{ $chipFor[$kind] }}</span>
                                 <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $f->original_filename }}</span>
                                 <span style="color:#6B7280;font-size:.78rem;white-space:nowrap;">{{ $humanSize((int) $f->size_bytes) }}</span>
-                                <span style="color:#178A95;font-size:.78rem;white-space:nowrap;">Tap to download</span>
+                                <span style="color:#C07000;font-size:.78rem;white-space:nowrap;">Tap to download</span>
                             </a>
                         @endforeach
                     @endif
