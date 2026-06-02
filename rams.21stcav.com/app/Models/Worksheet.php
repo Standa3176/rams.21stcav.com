@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -203,6 +204,86 @@ class Worksheet extends Model
             self::STATUS_FAILED     => 'badge-red',
             default                 => 'badge-grey',
         };
+    }
+
+    // ── Staleness accessors (quick task 260602-o2a) ───────────────────────────
+    //
+    // A worksheet is "stale" when the project's latestPackage has been edited
+    // AFTER the worksheet's snapshot was generated. The snapshot timestamp is
+    // the ISO8601 string embedded in generated_data['generated_at'] by
+    // WorksheetGeneratorService::build() (line 230) — NOT $this->updated_at,
+    // which mutates on every status flip, sign-off, and email-sent event and
+    // would false-positive on every non-snapshot row touch.
+    //
+    // Only worksheets in status=draft|final have a meaningful snapshot to
+    // compare against; pending/generating have no snapshot yet, and failed
+    // worksheets surface their own retry button (a stale badge over the top
+    // of "broken" is wrong UX).
+    //
+    // Cross-effect with 260602-mlt (parser polish + ship_contact extraction):
+    // when prod runs the package re-extract on existing projects, every
+    // ProjectPackage.updated_at advances and isStale() correctly returns true
+    // on every existing worksheet for those projects. This is NOT a false
+    // positive — the underlying data shape DID change, and a regen picks up
+    // the new ship_contact / multi-line description fields. Banner doing its
+    // job: telling the user to regenerate.
+
+    /**
+     * True iff the project's latestPackage was updated after this worksheet's
+     * snapshot timestamp (worksheet's view of the data is out of date).
+     *
+     * Defensive against:
+     *  - status not in {draft, final}        → false (short-circuit)
+     *  - $this->project is null              → false (orphaned)
+     *  - project has no latestPackage        → false (no source to be stale relative to)
+     *  - generated_data is null              → false (no snapshot)
+     *  - generated_data missing generated_at → false (legacy shape, do not guess)
+     */
+    public function isStale(): bool
+    {
+        if (! in_array($this->status, [self::STATUS_DRAFT, self::STATUS_FINAL], true)) {
+            return false;
+        }
+
+        $this->loadMissing('project.latestPackage');
+
+        $project = $this->project;
+        if ($project === null) {
+            return false;
+        }
+
+        $package = $project->latestPackage;
+        if ($package === null) {
+            return false;
+        }
+
+        $data = $this->generated_data;
+        if (! is_array($data)) {
+            return false;
+        }
+
+        $generatedAt = $data['generated_at'] ?? null;
+        if (! is_string($generatedAt) || trim($generatedAt) === '') {
+            return false;
+        }
+
+        return Carbon::parse($generatedAt)->lt($package->updated_at);
+    }
+
+    /**
+     * When isStale() is true, returns the Carbon timestamp of the source
+     * package's last update (for "Project data updated {diffForHumans}" copy).
+     * Returns null when fresh, failed, or any defensive branch in isStale().
+     */
+    public function staleSince(): ?Carbon
+    {
+        if (! $this->isStale()) {
+            return null;
+        }
+
+        $updatedAt = $this->project?->latestPackage?->updated_at;
+
+        return $updatedAt instanceof Carbon ? $updatedAt : ($updatedAt ? Carbon::parse($updatedAt) : null);
     }
 
     // ── Pre-install confirmation accessors (260504-iy4 — H4) ───────────────────
