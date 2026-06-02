@@ -286,6 +286,44 @@ class Worksheet extends Model
         return $updatedAt instanceof Carbon ? $updatedAt : ($updatedAt ? Carbon::parse($updatedAt) : null);
     }
 
+    // ── Engineer activity accessor (quick task 260602-rcd) ────────────────────
+    //
+    // True when the engineer has done ANY on-site work captured against this
+    // worksheet: uploaded completed-work photos, captured equipment label
+    // photos, recorded at least one client sign-off, OR marked any room's
+    // pre-install survey as reviewed. Drives the Engineer Report PDF gate
+    // (404 when false) and the disabled-button state on projects.show.
+    //
+    // Returning false on a fresh, never-visited worksheet keeps the engineer
+    // report surface honest — a PDF with no content would be misleading.
+
+    public function hasEngineerActivity(): bool
+    {
+        if ($this->photos()->exists()) {
+            return true;
+        }
+
+        if (\App\Models\DeviceLabelPhoto::where('worksheet_id', $this->id)->exists()) {
+            return true;
+        }
+
+        if ($this->signoffs()->exists()) {
+            return true;
+        }
+
+        // Any "survey reviewed" tick across any room counts as activity.
+        $surveyReview = data_get($this->pre_install_confirmations, 'survey_review');
+        if (is_array($surveyReview)) {
+            foreach ($surveyReview as $roomEntry) {
+                if (is_array($roomEntry) && ! empty($roomEntry['reviewed_at'])) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     // ── Pre-install confirmation accessors (260504-iy4 — H4) ───────────────────
     //
     // Two-namespace JSON shape:
