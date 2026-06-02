@@ -46,7 +46,10 @@ class PublicWorksheetController extends Controller
     public function show(string $token): View
     {
         $worksheet = $this->resolveWorksheet($token);
-        $worksheet->load('signoffs', 'photos', 'project.referenceFiles');
+        // 260602-mlt — `project.latestPackage` eager-load powers the header
+        // "Site contact: {name} · {tel-link}" line so the @php block in
+        // public-show.blade.php doesn't trigger an N+1 per request.
+        $worksheet->load('signoffs', 'photos', 'project.referenceFiles', 'project.latestPackage');
 
         return view('worksheets.public-show', [
             'worksheet'      => $worksheet,

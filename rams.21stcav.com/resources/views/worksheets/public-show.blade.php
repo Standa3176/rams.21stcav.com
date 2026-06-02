@@ -418,6 +418,34 @@
                 @if($worksheet->project_ref) · Ref: {{ $worksheet->project_ref }}@endif
                 @if($worksheet->site_address) · {{ $worksheet->site_address }}@endif
             </div>
+            {{-- ── 260602-mlt — Site contact line ──────────────────────────────
+                 Sourced from $worksheet->project->latestPackage->extracted_data
+                 ['ship_contact' / 'ship_phone'] (top-level keys, NOT nested under
+                 'project'). UK normalisation: leading '0' → '+44' in the tel:
+                 href; visible label preserves original formatting. Renders
+                 nothing when BOTH name AND phone are empty (no dangling
+                 "Site contact: ·" debris). --}}
+            @php
+                $pkg = optional($worksheet->project)->latestPackage;
+                $ed  = is_array($pkg?->extracted_data) ? $pkg->extracted_data : [];
+                $siteContactName  = trim((string) ($ed['ship_contact'] ?? ''));
+                $siteContactPhone = trim((string) ($ed['ship_phone']   ?? ''));
+                $telHref = '';
+                if ($siteContactPhone !== '') {
+                    $digits = preg_replace('/\s+/', '', $siteContactPhone);
+                    $telHref = (str_starts_with($digits, '0'))
+                        ? '+44' . substr($digits, 1)
+                        : $digits;
+                }
+            @endphp
+            @if($siteContactName !== '' || $siteContactPhone !== '')
+                <div class="ws-header__meta ws-header__contact" style="margin-top:.2rem;">
+                    Site contact:
+                    @if($siteContactName !== ''){{ ' ' . $siteContactName }}@endif
+                    @if($siteContactName !== '' && $siteContactPhone !== '') · @endif
+                    @if($siteContactPhone !== '')<a href="tel:{{ $telHref }}" style="color:inherit;text-decoration:underline;">{{ $siteContactPhone }}</a>@endif
+                </div>
+            @endif
         </div>
     </header>
 

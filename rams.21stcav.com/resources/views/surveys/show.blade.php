@@ -40,6 +40,43 @@
         <h1 class="text-lg font-bold leading-tight">{{ $survey->project_name }}</h1>
         <p class="text-xs text-white/60 mt-0.5 truncate">{{ $survey->site_address }}</p>
 
+        {{-- ── 260602-mlt — Site contact line ──────────────────────────────
+             Mirror of the worksheet header line. Reads the same flat package
+             keys (extracted_data['ship_contact'/'ship_phone']) and falls back
+             to SiteSurvey.site_contact_name / site_contact_phone for projects
+             whose package was never re-extracted post-mlt. UK normalisation
+             (leading '0' → '+44') on the tel: href; original formatting kept
+             in the visible label. Renders nothing when BOTH are empty. --}}
+        @php
+            $pkg = optional($survey->project)->latestPackage;
+            $ed  = is_array($pkg?->extracted_data) ? $pkg->extracted_data : [];
+            $siteContactName  = trim((string) (
+                ($ed['ship_contact'] ?? '') !== ''
+                    ? $ed['ship_contact']
+                    : ($survey->site_contact_name ?? '')
+            ));
+            $siteContactPhone = trim((string) (
+                ($ed['ship_phone'] ?? '') !== ''
+                    ? $ed['ship_phone']
+                    : ($survey->site_contact_phone ?? '')
+            ));
+            $telHref = '';
+            if ($siteContactPhone !== '') {
+                $digits = preg_replace('/\s+/', '', $siteContactPhone);
+                $telHref = (str_starts_with($digits, '0'))
+                    ? '+44' . substr($digits, 1)
+                    : $digits;
+            }
+        @endphp
+        @if($siteContactName !== '' || $siteContactPhone !== '')
+            <p class="text-xs text-white/60 mt-0.5 truncate">
+                Site contact:
+                @if($siteContactName !== ''){{ ' ' . $siteContactName }}@endif
+                @if($siteContactName !== '' && $siteContactPhone !== '') · @endif
+                @if($siteContactPhone !== '')<a href="tel:{{ $telHref }}" class="underline text-white/80">{{ $siteContactPhone }}</a>@endif
+            </p>
+        @endif
+
         {{-- Step progress — only visible during step wizard --}}
         <div x-show="screen === 'step'" x-cloak class="mt-2.5">
             <div class="flex justify-between items-center mb-1">
