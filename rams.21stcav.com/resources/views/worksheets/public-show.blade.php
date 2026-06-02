@@ -602,6 +602,13 @@
                 <p class="muted">No room data is available yet — please contact your project manager.</p>
             </div>
         @else
+            {{-- ── STALE-DATA BANNER (quick task 260602-o2a) ──────────────────
+                 Informational only — engineers cannot regen, only the office
+                 can. Renders ONLY when worksheet has rooms (i.e. something
+                 to be stale about) AND project.latestPackage was edited
+                 after the worksheet's snapshot timestamp. --}}
+            @include('worksheets._stale-banner', ['worksheet' => $worksheet, 'variant' => 'public'])
+
             {{-- ── ENGINEER REFERENCE FILES (quick task 260601-r4c) ────────────
                  Project-level uploaded artifacts (site plans, CAD drawings,
                  cable schedules, method statements). Drawer is hidden when
