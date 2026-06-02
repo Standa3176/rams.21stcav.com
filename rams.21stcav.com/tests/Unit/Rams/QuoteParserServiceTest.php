@@ -1519,4 +1519,145 @@ class QuoteParserServiceTest extends TestCase
         $this->assertSame('Acme Ltd', $result['client']);
         $this->assertNotEmpty($result['site']);
     }
+
+    // =========================================================================
+    // 260602-mlt — Multi-line post-QTYEND description across page-banner break
+    //              AND ship_contact / ship_phone in tagged return shape.
+    // =========================================================================
+
+    /**
+     * Test A — MT300 shape: PARTSTART/PARTEND/PARTDESCSTART(qty+partno)/paARTDESCEND/
+     *   QTYSTART/QTYEND tuple followed by 5 lines of description AFTER QTYEND, with a
+     *   typical QuoteWerks page-banner block (page-marker + repeated SHIPCONT/SITENAME/
+     *   QUOTENUM tagged header noise) sitting BETWEEN line 1 and line 2 of the desc.
+     *
+     * Pre-fix: the page-break truncator at extractDescriptionAfterTuple() line 3064 cuts
+     *   the desc at the page-marker, dropping lines 2-5.
+     * Post-fix: the page-banner block is EXCISED and capture continues to the next
+     *   PARTSTART boundary, joining all 5 lines into a single description string.
+     */
+    public function test_multi_line_description_after_qtyend_across_page_break_captures_all_lines(): void
+    {
+        $rawText = implode("\n", [
+            'SITENAMESTART Reading Borough Council SITENAMEEND',
+            'SHIPADDSTART 10 High Street, Reading RG1 1AA SHIPADDEND',
+            'QUOTENUMSTART 21CQ30362-01-OPS QUOTENUMEND',
+            'OVERVIEWTITLESTART Main Hall OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART Audio reinforcement upgrade OVERVIEWTXTEND',
+            'PARTSTART',
+            'PARTEND',
+            'PARTDESCSTART',
+            '1.00 T300',
+            'paARTDESCEND',
+            'QTYSTART',
+            'QTYEND',
+            'The MT300 intelligently connects AVer cameras with',
+            'Page 1 of 5',
+            'SHIPCONTSTART John Smith SHIPCONTEND',
+            'SITENAMESTART Reading Borough Council SITENAMEEND',
+            'QUOTENUMSTART 21CQ30362-01-OPS QUOTENUMEND',
+            'codecs and bridges across enterprise meeting spaces',
+            'providing seamless USB and IP routing for hybrid',
+            'collaboration with PTZ tracking and auto-framing',
+            'powered by AVer Intelligent Camera Engine firmware.',
+            'PARTSTART',
+            'PARTEND',
+            'PARTDESCSTART',
+            '2.00 XYZ999',
+            'paARTDESCEND',
+            'QTYSTART',
+            'QTYEND',
+            'Next item description for boundary check.',
+        ]);
+
+        $result = $this->parser->parse($rawText);
+
+        $this->assertNotEmpty($result['equipment'], 'Expected at least one equipment row');
+        $desc = $result['equipment'][0]['description'] ?? '';
+
+        // All 5 description lines must be present in the captured description.
+        $this->assertStringContainsString('The MT300 intelligently connects AVer cameras with', $desc);
+        $this->assertStringContainsString('codecs and bridges across enterprise meeting spaces', $desc);
+        $this->assertStringContainsString('providing seamless USB and IP routing for hybrid', $desc);
+        $this->assertStringContainsString('collaboration with PTZ tracking and auto-framing', $desc);
+        $this->assertStringContainsString('powered by AVer Intelligent Camera Engine firmware', $desc);
+
+        // Page-banner debris MUST be excised — no contact-name / quote-number / site-name leaks.
+        $this->assertStringNotContainsString('John Smith', $desc);
+        $this->assertStringNotContainsString('Reading Borough Council', $desc);
+        $this->assertStringNotContainsString('21CQ30362', $desc);
+        $this->assertStringNotContainsString('Page 1 of', $desc);
+
+        // Must NOT bleed into next item.
+        $this->assertStringNotContainsString('Next item description', $desc);
+        $this->assertStringNotContainsString('XYZ999', $desc);
+    }
+
+    /**
+     * Test B — single-line PARTDESC regression guard. The existing happy path
+     *   (PARTDESCSTART holds the description) must remain unchanged.
+     */
+    public function test_single_line_partdesc_still_captured_unchanged(): void
+    {
+        $text = implode("\n", [
+            'SITENAMESTART Example Client SITENAMEEND',
+            'SHIPADDSTART 10 High Street, London SW1A 1AA SHIPADDEND',
+            'QUOTENUMSTART 21CQ30246-06-OPS QUOTENUMEND',
+            'PARTSTART ~LHBSWAFWLGCXEN PARTEND PARTDESCSTART Samsung 65 inch display PARTDESCEND QTYSTART 1.00 QTYEND',
+        ]);
+
+        $result = $this->parser->parse($text);
+
+        $this->assertNotEmpty($result['equipment']);
+        $this->assertSame('LHBSWAFWLGCXEN', $result['equipment'][0]['part_number']);
+        $this->assertStringContainsString('Samsung 65 inch display', $result['equipment'][0]['description']);
+    }
+
+    /**
+     * Test C — ship_contact / ship_phone land in the tagged return shape so
+     *   downstream consumers (Blade header line) can render the site contact.
+     */
+    public function test_ship_contact_and_ship_phone_extracted_into_tagged_return_shape(): void
+    {
+        $rawText = implode("\n", [
+            'SITENAMESTART Reading Borough Council SITENAMEEND',
+            'SHIPADDSTART 10 High Street, Reading RG1 1AA SHIPADDEND',
+            'SHIPCONTSTART John Smith SHIPCONTEND',
+            'SHIPPHONESTART 0118 937 3787 SHIPPHONEEND',
+            'QUOTENUMSTART 21CQ30362-01-OPS QUOTENUMEND',
+            'OVERVIEWTITLESTART Main Hall OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART Audio reinforcement upgrade OVERVIEWTXTEND',
+            'PARTSTART ABC123 PARTEND PARTDESCSTART Test product PARTDESCEND QTYSTART 1.00 QTYEND',
+        ]);
+
+        $result = $this->parser->parse($rawText);
+
+        $this->assertArrayHasKey('ship_contact', $result);
+        $this->assertArrayHasKey('ship_phone', $result);
+        $this->assertSame('John Smith', $result['ship_contact']);
+        $this->assertSame('0118 937 3787', $result['ship_phone']);
+    }
+
+    /**
+     * Test D — when SHIPCONT / SHIPPHONE tags are absent the keys still exist
+     *   and default to empty strings (extractTagContent contract).
+     */
+    public function test_ship_contact_and_ship_phone_default_to_empty_string_when_tags_absent(): void
+    {
+        $rawText = implode("\n", [
+            'SITENAMESTART Reading Borough Council SITENAMEEND',
+            'SHIPADDSTART 10 High Street, Reading RG1 1AA SHIPADDEND',
+            'QUOTENUMSTART 21CQ30362-01-OPS QUOTENUMEND',
+            'OVERVIEWTITLESTART Main Hall OVERVIEWTITLEEND',
+            'OVERVIEWTXTSTART Audio reinforcement upgrade OVERVIEWTXTEND',
+            'PARTSTART ABC123 PARTEND PARTDESCSTART Test product PARTDESCEND QTYSTART 1.00 QTYEND',
+        ]);
+
+        $result = $this->parser->parse($rawText);
+
+        $this->assertArrayHasKey('ship_contact', $result);
+        $this->assertArrayHasKey('ship_phone', $result);
+        $this->assertSame('', $result['ship_contact']);
+        $this->assertSame('', $result['ship_phone']);
+    }
 }
