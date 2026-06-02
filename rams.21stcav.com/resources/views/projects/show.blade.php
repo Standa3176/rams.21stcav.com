@@ -1192,6 +1192,19 @@
                                                 <a href="{{ route('worksheets.show', $ws) }}?chat=1"
                                                    class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm" title="Edit content via AI chat">✎ AI Chat</a>
                                             @endif
+                                            {{-- Engineer Report PDF (260602-rcd) — always visible; greyed
+                                                 when no engineer activity yet (per locked decision). Uses
+                                                 the project's defined .btn classes (NOT bg-brand-teal which
+                                                 is undefined — see 260601-r4c hotfix lesson). --}}
+                                            @if ($ws->hasEngineerActivity())
+                                                <a href="{{ route('worksheets.engineer-report-pdf', $ws) }}"
+                                                   target="_blank"
+                                                   class="btn btn-outline btn-sm"
+                                                   title="Download engineer report PDF">📄 Engineer Report</a>
+                                            @else
+                                                <button type="button" class="btn btn-outline btn-sm" disabled
+                                                        title="No engineer activity yet">📄 Engineer Report</button>
+                                            @endif
 
                                             <x-row-actions-menu>
                                                 @if ($ws->access_token)
