@@ -6,6 +6,7 @@ use App\Jobs\BuildWorksheetJob;
 use App\Models\Project;
 use App\Models\Worksheet;
 use App\Services\EngineerActivityService;
+use App\Services\PdfRenderService;
 use App\Services\WorkerMonitorService;
 use App\Services\WorksheetDocxService;
 use App\Services\WorksheetGeneratorService;
@@ -14,8 +15,10 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * WorksheetController — manages the Worksheet document pipeline.
@@ -84,6 +87,51 @@ class WorksheetController extends Controller
         $context = app(EngineerActivityService::class)->buildReportContext($worksheet);
 
         return view('worksheets.show', compact('worksheet', 'context'));
+    }
+
+    // =========================================================================
+    // ENGINEER REPORT PDF (260602-rcd)
+    // =========================================================================
+
+    /**
+     * Stream the Engineer Report PDF — same engineer-activity content as the
+     * worksheets/show page (Outstanding Items + per-room photos + sign-offs),
+     * rendered to a print-optimised Blade via Browsershot.
+     *
+     * Auth: shared workspace (any authenticated user). 404s when the worksheet
+     * has no engineer activity (avoids emitting an empty PDF that looks broken).
+     */
+    public function engineerReportPdf(Worksheet $worksheet): StreamedResponse
+    {
+        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
+        abort_if(! $worksheet->hasEngineerActivity(), 404, 'No engineer activity yet — nothing to report.');
+
+        $worksheet->load(['project', 'signoffs', 'photos']);
+
+        $context = app(EngineerActivityService::class)->buildReportContext($worksheet);
+
+        // Render PDF via Browsershot. Photos are inlined as base64 inside the
+        // Blade via PdfImageEmbedder — Browsershot 5.x rejects `file://`.
+        $pdfBytes = app(PdfRenderService::class)->fromBlade('pdf.engineer-report', [
+            'worksheet' => $worksheet,
+            'context'   => $context,
+            'generatedAt' => now(),
+        ]);
+
+        $refSlug  = Str::slug($worksheet->project_ref ?: ('ws-' . $worksheet->id));
+        $filename = sprintf('engineer-report-%s-%s.pdf', $refSlug, now()->format('Ymd'));
+
+        Log::info('WorksheetController: engineer report PDF generated', [
+            'worksheet_id' => $worksheet->id,
+            'user_id'      => auth()->id(),
+            'filename'     => $filename,
+        ]);
+
+        return response()->streamDownload(function () use ($pdfBytes) {
+            echo $pdfBytes;
+        }, $filename, [
+            'Content-Type' => 'application/pdf',
+        ]);
     }
 
     // =========================================================================

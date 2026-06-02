@@ -477,6 +477,12 @@ Route::middleware('auth')->group(function () {
     Route::post('worksheets/generate-from-project/{project}', [WorksheetController::class, 'generateFromProject'])->name('worksheets.generate-from-project');
     Route::get('worksheets/{worksheet}/status', [WorksheetController::class, 'status'])->name('worksheets.status');
     Route::get('worksheets/{worksheet}/download', [WorksheetController::class, 'download'])->name('worksheets.download');
+    // Engineer Report PDF (260602-rcd) — literal-segment .pdf route MUST be
+    // registered BEFORE the worksheets/{worksheet} wildcard so the dotted
+    // segment doesn't get consumed by the model-binding catch-all.
+    Route::get('worksheets/{worksheet}/engineer-report.pdf', [WorksheetController::class, 'engineerReportPdf'])
+        ->name('worksheets.engineer-report-pdf')
+        ->middleware('throttle:30,1');
     Route::post('worksheets/{worksheet}/retry-generation', [WorksheetController::class, 'retryGeneration'])->name('worksheets.retry-generation');
     Route::delete('worksheets/{worksheet}', [WorksheetController::class, 'destroy'])->name('worksheets.destroy');
     Route::get('worksheets/{worksheet}', [WorksheetController::class, 'show'])->name('worksheets.show');
