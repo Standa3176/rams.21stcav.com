@@ -46,7 +46,7 @@ class PublicWorksheetController extends Controller
     public function show(string $token): View
     {
         $worksheet = $this->resolveWorksheet($token);
-        $worksheet->load('signoffs', 'photos');
+        $worksheet->load('signoffs', 'photos', 'project.referenceFiles');
 
         return view('worksheets.public-show', [
             'worksheet'      => $worksheet,

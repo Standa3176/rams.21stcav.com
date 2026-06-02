@@ -59,7 +59,7 @@ class SurveyController extends Controller
         $survey = $this->resolveSurvey($token);
         // rooms.questions exposes the checklist guidance context per room
         // in buildAlpineRooms(); rooms.photos is authoritative for uploaded photos.
-        $survey->load(['rooms.photos', 'rooms.questions']);
+        $survey->load(['rooms.photos', 'rooms.questions', 'project.referenceFiles']);
 
         $payload = $survey->survey_data;
 

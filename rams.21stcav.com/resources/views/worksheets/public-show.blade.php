@@ -574,6 +574,16 @@
                 <p class="muted">No room data is available yet — please contact your project manager.</p>
             </div>
         @else
+            {{-- ── ENGINEER REFERENCE FILES (quick task 260601-r4c) ────────────
+                 Project-level uploaded artifacts (site plans, CAD drawings,
+                 cable schedules, method statements). Drawer is hidden when
+                 the project has no reference files. --}}
+            @include('partials._engineer-reference-drawer', [
+                'files'          => optional($worksheet->project)->referenceFiles?->sortByDesc('uploaded_at') ?? collect(),
+                'serveRouteName' => 'public-worksheet.files.serve',
+                'token'          => $token,
+            ])
+
             {{-- ── SITE LOGISTICS — project-level drawer (260504-gho) ──────────────
                  Engineers arriving on site need parking / comms-room access /
                  depot distance / delivery routes ONCE per visit, NOT per room.

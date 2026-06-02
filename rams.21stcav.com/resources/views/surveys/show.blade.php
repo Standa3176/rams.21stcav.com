@@ -114,6 +114,16 @@
 
         </div>
 
+        {{-- ── Engineer reference files (quick task 260601-r4c) ─────────
+             Project-level uploaded artifacts visible to the engineer on the
+             rooms-list screen, ABOVE Site Logistics. Drawer hides itself
+             when there are no files. --}}
+        @include('partials._engineer-reference-drawer', [
+            'files'          => optional($survey->project)->referenceFiles?->sortByDesc('uploaded_at') ?? collect(),
+            'serveRouteName' => 'public-survey.files.serve',
+            'token'          => $token,
+        ])
+
         {{-- ── Site Logistics — engineer-feedback site-level capture ──────
              (quick task 260503-u2x) Captured once per visit on the rooms-list
              screen; persists via stepSave step=0; mirrored to SiteSurvey DB
