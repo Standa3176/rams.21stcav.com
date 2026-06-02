@@ -111,6 +111,22 @@
                target="_blank"
                aria-label="Download Worksheet DOCX">↓ Download</a>
         @endif
+        {{-- Engineer Report PDF button (260602-rcd) — same content as this page
+             rendered to a print-optimised PDF. Disabled with a tooltip when the
+             engineer hasn't captured anything yet (avoids emitting an empty PDF
+             that looks like a bug). --}}
+        @if($worksheet->hasEngineerActivity())
+            <a href="{{ route('worksheets.engineer-report-pdf', $worksheet) }}"
+               class="btn btn-outline btn-sm"
+               target="_blank"
+               aria-label="Download Engineer Report PDF">📄 Engineer Report PDF</a>
+        @else
+            <button type="button"
+                    class="btn btn-outline btn-sm"
+                    disabled
+                    title="No engineer activity yet"
+                    aria-label="Engineer Report PDF (no activity)">📄 Engineer Report PDF</button>
+        @endif
         @if(in_array($worksheet->status, ['draft', 'final', 'failed']))
             <form method="POST"
                   action="{{ route('worksheets.retry-generation', $worksheet) }}"
@@ -204,6 +220,27 @@
 
     </div>
 </div>{{-- /Sign-Off Status section --}}
+
+{{-- Outstanding Items aggregate (260602-rcd) — flat list of every snag from
+     every "signed_with_comments" sign-off. Hidden when empty so the page
+     doesn't carry an "Outstanding Items (0)" header on clean projects. --}}
+@php $outstandingItems = $context['outstanding_items'] ?? []; @endphp
+@if(! empty($outstandingItems))
+    <div class="form-section">
+        <div class="form-section__header">
+            <h2 class="section-heading">Outstanding Items ({{ count($outstandingItems) }})</h2>
+        </div>
+        <div class="form-section__body">
+            <div class="card card-sm" style="border-left:3px solid #C07000;background:#FFFBEB;">
+                <ul style="margin:0;padding-left:1.25rem;font-size:.875rem;line-height:1.6;color:var(--text);">
+                    @foreach($outstandingItems as $item)
+                        <li style="margin-bottom:.25rem;">{{ $item }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        </div>
+    </div>
+@endif
 
 {{-- Room accordion --}}
 @php
@@ -380,6 +417,53 @@
                         ];
                     })->all();
                 @endphp
+                {{-- Completed-Work Photos per room (260602-rcd) — engineer
+                     uploads completed-install evidence via the public worksheet
+                     link; this surfaces those photos on the admin view.
+                     Reuses the same openPhotoLightbox cycler the labels section
+                     uses below, so the interaction is identical.
+                     Photos are served via the public-worksheet.photos.serve
+                     route — there's no admin-only photo-serve endpoint, and
+                     the worksheet's access_token is known to the admin viewing
+                     the page already (it's printed on the Client Sign-Off Link
+                     card above), so reusing the token-gated serve is safe. --}}
+                @php
+                    $roomKey = strtolower(trim($room['name'] ?? ''));
+                    $completedPhotosForRoom = collect();
+                    foreach ($context['rooms'] ?? [] as $ctxRoom) {
+                        if (strtolower(trim($ctxRoom['name'])) === $roomKey) {
+                            $completedPhotosForRoom = $ctxRoom['completed_photos'];
+                            break;
+                        }
+                    }
+                    $completedPhotosLb = $completedPhotosForRoom->values()->map(function ($p) use ($worksheet) {
+                        return [
+                            'url'     => route('public-worksheet.photos.serve', ['token' => $worksheet->access_token, 'photo' => $p->id]),
+                            'caption' => $p->caption ?: $p->original_name,
+                        ];
+                    })->all();
+                @endphp
+                @if($completedPhotosForRoom->isNotEmpty())
+                    <div class="room-section-hdr">Completed-Work Photos ({{ $completedPhotosForRoom->count() }})</div>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.7rem;margin-bottom:1rem;">
+                        @foreach($completedPhotosForRoom as $cp)
+                            @php $cpUrl = route('public-worksheet.photos.serve', ['token' => $worksheet->access_token, 'photo' => $cp->id]); @endphp
+                            <a href="{{ $cpUrl }}"
+                               target="_blank"
+                               onclick="event.preventDefault(); openPhotoLightbox(@js($completedPhotosLb), {{ $loop->index }});"
+                               style="display:block;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#F3F4F6;text-decoration:none;">
+                                <img src="{{ $cpUrl }}"
+                                     alt="{{ $cp->caption ?: 'Completed work photo' }}"
+                                     loading="lazy"
+                                     style="display:block;width:100%;height:140px;object-fit:cover;">
+                                @if($cp->caption)
+                                    <div style="padding:.4rem .55rem;font-size:.75rem;color:var(--text);background:var(--surface);line-height:1.3;">{{ $cp->caption }}</div>
+                                @endif
+                            </a>
+                        @endforeach
+                    </div>
+                @endif
+
                 @if($labelPhotos->isNotEmpty())
                     <div class="room-section-hdr">Equipment Labels Captured ({{ $labelPhotos->count() }})</div>
                     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.7rem;margin-bottom:1rem;">

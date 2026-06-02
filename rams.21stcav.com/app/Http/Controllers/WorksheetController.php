@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\BuildWorksheetJob;
 use App\Models\Project;
 use App\Models\Worksheet;
+use App\Services\EngineerActivityService;
 use App\Services\WorkerMonitorService;
 use App\Services\WorksheetDocxService;
 use App\Services\WorksheetGeneratorService;
@@ -76,9 +77,13 @@ class WorksheetController extends Controller
     {
         abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
 
-        $worksheet->load('project');
+        // Eager-load engineer-activity relations so the show view + the
+        // EngineerActivityService below don't run N+1 queries.
+        $worksheet->load(['project', 'signoffs', 'photos']);
 
-        return view('worksheets.show', compact('worksheet'));
+        $context = app(EngineerActivityService::class)->buildReportContext($worksheet);
+
+        return view('worksheets.show', compact('worksheet', 'context'));
     }
 
     // =========================================================================
