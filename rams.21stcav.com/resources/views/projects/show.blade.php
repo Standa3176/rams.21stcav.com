@@ -1176,6 +1176,8 @@
                                     <td class="py-3 px-3">
                                         <div class="font-medium text-gray-900">{{ $ws->project_name ?: ('Worksheet #'.$ws->id) }}</div>
                                         @if ($ws->project_ref)<div class="text-xs text-gray-500">{{ $ws->project_ref }}</div>@endif
+                                        {{-- Stale-data pill (260602-o2a) — renders only when stale --}}
+                                        @include('worksheets._stale-banner', ['worksheet' => $ws, 'variant' => 'pill'])
                                     </td>
                                     <td class="py-3 px-3"><x-status-badge :status="$ws->status" :label="$ws->statusLabel()" /></td>
                                     <td class="py-3 px-3 text-gray-500 whitespace-nowrap">

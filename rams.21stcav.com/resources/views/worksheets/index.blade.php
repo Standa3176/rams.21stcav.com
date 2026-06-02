@@ -52,6 +52,10 @@
                                         <br><small style="color:var(--text-faint);">{{ $w->project_ref }}</small>
                                     @endif
                                 @endif
+                                {{-- Stale-data pill (260602-o2a) — renders only when stale --}}
+                                <div style="margin-top:.25rem;">
+                                    @include('worksheets._stale-banner', ['worksheet' => $w, 'variant' => 'pill'])
+                                </div>
                             </td>
                             <td>{{ $w->client_name ?? '—' }}</td>
                             <td>

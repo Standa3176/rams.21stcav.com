@@ -139,6 +139,10 @@
     </div>
 </div>
 
+{{-- Stale-data banner (260602-o2a) — renders only when project.latestPackage
+     has been edited after the worksheet snapshot was generated. --}}
+@include('worksheets._stale-banner', ['worksheet' => $worksheet, 'variant' => 'admin'])
+
 {{-- Sign-Off Status section — wraps status bar + client sign-off link card --}}
 <div class="form-section">
     <div class="form-section__header">
