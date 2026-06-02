@@ -17,6 +17,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectDrawingController;
 use App\Http\Controllers\ProjectPackageReviewController;
+use App\Http\Controllers\ProjectReferenceFileController;
 use App\Http\Controllers\PublicSurveyController;
 use App\Http\Controllers\PublicWorksheetController;
 use App\Http\Controllers\QuoteImportController;
@@ -178,6 +179,20 @@ Route::middleware('auth')->group(function () {
     Route::post('projects/{project}/transition', [ProjectController::class, 'transition'])->name('projects.transition');
     Route::post('projects/{project}/archive', [ProjectController::class, 'archive'])->name('projects.archive');
     Route::post('projects/{project}/reopen', [ProjectController::class, 'reopen'])->name('projects.reopen');
+
+    // ── Engineer reference files (quick task 260601-r4c) ──────────────────
+    // Shared-workspace auth (per 260525-pyu/s8b) — any authed user. Routes
+    // throttled to match existing project-level upload/delete/download
+    // precedent (30 / 30 / 60 per minute). scopeBindings() means a
+    // {reference_file} ID from another project returns 404 BEFORE the
+    // controller is hit.
+    Route::post('projects/{project}/reference-files', [ProjectReferenceFileController::class, 'store'])
+        ->name('projects.reference-files.store')->middleware('throttle:30,1');
+    Route::get('projects/{project}/reference-files/{reference_file}', [ProjectReferenceFileController::class, 'show'])
+        ->name('projects.reference-files.show')->middleware('throttle:60,1')->scopeBindings();
+    Route::delete('projects/{project}/reference-files/{reference_file}', [ProjectReferenceFileController::class, 'destroy'])
+        ->name('projects.reference-files.destroy')->middleware('throttle:30,1')->scopeBindings();
+
     Route::post('projects/{id}/restore', [ProjectController::class, 'restore'])->name('projects.restore');
     Route::delete('projects/{id}/force-destroy', [ProjectController::class, 'forceDestroy'])->name('projects.force-destroy');
 

@@ -1829,6 +1829,11 @@
 
 </div>{{-- /psv --}}
 
+{{-- Engineer reference files (quick task 260601-r4c) — project-wide artifact
+     channel for site plans / CAD / cable schedules / method statements that
+     the on-site engineer pulls up via the worksheet or survey public link. --}}
+@include('projects._engineer-reference-files-card', ['project' => $project])
+
 {{-- Danger zone (only when archived) --}}
 @if ($project->isArchived())
 <div class="bg-white rounded-xl border-l-4 border-red-600 border-y border-r border-gray-100 shadow-sm p-6 mt-6">
