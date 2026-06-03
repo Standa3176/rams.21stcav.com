@@ -97,4 +97,145 @@ class QuoteParserShortTagVariantTest extends TestCase
 
         $this->assertSame('long', $this->callPrivate('detectTagVariant', [$noise]));
     }
+
+    // =========================================================================
+    // TASK 2 — translateShortTagsToLong()
+    // =========================================================================
+
+    private function translate(string $input): string
+    {
+        return (string) $this->callPrivate('translateShortTagsToLong', [$input]);
+    }
+
+    public function test_2_1_direct_h_substitution(): void
+    {
+        $out = $this->translate("H1 Acme Ltd H1E");
+
+        $this->assertStringContainsString('SITENAMESTART Acme Ltd SITENAMEEND', $out);
+        $this->assertStringNotContainsString(' H1 ', " {$out} ");
+        $this->assertStringNotContainsString(' H1E ', " {$out} ");
+    }
+
+    public function test_2_2_d_pair_section_routing_title_then_text(): void
+    {
+        // First D-pair = title. Second D-pair = text. Routing resets at P1S.
+        $input = "D1S First Floor Training Room D1E\n"
+            . "D1S D1E Function room overview text.\n"
+            . "P1S FOO P1E";
+
+        $out = $this->translate($input);
+
+        $this->assertStringContainsString('OVERVIEWTITLESTART First Floor Training Room OVERVIEWTITLEEND', $out);
+        $this->assertStringContainsString('OVERVIEWTXTSTART', $out);
+        $this->assertStringContainsString('Function room overview text.', $out);
+        $this->assertStringContainsString('OVERVIEWTXTEND', $out);
+        $this->assertStringContainsString('PARTSTART FOO PARTEND', $out);
+        // Body of OVERVIEWTXT must contain the prose, not D1S/D1E.
+        $this->assertStringNotContainsString(' D1S ', " {$out} ");
+        $this->assertStringNotContainsString(' D1E ', " {$out} ");
+    }
+
+    public function test_2_3_h_column_split_repair(): void
+    {
+        $input = "H1 Cicor Hartlepool Ltd - Training Room H H4S Jamie Powis H4E 1E";
+
+        $out = $this->translate($input);
+
+        $this->assertStringContainsString('SITENAMESTART Cicor Hartlepool Ltd - Training Room SITENAMEEND', $out);
+        $this->assertStringContainsString('SHIPCONTSTART Jamie Powis SHIPCONTEND', $out);
+        // No orphan H/1E fragments leaking into the SITENAMESTART content.
+        $this->assertDoesNotMatchRegularExpression('/SITENAMESTART[^\n]*\b(H|1E|H1E)\b/', $out);
+    }
+
+    public function test_2_4_d_column_split_first_letter_prefix(): void
+    {
+        // "F" prefix + "irst Floor Training Room" continuation. Pass A glues
+        // them, then Pass D routes as a first-pair title (single D-pair in
+        // this synthetic input — gets OVERVIEWTITLE treatment).
+        $input = "D1S F D1E irst Floor Training Room\nP1S FOO P1E";
+
+        $out = $this->translate($input);
+
+        $this->assertStringContainsString('OVERVIEWTITLESTART First Floor Training Room OVERVIEWTITLEEND', $out);
+    }
+
+    public function test_2_5_d_column_split_multi_letter_prefix(): void
+    {
+        $input = "D1S Suppo D1E rt Services\nP1S FOO P1E";
+
+        $out = $this->translate($input);
+
+        $this->assertStringContainsString('OVERVIEWTITLESTART Support Services OVERVIEWTITLEEND', $out);
+    }
+
+    public function test_2_6_p4s_price_span_stripped(): void
+    {
+        $input = "before P4S £1,234.56 P4E after";
+
+        $out = $this->translate($input);
+
+        $this->assertStringNotContainsString('P4S',     $out);
+        $this->assertStringNotContainsString('P4E',     $out);
+        $this->assertStringNotContainsString('£1,234.56', $out);
+        $this->assertStringContainsString('before',  $out);
+        $this->assertStringContainsString('after',   $out);
+    }
+
+    public function test_2_7_p5s_manufacturer_span_stripped(): void
+    {
+        $input = "before P5S Yealink P5S after";
+
+        $out = $this->translate($input);
+
+        $this->assertStringNotContainsString('P5S',     $out);
+        $this->assertStringNotContainsString('Yealink', $out);
+        $this->assertStringContainsString('before', $out);
+        $this->assertStringContainsString('after',  $out);
+    }
+
+    public function test_2_8_idempotency_on_long_tag_text(): void
+    {
+        $long = $this->unpriced();
+
+        $this->assertSame($long, $this->translate($long));
+    }
+
+    public function test_2_9_end_to_end_translator_on_cicor_fixture(): void
+    {
+        $out = $this->translate($this->priced());
+
+        // Long-tag markers expected after translation.
+        $this->assertStringContainsString('SITENAMESTART',  $out);
+        $this->assertStringContainsString('SHIPCONTSTART',  $out);
+        $this->assertStringContainsString('SHIPPHONESTART', $out);
+        $this->assertStringContainsString('SHIPEMAILSTART', $out);
+        $this->assertStringContainsString('SHIPCOMPSTART',  $out);
+        $this->assertStringContainsString('SHIPADDSTART',   $out);
+
+        $this->assertGreaterThanOrEqual(3, substr_count($out, 'OVERVIEWTITLESTART'));
+        $this->assertGreaterThanOrEqual(3, substr_count($out, 'OVERVIEWTXTSTART'));
+        $this->assertGreaterThanOrEqual(15, substr_count($out, 'PARTSTART'));
+
+        // Short tags MUST be fully translated.
+        // Use \b boundaries so prose words like "P1E" inside a description
+        // (none in the fixture, but guard against drift) don't false-positive.
+        $this->assertDoesNotMatchRegularExpression('/\bH1E\b/', $out);
+        $this->assertDoesNotMatchRegularExpression('/\bH4S\b/', $out);
+        $this->assertDoesNotMatchRegularExpression('/\bD1S\b/', $out);
+        $this->assertDoesNotMatchRegularExpression('/\bD1E\b/', $out);
+        $this->assertDoesNotMatchRegularExpression('/\bP1S\b/', $out);
+        $this->assertDoesNotMatchRegularExpression('/\bP4S\b/', $out);
+        $this->assertDoesNotMatchRegularExpression('/\bP5S\b/', $out);
+    }
+
+    public function test_2_10_performance_on_large_synthetic_input(): void
+    {
+        $bulk  = str_repeat("D1S X D1E\nP1S FOO P1E\n", 10000);
+        $start = microtime(true);
+
+        $this->translate($bulk);
+
+        $elapsed = microtime(true) - $start;
+        $this->assertLessThan(0.5, $elapsed, "Translator took {$elapsed}s on 10k-row synthetic input — backtracking smell.");
+    }
 }

@@ -1571,6 +1571,282 @@ class QuoteParserService
     }
 
     /**
+     * Short-tag → long-tag substitution map for translateShortTagsToLong().
+     *
+     * Used by a preg_replace_callback after column-split repair + D-pair
+     * routing have rewritten the structural shape. The keys are the short
+     * tag tokens (H/P prefixed) and the values are the canonical long-tag
+     * tokens the downstream parseTagBased() pipeline expects.
+     *
+     * D1S / D1E are intentionally absent — they're handled by the stateful
+     * section-pair routing pass (title vs. text alternation), not by this
+     * map.  P4S / P5S are also absent — they're stripped entirely (price +
+     * manufacturer side-channel) before this map runs.
+     */
+    private const SHORT_TO_LONG_TAGS = [
+        'H1'  => 'SITENAMESTART',
+        'H1E' => 'SITENAMEEND',
+        'H2S' => 'PREPAREDBYSTART',
+        'H2E' => 'PREPAREDBYEND',
+        'H3S' => 'QUOTENUMSTART',
+        'H3E' => 'QUOTENUMEND',
+        'H4S' => 'SHIPCONTSTART',
+        'H4E' => 'SHIPCONTEND',
+        'H5S' => 'SHIPPHONESTART',
+        'H5E' => 'SHIPPHONEEND',
+        'H6S' => 'SHIPEMAILSTART',
+        'H6E' => 'SHIPEMAILEND',
+        'H7S' => 'SHIPCOMPSTART',
+        'H7E' => 'SHIPCOMPEND',
+        'H8S' => 'SHIPADDSTART',
+        'H8E' => 'SHIPADDEND',
+        'P1S' => 'PARTSTART',
+        'P1E' => 'PARTEND',
+        'P2S' => 'PARTDESCSTART',
+        'P2E' => 'PARTDESCEND',
+        'P3S' => 'QTYSTART',
+        'P3E' => 'QTYEND',
+    ];
+
+    /**
+     * Translate the QuoteWerks priced "ram" template's short-tag form into
+     * the canonical long-tag form so the existing parseTagBased() pipeline
+     * runs against it unchanged.
+     *
+     * The priced template uses a column layout that pdftotext flattens into
+     * interleaved single-character-prefixed tokens. Three structural quirks
+     * have to be repaired before token-for-token substitution makes sense.
+     *
+     * ── Quirk 1: H-tag column-split end markers ────────────────────────────
+     * The left-column H1 (site name) cell shares a row with the right-column
+     * H4/H5/H6/H7/H8 (ship-contact/phone/email) cells. pdftotext serialises
+     * left-cell content, then right-cell tuples, then the left-cell's closing
+     * marker — split between its first character ("H") and its remainder
+     * ("1E").
+     *
+     *   Input:   H1 Cicor Hartlepool Ltd - Training Room H H4S Jamie Powis H4E 1E
+     *   Repair:  H1 Cicor Hartlepool Ltd - Training Room H1E H4S Jamie Powis H4E
+     *
+     * The sibling H4S/H4E tuple is preserved verbatim AFTER the now-repaired
+     * H1…H1E span so the downstream extractor sees a clean SHIPCONT pair.
+     *
+     * ── Quirk 2: D-tag column-split prefix splits ──────────────────────────
+     * The D1S/D1E cell sits in a thin left column; the first letter of the
+     * section title overlaps with D1E's right edge in the source PDF.
+     * pdftotext serialises:
+     *
+     *   Input:   D1S F D1E irst Floor Training Room
+     *   Repair:  D1S First Floor Training Room D1E
+     *
+     *   Input:   D1S Suppo D1E rt Services
+     *   Repair:  D1S Support Services D1E
+     *
+     * The glue rule: short alphabetic prefix between D1S and D1E (≤ 8 chars,
+     * no whitespace) is concatenated with the line's continuation, and D1E
+     * is moved to the end of that line.
+     *
+     * ── Quirk 3: P4S / P5S pricing-only markers ────────────────────────────
+     * The priced template adds two columns the long-tag template never had:
+     *
+     *   P4S £1,234.56 P4E        — price (proper start/end markers).
+     *   P5S Yealink   P5S         — manufacturer (paired START markers — no
+     *                               P5E; the second P5S terminates the span).
+     *
+     * Both spans are stripped entirely. The RAMS / O&M / worksheet pipelines
+     * have no use for retail price or manufacturer at the moment; if a
+     * future feature needs them, capture them to a side-channel array here
+     * before stripping (deliberately not surfaced today to keep the diff
+     * surgical).
+     *
+     * ── D-pair section routing (stateful, the only non-pure pass) ──────────
+     * Each section uses D1S/D1E TWICE — first pair is the section title,
+     * second pair is the section text. The pair counter resets at every
+     * PARTSTART boundary (start-of-equipment marker — anchors end-of-text).
+     *
+     * For the SECOND D1S of a section, the prose body extends from the
+     * paired D1E up to (but not including) the next PARTSTART — far past
+     * where D1E lands on its own line.  This pass therefore replaces D1S
+     * with OVERVIEWTXTSTART in place, deletes the matched D1E, and inserts
+     * OVERVIEWTXTEND just before the next PARTSTART.
+     *
+     * ── Idempotency ────────────────────────────────────────────────────────
+     * Calling this method on already-long-tag text is a no-op — the column-
+     * split regexes won't match (no `\bH\b` between H-letter markers), the
+     * P4S/P5S strip regexes won't match (no P4S/P5S tokens), the D-pair
+     * routing only fires when D1S exists, and the SHORT_TO_LONG_TAGS map
+     * only translates short-tag tokens (which long-tag PDFs lack).
+     */
+    private function translateShortTagsToLong(string $rawText): string
+    {
+        // ── Pass 1: H-tag column-split end-marker repair ────────────────────
+        // Match H<N> at the start of a span, content up to the split marker
+        // "H", any number of sibling H<M>S…H<M>E tuples, then the trailing
+        // "<N>E". Repair: emit H<N> content H<N>E followed by the sibling
+        // tuples verbatim. Size-bounded (.{0,500}) prevents runaway match.
+        $rawText = (string) preg_replace_callback(
+            '/\bH([1-8])\s+(.{0,500}?)\s+H\s+((?:H[1-8]S\s+.{0,200}?\s+H[1-8]E\s*)+)\1E\b/s',
+            function (array $m): string {
+                $idx          = $m[1];
+                $content      = trim($m[2]);
+                $siblingTuple = trim($m[3]);
+                return "H{$idx} {$content} H{$idx}E {$siblingTuple}";
+            },
+            $rawText
+        );
+
+        // ── Pass 2: D-tag column-split prefix glue ──────────────────────────
+        // Apply line-by-line. Match: D1S <short_alphabetic_prefix> D1E <rest>
+        // → D1S <prefix><rest> D1E. The prefix MUST be ≤ 8 alphabetic chars
+        // (no spaces) — anything else indicates the prefix is the actual
+        // intended D1 content with no column split.
+        $rawText = (string) preg_replace_callback(
+            '/^(.*?)D1S\s+([A-Za-z]{1,8})\s+D1E\s+(.*)$/m',
+            function (array $m): string {
+                $leading = $m[1];
+                $prefix  = $m[2];
+                $rest    = ltrim($m[3]);
+                return "{$leading}D1S {$prefix}{$rest} D1E";
+            },
+            $rawText
+        );
+
+        // ── Pass 3a: Strip P4S … P4E (price) spans ──────────────────────────
+        // Size-bounded {0,200} prevents catastrophic backtracking on malformed
+        // input. Side-channel capture intentionally NOT performed — price is
+        // not surfaced anywhere today.
+        $rawText = (string) preg_replace('/\bP4S\b.{0,200}?\bP4E\b/s', '', $rawText);
+
+        // ── Pass 3b: Strip P5S … P5S (manufacturer) spans ───────────────────
+        // P5 uses paired START markers — no P5E. Second P5S terminates.
+        $rawText = (string) preg_replace('/\bP5S\b.{0,100}?\bP5S\b/s', '', $rawText);
+
+        // ── Pass 4: D-pair section routing (title vs. text) ─────────────────
+        // Walk the text in order, find every D1S/D1E and every P1S position,
+        // alternate title→text per section, reset on P1S boundary.
+        $rawText = $this->routeDPairs($rawText);
+
+        // ── Pass 5: Direct short→long token substitution ────────────────────
+        // The remaining H/P tokens are translated 1:1. The alternation regex
+        // is ordered longest-prefix-first (`H[1-8]E?` matches H1E before H1
+        // via \b end-anchor + the `?` greedy quantifier). D1S/D1E are absent
+        // — Pass 4 already replaced them with OVERVIEW* tokens.
+        $rawText = (string) preg_replace_callback(
+            '/\b(H[1-8]E|H[1-8]S|H[1-8]|P[1-3]E|P[1-3]S)\b/',
+            fn (array $m): string => self::SHORT_TO_LONG_TAGS[$m[1]] ?? $m[0],
+            $rawText
+        );
+
+        return $rawText;
+    }
+
+    /**
+     * Stateful D-pair routing pass — replaces D1S/D1E pairs with
+     * OVERVIEWTITLE* (first pair per section) or OVERVIEWTXT* (second
+     * pair per section). Section boundaries are anchored by P1S
+     * (start-of-equipment marker).
+     *
+     * For the SECOND pair, OVERVIEWTXTEND is inserted just before the
+     * next P1S (not at the D1E location), so the prose body that flows
+     * AFTER D1E on subsequent lines is captured into the OVERVIEWTXT
+     * span.  D1E itself is deleted.
+     *
+     * If a section has only ONE D-pair (no second), nothing extra is
+     * inserted — the existing parseTagBased pipeline tolerates missing
+     * OVERVIEWTXT sections gracefully (overview text just stays empty
+     * for that section).
+     */
+    private function routeDPairs(string $rawText): string
+    {
+        // Collect every relevant offset in a single pass per token family.
+        preg_match_all('/\bD1S\b/', $rawText, $d1sM, PREG_OFFSET_CAPTURE);
+        preg_match_all('/\bD1E\b/', $rawText, $d1eM, PREG_OFFSET_CAPTURE);
+        preg_match_all('/\bP1S\b/', $rawText, $p1sM, PREG_OFFSET_CAPTURE);
+
+        $d1sOffsets = array_column($d1sM[0], 1);
+        $d1eOffsets = array_column($d1eM[0], 1);
+        $p1sOffsets = array_column($p1sM[0], 1);
+
+        if (count($d1sOffsets) === 0 || count($d1sOffsets) !== count($d1eOffsets)) {
+            // No D-pairs, or mismatched counts — fall back to a simple 1:1
+            // substitution by the main pass. We deliberately do NOT throw;
+            // the downstream pipeline will surface the data as best it can.
+            return $rawText;
+        }
+
+        // Build pair (start, end) tuples in document order — D1S[i] pairs
+        // with D1E[i] because pdftotext output preserves source order.
+        $pairs = [];
+        foreach ($d1sOffsets as $i => $startOff) {
+            $endOff = $d1eOffsets[$i] ?? null;
+            if ($endOff === null || $endOff <= $startOff) {
+                return $rawText; // Pair mismatch — abort routing.
+            }
+            $pairs[] = ['start' => $startOff, 'end' => $endOff];
+        }
+
+        // Walk pairs in order; track which "slot" (1=title, 2=text) each
+        // pair occupies within its section, then build a list of edits.
+        // Monotonic pointers (sectionPtr, nextP1sPtr) keep this pass O(N).
+        $edits        = []; // list of [offset, length, replacement]
+        $slot         = 1;
+        $sectionPtr   = 0;  // index into $p1sOffsets — passed-P1S cursor
+        $p1sCount     = count($p1sOffsets);
+        $rawTextLen   = strlen($rawText);
+        foreach ($pairs as $pair) {
+            // Reset slot when this pair sits after the next pending P1S.
+            while ($sectionPtr < $p1sCount && $p1sOffsets[$sectionPtr] < $pair['start']) {
+                $slot = 1;
+                $sectionPtr++;
+            }
+
+            if ($slot === 1) {
+                // First pair in section → title. Replace D1S/D1E in place.
+                $edits[] = [$pair['start'], 3, 'OVERVIEWTITLESTART'];
+                $edits[] = [$pair['end'],   3, 'OVERVIEWTITLEEND'];
+                $slot = 2;
+            } else {
+                // Second pair → text. Replace D1S with OVERVIEWTXTSTART;
+                // delete the matched D1E; insert OVERVIEWTXTEND just before
+                // the next P1S (or end of text if no P1S follows). Use the
+                // sectionPtr cursor so this lookup stays amortized O(N).
+                $edits[] = [$pair['start'], 3, 'OVERVIEWTXTSTART'];
+                $edits[] = [$pair['end'],   3, ''];
+
+                $insertOffset = $sectionPtr < $p1sCount
+                    ? $p1sOffsets[$sectionPtr]
+                    : $rawTextLen;
+                $edits[]      = [$insertOffset, 0, 'OVERVIEWTXTEND '];
+
+                // Stay in slot 2 — further D-pairs in this section (rare)
+                // also get the OVERVIEWTXT treatment.
+            }
+        }
+
+        // Apply edits in a single forward pass to a fresh output buffer.
+        // Using substr_replace per edit would be O(N²) on the buffer size —
+        // 10k pairs × ~200KB buffer = ~6 GB of byte copies. Building a fresh
+        // buffer drops the total work to O(N) and matches the performance
+        // contract documented in test_2_10_performance_on_large_synthetic_input.
+        usort($edits, fn (array $a, array $b): int => $a[0] <=> $b[0]);
+
+        $out    = '';
+        $cursor = 0;
+        foreach ($edits as [$offset, $length, $replacement]) {
+            if ($offset > $cursor) {
+                $out .= substr($rawText, $cursor, $offset - $cursor);
+                $cursor = $offset;
+            }
+            $out    .= $replacement;
+            $cursor += $length;
+        }
+        if ($cursor < strlen($rawText)) {
+            $out .= substr($rawText, $cursor);
+        }
+
+        return $out;
+    }
+
+    /**
      * Normalise OCR-garbled QuoteWerks marker tokens back to their canonical form.
      *
      * Some PDF text extractors substitute characters inside QuoteWerks marker
