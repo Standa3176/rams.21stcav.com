@@ -1838,5 +1838,380 @@
         })();
     </script>
 
+    {{-- ══════════════════════════════════════════════════════════════════════
+         260603-eha — Offline photo upload queue
+         ──────────────────────────────────────────────────────────────────────
+         Adds an IndexedDB-backed queue so engineers in dead zones (comms
+         cupboards, basements, racks) keep working when uploads fail.
+
+         Covers BOTH label captures AND per-room "Add photo" uploads,
+         auto-drains when network returns, persists across reloads, and
+         surfaces via a quiet header chip + expandable panel.
+
+         Server endpoints (PublicWorksheetController) are UNCHANGED — drained
+         POSTs use the same FormData shape the live functions build today.
+
+         See: .planning/quick/260603-eha-offline-photo-queue-on-engineer-workshee/260603-eha-PLAN.md
+         ══════════════════════════════════════════════════════════════════════ --}}
+    <script>
+        (function () {
+            'use strict';
+
+            // ── OfflineQueue module ───────────────────────────────────────
+            // Self-contained — no library imports, no build step. Pure
+            // vanilla JS over native IndexedDB.
+            const DB_NAME    = 'engineer-worksheet';
+            const DB_VERSION = 1;
+            const STORE      = 'pending_uploads';
+
+            const OfflineQueue = {
+                unavailable: false,
+                _draining:   false,
+                _db:         null,
+                _warned:     false,
+                // Transient per-id status used only by the UI panel — rows
+                // in IDB are 'pending' OR removed; status is in-memory.
+                _uploadingIds: new Set(),
+            };
+
+            // Lazy DB open. Resolves once; cached.
+            OfflineQueue.db = function () {
+                if (!('indexedDB' in window)) {
+                    OfflineQueue.unavailable = true;
+                    return Promise.reject(new Error('IndexedDB unavailable'));
+                }
+                if (OfflineQueue._db) return Promise.resolve(OfflineQueue._db);
+                return new Promise(function (resolve, reject) {
+                    const req = indexedDB.open(DB_NAME, DB_VERSION);
+                    req.onupgradeneeded = function (e) {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains(STORE)) {
+                            const store = db.createObjectStore(STORE, {
+                                keyPath: 'id',
+                                autoIncrement: true,
+                            });
+                            store.createIndex('capturedAt', 'capturedAt', { unique: false });
+                        }
+                    };
+                    req.onsuccess = function (e) {
+                        OfflineQueue._db = e.target.result;
+                        resolve(OfflineQueue._db);
+                    };
+                    req.onerror = function (e) {
+                        OfflineQueue.unavailable = true;
+                        reject(e.target.error || new Error('IndexedDB open failed'));
+                    };
+                });
+            };
+
+            // Tiny helper — wraps a transaction as a Promise.
+            function tx(mode, fn) {
+                return OfflineQueue.db().then(function (db) {
+                    return new Promise(function (resolve, reject) {
+                        const transaction = db.transaction([STORE], mode);
+                        const store = transaction.objectStore(STORE);
+                        let result;
+                        try { result = fn(store); } catch (e) { reject(e); return; }
+                        transaction.oncomplete = function () { resolve(result); };
+                        transaction.onerror    = function () { reject(transaction.error); };
+                        transaction.onabort    = function () { reject(transaction.error); };
+                    });
+                });
+            }
+
+            // ── Public API ───────────────────────────────────────────────
+
+            OfflineQueue.enqueue = function (row) {
+                // row = {token, kind, room, blob, mime, fields}
+                if (OfflineQueue.unavailable || !('indexedDB' in window)) {
+                    if (!OfflineQueue._warned) {
+                        OfflineQueue._warned = true;
+                        try {
+                            showToast("⚠ Offline queue unsupported on this browser — uploads still work when online.", 'warning', 6000);
+                        } catch (e) {}
+                    }
+                    return Promise.resolve(null);
+                }
+                const record = {
+                    token:        row.token || '',
+                    kind:         row.kind  || 'completed',
+                    room:         row.room  || '',
+                    blob:         row.blob,
+                    mime:         row.mime  || 'image/jpeg',
+                    fields:       row.fields || {},
+                    attemptCount: 0,
+                    lastError:    null,
+                    capturedAt:   Date.now(),
+                };
+                return tx('readwrite', function (store) {
+                    const req = store.add(record);
+                    return new Promise(function (resolve, reject) {
+                        req.onsuccess = function () { resolve(req.result); };
+                        req.onerror   = function () { reject(req.error); };
+                    });
+                }).then(function (id) {
+                    OfflineQueue._notifyChange();
+                    return id;
+                }).catch(function (e) {
+                    // Hard fail enqueue — surface so caller can fall back.
+                    if (!OfflineQueue._warned) {
+                        OfflineQueue._warned = true;
+                        try {
+                            showToast("⚠ Couldn't save offline (storage error) — try again when online.", 'error', 6000);
+                        } catch (_) {}
+                    }
+                    throw e;
+                });
+            };
+
+            OfflineQueue.list = function () {
+                if (OfflineQueue.unavailable || !('indexedDB' in window)) {
+                    return Promise.resolve([]);
+                }
+                return tx('readonly', function (store) {
+                    const req = store.getAll();
+                    return new Promise(function (resolve, reject) {
+                        req.onsuccess = function () {
+                            const rows = (req.result || []).map(function (r) {
+                                // Strip blob for cheap UI rendering.
+                                return {
+                                    id:           r.id,
+                                    kind:         r.kind,
+                                    room:         r.room,
+                                    capturedAt:   r.capturedAt,
+                                    attemptCount: r.attemptCount || 0,
+                                    lastError:    r.lastError || null,
+                                };
+                            });
+                            rows.sort(function (a, b) { return a.capturedAt - b.capturedAt; });
+                            resolve(rows);
+                        };
+                        req.onerror = function () { reject(req.error); };
+                    });
+                }).catch(function () { return []; });
+            };
+
+            OfflineQueue.count = function () {
+                if (OfflineQueue.unavailable || !('indexedDB' in window)) {
+                    return Promise.resolve(0);
+                }
+                return tx('readonly', function (store) {
+                    const req = store.count();
+                    return new Promise(function (resolve, reject) {
+                        req.onsuccess = function () { resolve(req.result || 0); };
+                        req.onerror   = function () { reject(req.error); };
+                    });
+                }).catch(function () { return 0; });
+            };
+
+            OfflineQueue.remove = function (id) {
+                if (OfflineQueue.unavailable || !('indexedDB' in window)) {
+                    return Promise.resolve();
+                }
+                return tx('readwrite', function (store) {
+                    store.delete(id);
+                }).then(function () {
+                    OfflineQueue._uploadingIds.delete(id);
+                    OfflineQueue._notifyChange();
+                });
+            };
+
+            // Internal — fetch raw rows including the blob.
+            function _getAllRaw() {
+                return tx('readonly', function (store) {
+                    const req = store.getAll();
+                    return new Promise(function (resolve, reject) {
+                        req.onsuccess = function () { resolve(req.result || []); };
+                        req.onerror   = function () { reject(req.error); };
+                    });
+                });
+            }
+
+            // Internal — update a row (e.g. bump attemptCount on failure).
+            function _updateRow(row) {
+                return tx('readwrite', function (store) {
+                    store.put(row);
+                });
+            }
+
+            // Internal — small sleep helper (throttle compliance).
+            function _sleep(ms) {
+                return new Promise(function (resolve) { setTimeout(resolve, ms); });
+            }
+
+            OfflineQueue.drain = function (opts) {
+                opts = opts || {};
+                if (OfflineQueue.unavailable || !('indexedDB' in window)) {
+                    return Promise.resolve({ successCount: 0, failureCount: 0 });
+                }
+                if (OfflineQueue._draining) {
+                    return Promise.resolve({ successCount: 0, failureCount: 0, skipped: true });
+                }
+                OfflineQueue._draining = true;
+
+                const onSuccess = opts.onSuccess || function () {};
+                const onFailure = opts.onFailure || function () {};
+                const onProgress = opts.onProgress || function () {};
+
+                let successCount = 0;
+                let failureCount = 0;
+                let hitMaxRetry  = 0;
+
+                return _getAllRaw().then(function (rows) {
+                    rows.sort(function (a, b) { return a.capturedAt - b.capturedAt; });
+
+                    return rows.reduce(function (chain, row) {
+                        return chain.then(function () {
+                            OfflineQueue._uploadingIds.add(row.id);
+                            OfflineQueue._notifyChange();
+                            onProgress(row);
+
+                            const fd = new FormData();
+                            try {
+                                fd.append('photo', row.blob, (row.kind === 'label' ? 'label.jpg' : 'photo.jpg'));
+                            } catch (e) {
+                                // Blob gone? Skip + mark failure.
+                                row.attemptCount = (row.attemptCount || 0) + 1;
+                                row.lastError = 'Local blob unreadable';
+                                failureCount++;
+                                if (row.attemptCount >= 3) hitMaxRetry++;
+                                OfflineQueue._uploadingIds.delete(row.id);
+                                return _updateRow(row).then(function () { onFailure(row, e); });
+                            }
+                            fd.append('room_name', row.room || '');
+                            const fields = row.fields || {};
+                            Object.keys(fields).forEach(function (k) {
+                                fd.append(k, fields[k]);
+                            });
+
+                            const path = row.kind === 'label' ? '/label-photo' : '/photos';
+                            const url  = '/worksheet/' + encodeURIComponent(row.token) + path;
+
+                            return fetch(url, {
+                                method: 'POST',
+                                headers: {
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                                    'Accept':       'application/json',
+                                },
+                                body: fd,
+                            }).then(function (resp) {
+                                if (resp.ok) {
+                                    successCount++;
+                                    OfflineQueue._uploadingIds.delete(row.id);
+                                    return tx('readwrite', function (store) {
+                                        store.delete(row.id);
+                                    }).then(function () {
+                                        return resp.json().catch(function () { return {}; });
+                                    }).then(function (json) {
+                                        onSuccess(row, json);
+                                    });
+                                }
+                                row.attemptCount = (row.attemptCount || 0) + 1;
+                                row.lastError = resp.statusText || ('HTTP ' + resp.status);
+                                failureCount++;
+                                if (row.attemptCount >= 3) hitMaxRetry++;
+                                OfflineQueue._uploadingIds.delete(row.id);
+                                return _updateRow(row).then(function () {
+                                    onFailure(row, new Error(row.lastError));
+                                });
+                            }).catch(function (err) {
+                                row.attemptCount = (row.attemptCount || 0) + 1;
+                                row.lastError = (err && err.message) || 'Network error';
+                                failureCount++;
+                                if (row.attemptCount >= 3) hitMaxRetry++;
+                                OfflineQueue._uploadingIds.delete(row.id);
+                                return _updateRow(row).then(function () { onFailure(row, err); });
+                            }).then(function () {
+                                // Throttle compliance — 5/sec << server 30/min/IP.
+                                return _sleep(200);
+                            });
+                        });
+                    }, Promise.resolve());
+                }).then(function () {
+                    OfflineQueue._draining = false;
+                    OfflineQueue._notifyChange();
+                    return { successCount: successCount, failureCount: failureCount, hitMaxRetry: hitMaxRetry };
+                }).catch(function (e) {
+                    OfflineQueue._draining = false;
+                    OfflineQueue._notifyChange();
+                    return { successCount: successCount, failureCount: failureCount, hitMaxRetry: hitMaxRetry, error: e };
+                });
+            };
+
+            OfflineQueue._notifyChange = function () {
+                try {
+                    window.dispatchEvent(new CustomEvent('offline-queue-change'));
+                } catch (e) {
+                    // Old IE — CustomEvent constructor unavailable. Silent.
+                }
+            };
+
+            OfflineQueue.subscribe = function (handler) {
+                window.addEventListener('offline-queue-change', handler);
+            };
+
+            // ── Toast helper (inline-styled, no CSS class deps) ──────────
+            let _toastContainer = null;
+            function showToast(msg, variant, ttl) {
+                variant = variant || 'info';
+                ttl = ttl || 4000;
+                if (!_toastContainer) {
+                    _toastContainer = document.createElement('div');
+                    _toastContainer.id = 'offline-queue-toasts';
+                    _toastContainer.style.cssText = 'position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:.4rem;align-items:center;pointer-events:none;max-width:92vw;';
+                    document.body.appendChild(_toastContainer);
+                }
+                const palette = {
+                    info:    { bg:'#E0F2FE', fg:'#0C4A6E', bd:'#7DD3FC' },
+                    success: { bg:'#D1FAE5', fg:'#065F46', bd:'#6EE7B7' },
+                    warning: { bg:'#FEF3C7', fg:'#92400E', bd:'#FCD34D' },
+                    error:   { bg:'#FEE2E2', fg:'#991B1B', bd:'#FCA5A5' },
+                }[variant] || { bg:'#E0F2FE', fg:'#0C4A6E', bd:'#7DD3FC' };
+
+                const t = document.createElement('div');
+                t.style.cssText = 'background:' + palette.bg + ';color:' + palette.fg + ';border:1px solid ' + palette.bd + ';border-radius:10px;padding:.6rem .9rem;font-size:.85rem;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.18);transition:opacity .2s ease;pointer-events:auto;text-align:center;';
+                t.textContent = msg;
+                _toastContainer.appendChild(t);
+
+                setTimeout(function () {
+                    t.style.opacity = '0';
+                    setTimeout(function () {
+                        if (t.parentNode) t.parentNode.removeChild(t);
+                    }, 220);
+                }, ttl);
+            }
+            // Expose for the wrappers in the next script block.
+            window.__wsShowToast = showToast;
+
+            // ── Auto-drain triggers ──────────────────────────────────────
+            // One shared aggregator for online-event + 60s tick. Guarded
+            // by _draining so they don't double-post.
+            function _autoDrain(reason) {
+                if (!('indexedDB' in window) || OfflineQueue.unavailable) return Promise.resolve();
+                return OfflineQueue.count().then(function (n) {
+                    if (n === 0) return null;
+                    return OfflineQueue.drain({}).then(function (result) {
+                        if (!result) return null;
+                        if (result.successCount >= 1) {
+                            showToast('✅ Uploaded ' + result.successCount + ' pending photo(s)', 'success');
+                        }
+                        if (result.hitMaxRetry >= 1) {
+                            showToast('⚠ ' + result.hitMaxRetry + ' upload(s) failed after retries — tap the pending chip to review', 'warning', 6000);
+                        }
+                        return result;
+                    });
+                });
+            }
+
+            window.addEventListener('online', function () { _autoDrain('online-event'); });
+            setInterval(function () {
+                if (navigator.onLine) _autoDrain('60s-tick');
+            }, 60000);
+
+            // Expose for testing/debug — token-gated page, no admin info leaks.
+            window.OfflineQueue = OfflineQueue;
+        })();
+    </script>
+
 </body>
 </html>
