@@ -1,0 +1,217 @@
+                                                                       SHIPCONTSTART         Tom Greaves                                                              SHIPCONTEND
+
+           SITENAMESTART Knauf - Immingham Meeting                     SHIPPHONESTART        07870 872 064                                                            SHIPPHONEEND
+                                                                       SHIPEMAILSTART
+                                                    SITENAMEEND                              thomas.greaves@knauf.com                                                 SHIPEMAILEND
+
+           PREPAREDBYSTART                          PREPAREDBYEND      SHIPCOMPSTART         Knauf                                                                    SHIPCOMPEND
+                                                                       SHIPADDSTART          Queens Road                                                               SHIPADDEND
+           QUOTENUMSTART 21CQ30036-01-OPS QUOTENUMEND                                        DN40 1QT Immingham
+                                                                                             United Kingdom
+
+           OVERVIEWTITLESTART  "Customer Value" Meeting Room                                                                                                           OVERVIEWTITLEEND
+                                                                                                                                                                      OVERVIEWTXTEND
+OVERVIEWTXTSTART               2 x new Samsing 55" commercial displays to be wall mounted using the appropriate tilting wall mount from Chief.
+
+                               Video conferencing to be supported by the HP/Poly Studio X52 all-in-one video bar, to be wall mounted centrally underneath the
+                               displays using the HP/Poly wall mount.
+
+                               The HP/Poly TC10 touch panel controller to be presented on the meeting room table for users to quickly and easily join MS Teams
+                               meetings.
+
+                               **Client to provide the correct Microsoft Teams Meeting Licence to the 21st Century AV Operations Team prior to installation to allow
+                               seamless setup and configuration of the system.
+
+PARTSTART  LH55QBCEBGCXEN      PARTEND  PARTDESCSTART  Samsung 55" 4K UHD commercial display                                                    PARTDESCEND QTYSTART                2.00 QTYEND
+           RLT3                PARTEND  PARTDESCSTART  - 55" Black, Large Format Display, 4K UHD Display, 350                                   PARTDESCEND QTYSTART
+PARTSTART                                              cd/m2, 16/7, 3x HDMI                                                                                                         2.00 QTYEND
+PARTSTART                                              Chief tilting wall mount (for 55" display)                                                                                   1.00 QTYEND
+PARTSTART                                                                                                                                                                           1.00 QTYEND
+PARTSTART  8D8L6AA             PARTEND  PARTDESCSTART  HP/Poly Studio X52 video bar with TC10 touch panel                                       PARTDESCEND QTYSTART                1.00 QTYEND
+PARTSTART  8D8K2AA#ABU         PARTEND  PARTDESCSTART  controller                                                                               PARTDESCEND QTYSTART                1.00 QTYEND
+PARTSTART                                              Poly X52 AVB UK - UK English                                                                                                 1.00 QTYEND
+PARTSTART                                                                                                                                                                           1.00 QTYEND
+           875K5AA             PARTEND  PARTDESCSTART Poly TC10 TC                                                                              PARTDESCEND QTYSTART
+PARTSTART
+PARTSTART  874P5AA             PARTEND  PARTDESCSTART TC10 wall Mount                                                                           PARTDESCEND QTYSTART
+PARTSTART
+           875L8AA             PARTEND  PARTDESCSTART HP/Poly Studio X52 wall mount                                                             PARTDESCEND QTYSTART
+
+           P87625312           PARTEND  PARTDESCSTART  3-year Poly+ Extended Service (Studio X52 w/TC10)                                        PARTDESCEND QTYSTART                1.00 QTYEND
+           P87620312           PARTEND  PARTDESCSTART  - Unlimited, global 24x7 technical support                                               PARTDESCEND QTYSTART
+                                                       - Advance hardware replacement
+                                                       - Ecosystem Cloud Partner Support
+                                                       - Upgraded access to premium software
+                                                       3-year Poly+ Extended Service (Studio X52
+
+           P37760312           PARTEND  PARTDESCSTART 3-year Poly+ Extended Service /TC10)                                                      PARTDESCEND QTYSTART                1.00 QTYEND
+
+           48097               PARTEND  PARTDESCSTART Lindy 10m Cat6 Snagless Network Cable                                                     PARTDESCEND QTYSTART                1.00     QTYEND
+
+                                                                                                                                                                                     1 of 5
+                                                                       SHIPCONTSTART         Tom Greaves                                                              SHIPCONTEND
+
+           SITENAMESTART Knauf - Immingham Meeting                     SHIPPHONESTART        07870 872 064                                                            SHIPPHONEEND
+                                                                       SHIPEMAILSTART
+                                                    SITENAMEEND                              thomas.greaves@knauf.com                                                 SHIPEMAILEND
+
+           PREPAREDBYSTART                          PREPAREDBYEND      SHIPCOMPSTART         Knauf                                                                    SHIPCOMPEND
+                                                                       SHIPADDSTART          Queens Road                                                               SHIPADDEND
+           QUOTENUMSTART 21CQ30036-01-OPS QUOTENUMEND                                        DN40 1QT Immingham
+                                                                                             United Kingdom
+
+           OVERVIEWTITLESTART  "Great People" Meeting Room                                                                                                             OVERVIEWTITLEEND
+                                                                                                                                                                      OVERVIEWTXTEND
+OVERVIEWTXTSTART               2 x new Samsing 55" commercial displays to be wall mounted using the appropriate tilting wall mount from Chief.
+
+                               Video conferencing to be supported by the HP/Poly Studio X52 all-in-one video bar, to be wall mounted centrally underneath the
+                               displays using the HP/Poly wall mount.
+
+                               The HP/Poly TC10 touch panel controller to be presented on the meeting room table for users to quickly and easily join MS Teams
+                               meetings.
+
+                               **Client to provide the correct Microsoft Teams Meeting Licence to the 21st Century AV Operations Team prior to installation to allow
+                               seamless setup and configuration of the system.
+
+PARTSTART  LH55QBCEBGCXEN      PARTEND  PARTDESCSTART  Samsung 55" 4K UHD commercial display                                                    PARTDESCEND QTYSTART                2.00 QTYEND
+           RLT3                PARTEND  PARTDESCSTART  - 55" Black, Large Format Display, 4K UHD Display, 350                                   PARTDESCEND QTYSTART
+PARTSTART                                              cd/m2, 16/7, 3x HDMI                                                                                                         2.00 QTYEND
+PARTSTART                                              Chief tilting wall mount (for 55" display)                                                                                   1.00 QTYEND
+PARTSTART                                                                                                                                                                           1.00 QTYEND
+PARTSTART  8D8L6AA             PARTEND  PARTDESCSTART  HP/Poly Studio X52 video bar with TC10 touch panel                                       PARTDESCEND QTYSTART                1.00 QTYEND
+PARTSTART  8D8K2AA#ABU         PARTEND  PARTDESCSTART  controller                                                                               PARTDESCEND QTYSTART                1.00 QTYEND
+PARTSTART                                              Poly X52 AVB UK - UK English                                                                                                 1.00 QTYEND
+PARTSTART                                                                                                                                                                           1.00 QTYEND
+           875K5AA             PARTEND  PARTDESCSTART Poly TC10 TC                                                                              PARTDESCEND QTYSTART
+PARTSTART
+PARTSTART  874P5AA             PARTEND  PARTDESCSTART TC10 wall Mount                                                                           PARTDESCEND QTYSTART
+PARTSTART
+           875L8AA             PARTEND  PARTDESCSTART HP/Poly Studio X52 wall mount                                                             PARTDESCEND QTYSTART
+
+           P87625312           PARTEND  PARTDESCSTART  3-year Poly+ Extended Service (Studio X52 w/TC10)                                        PARTDESCEND QTYSTART                1.00 QTYEND
+           P87620312           PARTEND  PARTDESCSTART  - Unlimited, global 24x7 technical support                                               PARTDESCEND QTYSTART
+                                                       - Advance hardware replacement
+                                                       - Ecosystem Cloud Partner Support
+                                                       - Upgraded access to premium software
+                                                       3-year Poly+ Extended Service (Studio X52
+
+           P37760312           PARTEND  PARTDESCSTART 3-year Poly+ Extended Service /TC10)                                                      PARTDESCEND QTYSTART                1.00 QTYEND
+
+           48097               PARTEND  PARTDESCSTART Lindy 10m Cat6 Snagless Network Cable                                                     PARTDESCEND QTYSTART                1.00     QTYEND
+
+                                                                                                                                                                                     2 of 5
+                                                                                                                   SHIPCONTSTART   Tom Greaves                       SHIPCONTEND
+
+           SITENAMESTART Knauf - Immingham Meeting                                                                 SHIPPHONESTART  07870 872 064                     SHIPPHONEEND
+                                                                                                                   SHIPEMAILSTART
+                                                      SITENAMEEND                                                                  thomas.greaves@knauf.com                         SHIPEMAILEND
+
+           PREPAREDBYSTART                            PREPAREDBYEND                                                SHIPCOMPSTART   Knauf                             SHIPCOMPEND
+                                                                                                                   SHIPADDSTART    Queens Road                        SHIPADDEND
+           QUOTENUMSTART 21CQ30036-01-OPS QUOTENUMEND                                                                              DN40 1QT Immingham
+                                                                                                                                   United Kingdom
+
+           OVERVIEWTITLESTART  Professional Services                                                                                                                  OVERVIEWTITLEEND
+                                                                                                                                                                     OVERVIEWTXTEND
+OVERVIEWTXTSTART               If purchased, the Technical Site Survey will confirm installation of the hardware is suitable for the room, confirm cable routes and
+                               pathways.
+
+                               Installation will be carried out by qualified Audio Visual Engineers in work hours 9am to 5.30pm.
+
+                               Rubbish removal will be the responsibility of the client unless previously agreed.
+
+                               A revised proposal may be necessary after the technical site survey has been completed.
+
+                               Please ensure all Power and Network requirements are in place with any hardware licences purchased prior to installation.
+
+                               (Failure to have these item in place prior to installation may result in a failed installation and a chageable return visit.)
+
+PARTSTART  DELIVERY            PARTEND  PARTDESCSTART Hardware Delivery                                                                                       PARTDESCEND QTYSTART  1.00 QTYEND
+PARTSTART                                                                                                                                                                           2.00 QTYEND
+PARTSTART  CONSUMABLES         PARTEND  PARTDESCSTART Installation Consumables                                                                                PARTDESCEND QTYSTART  1.00 QTYEND
+PARTSTART                                                                                                                                                                           1.00 QTYEND
+PARTSTART  SSVOTHER            PARTEND  PARTDESCSTART Site Survey OTHER (incl Parking/Travel)                                                                 PARTDESCEND QTYSTART  1.00 QTYEND
+PARTSTART                                                                                                                                                                           1.00 QTYEND
+PARTSTART  RAMS                PARTEND  PARTDESCSTART RAMS - Detailed Risk & Method Statement                                                                 PARTDESCEND QTYSTART  1.00 QTYEND
+PARTSTART                                                                                                                                                                           1.00 QTYEND
+           INSTALL2            PARTEND  PARTDESCSTART 21st Engineering AV Team In-Hours Mon-Friday 9am - 5pm PARTDESCEND QTYSTART
+
+           CONFIGURATION       PARTEND  PARTDESCSTART  Configuration of the hardware - full access to clients IT                                              PARTDESCEND QTYSTART
+           Travel1             PARTEND  PARTDESCSTART  Team will be required for the duration of the configuration.                                           PARTDESCEND QTYSTART
+                                                       Travel per vehicle/team per day - Outside M25
+
+           PROJMANOFF          PARTEND  PARTDESCSTART  Project Management Off Site - General Project Delivery -                                               PARTDESCEND QTYSTART
+                                                       Mon-Fri up to 7.5 hours
+                                                       Includes Trade Liason, Contract Administration
+
+                                                                                                                                                                                    3 of 5
+                                                                                                         SHIPCONTSTART   Tom Greaves                                SHIPCONTEND
+
+SITENAMESTART Knauf - Immingham Meeting                                                                  SHIPPHONESTART  07870 872 064                              SHIPPHONEEND
+                                                                                                         SHIPEMAILSTART
+                                                                        SITENAMEEND                                      thomas.greaves@knauf.com                   SHIPEMAILEND
+
+PREPAREDBYSTART                                                         PREPAREDBYEND                    SHIPCOMPSTART   Knauf                                      SHIPCOMPEND
+                                                                                                         SHIPADDSTART    Queens Road                                 SHIPADDEND
+QUOTENUMSTART 21CQ30036-01-OPS QUOTENUMEND                                                                               DN40 1QT Immingham
+                                                                                                                         United Kingdom
+
+OVERVIEWTITLESTART                     Support Services                                                                                                              OVERVIEWTITLEEND
+                                                                                                                                                                    OVERVIEWTXTEND
+OVERVIEWTXTSTART                       Support Services ­ 1 Year Comprehensive Coverage
+                                       Our 1-Year Support Plan ensures the reliability and performance of your supplied audio-visual hardware with a full suite of
+                                       maintenance and assistance services.
+
+                                       This package includes:
+
+                                       Two Preventative Maintenance Visits Per Year ­ Scheduled check-ups to optimise system health and prevent potential issues.
+                                       Unlimited Telephone Tech Support ­ Access to expert guidance whenever you need assistance.
+                                       8-Hour On-Site Engineer Response ­ Swift deployment of a qualified technician to resolve critical issues.
+                                       Parts & Labour Coverage ­ Ensuring repairs and replacements are handled seamlessly.
+                                       Loan Equipment ­ Temporary replacement units provided where applicable to minimise downtime.
+
+                                       With this support package, you can be confident that your AV systems remain operational and efficient throughout the year.
+
+PARTSTART Additional                                           PARTEND  PARTDESCSTART  1 Year Full Service Contract                          PARTDESCEND QTYSTART                 1.00 QTYEND
+                                                                                       1 Year Support on the supplied audio visual hardware
+                                                                                       This will provide
+                                                                                       - 2 x preventative maintenance visits per year
+                                                                                       - Unlimited telephone tech support
+                                                                                       - 8hr on site engineer
+                                                                                       - Parts
+                                                                                       - Labour
+                                                                                       - Loan equipment (where applicable)
+
+                   OVERVIEWTITLESTART  Customer Discount (as agreed with 21CAV Accounts)                                                                             OVERVIEWTITLEEND
+              OVERVIEWTXTSTART                                                                                                                                      OVERVIEWTXTEND
+
+PARTSTART Additional                                           PARTEND  PARTDESCSTART Customer Discount                                      PARTDESCEND QTYSTART                 1.00 QTYEND
+
+                                                                                                                                                                                  4 of 5
+                                                                                             SHIPCONTSTART   Tom Greaves                                      SHIPCONTEND
+
+SITENAMESTART Knauf - Immingham Meeting                                                      SHIPPHONESTART  07870 872 064                                    SHIPPHONEEND
+                                                                                             SHIPEMAILSTART
+                                                                                SITENAMEEND                  thomas.greaves@knauf.com                         SHIPEMAILEND
+
+PREPAREDBYSTART                          PREPAREDBYEND                                       SHIPCOMPSTART   Knauf                                            SHIPCOMPEND
+                                                                                             SHIPADDSTART    Queens Road                                       SHIPADDEND
+QUOTENUMSTART 21CQ30036-01-OPS QUOTENUMEND                                                                   DN40 1QT Immingham
+                                                                                                             United Kingdom
+
+OVERVIEWTITLESTART  Summary                                                                                                                                    OVERVIEWTITLEEND
+                                                                                                                                                              OVERVIEWTXTEND
+OVERVIEWTXTSTART    Quotation for Audio-Visual Installation ­ 21st Century AV.
+
+                    Thank you for considering 21st Century AV for your audio-visual installation. We are pleased to present the above detailed quotation,
+                    carefully tailored to meet your requirements and ensure a high-quality setup.
+
+                    Important Considerations.
+                    All quoted prices are subject to a full technical site survey.
+                    The client or designated third party must ensure the availability of required power and network points prior to installation.
+                    Any modifications to the design, specifications, or pricing must be agreed upon with the client before installation proceeds.
+                    If you require any further clarification or adjustments, please do not hesitate to reach out. We look forward to assisting you with this
+                    project.
+
+                                                                                                                                                                            5 of 5
+

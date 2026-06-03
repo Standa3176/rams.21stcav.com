@@ -1519,6 +1519,58 @@ class QuoteParserService
     }
 
     /**
+     * Identify which QuoteWerks template variant produced this text.
+     *
+     * The parser supports two QuoteWerks tag flavours emitted by two different
+     * proposal templates that the sales team uses interchangeably:
+     *
+     *   - 'long'  → canonical SITENAMESTART / PARTSTART / OVERVIEWTITLESTART
+     *               tokens. The historical default; ~80% of imports. Goes
+     *               straight into parseTagBased() unchanged.
+     *   - 'short' → compact single-character-prefixed tokens (H1/H1E,
+     *               D1S/D1E, P1S/P1E etc.) used by the "priced ram"
+     *               proposal template. Routed through
+     *               translateShortTagsToLong() so the downstream pipeline
+     *               sees canonical long-tag text.
+     *
+     * Detection rules (deliberately conservative — 'long' wins every tie):
+     *
+     *   1. If the text contains a long-tag marker (SITENAMESTART or PARTSTART)
+     *      → return 'long' immediately. A working long-tag PDF is NEVER
+     *      re-routed through the translator, even if it happens to contain
+     *      a prose word that looks like a short tag (e.g. a part description
+     *      mentioning "H1E" as a model number).
+     *   2. Otherwise count short-tag marker matches across three families
+     *      (H[1-8]E, D1[SE], P[1-5][SE]?). Return 'short' only when the
+     *      summed count is ≥ 2. A single accidental match would not be
+     *      enough to flip the variant.
+     *   3. Otherwise return 'long' (default-safe — an empty string or a
+     *      free-form PDF with no tags goes down the long-tag path, which
+     *      then falls back to the heuristic extractor in parse()).
+     *
+     * Cheap by design — the negative substr_count gate short-circuits on
+     * every long-tag PDF without running preg_match_all on the whole text.
+     */
+    private function detectTagVariant(string $rawText): string
+    {
+        // Rule 1 — long-tag precedence. Cheap substr_count gate first.
+        if (substr_count($rawText, 'SITENAMESTART') > 0
+            || substr_count($rawText, 'PARTSTART') > 0
+        ) {
+            return 'long';
+        }
+
+        // Rule 2 — count short-tag markers across the three known families.
+        $hCount = preg_match_all('/\bH[1-8]E\b/', $rawText);
+        $dCount = preg_match_all('/\bD1[SE]\b/', $rawText);
+        $pCount = preg_match_all('/\bP[1-5][SE]?\b/', $rawText);
+
+        $total = (int) $hCount + (int) $dCount + (int) $pCount;
+
+        return $total >= 2 ? 'short' : 'long';
+    }
+
+    /**
      * Normalise OCR-garbled QuoteWerks marker tokens back to their canonical form.
      *
      * Some PDF text extractors substitute characters inside QuoteWerks marker
