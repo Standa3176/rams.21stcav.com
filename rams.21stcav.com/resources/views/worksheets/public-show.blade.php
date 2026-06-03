@@ -59,6 +59,64 @@
         .alert-error   { background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5; }
         .alert-info    { background: #E0F2FE; color: #0C4A6E; border: 1px solid #7DD3FC; }
 
+        /* ── 260603-eha — Offline queue chip + panel ───────────────────── */
+        .pending-chip {
+            display: none; /* shown when count > 0 via JS */
+            align-items: center;
+            gap: .35rem;
+            padding: .3rem .7rem;
+            margin-top: .55rem;
+            background: #FEF3C7;
+            color: #92400E;
+            border: 1px solid #FCD34D;
+            border-radius: 9999px;
+            font-size: .82rem;
+            font-weight: 700;
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .pending-chip:hover { background: #FDE68A; }
+        .pending-chip[aria-expanded="true"] { background: #FDE68A; }
+        .pending-panel {
+            display: none;
+            margin-top: .5rem;
+            background: #fff;
+            color: #1F2937;
+            border-radius: 10px;
+            border: 1px solid #E5E7EB;
+            padding: .75rem .9rem;
+            max-width: 480px;
+            box-shadow: 0 4px 12px rgba(0,0,0,.12);
+        }
+        .pending-panel[data-open="1"] { display: block; }
+        .pending-panel__head {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: .55rem; padding-bottom: .45rem;
+            border-bottom: 1px solid #F0F0F0;
+            font-size: .85rem; font-weight: 700; color: #0B3C45;
+        }
+        .pending-item {
+            display: flex; align-items: center; gap: .5rem;
+            padding: .45rem 0; font-size: .82rem;
+            border-bottom: 1px dashed #F0F0F0;
+        }
+        .pending-item:last-child { border-bottom: 0; }
+        .pending-item__meta { flex: 1; min-width: 0; }
+        .pending-item__room { font-weight: 600; color: #1F2937; }
+        .pending-item__sub { color: #6B7280; font-size: .75rem; }
+        .pending-item__status { font-size: .72rem; padding: .15rem .45rem; border-radius: 4px; }
+        .pending-item__status--queued    { background: #E5E7EB; color: #374151; }
+        .pending-item__status--uploading { background: #DBEAFE; color: #1E40AF; }
+        .pending-item__status--failed    { background: #FEE2E2; color: #991B1B; }
+        .pending-item__btns { display: flex; gap: .3rem; }
+        .pending-item__btn {
+            border: 1px solid #D1D5DB; background: #fff;
+            padding: .2rem .5rem; border-radius: 4px;
+            font-size: .72rem; cursor: pointer; color: #374151;
+        }
+        .pending-item__btn:hover { background: #F3F4F6; }
+
         /* ── Signed banner ─────────────────────────────────────────────── */
         .signed-banner {
             background: #ECFDF5;
@@ -446,6 +504,25 @@
                     @if($siteContactPhone !== '')<a href="tel:{{ $telHref }}" style="color:inherit;text-decoration:underline;">{{ $siteContactPhone }}</a>@endif
                 </div>
             @endif
+
+            {{-- ── 260603-eha — Offline photo queue chip + panel ────────
+                 Hidden by default; the OfflineQueue UI controller (bottom of
+                 file) toggles display:inline-flex when count > 0. --}}
+            <button type="button"
+                    id="pending-chip"
+                    class="pending-chip"
+                    aria-expanded="false"
+                    aria-controls="pending-panel"
+                    title="Pending photo uploads">
+                🔄 <span id="pending-chip-count">0</span> pending
+            </button>
+            <div id="pending-panel" class="pending-panel" role="region" aria-label="Pending uploads">
+                <div class="pending-panel__head">
+                    <span>Pending uploads</span>
+                    <button type="button" id="pending-retry-all" class="pending-item__btn">↻ Retry all</button>
+                </div>
+                <div id="pending-list"></div>
+            </div>
         </div>
     </header>
 
@@ -2389,6 +2466,192 @@
                     return convertToJpegBlob(file);
                 }
                 return file;
+            }
+        })();
+    </script>
+
+    {{-- ══════════════════════════════════════════════════════════════════════
+         260603-eha — Pending-uploads chip + panel UI controller
+         ──────────────────────────────────────────────────────────────────────
+         Subscribes to OfflineQueue change events; updates the chip count;
+         renders the expandable panel with per-item Retry/Remove + Retry all.
+         ══════════════════════════════════════════════════════════════════════ --}}
+    <script>
+        (function () {
+            'use strict';
+
+            if (!window.OfflineQueue) return;
+
+            const chip       = document.getElementById('pending-chip');
+            const chipCount  = document.getElementById('pending-chip-count');
+            const panel      = document.getElementById('pending-panel');
+            const list       = document.getElementById('pending-list');
+            const retryAll   = document.getElementById('pending-retry-all');
+
+            if (!chip || !panel || !list) return;
+
+            function _esc(s) {
+                return String(s == null ? '' : s)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            }
+
+            function _relTime(ts) {
+                const ms = Date.now() - (ts || Date.now());
+                const s = Math.max(0, Math.round(ms / 1000));
+                if (s < 60) return s + 's ago';
+                const m = Math.round(s / 60);
+                if (m < 60) return m + ' min ago';
+                const h = Math.round(m / 60);
+                if (h < 24) return h + ' hr ago';
+                const d = Math.round(h / 24);
+                return d + ' day' + (d === 1 ? '' : 's') + ' ago';
+            }
+
+            function _icon(kind) {
+                return kind === 'label' ? '📷' : '🖼';
+            }
+
+            function _statusFor(row) {
+                if (window.OfflineQueue._uploadingIds && window.OfflineQueue._uploadingIds.has(row.id)) {
+                    return { key: 'uploading', label: 'uploading…' };
+                }
+                if ((row.attemptCount || 0) >= 1 && row.lastError) {
+                    return { key: 'failed', label: 'failed' };
+                }
+                return { key: 'queued', label: 'queued' };
+            }
+
+            function renderList(items) {
+                if (!items.length) {
+                    list.innerHTML = '<div style="font-size:.8rem;color:#6B7280;padding:.4rem 0;">No pending items.</div>';
+                    return;
+                }
+                const html = items.map(function (row) {
+                    const status = _statusFor(row);
+                    const errSub = (row.attemptCount || 0) >= 1 && row.lastError
+                        ? ' · ' + row.attemptCount + ' attempt' + (row.attemptCount === 1 ? '' : 's') + ' — ' + _esc(row.lastError)
+                        : '';
+                    return ''
+                        + '<div class="pending-item" data-id="' + row.id + '">'
+                        +   '<span style="font-size:1.05rem;">' + _icon(row.kind) + '</span>'
+                        +   '<div class="pending-item__meta">'
+                        +     '<div class="pending-item__room">' + _esc(row.room || '(no room)') + '</div>'
+                        +     '<div class="pending-item__sub">'
+                        +       (row.kind === 'label' ? 'Box serial label' : 'Completed-work photo')
+                        +       ' · ' + _relTime(row.capturedAt)
+                        +       errSub
+                        +     '</div>'
+                        +   '</div>'
+                        +   '<span class="pending-item__status pending-item__status--' + status.key + '">' + status.label + '</span>'
+                        +   '<div class="pending-item__btns">'
+                        +     '<button type="button" class="pending-item__btn" data-act="retry" data-id="' + row.id + '">↻ Retry</button>'
+                        +     '<button type="button" class="pending-item__btn" data-act="remove" data-id="' + row.id + '">✕ Remove</button>'
+                        +   '</div>'
+                        + '</div>';
+                }).join('');
+                list.innerHTML = html;
+            }
+
+            function refreshChip() {
+                if (!window.OfflineQueue) return;
+                Promise.all([
+                    window.OfflineQueue.count(),
+                    window.OfflineQueue.list(),
+                ]).then(function (results) {
+                    const n = results[0];
+                    const items = results[1];
+                    chipCount.textContent = String(n);
+                    if (n > 0) {
+                        chip.style.display = 'inline-flex';
+                        renderList(items);
+                    } else {
+                        chip.style.display = 'none';
+                        // Auto-close panel when queue drains to zero.
+                        chip.setAttribute('aria-expanded', 'false');
+                        panel.removeAttribute('data-open');
+                        list.innerHTML = '';
+                    }
+                });
+            }
+
+            // Chip click → toggle panel.
+            chip.addEventListener('click', function () {
+                const open = panel.getAttribute('data-open') === '1';
+                if (open) {
+                    panel.removeAttribute('data-open');
+                    chip.setAttribute('aria-expanded', 'false');
+                } else {
+                    panel.setAttribute('data-open', '1');
+                    chip.setAttribute('aria-expanded', 'true');
+                }
+            });
+
+            // Keyboard accessibility — Enter/Space on chip toggles.
+            chip.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    chip.click();
+                }
+            });
+
+            // Retry all.
+            if (retryAll) {
+                retryAll.addEventListener('click', function () {
+                    window.OfflineQueue.drain({}).then(function (result) {
+                        if (!result) return;
+                        if (result.successCount >= 1) {
+                            (window.__wsShowToast || function(){})('✅ Uploaded ' + result.successCount + ' pending photo(s)', 'success');
+                        }
+                        if (result.hitMaxRetry >= 1) {
+                            (window.__wsShowToast || function(){})('⚠ ' + result.hitMaxRetry + ' upload(s) failed after retries — tap the pending chip to review', 'warning', 6000);
+                        }
+                    });
+                });
+            }
+
+            // Delegated per-item retry / remove.
+            list.addEventListener('click', function (e) {
+                const btn = e.target.closest('button[data-act]');
+                if (!btn) return;
+                const id = parseInt(btn.getAttribute('data-id'), 10);
+                if (isNaN(id)) return;
+                const act = btn.getAttribute('data-act');
+                if (act === 'remove') {
+                    window.OfflineQueue.remove(id).then(refreshChip);
+                } else if (act === 'retry') {
+                    // Drain processes ALL rows in oldest-first order; per-item
+                    // retry is effectively the same as Retry all but the user
+                    // explicitly chose this row. Keep behaviour identical for
+                    // simplicity.
+                    window.OfflineQueue.drain({}).then(function (result) {
+                        if (!result) return;
+                        if (result.successCount >= 1) {
+                            (window.__wsShowToast || function(){})('✅ Uploaded ' + result.successCount + ' pending photo(s)', 'success');
+                        }
+                        if (result.hitMaxRetry >= 1) {
+                            (window.__wsShowToast || function(){})('⚠ ' + result.hitMaxRetry + ' upload(s) failed after retries — tap the pending chip to review', 'warning', 6000);
+                        }
+                    });
+                }
+            });
+
+            // Outside-click closes panel.
+            document.addEventListener('click', function (e) {
+                if (!chip.contains(e.target) && !panel.contains(e.target)) {
+                    panel.removeAttribute('data-open');
+                    chip.setAttribute('aria-expanded', 'false');
+                }
+            });
+
+            // Subscribe to queue changes (fires on enqueue / drain step / remove).
+            window.OfflineQueue.subscribe(refreshChip);
+
+            // Initial paint — may have rows from a prior session.
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', refreshChip);
+            } else {
+                refreshChip();
             }
         })();
     </script>
