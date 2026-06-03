@@ -1,0 +1,153 @@
+{
+    "client": "Knauf",
+    "confidence": 1,
+    "equipment": [
+        {
+            "area": "\"Customer Value\" Meeting Room",
+            "description": "Samsung 55\" 4K UHD commercial display",
+            "location": "",
+            "part_number": "LH55QBCEBGCXEN",
+            "qty": 2
+        },
+        {
+            "area": "\"Customer Value\" Meeting Room",
+            "description": "HP/Poly Studio X52 video bar with TC10 touch panel",
+            "location": "Poly Studio X52 video bar with",
+            "part_number": "",
+            "qty": 1
+        },
+        {
+            "area": "\"Customer Value\" Meeting Room",
+            "description": "controller",
+            "location": "",
+            "part_number": "8D8K2AA#ABU",
+            "qty": 1
+        },
+        {
+            "area": "\"Customer Value\" Meeting Room",
+            "description": "Poly TC10 TC",
+            "location": "",
+            "part_number": "",
+            "qty": 874
+        },
+        {
+            "area": "\"Great People\" Meeting Room",
+            "description": "Samsung 55\" 4K UHD commercial display",
+            "location": "",
+            "part_number": "LH55QBCEBGCXEN",
+            "qty": 2
+        },
+        {
+            "area": "\"Great People\" Meeting Room",
+            "description": "HP/Poly Studio X52 video bar with TC10 touch panel",
+            "location": "Poly Studio X52 video bar with",
+            "part_number": "",
+            "qty": 1
+        },
+        {
+            "area": "\"Great People\" Meeting Room",
+            "description": "controller",
+            "location": "",
+            "part_number": "8D8K2AA#ABU",
+            "qty": 1
+        },
+        {
+            "area": "\"Great People\" Meeting Room",
+            "description": "Poly TC10 TC",
+            "location": "",
+            "part_number": "",
+            "qty": 874
+        },
+        {
+            "area": "\"Great People\" Meeting Room",
+            "description": "Hardware Delivery",
+            "location": "",
+            "part_number": "DELIVERY",
+            "qty": 1
+        },
+        {
+            "area": "\"Great People\" Meeting Room",
+            "description": "Installation Consumables",
+            "location": "",
+            "part_number": "2.00QTYENDPARTSTARTCONSUMABLES",
+            "qty": 1
+        },
+        {
+            "area": "\"Great People\" Meeting Room",
+            "description": "Site Survey OTHER (incl Parking/Travel)",
+            "location": "",
+            "part_number": "1.00QTYENDPARTSTARTSSVOTHER",
+            "qty": 1
+        },
+        {
+            "area": "\"Great People\" Meeting Room",
+            "description": "RAMS - Detailed Risk & Method Statement",
+            "location": "",
+            "part_number": "1.00QTYENDPARTSTARTRAMS",
+            "qty": 1
+        },
+        {
+            "area": "\"Great People\" Meeting Room",
+            "description": "21st Engineering AV Team In-Hours Mon-Friday 9am - 5pm",
+            "location": "",
+            "part_number": "1.00QTYENDINSTALL2",
+            "qty": 1
+        },
+        {
+            "area": "Customer Discount (as agreed with 21CAV Accounts",
+            "description": "Customer Discount",
+            "location": "",
+            "part_number": "",
+            "qty": 1
+        }
+    ],
+    "overview": "\"Customer Value\" Meeting Room\n2 x new Samsing 55\" commercial displays to be wall mounted using the appropriate tilting wall mount from Chief.\nVideo conferencing to be supported by the HP/Poly Studio X52 all-in-one video bar, to be wall mounted centrally underneath the\ndisplays using the HP/Poly wall mount.\nThe HP/Poly TC10 touch panel controller to be presented on the meeting room table for users to quickly and easily join MS Teams\nmeetings.\n**Client to provide the correct Microsoft Teams Meeting Licence to the 21st Century AV Operations Team prior to installation to allow\nseamless setup and configuration of the system.\n\n\"Great People\" Meeting Room\n2 x new Samsing 55\" commercial displays to be wall mounted using the appropriate tilting wall mount from Chief.\nVideo conferencing to be supported by the HP/Poly Studio X52 all-in-one video bar, to be wall mounted centrally underneath the\ndisplays using the HP/Poly wall mount.\nThe HP/Poly TC10 touch panel controller to be presented on the meeting room table for users to quickly and easily join MS Teams\nmeetings.\n**Client to provide the correct Microsoft Teams Meeting Licence to the 21st Century AV Operations Team prior to installation to allow\nseamless setup and configuration of the system.\n\nProfessional Services\nIf purchased, the Technical Site Survey will confirm installation of the hardware is suitable for the room, confirm cable routes and\npathways.\nInstallation will be carried out by qualified Audio Visual Engineers in work hours 9am to 5.30pm.\nRubbish removal will be the responsibility of the client unless previously agreed.\nA revised proposal may be necessary after the technical site survey has been completed.\nPlease ensure all Power and Network requirements are in place with any hardware licences purchased prior to installation.\n(Failure to have these item in place prior to installation may result in a failed installation and a chageable return visit.)\n\nSupport Services\nOur 1-Year Support Plan ensures the reliability and performance of your supplied audio-visual hardware with a full suite of\nmaintenance and assistance services.\nThis package includes:\nWith this support package, you can be confident that your AV systems remain operational and efficient throughout the year.\n\nSummary\nThank you for considering 21st Century AV for your audio-visual installation. We are pleased to present the above detailed quotation,\ncarefully tailored to meet your requirements and ensure a high-quality setup.\nImportant Considerations.\nAll quoted prices are subject to a full technical site survey.\nThe client or designated third party must ensure the availability of required power and network points prior to installation.\nAny modifications to the design, specifications, or pricing must be agreed upon with the client before installation proceeds.\nIf you require any further clarification or adjustments, please do not hesitate to reach out. We look forward to assisting you with this\nproject.",
+    "prepared_by": "thomas.greaves@knauf.com",
+    "project_name": "",
+    "ref": "21CQ30036-01-OPS",
+    "room_overviews": [
+        {
+            "overview": "2 x new Samsing 55\" commercial displays to be wall mounted using the appropriate tilting wall mount from Chief.\nVideo conferencing to be supported by the HP/Poly Studio X52 all-in-one video bar, to be wall mounted centrally underneath the\ndisplays using the HP/Poly wall mount.\nThe HP/Poly TC10 touch panel controller to be presented on the meeting room table for users to quickly and easily join MS Teams\nmeetings.\n**Client to provide the correct Microsoft Teams Meeting Licence to the 21st Century AV Operations Team prior to installation to allow\nseamless setup and configuration of the system.",
+            "room": "\"Customer Value\" Meeting Room",
+            "solution_type_id": "",
+            "summary": "",
+            "works_summary": ""
+        },
+        {
+            "overview": "2 x new Samsing 55\" commercial displays to be wall mounted using the appropriate tilting wall mount from Chief.\nVideo conferencing to be supported by the HP/Poly Studio X52 all-in-one video bar, to be wall mounted centrally underneath the\ndisplays using the HP/Poly wall mount.\nThe HP/Poly TC10 touch panel controller to be presented on the meeting room table for users to quickly and easily join MS Teams\nmeetings.\n**Client to provide the correct Microsoft Teams Meeting Licence to the 21st Century AV Operations Team prior to installation to allow\nseamless setup and configuration of the system.",
+            "room": "\"Great People\" Meeting Room",
+            "solution_type_id": "",
+            "summary": "",
+            "works_summary": ""
+        },
+        {
+            "overview": "Our 1-Year Support Plan ensures the reliability and performance of your supplied audio-visual hardware with a full suite of\nmaintenance and assistance services.\nThis package includes:\nWith this support package, you can be confident that your AV systems remain operational and efficient throughout the year.",
+            "room": "Support Services",
+            "solution_type_id": "",
+            "summary": "",
+            "works_summary": ""
+        },
+        {
+            "overview": "",
+            "room": "Customer Discount (as agreed with 21CAV Accounts",
+            "solution_type_id": "",
+            "summary": "",
+            "works_summary": ""
+        }
+    ],
+    "rooms": [
+        "\"Customer Value\" Meeting Room",
+        "\"Great People\" Meeting Room",
+        "Customer Discount (as agreed with 21CAV Accounts"
+    ],
+    "ship_contact": "Tom Greaves",
+    "ship_phone": "07870 872 064",
+    "site": "Queens Road",
+    "site_name": "Knauf - Immingham Meeting 07870 872 064",
+    "tasks": [
+        "2 x new Samsing 55\" commercial displays to be wall mounted using the appropri...",
+        "seamless setup and configuration of the system.",
+        "Installation will be carried out by qualified Audio Visual Engineers in work ..."
+    ],
+    "works_summary": ""
+}

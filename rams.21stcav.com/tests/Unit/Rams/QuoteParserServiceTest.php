@@ -1660,4 +1660,58 @@ class QuoteParserServiceTest extends TestCase
         $this->assertSame('', $result['ship_contact']);
         $this->assertSame('', $result['ship_phone']);
     }
+
+    // =========================================================================
+    // SNAPSHOT REGRESSION GUARDS — quick task 260603-q7t
+    // =========================================================================
+    //
+    // Wave-test for the short-tag translator wire-in (Plan 260603-q7t Task 3).
+    // The unpriced long-tag fixture is byte-equivalence-locked against a
+    // committed JSON snapshot. Any drift in parse() output for the long-tag
+    // path fails this test, proving the translator wire-in did not perturb
+    // the long-tag pipeline.
+
+    public function test_unpriced_long_tag_fixture_classified_as_long_variant(): void
+    {
+        $fixture = (string) file_get_contents(__DIR__ . '/../../Fixtures/quotewerks/unpriced-snapshot-baseline.txt');
+
+        $rm = new \ReflectionMethod(QuoteParserService::class, 'detectTagVariant');
+        $rm->setAccessible(true);
+        $variant = $rm->invoke($this->parser, $fixture);
+
+        $this->assertSame('long', $variant, 'Baseline unpriced fixture must classify as long — it should bypass translateShortTagsToLong entirely.');
+    }
+
+    public function test_unpriced_long_tag_fixture_produces_stable_canonical_output(): void
+    {
+        $fixturePath  = __DIR__ . '/../../Fixtures/quotewerks/unpriced-snapshot-baseline.txt';
+        $snapshotPath = __DIR__ . '/../../Fixtures/quotewerks/unpriced-snapshot-baseline.expected.json';
+
+        $result = $this->parser->parse((string) file_get_contents($fixturePath));
+        $this->ksortRecursive($result);
+        $actualJson = (string) json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        // First run: persist the canonical snapshot. Subsequent runs:
+        // byte-compare. ANY drift in parse() output for the long-tag baseline
+        // fails this test, proving the translator wire-in is non-invasive.
+        if (! is_file($snapshotPath)) {
+            file_put_contents($snapshotPath, $actualJson . "\n");
+            $this->addToAssertionCount(1);
+            return;
+        }
+
+        $expectedJson = rtrim((string) file_get_contents($snapshotPath), "\n");
+        $this->assertSame($expectedJson, $actualJson, 'Long-tag baseline parse() output drifted from the committed snapshot — regenerate the .expected.json file ONLY if the drift is intentional, and document it in the quick-task SUMMARY.');
+    }
+
+    /** Recursive ksort so the snapshot JSON is order-stable. */
+    private function ksortRecursive(array &$arr): void
+    {
+        ksort($arr);
+        foreach ($arr as &$v) {
+            if (is_array($v)) {
+                $this->ksortRecursive($v);
+            }
+        }
+    }
 }
