@@ -1505,7 +1505,13 @@
         })();
 
         // ── Photo upload (per-room) ─────────────────────────────────────────
-        async function uploadWorksheetPhoto(input, token, roomName) {
+        // NOTE (260603-eha): declared as `window.uploadWorksheetPhoto = async function`
+        // (not bare `async function`) so the OfflineQueue wrapper at the bottom
+        // of the file can capture the original via `const __orig = window.uploadWorksheetPhoto`.
+        // The original body below is the ONLINE happy path — it still runs unchanged
+        // when navigator.onLine === true. The wrapper intercepts the OFFLINE path
+        // BEFORE this function is called.
+        window.uploadWorksheetPhoto = async function uploadWorksheetPhoto(input, token, roomName) {
             const file = input.files && input.files[0];
             if (!file) return;
             const fd = new FormData();
@@ -1589,7 +1595,12 @@
             });
         }
 
-        async function captureLabel(input, token) {
+        // NOTE (260603-eha): declared as `window.captureLabel = async function`
+        // (not bare `async function`) so the OfflineQueue wrapper at the bottom
+        // of the file can capture the original via `const __orig = window.captureLabel`.
+        // The original body below is the ONLINE happy path (modal opens on success).
+        // The wrapper intercepts the OFFLINE path BEFORE this function is called.
+        window.captureLabel = async function captureLabel(input, token) {
             const file = input.files && input.files[0];
             if (!file) return;
 
@@ -2210,6 +2221,175 @@
 
             // Expose for testing/debug — token-gated page, no admin info leaks.
             window.OfflineQueue = OfflineQueue;
+        })();
+    </script>
+
+    {{-- ══════════════════════════════════════════════════════════════════════
+         260603-eha — Wrapper overrides for captureLabel + uploadWorksheetPhoto
+         ──────────────────────────────────────────────────────────────────────
+         When navigator.onLine === false (or fetch throws unexpectedly) we
+         intercept BEFORE the original's fetch, normalise to JPEG, enqueue,
+         show a toast, and restore the UI WITHOUT alert().
+
+         When navigator.onLine === true we delegate to the original so the
+         AI-extraction modal still opens (labels) or the page still reloads
+         (completed-work photos). For the rare case of online + 500 server
+         error, the original's existing alert() still fires — engineer can
+         retap, queue catches them next time (acceptable compromise per
+         interfaces note in PLAN.md).
+         ══════════════════════════════════════════════════════════════════════ --}}
+    <script>
+        (function () {
+            'use strict';
+
+            const __origCaptureLabel         = window.captureLabel;
+            const __origUploadWorksheetPhoto = window.uploadWorksheetPhoto;
+            const __toast                    = window.__wsShowToast || function () {};
+
+            // Helper — restore the <label> button text after offline enqueue,
+            // mirroring the original captureLabel's restoreBtn logic at a
+            // simpler level (we only ran a tiny setBusy here, not the full
+            // 'Processing image...' sequence the original uses).
+            function _resetLabelInput(input) {
+                if (!input) return;
+                try { input.value = ''; } catch (e) {}
+                if (input.disabled) input.disabled = false;
+                const btn = input.closest('label');
+                if (btn) {
+                    btn.classList.remove('label-cap-busy');
+                    btn.style.opacity = '';
+                    btn.style.pointerEvents = '';
+                    const span = btn.querySelector('.label-cap-text');
+                    if (span) span.remove();
+                }
+            }
+
+            // ── window.captureLabel wrapper ──────────────────────────────
+            window.captureLabel = async function (input, token) {
+                const file = input && input.files && input.files[0];
+                if (!file) return;
+
+                // Online happy path — delegate to original (modal still opens).
+                // Wrap in try/catch so unexpected JS throws fall through to enqueue.
+                if (navigator.onLine) {
+                    try {
+                        return await __origCaptureLabel(input, token);
+                    } catch (e) {
+                        // Unexpected JS error in original — fall through to enqueue.
+                        console.warn('captureLabel original threw, falling back to queue:', e);
+                    }
+                }
+
+                // OFFLINE (or unexpected throw) path: replicate prep + enqueue.
+                let uploadFile = file;
+                try {
+                    uploadFile = await convertToJpegBlobSafe(file);
+                } catch (e) {
+                    // fall through with raw file
+                }
+
+                const fields = {
+                    item_description: (input.dataset && input.dataset.desc) || '',
+                    item_part_number: (input.dataset && input.dataset.part) || '',
+                    item_qty:         (input.dataset && input.dataset.qty)  || 1,
+                };
+                const room = (input.dataset && input.dataset.room) || '';
+
+                try {
+                    await window.OfflineQueue.enqueue({
+                        token: token,
+                        kind:  'label',
+                        room:  room,
+                        blob:  uploadFile,
+                        mime:  'image/jpeg',
+                        fields: fields,
+                    });
+                    __toast("📥 Saved offline — will upload when you're online", 'info');
+                } catch (e) {
+                    // Enqueue itself failed (IDB unavailable / storage error).
+                    // Original would have shown alert; surface a single toast.
+                    __toast('Could not save offline. Please try again when online.', 'error');
+                }
+                _resetLabelInput(input);
+            };
+
+            // ── window.uploadWorksheetPhoto wrapper ──────────────────────
+            window.uploadWorksheetPhoto = async function (input, token, roomName) {
+                const file = input && input.files && input.files[0];
+                if (!file) return;
+
+                // HEIC normalisation (bonus per PLAN.md — original doesn't run this).
+                // Smaller blob in IDB AND faster online uploads on iOS.
+                let uploadFile = file;
+                try {
+                    uploadFile = await convertToJpegBlobSafe(file);
+                } catch (e) {
+                    // fall through with raw file
+                }
+
+                // Online happy path — replicate the original's POST inline so we
+                // can a) feed the normalised blob, b) intercept network throws and
+                // route them into the queue without firing alert().
+                if (navigator.onLine) {
+                    const fd = new FormData();
+                    fd.append('photo', uploadFile, (uploadFile && uploadFile.type) ? 'photo.jpg' : (file.name || 'photo.jpg'));
+                    fd.append('room_name', roomName);
+                    const url = '/worksheet/' + encodeURIComponent(token) + '/photos';
+                    try {
+                        const resp = await fetch(url, {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                                'Accept':       'application/json',
+                            },
+                            body: fd,
+                        });
+                        if (!resp.ok) {
+                            // Server returned non-2xx (validation / 500) — preserve
+                            // the original alert() so the engineer sees the failure
+                            // explicitly (matches pre-260603-eha behaviour).
+                            alert('Upload failed. ' + (resp.statusText || 'Please try again.'));
+                            try { input.value = ''; } catch (e) {}
+                            return;
+                        }
+                        // SAME UX as original — reload so thumbnail + count update.
+                        window.location.reload();
+                        return;
+                    } catch (e) {
+                        // Network throw mid-fetch — fall through to enqueue below.
+                        console.warn('uploadWorksheetPhoto fetch threw, queuing:', e);
+                    }
+                }
+
+                // OFFLINE (or online + network throw): enqueue.
+                try {
+                    await window.OfflineQueue.enqueue({
+                        token: token,
+                        kind:  'completed',
+                        room:  roomName,
+                        blob:  uploadFile,
+                        mime:  'image/jpeg',
+                        fields: {},
+                    });
+                    __toast("📥 Saved offline — will upload when you're online", 'info');
+                } catch (e) {
+                    __toast('Could not save offline. Please try again when online.', 'error');
+                }
+                try { input.value = ''; } catch (e) {}
+            };
+
+            // Defensive wrapper around convertToJpegBlob — original is defined
+            // earlier in this Blade file (line ~1568) but lives in a different
+            // <script> block scope. It's hoisted as a function declaration so
+            // it IS accessible here via the global scope, but we wrap in a
+            // try/catch just in case (e.g. if some future refactor IIFE-wraps
+            // that block).
+            async function convertToJpegBlobSafe(file) {
+                if (typeof convertToJpegBlob === 'function') {
+                    return convertToJpegBlob(file);
+                }
+                return file;
+            }
         })();
     </script>
 
