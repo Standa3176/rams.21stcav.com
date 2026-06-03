@@ -238,4 +238,125 @@ class QuoteParserShortTagVariantTest extends TestCase
         $elapsed = microtime(true) - $start;
         $this->assertLessThan(0.5, $elapsed, "Translator took {$elapsed}s on 10k-row synthetic input — backtracking smell.");
     }
+
+    // =========================================================================
+    // TASK 3 — End-to-end parse() with wire-in (priced Cicor fixture)
+    // =========================================================================
+
+    public function test_3_1_end_to_end_site_name_clean(): void
+    {
+        $r = $this->pricedResult();
+
+        $site = (string) ($r['site_name'] ?? '');
+        $this->assertStringContainsString('Cicor Hartlepool', $site);
+
+        // No tag artefacts leak into the site name field.
+        $this->assertStringNotContainsString('H1',  $site);
+        $this->assertStringNotContainsString('H1E', $site);
+        $this->assertStringNotContainsString('H4S', $site);
+        $this->assertStringNotContainsString('H4E', $site);
+        $this->assertStringNotContainsString('Jamie Powis', $site);
+    }
+
+    public function test_3_2_end_to_end_ship_contact(): void
+    {
+        $r = $this->pricedResult();
+
+        // parseTagBased surfaces SHIPCONT as a top-level 'ship_contact' key
+        // (added in 260602-mlt — engineer-worksheet header support).
+        $this->assertStringContainsString('Jamie Powis', (string) ($r['ship_contact'] ?? ''));
+    }
+
+    public function test_3_3_end_to_end_ship_phone(): void
+    {
+        $r = $this->pricedResult();
+
+        $this->assertStringContainsString('07741 627 320', (string) ($r['ship_phone'] ?? ''));
+    }
+
+    public function test_3_4_end_to_end_ref(): void
+    {
+        $r = $this->pricedResult();
+
+        $this->assertStringContainsString('21CQ30167', (string) ($r['ref'] ?? ''));
+    }
+
+    public function test_3_5_end_to_end_room_overviews_contain_section_titles(): void
+    {
+        $r = $this->pricedResult();
+
+        // Section titles flow into the overview text (joined per section) AND
+        // into the `area` field of equipment rows. Asserting on the overview
+        // text is the simpler / pipeline-shape-independent check.
+        $overview = (string) ($r['overview'] ?? '');
+
+        $this->assertStringContainsString('First Floor Training Room', $overview);
+        $this->assertStringContainsString('Professional Services',     $overview);
+        $this->assertStringContainsString('Support Services',          $overview);
+
+        // Line-item part numbers MUST NOT appear as section/area names.
+        // Equipment row areas should reference the three section titles
+        // above, not "INSTALL"/"DELIVERY"/"CONSUMABLES" (those are part_numbers).
+        $areas = array_unique(array_map(
+            fn (array $item): string => (string) ($item['area'] ?? ''),
+            (array) ($r['equipment'] ?? [])
+        ));
+        foreach (['INSTALL', 'DELIVERY', 'CONSUMABLES', 'PROJMANOFF'] as $banned) {
+            foreach ($areas as $area) {
+                $this->assertStringNotContainsStringIgnoringCase($banned, $area, "Equipment area '{$area}' was mis-attributed to a line-item part_number.");
+            }
+        }
+    }
+
+    public function test_3_6_end_to_end_equipment_extracts_priced_line_items(): void
+    {
+        $r = $this->pricedResult();
+
+        $equipment = (array) ($r['equipment'] ?? []);
+        $this->assertNotEmpty($equipment, 'Expected equipment rows from the priced Cicor fixture.');
+        $this->assertGreaterThanOrEqual(15, count($equipment), 'Expected at least 15 of the 18+ Cicor line items.');
+
+        // Each row carries the canonical shape.
+        foreach ($equipment as $row) {
+            $this->assertArrayHasKey('part_number', $row);
+            $this->assertArrayHasKey('description', $row);
+            $this->assertArrayHasKey('qty',         $row);
+        }
+
+        // Sample at least 5 expected part numbers.
+        $parts = array_map(fn (array $row): string => (string) $row['part_number'], $equipment);
+        $sample = ['FW-85BZ30L', 'XTM1U', 'CM20', 'CS10', 'UVC86', 'MCOREKIT-C5U-MS', 'RCH80', 'PA20', 'ROOMPANELPLUSE2', 'MVC-BYOD-EXTENDER'];
+        $hits = 0;
+        foreach ($sample as $expected) {
+            if (in_array($expected, $parts, true)) {
+                $hits++;
+            }
+        }
+        $this->assertGreaterThanOrEqual(5, $hits, "Expected ≥5 of " . implode(',', $sample) . " in extracted parts: " . implode(',', $parts));
+    }
+
+    public function test_3_7_no_price_or_manufacturer_tag_leaks_in_equipment(): void
+    {
+        $r = $this->pricedResult();
+
+        foreach ((array) ($r['equipment'] ?? []) as $row) {
+            $payload = (string) ($row['description'] ?? '') . ' | ' . (string) ($row['part_number'] ?? '');
+            $this->assertStringNotContainsString('£',   $payload, "Price symbol leaked into row: {$payload}");
+            $this->assertStringNotContainsString('P4S', $payload, "P4S marker leaked into row: {$payload}");
+            $this->assertStringNotContainsString('P5S', $payload, "P5S marker leaked into row: {$payload}");
+            $this->assertStringNotContainsString('P5E', $payload, "P5E marker leaked into row: {$payload}");
+        }
+    }
+
+    public function test_3_8_long_tag_path_untouched_by_wire_in(): void
+    {
+        // Sanity: the baseline unpriced fixture is still classified as long
+        // (translator is skipped) AND parses to a non-empty result.
+        $this->assertSame('long', $this->callPrivate('detectTagVariant', [$this->unpriced()]));
+
+        $r = $this->parser->parse($this->unpriced());
+
+        $this->assertNotEmpty($r['client'] ?? '', 'Long-tag parse produced empty client — wire-in regression.');
+        $this->assertNotEmpty($r['equipment'] ?? [], 'Long-tag parse produced empty equipment — wire-in regression.');
+    }
 }

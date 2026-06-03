@@ -147,6 +147,15 @@ class QuoteParserService
         // runs, so every strip/match site sees consistent input.
         $rawText = $this->normaliseQuoteWerksMarkers($rawText);
 
+        // After OCR-marker normalisation but BEFORE tag detection: if the input
+        // uses the short-tag (priced "ram" template) variant, translate it to
+        // the canonical long-tag form so the existing tag-based pipeline runs
+        // unchanged. See translateShortTagsToLong() docblock for the variant
+        // catalogue and column-split de-interleaving rules.
+        if ($this->detectTagVariant($rawText) === 'short') {
+            $rawText = $this->translateShortTagsToLong($rawText);
+        }
+
         // Structured RAMS PDF tags are present — use the reliable tag-based parser.
         // Falls back to the heuristic path below for untagged legacy PDFs.
         if ($this->hasStructuredTags($rawText)) {
@@ -1733,6 +1742,45 @@ class QuoteParserService
         $rawText = (string) preg_replace_callback(
             '/\b(H[1-8]E|H[1-8]S|H[1-8]|P[1-3]E|P[1-3]S)\b/',
             fn (array $m): string => self::SHORT_TO_LONG_TAGS[$m[1]] ?? $m[0],
+            $rawText
+        );
+
+        // ── Pass 6: Backfill empty PARTDESC with the part_number ────────────
+        // The priced "ram" template emits the PARTDESC column blank for
+        // most line items (the PDF renders the part number alone — there is
+        // no human-readable description column in the source). The downstream
+        // parseTagBased() pipeline runs `looksLikePartAndQtyOnly()` on every
+        // description candidate and zeros it out when the value is a single
+        // part-number-shaped token (no whitespace), then drops the entire
+        // row when the resulting description is < 3 chars (see "Skip table-
+        // header rows that leaked through" guard).
+        //
+        // Without this backfill, ~12 of the Cicor fixture's 24 priced rows
+        // disappear because their PARTDESC is empty AND there is no next-
+        // line manufacturer text for extractDescriptionAfterTuple() to find.
+        //
+        // The injected description must satisfy two constraints:
+        //   1. NOT match `looksLikePartAndQtyOnly` (must contain whitespace).
+        //   2. Round-trip the part_number so it survives the
+        //      `normaliseTaggedPartNumber()` post-processing AND the
+        //      worksheet/RAMS rendering shows a recognisable item name.
+        //
+        // Format: "{part_number} (priced item)" — terse, machine-introduced
+        // marker that an operator can quickly recognise as a translator-
+        // synthesised description vs. an engineer-typed one. The space
+        // between the part number and the parenthetical satisfies the
+        // whitespace requirement.
+        //
+        // Long-tag PDFs are unaffected — their PARTDESC blocks are already
+        // populated, so this regex matches nothing on them (idempotency
+        // preserved; verified by test_2_8 on the unpriced baseline).
+        $rawText = (string) preg_replace_callback(
+            '/PARTSTART\s+([A-Za-z0-9][A-Za-z0-9\-_\.\/]{1,60})\s+PARTEND([\s~]*)PARTDESCSTART\s*PARTDESCEND/',
+            function (array $m): string {
+                $partNum    = $m[1];
+                $betweenTags = $m[2];
+                return "PARTSTART {$partNum} PARTEND{$betweenTags}PARTDESCSTART {$partNum} (priced item) PARTDESCEND";
+            },
             $rawText
         );
 
