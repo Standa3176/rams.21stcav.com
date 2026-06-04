@@ -42,6 +42,30 @@ class PdfTextExtractorService
     /** Maximum fraction of alphabetic runs that may be <= 2 chars. */
     private const MAX_SHORT_RUN_RATIO = 0.45;
 
+    /**
+     * Patterns scanned to recognise the priced "ram" template (short-tag
+     * QuoteWerks variant). Summed match count is compared against
+     * SHORT_TAG_DETECT_THRESHOLD by looksLikeShortTagQuoteWerks().
+     *
+     * Three families mirror QuoteParserService::detectTagVariant Rule 2 — the
+     * canonical short-tag signature used downstream by the translator.
+     */
+    private const SHORT_TAG_DETECT_PATTERNS = [
+        '/\bH[1-8]E\b/',
+        '/\bD1[SE]\b/',
+        '/\bP[1-5][SE]?\b/',
+    ];
+
+    /**
+     * Minimum total short-tag matches required to re-extract with `-layout`.
+     *
+     * Intentionally HIGHER than the QuoteParserService threshold (>=2). The
+     * extractor side biases conservative because a false-positive re-extract
+     * is comparatively expensive (full second pdftotext invocation). The
+     * translator still gets the final say via its own >=2 detector.
+     */
+    private const SHORT_TAG_DETECT_THRESHOLD = 3;
+
     public function __construct(
         private readonly Parser                 $parser,
         private readonly PdfOcrExtractorService $ocr,
@@ -55,6 +79,37 @@ class PdfTextExtractorService
         // Stage 0: pdftotext (Poppler) — primary for QuoteWerks custom-font PDFs
         $poppler = $this->extractWithPdfToText($path);
         if ($poppler !== '') {
+            // Short-tag (priced "ram" template) variant: re-extract with
+            // `-layout` to preserve column positioning. The QuoteParserService
+            // translator (260603-q7t) handles -layout's clean shape directly
+            // without relying on its Quirk 1/2 column-split repairs.
+            // Quick task 260604-p9u — see plan `context_correction` block.
+            if ($this->looksLikeShortTagQuoteWerks($poppler)) {
+                try {
+                    $layoutText = $this->extractWithPdfToTextLayout($path);
+                } catch (\Throwable $e) {
+                    Log::warning('PdfTextExtractorService: -layout re-extract threw — falling back to -raw output', [
+                        'path'  => basename($path),
+                        'error' => $e->getMessage(),
+                    ]);
+                    $layoutText = '';
+                }
+
+                if ($layoutText !== '') {
+                    Log::info('PdfTextExtractorService: using pdftotext -layout output (short-tag variant detected)', [
+                        'path'        => basename($path),
+                        'length'      => strlen($layoutText),
+                        'has_markers' => $this->hasQuoteWerksMarkers($layoutText),
+                    ]);
+                    return $layoutText;
+                }
+
+                Log::warning('PdfTextExtractorService: short-tag variant detected but -layout re-extract returned empty; falling back to -raw output', [
+                    'path'      => basename($path),
+                    'raw_length' => strlen($poppler),
+                ]);
+            }
+
             Log::info('PdfTextExtractorService: using pdftotext output', [
                 'path'        => basename($path),
                 'length'      => strlen($poppler),
@@ -167,59 +222,7 @@ class PdfTextExtractorService
      */
     private function extractWithPdfToText(string $path): string
     {
-        // Many managed PHP-FPM installs (CWP, cPanel, shared hosting) disable
-        // shell_exec via php.ini's disable_functions list. When that's the case
-        // we cannot invoke pdftotext at all — skip Stage 0 and let the pure-PHP
-        // fallbacks (Smalot → FlateDecode → raw → OCR) handle extraction.
-        if (! function_exists('shell_exec')) {
-            Log::info('PdfTextExtractorService: shell_exec disabled — skipping pdftotext stage', [
-                'path' => basename($path),
-            ]);
-            return '';
-        }
-
-        // Hardcoded known Windows path (Git for Windows ships pdftotext.exe here).
-        // Also try PATH-based detection as fallback.
-        $candidates = [
-            'C:\\Program Files\\Git\\mingw64\\bin\\pdftotext.exe',
-            'C:\\Program Files (x86)\\Git\\mingw64\\bin\\pdftotext.exe',
-            'C:\\poppler\\bin\\pdftotext.exe',
-            'C:\\Program Files\\poppler\\bin\\pdftotext.exe',
-            // Common Linux locations — checked before PATH lookup so we work
-            // even if `which` is unavailable or shell_exec returns empty.
-            '/usr/bin/pdftotext',
-            '/usr/local/bin/pdftotext',
-            '/opt/poppler/bin/pdftotext',
-        ];
-
-        $binary = '';
-        foreach ($candidates as $candidate) {
-            if (file_exists($candidate)) {
-                $binary = $candidate;
-                break;
-            }
-        }
-
-        // PATH-based fallback: `where` on Windows, `which` on Unix
-        if ($binary === '') {
-            $whereOutput = @shell_exec('where pdftotext 2>NUL');
-            if (is_string($whereOutput) && trim($whereOutput) !== '') {
-                $binary = trim(explode("\n", $whereOutput)[0]);
-            }
-        }
-
-        if ($binary === '') {
-            $whichOutput = @shell_exec('which pdftotext 2>/dev/null');
-            if (is_string($whichOutput) && trim($whichOutput) !== '') {
-                $binary = trim($whichOutput);
-            }
-        }
-
-        Log::info('PdfTextExtractorService: pdftotext detection', [
-            'binary'     => $binary ?: 'NOT FOUND',
-            'os_family'  => PHP_OS_FAMILY,
-            'path'       => basename($path),
-        ]);
+        $binary = $this->resolvePdfToTextBinary($path);
 
         if ($binary === '') {
             return '';
@@ -247,6 +250,173 @@ class PdfTextExtractorService
         $text = str_replace(["\r\n", "\r"], "\n", $output);
 
         return (string) preg_replace('/\n{3,}/', "\n\n", $text);
+    }
+
+    /**
+     * Run pdftotext with `-layout` (column-positioned output) instead of `-raw`.
+     *
+     * Used as a re-extract path when the Stage-0 `-raw` text matches the
+     * priced "ram" QuoteWerks template (short-tag variant). The `-layout`
+     * flag preserves spatial positioning so the downstream QuoteParserService
+     * translator receives clean H1...H1E / D1S...D1E / P1S...P1E patterns
+     * the SHORT_TO_LONG_TAGS map can rewrite directly, without relying on
+     * the Quirk 1/2 column-split repairs that target the `-raw` shape.
+     *
+     * Reuses {@see resolvePdfToTextBinary()} so cross-platform binary
+     * detection has a single source of truth. Returns '' on any failure
+     * (binary missing, shell_exec disabled, empty output) — callers fall
+     * back to the original `-raw` output gracefully.
+     *
+     * Quick task 260604-p9u.
+     */
+    private function extractWithPdfToTextLayout(string $path): string
+    {
+        $binary = $this->resolvePdfToTextBinary($path);
+
+        if ($binary === '') {
+            return '';
+        }
+
+        $escaped = escapeshellarg($path);
+        $cmd     = escapeshellarg($binary) . " -layout -enc UTF-8 {$escaped} -";
+
+        $output = shell_exec($cmd);
+
+        Log::info('PdfTextExtractorService: pdftotext -layout output', [
+            'cmd'         => $cmd,
+            'output_len'  => is_string($output) ? strlen($output) : 'null',
+            'has_markers' => is_string($output) ? $this->hasQuoteWerksMarkers($output) : false,
+            'preview'     => is_string($output) ? mb_substr($output, 0, 300) : 'null',
+        ]);
+
+        if (! is_string($output) || trim($output) === '') {
+            return '';
+        }
+
+        // Same normalisation as `-raw`: no cleanText() (would strip
+        // single-digit quantity lines), just collapse line endings + triple
+        // blank lines.
+        $text = str_replace(["\r\n", "\r"], "\n", $output);
+
+        return (string) preg_replace('/\n{3,}/', "\n\n", $text);
+    }
+
+    /**
+     * Cross-platform pdftotext binary detection.
+     *
+     * Shared by {@see extractWithPdfToText} (Stage 0, `-raw`) and
+     * {@see extractWithPdfToTextLayout} (short-tag re-extract, `-layout`)
+     * so candidate lookup is a single source of truth. Returns '' when no
+     * binary can be located or when shell_exec is disabled on the host.
+     *
+     * Candidate order:
+     *   1. Known absolute paths (Windows Git for Windows / Poppler installs
+     *      + common Linux locations) — file_exists short-circuit, no shell
+     *      overhead on the happy path.
+     *   2. PATH lookup via `where` (Windows) then `which` (Unix).
+     *
+     * @param string $path  Source PDF path — included only for log breadcrumbs.
+     */
+    private function resolvePdfToTextBinary(string $path): string
+    {
+        // Many managed PHP-FPM installs (CWP, cPanel, shared hosting) disable
+        // shell_exec via php.ini's disable_functions list. When that's the case
+        // we cannot invoke pdftotext at all — skip and let the pure-PHP
+        // fallbacks (Smalot → FlateDecode → raw → OCR) handle extraction.
+        if (! function_exists('shell_exec')) {
+            Log::info('PdfTextExtractorService: shell_exec disabled — skipping pdftotext stage', [
+                'path' => basename($path),
+            ]);
+            return '';
+        }
+
+        // Hardcoded known absolute paths first (Git for Windows ships
+        // pdftotext.exe; CWP/CloudLinux ships /usr/bin/pdftotext).
+        $candidates = [
+            'C:\\Program Files\\Git\\mingw64\\bin\\pdftotext.exe',
+            'C:\\Program Files (x86)\\Git\\mingw64\\bin\\pdftotext.exe',
+            'C:\\poppler\\bin\\pdftotext.exe',
+            'C:\\Program Files\\poppler\\bin\\pdftotext.exe',
+            // Common Linux locations — checked before PATH lookup so we work
+            // even if `which` is unavailable or shell_exec returns empty.
+            '/usr/bin/pdftotext',
+            '/usr/local/bin/pdftotext',
+            '/opt/poppler/bin/pdftotext',
+        ];
+
+        $binary = '';
+        foreach ($candidates as $candidate) {
+            if (file_exists($candidate)) {
+                $binary = $candidate;
+                break;
+            }
+        }
+
+        // PATH-based fallback: `where` on Windows, `which` on Unix.
+        if ($binary === '') {
+            $whereOutput = @shell_exec('where pdftotext 2>NUL');
+            if (is_string($whereOutput) && trim($whereOutput) !== '') {
+                $binary = trim(explode("\n", $whereOutput)[0]);
+            }
+        }
+
+        if ($binary === '') {
+            $whichOutput = @shell_exec('which pdftotext 2>/dev/null');
+            if (is_string($whichOutput) && trim($whichOutput) !== '') {
+                $binary = trim($whichOutput);
+            }
+        }
+
+        Log::info('PdfTextExtractorService: pdftotext detection', [
+            'binary'    => $binary ?: 'NOT FOUND',
+            'os_family' => PHP_OS_FAMILY,
+            'path'      => basename($path),
+        ]);
+
+        return $binary;
+    }
+
+    /**
+     * True when the given Stage-0 text looks like the priced "ram"
+     * QuoteWerks template (short-tag variant) and should be re-extracted
+     * via {@see extractWithPdfToTextLayout()}.
+     *
+     * Detection rules (mirror QuoteParserService::detectTagVariant Rule 1
+     * for long-tag precedence; use a HIGHER >=3 threshold than the
+     * downstream parser's >=2 to bias the extractor more conservative —
+     * false-positive re-extracts are expensive):
+     *
+     *   1. Empty text → false (nothing to re-extract).
+     *   2. Contains SITENAMESTART or PARTSTART (long-tag marker) → false.
+     *      A working long-tag PDF is NEVER re-routed through `-layout` even
+     *      if it happens to contain prose words that look like short tags.
+     *   3. Summed match count across SHORT_TAG_DETECT_PATTERNS is
+     *      >= SHORT_TAG_DETECT_THRESHOLD → true.
+     *   4. Otherwise false.
+     *
+     * Quick task 260604-p9u.
+     */
+    private function looksLikeShortTagQuoteWerks(string $text): bool
+    {
+        if ($text === '') {
+            return false;
+        }
+
+        // Rule 2 — long-tag precedence. Cheap substr_count gate first.
+        if (
+            substr_count($text, 'SITENAMESTART') > 0
+            || substr_count($text, 'PARTSTART') > 0
+        ) {
+            return false;
+        }
+
+        // Rule 3 — sum matches across the three known short-tag families.
+        $total = 0;
+        foreach (self::SHORT_TAG_DETECT_PATTERNS as $pattern) {
+            $total += (int) preg_match_all($pattern, $text);
+        }
+
+        return $total >= self::SHORT_TAG_DETECT_THRESHOLD;
     }
 
     /**
