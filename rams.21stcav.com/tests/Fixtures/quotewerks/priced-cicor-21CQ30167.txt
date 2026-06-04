@@ -1,75 +1,124 @@
-15,089.50
-H1 Cicor Hartlepool Ltd - Training Room H H4S Jamie Powis H4E 1E
-H2S H5S 07741 627 320 H5E H2E
-H6S jamie.powis@cicor.com H6E
-H3S 21CQ30167-02-OPS H3E
-H7S Cicor Hartlepool Ltd H7E
-H8S Tofts Farm Industrial Estate
-Brenda Road
-TS25 2BQ Hartlepool
-United Kingdom H8E
-D1S F D1E irst Floor Training Room
-D1S D1E Function
-1 x new Sony 85" 4K UHD commercial display will be wall mounted tilt mount
-The room will be equipped to provide training facility as well as video conferencing as a 'standard' large meeting room.
-This is a native MS Teams room, and video conferencing is to be supported by the following components:
-1 x Teams Core Kit consisting of Teams PC (fitted behind display) and touch panel controller (presented on meeting room table)
-3 x CM20 ceiling microphones for full room coverage
-3 x CS10 ceiling loudspeakers for full room coverage
-1 x UVC86 PTZ camera, to be fitted on the display wall to capture in-room participants during a meeting. 1 x PA20 wireless presentation dongle, to be presented on the Trainer's table to allow quick access to content share to the 85" display
-1 x BYOD-Extender to allow users to connect to the system with their laptop and run video calls on other platforms such as
-Zoom, Gotomeeting etc
-1 x room booking panel to be wall mounted on the exterior of the room
-**Client to provide the correct Microsoft Teams Meeting Licence to the 21st Century AV Operations Team prior to installation to
-allow seamless setup and configuration of the system. P1S FW-85BZ30L P1E P2S P2E P3S 1 P3E P4S £1,899.12 P4E P5S P5S
-P1S XTM1U P1E P2S P2E P3S 1 P3E P4S £214.95 P4E P5S P5S
-P1S CM20 P1E P2S P2E P3S 3 P3E P4S £575.08 P4E P5S P5S
-P1S CS10 P1E P2S P2E P3S 3 P3E P4S £243.69 P4E P5S P5S
-P1S UVC86 P1E P2S P2E P3S 1 P3E P4S £1,331.10 P4E P5S P5S
-Logitech
-P1S MCOREKIT-C5U-MS P1E P2S P2E P3S 1 P3E P4S £1,878.53 P4E P5S P5S
-P1S RCH80 P1E P2S P2E P3S 1 P3E P4S £512.50 P4E P5S P5S
-Lindy
-P1S PA20 P1E P2S P2E P3S 1 P3E P4S £177.00 P4E P5S P5S
-P1S ROOMPANELPLUSE2 P1E P2S P2E P3S 1 P3E P4S £472.50 P4E P5S P5S
-P1S MVC-BYOD-EXTENDER P1E P2S P2E P3S 1 P3E P4S £276.25 P4E P5S P5S
-P1S SLIDEITXL P1E P2S P2E P3S 1 P3E P4S £343.75 P4E P5S P5S
-P1S 48097 P1E P2S P2E P3S 8 P3E P4S £10.75 P4E P5S P5S
-P1S PL09209 P1E P2S P2E P3S 1 P3E P4S £6.49 P4E P5S P5S
-Pro Elec
-P1S cables P1E P2S P2E P3S 1 P3E P4S £75.00 P4E P5S P5S
-P1S CONSUMABLES P1E P2S P2E P3S 1 P3E P4S £45.00 P4E P5S P5S
-21st
-D1S P D1E rofessional Services
-D1S D1E
-If purchased, the Technical Site Survey will confirm installation of the hardware is suitable for the room, confirm cable routes and
-pathways.
-Installation will be carried out by qualified Audio Visual Engineers in work hours 9am to 5.30pm.
-Rubbish removal will be the responsibility of the client unless previously agreed.
-A revised proposal may be necessary after the technical site survey has been completed.
-Please ensure all Power and Network requirements are in place with any hardware licences purchased prior to installation.
-(Failure to have these item in place prior to installation may result in a failed installation and a chageable return visit.)
-P1S DELIVERY P1E P2S P2E P3S 1 P3E P4S £125.00 P4E P5S P5S
-21st
-P1S SSVOTHER P1E P2S P2E P3S 1 P3E P4S £430.00 P4E P5S P5S
-21st
-P1S ELEVATION P1E P2S P2E P3S 1 P3E P4S £40.00 P4E P5S P5S
-P1S RAMS P1E P2S P2E P3S 1 P3E P4S £85.00 P4E P5S P5S
-21st
-P1S INSTALL2 P1E P2S P2E P3S 2 P3E P4S £895.00 P4E P5S P5S
-21st
-P1S INSTALL P1E P2S 21st Engineer In-Hours Mon-Friday P2E P3S 1 P3E P4S £495.00 P4E P5S P5S
-9am - 5pm
-21st
-P1S Travel1 P1E P2S P2E P3S 2 P3E P4S £60.00 P4E P5S P5S
-21st Century
-P1S PROJMANOFF P1E P2S P2E P3S 1 P3E P4S £425.00 P4E P5S P5S
-21st
-D1S Suppo D1E rt Services
-D1S S D1E
-upport Services – 1 Year Comprehensive Coverage
-Our 1-Year Support Plan ensures the reliability and performance of your supplied audio-visual hardware with a full suite of
-maintenance and assistance services.
-This package includes:
-Two Preventative Maintenance Visits Per Year – Scheduled check-ups to optimise system health and prevent potential issues. Unlimited Telephone Tech Support – Access to expert guidance whenever you need assistance. 8-Hour On-Site Engineer Response – Swift deployment of a qualified technician to resolve critical issues. Parts & Labour Coverage – Ensuring repairs and replacements are handled seamlessly. Loan Equipment – Temporary replacement units provided where applicable to minimise downtime. With this support package, you can be confident that your AV systems remain operational and efficient throughout the year. P1S ServiceContract P1E P2S P2E P3S 1 P3E P4S £1,805.00 P4E P5S P5S
-21st
+                                                                                                                                                              15,089.50
+              H1    Cicor Hartlepool Ltd - Training Room                          H1E                                          H4S      Jamie Powis                                      H4E
+
+              H2S                                                                                                             H5S       07741 627 320                                    H5E
+                                                                                  H2E
+                                                                                                                              H6S       jamie.powis@cicor.com                            H6E
+             H3S    21CQ30167-02-OPS
+                                                                                  H3E
+                                                                                                                               H7S      Cicor Hartlepool Ltd                            H7E
+
+                                                                                                                              H8S       Tofts Farm Industrial Estate
+                                                                                                                                        Brenda Road
+                                                                                                                                        TS25 2BQ Hartlepool
+                                                                                                                                        United Kingdom                                   H8E
+
+
+
+       D1S                       First Floor Training Room                                                                                                                D1E
+
+
+       D1S                       Function                                                                                                                                 D1E
+
+                                 1 x new Sony 85" 4K UHD commercial display will be wall mounted tilt mount
+
+                                 The room will be equipped to provide training facility as well as video conferencing as a 'standard' large meeting room.
+
+                                 This is a native MS Teams room, and video conferencing is to be supported by the following components:
+                                 1 x Teams Core Kit consisting of Teams PC (fitted behind display) and touch panel controller (presented on meeting room table)
+                                 3 x CM20 ceiling microphones for full room coverage
+                                 3 x CS10 ceiling loudspeakers for full room coverage
+                                 1 x UVC86 PTZ camera, to be fitted on the display wall to capture in-room participants during a meeting.
+                                 1 x PA20 wireless presentation dongle, to be presented on the Trainer's table to allow quick access to content share to the 85"
+                                 display
+                                 1 x BYOD-Extender to allow users to connect to the system with their laptop and run video calls on other platforms such as
+                                 Zoom, Gotomeeting etc
+                                 1 x room booking panel to be wall mounted on the exterior of the room
+
+                                 **Client to provide the correct Microsoft Teams Meeting Licence to the 21st Century AV Operations Team prior to installation to
+                                 allow seamless setup and configuration of the system.
+P1S   FW-85BZ30L                              P1E     P2S                                                     P2E   P3S           1 P3E P4S           £1,899.12         P4E   P5S                       P5S
+
+P1S   XTM1U                                    P1E    P2S                                                     P2E    P3S             1 P3E     P4S           £214.95    P4E   P5S                       P5S
+
+P1S   CM20                                     P1E    P2S                                                     P2E    P3S             3 P3E     P4S           £575.08    P4E   P5S                       P5S
+
+P1S   CS10                                     P1E    P2S                                                     P2E    P3S             3 P3E     P4S           £243.69    P4E   P5S                       P5S
+
+P1S   UVC86                                    P1E    P2S                                                     P2E    P3S             1 P3E     P4S          £1,331.10   P4E   P5S Logitech              P5S
+
+P1S   MCOREKIT-C5U-MS                          P1E    P2S                                                     P2E    P3S             1 P3E     P4S          £1,878.53   P4E   P5S                       P5S
+
+P1S   RCH80                                    P1E    P2S                                                     P2E    P3S             1 P3E     P4S           £512.50    P4E   P5S Lindy                  P5S
+
+P1S   PA20                                     P1E    P2S                                                     P2E    P3S             1 P3E     P4S           £177.00    P4E   P5S                       P5S
+
+P1S   ROOMPANELPLUSE2                          P1E    P2S                                                     P2E    P3S             1 P3E     P4S           £472.50    P4E   P5S                       P5S
+
+P1S   MVC-BYOD-EXTENDER                        P1E    P2S                                                     P2E    P3S             1 P3E     P4S           £276.25    P4E   P5S                       P5S
+
+P1S   SLIDEITXL                                P1E    P2S                                                     P2E    P3S             1 P3E     P4S           £343.75    P4E   P5S                       P5S
+
+P1S   48097                                    P1E    P2S                                                     P2E    P3S             8 P3E     P4S            £10.75    P4E   P5S                       P5S
+
+P1S   PL09209                                  P1E    P2S                                                     P2E    P3S             1 P3E     P4S             £6.49    P4E   P5S Pro Elec              P5S
+
+P1S   cables                                   P1E    P2S                                                     P2E    P3S             1 P3E     P4S            £75.00    P4E   P5S                       P5S
+
+P1S   CONSUMABLES                              P1E    P2S                                                     P2E    P3S             1 P3E     P4S            £45.00    P4E   P5S 21st                  P5S
+
+
+
+       D1S                       Professional Services                                                                                                                    D1E
+
+
+       D1S                                                                                                                                                                D1E
+
+                                 If purchased, the Technical Site Survey will confirm installation of the hardware is suitable for the room, confirm cable routes and
+                                 pathways.
+
+                                 Installation will be carried out by qualified Audio Visual Engineers in work hours 9am to 5.30pm.
+
+                                 Rubbish removal will be the responsibility of the client unless previously agreed.
+
+                                 A revised proposal may be necessary after the technical site survey has been completed.
+
+                                 Please ensure all Power and Network requirements are in place with any hardware licences purchased prior to installation.
+                                 (Failure to have these item in place prior to installation may result in a failed installation and a chageable return visit.)
+
+P1S   DELIVERY                                 P1E    P2S                                                     P2E    P3S             1 P3E     P4S           £125.00    P4E   P5S 21st                  P5S
+
+P1S   SSVOTHER                                 P1E    P2S                                                     P2E    P3S             1 P3E     P4S           £430.00    P4E   P5S 21st                  P5S
+
+P1S   ELEVATION                                P1E    P2S                                                     P2E    P3S             1 P3E     P4S            £40.00    P4E   P5S                       P5S
+
+P1S   RAMS                                     P1E    P2S                                                     P2E    P3S             1 P3E     P4S            £85.00    P4E   P5S 21st                  P5S
+
+P1S   INSTALL2                                 P1E    P2S                                                     P2E    P3S             2 P3E     P4S           £895.00    P4E   P5S 21st                  P5S
+
+P1S   INSTALL                                  P1E    P2S    21st Engineer In-Hours Mon-Friday               P2E    P3S             1 P3E     P4S           £495.00    P4E   P5S 21st                  P5S
+                                                             9am - 5pm
+
+P1S   Travel1                                  P1E    P2S                                                     P2E    P3S             2 P3E     P4S            £60.00    P4E   P5S 21st Century          P5S
+
+P1S   PROJMANOFF                               P1E    P2S                                                     P2E    P3S             1 P3E     P4S           £425.00    P4E   P5S 21st                  P5S
+
+
+
+       D1S                       Support Services                                                                                                                         D1E
+
+
+       D1S                       Support Services – 1 Year Comprehensive Coverage                                                                                         D1E
+
+                                 Our 1-Year Support Plan ensures the reliability and performance of your supplied audio-visual hardware with a full suite of
+                                 maintenance and assistance services.
+
+                                 This package includes:
+                                 Two Preventative Maintenance Visits Per Year – Scheduled check-ups to optimise system health and prevent potential issues.
+                                 Unlimited Telephone Tech Support – Access to expert guidance whenever you need assistance.
+                                 8-Hour On-Site Engineer Response – Swift deployment of a qualified technician to resolve critical issues.
+                                 Parts & Labour Coverage – Ensuring repairs and replacements are handled seamlessly.
+                                 Loan Equipment – Temporary replacement units provided where applicable to minimise downtime.
+                                 With this support package, you can be confident that your AV systems remain operational and efficient throughout the year.
+
+P1S   ServiceContract                          P1E    P2S                                                     P2E    P3S             1 P3E     P4S         £1,805.00    P4E   P5S 21st                  P5S
