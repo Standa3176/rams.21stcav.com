@@ -85,14 +85,16 @@ class PdfTextExtractorService
             // without relying on its Quirk 1/2 column-split repairs.
             // Quick task 260604-p9u — see plan `context_correction` block.
             if ($this->looksLikeShortTagQuoteWerks($poppler)) {
+                $layoutText      = '';
+                $layoutThrewFlag = false;
                 try {
                     $layoutText = $this->extractWithPdfToTextLayout($path);
                 } catch (\Throwable $e) {
+                    $layoutThrewFlag = true;
                     Log::warning('PdfTextExtractorService: -layout re-extract threw — falling back to -raw output', [
                         'path'  => basename($path),
                         'error' => $e->getMessage(),
                     ]);
-                    $layoutText = '';
                 }
 
                 if ($layoutText !== '') {
@@ -104,10 +106,14 @@ class PdfTextExtractorService
                     return $layoutText;
                 }
 
-                Log::warning('PdfTextExtractorService: short-tag variant detected but -layout re-extract returned empty; falling back to -raw output', [
-                    'path'      => basename($path),
-                    'raw_length' => strlen($poppler),
-                ]);
+                // Avoid double-logging when the throw branch already explained
+                // the fallback — keeps the warning stream one-per-failure.
+                if (! $layoutThrewFlag) {
+                    Log::warning('PdfTextExtractorService: short-tag variant detected but -layout re-extract returned empty; falling back to -raw output', [
+                        'path'       => basename($path),
+                        'raw_length' => strlen($poppler),
+                    ]);
+                }
             }
 
             Log::info('PdfTextExtractorService: using pdftotext output', [
@@ -220,7 +226,7 @@ class PdfTextExtractorService
      * Detects the binary cross-platform: `where` on Windows, `which` on Unix.
      * Returns an empty string when pdftotext is unavailable or produces nothing.
      */
-    private function extractWithPdfToText(string $path): string
+    protected function extractWithPdfToText(string $path): string
     {
         $binary = $this->resolvePdfToTextBinary($path);
 
@@ -269,7 +275,7 @@ class PdfTextExtractorService
      *
      * Quick task 260604-p9u.
      */
-    private function extractWithPdfToTextLayout(string $path): string
+    protected function extractWithPdfToTextLayout(string $path): string
     {
         $binary = $this->resolvePdfToTextBinary($path);
 
@@ -422,7 +428,7 @@ class PdfTextExtractorService
     /**
      * Parse selectable text from the PDF using smalot/pdfparser.
      */
-    private function parseText(string $path): string
+    protected function parseText(string $path): string
     {
         try {
             $pdf  = $this->parser->parseFile($path);
