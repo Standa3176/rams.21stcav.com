@@ -29,17 +29,30 @@ class SurveyPdfService
      * Build a PDF summary of a completed site survey and return its absolute
      * path. Side-effect: updates $survey->filename so the controller can
      * stream the same file by name.
+     *
+     * The unified blade (resources/views/pdf/site-survey/summary.blade.php)
+     * branches on $internal:
+     *   true  → engineer-internal report (Site Conditions, Pre-Install
+     *           Checks, Engineer Findings — historical buildSummary output).
+     *   false → polished client-facing report (cover chrome, AV requirements
+     *           + photos + variations only — what buildClientReport used to
+     *           produce before the 260517-su1 template merge).
+     *
+     * Default = true preserves byte-equivalent back-compat for the existing
+     * `downloadPdf` controller action.
      */
-    public function buildSummary(SiteSurvey $survey): string
+    public function buildSummary(SiteSurvey $survey, bool $internal = true): string
     {
-        $survey->loadMissing(['rooms.photos', 'rooms.questions']);
+        // Variations needed for the client-facing variations block. Engineer
+        // mode ignores them — extra eager-load is cheap (single query).
+        $survey->loadMissing(['rooms.photos', 'rooms.questions', 'variations']);
 
         $filename = 'site_survey_' . $survey->id . '_' . now()->format('Ymd_His') . '.pdf';
         $path     = Storage::disk('local')->path('site-surveys/' . $filename);
 
         $this->renderer->fromBlade(
             'pdf.site-survey.summary',
-            ['survey' => $survey],
+            ['survey' => $survey, 'internal' => $internal],
             $path,
             $this->browsershotOptions(
                 'Site Survey | ' . $survey->project_name . ' | Generated ' . now()->format('d/m/Y'),
@@ -93,22 +106,24 @@ class SurveyPdfService
 
     /**
      * Build a Tier 1 client-facing survey report and return its absolute path.
-     * Quick task 260508-v7g.
+     * Quick task 260508-v7g (originally a separate blade); folded into the
+     * unified summary template by 260517-su1.
      *
-     * Distinct from buildSummary() — that produces the engineer-internal report
-     * (technical jargon, all checklist artifacts). This produces a polished
-     * client-facing report matching the Mini O&M visual language (Tier 1 — same
-     * teal/orange brand chrome) per D-LOCK-3 / D-LOCK-4.
+     * Now a thin wrapper around buildSummary($survey, internal: false). The
+     * underlying blade applies the client-facing chrome (cover bar, office-
+     * note callouts, variations table) and suppresses engineer-only sections
+     * (Site Conditions, Pre-Install Checks, Engineer Findings) via the
+     * $internal flag.
      *
-     * Persists via DocumentArtifactStorage TYPE_SURVEY (post-H-07 storage
-     * convention) — distinct from buildSummary's legacy storage/app/site-surveys/
-     * path so the two outputs never collide:
-     *   buildSummary       → storage/app/site-surveys/site_survey_{id}_*.pdf
-     *   buildClientReport  → storage/app/documents/site-surveys/client-survey-{id}-*.pdf
+     * Persists via DocumentArtifactStorage TYPE_SURVEY (post-H-07) — distinct
+     * from buildSummary's legacy storage/app/site-surveys/ path so the two
+     * outputs never collide:
+     *   buildSummary (internal)        → storage/app/site-surveys/site_survey_{id}_*.pdf
+     *   buildClientReport (client)     → storage/app/documents/site-surveys/client-survey-{id}-*.pdf
      */
     public function buildClientReport(SiteSurvey $survey): string
     {
-        $survey->loadMissing(['rooms.photos', 'variations.photo', 'project:id,name']);
+        $survey->loadMissing(['rooms.photos', 'rooms.questions', 'variations.photo', 'project:id,name']);
 
         $slug      = \Illuminate\Support\Str::slug($survey->project_name ?: ('survey-' . $survey->id));
         $timestamp = now()->format('Ymd_His');
@@ -119,8 +134,8 @@ class SurveyPdfService
         $path      = $artifacts->writePath(\App\Services\DocumentArtifactStorage::TYPE_SURVEY, $filename);
 
         $this->renderer->fromBlade(
-            'pdf.site-survey.client-report',
-            ['survey' => $survey],
+            'pdf.site-survey.summary',
+            ['survey' => $survey, 'internal' => false],
             $path,
             $this->browsershotOptions(
                 'Site Survey Report | ' . $survey->project_name . ' | ' . now()->format('d/m/Y'),
