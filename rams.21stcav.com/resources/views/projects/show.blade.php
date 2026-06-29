@@ -928,14 +928,15 @@
                                                     </a>
                                                     <div class="row-actions-divider"></div>
                                                 @endif
-                                                <a href="{{ route('site-surveys.pdf', $survey) }}" target="_blank" class="row-actions-item">
-                                                    <span class="row-actions-item__icon" aria-hidden="true">↓</span>
-                                                    <span>Download PDF</span>
-                                                </a>
-                                                {{-- Client report (quick task 260508-v7g — Tier 1 client-facing PDF) --}}
-                                                <a href="{{ route('site-surveys.client-report', $survey) }}" target="_blank" class="row-actions-item">
+                                                {{-- Unified survey PDF (260517-su1): same blade renders both;
+                                                     ?internal=0 = client-facing, ?internal=1 = engineer-internal. --}}
+                                                <a href="{{ route('site-surveys.pdf', $survey) }}?internal=0" target="_blank" class="row-actions-item">
                                                     <span class="row-actions-item__icon" aria-hidden="true">📄</span>
-                                                    <span>Client Report</span>
+                                                    <span>Download for Client</span>
+                                                </a>
+                                                <a href="{{ route('site-surveys.pdf', $survey) }}?internal=1" target="_blank" class="row-actions-item">
+                                                    <span class="row-actions-item__icon" aria-hidden="true">↓</span>
+                                                    <span>Download Internal</span>
                                                 </a>
                                                 <div class="row-actions-divider"></div>
                                                 <form method="POST" action="{{ route('site-surveys.destroy', $survey) }}"

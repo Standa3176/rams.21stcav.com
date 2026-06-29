@@ -355,9 +355,13 @@
         @endif
 
         <a href="{{ route('site-surveys.edit', $survey) }}" class="btn btn-outline btn-sm">&#9998; Edit Survey</a>
-        <a href="{{ route('site-surveys.pdf', $survey) }}" class="btn btn-outline btn-sm" target="_blank">&#128438; Download PDF</a>
-        {{-- Office-side report downloads (quick task 260508-v7g) --}}
-        <a href="{{ route('site-surveys.client-report', $survey) }}" class="btn btn-teal btn-sm" target="_blank">&#128196; Client Survey Report</a>
+        {{-- Unified survey PDF (260517-su1): one blade, two modes via ?internal.
+             Client button uses the polished cover-chrome / no-engineer-jargon
+             mode; Internal button keeps Site Conditions, Pre-Install Checks,
+             and Engineer Findings. Both routes hit the same controller action
+             — `?internal=0` flips the template flag. --}}
+        <a href="{{ route('site-surveys.pdf', $survey) }}?internal=0" class="btn btn-teal btn-sm" target="_blank">&#128196; Download for Client</a>
+        <a href="{{ route('site-surveys.pdf', $survey) }}?internal=1" class="btn btn-outline btn-sm" target="_blank">&#128438; Download Internal</a>
         @php $variationCount = $survey->variations->count(); @endphp
         <a href="{{ $variationCount > 0 ? route('site-surveys.variations.csv', $survey) : '#' }}"
            class="btn btn-outline btn-sm"

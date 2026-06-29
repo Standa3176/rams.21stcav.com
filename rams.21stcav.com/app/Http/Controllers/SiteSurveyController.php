@@ -491,15 +491,30 @@ class SiteSurveyController extends Controller
     // ─── PDF downloads ───────────────────────────────────────────────────────
 
     /**
-     * GET /site-surveys/{siteSurvey}/pdf
+     * GET /site-surveys/{siteSurvey}/pdf[?internal=0]
+     *
+     * Streams the unified site-survey PDF. Query param `internal` selects mode:
+     *   - `?internal=1` (or omitted)  → engineer-internal report (default,
+     *                                    preserves the historical buildSummary
+     *                                    output for any bookmarks / scripts).
+     *   - `?internal=0`               → polished client-facing report
+     *                                    (cover chrome, no engineer artefacts).
+     *
+     * Both modes render the same Blade (pdf.site-survey.summary) — only the
+     * `$internal` template flag differs. See 260517-su1.
      */
-    public function downloadPdf(SiteSurvey $siteSurvey): BinaryFileResponse
+    public function downloadPdf(Request $request, SiteSurvey $siteSurvey): BinaryFileResponse
     {
         $this->authorizeSurvey($siteSurvey);
 
-        $path = $this->pdfService->buildSummary($siteSurvey);
+        $internal = $request->boolean('internal', true);
 
-        return response()->download($path, 'site-survey-' . $siteSurvey->id . '.pdf');
+        $path = $this->pdfService->buildSummary($siteSurvey, $internal);
+
+        $downloadName = ($internal ? 'site-survey-' : 'site-survey-client-')
+            . $siteSurvey->id . '.pdf';
+
+        return response()->download($path, $downloadName);
     }
 
     /**
