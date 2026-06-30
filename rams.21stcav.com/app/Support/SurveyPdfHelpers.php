@@ -67,8 +67,17 @@ class SurveyPdfHelpers
         return implode("\n", $lines);
     }
 
-    /** Render multi-line narrative as tick-list bullets for on-site verification. */
-    public static function narrativeAsTickList(string $narrative): string
+    /**
+     * Render multi-line narrative as bullet list.
+     *
+     * Internal mode (default): emits a ☐ ballot-box before each item so the
+     * engineer can tick on-site against a printout. The list element itself
+     * provides the bullet, so the checkbox gives a second marker on purpose.
+     *
+     * Client mode (passed false): omits the ☐ entirely — clients can't tick
+     * a PDF and the double-marker `• ☐ text` looks like a rendering bug.
+     */
+    public static function narrativeAsTickList(string $narrative, bool $internal = true): string
     {
         $lines = array_values(array_filter(array_map('trim', preg_split("/\r\n|\n|\r/", $narrative) ?: [])));
 
@@ -83,7 +92,11 @@ class SurveyPdfHelpers
 
         $html = '<ul class="tick-list">';
         foreach ($lines as $line) {
-            $html .= '<li><span class="checkbox">&#9744;</span> ' . e($line) . '</li>';
+            if ($internal) {
+                $html .= '<li><span class="checkbox">&#9744;</span> ' . e($line) . '</li>';
+            } else {
+                $html .= '<li>' . e($line) . '</li>';
+            }
         }
         $html .= '</ul>';
 

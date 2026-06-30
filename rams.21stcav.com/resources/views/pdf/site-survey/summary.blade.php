@@ -154,7 +154,7 @@
             @if($avReq !== '')
                 <tr>
                     <td class="label">Planned AV Works</td>
-                    <td>{!! H::narrativeAsTickList($avReq) !!}</td>
+                    <td>{!! H::narrativeAsTickList($avReq, $internal) !!}</td>
                 </tr>
             @endif
             @if($avEq !== '')
