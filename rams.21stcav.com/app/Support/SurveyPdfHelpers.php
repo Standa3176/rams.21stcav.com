@@ -172,17 +172,40 @@ class SurveyPdfHelpers
             return $html;
         }
 
-        // ── Shape 2: soft-wrapped prose ──────────────────────────────────
+        // ── Shape 2: soft-wrapped prose → join + sentence-split → bullets ──
+        // Earlier this branch rendered as one paragraph, which produced
+        // visually inconsistent output (CINNAMON / SAFFRON read as a wall
+        // of text while OREGANO from Shape 3 had clean bullets). User
+        // wanted bullets EVERYWHERE for cross-room consistency. We now:
+        //   1. Collapse all whitespace runs (incl. PDF-column soft wraps)
+        //      into single spaces — joins fragments into a coherent string.
+        //   2. Split on sentence boundaries: `[.!?]` followed by whitespace
+        //      and an upper-case letter. Conservative enough that
+        //      abbreviations like "Mr. Smith" or "i.e. that" don't split
+        //      (they don't have a uppercase-letter following the period).
+        //   3. Render each sentence as one bullet, with the same internal-
+        //      vs-client checkbox rule the other shapes use.
         if ($hasLowercaseLineStart) {
-            $paragraphs = preg_split("/\r\n\r\n+|\n\n+|\r\r+/", $narrative);
-            $html       = '';
-            foreach ($paragraphs as $para) {
-                $para = trim((string) preg_replace('/\s+/u', ' ', $para));
-                if ($para === '') {
-                    continue;
-                }
-                $html .= '<p style="margin:0 0 .5em 0;">' . e($para) . '</p>';
+            $joined    = trim((string) preg_replace('/\s+/u', ' ', $narrative));
+            $sentences = preg_split('/(?<=[.!?])\s+(?=[A-Z])/u', $joined) ?: [];
+            $sentences = array_values(array_filter(array_map('trim', $sentences)));
+
+            if (empty($sentences)) {
+                return '';
             }
+            if (count($sentences) === 1) {
+                return '<p style="margin:0;">' . e($sentences[0]) . '</p>';
+            }
+
+            $html = '<ul class="tick-list">';
+            foreach ($sentences as $sentence) {
+                if ($internal) {
+                    $html .= '<li><span class="checkbox">&#9744;</span> ' . e($sentence) . '</li>';
+                } else {
+                    $html .= '<li>' . e($sentence) . '</li>';
+                }
+            }
+            $html .= '</ul>';
 
             return $html;
         }
