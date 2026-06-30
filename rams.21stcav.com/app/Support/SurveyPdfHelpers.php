@@ -68,30 +68,100 @@ class SurveyPdfHelpers
     }
 
     /**
-     * Render multi-line narrative as bullet list.
+     * Render multi-line narrative as either bullets or paragraphs depending
+     * on the input shape. Three shapes are recognised:
      *
-     * Internal mode (default): emits a ☐ ballot-box before each item so the
-     * engineer can tick on-site against a printout. The list element itself
-     * provides the bullet, so the checkbox gives a second marker on purpose.
+     *   1. **Explicit list** — half or more lines start with `-`, `*`, `•`.
+     *      Author chose discrete items; render as bullets, strip the
+     *      original markers so we don't get `• - text` double-marker.
      *
-     * Client mode (passed false): omits the ☐ entirely — clients can't tick
-     * a PDF and the double-marker `• ☐ text` looks like a rendering bug.
+     *   2. **Soft-wrapped prose** — at least one line starts lowercase.
+     *      Signals the line is a column-wrap continuation from the previous
+     *      one (typical AI extraction from a PDF preserves PDF visual
+     *      line breaks mid-sentence). Bullets here produce visually broken
+     *      cuts like `• Cinnamon and Saffron are now using the Crestron
+     *      Flex integrator kit, which also offers`. Collapse to paragraphs:
+     *      double-newlines = paragraph break, single newlines = soft wrap
+     *      joined with space.
+     *
+     *   3. **Capital-start discrete items** — every line starts with a
+     *      capital, no list markers. Likely a checklist where the author
+     *      didn't bother typing `-`. Render as bullets.
+     *
+     * Internal mode (default true) prefixes each `<li>` with a ☐ ballot box
+     * so the engineer can tick on-site. Client mode omits the ☐.
+     *
+     * Triggered by user-reported visual bug on Tilda 21CQ29531-05-OPS
+     * survey 22 client PDF — every line of the Cinnamon/Saffron AV
+     * requirements bulleted mid-sentence because the quote-extractor
+     * preserved the source PDF's visual line breaks.
      */
     public static function narrativeAsTickList(string $narrative, bool $internal = true): string
     {
-        $lines = array_values(array_filter(array_map('trim', preg_split("/\r\n|\n|\r/", $narrative) ?: [])));
+        $narrative = trim($narrative);
+        if ($narrative === '') {
+            return '';
+        }
 
-        if (empty($lines)) {
+        $rawLines = array_values(array_filter(array_map('trim', preg_split("/\r\n|\n|\r/", $narrative) ?: [])));
+
+        if (empty($rawLines)) {
             return '';
         }
 
         // Single line → plain paragraph (bullets would add visual noise).
-        if (count($lines) === 1) {
-            return '<p style="margin:0;">' . e($lines[0]) . '</p>';
+        if (count($rawLines) === 1) {
+            return '<p style="margin:0;">' . e($rawLines[0]) . '</p>';
         }
 
+        // ── Shape detection ──────────────────────────────────────────────
+        $markerCount           = 0;
+        $hasLowercaseLineStart = false;
+        foreach ($rawLines as $line) {
+            if (preg_match('/^[\-\*•]\s/u', $line)) {
+                $markerCount++;
+            }
+            if (preg_match('/^[a-z]/u', $line)) {
+                $hasLowercaseLineStart = true;
+            }
+        }
+
+        $isExplicitList = $markerCount >= (count($rawLines) / 2);
+
+        // ── Shape 1: explicit list ───────────────────────────────────────
+        if ($isExplicitList) {
+            $html = '<ul class="tick-list">';
+            foreach ($rawLines as $line) {
+                $clean = preg_replace('/^[\-\*•]\s*/u', '', $line);
+                if ($internal) {
+                    $html .= '<li><span class="checkbox">&#9744;</span> ' . e($clean) . '</li>';
+                } else {
+                    $html .= '<li>' . e($clean) . '</li>';
+                }
+            }
+            $html .= '</ul>';
+
+            return $html;
+        }
+
+        // ── Shape 2: soft-wrapped prose ──────────────────────────────────
+        if ($hasLowercaseLineStart) {
+            $paragraphs = preg_split("/\r\n\r\n+|\n\n+|\r\r+/", $narrative);
+            $html       = '';
+            foreach ($paragraphs as $para) {
+                $para = trim((string) preg_replace('/\s+/u', ' ', $para));
+                if ($para === '') {
+                    continue;
+                }
+                $html .= '<p style="margin:0 0 .5em 0;">' . e($para) . '</p>';
+            }
+
+            return $html;
+        }
+
+        // ── Shape 3: capital-start discrete items ────────────────────────
         $html = '<ul class="tick-list">';
-        foreach ($lines as $line) {
+        foreach ($rawLines as $line) {
             if ($internal) {
                 $html .= '<li><span class="checkbox">&#9744;</span> ' . e($line) . '</li>';
             } else {
