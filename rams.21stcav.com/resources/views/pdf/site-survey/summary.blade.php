@@ -83,8 +83,14 @@
 
         // ── AV Requirements narrative — strip leading duplicate of room name
         //    (mirrors field-form.blade.php pattern at line 39 — data quality fix)
+        //    Then strip the SurveyService-appended "Standard checks for this
+        //    solution type:" checklist tail — those bullets are a surveyor
+        //    hint and belong on field-form.blade.php (which retains them),
+        //    not on the post-survey summary where they render as a list of
+        //    unanswered questions to the client/reviewer.
         $avReq = trim((string) ($room->av_requirements ?? ''));
         $avReq = $avReq !== '' ? trim(H::stripLeadingDuplicate($avReq, (string) ($room->room_name ?? ''))) : '';
+        $avReq = $avReq !== '' ? H::stripStandardChecksTail($avReq) : '';
         $avEq  = trim((string) ($room->av_equipment_list ?? ''));
 
         // ── Engineer Findings guard + label maps (mirrors rams.blade.php

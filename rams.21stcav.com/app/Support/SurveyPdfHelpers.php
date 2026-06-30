@@ -47,6 +47,34 @@ class SurveyPdfHelpers
     }
 
     /**
+     * Strip the "Standard checks for this solution type:" tail that
+     * SurveyService::resolveAvRequirementsText() appends to the operator's
+     * overview narrative. Those checklist items are a hint for the surveyor
+     * to investigate on-site (and remain visible on the field-form clipboard
+     * PDF), but they have NO place on the post-survey summary PDF — once
+     * the survey is done, the items are either answered via the structured
+     * room fields (dimensions, wall material, etc.) or have been resolved
+     * verbally. Leaving them rendered as bullets in the client-facing
+     * summary reads like a list of unanswered questions.
+     *
+     * The marker matches the concatenation pattern in SurveyService.php
+     * (verbatim: "\n\nStandard checks for this solution type:\n"). We
+     * accept some whitespace flex (one-or-more newlines on either side
+     * of the marker line) so a manual operator paste of the same heading
+     * also strips cleanly.
+     */
+    public static function stripStandardChecksTail(string $narrative): string
+    {
+        $stripped = preg_replace(
+            '/\s*\R+\s*Standard checks for this solution type:.*$/su',
+            '',
+            $narrative
+        );
+
+        return trim((string) ($stripped ?? $narrative));
+    }
+
+    /**
      * Dedupe a narrative's first line when it repeats the room name — a data
      * quality issue in some imports that causes the PDF to print the heading
      * twice.
