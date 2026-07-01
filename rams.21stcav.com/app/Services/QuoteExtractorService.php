@@ -148,7 +148,117 @@ class QuoteExtractorService
             );
         }
 
+        return self::normaliseNarrativeStrings(is_array($decoded) ? $decoded : []);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Walk the decoded extraction payload and normalise PDF-column soft
+     * wraps inside known narrative fields.
+     *
+     * Claude's PDF-vision extraction frequently preserves the source PDF's
+     * visual column wraps inside string values — i.e. literal `\n` mid-
+     * sentence. Downstream renderers (survey PDF, RAMS PDF) then interpret
+     * each `\n` as a list-item boundary and produce mid-sentence bullet
+     * cuts like:
+     *
+     *   • Cinnamon and Saffron are now using the Crestron Flex integrator
+     *     kit, which also offers
+     *   • full room control from a single Crestron
+     *   • panel, wireless BYOD via the Creston AirMedia platform...
+     *
+     * This helper collapses runs of whitespace (incl. soft-wrap `\n`) into
+     * single spaces within each paragraph, while preserving real paragraph
+     * breaks (double-newlines) so structure isn't lost on intentional
+     * multi-paragraph fields.
+     *
+     * Excluded by design:
+     * - `line_items[].description` — keep exact source text (engineers may
+     *   need the verbatim part-name).
+     * - `hazards`, `ppe`, `persons_at_risk` — already bullet-shaped arrays
+     *   of short strings.
+     * - Anything else not in the explicit narrative-key allow-list.
+     *
+     * Bug trail:
+     * - 2026-06-30: Tilda 21CQ29531-05-OPS survey 22 client PDF rendered
+     *   CINNAMON / SAFFRON AV Requirements as 5 mid-sentence bullets each.
+     *   Downstream blade `narrativeAsTickList` shape-detector recovered
+     *   the prose render at output time, but the upstream data itself was
+     *   the wrong shape. This helper cleans at extraction time so all
+     *   downstream consumers (RAMS, O&M, worksheet) get clean prose.
+     *
+     * Public + static for testability — pure function, no I/O.
+     */
+    public static function normaliseNarrativeStrings(array $decoded): array
+    {
+        $narrativeKeys = [
+            'works_description',
+            'project_name',
+            'client_name',
+            'site_address',
+        ];
+        foreach ($narrativeKeys as $key) {
+            if (isset($decoded[$key]) && is_string($decoded[$key])) {
+                $decoded[$key] = self::collapseSoftWraps($decoded[$key]);
+            }
+        }
+
+        if (isset($decoded['room_summaries']) && is_array($decoded['room_summaries'])) {
+            foreach ($decoded['room_summaries'] as $i => $rs) {
+                if (! is_array($rs)) {
+                    continue;
+                }
+                if (isset($rs['summary']) && is_string($rs['summary'])) {
+                    $decoded['room_summaries'][$i]['summary'] = self::collapseSoftWraps($rs['summary']);
+                }
+                if (isset($rs['room']) && is_string($rs['room'])) {
+                    // Room name should be single-line; strip any newlines defensively.
+                    $decoded['room_summaries'][$i]['room'] = trim((string) preg_replace('/\s+/u', ' ', $rs['room']));
+                }
+            }
+        }
+
         return $decoded;
+    }
+
+    /**
+     * Collapse PDF-column soft wraps in a narrative string while preserving
+     * real paragraph breaks.
+     *
+     *   "Cinnamon and Saffron are now using the Crestron Flex integrator\n"
+     * . "kit, which also offers full room control from a single Crestron\n"
+     * . "panel.\n\n"
+     * . "I have also added the Crestron Occupancy Sensor."
+     *
+     * becomes:
+     *
+     *   "Cinnamon and Saffron are now using the Crestron Flex integrator "
+     * . "kit, which also offers full room control from a single Crestron "
+     * . "panel.\n\n"
+     * . "I have also added the Crestron Occupancy Sensor."
+     *
+     * Idempotent on already-clean input (no double-collapse).
+     */
+    private static function collapseSoftWraps(string $text): string
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return $text;
+        }
+
+        // Split on double-newlines (real paragraph breaks).
+        $paragraphs = preg_split("/\r\n\r\n+|\n\n+|\r\r+/", $text) ?: [];
+
+        $cleaned = [];
+        foreach ($paragraphs as $para) {
+            $para = trim((string) preg_replace('/\s+/u', ' ', $para));
+            if ($para !== '') {
+                $cleaned[] = $para;
+            }
+        }
+
+        return implode("\n\n", $cleaned);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -240,7 +350,8 @@ Rules:
 4. For room_summaries — if the quote is not split by room, create one entry for the overall project.
 5. For line_items — include ALL line items from the quote including hardware, cabling, and labour lines. If a line item has no SKU, use an empty string "".
 6. If a field cannot be found in the document, use an empty string "" or empty array [] — never omit the key.
-7. Return ONLY the JSON object. Nothing before or after it.
+7. For narrative fields (works_description, room_summaries[].summary): write continuous prose. End each sentence with a period. Do NOT preserve mid-sentence line breaks from the source PDF — read across visual column wraps and write the text as it should naturally flow. Use "\n\n" (a double newline) ONLY when starting a genuinely new paragraph; never put a single "\n" inside a sentence.
+8. Return ONLY the JSON object. Nothing before or after it.
 PROMPT;
     }
 
