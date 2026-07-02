@@ -102,6 +102,18 @@ Patterns swept across the whole `app/` tree: `DB::raw|whereRaw|selectRaw|orderBy
   }
   ```
 
+##### ✅ RESOLUTION — 2026-07-02  (fixed by commit `128d51d`)
+Shipped the `LoginRequest::authenticate()` post-attempt guard variant. If `Auth::attempt()` succeeds but the resolved user has `is_active === false`, session is invalidated (`Auth::logout()` + `session->invalidate()` + `regenerateToken()`), rate-limiter incremented, and the form surfaces `"Your account is not active. Please contact your administrator."` — deliberately status-specific (over `auth.failed`) so support tickets don't flood in for password resets that wouldn't fix the problem.
+
+Scope note: this gates the **login moment only**. If a user gets suspended mid-session, their existing session cookie continues to work until 120-minute TTL. A middleware that checks `is_active` on every request is the natural follow-up but was deferred for scope — surface as a follow-up ticket if session-time enforcement is required.
+
+Tests: `tests/Feature/Auth/AuthenticationTest.php` — 3 new cases:
+- `test_suspended_users_cannot_authenticate_even_with_correct_password`
+- `test_active_users_can_still_authenticate` (regression guard against a factory-default drift)
+- `test_suspended_user_login_error_is_generic_not_status_specific` (locks the wording)
+
+Status: **CLOSED**.
+
 #### H-02  `ProjectController::transition` accepts any authenticated user
 - File: `app/Http/Controllers/ProjectController.php:296-322`
 - `abort_unless(auth()->check(), 403)` — only requires session, not project ownership.
@@ -109,6 +121,15 @@ Patterns swept across the whole `app/` tree: `DB::raw|whereRaw|selectRaw|orderBy
 - Impact: a registered-but-unprivileged user (see C-03) can drive someone else's project from `engineering` → `installing` → `commissioning` → `handover` → `completed` → `archived`. Cascades trigger timestamps on `installed_at`, `commissioning_started_at`, etc., poisoning audit trail and triggering downstream Slack notifications / activity-log rows attributed to the wrong actor.
 - Compare with `archive()`, `update()`, `destroy()`, `edit()` on the same controller — they all call `$this->authorizeProject($project)` which enforces `user_id === auth()->id() || isAdmin`. `transition()` and `show()` are the odd ones out.
 - Fix: call `$this->authorizeProject($project)` from `transition()`. If "any user can move a project forward" is a deliberate D-19 design, at minimum log the actor and add an admin notification.
+
+##### ✅ RESOLUTION — 2026-07-02  (D-19 shared-workspace model, not a bug)
+Reviewed against current `authorizeProject()` at `app/Http/Controllers/ProjectController.php:410`. The helper has been rewritten (post-audit) to `abort_unless(auth()->check(), 403);` with an explicit comment `// Shared workspace: any authenticated user has full access.` — matching the D-19 decision reference on `transition()` itself.
+
+Every project action on this controller now uses the same permissive check — `update()`, `upload()`, `archive()`, `unarchive()`, `destroy()`, `edit()`, `show()`, and `transition()`. The audit finding was correct at time of writing (audit saw a stricter `authorizeProject`), but the codebase has since committed to the shared-workspace model consistently. Enforcing ownership on `transition()` alone would create an inconsistent access model where transitions require ownership but updates don't — worse than either endpoint of the axis.
+
+Real risk moves to **C-03** — the shared-workspace model is safe when the user pool is staff-only, but with public registration anyone can sign up and get shared access to every project. Closing C-03 restores the assumption that makes shared workspace defensible.
+
+Status: **CLOSED as designed** — no code change. Real remediation is C-03.
 
 #### H-03  Inconsistent `auth()->user()->role === 'admin'` vs `auth()->user()?->isAdmin()` checks
 - Two inline admin-check idioms used interchangeably:

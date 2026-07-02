@@ -7,16 +7,32 @@ use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
-use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
+// C-03 (2026-07-02) — Registration routes REMOVED.
+// The app is internal-facing (21st Century AV staff + read-only client
+// accounts); public self-service signup is not a required flow, and its
+// combination with the "shared workspace" project access model
+// (ProjectController::authorizeProject grants any authenticated user full
+// access to every project) meant a random internet signup could read/write
+// every client project. Admins add new users via /admin/users/create
+// (Admin\UserController) instead.
+//
+// If registration is ever required, restore the routes here AND consider:
+//   1. throttle:5,60 on both endpoints
+//   2. email-domain allow-list validation
+//   3. is_active=false default with admin approval workflow
+//   4. reCAPTCHA / hCaptcha on the create form
+//
+// The @if (Route::has('register')) gate in welcome.blade.php means the
+// public "Register" link auto-hides once these routes are gone — no
+// view edit required.
+//
+// Security audit reference: .planning/audits/security-audit-2026-05-17.md
+// finding C-03.
+
 Route::middleware('guest')->group(function () {
-    Route::get('register', [RegisteredUserController::class, 'create'])
-        ->name('register');
-
-    Route::post('register', [RegisteredUserController::class, 'store']);
-
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');
 
