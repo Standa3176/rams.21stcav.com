@@ -63,6 +63,27 @@ class RegistrationDisabledTest extends TestCase
         );
     }
 
+    public function test_root_url_redirects_guests_to_login_not_default_welcome(): void
+    {
+        // Root URL used to serve Laravel's stock welcome splash
+        // (Documentation / Laracasts / Deploy now marketing page). That
+        // page both looks unprofessional on an internal-only app and
+        // mildly discloses the tech stack to random visitors. Guests now
+        // redirect to /login.
+        $response = $this->get('/');
+
+        $response->assertRedirect(route('login'));
+    }
+
+    public function test_root_url_redirects_authenticated_users_to_dashboard(): void
+    {
+        $user = \App\Models\User::factory()->create();
+
+        $response = $this->actingAs($user)->get('/');
+
+        $response->assertRedirect(route('dashboard'));
+    }
+
     public function test_registered_user_controller_file_does_not_exist(): void
     {
         // Guard against a partial revert that leaves the controller behind

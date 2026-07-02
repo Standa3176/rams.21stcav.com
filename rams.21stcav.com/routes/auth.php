@@ -25,9 +25,10 @@ use Illuminate\Support\Facades\Route;
 //   3. is_active=false default with admin approval workflow
 //   4. reCAPTCHA / hCaptcha on the create form
 //
-// The @if (Route::has('register')) gate in welcome.blade.php means the
-// public "Register" link auto-hides once these routes are gone — no
-// view edit required.
+// The root URL (`/`) redirects to /login for guests and /dashboard for
+// authenticated users (routes/web.php:45), so there's no landing page
+// public "Register" link to worry about hiding — the redirect happens
+// before any view is rendered.
 //
 // Security audit reference: .planning/audits/security-audit-2026-05-17.md
 // finding C-03.

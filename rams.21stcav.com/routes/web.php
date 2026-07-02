@@ -42,8 +42,16 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
+// Root URL — internal-only app, no public marketing landing. Redirect
+// guests to the login screen and authenticated users to the dashboard.
+// Prevents the stock Laravel welcome page (Documentation / Laracasts /
+// "Deploy now" splash) from being served to random visitors — that page
+// both looks unprofessional and mildly discloses the tech stack
+// ("Laravel 12" + external doc links) to unauthenticated eyes.
 Route::get('/', function () {
-    return view('welcome');
+    return auth()->check()
+        ? redirect()->route('dashboard')
+        : redirect()->route('login');
 });
 
 Route::post('/logout', function () {
