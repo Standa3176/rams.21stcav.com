@@ -49,6 +49,34 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        // H-01 — Enforce suspension flag at login time.
+        // The `users.is_active` column exists (fillable + boolean cast on the
+        // User model) but Laravel Breeze's stock Auth::attempt() only checks
+        // credentials, not activation status. A suspended user whose password
+        // was known could still log in and get a full session. We revoke the
+        // session immediately after Auth::attempt succeeds if the resolved
+        // user is inactive, and surface a generic error to the login form.
+        //
+        // Note: this only gates the LOGIN moment. If a user is suspended
+        // mid-session, their existing session cookie continues to work until
+        // it expires (120 min default). A tighter fix — checking is_active
+        // on every request via middleware — is the natural follow-up but out
+        // of scope for this commit.
+        //
+        // Security audit reference: .planning/audits/security-audit-2026-05-17.md
+        // finding H-01.
+        if (Auth::user() !== null && ! Auth::user()->is_active) {
+            Auth::logout();
+            $this->session()->invalidate();
+            $this->session()->regenerateToken();
+
+            RateLimiter::hit($this->throttleKey());
+
+            throw ValidationException::withMessages([
+                'email' => 'Your account is not active. Please contact your administrator.',
+            ]);
+        }
+
         RateLimiter::clear($this->throttleKey());
     }
 
