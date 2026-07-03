@@ -451,6 +451,128 @@ class OmManualProjectLinkageTest extends TestCase
         );
     }
 
+    public function test_om_update_structured_path_replaces_rooms_when_form_posts_rooms_array(): void
+    {
+        // When the structured form posts a rooms[] array, the controller
+        // must replace the extracted_data['rooms'] with the normalised form
+        // shape — preserving the narrative field that sanitiseRooms() would
+        // drop. This is what lets a user edit per-room prose in the UI
+        // without losing it on save.
+        $user    = User::factory()->create();
+        $project = $this->makeProject($user);
+        $manual  = $this->makeManual($user, $project, [
+            'extracted_data' => [
+                'project_name' => 'Existing',
+                'rooms'        => [
+                    ['name' => 'Old Room', 'narrative' => 'old prose', 'equipment' => []],
+                ],
+                'system_summary' => 'preserved',
+            ],
+        ]);
+
+        $response = $this->actingAs($user)->put(route('om-manuals.update', $manual), [
+            'project_name' => 'Existing',
+            'handover_date' => '15 Aug 2026',
+            'rooms' => [
+                [
+                    'name'        => 'Oregano',
+                    'floor'       => 'Ground',
+                    'drawing_ref' => 'A-01',
+                    'narrative'   => 'The Oregano meeting room is fitted with Crestron control and a Sony 75" display.',
+                    'equipment'   => [
+                        [
+                            'qty'          => 1,
+                            'part_number'  => 'UC-MMX30-Z',
+                            'description'  => 'Crestron Small Room System',
+                            'manufacturer' => 'Crestron',
+                        ],
+                        [
+                            'qty'          => 1,
+                            'part_number'  => 'FWD-75X80L',
+                            'description'  => 'Sony 75-inch BRAVIA display',
+                            'manufacturer' => 'Sony',
+                        ],
+                    ],
+                ],
+                [
+                    'name'      => 'Cinnamon',
+                    'narrative' => '[TBC] — awaiting client sign-off on display size.',
+                    'equipment' => [],
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('success');
+
+        $manual->refresh();
+
+        // Handover date lands in extracted_data.
+        $this->assertSame('15 Aug 2026', $manual->extracted_data['handover_date']);
+
+        // Rooms fully replaced with the posted payload, narrative preserved.
+        $this->assertCount(2, $manual->extracted_data['rooms']);
+
+        $this->assertSame('Oregano',     $manual->extracted_data['rooms'][0]['name']);
+        $this->assertSame('Ground',      $manual->extracted_data['rooms'][0]['floor']);
+        $this->assertSame('A-01',        $manual->extracted_data['rooms'][0]['drawing_ref']);
+        $this->assertStringContainsString('Crestron control',
+            $manual->extracted_data['rooms'][0]['narrative']
+        );
+        $this->assertCount(2, $manual->extracted_data['rooms'][0]['equipment']);
+
+        // Equipment fields normalised into both new (part_number) + legacy
+        // (part_no, name) keys so downstream code reading either shape works.
+        $eq0 = $manual->extracted_data['rooms'][0]['equipment'][0];
+        $this->assertSame(1,                             $eq0['qty']);
+        $this->assertSame('UC-MMX30-Z',                  $eq0['part_number']);
+        $this->assertSame('UC-MMX30-Z',                  $eq0['part_no']);
+        $this->assertSame('Crestron Small Room System',  $eq0['description']);
+        $this->assertSame('Crestron Small Room System',  $eq0['name']);
+        $this->assertSame('Crestron',                    $eq0['manufacturer']);
+
+        // TBC room's narrative preserved verbatim.
+        $this->assertSame(
+            '[TBC] — awaiting client sign-off on display size.',
+            $manual->extracted_data['rooms'][1]['narrative']
+        );
+        $this->assertSame([], $manual->extracted_data['rooms'][1]['equipment']);
+
+        // Unknown keys still preserved after rooms replacement.
+        $this->assertSame('preserved', $manual->extracted_data['system_summary']);
+    }
+
+    public function test_om_update_structured_path_leaves_rooms_alone_when_form_omits_rooms(): void
+    {
+        // If the form doesn't include a rooms[] array (e.g. only Screen 04's
+        // top-level fields were touched, or an old form shape), extracted_data
+        // rooms must remain untouched. This is the property test that lets
+        // us safely fall back to top-level-only edits.
+        $user    = User::factory()->create();
+        $project = $this->makeProject($user);
+        $manual  = $this->makeManual($user, $project, [
+            'extracted_data' => [
+                'project_name' => 'Existing',
+                'rooms'        => [
+                    ['name' => 'Keep Me', 'equipment' => [['qty' => 3, 'name' => 'Cable', 'description' => 'Cable']]],
+                ],
+            ],
+        ]);
+
+        $response = $this->actingAs($user)->put(route('om-manuals.update', $manual), [
+            'project_name'   => 'Updated only top-level',
+            'scope_of_works' => 'New scope, but rooms not touched.',
+        ]);
+
+        $response->assertRedirect();
+
+        $manual->refresh();
+
+        $this->assertSame('Updated only top-level', $manual->extracted_data['project_name']);
+        $this->assertSame('Keep Me',                $manual->extracted_data['rooms'][0]['name']);
+        $this->assertSame(3,                        $manual->extracted_data['rooms'][0]['equipment'][0]['qty']);
+    }
+
     // ═════════════════════════════════════════════════════════════════════════
     // 8. Project scoping — manual appears ONLY on its own project page
     // ═════════════════════════════════════════════════════════════════════════

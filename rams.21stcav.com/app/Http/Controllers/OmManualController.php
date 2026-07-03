@@ -314,22 +314,35 @@ class OmManualController extends Controller
             'project_ref'    => ['nullable', 'string', 'max:255'],
             'client_name'    => ['nullable', 'string', 'max:255'],
             'site_address'   => ['nullable', 'string', 'max:500'],
+            'handover_date'  => ['nullable', 'string', 'max:255'],
             'scope_of_works' => ['nullable', 'string'],
             'notes'          => ['nullable', 'string'],
+            'rooms'                            => ['nullable', 'array'],
+            'rooms.*.name'                     => ['nullable', 'string', 'max:255'],
+            'rooms.*.floor'                    => ['nullable', 'string', 'max:120'],
+            'rooms.*.drawing_ref'              => ['nullable', 'string', 'max:120'],
+            'rooms.*.narrative'                => ['nullable', 'string'],
+            'rooms.*.equipment'                => ['nullable', 'array'],
+            'rooms.*.equipment.*.qty'          => ['nullable', 'integer', 'min:0', 'max:9999'],
+            'rooms.*.equipment.*.part_number'  => ['nullable', 'string', 'max:180'],
+            'rooms.*.equipment.*.description'  => ['nullable', 'string', 'max:2000'],
+            'rooms.*.equipment.*.manufacturer' => ['nullable', 'string', 'max:180'],
         ]);
 
-        // Start from the current extracted_data so we preserve rooms + any
-        // unknown keys the generator writes that the form doesn't surface.
+        // Start from the current extracted_data so we preserve any unknown
+        // keys the generator writes that the form doesn't surface (e.g.
+        // system_summary, _draft_mode, cached_ai_response, etc.).
         $data = is_array($omManual->extracted_data) ? $omManual->extracted_data : [];
 
-        // Overlay typed fields. Flat form fields (project_name, etc.) are the
-        // canonical shape; if the payload also carries a nested `project` key
-        // from earlier writes, keep the flat values in sync there too so
-        // downstream consumers reading either shape stay consistent.
+        // Overlay typed top-level fields. Flat form fields (project_name, etc.)
+        // are the canonical shape; if the payload also carries a nested
+        // `project` key from earlier writes, keep the flat values in sync
+        // there too so downstream consumers reading either shape stay consistent.
         $data['project_name']   = $payload['project_name']   ?? ($data['project_name']   ?? null);
         $data['project_ref']    = $payload['project_ref']    ?? ($data['project_ref']    ?? null);
         $data['client_name']    = $payload['client_name']    ?? ($data['client_name']    ?? null);
         $data['site_address']   = $payload['site_address']   ?? ($data['site_address']   ?? null);
+        $data['handover_date']  = $payload['handover_date']  ?? ($data['handover_date']  ?? '');
         $data['scope_of_works'] = $payload['scope_of_works'] ?? ($data['scope_of_works'] ?? '');
         $data['notes']          = $payload['notes']          ?? ($data['notes']          ?? '');
 
@@ -338,6 +351,16 @@ class OmManualController extends Controller
             $data['project']['ref']    = $data['project_ref'];
             $data['project']['client'] = $data['client_name'];
             $data['project']['site']   = $data['site_address'];
+        }
+
+        // Rooms + equipment — normalise into the canonical extracted_data
+        // shape while preserving the narrative field that sanitiseRooms()
+        // drops (sanitiseRooms is written for AI/JSON-supplied rooms and
+        // discards prose; we keep it here because it's what the user just
+        // edited). Falls through to the existing rooms if the form did not
+        // include the rooms[] array at all.
+        if (isset($payload['rooms']) && is_array($payload['rooms'])) {
+            $data['rooms'] = self::normaliseFormRooms($payload['rooms']);
         }
 
         $omManual->update([
@@ -349,6 +372,44 @@ class OmManualController extends Controller
         ]);
 
         return back()->with('success', 'O&M details saved.');
+    }
+
+    /**
+     * Normalise the rooms[] payload from the structured edit form into the
+     * canonical extracted_data['rooms'][*] shape. Preserves the narrative
+     * field (which OmManualGeneratorService::sanitiseRooms drops) so that
+     * a user editing a room's prose here doesn't lose it on save.
+     *
+     * @param array<int,array<string,mixed>> $rows
+     * @return array<int,array<string,mixed>>
+     */
+    private static function normaliseFormRooms(array $rows): array
+    {
+        return array_values(array_map(function (array $row): array {
+            $equipment = is_array($row['equipment'] ?? null) ? $row['equipment'] : [];
+
+            $normalisedEquipment = array_values(array_map(function (array $eq): array {
+                return [
+                    'qty'          => (int) ($eq['qty'] ?? 1),
+                    'name'         => trim((string) ($eq['description'] ?? '')),
+                    'description'  => trim((string) ($eq['description'] ?? '')),
+                    'part_no'      => trim((string) ($eq['part_number']  ?? '')),
+                    'part_number'  => trim((string) ($eq['part_number']  ?? '')),
+                    'manufacturer' => trim((string) ($eq['manufacturer'] ?? '')),
+                    'model'        => '',
+                    'category'     => 'Other',
+                ];
+            }, $equipment));
+
+            return [
+                'name'        => trim((string) ($row['name']        ?? 'Unknown Room')) ?: 'Unknown Room',
+                'floor'       => trim((string) ($row['floor']       ?? '')) ?: null,
+                'drawing_ref' => trim((string) ($row['drawing_ref'] ?? '')),
+                'narrative'   => trim((string) ($row['narrative']   ?? '')),
+                'description' => trim((string) ($row['narrative']   ?? '')),
+                'equipment'   => $normalisedEquipment,
+            ];
+        }, $rows));
     }
 
     // ── editDevices (asset register form) ────────────────────────────────────
