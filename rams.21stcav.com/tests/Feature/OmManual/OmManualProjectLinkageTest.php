@@ -322,8 +322,12 @@ class OmManualProjectLinkageTest extends TestCase
     // 7. Update (save extracted_data edits)
     // ═════════════════════════════════════════════════════════════════════════
 
-    public function test_om_update_saves_extracted_json(): void
+    public function test_om_update_saves_extracted_json_via_raw_json_escape_hatch(): void
     {
+        // The raw-JSON path is now opt-in — user must tick "use_raw_json"
+        // in the Advanced disclosure. Without that flag, the structured
+        // fields path runs and rooms are preserved from the current
+        // extracted_data, not replaced from the posted JSON.
         $user    = User::factory()->create();
         $project = $this->makeProject($user);
         $manual  = $this->makeManual($user, $project);
@@ -348,6 +352,7 @@ class OmManualProjectLinkageTest extends TestCase
         ];
 
         $response = $this->actingAs($user)->put(route('om-manuals.update', $manual), [
+            'use_raw_json'   => '1',
             'extracted_json' => json_encode($newData),
         ]);
 
@@ -358,18 +363,92 @@ class OmManualProjectLinkageTest extends TestCase
         $this->assertSame($newData, $manual->extracted_data);
     }
 
-    public function test_om_update_rejects_invalid_json(): void
+    public function test_om_update_rejects_invalid_json_when_raw_json_path_is_used(): void
     {
+        // Invalid JSON is only surfaced when the user explicitly opts into
+        // the raw-JSON path via use_raw_json=1. Without the flag, the
+        // structured field validators run instead and the extracted_json
+        // field is ignored, so an invalid payload would silently pass
+        // through — that's why we require the opt-in here.
         $user    = User::factory()->create();
         $project = $this->makeProject($user);
         $manual  = $this->makeManual($user, $project);
 
         $response = $this->actingAs($user)->put(route('om-manuals.update', $manual), [
+            'use_raw_json'   => '1',
             'extracted_json' => '{not valid json',
         ]);
 
         $response->assertRedirect();
         $response->assertSessionHas('error');
+    }
+
+    public function test_om_update_structured_path_overlays_typed_fields_without_touching_rooms(): void
+    {
+        // Structured save path (default) — user edits high-signal typed fields
+        // in the form and posts them. The controller must preserve rooms +
+        // any unknown keys from the existing extracted_data and only overlay
+        // the typed fields on top. This is the safety property that lets us
+        // hide raw JSON from non-technical users without breaking the manual.
+        $user    = User::factory()->create();
+        $project = $this->makeProject($user);
+        $manual  = $this->makeManual($user, $project, [
+            'extracted_data' => [
+                'project_name'   => 'Old name',
+                'client_name'    => 'Old client',
+                'site_address'   => 'Old site',
+                'project_ref'    => 'OLD-REF',
+                'notes'          => 'Old notes',
+                'scope_of_works' => 'Old scope prose.',
+                'rooms'          => [
+                    [
+                        'name'      => 'Existing Room',
+                        'equipment' => [
+                            ['qty' => 1, 'name' => 'Old kit', 'description' => 'Old kit'],
+                        ],
+                    ],
+                ],
+                'system_summary' => 'Preserved unknown key — the form does not touch this.',
+            ],
+        ]);
+
+        $response = $this->actingAs($user)->put(route('om-manuals.update', $manual), [
+            'project_name'   => 'New name',
+            'project_ref'    => 'NEW-REF',
+            'client_name'    => 'New client',
+            'site_address'   => '3 New Street',
+            'scope_of_works' => 'Fully revised scope.',
+            'notes'          => 'Revised notes.',
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('success');
+
+        $manual->refresh();
+
+        // Typed fields land in extracted_data.
+        $this->assertSame('New name',              $manual->extracted_data['project_name']);
+        $this->assertSame('NEW-REF',               $manual->extracted_data['project_ref']);
+        $this->assertSame('New client',            $manual->extracted_data['client_name']);
+        $this->assertSame('3 New Street',          $manual->extracted_data['site_address']);
+        $this->assertSame('Fully revised scope.',  $manual->extracted_data['scope_of_works']);
+        $this->assertSame('Revised notes.',        $manual->extracted_data['notes']);
+
+        // And also into the top-level columns for list-page display.
+        $this->assertSame('New name',              $manual->project_name);
+        $this->assertSame('NEW-REF',               $manual->project_ref);
+        $this->assertSame('New client',            $manual->client_name);
+        $this->assertSame('3 New Street',          $manual->site_address);
+
+        // Rooms untouched.
+        $this->assertSame('Existing Room',         $manual->extracted_data['rooms'][0]['name']);
+        $this->assertSame('Old kit',               $manual->extracted_data['rooms'][0]['equipment'][0]['name']);
+
+        // Unknown keys preserved.
+        $this->assertSame(
+            'Preserved unknown key — the form does not touch this.',
+            $manual->extracted_data['system_summary']
+        );
     }
 
     // ═════════════════════════════════════════════════════════════════════════

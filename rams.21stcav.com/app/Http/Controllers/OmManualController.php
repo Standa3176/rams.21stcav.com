@@ -261,34 +261,94 @@ class OmManualController extends Controller
 
     // ── update (save edited extracted_data) ───────────────────────────────────
 
+    /**
+     * Save the O&M edit form. Two paths:
+     *
+     * 1. **Structured path (default)** — the form posts typed fields
+     *    (project_name, project_ref, client_name, site_address, scope_of_works,
+     *    notes). The controller takes the existing extracted_data, overlays
+     *    those fields onto it, and saves the result. Unknown keys are left
+     *    untouched. Rooms are NEVER touched via this path — they come from the
+     *    generator based on survey/quote data.
+     *
+     * 2. **Raw JSON path (opt-in)** — if the user checks "use_raw_json" in the
+     *    Advanced disclosure, we fall back to the legacy behaviour: parse the
+     *    extracted_json textarea, sanitise rooms, and replace extracted_data
+     *    wholesale. Kept as an escape hatch for the rare case where structured
+     *    fields don't cover what a user needs.
+     */
     public function update(Request $request, OmManual $omManual): RedirectResponse
     {
         $this->authorize('update', $omManual);
 
-        $request->validate([
-            'extracted_json' => ['required', 'string'],
-        ]);
+        $useRawJson = $request->boolean('use_raw_json');
 
-        $decoded = json_decode($request->input('extracted_json'), true);
+        if ($useRawJson) {
+            $request->validate(['extracted_json' => ['required', 'string']]);
 
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            return back()->with('error', 'Invalid JSON — please check the equipment list and try again.');
+            $decoded = json_decode((string) $request->input('extracted_json'), true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return back()
+                    ->withInput()
+                    ->with('error', 'Invalid JSON — ' . json_last_error_msg() . '. Fix the payload and try again.');
+            }
+
+            if (isset($decoded['rooms']) && is_array($decoded['rooms'])) {
+                $decoded['rooms'] = $this->generator->sanitiseRooms($decoded['rooms']);
+            }
+
+            $omManual->update([
+                'project_name'   => $decoded['project']['name']   ?? $decoded['project_name'] ?? $omManual->project_name,
+                'project_ref'    => $decoded['project']['ref']    ?? $decoded['project_ref']  ?? $omManual->project_ref,
+                'client_name'    => $decoded['project']['client'] ?? $decoded['client_name']  ?? $omManual->client_name,
+                'site_address'   => $decoded['project']['site']   ?? $decoded['site_address'] ?? $omManual->site_address,
+                'extracted_data' => $decoded,
+            ]);
+
+            return back()->with('success', 'O&M saved from raw JSON payload.');
         }
 
-        // Sanitise rooms via the generator service
-        if (isset($decoded['rooms']) && is_array($decoded['rooms'])) {
-            $decoded['rooms'] = $this->generator->sanitiseRooms($decoded['rooms']);
+        $payload = $request->validate([
+            'project_name'   => ['nullable', 'string', 'max:255'],
+            'project_ref'    => ['nullable', 'string', 'max:255'],
+            'client_name'    => ['nullable', 'string', 'max:255'],
+            'site_address'   => ['nullable', 'string', 'max:500'],
+            'scope_of_works' => ['nullable', 'string'],
+            'notes'          => ['nullable', 'string'],
+        ]);
+
+        // Start from the current extracted_data so we preserve rooms + any
+        // unknown keys the generator writes that the form doesn't surface.
+        $data = is_array($omManual->extracted_data) ? $omManual->extracted_data : [];
+
+        // Overlay typed fields. Flat form fields (project_name, etc.) are the
+        // canonical shape; if the payload also carries a nested `project` key
+        // from earlier writes, keep the flat values in sync there too so
+        // downstream consumers reading either shape stay consistent.
+        $data['project_name']   = $payload['project_name']   ?? ($data['project_name']   ?? null);
+        $data['project_ref']    = $payload['project_ref']    ?? ($data['project_ref']    ?? null);
+        $data['client_name']    = $payload['client_name']    ?? ($data['client_name']    ?? null);
+        $data['site_address']   = $payload['site_address']   ?? ($data['site_address']   ?? null);
+        $data['scope_of_works'] = $payload['scope_of_works'] ?? ($data['scope_of_works'] ?? '');
+        $data['notes']          = $payload['notes']          ?? ($data['notes']          ?? '');
+
+        if (isset($data['project']) && is_array($data['project'])) {
+            $data['project']['name']   = $data['project_name'];
+            $data['project']['ref']    = $data['project_ref'];
+            $data['project']['client'] = $data['client_name'];
+            $data['project']['site']   = $data['site_address'];
         }
 
         $omManual->update([
-            'project_name'   => $decoded['project']['name']   ?? $decoded['project_name'] ?? $omManual->project_name,
-            'project_ref'    => $decoded['project']['ref']    ?? $decoded['project_ref']  ?? $omManual->project_ref,
-            'client_name'    => $decoded['project']['client'] ?? $decoded['client_name']  ?? $omManual->client_name,
-            'site_address'   => $decoded['project']['site']   ?? $decoded['site_address'] ?? $omManual->site_address,
-            'extracted_data' => $decoded,
+            'project_name'   => $data['project_name'],
+            'project_ref'    => $data['project_ref'],
+            'client_name'    => $data['client_name'],
+            'site_address'   => $data['site_address'],
+            'extracted_data' => $data,
         ]);
 
-        return back()->with('success', 'Equipment list saved.');
+        return back()->with('success', 'O&M details saved.');
     }
 
     // ── editDevices (asset register form) ────────────────────────────────────
