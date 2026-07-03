@@ -143,6 +143,12 @@ Status: **CLOSED as designed** — no code change. Real remediation is C-03.
 - Risk: if `isAdmin()` is ever extended (e.g. impersonation, super-admin role), the raw checks silently lag. Today they are functionally equivalent.
 - Fix: search-and-replace `auth()->user()?->role === 'admin'` → `auth()->user()?->isAdmin()` and add an `Phase22_1InvariantGuardTest`-style PHPUnit test that grep-asserts the bad pattern is gone.
 
+**RESOLUTION 2026-07-03**: Codebase re-scan on remediation day showed all four listed controller sites had already been converted to `->isAdmin()` in parallel work — a full `grep -rn "role === 'admin'"` across `app/` returns only two hits:
+- `app/Models/User.php:47` — the canonical `isAdmin()` definition itself (correct location).
+- `app/Policies/ProjectPolicy.php:13` — a documentation comment referencing the old pattern.
+
+Regression guard added at `tests/Feature/Security/AdminCheckConsistencyTest.php` — walks `app/` and fails CI if the raw compare reappears outside the two allow-listed sites. Status: **CLOSED** (invariant now enforced by test).
+
 #### H-04  Stray dev/diag scripts at repo root, all committed to git
 - `diag.php`, `rams_diag.php`, `parsetest2.php`, `deploy_docx_service.php` — all sitting in the repo root above `public/`.
 - Today these are not web-reachable (assuming nginx points at `public/`). But:
@@ -163,6 +169,18 @@ Status: **CLOSED as designed** — no code change. Real remediation is C-03.
   - However, the surrounding `taskkill /F /PID {$pid}` + `pkill -f "artisan queue:work"` block at lines 324, 335 takes `$pid` from `ps`-output parsing. Any malformed PID line in the ps output would feed straight into `exec`. Not user-controllable, but extremely fragile.
 - Risk: if the env flag is flipped in production for any reason (incident response, "I'll turn it on for a sec"), a future bug in the PID-parsing logic becomes RCE.
 - Fix: keep `WORKER_EXEC_ENABLED=false` permanently; if exec-based control is needed, refactor to pass an explicit PID list through escapeshellarg.
+
+**RESOLUTION 2026-07-03**:
+1. `killProcesses()` deleted entirely — the whole `wmic → taskkill /F /PID` + `pkill -f "artisan queue:work"` block is gone. Verified no application caller existed (`WorkerMonitorController::restart` sends `illuminate:queue:restart` cache signal instead and never called it). This removes the fragile PID-parsing exec path completely, not just gates it.
+2. `spawnWorker()` retained (needed by `ensureRunning()` in console context) but hardened:
+   - `canExec()` now requires ALL of `function_exists('exec')` AND `WORKER_EXEC_ENABLED=true` AND `app()->runningInConsole()`.
+   - `spawnWorker()` itself opens with an unconditional `runningInConsole()` refusal — a caller who forgets `canExec()` still gets blocked. Logs and returns a refusal line instead of exec()-ing.
+3. Regression tests added at `tests/Feature/Security/WorkerMonitorExecGuardTest.php`:
+   - Asserts `killProcesses` method does not exist on the service.
+   - Asserts `spawnWorker` source contains a `runningInConsole()` guard.
+   - Asserts `canExec()` returns false when `WORKER_EXEC_ENABLED` is unset (default shipping state).
+
+Status: **CLOSED** — the fragile exec path is deleted; the surviving spawn path is CLI-only + env-gated + belt-and-braces guarded.
 
 ---
 

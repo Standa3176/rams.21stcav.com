@@ -12,7 +12,10 @@ use Illuminate\Support\Facades\Log;
  * (synchronously, deferred, or in a shutdown function) ties up that worker
  * permanently, eventually exhausting the pool and causing 504s site-wide.
  *
- * Therefore: this service contains ZERO exec() calls.
+ * Therefore: the status-detection path (isRunning, getLastActivity, the
+ * admin controller) contains ZERO exec() calls. The one exec() footprint
+ * that remains is spawnWorker() — reachable only from CLI context AND
+ * behind WORKER_EXEC_ENABLED=false (see H-05 hardening 2026-07-02).
  *
  * Status detection uses only file-based signals:
  *   1. Heartbeat file  — written by the worker on every loop via
@@ -287,12 +290,23 @@ class WorkerMonitorService
         @unlink($this->heartbeatFile());
     }
 
-    // ── Exec-based kill / spawn (opt-in via WORKER_EXEC_ENABLED=true) ─────────
+    // ── Exec-based spawn (opt-in via WORKER_EXEC_ENABLED=true, CLI-only) ─────
 
     /**
-     * Returns true when exec()-based restart is enabled and exec() is callable.
-     * Off by default to protect production servers where exec() hangs.
-     * Set WORKER_EXEC_ENABLED=true in .env to enable on dev / self-managed hosts.
+     * Returns true when exec()-based spawn is enabled and safe to attempt.
+     *
+     * All three gates must pass:
+     *   1. exec() function is available (not disabled by disable_functions).
+     *   2. WORKER_EXEC_ENABLED=true in .env (off by default).
+     *   3. We are running in a console context (artisan/tinker/queue) — HTTP
+     *      requests are hard-blocked because exec() can hang PHP-FPM workers
+     *      and cause pool-wide 504s, and because a rogue admin path calling
+     *      this from a request is the audit's H-05 attack surface.
+     *
+     * H-05: killProcesses() (Windows wmic/taskkill + *nix pkill -f) was deleted
+     * on 2026-07-02 — nothing called it from application code, and its
+     * broad-brush `pkill -f "artisan queue:work"` would happily terminate
+     * unrelated worker processes on a shared host.
      */
     public function canExec(): bool
     {
@@ -300,69 +314,44 @@ class WorkerMonitorService
             return false;
         }
 
-        return (bool) env('WORKER_EXEC_ENABLED', false);
-    }
-
-    /**
-     * Force-kill any running queue:work processes.
-     * Returns an array of human-readable log lines for display.
-     */
-    public function killProcesses(): array
-    {
-        $lines = [];
-
-        if (PHP_OS_FAMILY === 'Windows') {
-            exec(
-                'wmic process where "name=\'php.exe\' and CommandLine like \'%queue:work%\'" get ProcessId /FORMAT:VALUE 2>&1',
-                $wmicOut,
-                $wmicExit,
-            );
-
-            $killed = 0;
-            foreach ($wmicOut as $line) {
-                if (preg_match('/ProcessId=(\d+)/i', trim($line), $m) && ($pid = (int) $m[1]) > 0) {
-                    exec("taskkill /F /PID {$pid} 2>&1", $kOut, $kExit);
-                    $icon    = $kExit === 0 ? '✓' : '✗';
-                    $lines[] = "{$icon} taskkill /PID {$pid}: " . trim(implode(' ', $kOut));
-                    $killed++;
-                }
-            }
-
-            if ($killed === 0) {
-                $lines[] = 'No queue:work PHP processes found on Windows.';
-            }
-        } else {
-            exec('pkill -f "artisan queue:work" 2>&1', $pkillOut, $pkillExit);
-
-            if ($pkillExit === 0) {
-                $lines[] = '✓ pkill: process(es) killed.';
-            } elseif ($pkillExit === 1) {
-                $lines[] = 'No matching processes found (worker may already be stopped).';
-            } else {
-                $lines[] = "✗ pkill failed (exit {$pkillExit}): " . implode(' ', $pkillOut);
-            }
+        if (! (bool) env('WORKER_EXEC_ENABLED', false)) {
+            return false;
         }
 
-        $this->clearHeartbeat();
-        $lines[] = '✓ Heartbeat file cleared.';
-
-        return $lines;
+        // Defence-in-depth: even if the caller forgets the runningInConsole()
+        // check (as ensureRunning() correctly does), refuse from HTTP.
+        return app()->runningInConsole();
     }
 
     /**
      * Spawn a new queue worker in the background.
      * Returns an array of human-readable log lines for display.
      * Writes a preliminary heartbeat so the status badge flips to Running immediately.
+     *
+     * CLI-only: hard-refuses to run inside an HTTP request. Callers that
+     * bypass canExec() and invoke this directly still get blocked here.
      */
     public function spawnWorker(): array
     {
+        // H-05 belt-and-braces: hard-block HTTP context regardless of caller.
+        if (! app()->runningInConsole()) {
+            Log::error(
+                'WorkerMonitorService: spawnWorker() called from HTTP context — refusing. ' .
+                'This method must never run under PHP-FPM; exec() can hang the worker pool.'
+            );
+            return ['✗ spawnWorker refused: HTTP context (this method is CLI-only).'];
+        }
+
         $lines   = [];
         $php     = $this->phpBinary();
         $artisan = base_path('artisan');
         $log     = $this->workerLogFile();
 
         if (PHP_OS_FAMILY === 'Windows') {
-            // cmd /c start /B fully detaches the process from the PHP-FPM worker.
+            // cmd /c start /B fully detaches the process from the parent.
+            // Windows lacks a portable equivalent to escapeshellarg for this
+            // "start" invocation, but $php/$artisan/$log are all derived
+            // from env/base_path (not user input) so quoting is sufficient.
             $cmd = 'cmd /c start /B ""'
                 . ' "' . $php . '"'
                 . ' "' . $artisan . '"'
