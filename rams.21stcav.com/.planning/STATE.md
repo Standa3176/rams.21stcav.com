@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
-status: executing
-stopped_at: Phase 23 context gathered
-last_updated: "2026-06-03T08:00:00.000Z"
-last_activity: 2026-05-14 -- Phase 23 execution started
+status: paused_for_tier1_ux
+stopped_at: Session end 2026-07-03 — Tier-1 UX Screen 04 v3 shipped, awaiting live confirm
+last_updated: "2026-07-03T23:00:00.000Z"
+last_activity: 2026-07-03 -- Session end. Tier-1 UX redesign started (5 screens planned, screen 04 O&M edit shipped as v1/v2/v3). Security audit closed for all CRITICAL + HIGH items. Login show-password toggle. Root URL redirect.
 progress:
   total_phases: 2
   completed_phases: 2
@@ -19,14 +19,54 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-30)
 
 **Core value:** One dataset powers every document.
-**Current focus:** Phase 23 — XTEN-AV-Style Renderer
+**Current focus:** Tier-1 UX redesign (5 screens) — parallel to v2.0 milestone
 
 ## Current Position
 
-Phase: 23 (XTEN-AV-Style Renderer) — EXECUTING
-Plan: 1 of 7
-Status: Executing Phase 23
-Last activity: 2026-06-05 -- Completed quick task 260604-p9u: PdfTextExtractorService -layout switch for short-tag QuoteWerks. Stacked on 260603-q7t (translator); needs upload + project 78 THIRD re-extract
+Milestone: v2.0 (Engineering-Grade AV Drawings) — PAUSED at Phase 23 sub-plan 1 (context gathered)
+Active work: Tier-1 UX redesign — 1 of 5 screens shipped (screen 04 v3)
+Status: End-of-day session save 2026-07-03
+Last activity: 2026-07-03 -- session-2026-07-03 tag pushed. Screen 04 O&M edit shipped at v3 (full 15-section PDF-parity rail). Awaiting live-confirm before starting screen 03 (Edit Project Data)
+
+## Session 2026-07-03 — deliverables shipped
+
+Security audit close-out (audit ref: `.planning/audits/security-audit-2026-05-17.md`):
+- H-01 (`128d51d`) — `is_active` login gate enforced
+- H-02 (`90e3a2d`) — CLOSED as designed (shared-workspace + C-03 fix)
+- H-03 (`76ccee0`) — admin-check invariant test + audit doc RESOLUTION block
+- H-04 (`16f0421`) — 5 dev/diag scripts removed from repo root
+- H-05 (`76ccee0`) — `killProcesses()` deleted, `spawnWorker()` CLI-only guard
+- C-01 / C-02 / C-03 — clearcache.php / deploy_docx / /register all removed
+- All CRITICAL + HIGH items closed. M-01…M-08 remain.
+
+UX polish + quality-of-life:
+- Login page show/hide password toggle (`0c60564`)
+- Root URL redirect (`216ce24`) — no more Laravel welcome splash on `/`
+- Quote extractor soft-wrap normalisation (session-earlier: `cc2ffa8`)
+- Survey PDF prose formatting fixes (session-earlier: `65178a9`, `0212e9b`, `7ab03d6`, `06ff853`)
+
+Tier-1 UX redesign — screen 04 (O&M edit):
+- v1 `5355c04` — structured typed fields replacing raw JSON textarea + safety-valve advanced disclosure
+- v2 `6d773af` — sticky sidebar rail with per-section status chips + per-room narrative + inline equipment table
+- v3 `8501ac2` — full 15-section PDF-parity rail (front matter + §1–§15 + rooms + special notes) with 6 new editable payload keys (distribution_list, revision_history, manufacturer_support_overrides, service_escalation, training_handover, document_control)
+
+## Tier-1 UX redesign — remaining screens
+
+Priority build order confirmed by user:
+
+1. ✓ Screen 04 — O&M edit (JSON textarea → 15-section rail)
+2. Screen 03 — Edit Project Data (6,000px form → left rail + zone chip picker)
+3. Screen 05 — Worksheet detail (6+4 button chaos → sign-off hero + room cards)
+4. Screen 02 — Site Survey view (7-button toolbar → hero + tier KPIs + collapsed rooms)
+5. Screen 01 — Project detail (9 tabs + 4 headers → single Actions ▾ + slim stepper)
+
+Reference artifact: https://claude.ai/code/artifact/cbcf52b9-3972-46e8-952f-c30697265bae
+
+## Follow-up backlog (surfaced this session, not yet planned)
+
+- Wire `manufacturer_support_overrides` into `OmManualGeneratorService` so per-brand overrides actually take priority on next regen (currently stored in `extracted_data` but generator ignores them)
+- Improve the "Generate O&M — failed" UX on the project detail page: the validation error is buried in a `title=""` tooltip, no clear affordance that Draft (TBC) is the actual unblock path
+- Consider `.gitignore` for the audit screenshots in repo root (`01-login.png` through `p10-worksheet-view.png`) or delete them
 
 ## Milestone Progress (v1.3)
 
