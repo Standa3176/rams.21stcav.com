@@ -317,6 +317,7 @@ class OmManualController extends Controller
             'handover_date'  => ['nullable', 'string', 'max:255'],
             'scope_of_works' => ['nullable', 'string'],
             'notes'          => ['nullable', 'string'],
+
             'rooms'                            => ['nullable', 'array'],
             'rooms.*.name'                     => ['nullable', 'string', 'max:255'],
             'rooms.*.floor'                    => ['nullable', 'string', 'max:120'],
@@ -327,6 +328,47 @@ class OmManualController extends Controller
             'rooms.*.equipment.*.part_number'  => ['nullable', 'string', 'max:180'],
             'rooms.*.equipment.*.description'  => ['nullable', 'string', 'max:2000'],
             'rooms.*.equipment.*.manufacturer' => ['nullable', 'string', 'max:180'],
+
+            // Front matter — distribution + revision history
+            'distribution_list'             => ['nullable', 'array'],
+            'distribution_list.*.name'      => ['nullable', 'string', 'max:180'],
+            'distribution_list.*.role'      => ['nullable', 'string', 'max:120'],
+            'distribution_list.*.email'     => ['nullable', 'string', 'max:180'],
+
+            'revision_history'              => ['nullable', 'array'],
+            'revision_history.*.date'       => ['nullable', 'string', 'max:60'],
+            'revision_history.*.rev'        => ['nullable', 'string', 'max:20'],
+            'revision_history.*.author'     => ['nullable', 'string', 'max:120'],
+            'revision_history.*.changes'    => ['nullable', 'string', 'max:1000'],
+
+            // §10 — Manufacturer support overrides
+            'manufacturer_support_overrides'                 => ['nullable', 'array'],
+            'manufacturer_support_overrides.*.brand'         => ['nullable', 'string', 'max:120'],
+            'manufacturer_support_overrides.*.phone'         => ['nullable', 'string', 'max:60'],
+            'manufacturer_support_overrides.*.email'         => ['nullable', 'string', 'max:180'],
+            'manufacturer_support_overrides.*.portal'        => ['nullable', 'string', 'max:255'],
+            'manufacturer_support_overrides.*.warranty'      => ['nullable', 'string', 'max:255'],
+
+            // §11 — Service & escalation
+            'service_escalation'                 => ['nullable', 'array'],
+            'service_escalation.contact_name'    => ['nullable', 'string', 'max:180'],
+            'service_escalation.phone'           => ['nullable', 'string', 'max:60'],
+            'service_escalation.email'           => ['nullable', 'string', 'max:180'],
+            'service_escalation.hours'           => ['nullable', 'string', 'max:120'],
+            'service_escalation.matrix'          => ['nullable', 'string', 'max:2000'],
+
+            // §12 — Training & Handover (attendees + competency)
+            'training_handover'                     => ['nullable', 'array'],
+            'training_handover.competency'          => ['nullable', 'string', 'max:2000'],
+            'training_handover.attendees'           => ['nullable', 'array'],
+            'training_handover.attendees.*.name'    => ['nullable', 'string', 'max:180'],
+            'training_handover.attendees.*.role'    => ['nullable', 'string', 'max:120'],
+
+            // §15 — Document control
+            'document_control'                 => ['nullable', 'array'],
+            'document_control.revision'        => ['nullable', 'string', 'max:20'],
+            'document_control.status'          => ['nullable', 'string', 'max:60'],
+            'document_control.prepared_by'     => ['nullable', 'string', 'max:180'],
         ]);
 
         // Start from the current extracted_data so we preserve any unknown
@@ -363,6 +405,67 @@ class OmManualController extends Controller
             $data['rooms'] = self::normaliseFormRooms($payload['rooms']);
         }
 
+        // Front-matter repeaters — distribution list and revision history.
+        // The `?? $data[key]` fallback lets a form that doesn't submit the
+        // repeater at all leave the existing entries intact. An empty
+        // repeater (user cleared all rows) posts `[]` explicitly and we
+        // honour that by writing the empty array.
+        if (array_key_exists('distribution_list', $payload)) {
+            $data['distribution_list'] = self::normaliseNamedRows(
+                $payload['distribution_list'] ?? [],
+                ['name', 'role', 'email']
+            );
+        }
+        if (array_key_exists('revision_history', $payload)) {
+            $data['revision_history'] = self::normaliseNamedRows(
+                $payload['revision_history'] ?? [],
+                ['date', 'rev', 'author', 'changes']
+            );
+        }
+
+        // §10 Manufacturer support overrides — per-brand contact + warranty.
+        // The AI generator resolves brands automatically at generate time;
+        // these overrides win on next regen.
+        if (array_key_exists('manufacturer_support_overrides', $payload)) {
+            $data['manufacturer_support_overrides'] = self::normaliseNamedRows(
+                $payload['manufacturer_support_overrides'] ?? [],
+                ['brand', 'phone', 'email', 'portal', 'warranty']
+            );
+        }
+
+        // §11 Service & escalation — composite (not a repeater).
+        if (isset($payload['service_escalation']) && is_array($payload['service_escalation'])) {
+            $data['service_escalation'] = [
+                'contact_name' => trim((string) ($payload['service_escalation']['contact_name'] ?? '')),
+                'phone'        => trim((string) ($payload['service_escalation']['phone']        ?? '')),
+                'email'        => trim((string) ($payload['service_escalation']['email']        ?? '')),
+                'hours'        => trim((string) ($payload['service_escalation']['hours']        ?? '')),
+                'matrix'       => trim((string) ($payload['service_escalation']['matrix']       ?? '')),
+            ];
+        }
+
+        // §12 Training & handover — composite w/ attendees repeater inside.
+        if (isset($payload['training_handover']) && is_array($payload['training_handover'])) {
+            $ho = $payload['training_handover'];
+            $data['training_handover'] = [
+                'date'       => trim((string) ($payload['handover_date'] ?? $ho['date'] ?? '')),
+                'competency' => trim((string) ($ho['competency'] ?? '')),
+                'attendees'  => self::normaliseNamedRows(
+                    (array) ($ho['attendees'] ?? []),
+                    ['name', 'role']
+                ),
+            ];
+        }
+
+        // §15 Document control — composite.
+        if (isset($payload['document_control']) && is_array($payload['document_control'])) {
+            $data['document_control'] = [
+                'revision'    => trim((string) ($payload['document_control']['revision']    ?? '')),
+                'status'      => trim((string) ($payload['document_control']['status']      ?? '')),
+                'prepared_by' => trim((string) ($payload['document_control']['prepared_by'] ?? '')),
+            ];
+        }
+
         $omManual->update([
             'project_name'   => $data['project_name'],
             'project_ref'    => $data['project_ref'],
@@ -383,6 +486,38 @@ class OmManualController extends Controller
      * @param array<int,array<string,mixed>> $rows
      * @return array<int,array<string,mixed>>
      */
+    /**
+     * Normalise a repeater's rows down to a flat array of typed strings.
+     * Trims each field, drops any row where every value is empty (so a
+     * clicked-but-unfilled "+ Add" row doesn't pollute the payload).
+     *
+     * @param array<int,array<string,mixed>> $rows
+     * @param array<int,string>              $keys  Ordered field names to keep.
+     * @return array<int,array<string,string>>
+     */
+    private static function normaliseNamedRows(array $rows, array $keys): array
+    {
+        $out = [];
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $normalised = [];
+            $hasContent = false;
+            foreach ($keys as $k) {
+                $v = trim((string) ($row[$k] ?? ''));
+                $normalised[$k] = $v;
+                if ($v !== '') {
+                    $hasContent = true;
+                }
+            }
+            if ($hasContent) {
+                $out[] = $normalised;
+            }
+        }
+        return $out;
+    }
+
     private static function normaliseFormRooms(array $rows): array
     {
         return array_values(array_map(function (array $row): array {

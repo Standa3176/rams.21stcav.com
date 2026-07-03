@@ -542,6 +542,107 @@ class OmManualProjectLinkageTest extends TestCase
         $this->assertSame('preserved', $manual->extracted_data['system_summary']);
     }
 
+    public function test_om_update_saves_full_tier1_payload_distribution_revision_handover_docControl_mfg_escalation(): void
+    {
+        // Full Tier-1 rail submits: distribution list, revision history,
+        // manufacturer support overrides, service escalation composite,
+        // training & handover composite (with attendees), and document
+        // control composite. All must land in extracted_data with empty
+        // rows dropped and unchanged keys preserved.
+        $user    = User::factory()->create();
+        $project = $this->makeProject($user);
+        $manual  = $this->makeManual($user, $project, [
+            'extracted_data' => [
+                'project_name'   => 'Existing',
+                'rooms'          => [['name' => 'Untouched', 'equipment' => []]],
+                'system_summary' => 'preserved',
+            ],
+        ]);
+
+        $response = $this->actingAs($user)->put(route('om-manuals.update', $manual), [
+            'project_name' => 'Existing',
+            'handover_date' => '15 Aug 2026',
+            'distribution_list' => [
+                ['name' => 'Jane Smith',    'role' => 'Facilities', 'email' => 'jane@client.com'],
+                ['name' => '',              'role' => '',           'email' => ''],  // empty row — should drop
+                ['name' => 'Sonny Tanda',   'role' => 'PM',         'email' => 'sonny@21st.com'],
+            ],
+            'revision_history' => [
+                ['date' => '15 Aug 2026', 'rev' => '1.0', 'author' => 'Sonny', 'changes' => 'Initial release'],
+            ],
+            'manufacturer_support_overrides' => [
+                ['brand' => 'Crestron', 'phone' => '+44 1223 555000', 'email' => 'uk@crestron.com',
+                 'portal' => 'crestron.com/support', 'warranty' => '3 yrs onsite'],
+                ['brand' => '',         'phone' => '',                'email' => '',
+                 'portal' => '',        'warranty' => ''],  // empty — should drop
+            ],
+            'service_escalation' => [
+                'contact_name' => '21st Century AV Support',
+                'phone'        => '+44 1223 555111',
+                'email'        => 'support@21stcenturyav.com',
+                'hours'        => 'Mon–Fri 09:00–17:30',
+                'matrix'       => 'L1 helpdesk → L2 lead engineer → L3 PM',
+            ],
+            'training_handover' => [
+                'competency' => 'Client team briefed on Crestron room control.',
+                'attendees'  => [
+                    ['name' => 'Jane Smith',  'role' => 'Facilities Manager'],
+                    ['name' => 'Bob Jones',   'role' => 'IT Manager'],
+                    ['name' => '',            'role' => ''],  // empty — should drop
+                ],
+            ],
+            'document_control' => [
+                'revision'    => '1.0',
+                'status'      => 'For Issue',
+                'prepared_by' => 'Sonny Tanda',
+            ],
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('success');
+
+        $manual->refresh();
+        $d = $manual->extracted_data;
+
+        // Distribution list — 2 rows kept (empty dropped), verbatim.
+        $this->assertCount(2, $d['distribution_list']);
+        $this->assertSame('Jane Smith',       $d['distribution_list'][0]['name']);
+        $this->assertSame('jane@client.com',  $d['distribution_list'][0]['email']);
+        $this->assertSame('Sonny Tanda',      $d['distribution_list'][1]['name']);
+
+        // Revision history — 1 row, all fields present.
+        $this->assertCount(1, $d['revision_history']);
+        $this->assertSame('1.0',                $d['revision_history'][0]['rev']);
+        $this->assertSame('Initial release',    $d['revision_history'][0]['changes']);
+
+        // §10 — Manufacturer overrides — 1 row kept (empty dropped).
+        $this->assertCount(1, $d['manufacturer_support_overrides']);
+        $this->assertSame('Crestron', $d['manufacturer_support_overrides'][0]['brand']);
+        $this->assertSame('3 yrs onsite', $d['manufacturer_support_overrides'][0]['warranty']);
+
+        // §11 — Service & escalation composite.
+        $this->assertSame('21st Century AV Support', $d['service_escalation']['contact_name']);
+        $this->assertSame('+44 1223 555111',         $d['service_escalation']['phone']);
+        $this->assertStringContainsString('L1 helpdesk', $d['service_escalation']['matrix']);
+
+        // §12 — Training & handover — handover_date from top-level, attendees dropped-empty.
+        $this->assertSame('15 Aug 2026', $d['training_handover']['date']);
+        $this->assertSame('15 Aug 2026', $d['handover_date']);
+        $this->assertStringContainsString('Crestron room control', $d['training_handover']['competency']);
+        $this->assertCount(2, $d['training_handover']['attendees']);
+        $this->assertSame('Jane Smith', $d['training_handover']['attendees'][0]['name']);
+        $this->assertSame('Bob Jones',  $d['training_handover']['attendees'][1]['name']);
+
+        // §15 — Document control composite.
+        $this->assertSame('1.0',         $d['document_control']['revision']);
+        $this->assertSame('For Issue',   $d['document_control']['status']);
+        $this->assertSame('Sonny Tanda', $d['document_control']['prepared_by']);
+
+        // Untouched keys preserved.
+        $this->assertSame('Untouched',   $d['rooms'][0]['name']);
+        $this->assertSame('preserved',   $d['system_summary']);
+    }
+
     public function test_om_update_structured_path_leaves_rooms_alone_when_form_omits_rooms(): void
     {
         // If the form doesn't include a rooms[] array (e.g. only Screen 04's
