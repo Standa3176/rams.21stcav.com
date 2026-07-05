@@ -243,6 +243,72 @@
 .badge-warning { background: #fffbeb; color: #92400e; border: 1px solid #f59e0b; }
 .badge-green   { background: #f0fdf4; color: #166534; border: 1px solid #86efac; }
 .badge-red     { background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5; }
+
+/* ── Tier-1 sidebar rail (Screen 03 v1) ────────────────────────────── */
+.pkg-layout {
+    display: grid;
+    grid-template-columns: 232px 1fr;
+    gap: 1.5rem;
+    align-items: start;
+}
+@media (max-width: 900px) {
+    .pkg-layout { grid-template-columns: 1fr; }
+    .pkg-rail { position: static !important; max-height: none !important; }
+}
+.pkg-rail {
+    position: sticky;
+    top: 4.5rem;
+    background: var(--surface, #fff);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: .5rem;
+    max-height: calc(100vh - 5.5rem);
+    overflow-y: auto;
+}
+.pkg-rail-h {
+    font-size: .62rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 700;
+    padding: .55rem .55rem .25rem;
+}
+.pkg-rail-h.first { padding-top: .25rem; }
+.pkg-rail-item {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .45rem .55rem;
+    border-radius: 4px;
+    font-size: .78rem;
+    color: var(--text);
+    text-decoration: none;
+    font-weight: 500;
+    line-height: 1.3;
+    cursor: pointer;
+}
+.pkg-rail-item:hover { background: var(--bg-muted, #faf7ee); }
+.pkg-rail-item.active {
+    background: var(--accent, #0f3e36);
+    color: #e6b849;
+    font-weight: 600;
+}
+.pkg-rail-item .n {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .68rem;
+    color: var(--text-muted);
+    font-weight: 700;
+    min-width: 1rem;
+    flex-shrink: 0;
+}
+.pkg-rail-item.active .n { color: rgba(230, 184, 73, .7); }
+.pkg-rail-item .name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.review-section { scroll-margin-top: 5rem; }
 </style>
 @endpush
 
@@ -339,6 +405,51 @@
 {{-- clicked — no Livewire or Alpine required.                          --}}
 {{-- ================================================================== --}}
 
+{{-- ═══════════════════════════════════════════════════════════════════
+     Sidebar rail (Tier-1 v1) — sticky per-section anchors + tab groups.
+     Clicks first switch to the target section's tab, then scroll. The
+     rail is nav-only; the form + submit buttons stay inside the form
+     below.
+     ═══════════════════════════════════════════════════════════════════ --}}
+<div class="pkg-layout">
+    <aside class="pkg-rail" aria-label="Section navigation">
+        <div class="pkg-rail-h first">📋 Project info tab</div>
+        <a class="pkg-rail-item" data-tab="project-info" data-target="s-project-details" onclick="pkgRailJump(event, 'project-info', 's-project-details')">
+            <span class="n">1</span><span class="name">Project details</span>
+        </a>
+        <a class="pkg-rail-item" data-tab="project-info" data-target="s-room-overviews" onclick="pkgRailJump(event, 'project-info', 's-room-overviews')">
+            <span class="n">2</span><span class="name">Rooms / spaces</span>
+        </a>
+        <a class="pkg-rail-item" data-tab="project-info" data-target="s-equipment" onclick="pkgRailJump(event, 'project-info', 's-equipment')">
+            <span class="n">3</span><span class="name">Equipment</span>
+        </a>
+
+        <div class="pkg-rail-h">⚠️ RAMS info tab</div>
+        <a class="pkg-rail-item" data-tab="rams-info" data-target="s-programme" onclick="pkgRailJump(event, 'rams-info', 's-programme')">
+            <span class="n">1</span><span class="name">Programme &amp; personnel</span>
+        </a>
+        <a class="pkg-rail-item" data-tab="rams-info" data-target="s-site-logistics" onclick="pkgRailJump(event, 'rams-info', 's-site-logistics')">
+            <span class="n">2</span><span class="name">Site logistics</span>
+        </a>
+        <a class="pkg-rail-item" data-tab="rams-info" data-target="s-method-notes" onclick="pkgRailJump(event, 'rams-info', 's-method-notes')">
+            <span class="n">3</span><span class="name">Method statement notes</span>
+        </a>
+        <a class="pkg-rail-item" data-tab="rams-info" data-target="s-activities" onclick="pkgRailJump(event, 'rams-info', 's-activities')">
+            <span class="n">4</span><span class="name">Work activities</span>
+        </a>
+        <a class="pkg-rail-item" data-tab="rams-info" data-target="s-hazards" onclick="pkgRailJump(event, 'rams-info', 's-hazards')">
+            <span class="n">5</span><span class="name">Hazards</span>
+        </a>
+        <a class="pkg-rail-item" data-tab="rams-info" data-target="s-ppe" onclick="pkgRailJump(event, 'rams-info', 's-ppe')">
+            <span class="n">6</span><span class="name">PPE required</span>
+        </a>
+        <a class="pkg-rail-item" data-tab="rams-info" data-target="s-access" onclick="pkgRailJump(event, 'rams-info', 's-access')">
+            <span class="n">7</span><span class="name">Access &amp; constraints</span>
+        </a>
+    </aside>
+
+    <div class="pkg-main">
+
 <form id="review-form" method="POST" action="{{ route('project-packages.review.approve', $package) }}" novalidate>
     @csrf
 
@@ -352,7 +463,7 @@
     <div id="tab-project-info" class="review-tab-panel active">
 
     {{-- ── 1. Project Details ──────────────────────────────────────── --}}
-    <div class="review-section">
+    <div class="review-section" id="s-project-details">
         <div class="review-section-header">
             <h2>1. Project Details</h2>
         </div>
@@ -471,7 +582,7 @@
         $roomOverviews  = $reviewPayload['room_overviews'] ?? [];
         $solutionTypes  = \App\Models\SolutionType::active()->ordered()->get();
     @endphp
-    <div class="review-section">
+    <div class="review-section" id="s-room-overviews">
         <div class="review-section-header">
             <h2>2. Room / Space Overviews</h2>
             <div style="display:flex;gap:.5rem;align-items:center;">
@@ -579,7 +690,7 @@
             }
         }
     @endphp
-    <div class="review-section">
+    <div class="review-section" id="s-equipment">
         <div class="review-section-header">
             <h2>3. Equipment</h2>
             <span style="font-size:.78rem;color:var(--text-muted);">
@@ -838,7 +949,7 @@
     <div id="tab-rams-info" class="review-tab-panel">
 
     {{-- ── 1. Programme & Personnel ─────────────────────────────── --}}
-    <div class="review-section">
+    <div class="review-section" id="s-programme">
         <div class="review-section-header">
             <h2>1. Programme &amp; Personnel</h2>
         </div>
@@ -1069,7 +1180,7 @@
     </div>
 
     {{-- ── 2. Site Logistics ───────────────────────────────────── --}}
-    <div class="review-section">
+    <div class="review-section" id="s-site-logistics">
         <div class="review-section-header">
             <h2>2. Site Logistics</h2>
         </div>
@@ -1181,7 +1292,7 @@
     </div>
 
     {{-- ── 3. Method Statement Notes ───────────────────────────────── --}}
-    <div class="review-section">
+    <div class="review-section" id="s-method-notes">
         <div class="review-section-header">
             <h2>3. Method Statement Notes</h2>
         </div>
@@ -1201,7 +1312,7 @@
     </div>
 
     {{-- ── 4. Activities ───────────────────────────────────────────── --}}
-    <div class="review-section">
+    <div class="review-section" id="s-activities">
         <div class="review-section-header">
             <h2>4. Work Activities</h2>
             <button type="button" class="btn btn-outline btn-sm" onclick="addRow('activities-tbody', activityRowTemplate)">
@@ -1249,7 +1360,7 @@
     </div>
 
     {{-- ── 5. Hazards ──────────────────────────────────────────────── --}}
-    <div class="review-section">
+    <div class="review-section" id="s-hazards">
         <div class="review-section-header">
             <h2>5. Hazards</h2>
             <button type="button" class="btn btn-outline btn-sm" onclick="addRow('hazards-tbody', hazardRowTemplate)">
@@ -1314,7 +1425,7 @@
     </div>
 
     {{-- ── 6. PPE ───────────────────────────────────────────────────── --}}
-    <div class="review-section">
+    <div class="review-section" id="s-ppe">
         <div class="review-section-header">
             <h2>6. PPE Required</h2>
         </div>
@@ -1354,7 +1465,7 @@
     </div>
 
     {{-- ── 7. Access / Site Constraints ───────────────────────────── --}}
-    <div class="review-section">
+    <div class="review-section" id="s-access">
         <div class="review-section-header">
             <h2>7. Access &amp; Site Constraints</h2>
         </div>
@@ -1412,6 +1523,9 @@
     </div>
 
 </form>
+
+    </div>{{-- /pkg-main --}}
+</div>{{-- /pkg-layout --}}
 
 {{-- Hidden save form — shares the same data but posts to the save endpoint --}}
 <form id="save-form" method="POST" action="{{ route('project-packages.review.update', $package) }}" style="display:none;">
@@ -2005,6 +2119,56 @@ function switchTab(tabId, btn) {
     document.getElementById('tab-' + tabId).classList.add('active');
     if (btn) btn.classList.add('active');
 }
+
+// ─── Sidebar rail (Tier-1 Screen 03 v1) ───────────────────────────────────────
+// Click handler: switch to the target's tab, then scroll to the section.
+// The scroll waits one frame so the tab-panel display flip has painted first
+// (otherwise scrollIntoView measures a display:none element and no-ops).
+window.pkgRailJump = function (event, tab, target) {
+    event.preventDefault();
+
+    var btns = document.querySelectorAll('.review-tab-btn');
+    var wantBtn = null;
+    var wantLabel = tab === 'project-info' ? 'project info' : 'rams info';
+    btns.forEach(function (b) {
+        if ((b.textContent || '').toLowerCase().indexOf(wantLabel) !== -1) {
+            wantBtn = b;
+        }
+    });
+    if (wantBtn) { switchTab(tab, wantBtn); }
+
+    requestAnimationFrame(function () {
+        var el = document.getElementById(target);
+        if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    });
+};
+
+// Active-highlight the rail item for the section currently in view.
+// Runs after Alpine boots so we don't fight it for the initial layout.
+(function () {
+    if (!('IntersectionObserver' in window)) return;
+    document.addEventListener('DOMContentLoaded', function () {
+        var rail = document.querySelector('.pkg-rail');
+        if (!rail) return;
+        var items = Array.from(rail.querySelectorAll('.pkg-rail-item'));
+        if (!items.length) return;
+        var targets = items
+            .map(function (a) { return document.getElementById(a.getAttribute('data-target')); })
+            .filter(Boolean);
+        if (!targets.length) return;
+        var setActive = function (id) {
+            items.forEach(function (a) {
+                a.classList.toggle('active', a.getAttribute('data-target') === id);
+            });
+        };
+        var obs = new IntersectionObserver(function (entries) {
+            var visible = entries.filter(function (e) { return e.isIntersecting; })
+                .sort(function (a, b) { return a.boundingClientRect.top - b.boundingClientRect.top; });
+            if (visible.length) setActive(visible[0].target.id);
+        }, { rootMargin: '-20% 0px -70% 0px', threshold: 0 });
+        targets.forEach(function (t) { obs.observe(t); });
+    });
+})();
 
 // ─── Auto-switch to tab that contains validation errors ───────────────────────
 (function () {
