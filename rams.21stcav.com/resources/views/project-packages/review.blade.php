@@ -732,6 +732,34 @@
                     'customer_supplied' => 'Customer Supplied',
                     'option'            => 'Option (Optional Items)',
                 ];
+
+                // ── Tier-1 Screen 03 v2 — area picker source list ───────────
+                // Rooms defined in section 2 (Room / Space Overviews) are the
+                // canonical list of "areas" equipment can be assigned to.
+                // Pulled once here, deduped, and rendered as a <datalist>
+                // below so every equipment row's area input becomes a typing
+                // + suggestion field. syncRoomNameToEquipment() keeps the
+                // datalist in sync when a room is renamed.
+                $roomNamesForPicker = collect($roomOverviews ?? [])
+                    ->pluck('room')
+                    ->map(fn ($r) => trim((string) $r))
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+            @endphp
+
+            {{-- Shared datalist consumed by every equipment row's area input.
+                 Kept adjacent to the equipment tables so it lands inside the
+                 same section — no cross-page bleed. --}}
+            <datalist id="__proj_rooms">
+                @foreach ($roomNamesForPicker as $r)
+                    <option value="{{ $r }}"></option>
+                @endforeach
+            </datalist>
+            @php
+                // Legacy shape for the rest of the section — kept as-is so
+                // downstream code sees the same variables it saw before.
                 $rawEquipment = session()->hasOldInput()
                     ? (old('equipment', []) ?? [])
                     : ($reviewPayload['equipment'] ?? []);
@@ -917,10 +945,16 @@
                                     @enderror
                                 </td>
                                 <td class="col-area">
+                                    {{-- Tier-1 Screen 03 v2 — `list="__proj_rooms"` turns the
+                                         free-text area input into a typed-autocomplete input
+                                         sourced from the Room / Space Overviews defined in
+                                         section 2. Native <datalist> — zero JS, zero risk to
+                                         the save contract. --}}
                                     <input type="text"
                                            name="equipment[{{ $i }}][area]"
                                            value="{{ old("equipment.{$i}.area", $item['area'] ?? '') }}"
-                                           placeholder="e.g. Meeting Room 1"
+                                           list="__proj_rooms"
+                                           placeholder="Type or pick a room…"
                                            maxlength="150"
                                            style="font-size:.82rem;">
                                 </td>
@@ -1621,8 +1655,8 @@ function equipmentRowTemplate(idx, category) {
             </div>
         </td>
         <td class="col-area">
-            <input type="text" name="equipment[${idx}][area]" placeholder="e.g. Meeting Room 1"
-                   maxlength="150" style="font-size:.82rem;">
+            <input type="text" name="equipment[${idx}][area]" placeholder="Type or pick a room…"
+                   list="__proj_rooms" maxlength="150" style="font-size:.82rem;">
         </td>
         <td class="col-del">
             <button type="button" class="btn-remove" onclick="removeRow(this)" title="Remove">✕</button>
@@ -2229,6 +2263,13 @@ function syncRoomNameToEquipment(input) {
     const oldName = (input.dataset.originalRoom || '').trim();
     const newName = input.value.trim();
 
+    // Tier-1 Screen 03 v2 — datalist sync runs on every keystroke so newly
+    // added rooms + renamed rooms both propagate to the shared area picker
+    // suggestion list. Kept separate from the equipment-value rewrite below
+    // because a first-time room entry (oldName === '') has no equipment to
+    // rename yet — but its suggestion should still appear immediately.
+    updateAreaDatalist(oldName, newName);
+
     if (!oldName || oldName === newName) return;
 
     // Update every equipment area input that still has the old name
@@ -2253,6 +2294,44 @@ function syncRoomNameToEquipment(input) {
 
     // Store new name as the reference for the next change
     input.dataset.originalRoom = newName;
+}
+
+// Tier-1 Screen 03 v2 — keep the shared area <datalist id="__proj_rooms"> in
+// sync when a room in section 2 is added or renamed. Every equipment row's
+// area <input list="__proj_rooms"> reads its suggestion list from this
+// datalist, so an out-of-date datalist immediately reads as "your new room
+// doesn't autocomplete" — which is the exact bug the picker was meant to
+// close.
+function updateAreaDatalist(oldName, newName) {
+    var datalist = document.getElementById('__proj_rooms');
+    if (!datalist) return;
+
+    var existingOpt = null;
+    if (oldName !== '') {
+        Array.from(datalist.querySelectorAll('option')).forEach(function (opt) {
+            if (opt.value === oldName) existingOpt = opt;
+        });
+    }
+
+    if (existingOpt) {
+        // Rename or removal path.
+        if (newName === '') {
+            existingOpt.remove();
+        } else if (newName !== oldName) {
+            existingOpt.value = newName;
+        }
+        return;
+    }
+
+    // New room path — only add when it's not already present.
+    if (newName === '') return;
+    var alreadyPresent = Array.from(datalist.querySelectorAll('option'))
+        .some(function (opt) { return opt.value === newName; });
+    if (alreadyPresent) return;
+
+    var freshOpt = document.createElement('option');
+    freshOpt.value = newName;
+    datalist.appendChild(freshOpt);
 }
 
 // ─── Generate survey rooms for a hardware area ────────────────────────────────
