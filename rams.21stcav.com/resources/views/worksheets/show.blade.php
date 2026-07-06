@@ -78,6 +78,75 @@
     padding-top: .75rem;
     margin: .75rem 0 .5rem;
 }
+
+/* ── Tier-1 Screen 05 v1 — sign-off link hero ────────────────────── */
+.ws-signoff-hero {
+    background: linear-gradient(180deg, #123326 0%, #0F3E36 100%);
+    color: #EDE9D9;
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+    display: grid;
+    grid-template-columns: 26px 1fr auto;
+    gap: 1rem;
+    align-items: center;
+    box-shadow: 0 4px 14px rgba(15, 62, 54, .08);
+}
+.ws-signoff-hero .icon {
+    width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem;
+    opacity: .85;
+}
+.ws-signoff-hero .body { min-width: 0; }
+.ws-signoff-hero .label {
+    font-size: .68rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #E6B849;
+    margin-bottom: .15rem;
+}
+.ws-signoff-hero .url {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .78rem;
+    color: #F4EFDD;
+    opacity: .9;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: rgba(255, 255, 255, .06);
+    padding: .3rem .55rem;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, .08);
+    cursor: text;
+}
+.ws-signoff-hero .actions {
+    display: flex;
+    gap: .4rem;
+    align-items: center;
+    flex-shrink: 0;
+}
+.ws-signoff-hero .actions .btn {
+    background: rgba(255, 255, 255, .08);
+    color: #F4EFDD;
+    border-color: rgba(255, 255, 255, .12);
+    font-size: .78rem;
+    padding: .35rem .7rem;
+}
+.ws-signoff-hero .actions .btn:hover {
+    background: rgba(255, 255, 255, .14);
+}
+.ws-signoff-hero .signed-note {
+    font-size: .72rem;
+    color: #C6DDCD;
+    margin-top: .35rem;
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+}
+.ws-signoff-hero .signed-note.comments { color: #F4E7CE; }
 </style>
 @endpush
 
@@ -155,6 +224,44 @@
     </div>
 </div>
 
+{{-- ══════════════════════════════════════════════════════════════════════
+     Tier-1 Screen 05 v1 — sign-off link hero.
+
+     The client sign-off URL is the one artefact engineers share externally,
+     so promote it above every other block. Renders only when the worksheet
+     has an access token (legacy pre-token worksheets fall through to no
+     hero and continue to work exactly as before).
+
+     Old sign-off card lower down was removed to avoid duplicating the URL.
+     ══════════════════════════════════════════════════════════════════════ --}}
+@if($worksheet->access_token)
+    @php $worksheetPublicUrl = $worksheet->publicUrl(); @endphp
+    <div class="ws-signoff-hero" role="region" aria-label="Client sign-off link">
+        <div class="icon" aria-hidden="true">🔗</div>
+        <div class="body">
+            <div class="label">Client sign-off link</div>
+            <input type="text" value="{{ $worksheetPublicUrl }}" readonly data-optional
+                   class="url"
+                   onclick="this.select()"
+                   aria-label="Sign-off URL — click to select">
+            @if($worksheet->isSigned())
+                @php $sig = $worksheet->latestSignoff(); @endphp
+                <div class="signed-note {{ $sig->signed_with_comments ? 'comments' : '' }}">
+                    ✓ Signed by <strong>{{ $sig->client_name }}</strong> on
+                    {{ $sig->signed_at->format('d M Y H:i') }}
+                    @if($sig->signed_with_comments)
+                        · signed with comments
+                    @endif
+                </div>
+            @endif
+        </div>
+        <div class="actions">
+            <x-copy-link-button :url="$worksheetPublicUrl" label="Copy" />
+            <a href="{{ $worksheetPublicUrl }}" target="_blank" class="btn btn-sm">Open ↗</a>
+        </div>
+    </div>
+@endif
+
 {{-- Stale-data banner (260602-o2a) — renders only when project.latestPackage
      has been edited after the worksheet snapshot was generated. --}}
 @include('worksheets._stale-banner', ['worksheet' => $worksheet, 'variant' => 'admin'])
@@ -190,33 +297,8 @@
     </div>
 @endif
 
-{{-- Client Sign-Off Link — guarded for legacy worksheets that pre-date the
-     access_token migration. publicUrl() throws when the token is null. --}}
-@if($worksheet->access_token)
-@php $worksheetPublicUrl = $worksheet->publicUrl(); @endphp
-{{-- Client Sign-Off Link — Alpine state dropped, copy interaction now uses
-     the standardised <x-copy-link-button> so it matches the rest of the
-     app (260507 housekeeping). Input + Open link still inline-rendered. --}}
-<div class="card card-sm" style="margin-bottom:1.25rem;">
-    <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:.4rem;">
-        Client Sign-Off Link
-    </div>
-    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
-        <input type="text" value="{{ $worksheetPublicUrl }}" readonly data-optional
-               style="flex:1;min-width:260px;font-size:.82rem;padding:.45rem .65rem;border:1px solid var(--border);border-radius:6px;background:#fafbfc;"
-               onclick="this.select()">
-        <x-copy-link-button :url="$worksheetPublicUrl" label="Copy" />
-        <a href="{{ $worksheetPublicUrl }}" target="_blank" class="btn-outline btn-sm">Open ↗</a>
-    </div>
-    @if($worksheet->isSigned())
-        @php $sig = $worksheet->latestSignoff(); @endphp
-        <div style="margin-top:.5rem;font-size:.78rem;color:#065F46;">
-            ✓ Signed by {{ $sig->client_name }} on {{ $sig->signed_at->format('d M Y H:i') }}
-            @if($sig->signed_with_comments) <span style="color:#92400E;font-weight:600;">(signed with comments)</span>@endif
-        </div>
-    @endif
-</div>
-@endif
+{{-- Sign-off link moved to the hero at page top (Tier-1 Screen 05 v1).
+     Sign-off Status wrapper kept for the status badge + generated timestamp. --}}
 
     </div>
 </div>{{-- /Sign-Off Status section --}}
@@ -504,41 +586,20 @@
     @endforeach
 @endif
 
-{{-- Footer action row --}}
-<div class="card card-sm" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-top:1.25rem;">
-    <div>
-        @if(in_array($worksheet->status, ['draft', 'final']))
-            <a href="{{ route('worksheets.download', $worksheet) }}"
-               class="btn-teal"
-               target="_blank"
-               aria-label="Download Worksheet DOCX">Download DOCX</a>
-        @else
-            <span style="font-size:.875rem;color:var(--text-muted);">DOCX available once generation is complete.</span>
-        @endif
-        @if(in_array($worksheet->status, ['draft', 'final', 'failed']))
-            <form method="POST"
-                  action="{{ route('worksheets.retry-generation', $worksheet) }}"
-                  data-confirm="Regenerate this worksheet? The current DOCX will be replaced."
-                  data-confirm-label="Regenerate"
-                  style="display:inline;">
-                @csrf
-                <button type="submit"
-                        class="btn-outline btn-sm"
-                        aria-label="Regenerate Worksheet DOCX">
-                    ↻ Regenerate
-                </button>
-            </form>
-        @endif
-    </div>
-    <div>
-        @if($worksheet->project)
-            <a href="{{ route('projects.show', $worksheet->project) }}" class="btn-outline btn-sm">← Back to Project</a>
-        @else
-            <a href="{{ route('worksheets.index') }}" class="btn-outline btn-sm">← All Worksheets</a>
-        @endif
-        <a href="{{ route('documents.revisions.view', ['type' => 'worksheet', 'id' => $worksheet->id]) }}" class="btn-outline btn-sm">↻ History</a>
-    </div>
-</div>
+{{-- Tier-1 Screen 05 v1 — footer action row removed.
+     The four buttons here (Download DOCX / Regenerate / Back to Project /
+     History) all duplicated the header toolbar. When the page could be as
+     little as one collapsed room, the duplicated footer created a
+     "surely I should scroll for more" feeling with nothing behind it. All
+     actions still available in the top toolbar.
 
+     When status is pending/generating (no DOCX yet), the top toolbar hides
+     the Download button; a short caption below covers that case so users
+     landing on a generating worksheet aren't confused. --}}
+@if(! in_array($worksheet->status, ['draft', 'final']))
+    <p style="margin-top:1.25rem;font-size:.85rem;color:var(--text-muted);text-align:center;">
+        DOCX available once generation is complete.
+    </p>
+@endif
 
 @endsection
