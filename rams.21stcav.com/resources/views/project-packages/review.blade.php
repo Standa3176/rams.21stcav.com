@@ -309,6 +309,58 @@
     white-space: nowrap;
 }
 .review-section { scroll-margin-top: 5rem; }
+
+/* ── Tier-1 Screen 03 v3 — compact equipment table ─────────────────── */
+/* Scoped to #s-equipment so the RAMS-tab tables (activities/hazards)
+   keep their existing padding + row heights. Zero behaviour change —
+   pure visual compaction. */
+#s-equipment .repeater-table td { padding: .3rem .5rem; }
+#s-equipment .repeater-table th { padding: .4rem .6rem; font-size: .72rem; }
+#s-equipment .repeater-table input,
+#s-equipment .repeater-table select,
+#s-equipment .repeater-table textarea { padding: .28rem .45rem; font-size: .82rem; }
+#s-equipment .repeater-table textarea.equip-input { line-height: 1.3; }
+/* Small-caps category dropdown so its lower visual weight matches the
+   row-scanning task better than the full-size text version. */
+#s-equipment .repeater-table select[data-equip-category] {
+    font-size: .76rem;
+    color: var(--text-muted);
+    letter-spacing: -.005em;
+}
+/* Category-header (per group "Hardware" strip + Add button). Currently
+   1rem/1.25rem padding; tightened so the room-name sub-rows read as
+   the primary organiser, not the category banner. */
+#s-equipment .review-section-body > div[style*="padding:1rem 1.25rem"] {
+    padding: .6rem 1rem !important;
+    font-size: .82rem;
+}
+#s-equipment .review-section-body > div[style*="padding:1rem 1.25rem"] strong {
+    font-size: .85rem;
+}
+/* Delete button fades until the row is hovered — cuts a lot of visual
+   noise on tables with 30+ rows. Keyboard focus still surfaces it. */
+#s-equipment .repeater-table tr[data-equip-row] .btn-remove {
+    opacity: .28;
+    transition: opacity .12s;
+}
+#s-equipment .repeater-table tr[data-equip-row]:hover .btn-remove,
+#s-equipment .repeater-table tr[data-equip-row]:focus-within .btn-remove {
+    opacity: 1;
+}
+/* Subtle row separator instead of the fixed 1px --border on every row —
+   makes long tables scan more like a spreadsheet than a stack of cards. */
+#s-equipment .repeater-table tr[data-equip-row] td {
+    border-bottom-color: rgba(0, 0, 0, .04);
+}
+#s-equipment .repeater-table tr[data-equip-row]:hover td {
+    background: rgba(15, 62, 54, .02);
+}
+/* Room-group sub-header (the "Meeting Room 1" band before its rows) */
+#s-equipment .repeater-table tr[data-room-row] > td {
+    padding: .3rem .75rem;
+    font-size: .8rem;
+}
+#s-equipment .repeater-table tr[data-room-row] .eq-area-label { font-size: .82rem; }
 </style>
 @endpush
 
