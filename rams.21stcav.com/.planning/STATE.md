@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
-status: paused_for_tier1_ux
-stopped_at: Session end 2026-07-03 — Tier-1 UX Screen 04 v3 shipped, awaiting live confirm
-last_updated: "2026-07-03T23:00:00.000Z"
-last_activity: 2026-07-03 -- Session end. Tier-1 UX redesign started (5 screens planned, screen 04 O&M edit shipped as v1/v2/v3). Security audit closed for all CRITICAL + HIGH items. Login show-password toggle. Root URL redirect.
+status: paused_tier1_complete
+stopped_at: Tier-1 UX sweep complete on 2026-07-06 — all 5 screens shipped v1, live-confirmed
+last_updated: "2026-07-06T18:00:00.000Z"
+last_activity: 2026-07-06 -- session-tier1-complete tag pushed. Screens 04/03/05/02/01 all shipped and live-confirmed. v2.0 milestone remains paused at Phase 23 sub-plan 1.
 progress:
   total_phases: 2
   completed_phases: 2
@@ -19,14 +19,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-30)
 
 **Core value:** One dataset powers every document.
-**Current focus:** Tier-1 UX redesign (5 screens) — parallel to v2.0 milestone
+**Current focus:** Tier-1 UX redesign — COMPLETE. Ready to resume v2.0 Phase 23.
 
 ## Current Position
 
 Milestone: v2.0 (Engineering-Grade AV Drawings) — PAUSED at Phase 23 sub-plan 1 (context gathered)
-Active work: Tier-1 UX redesign — 1 of 5 screens shipped (screen 04 v3)
-Status: End-of-day session save 2026-07-03
-Last activity: 2026-07-03 -- session-2026-07-03 tag pushed. Screen 04 O&M edit shipped at v3 (full 15-section PDF-parity rail). Awaiting live-confirm before starting screen 03 (Edit Project Data)
+Active work: Tier-1 UX redesign COMPLETE — 5 of 5 screens shipped and live-confirmed
+Status: Session save 2026-07-06 — Tier-1 sweep complete
+Last activity: 2026-07-06 -- Screen 01 v1 shipped (25fe9df) closes the Tier-1 sweep. All five screens live-confirmed. Next session picks up v2.0 Phase 23 (XTEN-AV renderer) OR follow-up backlog items from Tier-1 (mfg_support_overrides generator wiring, Draft (TBC) affordance).
 
 ## Session 2026-07-03 — deliverables shipped
 
@@ -50,23 +50,38 @@ Tier-1 UX redesign — screen 04 (O&M edit):
 - v2 `6d773af` — sticky sidebar rail with per-section status chips + per-room narrative + inline equipment table
 - v3 `8501ac2` — full 15-section PDF-parity rail (front matter + §1–§15 + rooms + special notes) with 6 new editable payload keys (distribution_list, revision_history, manufacturer_support_overrides, service_escalation, training_handover, document_control)
 
-## Tier-1 UX redesign — remaining screens
+## Tier-1 UX redesign — COMPLETE
 
-Priority build order confirmed by user:
+All 5 screens shipped v1 (some also v2/v3). Live-confirmed by user on each.
+Build order followed: 04 → 03 → 05 → 02 → 01.
 
-1. ✓ Screen 04 — O&M edit (JSON textarea → 15-section rail)
-2. Screen 03 — Edit Project Data (6,000px form → left rail + zone chip picker)
-3. Screen 05 — Worksheet detail (6+4 button chaos → sign-off hero + room cards)
-4. Screen 02 — Site Survey view (7-button toolbar → hero + tier KPIs + collapsed rooms)
-5. Screen 01 — Project detail (9 tabs + 4 headers → single Actions ▾ + slim stepper)
+| Screen | Commits | What shipped |
+|---|---|---|
+| 04 O&M edit | `5355c04` v1 · `6d773af` v2 · `8501ac2` v3 | v1 structured typed fields replacing raw JSON textarea; v2 sticky sidebar rail + per-room inline equipment editor; v3 full 15-section PDF-parity rail (front matter + §1–§15 + rooms + special notes) with 6 new editable payload keys |
+| 03 Edit Project Data | `b144d44` v1 · `9ed45ca` v2 · `836879e` v3 | v1 sticky sidebar rail navigating all 10 sections across both tabs; v2 area picker via native `<datalist>` sourced from Room Overviews; v3 compact spreadsheet-density equipment table with hover-reveal delete + muted category column |
+| 05 Worksheet detail | `5beca6f` v1 | Sign-off link promoted to pine-dark hero at top; duplicate footer action row removed (all four buttons already lived in top toolbar) |
+| 02 Site Survey view | `2090a34` v1 | Engineer capture link promoted to pine-dark hero at top; old teal mid-page banner removed |
+| 01 Project detail | `25fe9df` v1 | Next Step banner tightened (p-7→p-4, icon w-14→w-11, text-xl→text-base); Workflow stepper chips compacted (px-4 py-2 text-sm → px-3 py-1 text-xs) so 7-step lifecycle fits on one line |
 
 Reference artifact: https://claude.ai/code/artifact/cbcf52b9-3972-46e8-952f-c30697265bae
 
-## Follow-up backlog (surfaced this session, not yet planned)
+Consistency established across the app: Screens 02 + 05 share the same pine-dark hero pattern for "primary shareable URL" (engineer link · client sign-off link). Screens 03 + 04 share the same sticky-rail navigation pattern (per-section status chips + IntersectionObserver highlight on scroll).
 
-- Wire `manufacturer_support_overrides` into `OmManualGeneratorService` so per-brand overrides actually take priority on next regen (currently stored in `extracted_data` but generator ignores them)
-- Improve the "Generate O&M — failed" UX on the project detail page: the validation error is buried in a `title=""` tooltip, no clear affordance that Draft (TBC) is the actual unblock path
+Zero behavioural regressions across all 5 screens — every form field, every route, every save contract unchanged. All 6 O&M edit tests pass (68 assertions covering both structured + raw-JSON paths + safety properties).
+
+## Follow-up backlog (surfaced this Tier-1 sweep, not yet planned)
+
+- Wire `manufacturer_support_overrides` (§10) + `service_escalation` (§11) into `OmManualGeneratorService` so the editable overrides actually take priority on next regen (currently stored in `extracted_data` but generator ignores them — the storage contract is established, plumbing is the missing piece)
+- Improve the "Generate O&M — failed" UX on the project detail page: validation error is buried in a `title=""` tooltip; no clear affordance that Draft (TBC) is the actual unblock path
+- Site Survey Screen 02 v2: header toolbar simplification (7 buttons → primary + Actions ▾) — deferred pending user feedback on whether v1's hero alone is enough
 - Consider `.gitignore` for the audit screenshots in repo root (`01-login.png` through `p10-worksheet-view.png`) or delete them
+- Project detail Screen 01 v2: 9-tab strip is still heavy; may benefit from a similar compaction pass
+
+## Next session — pick one
+
+1. **Resume v2.0 Phase 23** (XTEN-AV-style renderer) — the milestone was paused mid-Phase 23 sub-plan 1 ("context gathered"). Full plan already in `.planning/phases/23-xten-av-style-renderer/`. Pre-Tier-1 audit still applies.
+2. **Tier-1 follow-up backlog** — the mfg_support_overrides generator wiring is the highest-value follow-up (closes the loop between editor and PDF).
+3. **M-band security audit** — 8 remaining items from `.planning/audits/security-audit-2026-05-17.md` (CSP headers, raw SQL binding, AI prompt escaping, UUID rotation, etc.)
 
 ## Milestone Progress (v1.3)
 
