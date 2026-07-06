@@ -602,27 +602,31 @@
     <div class="psv__main flex flex-col gap-6 min-w-0">
 
         {{-- ── Next Step Card (PRIMARY FOCUS) ─────────────────────────────── --}}
+        {{-- Tier-1 Screen 01 v1 — banner tightened. Same visual grammar as
+             before (icon · label · title · desc · CTA) with padding dropped
+             from p-7 → p-4 and icon w-14/text-2xl → w-11/text-xl so the
+             workflow stepper below sits closer to the fold. --}}
         @if ($nextStep)
-        <section class="relative bg-gradient-to-r from-teal-50 to-cyan-50 border-2 border-teal-300 rounded-xl p-7 shadow-md ring-1 ring-teal-200/50 flex items-start gap-5 mb-2" role="region" aria-label="Next Step">
-            <div class="flex-none w-14 h-14 bg-teal-600 text-white rounded-full flex items-center justify-center text-2xl shadow-sm ring-4 ring-teal-100" aria-hidden="true">
+        <section class="relative bg-gradient-to-r from-teal-50 to-cyan-50 border-2 border-teal-300 rounded-xl p-4 shadow-sm ring-1 ring-teal-200/50 flex items-center gap-4 mb-2" role="region" aria-label="Next Step">
+            <div class="flex-none w-11 h-11 bg-teal-600 text-white rounded-full flex items-center justify-center text-xl shadow-sm ring-4 ring-teal-100" aria-hidden="true">
                 {{ $nextStep['icon'] }}
             </div>
             <div class="flex-1 min-w-0">
-                <div class="text-xs font-bold uppercase tracking-wider text-teal-700 mb-1">Next Step</div>
-                <h3 class="text-xl font-bold text-gray-900 leading-tight">{{ $nextStep['title'] }}</h3>
-                <p class="text-sm text-gray-600 mt-1.5 max-w-prose leading-relaxed">{{ $nextStep['desc'] }}</p>
+                <div class="text-xs font-bold uppercase tracking-wider text-teal-700 mb-0.5">Next Step</div>
+                <h3 class="text-base font-bold text-gray-900 leading-tight">{{ $nextStep['title'] }}</h3>
+                <p class="text-sm text-gray-600 mt-0.5 max-w-prose leading-snug">{{ $nextStep['desc'] }}</p>
             </div>
             <div class="flex-none flex items-center">
                 @if (! empty($nextStep['cta']) && ! empty($nextStep['href']))
                     <a href="{{ $nextStep['href'] }}"
-                       class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold px-6 py-3 rounded-lg text-base shadow-md hover:shadow-lg hover:-translate-y-px active:translate-y-0 active:shadow-md transition-all duration-150 whitespace-nowrap">
+                       class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm shadow-md hover:shadow-lg hover:-translate-y-px active:translate-y-0 active:shadow-md transition-all duration-150 whitespace-nowrap">
                         {{ $nextStep['cta'] }} →
                     </a>
                 @elseif (! empty($nextStep['cta']) && ! empty($nextStep['form_action']))
                     <form method="POST" action="{{ $nextStep['form_action'] }}" class="m-0">
                         @csrf
                         <button type="submit"
-                                class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold px-6 py-3 rounded-lg text-base shadow-md hover:shadow-lg hover:-translate-y-px active:translate-y-0 active:shadow-md transition-all duration-150 whitespace-nowrap">
+                                class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm shadow-md hover:shadow-lg hover:-translate-y-px active:translate-y-0 active:shadow-md transition-all duration-150 whitespace-nowrap">
                             {{ $nextStep['cta'] }} →
                         </button>
                     </form>
@@ -662,7 +666,12 @@
                 @endif
             </x-slot>
 
-            <div class="flex items-center gap-3 overflow-x-auto py-1">
+            {{-- Tier-1 Screen 01 v1 — compacted chip strip. Same three states
+                 (past ✓ · current ● · future N) but px-3 py-1 text-xs so a
+                 7-step lifecycle fits on one line at 1200px+ viewports without
+                 horizontal scroll. Connector dot bumped up 3px so the visual
+                 rhythm doesn't feel broken. --}}
+            <div class="flex items-center gap-2 overflow-x-auto py-1">
                 @foreach ($lifecycle as $i => $step)
                     @php
                         $stepLabel  = \App\Models\Project::STATUS_LABELS[$step];
@@ -670,24 +679,24 @@
                         $isPast     = $i < $currentIdx;
                     @endphp
                     @if ($isActive)
-                        <div class="flex-none inline-flex items-center gap-2 border-2 border-teal-600 text-teal-700 bg-white px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap">
-                            <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-teal-600 text-white text-xs">●</span>
+                        <div class="flex-none inline-flex items-center gap-1.5 border-2 border-teal-600 text-teal-700 bg-white px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap">
+                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-teal-600 text-white text-[9px]">●</span>
                             {{ $stepLabel }}
                         </div>
                     @elseif ($isPast)
-                        <div class="flex-none inline-flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap">
-                            <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white/25 text-white text-xs">✓</span>
+                        <div class="flex-none inline-flex items-center gap-1.5 bg-teal-600 text-white px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap">
+                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/25 text-white text-[9px]">✓</span>
                             {{ $stepLabel }}
                         </div>
                     @else
-                        <div class="flex-none inline-flex items-center gap-2 bg-gray-100 text-gray-500 border border-gray-200 px-4 py-2 rounded-full text-sm whitespace-nowrap">
-                            <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white text-gray-500 border border-gray-300 text-xs">{{ $i + 1 }}</span>
+                        <div class="flex-none inline-flex items-center gap-1.5 bg-gray-100 text-gray-500 border border-gray-200 px-3 py-1 rounded-full text-xs whitespace-nowrap">
+                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white text-gray-500 border border-gray-300 text-[9px]">{{ $i + 1 }}</span>
                             {{ $stepLabel }}
                         </div>
                     @endif
 
                     @if (! $loop->last)
-                        <div class="flex-none w-3 h-px {{ $isPast ? 'bg-teal-600' : 'bg-gray-300' }}"></div>
+                        <div class="flex-none w-2 h-px {{ $isPast ? 'bg-teal-600' : 'bg-gray-300' }}"></div>
                     @endif
                 @endforeach
             </div>
