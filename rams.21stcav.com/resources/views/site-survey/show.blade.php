@@ -84,6 +84,62 @@
 .tier-one-room-badge--partial  { background: var(--warning-light); color: #92400E; }
 
 /* ── Survey link banner ───────────────────────────── */
+/* Tier-1 Screen 02 v1 — engineer link hero (matches worksheet screen 05
+   sign-off hero pattern). Legacy .survey-link-banner class kept below so
+   any inline references stay valid but is no longer rendered on this page. */
+.survey-link-hero {
+    background: linear-gradient(180deg, #123326 0%, #0F3E36 100%);
+    color: #EDE9D9;
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+    display: grid;
+    grid-template-columns: 26px 1fr auto;
+    gap: 1rem;
+    align-items: center;
+    box-shadow: 0 4px 14px rgba(15, 62, 54, .08);
+}
+.survey-link-hero .icon {
+    width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem;
+    opacity: .85;
+}
+.survey-link-hero .body { min-width: 0; }
+.survey-link-hero .label {
+    font-size: .68rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #E6B849;
+    margin-bottom: .2rem;
+}
+.survey-link-hero .url {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: .78rem;
+    color: #F4EFDD;
+    background: rgba(255, 255, 255, .06);
+    padding: .3rem .55rem;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, .08);
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: text;
+    width: 100%;
+}
+.survey-link-hero .actions {
+    display: flex;
+    gap: .4rem;
+    align-items: center;
+    flex-shrink: 0;
+}
+.survey-link-hero .hint {
+    font-size: .72rem;
+    color: #C6DDCD;
+    margin-top: .35rem;
+}
 .survey-link-banner {
     background: var(--teal-light);
     border: 1px solid var(--teal-mid);
@@ -387,18 +443,39 @@
     </div>
 </div>
 
-@if (session('success'))
-    <div class="alert alert-success">{{ session('success') }}</div>
+{{-- ══════════════════════════════════════════════════════════════════════
+     Tier-1 Screen 02 v1 — engineer link hero.
+
+     The engineer link is the artefact the office shares with the on-site
+     surveyor — it opens the mobile-friendly capture form. Promoted to
+     the top of the page (above flash + tiered strips) so office staff
+     can copy it without scrolling. Hides once the survey is submitted
+     (line-parity with the previous banner behaviour).
+     ══════════════════════════════════════════════════════════════════════ --}}
+@if($survey->access_token && !$survey->isSubmitted())
+    <div class="survey-link-hero" role="region" aria-label="Engineer link">
+        <div class="icon" aria-hidden="true">📱</div>
+        <div class="body">
+            <div class="label">Engineer link · share with the surveyor</div>
+            <input type="text" value="{{ $surveyUrl }}" readonly data-optional
+                   class="url"
+                   onclick="this.select()"
+                   aria-label="Engineer survey URL — click to select"
+                   id="survey-link-text">
+            <div class="hint">Opens the mobile-friendly capture form. No login required for the on-site engineer.</div>
+        </div>
+        <div class="actions">
+            <x-copy-link-button :url="$surveyUrl" label="Copy link" />
+            <a href="{{ $surveyUrl }}" target="_blank" class="btn btn-sm"
+               style="background: rgba(255,255,255,.08); color: #F4EFDD; border: 1px solid rgba(255,255,255,.12);">
+                Open ↗
+            </a>
+        </div>
+    </div>
 @endif
 
-{{-- Engineer link banner — uses the standardised <x-copy-link-button>
-     so the copy interaction matches the rest of the app (260507 housekeeping). --}}
-@if($survey->access_token && !$survey->isSubmitted())
-<div class="survey-link-banner">
-    <span style="font-weight:700;color:#0B3C45;white-space:nowrap;">📱 Engineer Link:</span>
-    <span class="survey-link-url" id="survey-link-text">{{ $surveyUrl }}</span>
-    <x-copy-link-button :url="$surveyUrl" label="Copy Link" />
-</div>
+@if (session('success'))
+    <div class="alert alert-success">{{ session('success') }}</div>
 @endif
 
 {{-- Progress strip --}}
