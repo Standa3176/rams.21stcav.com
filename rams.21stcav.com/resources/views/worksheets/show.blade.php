@@ -266,26 +266,20 @@
      has been edited after the worksheet snapshot was generated. --}}
 @include('worksheets._stale-banner', ['worksheet' => $worksheet, 'variant' => 'admin'])
 
-{{-- Sign-Off Status section — wraps status bar + client sign-off link card --}}
-<div class="form-section">
-    <div class="form-section__header">
-        <h2 class="section-heading">Sign-Off Status</h2>
-    </div>
-    <div class="form-section__body">
-
-{{-- Status bar --}}
-<div class="card card-sm" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.25rem;">
-    <div>
+{{-- Tier-1 Screen 05 v2 — the Sign-Off Status wrapper card was doing very
+     little (status badge + generated timestamp) but occupied a full
+     "section-header + card" layer of visual chrome. Merged into a slim
+     meta strip below the hero. Error alert stays inline. --}}
+<div style="display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:0 .25rem 1.1rem; font-size:.85rem; color:var(--text-muted); flex-wrap:wrap;">
+    <div style="display:inline-flex; align-items:center; gap:.6rem;">
         <x-dashboard.status-badge :status="$worksheet->status" />
-    </div>
-    <div style="font-size:.875rem;color:var(--text-muted);">
         @if(in_array($worksheet->status, ['pending', 'generating']))
-            <span style="display:inline-flex;align-items:center;gap:.4rem;">
-                <span style="width:8px;height:8px;border-radius:50%;background:#D97706;display:inline-block;"></span>
+            <span style="display:inline-flex; align-items:center; gap:.4rem;">
+                <span style="width:8px; height:8px; border-radius:50%; background:#D97706; display:inline-block;"></span>
                 Generating…
             </span>
         @else
-            Generated {{ $worksheet->updated_at->diffForHumans() }}
+            <span>Generated {{ $worksheet->updated_at->diffForHumans() }}</span>
         @endif
     </div>
 </div>
@@ -296,12 +290,6 @@
         Generation failed: {{ $worksheet->error_message }}. Click Retry Generation to try again.
     </div>
 @endif
-
-{{-- Sign-off link moved to the hero at page top (Tier-1 Screen 05 v1).
-     Sign-off Status wrapper kept for the status badge + generated timestamp. --}}
-
-    </div>
-</div>{{-- /Sign-Off Status section --}}
 
 {{-- Outstanding Items aggregate (260602-rcd) — flat list of every snag from
      every "signed_with_comments" sign-off. Hidden when empty so the page

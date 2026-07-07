@@ -361,6 +361,16 @@
     font-size: .8rem;
 }
 #s-equipment .repeater-table tr[data-room-row] .eq-area-label { font-size: .82rem; }
+
+/* Tier-1 v2b — empty-category disclosure. Non-empty categories render
+   `open` so existing scan behaviour is preserved. Empty ones stay
+   collapsed by default; clicking + Add opens them and inserts a row. */
+#s-equipment details.pkg-eq-cat summary::-webkit-details-marker { display: none; }
+#s-equipment details.pkg-eq-cat[open] .pkg-eq-caret { transform: rotate(90deg); }
+#s-equipment details.pkg-eq-cat .pkg-eq-caret {
+    display: inline-block;
+    transition: transform .15s;
+}
 </style>
 @endpush
 
@@ -845,13 +855,26 @@
             @endphp
 
             @foreach ($categoryOptions as $catKey => $catLabel)
-                <div style="padding:1rem 1.25rem; border-bottom:1px solid var(--border); background:var(--bg); display:flex; align-items:center; justify-content:space-between;">
-                    <strong style="color:#0f5460;">{{ $catLabel }}</strong>
+                @php $catRowCount = count($equipmentByCategory[$catKey] ?? []); @endphp
+                {{-- Tier-1 v2b — empty categories collapse behind a <details>
+                     stub so 3-4 empty tables (Consumables / Service Contracts /
+                     Customer Supplied / Options are usually empty on a new
+                     quote) stop eating vertical space. Non-empty categories
+                     render `open` by default so existing behaviour is preserved. --}}
+                <details class="pkg-eq-cat" {{ $catRowCount > 0 ? 'open' : '' }} style="border-bottom:1px solid var(--border);">
+                <summary style="padding:.7rem 1.25rem; background:var(--bg); display:flex; align-items:center; justify-content:space-between; cursor:pointer; list-style:none;">
+                    <span style="display:flex; align-items:center; gap:.5rem;">
+                        <span class="pkg-eq-caret" style="color:var(--text-muted); font-size:.7rem;">▸</span>
+                        <strong style="color:#0f5460;">{{ $catLabel }}</strong>
+                        <span style="font-size:.75rem; color:var(--text-muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;">
+                            {{ $catRowCount > 0 ? $catRowCount . ' ' . Str::plural('item', $catRowCount) : 'empty' }}
+                        </span>
+                    </span>
                     <button type="button" class="btn btn-outline btn-sm"
-                            onclick="addRow('equipment-tbody-{{ $catKey }}', equipmentRowTemplate, '{{ $catKey }}')">
+                            onclick="event.preventDefault(); addRow('equipment-tbody-{{ $catKey }}', equipmentRowTemplate, '{{ $catKey }}'); this.closest('details').open = true;">
                         + Add {{ $catLabel }}
                     </button>
-                </div>
+                </summary>
                 <table class="repeater-table">
                     <thead>
                         <tr>
@@ -860,7 +883,9 @@
                             <th>Equipment / Item Description</th>
                             <th style="width:150px;">Category</th>
                             {{-- Phase 23 Plan 06 — DRAW-46 D-03 zone column (additive). --}}
-                            <th style="width:160px;">Zone</th>
+                            <th style="width:160px;" title="Free text creates a separate group on the diagram — use the dropdown for consistency.">
+                                Zone <span style="opacity:.5;font-weight:400;cursor:help;" title="Free text creates a separate group on the diagram — use the dropdown for consistency.">ⓘ</span>
+                            </th>
                             <th class="col-area">Title / Section</th>
                             <th class="col-del"></th>
                         </tr>
@@ -988,9 +1013,8 @@
                                                 style="font-size:.7rem;color:#777;background:none;border:0;padding:2px 4px;cursor:pointer;">
                                             ↩ use dropdown
                                         </button>
-                                        <small class="form-hint" style="display:block;font-size:.65rem;color:#666;margin-top:2px;line-height:1.2;">
-                                            Free text creates a separate group on the diagram — use the dropdown for consistency.
-                                        </small>
+                                        {{-- v2b — per-row hint moved to the Zone column header so 30+
+                                             equipment rows don't each repeat the same 12 words. --}}
                                     </div>
                                     @error("equipment.{$i}.zone")
                                         <p class="form-error">{{ $message }}</p>
@@ -1025,6 +1049,7 @@
                         @endforelse
                     </tbody>
                 </table>
+                </details>
             @endforeach
         </div>
     </div>
@@ -1703,7 +1728,7 @@ function equipmentRowTemplate(idx, category) {
                        style="font-size:.82rem;width:100%;" />
                 <button type="button" x-show="isFreeText" @click="cancelFreeText"
                         style="font-size:.7rem;color:#777;background:none;border:0;padding:2px 4px;cursor:pointer;">↩ use dropdown</button>
-                <small class="form-hint" style="display:block;font-size:.65rem;color:#666;margin-top:2px;line-height:1.2;">Free text creates a separate group on the diagram — use the dropdown for consistency.</small>
+                {{-- v2b — per-row hint removed; single hint lives on the Zone column header. --}}
             </div>
         </td>
         <td class="col-area">

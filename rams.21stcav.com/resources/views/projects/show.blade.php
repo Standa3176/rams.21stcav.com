@@ -905,25 +905,34 @@
                                         <div class="text-xs">{{ $survey->created_at->format('H:i') }}</div>
                                     </td>
                                     <td class="py-3 px-3">
-                                        {{-- Visible primary actions; secondary actions live in the 3-dot menu. --}}
+                                        {{-- Tier-1 v2 — v1 showed View + Edit + ✓ Complete + ✎ AI Chat + ⋯ (5 elements per row).
+                                             View stays as the primary; Edit / Complete / AI Chat collapse into the
+                                             existing overflow menu. Frees the row from feeling like a control panel
+                                             and reduces the "which button is the right button" hesitation. --}}
                                         <div class="flex flex-wrap gap-2 items-center">
                                             <a href="{{ route('site-surveys.show', $survey) }}"
                                                class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">View</a>
-                                            @if (! $survey->isCompleted())
-                                                <a href="{{ route('site-surveys.edit', $survey) }}"
-                                                   class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">Edit</a>
-                                                <form method="POST" action="{{ route('site-surveys.complete', $survey) }}" class="m-0 inline-block"
-                                                      data-confirm="Mark this survey as completed?"
-                                                      data-confirm-label="Complete">
-                                                    @csrf
-                                                    <button type="submit"
-                                                            class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">✓ Complete</button>
-                                                </form>
-                                            @endif
-                                            <a href="{{ route('site-surveys.show', $survey) }}?chat=1"
-                                               class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm" title="Edit content via AI chat">✎ AI Chat</a>
 
                                             <x-row-actions-menu>
+                                                @if (! $survey->isCompleted())
+                                                    <a href="{{ route('site-surveys.edit', $survey) }}" class="row-actions-item">
+                                                        <span class="row-actions-item__icon" aria-hidden="true">✎</span>
+                                                        <span>Edit</span>
+                                                    </a>
+                                                    <form method="POST" action="{{ route('site-surveys.complete', $survey) }}" class="m-0"
+                                                          data-confirm="Mark this survey as completed?"
+                                                          data-confirm-label="Complete">
+                                                        @csrf
+                                                        <button type="submit" class="row-actions-item">
+                                                            <span class="row-actions-item__icon" aria-hidden="true">✓</span>
+                                                            <span>Mark complete</span>
+                                                        </button>
+                                                    </form>
+                                                @endif
+                                                <a href="{{ route('site-surveys.show', $survey) }}?chat=1" class="row-actions-item" title="Edit content via AI chat">
+                                                    <span class="row-actions-item__icon" aria-hidden="true">✎</span>
+                                                    <span>Edit via AI chat</span>
+                                                </a>
                                                 @if ($survey->access_token && ! $survey->isTokenExpired())
                                                     <button type="button"
                                                             class="row-actions-item"

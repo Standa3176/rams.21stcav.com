@@ -814,10 +814,10 @@
                 <td>Power</td>
                 <td>
                     @if($powerOn)
-                        <span style="color:#065F46;font-weight:600;">✓ Present</span>
+                        <span style="display:inline-flex;align-items:center;gap:.25rem;background:#DDEBE1;color:#204F3D;padding:.15rem .55rem;border-radius:999px;font-size:.72rem;font-weight:600;letter-spacing:-.005em;">✓ Present</span>
                         @if($room->power_outlet_count) — {{ $room->power_outlet_count }} outlets @endif
                     @elseif($powerOn === false)
-                        <span style="color:#991B1B;">✗ Not present</span>
+                        <span style="display:inline-flex;align-items:center;gap:.25rem;background:#F1D9D2;color:#7E2E22;padding:.15rem .55rem;border-radius:999px;font-size:.72rem;font-weight:600;letter-spacing:-.005em;">✗ Not present</span>
                     @else
                         <span style="color:#9CA3AF;">— not captured</span>
                     @endif
@@ -830,10 +830,10 @@
                 <td>Network</td>
                 <td>
                     @if($netOn)
-                        <span style="color:#065F46;font-weight:600;">✓ Present</span>
+                        <span style="display:inline-flex;align-items:center;gap:.25rem;background:#DDEBE1;color:#204F3D;padding:.15rem .55rem;border-radius:999px;font-size:.72rem;font-weight:600;letter-spacing:-.005em;">✓ Present</span>
                         @if($room->network_port_count) — {{ $room->network_port_count }} ports @endif
                     @elseif($netOn === false)
-                        <span style="color:#991B1B;">✗ Not present</span>
+                        <span style="display:inline-flex;align-items:center;gap:.25rem;background:#F1D9D2;color:#7E2E22;padding:.15rem .55rem;border-radius:999px;font-size:.72rem;font-weight:600;letter-spacing:-.005em;">✗ Not present</span>
                     @else
                         <span style="color:#9CA3AF;">— not captured</span>
                     @endif
@@ -1205,19 +1205,12 @@ function expandAll() {
     document.querySelectorAll('.room-view-chevron').forEach(c => c.classList.add('open'));
 }
 
-// Auto-expand incomplete rooms on load
-document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.survey-room-card').forEach(card => {
-        const hdr = card.querySelector('.room-view-hdr');
-        if (hdr && !hdr.classList.contains('room-view-hdr--complete')) {
-            const id = card.id.replace('pm-room-', '');
-            const body = document.getElementById('vbody-' + id);
-            const chev = document.getElementById('vchev-' + id);
-            if (body) body.classList.add('open');
-            if (chev) chev.classList.add('open');
-        }
-    });
-});
+// Tier-1 Screen 02 v2 — auto-expand-incomplete-rooms behaviour removed.
+// v1 rendered incomplete rooms open on load, complete rooms collapsed —
+// on a 6-room survey this typically meant ~3,000px of open detail before
+// the user could scroll to their target room. All rooms now start
+// collapsed. Users can still `Expand All` (top-right button) or click
+// individual room headers to open a specific one.
 
 // ── Copy engineer link ─────────────────────────────────────────────────────
 function copyLink(btn) {

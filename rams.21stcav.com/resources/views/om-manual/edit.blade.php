@@ -267,6 +267,72 @@
     .om-save-info { font-size: .78rem; color: var(--text-muted); display: flex; align-items: center; gap: .4rem; }
     .om-save-info .dot { width: 6px; height: 6px; border-radius: 50%; background: #b57e24; display: inline-block; }
 
+    /* Tier-1 O&M v2b — Auto-generated content accordion. Groups the 7 pure
+       AI-generated sections behind one collapsible so the page stops
+       spending vertical real estate on content the user can only read. */
+    .om-autogen { padding: 0; }
+    .om-autogen summary.om-autogen-summary {
+        cursor: pointer;
+        list-style: none;
+        display: grid;
+        grid-template-columns: 20px 1fr;
+        gap: 1rem;
+        padding: 1.4rem 1.75rem;
+        border-radius: var(--radius-sm);
+    }
+    .om-autogen summary.om-autogen-summary::-webkit-details-marker { display: none; }
+    .om-autogen[open] summary.om-autogen-summary {
+        border-bottom: 1px solid var(--border);
+    }
+    .om-autogen-caret {
+        color: var(--text-muted);
+        font-size: 1rem;
+        transition: transform .15s;
+        margin-top: .3rem;
+    }
+    .om-autogen[open] .om-autogen-caret { transform: rotate(90deg); }
+    .om-autogen-titles h2 { font-size: 1.15rem; }
+    .om-autogen-count {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: .72rem;
+        color: var(--text-muted);
+        font-weight: 500;
+        letter-spacing: -.005em;
+        margin-left: .35rem;
+    }
+    .om-autogen-body {
+        padding: 1.25rem 1.75rem;
+        display: grid;
+        gap: 1rem;
+    }
+    .om-autogen-item {
+        padding: .9rem 1.1rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--bg-muted, #FBF8EF);
+    }
+    .om-autogen-item h3 {
+        font-size: .95rem;
+        font-weight: 700;
+        margin: 0 0 .3rem;
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+    }
+    .om-autogen-item h3 .num {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: .72rem;
+        color: var(--text-muted);
+        font-weight: 700;
+        min-width: 2rem;
+    }
+    .om-autogen-item p {
+        font-size: .82rem;
+        color: var(--text-muted);
+        line-height: 1.5;
+        margin: 0 0 .5rem;
+    }
+
     details.om-advanced summary {
         cursor: pointer; font-weight: 600; color: var(--text-muted);
         padding: .5rem 0; list-style: none;
@@ -397,11 +463,7 @@
             <span class="om-rail-name">Executive summary</span>
             <span class="om-rail-status {{ $sScope['class'] }}">{{ $sScope['label'] }}</span>
         </a>
-        <a href="#s-architecture" class="om-rail-item">
-            <span class="om-rail-num">§2</span>
-            <span class="om-rail-name">System architecture</span>
-            <span class="om-rail-status ai">AI</span>
-        </a>
+        {{-- v2b — §2, §5, §6, §7, §8, §13, §14 fold into one rail entry. --}}
         <a href="#s-asset-register" class="om-rail-item">
             <span class="om-rail-num">§3</span>
             <span class="om-rail-name">Asset register</span>
@@ -411,26 +473,6 @@
             <span class="om-rail-num">§4</span>
             <span class="om-rail-name">Drawings register</span>
             <span class="om-rail-status ext">↗</span>
-        </a>
-        <a href="#s-user-guides" class="om-rail-item">
-            <span class="om-rail-num">§5</span>
-            <span class="om-rail-name">User guides</span>
-            <span class="om-rail-status ai">AI</span>
-        </a>
-        <a href="#s-config" class="om-rail-item">
-            <span class="om-rail-num">§6</span>
-            <span class="om-rail-name">Config &amp; backups</span>
-            <span class="om-rail-status ai">AI</span>
-        </a>
-        <a href="#s-maintenance" class="om-rail-item">
-            <span class="om-rail-num">§7</span>
-            <span class="om-rail-name">Routine maintenance</span>
-            <span class="om-rail-status ai">AI</span>
-        </a>
-        <a href="#s-fault" class="om-rail-item">
-            <span class="om-rail-num">§8</span>
-            <span class="om-rail-name">Fault finding</span>
-            <span class="om-rail-status ai">AI</span>
         </a>
         <a href="#s-network" class="om-rail-item">
             <span class="om-rail-num">§9</span>
@@ -452,20 +494,15 @@
             <span class="om-rail-name">Training &amp; handover</span>
             <span class="om-rail-status {{ $sHo['class'] }}">{{ $sHo['label'] }}</span>
         </a>
-        <a href="#s-testing" class="om-rail-item">
-            <span class="om-rail-num">§13</span>
-            <span class="om-rail-name">Testing &amp; acceptance</span>
-            <span class="om-rail-status ai">AI</span>
-        </a>
-        <a href="#s-glossary" class="om-rail-item">
-            <span class="om-rail-num">§14</span>
-            <span class="om-rail-name">Glossary</span>
-            <span class="om-rail-status ai">AI</span>
-        </a>
         <a href="#s-doc-control" class="om-rail-item">
             <span class="om-rail-num">§15</span>
             <span class="om-rail-name">Document control</span>
             <span class="om-rail-status {{ $sDoc['class'] }}">{{ $sDoc['label'] }}</span>
+        </a>
+        <a href="#s-auto-generated" class="om-rail-item"
+           onclick="var d = document.querySelector('.om-autogen'); if (d) d.open = true;">
+            <span class="om-rail-name">Auto-generated (7)</span>
+            <span class="om-rail-status ai">AI</span>
         </a>
 
         <div class="om-rail-h">Rooms &amp; equipment</div>
@@ -654,20 +691,77 @@
                           placeholder="The works detailed within this document relate to project reference…">{{ old('scope_of_works', $scope) }}</textarea>
             </section>
 
-            {{-- ═══ SECTION 2 · System architecture (AI-only) ══════════════ --}}
-            <section class="om-section" id="s-architecture">
-                <h2><span class="num">§2</span>System architecture &amp; signal flow <span class="om-badge gen">Regen to refresh</span></h2>
-                <p class="desc">Signal-flow diagrams + per-room block diagrams generated automatically from the port-catalog schematic engine.</p>
-                <div class="om-info-card">
-                    <div class="kind">🔗</div>
-                    <div class="body">
-                        <div class="t">Drafted from schematic engine on generate</div>
-                        <div class="s">To override the diagrams themselves, edit the schematic in the project workspace, then regenerate this O&amp;M.</div>
+            {{-- ═══════════════════════════════════════════════════════════
+                 Tier-1 O&M v2b — auto-generated sections collapsed together.
+
+                 §2, §5, §6, §7, §8, §13, §14 are all pure AI-generated at
+                 regenerate-time. Nothing on this page edits them; each was
+                 shipped as a standalone card with a heading, a description
+                 and (in some cases) an info panel — combined ~1,000px of
+                 vertical scroll for content the user can only read, never
+                 edit here.
+
+                 Consolidated into one <details> block. Open the accordion
+                 to see the previews per section; keep it closed to shave
+                 the height of the page dramatically.
+
+                 The rail now has ONE entry (Auto-generated sections) that
+                 anchors to the accordion header — cleaner scan, one
+                 discovery point.
+                 ═══════════════════════════════════════════════════════════ --}}
+            <section class="om-section" id="s-auto-generated" style="padding: 0;">
+                <details class="om-autogen">
+                    <summary class="om-autogen-summary">
+                        <span class="om-autogen-caret">▸</span>
+                        <div class="om-autogen-titles">
+                            <h2 style="display: inline-flex; align-items: center; gap: .6rem; margin: 0;">
+                                Auto-generated content
+                                <span class="om-badge gen">Regen to refresh</span>
+                                <span class="om-autogen-count">§2 · §5 · §6 · §7 · §8 · §13 · §14</span>
+                            </h2>
+                            <p class="desc" style="margin: .3rem 0 0;">
+                                Seven sections drafted automatically at regenerate time —
+                                system architecture, user guides, config &amp; backups,
+                                maintenance, fault finding, testing, and glossary.
+                                Click to preview what each contains.
+                            </p>
+                        </div>
+                    </summary>
+
+                    <div class="om-autogen-body">
+                        <div class="om-autogen-item">
+                            <h3><span class="num">§2</span> System architecture &amp; signal flow</h3>
+                            <p>Signal-flow diagrams + per-room block diagrams from the port-catalog schematic engine.</p>
+                            @if ($manual->project_id)
+                                <a href="{{ route('projects.show', $manual->project_id) }}" class="btn btn-outline btn-sm">Open project workspace ↗</a>
+                            @endif
+                        </div>
+                        <div class="om-autogen-item">
+                            <h3><span class="num">§5</span> System operation — user guides</h3>
+                            <p>Per-room quick-start guides drafted from each room's narrative + equipment context. Edit the room narratives below to shape what appears here.</p>
+                        </div>
+                        <div class="om-autogen-item">
+                            <h3><span class="num">§6</span> System configuration &amp; backups</h3>
+                            <p>Configuration files, backup locations, restore procedures. Drafted from the linked project's device data.</p>
+                        </div>
+                        <div class="om-autogen-item">
+                            <h3><span class="num">§7</span> Routine maintenance schedule</h3>
+                            <p>Recommended PPM intervals per device category. AI drafts from a maintenance-interval catalogue keyed on category + manufacturer.</p>
+                        </div>
+                        <div class="om-autogen-item">
+                            <h3><span class="num">§8</span> Fault finding guide</h3>
+                            <p>Common issues + step-by-step resolutions per subsystem (audio, video, control, network). AI drafts from a standard fault-tree template.</p>
+                        </div>
+                        <div class="om-autogen-item">
+                            <h3><span class="num">§13</span> Testing &amp; acceptance</h3>
+                            <p>Commissioning tests, acceptance sign-off criteria. Drafted from a standard AV commissioning checklist.</p>
+                        </div>
+                        <div class="om-autogen-item">
+                            <h3><span class="num">§14</span> Glossary</h3>
+                            <p>AV acronyms &amp; terms specific to this system. Auto-derived from equipment categories.</p>
+                        </div>
                     </div>
-                    @if ($manual->project_id)
-                        <a href="{{ route('projects.show', $manual->project_id) }}" class="btn btn-outline btn-sm">Open project</a>
-                    @endif
-                </div>
+                </details>
             </section>
 
             {{-- ═══ SECTION 3 · Asset register (opens elsewhere) ══════════ --}}
@@ -718,34 +812,10 @@
                 @endif
             </section>
 
-            {{-- ═══ SECTION 5 · User guides (per-room narrative feeds this) ═ --}}
-            <section class="om-section" id="s-user-guides">
-                <h2><span class="num">§5</span>System operation — user guides <span class="om-badge gen">Regen to refresh</span></h2>
-                <p class="desc">Per-room quick-start guides. Auto-drafted by AI from the room narrative (below) + equipment context. Edit each room's narrative to shape what appears here.</p>
-                <div class="om-info-card">
-                    <div class="kind">📖</div>
-                    <div class="body">
-                        <div class="t">Sourced from room narratives</div>
-                        <div class="s">Scroll down to "Rooms &amp; equipment" — the narrative for each room feeds this section on regenerate.</div>
-                    </div>
-                </div>
-            </section>
-
-            {{-- ═══ SECTION 6-8, 13, 14 · Pure AI-generated ═══════════════ --}}
-            <section class="om-section" id="s-config">
-                <h2><span class="num">§6</span>System configuration &amp; backups <span class="om-badge gen">Regen to refresh</span></h2>
-                <p class="desc">Configuration files, backup locations, restore procedures. Drafted from the linked project's device data.</p>
-            </section>
-
-            <section class="om-section" id="s-maintenance">
-                <h2><span class="num">§7</span>Routine maintenance schedule <span class="om-badge gen">Regen to refresh</span></h2>
-                <p class="desc">Recommended PPM intervals per device category. AI drafts from a maintenance-interval catalogue keyed on category + manufacturer.</p>
-            </section>
-
-            <section class="om-section" id="s-fault">
-                <h2><span class="num">§8</span>Fault finding guide <span class="om-badge gen">Regen to refresh</span></h2>
-                <p class="desc">Common issues + step-by-step resolutions per subsystem (audio, video, control, network). AI drafts from a standard fault-tree template.</p>
-            </section>
+            {{-- §5, §6, §7, §8 all folded into the "Auto-generated content"
+                 accordion above (Tier-1 O&M v2b). Individual sections were
+                 pure AI-generated placeholders with no editable content —
+                 collapsing them together removed ~600px of empty scroll. --}}
 
             {{-- ═══ SECTION 9 · Network & IP (opens elsewhere) ══════════════ --}}
             <section class="om-section" id="s-network">
@@ -883,16 +953,8 @@
                 </div>
             </section>
 
-            {{-- ═══ SECTION 13-14 · Pure AI ═══════════════════════════════ --}}
-            <section class="om-section" id="s-testing">
-                <h2><span class="num">§13</span>Testing &amp; acceptance <span class="om-badge gen">Regen to refresh</span></h2>
-                <p class="desc">Commissioning tests, acceptance sign-off criteria. Drafted from a standard AV commissioning checklist.</p>
-            </section>
-
-            <section class="om-section" id="s-glossary">
-                <h2><span class="num">§14</span>Glossary <span class="om-badge gen">Regen to refresh</span></h2>
-                <p class="desc">AV acronyms &amp; terms specific to this system. Auto-derived from equipment categories.</p>
-            </section>
+            {{-- §13 + §14 folded into the "Auto-generated content" accordion
+                 above (Tier-1 O&M v2b). --}}
 
             {{-- ═══ SECTION 15 · Document control (editable) ══════════════ --}}
             <section class="om-section" id="s-doc-control">
