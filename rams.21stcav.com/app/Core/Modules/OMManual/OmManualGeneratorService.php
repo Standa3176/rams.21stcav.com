@@ -512,9 +512,22 @@ class OmManualGeneratorService
             ], ['site', 'tbc', 'tbd']),
         ];
 
+        // Manufacturer + escalation overrides shipped from Screen 04 v3's
+        // structured editor (Tier-1 O&M loop close, 2026-07). Stored on the
+        // manual's extracted_data by OmManualController::update; the generator
+        // now honours them so a user's typed brand / phone / warranty makes
+        // it into the PDF instead of being silently ignored.
+        $extracted            = is_array($manual->extracted_data) ? $manual->extracted_data : [];
+        $mfgSupportOverrides  = self::normaliseManufacturerOverrides(
+            $extracted['manufacturer_support_overrides'] ?? []
+        );
+        $escalationOverride   = self::normaliseEscalationOverride(
+            $extracted['service_escalation'] ?? null
+        );
+
         // Deterministic quality layer: always rebuild critical O&M sections from
         // canonical room/equipment context to avoid sparse AI output.
-        $deterministic = $this->buildDeterministicSections($context);
+        $deterministic = $this->buildDeterministicSections($context, $mfgSupportOverrides);
 
         // Wire-up phase — devices table is the single source of truth for
         // serial / IP / VLAN / port / firmware / asset tag. Seed on first
@@ -536,6 +549,13 @@ class OmManualGeneratorService
         $generated['network_security_notes']= $deterministic['network_security_notes'];
         $generated['manufacturer_support']  = $deterministic['manufacturer_support'];
         $generated['warranty_summary']      = $deterministic['warranty_summary'];
+
+        // §11 Service & Escalation — the user-edited override wins if any
+        // field is filled; otherwise the PDF template falls back to its
+        // baked-in 21st Century AV Service Desk defaults. Stored on
+        // generated_data so the PDF/DOCX render can read the snapshot
+        // without re-consulting extracted_data at render time.
+        $generated['service_escalation'] = $escalationOverride;
         $generated['existing_reuse']        = $deterministic['existing_reuse'];
         $generated['equipment_installed']   = $deterministic['equipment_installed'];
         $generated['asset_register']        = $deterministic['asset_register'];
@@ -849,7 +869,12 @@ class OmManualGeneratorService
     /**
      * Deterministic O&M dataset builder.
      */
-    private function buildDeterministicSections(array $context): array
+    /**
+     * @param array<string,array{brand:string,phone:string,email:string,portal:string,warranty:string}> $manufacturerOverrides
+     *        Keyed by lower-case brand slug; values already normalised
+     *        by self::normaliseManufacturerOverrides().
+     */
+    private function buildDeterministicSections(array $context, array $manufacturerOverrides = []): array
     {
         $roomsSummary = [];
         $existingReuse = [];
@@ -962,8 +987,8 @@ class OmManualGeneratorService
                 'Disable unused services and ports after commissioning.',
                 'Keep firmware reviewed at least every 6 months in line with client policy.',
             ],
-            'manufacturer_support'  => $this->buildManufacturerSupport($manufacturers),
-            'warranty_summary'      => $this->buildWarrantySummary($manufacturers),
+            'manufacturer_support'  => $this->buildManufacturerSupport($manufacturers, $manufacturerOverrides),
+            'warranty_summary'      => $this->buildWarrantySummary($manufacturers, $manufacturerOverrides),
             'existing_reuse'        => $existingReuse,
             'equipment_installed'   => $installedFlat,
             'asset_register'        => $installedFlat,
@@ -1244,22 +1269,33 @@ class OmManualGeneratorService
      * source of truth (Phase 2 — NO TBC POLICY): if it can't find a usable
      * record for a brand, it throws and OM generation aborts.
      *
+     * Tier-1 loop close (2026-07): non-empty overrides from the O&M editor's
+     * §10 manufacturer support table win over the resolver's values on a
+     * per-cell basis. A user filling in phone but leaving warranty blank keeps
+     * the resolver's warranty term.
+     *
+     * @param array<string,array{brand:string,phone:string,email:string,portal:string,warranty:string}> $overrides
+     *        Keyed by lower-case brand slug.
      * @throws \RuntimeException If any inferred brand has no usable support details.
      */
-    private function buildManufacturerSupport(array $manufacturers): array
+    private function buildManufacturerSupport(array $manufacturers, array $overrides = []): array
     {
         $rows = [];
         foreach ($manufacturers as $brand => $items) {
             // Resolver throws on no-match — bubble up so generation aborts.
-            $details = $this->manufacturerResolver->resolve($brand);
+            $details  = $this->manufacturerResolver->resolve($brand);
+            $override = $overrides[self::brandKey($brand)] ?? null;
 
             $rows[] = [
                 'brand'               => $brand,
                 'equipment_installed' => implode(', ', array_slice(array_values(array_unique($items)), 0, 5)),
-                'uk_phone'            => $details['support_phone'] ?? '',
-                'support_portal'      => $details['support_url']   ?? '',
-                'support_email'       => $details['support_email'] ?? '',
-                'warranty'            => $this->formatWarrantyMessage($details['warranty_years'] ?? null),
+                'uk_phone'            => self::preferOverride($override['phone']    ?? null, $details['support_phone'] ?? ''),
+                'support_portal'      => self::preferOverride($override['portal']   ?? null, $details['support_url']   ?? ''),
+                'support_email'       => self::preferOverride($override['email']    ?? null, $details['support_email'] ?? ''),
+                'warranty'            => self::preferOverride(
+                    $override['warranty'] ?? null,
+                    $this->formatWarrantyMessage($details['warranty_years'] ?? null),
+                ),
                 'notes'               => ['Escalate via 21st Century AV for installation-period support coordination.'],
             ];
         }
@@ -1272,8 +1308,13 @@ class OmManualGeneratorService
      * Pull warranty period from the resolver's result. Falls back to the
      * generic "per manufacturer terms" line when years are unknown — never
      * outputs "TBC".
+     *
+     * A user-supplied warranty override on the §10 table wins here too so
+     * §10 and this summary agree.
+     *
+     * @param array<string,array{brand:string,phone:string,email:string,portal:string,warranty:string}> $overrides
      */
-    private function buildWarrantySummary(array $manufacturers): array
+    private function buildWarrantySummary(array $manufacturers, array $overrides = []): array
     {
         $rows = [];
         foreach (array_keys($manufacturers) as $brand) {
@@ -1290,13 +1331,90 @@ class OmManualGeneratorService
                 $period = 'Per manufacturer terms';
             }
 
+            $overrideWarranty = $overrides[self::brandKey($brand)]['warranty'] ?? null;
             $rows[] = [
                 'equipment' => $brand . ' installed equipment',
-                'period'    => $period,
+                'period'    => self::preferOverride($overrideWarranty, $period),
                 'notes'     => 'Start date typically from commissioning/handover.',
             ];
         }
         return $rows;
+    }
+
+    /**
+     * Normalise the raw manufacturer_support_overrides array pulled off
+     * $manual->extracted_data into a brand-keyed lookup. Trims whitespace,
+     * drops rows with an empty brand cell, and stores the lookup key
+     * lower-cased so a "Crestron" override matches a "crestron" detected
+     * brand without the caller having to do case gymnastics.
+     *
+     * @param array<int,array<string,string>> $raw
+     * @return array<string,array{brand:string,phone:string,email:string,portal:string,warranty:string}>
+     */
+    private static function normaliseManufacturerOverrides($raw): array
+    {
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($raw as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $brand = trim((string) ($row['brand'] ?? ''));
+            if ($brand === '') {
+                continue;
+            }
+            $out[self::brandKey($brand)] = [
+                'brand'    => $brand,
+                'phone'    => trim((string) ($row['phone']    ?? '')),
+                'email'    => trim((string) ($row['email']    ?? '')),
+                'portal'   => trim((string) ($row['portal']   ?? '')),
+                'warranty' => trim((string) ($row['warranty'] ?? '')),
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Normalise service_escalation into the fixed shape the PDF template reads.
+     * Empty strings pass through — the template treats "" as "use the built-in
+     * default" so partial overrides work.
+     *
+     * @return array{contact_name:string,phone:string,email:string,hours:string,matrix:string}
+     */
+    private static function normaliseEscalationOverride($raw): array
+    {
+        $raw = is_array($raw) ? $raw : [];
+        return [
+            'contact_name' => trim((string) ($raw['contact_name'] ?? '')),
+            'phone'        => trim((string) ($raw['phone']        ?? '')),
+            'email'        => trim((string) ($raw['email']        ?? '')),
+            'hours'        => trim((string) ($raw['hours']        ?? '')),
+            'matrix'       => trim((string) ($raw['matrix']       ?? '')),
+        ];
+    }
+
+    /**
+     * Case-insensitive, whitespace-tolerant brand key so "Crestron ",
+     * "CRESTRON" and "crestron" all match the same override row.
+     */
+    private static function brandKey(string $brand): string
+    {
+        return mb_strtolower(trim($brand));
+    }
+
+    /**
+     * Pick the user's override when it carries content; fall back to the
+     * resolver's value otherwise. Whitespace-only overrides are treated
+     * as "cleared" and don't win — the user's implicit signal is "no
+     * override".
+     */
+    private static function preferOverride(?string $override, string $fallback): string
+    {
+        $trimmed = trim((string) $override);
+        return $trimmed !== '' ? $trimmed : $fallback;
     }
 
     private function formatWarrantyMessage(?int $years): string

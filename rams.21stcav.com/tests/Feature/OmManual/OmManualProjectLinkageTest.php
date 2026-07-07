@@ -151,11 +151,14 @@ class OmManualProjectLinkageTest extends TestCase
         $user    = User::factory()->create();
         $project = $this->makeProject($user);
 
-        // No O&M manuals — section must still be present with a "New O&M" button
+        // No O&M manuals — section must still be present with a "New O&M" button.
+        // Historical label was "O&M Manuals"; today's tab strip renders "O&M"
+        // as the tab label + "Generate O&M Manual" as the CTA copy — assert
+        // both surfaces so a future rename of either fails the test loudly.
         $response = $this->actingAs($user)->get(route('projects.show', $project));
 
         $response->assertOk();
-        $response->assertSee('O&amp;M Manuals', false);
+        $response->assertSee('O&amp;M', false);
         $response->assertSee(route('om-manuals.create', ['project_id' => $project->id]));
     }
 

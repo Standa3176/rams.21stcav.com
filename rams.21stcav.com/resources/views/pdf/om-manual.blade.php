@@ -1241,6 +1241,27 @@
 {{-- ══════════════════════════════════════════════════════════════════════ --}}
 {{-- 11. SERVICE & ESCALATION                                               --}}
 {{-- ══════════════════════════════════════════════════════════════════════ --}}
+@php
+    // Tier-1 O&M loop close (2026-07): the §11 contact block was hardcoded.
+    // It now reads from generated_data.service_escalation (populated from the
+    // user's overrides on the O&M edit page); each cell falls back to the
+    // baked-in 21st Century AV Service Desk defaults if the user left it
+    // blank. Empty overrides preserve historical output byte-for-byte.
+    $esc            = is_array($data['service_escalation'] ?? null) ? $data['service_escalation'] : [];
+    $escContact     = trim((string) ($esc['contact_name'] ?? '')) !== ''
+        ? trim((string) $esc['contact_name'])
+        : '21st Century AV Service Desk';
+    $escPhone       = trim((string) ($esc['phone'] ?? '')) !== ''
+        ? trim((string) $esc['phone'])
+        : '01189 977770';
+    $escEmail       = trim((string) ($esc['email'] ?? '')) !== ''
+        ? trim((string) $esc['email'])
+        : 'info@21stcenturyav.com';
+    $escHours       = trim((string) ($esc['hours'] ?? '')) !== ''
+        ? trim((string) $esc['hours'])
+        : 'Monday–Friday, 09:00–17:30';
+    $escMatrix      = trim((string) ($esc['matrix'] ?? '')); // Optional — no default; renders only when supplied.
+@endphp
 <div class="section-title pb">11. Service &amp; Escalation</div>
 <p style="margin-bottom:8pt;">
     For routine support, fault calls, or out-of-hours escalation, use the contact path below. SLAs are governed by the in-force support contract or, where none exists, the relevant manufacturer's warranty terms.
@@ -1249,7 +1270,7 @@
 <table class="info-table">
     <tr>
         <td class="lbl">First Line</td>
-        <td>21st Century AV Service Desk — <strong>01189 977770</strong> (Monday–Friday, 09:00–17:30)</td>
+        <td>{{ $escContact }} — <strong>{{ $escPhone }}</strong> ({{ $escHours }})</td>
     </tr>
     <tr>
         <td class="lbl">Out-of-Hours</td>
@@ -1257,12 +1278,19 @@
     </tr>
     <tr>
         <td class="lbl">Email</td>
-        <td>info@21stcenturyav.com</td>
+        <td>{{ $escEmail }}</td>
     </tr>
-    <tr>
-        <td class="lbl">Major Incident</td>
-        <td>Service Manager via the Service Desk; involve the Account Director if business-critical.</td>
-    </tr>
+    @if ($escMatrix !== '')
+        <tr>
+            <td class="lbl">Escalation Path</td>
+            <td>{!! nl2br(e($escMatrix)) !!}</td>
+        </tr>
+    @else
+        <tr>
+            <td class="lbl">Major Incident</td>
+            <td>Service Manager via the Service Desk; involve the Account Director if business-critical.</td>
+        </tr>
+    @endif
 </table>
 
 <p style="margin-top:8pt;font-size:8.5pt;color:#555;">
