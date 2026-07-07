@@ -44,11 +44,52 @@
                                 {{ $manual->created_at->diffForHumans() }}
                             </td>
                             <td style="padding:.6rem 1rem; text-align:right;">
-                                @if (in_array($manual->status, [\App\Models\OmManual::STATUS_DRAFT, \App\Models\OmManual::STATUS_FINAL]))
-                                    <a href="{{ route('om-manuals.download', $manual) }}" class="btn btn-outline btn-sm">Download</a>
-                                @elseif ($manual->status === \App\Models\OmManual::STATUS_EXTRACTED)
-                                    <a href="{{ route('om-manuals.edit', $manual) }}" class="btn btn-teal btn-sm">Review</a>
-                                @endif
+                                {{-- Tier-1 audit fix — v1 showed ONLY Download (no edit / retry
+                                     / delete on failed rows). Now every non-deleted row surfaces
+                                     the state-appropriate primary action + a ⋯ menu with Edit,
+                                     Retry (failed rows only) and Delete. Consistent with RAMS list. --}}
+                                <div style="display:inline-flex;align-items:center;gap:.3rem;">
+                                    @if (in_array($manual->status, [\App\Models\OmManual::STATUS_DRAFT, \App\Models\OmManual::STATUS_FINAL]))
+                                        <a href="{{ route('om-manuals.download', $manual) }}" class="btn btn-teal btn-sm">↓ Download</a>
+                                    @elseif ($manual->status === \App\Models\OmManual::STATUS_EXTRACTED)
+                                        <a href="{{ route('om-manuals.edit', $manual) }}" class="btn btn-teal btn-sm">Review</a>
+                                    @elseif ($manual->status === \App\Models\OmManual::STATUS_FAILED)
+                                        <form method="POST" action="{{ route('om-manuals.retry-generation', $manual) }}"
+                                              data-confirm="Retry O&M generation? The failed record stays until the new build finishes."
+                                              data-confirm-label="Retry"
+                                              style="margin:0;display:inline;">
+                                            @csrf
+                                            <button type="submit" class="btn btn-outline btn-sm" title="Retry generation">↺ Retry</button>
+                                        </form>
+                                    @endif
+
+                                    <x-row-actions-menu label="More O&M actions">
+                                        <a href="{{ route('om-manuals.edit', $manual) }}" class="row-actions-item">
+                                            <span class="row-actions-item__icon" aria-hidden="true">✎</span>
+                                            <span>Edit O&amp;M</span>
+                                        </a>
+                                        @if ($manual->project_id)
+                                            <a href="{{ route('om-manuals.edit-devices', $manual) }}" class="row-actions-item">
+                                                <span class="row-actions-item__icon" aria-hidden="true">📋</span>
+                                                <span>Asset register</span>
+                                            </a>
+                                        @endif
+                                        <a href="{{ route('documents.revisions.view', ['type' => 'om', 'id' => $manual->id]) }}" class="row-actions-item">
+                                            <span class="row-actions-item__icon" aria-hidden="true">↻</span>
+                                            <span>Revision history</span>
+                                        </a>
+                                        <form method="POST" action="{{ route('om-manuals.destroy', $manual->id) }}"
+                                              data-confirm="Delete this O&M Manual? Admins can restore it later."
+                                              data-confirm-label="Delete"
+                                              data-confirm-danger="1" style="margin:0;">
+                                            @csrf @method('DELETE')
+                                            <button type="submit" class="row-actions-item row-actions-item--danger">
+                                                <span class="row-actions-item__icon" aria-hidden="true">✕</span>
+                                                <span>Delete manual</span>
+                                            </button>
+                                        </form>
+                                    </x-row-actions-menu>
+                                </div>
                             </td>
                         </tr>
                     @endforeach

@@ -410,36 +410,53 @@
             </form>
         @endif
 
+        {{-- Tier-1 Screen 02 v2 — visible primary actions only. Everything
+             secondary (Download Internal, Variations CSV, History, Edit via
+             chat, Back to Project) folds into a single Actions ▾ menu so
+             the toolbar reads as "here's what to do next" not "here's every
+             button". Edit Survey stays visible because it's the highest-frequency
+             non-primary action for drafts. --}}
         <a href="{{ route('site-surveys.edit', $survey) }}" class="btn btn-outline btn-sm">&#9998; Edit Survey</a>
-        {{-- Unified survey PDF (260517-su1): one blade, two modes via ?internal.
-             Client button uses the polished cover-chrome / no-engineer-jargon
-             mode; Internal button keeps Site Conditions, Pre-Install Checks,
-             and Engineer Findings. Both routes hit the same controller action
-             — `?internal=0` flips the template flag. --}}
         <a href="{{ route('site-surveys.pdf', $survey) }}?internal=0" class="btn btn-teal btn-sm" target="_blank">&#128196; Download for Client</a>
-        <a href="{{ route('site-surveys.pdf', $survey) }}?internal=1" class="btn btn-outline btn-sm" target="_blank">&#128438; Download Internal</a>
+
         @php $variationCount = $survey->variations->count(); @endphp
-        <a href="{{ $variationCount > 0 ? route('site-surveys.variations.csv', $survey) : '#' }}"
-           class="btn btn-outline btn-sm"
-           @class(['opacity-50 cursor-not-allowed' => $variationCount === 0])
-           @if ($variationCount === 0)
-               onclick="return false;" title="No variations to export"
-           @endif>
-            &#128202; Variations CSV ({{ $variationCount }})
-        </a>
-        <a href="{{ route('documents.revisions.view', ['type' => 'survey', 'id' => $survey->id]) }}" class="btn btn-outline btn-sm">&#8634; History</a>
-        <x-document-edit-drawer
-            type="survey"
-            :id="$survey->id"
-            label="Site Survey" />
-        {{-- Default back-link is the parent project (most common nav target).
-             Falls back to the admin-only Surveys index only when the survey
-             isn't tied to a project AND the viewer is an admin. --}}
-        @if($survey->project)
-            <a href="{{ route('projects.show', $survey->project) }}" class="btn btn-outline btn-sm">&#8592; Back to Project</a>
-        @elseif(auth()->user()?->isAdmin())
-            <a href="{{ route('site-surveys.index') }}" class="btn btn-outline btn-sm">&#8592; All Surveys</a>
-        @endif
+        <x-row-actions-menu label="More survey actions">
+            {{-- Internal (engineer) PDF — same route, ?internal=1 flips the
+                 template flag between the client-polished cover and the
+                 engineer-findings mode. --}}
+            <a href="{{ route('site-surveys.pdf', $survey) }}?internal=1" class="row-actions-item" target="_blank" title="Engineer PDF with site conditions + pre-install checks">
+                <span class="row-actions-item__icon" aria-hidden="true">🛠</span>
+                <span>Download internal PDF</span>
+            </a>
+            @if ($variationCount > 0)
+                <a href="{{ route('site-surveys.variations.csv', $survey) }}" class="row-actions-item" title="Variations CSV">
+                    <span class="row-actions-item__icon" aria-hidden="true">📊</span>
+                    <span>Variations CSV ({{ $variationCount }})</span>
+                </a>
+            @endif
+            <a href="{{ route('documents.revisions.view', ['type' => 'survey', 'id' => $survey->id]) }}" class="row-actions-item" title="Revision history">
+                <span class="row-actions-item__icon" aria-hidden="true">↻</span>
+                <span>Revision history</span>
+            </a>
+            <a href="{{ route('site-surveys.show', $survey) }}?chat=1" class="row-actions-item" title="Edit via AI chat">
+                <span class="row-actions-item__icon" aria-hidden="true">✎</span>
+                <span>Edit via AI chat</span>
+            </a>
+            {{-- Default back-link is the parent project. Falls back to the
+                 admin-only Surveys index only when the survey isn't tied to
+                 a project AND the viewer is an admin. --}}
+            @if($survey->project)
+                <a href="{{ route('projects.show', $survey->project) }}" class="row-actions-item" title="Back to project">
+                    <span class="row-actions-item__icon" aria-hidden="true">←</span>
+                    <span>Back to project</span>
+                </a>
+            @elseif(auth()->user()?->isAdmin())
+                <a href="{{ route('site-surveys.index') }}" class="row-actions-item" title="All surveys">
+                    <span class="row-actions-item__icon" aria-hidden="true">←</span>
+                    <span>All surveys</span>
+                </a>
+            @endif
+        </x-row-actions-menu>
     </div>
 </div>
 

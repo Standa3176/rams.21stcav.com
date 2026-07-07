@@ -300,72 +300,96 @@ tr.soft-deleted td.actions-cell * { pointer-events: auto; }
                                         || ($status === 'approved' && $doc->generated_data)
                                     )
                                         @if ($doc->filename)
-                                            {{-- Download .docx --}}
+                                            {{-- Primary visible actions: PDF + DOCX only. Everything else
+                                                 (Regen / Re-extract / Email / O&M shortcut / Delete) collapses
+                                                 into the ⋯ overflow menu so each row reads as "here's the doc"
+                                                 not "here's a control panel". --}}
+                                            <a href="{{ route('rams.download-pdf', $doc) }}"
+                                               class="btn btn-teal btn-sm" title="Download PDF"
+                                               onclick="triggerFileDownload(this.href); return false;">
+                                                ↓ PDF
+                                            </a>
+
                                             <a href="{{ route('rams.download', $doc) }}"
                                                class="btn btn-outline btn-sm" title="Download Word doc">
                                                 ↓ .docx
                                             </a>
 
-                                            {{-- Download PDF --}}
-                                            <a href="{{ route('rams.download-pdf', $doc) }}"
-                                               class="btn btn-outline btn-sm" title="Download PDF"
-                                               onclick="triggerFileDownload(this.href); return false;">
-                                                ↓ PDF
-                                            </a>
-
-                                            {{-- Regenerate (rebuilds DOCX from reviewed data via queue) --}}
                                             @if (! $sup)
-                                                <form method="POST"
-                                                      action="{{ route('rams.retry-generation', $doc) }}"
-                                                      data-confirm="Rebuild the DOCX from the approved data? The document will be regenerated in the background."
-                                                      data-confirm-label="Regenerate"
-                                                      style="margin:0;">
-                                                    @csrf
-                                                    <button type="submit" class="btn btn-outline btn-sm" title="Rebuild document">
-                                                        &#x21BA; Regen
-                                                    </button>
-                                                </form>
-
-                                                {{-- Re-extract (rerun PDF extraction) --}}
-                                                @if (! empty($doc->form_data['original_filename'] ?? null))
+                                                <x-row-actions-menu label="Row actions">
+                                                    {{-- Regenerate --}}
                                                     <form method="POST"
-                                                          action="{{ route('rams.retry-extraction', $doc) }}"
-                                                          data-confirm="Re-extract the quote PDF and rebuild the review data? This will overwrite the extracted data for this RAMS."
-                                                          data-confirm-label="Re-extract"
+                                                          action="{{ route('rams.retry-generation', $doc) }}"
+                                                          data-confirm="Rebuild the DOCX from the approved data? The document will be regenerated in the background."
+                                                          data-confirm-label="Regenerate"
                                                           style="margin:0;">
                                                         @csrf
-                                                        <button type="submit" class="btn btn-outline btn-sm" title="Re-extract quote PDF">
-                                                            ↺ Re-extract
+                                                        <button type="submit" class="row-actions-item" title="Rebuild document">
+                                                            <span class="row-actions-item__icon" aria-hidden="true">↻</span>
+                                                            <span>Regenerate</span>
                                                         </button>
                                                     </form>
-                                                @endif
 
-                                                {{-- Email --}}
-                                                <button type="button"
-                                                        class="btn btn-outline btn-sm"
-                                                        onclick="openEmailModal('{{ route('rams.email', $doc) }}', '{{ addslashes($doc->project_name) }}')"
-                                                        title="Email document">
-                                                    ✉ Email
-                                                </button>
+                                                    {{-- Re-extract (rerun PDF extraction) --}}
+                                                    @if (! empty($doc->form_data['original_filename'] ?? null))
+                                                        <form method="POST"
+                                                              action="{{ route('rams.retry-extraction', $doc) }}"
+                                                              data-confirm="Re-extract the quote PDF and rebuild the review data? This will overwrite the extracted data for this RAMS."
+                                                              data-confirm-label="Re-extract"
+                                                              style="margin:0;">
+                                                            @csrf
+                                                            <button type="submit" class="row-actions-item" title="Re-extract quote PDF">
+                                                                <span class="row-actions-item__icon" aria-hidden="true">↺</span>
+                                                                <span>Re-extract PDF</span>
+                                                            </button>
+                                                        </form>
+                                                    @endif
 
-                                                {{-- O&M Manual shortcut --}}
-                                                @if ($doc->omManual)
-                                                    <a href="{{ route('om-manuals.index') }}"
-                                                       class="btn btn-sm"
-                                                       style="background:#e0f4f6;color:#007B8A;border:1.5px solid #007B8A;"
-                                                       title="View linked O&M Manual">
-                                                        O&amp;M ✓
-                                                    </a>
-                                                @else
-                                                    <a href="{{ route('om-manuals.create') }}"
-                                                       class="btn btn-outline btn-sm"
-                                                       style="font-size:.75rem;"
-                                                       title="Create O&M Manual for this project">
-                                                        O&amp;M →
-                                                    </a>
-                                                @endif
+                                                    {{-- Email --}}
+                                                    <button type="button"
+                                                            class="row-actions-item"
+                                                            onclick="openEmailModal('{{ route('rams.email', $doc) }}', '{{ addslashes($doc->project_name) }}')"
+                                                            title="Email document">
+                                                        <span class="row-actions-item__icon" aria-hidden="true">✉</span>
+                                                        <span>Email document</span>
+                                                    </button>
+
+                                                    {{-- O&M Manual shortcut --}}
+                                                    @if ($doc->omManual)
+                                                        <a href="{{ route('om-manuals.index') }}" class="row-actions-item" title="View linked O&M Manual">
+                                                            <span class="row-actions-item__icon" aria-hidden="true">📗</span>
+                                                            <span>View O&amp;M Manual</span>
+                                                        </a>
+                                                    @else
+                                                        <a href="{{ route('om-manuals.create') }}" class="row-actions-item" title="Create O&M Manual for this project">
+                                                            <span class="row-actions-item__icon" aria-hidden="true">→</span>
+                                                            <span>Create O&amp;M Manual</span>
+                                                        </a>
+                                                    @endif
+
+                                                    {{-- Delete (moved into overflow for completed rows so the
+                                                         destructive action never sits inline next to Download). --}}
+                                                    <form method="POST"
+                                                          action="{{ route('rams.destroy', $doc) }}"
+                                                          data-confirm="Delete this RAMS document? Admins can restore it later."
+                                                          data-confirm-label="Delete"
+                                                          data-confirm-danger="1"
+                                                          style="margin:0;">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="row-actions-item row-actions-item--danger" title="Delete">
+                                                            <span class="row-actions-item__icon" aria-hidden="true">✕</span>
+                                                            <span>Delete document</span>
+                                                        </button>
+                                                    </form>
+                                                </x-row-actions-menu>
                                             @endif
                                         @endif
+
+                                        {{-- Skip the trailing "always-visible Delete" — for completed rows
+                                             the destroy form lives inside the ⋯ menu above. Flag with $moved
+                                             so the outer delete block doesn't duplicate it. --}}
+                                        @php $ramsDeleteMoved = true; @endphp
 
                                     {{-- ── FAILED: show error + retry buttons ── --}}
                                     @elseif ($status === 'failed')
@@ -402,19 +426,23 @@ tr.soft-deleted td.actions-cell * { pointer-events: auto; }
                                         </div>
                                     @endif
 
-                                    {{-- Delete — only for non-deleted records --}}
-                                    <form method="POST"
-                                          action="{{ route('rams.destroy', $doc) }}"
-                                          data-confirm="Delete this RAMS document? Admins can restore it later."
-                                          data-confirm-label="Delete"
-                                          data-confirm-danger="1"
-                                          style="margin:0;">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-danger-outline btn-sm" title="Delete">
-                                            ✕
-                                        </button>
-                                    </form>
+                                    {{-- Delete — only for non-deleted, non-completed records. Completed
+                                         rows already have Delete inside the ⋯ overflow menu (see $ramsDeleteMoved
+                                         flag set above). --}}
+                                    @unless (! empty($ramsDeleteMoved))
+                                        <form method="POST"
+                                              action="{{ route('rams.destroy', $doc) }}"
+                                              data-confirm="Delete this RAMS document? Admins can restore it later."
+                                              data-confirm-label="Delete"
+                                              data-confirm-danger="1"
+                                              style="margin:0;">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-danger-outline btn-sm" title="Delete">
+                                                ✕
+                                            </button>
+                                        </form>
+                                    @endunless
 
                                     @endif {{-- end soft-deleted else --}}
                                 </div>

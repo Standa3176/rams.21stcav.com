@@ -213,34 +213,30 @@
         <x-slot:title>Review RAMS — {{ $rams->project_name }}</x-slot:title>
     </x-edit-action-bar>
 
+    {{-- Tier-1 v2 — hero streamlined. The sticky <x-edit-action-bar> above
+         already carries the "Review RAMS — {project}" title, so this block
+         drops its own H1 to avoid the duplicated headline. Meta strip stays
+         (Project / Client / Ref values aren't in the sticky bar). Action
+         row collapses low-frequency items (History, Edit via chat, Back to
+         Project) into a ⋯ menu; PDF / DOCX / Regenerate stay visible.
+
+         Tip banner removed — its content ("edit tabs, click Save, choose
+         Regenerate on prompt") is now obvious after one use and shouldn't
+         eat 100px of vertical space on every visit. --}}
     <div class="rams-hero">
         <div class="rams-hero-title">
-            <div>
-                <h1>Review &amp; Download RAMS</h1>
-                <div class="rams-hero-meta">
-                    <span><strong>Project:</strong> {{ \Illuminate\Support\Str::limit($rams->project_name, 60) }}</span>
-                    <span><strong>Client:</strong> {{ $rams->client_name }}</span>
-                    @if ($rams->project_ref)
-                        <span><strong>Ref:</strong> {{ $rams->project_ref }}</span>
-                    @endif
-                </div>
+            <div class="rams-hero-meta">
+                <span><strong>Project:</strong> {{ \Illuminate\Support\Str::limit($rams->project_name, 60) }}</span>
+                <span><strong>Client:</strong> {{ $rams->client_name }}</span>
+                @if ($rams->project_ref)
+                    <span><strong>Ref:</strong> {{ $rams->project_ref }}</span>
+                @endif
             </div>
             <span class="status-pill status-pill--{{ $statusKey }}">{{ $statusLabel }}</span>
         </div>
 
         <div class="rams-hero-actions">
-            @if ($rams->project_id && $rams->project)
-                <a href="{{ route('projects.show', $rams->project_id) }}" class="btn btn-outline btn-sm">← Back to Project</a>
-            @else
-                <a href="{{ route('projects.index') }}" class="btn btn-outline btn-sm">← Back to Projects</a>
-            @endif
-            <a href="{{ route('documents.revisions.view', ['type' => 'rams', 'id' => $rams->id]) }}" class="btn btn-outline btn-sm">↻ History</a>
-            <x-document-edit-drawer
-                type="rams"
-                :id="$rams->id"
-                label="RAMS"
-                :visible="in_array($rams->status, [\App\Models\RamsDocument::STATUS_APPROVED, \App\Models\RamsDocument::STATUS_COMPLETED])" />
-            <a href="{{ route('rams.download-pdf', $rams) }}" class="btn btn-outline btn-sm"
+            <a href="{{ route('rams.download-pdf', $rams) }}" class="btn btn-teal btn-sm"
                onclick="triggerFileDownload(this.href); return false;">↓ PDF</a>
             <a href="{{ route('rams.download', $rams) }}" class="btn btn-outline btn-sm">↓ DOCX</a>
             <form method="POST" action="{{ route('rams.regenerate', $rams) }}"
@@ -253,6 +249,28 @@
                     ↺ Regenerate
                 </button>
             </form>
+
+            <x-row-actions-menu label="More RAMS actions">
+                <a href="{{ route('documents.revisions.view', ['type' => 'rams', 'id' => $rams->id]) }}" class="row-actions-item" title="Revision history">
+                    <span class="row-actions-item__icon" aria-hidden="true">↻</span>
+                    <span>Revision history</span>
+                </a>
+                <a href="{{ route('rams.review', $rams) }}?chat=1" class="row-actions-item" title="Edit via AI chat">
+                    <span class="row-actions-item__icon" aria-hidden="true">✎</span>
+                    <span>Edit via AI chat</span>
+                </a>
+                @if ($rams->project_id && $rams->project)
+                    <a href="{{ route('projects.show', $rams->project_id) }}" class="row-actions-item" title="Back to project">
+                        <span class="row-actions-item__icon" aria-hidden="true">←</span>
+                        <span>Back to project</span>
+                    </a>
+                @else
+                    <a href="{{ route('projects.index') }}" class="row-actions-item" title="Back to projects">
+                        <span class="row-actions-item__icon" aria-hidden="true">←</span>
+                        <span>Back to projects</span>
+                    </a>
+                @endif
+            </x-row-actions-menu>
         </div>
     </div>
 
@@ -262,12 +280,6 @@
     @if (session('error'))
         <div class="alert alert-error">{{ session('error') }}</div>
     @endif
-
-    <div class="alert alert-info" style="background:#EBF6F7;border:1px solid var(--teal-mid);color:var(--sidebar-bg);">
-        <strong>💡 Tip:</strong> Edit project fields across the tabs below, then click <strong>Save Changes</strong> at the bottom.
-        You'll be asked whether to regenerate the document — choose <strong>Yes</strong> to rebuild the DOCX/PDF with your latest data.
-        Hazards and the method statement are AI-generated and read-only — use <strong>✎ Edit via chat</strong> above if you need to change them.
-    </div>
 
     {{-- ── Hidden regen form, submitted by JS when user confirms regen prompt --}}
     <form id="rams-regen-after-save" method="POST" action="{{ route('rams.regenerate', $rams) }}" style="display:none;">

@@ -127,7 +127,17 @@
             <span></span>
         </div>
 
-        @foreach($projects as $project)
+        {{-- Tier-1 audit fix — dashboard was rendering the entire projects
+             inventory (14 rows), duplicating /projects. Cap the visible
+             count at 5 with a "View all" link so the dashboard curates
+             instead of mirrors. Full list still available via the sidebar
+             Projects link or the "View all →" pill below. --}}
+        @php
+            $projectPreviewLimit = 5;
+            $projectPreview      = $projects->take($projectPreviewLimit);
+            $projectOverflow     = max(0, $projects->count() - $projectPreviewLimit);
+        @endphp
+        @foreach($projectPreview as $project)
         @php
             $health    = $healthMap[$project->id];
             $programme = null;
@@ -175,6 +185,17 @@
             </div>
         </div>
         @endforeach
+
+        @if($projectOverflow > 0)
+            <div style="padding: .9rem 1.25rem; text-align: center; border-top: 1px solid var(--border, #E4DDCB); background: var(--surface-soft, #FBF8EF);">
+                <a href="{{ route('projects.index') }}" style="color: var(--accent, #0F3E36); font-size: .85rem; font-weight: 600; text-decoration: none;">
+                    View all {{ $projects->count() }} projects →
+                </a>
+                <span style="color: var(--text-muted); font-size: .78rem; margin-left: .5rem;">
+                    (showing {{ $projectPreviewLimit }} most recent · {{ $projectOverflow }} more)
+                </span>
+            </div>
+        @endif
     </div>
     @endif
 

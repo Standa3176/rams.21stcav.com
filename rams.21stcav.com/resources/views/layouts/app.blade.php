@@ -901,8 +901,16 @@
         ═══════════════════════════════════════════════════════════════ */
         /* Text-style inputs and textareas — :placeholder-shown is true when
            the input has a placeholder attribute and no user-typed value.
-           Inputs missing a placeholder get one (single space) in markup. */
-        .form-control:placeholder-shown:not([data-optional]):not(.is-optional):not(:focus):not([readonly]):not([disabled]) {
+           Inputs missing a placeholder get one (single space) in markup.
+
+           Post-audit fix — the previous rule fired on ANY empty field, which
+           painted nullable fields (Site Contact, Site Vehicles, Programmer,
+           etc.) coral even though the validator accepts them empty. Users
+           read "this is required" but couldn't save-blocked into a real error
+           message. Rule now requires the field to actually carry a `required`
+           attribute so nullable fields render clean and only genuinely
+           required-and-empty fields glow. */
+        .form-control[required]:placeholder-shown:not([data-optional]):not(.is-optional):not(:focus):not([readonly]):not([disabled]) {
             background-color: #FDF1EE;
             border-color: #E8B7AE;
         }

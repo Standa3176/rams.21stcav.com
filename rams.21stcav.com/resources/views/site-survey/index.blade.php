@@ -123,16 +123,27 @@
                         <small style="color:#999;">{{ $survey->created_at->format('H:i') }}</small>
                     </td>
                     <td>
-                        <div class="actions">
+                        {{-- Tier-1 audit fix — v1 stacked View / Edit / ✕ per row,
+                             putting Delete as prominent as View. Delete moves
+                             into the overflow menu; View stays primary. --}}
+                        <div class="actions" style="display:flex;align-items:center;gap:.3rem;">
                             <a href="{{ route('site-surveys.show', $survey) }}" class="btn btn-outline btn-sm">View</a>
-                            <a href="{{ route('site-surveys.edit', $survey) }}" class="btn btn-outline btn-sm">Edit</a>
-                            <form method="POST" action="{{ route('site-surveys.destroy', $survey->id) }}"
-                                  data-confirm="Delete this survey? Admins can restore it later."
-                                  data-confirm-label="Delete"
-                                  data-confirm-danger="1" style="margin:0;">
-                                @csrf @method('DELETE')
-                                <button type="submit" class="btn btn-danger-outline btn-sm">✕</button>
-                            </form>
+                            <x-row-actions-menu label="More survey actions">
+                                <a href="{{ route('site-surveys.edit', $survey) }}" class="row-actions-item">
+                                    <span class="row-actions-item__icon" aria-hidden="true">✎</span>
+                                    <span>Edit</span>
+                                </a>
+                                <form method="POST" action="{{ route('site-surveys.destroy', $survey->id) }}"
+                                      data-confirm="Delete this survey? Admins can restore it later."
+                                      data-confirm-label="Delete"
+                                      data-confirm-danger="1" style="margin:0;">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" class="row-actions-item row-actions-item--danger">
+                                        <span class="row-actions-item__icon" aria-hidden="true">✕</span>
+                                        <span>Delete survey</span>
+                                    </button>
+                                </form>
+                            </x-row-actions-menu>
                         </div>
                     </td>
                 </tr>
