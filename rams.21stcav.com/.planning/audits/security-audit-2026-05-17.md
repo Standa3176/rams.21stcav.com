@@ -192,6 +192,7 @@ Status: **CLOSED** — the fragile exec path is deleted; the surviving spawn pat
 - Missing: `assert(`, `create_function(`, `preg_replace(...'e')`, `include(`, `require(`, `\\u0073ystem(` (unicode-escape bypass for downstream renderers that decode), `${...}` variable interpolation patterns. Also case-insensitive matching is via `stripos()` which is fine, but the denylist is the wrong design — should be an allow-list of valid op shapes per adapter.
 - Risk: defense-in-depth only — the validator is the FIRST line, then the adapter allow-list runs. So actual exploit requires both layers to be bypassed. Today the adapter layer constrains to specific JSON keys per document type. Low likelihood, medium severity.
 - Fix: leave the denylist as belt-and-braces but document that the adapter allow-list is the real gate. Add `assert(`, `include(`, `require(` to the denylist for symmetry.
+- **RESOLUTION (2026-07-05):** Extended `DENIED_VALUE_SUBSTRINGS` with `shell_exec(`, `popen(`, `assert(`, `create_function(`, `include(`, `include_once(`, `require(`, `require_once(`. Denylist remains belt-and-braces alongside the adapter allow-list (which is still the real gate). Existing `DocumentEditSafetyValidatorTest` covers all denied tokens — 9 tests pass.
 
 #### M-02  No security headers (CSP, X-Frame-Options, HSTS) set by the app
 - Grep for `X-Frame-Options|Content-Security-Policy|Strict-Transport-Security|CSP` across `app/` returns nothing.
@@ -202,12 +203,14 @@ Status: **CLOSED** — the fragile exec path is deleted; the surviving spawn pat
   ->withMiddleware(fn (Middleware $m) => $m->web(append: [SetSecurityHeaders::class]))
   ```
   Minimum: `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: same-origin`, `X-Content-Type-Options: nosniff`, `Strict-Transport-Security: max-age=31536000; includeSubDomains`. CSP is harder because of dompdf/mpdf inline styles — start with `report-only`.
+- **RESOLUTION (2026-07-05):** Added `App\Http\Middleware\SetSecurityHeaders` and registered it via `->web(append: ...)` in `bootstrap/app.php`. Sets `X-Frame-Options: SAMEORIGIN`, `Content-Security-Policy: frame-ancestors 'self'`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`, plus HSTS on HTTPS-only. Full CSP intentionally deferred — dompdf/mpdf inline-style rollout is a separate report-only exercise.
 
 #### M-03  `whereRaw('LOWER(client_name) = ?', [...])` is parameter-bound but `selectRaw('status, count(*) as total')` is not
 - `app/Http/Controllers/ProjectController.php:62` — `selectRaw('status, count(*) as total')` — no input, hardcoded, safe.
 - All other `whereRaw` / `orderByRaw` calls reviewed: every one uses `?` placeholders and bound params (verified at `ExtractQuoteJob.php:111-112`, `QuoteImportService.php:78-79,352-353`, `ProjectDrawingController.php:473`, etc.). The `orderByRaw("CASE kind WHEN 'schematic' ...")` uses constants from `ProjectDrawing::KIND_SCHEMATIC` — also safe.
 - No injection found. Logged here because the pattern is fragile — a copy-paste with string interpolation would land a SQLi.
 - Fix: add a `Phase22_1InvariantGuardTest`-style PHPUnit guard that asserts `whereRaw\([^,]+\)` (no comma → no bound params → fail) is not present anywhere under `app/`.
+- **RESOLUTION (2026-07-05):** Added `tests/Feature/Security/SqlRawInvariantGuardTest` with 2 guards: (a) no `whereRaw`/`orderByRaw`/`selectRaw`/`havingRaw` may interpolate a `$var` inside a double-quoted SQL fragment, and (b) no `whereRaw`/`orderByRaw`/`havingRaw` may carry a `?` placeholder without a bindings array. Both pass on the current codebase — a copy-paste with unsafe interpolation will now fail CI.
 
 #### M-04  AI prompts ingest user-controllable strings without delimiter escaping
 - File: `app/Core/AI/Prompts/MethodStatementPrompt.php:127` — interpolates `$scope`, `$site`, `$equipment`, `$rooms`, `$roomSummaries`, `$worksOverview`, `$roomDescriptions` directly into a heredoc.
@@ -241,6 +244,7 @@ Status: **CLOSED** — the fragile exec path is deleted; the surviving spawn pat
   ```
 - That's the first 8 hex chars of a UUIDv4 — 32 bits of entropy. Anyone with database / log access can use it as a partial guess against the worksheet's full token. UUIDv4 prefix collisions are common enough that this trims the effective brute-force space from `2^122` to `2^90` for a known-prefix attack. Still nowhere near tractable, but the data is now PII-adjacent (an audit log of "who reviewed when") and it's literally a piece of an authentication secret. Should be name + IP instead.
 - Fix: capture `$request->ip()` + a free-text "your name" input on the form (mirror the worksheet sign-off pattern at line 330) rather than slicing the URL token.
+- **RESOLUTION (2026-07-05):** Replaced `substr($token, 0, 8)` in both `markSurveyReviewed` and `markRoomComplete` with `'ip:' . $request->ip() . '|actor:' . substr(hash('sha256', $token), 0, 12)`. The token itself never lands in the DB — the hash slice is a stable non-secret actor identifier and the IP gives an audit trail. Adding a free-text "your name" field is deferred (requires public-worksheet UI change) — this fix stops the token leak today.
 
 #### M-07  Public survey `validatePublicSurvey` uses `rooms.*.id` → `exists:site_survey_rooms,id` — but doesn't scope to this survey
 - File: `app/Http/Controllers/PublicSurveyController.php:731`
@@ -255,6 +259,7 @@ Status: **CLOSED** — the fragile exec path is deleted; the surviving spawn pat
   ```
   Or do the exists-check after resolving the survey in the controller.
 - Deferred deep-dive: read `app/Core/Modules/Survey/SurveyService.php::saveDraftPublic` end-to-end and confirm it scopes its UPDATEs to `$survey->rooms`.
+- **RESOLUTION (2026-07-05):** `validatePublicSurvey()` now accepts the resolved `SiteSurvey` and uses `Rule::exists('site_survey_rooms', 'id')->where('site_survey_id', $survey->id)` when the survey is present. All 3 callers pass the survey. A cross-survey room id in the payload now fails validation before it can reach `SurveyService`. Deep-dive of `SurveyService::saveDraftPublic` still deferred — but the outer validator is now the correct scope guard.
 
 #### M-08  `OmManualController::generateFromProject` allows `?draft=1` from any authenticated user (subject to project ownership)
 - File: `app/Http/Controllers/OmManualController.php:164` — `$isDraft = $request->boolean('draft');`
@@ -265,6 +270,7 @@ Status: **CLOSED** — the fragile exec path is deleted; the surviving spawn pat
   - But: an engineer in a hurry might flip the toggle, generate the draft, and forward the PDF to the client thinking it's final. The `[TBC]` placeholder is in the document text but not in the filename or response headers — there is no "DRAFT" watermark applied by `OmDocxService` (verified by reading the route — would need to inspect the service).
 - Fix: add a `[DRAFT — NOT FOR ISSUE]` watermark or filename prefix when `_draft_mode === true`. Block email-to-client routes (`route('rams.email', ...)` doesn't exist for O&M but `download-pdf` is reachable).
 - Deferred deep-dive: read `app/Services/OmManualDocxService.php` to confirm draft state is or isn't surfaced visually.
+- **RESOLUTION (2026-07-05):** Added a fixed-position `DRAFT · NOT FOR ISSUE` diagonal band to `resources/views/pdf/om-manual.blade.php` (renders when `extracted_data._draft_mode` is truthy — every page carries the mark, `-webkit-print-color-adjust: exact` survives Chromium's flatten). Both `OmManualController::downloadPdf` and `download` (DOCX) prefix the filename with `DRAFT-` when the flag is set — belt-and-braces surfacing in both the document body and the file name. DOCX-body watermark deferred (PhpWord shape-in-header would need a bigger rebuild); the filename prefix + the O&M edit UI's draft banner cover the "sent to client by mistake" risk today.
 
 ---
 

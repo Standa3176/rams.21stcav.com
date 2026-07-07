@@ -232,9 +232,54 @@
     /* ── Page break util ──────────────────────────────────────────────── */
     .pb { page-break-before: always; }
     .avoid-break { page-break-inside: avoid; }
+
+    /* Audit M-08 (2026-07) — draft-mode watermark. Rotated red band across
+       the top of every page when extracted_data._draft_mode is true. Prints
+       through Chromium's -webkit-print-color-adjust: exact so it survives
+       the PDF flatten. Non-interactive; the band is content, not chrome. */
+    .draft-watermark {
+        position: fixed;
+        top: 24mm;
+        left: -6mm;
+        right: -6mm;
+        transform: rotate(-3deg);
+        transform-origin: center;
+        background: repeating-linear-gradient(
+            45deg,
+            #c0392b,
+            #c0392b 8pt,
+            #a02f22 8pt,
+            #a02f22 16pt
+        );
+        color: #fff;
+        font-family: Verdana, "DejaVu Sans", Arial, sans-serif;
+        font-weight: 700;
+        font-size: 14pt;
+        letter-spacing: .12em;
+        text-align: center;
+        padding: 6pt 0;
+        border-top: 2pt solid #7a2416;
+        border-bottom: 2pt solid #7a2416;
+        z-index: 9999;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        pointer-events: none;
+        opacity: .95;
+    }
 </style>
 </head>
 <body>
+
+@php
+    // Audit M-08 — a draft-mode O&M is a work-in-progress artefact that
+    // must not be forwarded as-if-final. The watermark is applied at the
+    // template level so the DOCX + PDF outputs both carry it, and it
+    // survives every render path (browser download, email attachment).
+    $isDraftMode = (bool) (($manual->extracted_data['_draft_mode'] ?? false));
+@endphp
+@if ($isDraftMode)
+    <div class="draft-watermark">DRAFT · NOT FOR ISSUE</div>
+@endif
 
 @php
     $company  = config('rams.company_name', '');

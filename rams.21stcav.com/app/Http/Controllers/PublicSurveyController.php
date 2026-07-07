@@ -226,7 +226,7 @@ class PublicSurveyController extends Controller
 
         abort_if($survey->isSubmitted(), 403, 'This survey has already been submitted.');
 
-        $data = $this->validatePublicSurvey($request);
+        $data = $this->validatePublicSurvey($request, false, $survey);
 
         // Engineer-feedback site-level fields (quick task 260503-u2x — defensive
         // double-write; primary write is via SurveyController::stepSave step=0
@@ -258,7 +258,7 @@ class PublicSurveyController extends Controller
 
         abort_if($survey->isSubmitted(), 403, 'This survey has already been submitted.');
 
-        $data = $this->validatePublicSurvey($request, true);
+        $data = $this->validatePublicSurvey($request, true, $survey);
 
         // Engineer-feedback site-level fields (quick task 260503-u2x — defensive
         // double-write at final-submit time so any field that didn't make it
@@ -320,7 +320,7 @@ class PublicSurveyController extends Controller
         }
 
         // Validate and save the room data first (same rules as the save endpoint).
-        $data = $this->validatePublicSurvey($request);
+        $data = $this->validatePublicSurvey($request, false, $survey);
 
         foreach ($data['rooms'] ?? [] as $roomData) {
             if ((int) ($roomData['id'] ?? 0) !== $room->id) {
@@ -726,9 +726,22 @@ class PublicSurveyController extends Controller
      *
      * On final submit ($requireSurveyor = true) the surveyor_name is required
      * so the submitted record is always attributable.
+     *
+     * Audit M-07 (2026-07): rooms.*.id now scopes its `exists` rule to
+     * $survey->id so a token holder can only reference room IDs that belong
+     * to their own survey. Previously the rule only checked the row existed
+     * in `site_survey_rooms` — a payload spraying arbitrary IDs would pass
+     * validation even if the IDs belonged to a different survey.
+     * `$survey === null` preserves the historical broad-exists shape for
+     * any caller that predates the argument (defensive default).
      */
-    private function validatePublicSurvey(Request $request, bool $requireSurveyor = false): array
+    private function validatePublicSurvey(Request $request, bool $requireSurveyor = false, ?\App\Models\SiteSurvey $survey = null): array
     {
+        $roomIdExistsRule = $survey !== null
+            ? \Illuminate\Validation\Rule::exists('site_survey_rooms', 'id')
+                ->where('site_survey_id', $survey->id)
+            : 'exists:site_survey_rooms,id';
+
         return $request->validate([
             'survey_date'                           => ['nullable', 'date'],
             'surveyor_name'                         => $requireSurveyor
@@ -752,7 +765,7 @@ class PublicSurveyController extends Controller
             'delivery_routes'                       => ['nullable', 'string', 'max:3000'],
             // Rooms
             'rooms'                                 => ['nullable', 'array'],
-            'rooms.*.id'                            => ['required', 'integer', 'exists:site_survey_rooms,id'],
+            'rooms.*.id'                            => ['required', 'integer', $roomIdExistsRule],
             'rooms.*.room_name'                     => ['required', 'string', 'max:150'],
             'rooms.*.room_ref'                      => ['nullable', 'string', 'max:50'],
             'rooms.*.floor'                         => ['nullable', 'string', 'max:50'],

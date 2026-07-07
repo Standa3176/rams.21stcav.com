@@ -217,11 +217,19 @@ class PublicWorksheetController extends Controller
 
         // 260504-iy4 — H4: namespaced JSON shape. survey_review.{room} = {reviewed_at, reviewed_by}.
         // room_complete is a sibling namespace handled by markRoomComplete (see Task 2).
+        //
+        // Audit M-06 (2026-07): reviewed_by used to be substr($token, 0, 8) —
+        // 32 bits of a URL-bearing auth secret leaked into a persisted audit
+        // log. Replaced with the request IP + an SHA-256 hash of the token
+        // for actor correlation without leaking the token itself. The hash
+        // lets a DB reader confirm "same actor signed both rooms" without
+        // exposing bytes an attacker could use to guess the URL.
         $confirmations = (array) ($worksheet->pre_install_confirmations ?? []);
         $now = now();
         $confirmations['survey_review'][$roomName] = [
             'reviewed_at' => $now->toIso8601String(),
-            'reviewed_by' => substr($token, 0, 8),
+            'reviewed_by' => 'ip:' . ($request->ip() ?: 'unknown')
+                            . '|actor:' . substr(hash('sha256', $token), 0, 12),
         ];
         $worksheet->pre_install_confirmations = $confirmations;
         $worksheet->save();
@@ -264,11 +272,15 @@ class PublicWorksheetController extends Controller
             abort(422, 'Unknown room name.');
         }
 
+        // Audit M-06 (2026-07): see markSurveyReviewed above for rationale.
+        // completed_by carries IP + SHA-256 hash prefix of the token instead
+        // of the token itself — actor correlation without the leak.
         $confirmations = (array) ($worksheet->pre_install_confirmations ?? []);
         $now = now();
         $confirmations['room_complete'][$roomName] = [
             'completed_at' => $now->toIso8601String(),
-            'completed_by' => substr($token, 0, 8),
+            'completed_by' => 'ip:' . ($request->ip() ?: 'unknown')
+                              . '|actor:' . substr(hash('sha256', $token), 0, 12),
         ];
         $worksheet->pre_install_confirmations = $confirmations;
         $worksheet->save();

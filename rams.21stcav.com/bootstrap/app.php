@@ -25,6 +25,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
         ]);
+
+        // ── Security headers (audit M-02) ─────────────────────────────────────
+        // Attach hardening headers to every web response so the app self-
+        // defends regardless of webserver config. See the middleware class
+        // for the specific headers set + rationale per header.
+        $middleware->web(append: [
+            \App\Http\Middleware\SetSecurityHeaders::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

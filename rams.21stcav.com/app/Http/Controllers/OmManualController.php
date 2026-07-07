@@ -922,9 +922,17 @@ class OmManualController extends Controller
             return back()->with('error', 'Document file not found on disk.');
         }
 
+        // Audit M-08 — draft-mode DOCX gets a filename prefix. The DOCX body
+        // itself has no watermark (PhpWord shape-in-header would need a rebuild
+        // of the templating layer) — the filename prefix + the O&M edit UI's
+        // "draft mode" banner are the belt-and-braces surfacing for now.
+        $downloadFilename = ! empty($omManual->extracted_data['_draft_mode'])
+            ? 'DRAFT-' . $omManual->filename
+            : $omManual->filename;
+
         return response()->download(
             $filePath,
-            $omManual->filename,
+            $downloadFilename,
             ['Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
         );
     }
@@ -946,6 +954,13 @@ class OmManualController extends Controller
         }
 
         $filename = pathinfo($omManual->filename ?? 'om-manual', PATHINFO_FILENAME) . '.pdf';
+
+        // Audit M-08 — draft-mode PDFs get a filename prefix so a downloaded
+        // copy sat in a client's inbox reads as work-in-progress at a glance,
+        // matching the diagonal watermark rendered inside the PDF body.
+        if (! empty($omManual->extracted_data['_draft_mode'])) {
+            $filename = 'DRAFT-' . $filename;
+        }
 
         return response()->download($pdfPath, $filename, [
             'Content-Type' => 'application/pdf',

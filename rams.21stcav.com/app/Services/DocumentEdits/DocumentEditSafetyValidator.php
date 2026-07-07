@@ -29,13 +29,25 @@ class DocumentEditSafetyValidator
     /**
      * Tokens that must not appear as substrings inside a string VALUE.
      * Restricted to clearly-dangerous tokens to avoid false positives.
+     *
+     * This is defence-in-depth — the real gate is the per-document-type
+     * adapter allow-list that constrains which JSON keys can be written.
+     * The denylist is kept for symmetry with the audit expectation and
+     * to catch a badly-configured adapter regression before it lands.
+     *
+     * M-01 (2026-07): extended to cover assert() / include / require and
+     * a handful of eval-adjacent PHP primitives the original list missed.
      */
     private const DENIED_VALUE_SUBSTRINGS = [
-        '<?php', '<?=',           // raw PHP tags
-        'system(', 'exec(',        // PHP shell calls
-        'passthru(', 'proc_open(', // PHP shell calls
-        'eval(',                   // dynamic code
-        '__halt_compiler',         // stop-compilation marker
+        '<?php', '<?=',                   // raw PHP tags
+        'system(', 'exec(',                // PHP shell calls
+        'passthru(', 'proc_open(',         // PHP shell calls
+        'shell_exec(', 'popen(',           // PHP shell calls (missed by v1)
+        'eval(', 'assert(',                // dynamic code
+        'create_function(',                // legacy dynamic function creator
+        'include(', 'include_once(',       // remote file include primitives
+        'require(', 'require_once(',       // remote file include primitives
+        '__halt_compiler',                 // stop-compilation marker
     ];
 
     /** Max serialized operations_json size (bytes). */
