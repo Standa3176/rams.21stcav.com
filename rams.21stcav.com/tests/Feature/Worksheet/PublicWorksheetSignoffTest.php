@@ -179,6 +179,7 @@ class PublicWorksheetSignoffTest extends TestCase
         $response = $this->post(route('public-worksheet.sign', ['token' => $w->access_token]), [
             'client_name'          => 'Charlie Client',
             'signature_image'      => 'data:image/png;base64,' . $b64,
+            'happy_with_work'      => '1',
             'signed_with_comments' => '0',
             'comments'             => null,
         ]);
@@ -244,6 +245,7 @@ class PublicWorksheetSignoffTest extends TestCase
         $this->post(route('public-worksheet.sign', ['token' => $w->access_token]), [
             'client_name'     => 'Sig One',
             'signature_image' => 'data:image/png;base64,' . $b64,
+            'happy_with_work' => '1',
         ]);
 
         $this->post(route('public-worksheet.sign', ['token' => $w->access_token]), [
@@ -285,7 +287,7 @@ class PublicWorksheetSignoffTest extends TestCase
         $response = $this->get(route('worksheets.show', $w));
         $response->assertOk();
         $response->assertSee('/worksheet/' . $w->access_token, false);
-        $response->assertSee('Client Sign-Off Link', false);
+        $response->assertSee('Client sign-off link', false);
     }
 
     // ── Task 3 — DOCX signature embed ────────────────────────────────────────
