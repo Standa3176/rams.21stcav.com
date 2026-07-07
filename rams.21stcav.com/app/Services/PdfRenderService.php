@@ -69,6 +69,14 @@ class PdfRenderService
             );
         }
 
+        // Pre-flight the puppeteer dependency BEFORE invoking Browsershot so we
+        // give operators an actionable message instead of a 4KB Node stack
+        // trace pasted into the flash message. Browsershot's browser.cjs
+        // does `require('puppeteer')` — if node_modules/puppeteer is absent
+        // (the classic "post-deploy forgot npm install" case) Chromium never
+        // starts and the exception surfaces as "Cannot find module 'puppeteer'".
+        self::assertPuppeteerInstalled();
+
         $html = view($view, $data)->render();
 
         $marginTop = $options['marginTop'] ?? 10;
@@ -170,6 +178,9 @@ class PdfRenderService
             );
         }
 
+        // Same pre-flight as fromBlade() — the PNG path also hits Chromium.
+        self::assertPuppeteerInstalled();
+
         $html = view($view, $data)->render();
         $widthPx = (int) ($options['widthPx'] ?? 1920);
         $heightPx = (int) ($options['heightPx'] ?? intval($widthPx * 0.707));
@@ -208,5 +219,41 @@ class PdfRenderService
 
         // Raw PNG bytes — Browsershot::screenshot() returns binary PNG.
         return $shot->screenshot();
+    }
+
+    /**
+     * Verify node_modules/puppeteer is installed before invoking Browsershot.
+     *
+     * Browsershot's bin/browser.cjs script literally does `require('puppeteer')`,
+     * so if the package isn't in node_modules the shell command exits 1 with a
+     * "MODULE_NOT_FOUND" trace. We surface a friendlier operator-facing message
+     * pointing at the actual fix — running `npm install` in the project root.
+     *
+     * The check is a fast filesystem stat, negligible overhead compared to the
+     * Chromium spawn that follows. Skips silently in tests so unit test suites
+     * that never actually spawn Chromium (they use fakes / mock the service)
+     * don't need a full node_modules install in the CI worker.
+     *
+     * @throws \RuntimeException When puppeteer's package.json is missing from
+     *                          the resolved node_modules path.
+     */
+    private static function assertPuppeteerInstalled(): void
+    {
+        if (app()->runningUnitTests()) {
+            return;
+        }
+
+        $candidatePath = base_path('node_modules/puppeteer/package.json');
+        if (is_file($candidatePath)) {
+            return;
+        }
+
+        throw new \RuntimeException(
+            'PDF generation is offline: the puppeteer npm module is missing on this server. '
+            . 'Fix: SSH to the server and run `cd ' . base_path() . ' && npm install --omit=dev` '
+            . '(as the app user). This installs the JavaScript client Browsershot uses to drive '
+            . 'the headless Chromium binary at $CHROME_PATH. Retry the download once npm install '
+            . 'finishes. See docs: package.json declares puppeteer as a runtime dependency.'
+        );
     }
 }
