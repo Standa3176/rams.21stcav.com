@@ -44,6 +44,61 @@
         </p>
     </div>
 
+    {{-- ══════════════════════════════════════════════════════════════════════
+         Bulk CSV workflow — download a pre-populated template, complete it in
+         Excel / Sheets / Numbers, upload it back. Rows are matched by
+         `device_id` (already in the template) so users can't accidentally
+         create duplicates or overwrite the wrong device.
+         ══════════════════════════════════════════════════════════════════════ --}}
+    @if ($manual->project_id && $devices->isNotEmpty())
+        <div class="card" style="padding:1.1rem 1.25rem; margin-bottom:1.25rem; background: linear-gradient(180deg, #FBF8EF 0%, #FFFFFF 100%); border: 1px solid #E4DDCB;">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:.7rem;">
+                <h2 style="font-size:1rem;font-weight:700;margin:0;color:#0F3E36;">📄 Bulk import from CSV</h2>
+                <span style="font-size:.75rem;color:var(--text-muted);">
+                    {{ $devices->count() }} device {{ Str::plural('row', $devices->count()) }} available
+                </span>
+            </div>
+            <p style="margin:0 0 .9rem;font-size:.85rem;color:#4A4F4C;line-height:1.5;">
+                Download the pre-populated CSV, fill in serial numbers / IPs / VLANs / etc. in your spreadsheet,
+                then upload it back. Rows are matched by internal <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.78rem;">device_id</span>
+                — leave that column alone and any unknown IDs are silently skipped.
+            </p>
+
+            <div style="display:flex;gap:1.5rem;align-items:flex-end;flex-wrap:wrap;">
+                {{-- Template download --}}
+                <div>
+                    <div style="font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:.35rem;">
+                        Step 1 — download template
+                    </div>
+                    <a href="{{ route('om-manuals.devices.csv-template', $manual) }}" class="btn btn-outline btn-sm">
+                        ↓ Download CSV template
+                    </a>
+                    <div style="font-size:.7rem;color:var(--text-muted);margin-top:.3rem;">
+                        Includes every device on this project · pre-filled reference columns.
+                    </div>
+                </div>
+
+                {{-- Upload form --}}
+                <form method="POST" action="{{ route('om-manuals.devices.import-csv', $manual) }}"
+                      enctype="multipart/form-data"
+                      style="display:flex;flex-direction:column;gap:.3rem;">
+                    @csrf
+                    <div style="font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:.05rem;">
+                        Step 2 — upload completed CSV
+                    </div>
+                    <div style="display:flex;gap:.5rem;align-items:center;">
+                        <input type="file" name="asset_csv" accept=".csv,.txt" required
+                               style="font-size:.82rem;">
+                        <button type="submit" class="btn btn-teal btn-sm">↑ Import</button>
+                    </div>
+                    <div style="font-size:.7rem;color:var(--text-muted);">
+                        Excel &gt; File &gt; Save as &gt; CSV UTF-8 also works. Max 2 MB.
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
+
     @if ($devices->isEmpty())
         <div class="card" style="padding:1.5rem; text-align:center; color:#888;">
             No device rows yet for this project. Generate the O&amp;M Manual once

@@ -651,6 +651,235 @@ class OmManualController extends Controller
         return $s === '' ? null : $s;
     }
 
+    // ── Asset register CSV workflow ─────────────────────────────────────────
+
+    /**
+     * The fields users are expected to fill in on the CSV template. Ordered
+     * for readability in a spreadsheet. Kept as a constant so the download
+     * and the import share the exact same column set.
+     */
+    private const ASSET_CSV_HEADERS = [
+        'device_id',            // read-only — matching key on import
+        'room_name',            // read-only — helps the user find the row
+        'part_no',              // read-only
+        'description',          // read-only
+        'manufacturer',         // read-only
+        'serial_number',        // FILL IN
+        'mac_address',          // FILL IN
+        'ip_address',           // FILL IN
+        'vlan',                 // FILL IN
+        'port',                 // FILL IN
+        'firmware_version',     // FILL IN
+        'asset_tag',            // FILL IN
+        'commissioning_date',   // FILL IN — YYYY-MM-DD
+        'warranty_expiry',      // FILL IN — YYYY-MM-DD
+    ];
+
+    /**
+     * Which columns the import actually writes back. Everything else on the
+     * incoming CSV is treated as read-only reference and ignored, so a user
+     * editing part_no or description in the template doesn't accidentally
+     * mutate the source records.
+     */
+    private const ASSET_CSV_FILLABLE = [
+        'serial_number',
+        'mac_address',
+        'ip_address',
+        'vlan',
+        'port',
+        'firmware_version',
+        'asset_tag',
+        'commissioning_date',
+        'warranty_expiry',
+    ];
+
+    /**
+     * Download a CSV pre-populated with the project's current devices — one
+     * row per device, identifier columns filled, fillable asset columns
+     * left blank (unless already populated on the record). Filename encodes
+     * the project ref so a support conversation can identify which template
+     * was used.
+     */
+    public function downloadAssetTemplate(OmManual $omManual): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $this->authorize('update', $omManual);
+
+        if ($omManual->project_id === null) {
+            abort(400, 'This O&M Manual is not linked to a project — asset templates can only be generated for project-linked manuals.');
+        }
+
+        $devices = $omManual->project?->devices()
+            ->orderBy('room_name')
+            ->orderBy('description')
+            ->orderBy('id')
+            ->get() ?? collect();
+
+        $refSlug = str($omManual->project_ref ?? 'asset-register')->slug()->toString();
+        $fname   = "asset-register-{$refSlug}-template.csv";
+
+        return response()->streamDownload(function () use ($devices) {
+            $out = fopen('php://output', 'w');
+
+            // UTF-8 BOM so Excel (Windows) picks up encoding correctly.
+            fwrite($out, "\xEF\xBB\xBF");
+
+            fputcsv($out, self::ASSET_CSV_HEADERS);
+
+            foreach ($devices as $device) {
+                fputcsv($out, [
+                    (string) $device->id,
+                    (string) ($device->room_name       ?? ''),
+                    (string) ($device->part_no         ?? ''),
+                    (string) ($device->description     ?? ''),
+                    (string) ($device->manufacturer    ?? ''),
+                    (string) ($device->serial_number    ?? ''),
+                    (string) ($device->mac_address      ?? ''),
+                    (string) ($device->ip_address       ?? ''),
+                    (string) ($device->vlan             ?? ''),
+                    (string) ($device->port             ?? ''),
+                    (string) ($device->firmware_version ?? ''),
+                    (string) ($device->asset_tag        ?? ''),
+                    optional($device->commissioning_date)->format('Y-m-d') ?? '',
+                    optional($device->warranty_expiry)->format('Y-m-d')    ?? '',
+                ]);
+            }
+
+            fclose($out);
+        }, $fname, [
+            'Content-Type'        => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $fname . '"',
+        ]);
+    }
+
+    /**
+     * Import a CSV that was downloaded from downloadAssetTemplate(), edited
+     * by the user, and re-uploaded. Rows are matched by `device_id` —
+     * unknown IDs and IDs belonging to other projects are skipped
+     * (defence-in-depth against tampered spreadsheets).
+     *
+     * Only the columns listed in ASSET_CSV_FILLABLE are written back. A row
+     * with all fillable cells blank is skipped rather than clearing every
+     * asset field on that device — protects an "I only meant to update the
+     * Crestron rows" flow from wiping the others.
+     */
+    public function importAssetsCsv(Request $request, OmManual $omManual): RedirectResponse
+    {
+        $this->authorize('update', $omManual);
+
+        if ($omManual->project_id === null) {
+            return back()->with('error', 'This O&M Manual is not linked to a project — CSV import needs a project link.');
+        }
+
+        $request->validate([
+            'asset_csv' => ['required', 'file', 'mimes:csv,txt', 'max:2048'],
+        ]);
+
+        $path = $request->file('asset_csv')->getRealPath();
+        $fh   = fopen($path, 'r');
+        if ($fh === false) {
+            return back()->with('error', 'Could not read the uploaded CSV — try re-exporting from your spreadsheet.');
+        }
+
+        // Strip the optional UTF-8 BOM so Excel-saved files still parse.
+        $peek = fread($fh, 3);
+        if ($peek !== "\xEF\xBB\xBF") {
+            rewind($fh);
+        }
+
+        $header = fgetcsv($fh);
+        if ($header === false || $header === null) {
+            fclose($fh);
+            return back()->with('error', 'The uploaded CSV is empty. Download a fresh template and try again.');
+        }
+
+        // Normalise header cells to lower-case keys so a "Serial Number" header
+        // still matches our expected "serial_number" column.
+        $header = array_map(
+            fn ($h) => strtolower(trim(str_replace(' ', '_', (string) $h))),
+            $header
+        );
+
+        $idxOf = fn (string $key): ?int => (($p = array_search($key, $header, true)) === false ? null : $p);
+
+        $idxDeviceId = $idxOf('device_id');
+        if ($idxDeviceId === null) {
+            fclose($fh);
+            return back()->with('error', 'Missing required "device_id" column. Use the "Download template" button to get a fresh CSV with the right columns.');
+        }
+
+        $fillableIdx = [];
+        foreach (self::ASSET_CSV_FILLABLE as $col) {
+            $fillableIdx[$col] = $idxOf($col);
+        }
+
+        $updated  = 0;
+        $skipped  = 0;
+        $rowNum   = 1;   // Header was row 1.
+
+        while (($row = fgetcsv($fh)) !== false) {
+            $rowNum++;
+            $rawId = trim((string) ($row[$idxDeviceId] ?? ''));
+            if ($rawId === '') {
+                $skipped++;
+                continue;
+            }
+
+            $device = Device::where('project_id', $omManual->project_id)
+                ->whereKey((int) $rawId)
+                ->first();
+            if ($device === null) {
+                $skipped++;
+                continue;
+            }
+
+            $attrs = [];
+            $anyValue = false;
+            foreach (self::ASSET_CSV_FILLABLE as $col) {
+                $idx = $fillableIdx[$col];
+                if ($idx === null) {
+                    continue;
+                }
+                $value = trim((string) ($row[$idx] ?? ''));
+                if ($value === '') {
+                    continue;
+                }
+                $anyValue = true;
+
+                // Date columns tolerate both YYYY-MM-DD and dd/mm/yyyy — Excel
+                // frequently reformats on save.
+                if (in_array($col, ['commissioning_date', 'warranty_expiry'], true)) {
+                    try {
+                        $attrs[$col] = \Illuminate\Support\Carbon::parse($value)->toDateString();
+                    } catch (\Throwable) {
+                        // Skip bad date, keep other cells on the row.
+                    }
+                    continue;
+                }
+
+                $attrs[$col] = $value;
+            }
+
+            if (! $anyValue) {
+                $skipped++;
+                continue;
+            }
+
+            $device->fill($attrs)->save();
+            $updated++;
+        }
+
+        fclose($fh);
+
+        $msg = "Imported {$updated} device row(s).";
+        if ($skipped > 0) {
+            $msg .= " Skipped {$skipped} row(s) (blank, unknown device_id, or from a different project).";
+        }
+
+        return redirect()
+            ->route('om-manuals.edit-devices', $omManual)
+            ->with('success', $msg);
+    }
+
     // ── generate (Pass 2) ─────────────────────────────────────────────────────
 
     public function generate(OmManual $omManual): RedirectResponse
