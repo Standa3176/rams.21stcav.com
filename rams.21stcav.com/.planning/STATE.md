@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
-status: paused_tier1_complete
-stopped_at: Tier-1 UX sweep complete on 2026-07-06 — all 5 screens shipped v1, live-confirmed
-last_updated: "2026-07-06T18:00:00.000Z"
-last_activity: 2026-07-06 -- session-tier1-complete tag pushed. Screens 04/03/05/02/01 all shipped and live-confirmed. v2.0 milestone remains paused at Phase 23 sub-plan 1.
+status: paused_tier1_v2_complete
+stopped_at: Tier-1 UX v2 polish sweep complete on 2026-07-07 — all 5 screens shipped v2, live-review polished
+last_updated: "2026-07-07T18:00:00.000Z"
+last_activity: 2026-07-07 -- session-tier1-v2-complete tag pushed. Post-live-review polish shipped across all 5 screens: AI-only accordion (04), hint dedup + empty-cat collapse (03), row action collapse (01), meta strip merge (05), rooms collapsed default + coral chips (02).
 progress:
   total_phases: 2
   completed_phases: 2
