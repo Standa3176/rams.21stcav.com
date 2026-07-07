@@ -227,6 +227,69 @@
     }
     .om-eq-tbl .del:hover { color: #c0392b; background: #F1D9D2; }
 
+    /* Undo-toast strip (v2c). Sits directly under the equipment table
+       so it stays in-flow rather than floating over the page. One row per
+       deletion; each has a 6-second auto-dismiss timer. */
+    .om-undo-strip {
+        margin-top: .5rem;
+        display: grid;
+        gap: .3rem;
+    }
+    .om-undo-row {
+        display: grid;
+        grid-template-columns: 22px 1fr auto auto;
+        gap: .6rem;
+        align-items: center;
+        background: #F4E7CE;
+        border: 1px solid #E8D5B0;
+        border-radius: 5px;
+        padding: .45rem .7rem;
+        font-size: .8rem;
+        color: #7E5717;
+    }
+    .om-undo-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: rgba(126, 87, 23, .12);
+        color: #7E5717;
+        font-weight: 700;
+        font-size: .85rem;
+    }
+    .om-undo-body strong { color: #5A3E10; font-weight: 700; }
+    .om-undo-hint {
+        opacity: .65;
+        font-size: .72rem;
+        margin-left: .35rem;
+    }
+    .om-undo-btn {
+        background: #7E5717;
+        color: #FBF8EF;
+        border: 0;
+        padding: .3rem .7rem;
+        border-radius: 4px;
+        font-size: .78rem;
+        font-weight: 600;
+        cursor: pointer;
+        letter-spacing: -.005em;
+    }
+    .om-undo-btn:hover { background: #5A3E10; }
+    .om-undo-x {
+        background: transparent;
+        border: 0;
+        color: #7E5717;
+        cursor: pointer;
+        font-size: 1rem;
+        line-height: 1;
+        padding: .2rem .4rem;
+        border-radius: 3px;
+        opacity: .55;
+    }
+    .om-undo-x:hover { opacity: 1; background: rgba(126, 87, 23, .08); }
+
     .om-repeater-add, .om-eq-add {
         background: transparent; border: 1px dashed var(--border); padding: .4rem .8rem;
         border-radius: 4px; font-size: .78rem; color: var(--text-muted);
@@ -1024,12 +1087,48 @@
                                   style="font-size: .85rem; line-height: 1.5; width: 100%;">{{ old("rooms.$i.narrative", $rnarr) }}</textarea>
                         <p class="om-room-narr-note">Regenerating overwrites this with a fresh AI draft — save edits before regenerating if you want to keep them.</p>
                     </div>
-                    <div x-data="{ items: {{ json_encode(array_map(fn($eq) => [
+                    {{-- Undo-toast state (v2c). Alpine holds an `undo` stack — each entry
+                         remembers the removed item + its original index + its timeout id.
+                         Row × calls remove(idx), which splices the row AND stashes the
+                         removal. The undo toast at the bottom re-inserts on click. After
+                         6 seconds the entry is auto-dismissed and the delete becomes final
+                         (on next Save). Wired only for per-room equipment tables since
+                         that's where users most often mis-click. --}}
+                    <div x-data="{
+                        items: {{ json_encode(array_map(fn($eq) => [
                                 'qty'          => (int) ($eq['qty'] ?? $eq['quantity'] ?? 1),
                                 'part_number'  => (string) ($eq['part_number'] ?? $eq['part_no'] ?? ''),
                                 'description'  => (string) ($eq['description'] ?? $eq['name']    ?? $eq['item'] ?? ''),
                                 'manufacturer' => (string) ($eq['manufacturer'] ?? $eq['make']   ?? ''),
-                            ], $rEquipment)) }} }">
+                            ], $rEquipment)) }},
+                        undo: [],
+                        remove(idx) {
+                            const removed = { ...this.items[idx] };
+                            this.items.splice(idx, 1);
+                            const stamp = Date.now() + Math.random();
+                            const timer = setTimeout(() => {
+                                this.undo = this.undo.filter(e => e.stamp !== stamp);
+                            }, 6000);
+                            this.undo.push({ stamp, item: removed, at: idx, timer });
+                        },
+                        restore(stamp) {
+                            const entry = this.undo.find(e => e.stamp === stamp);
+                            if (!entry) return;
+                            clearTimeout(entry.timer);
+                            const target = Math.min(entry.at, this.items.length);
+                            this.items.splice(target, 0, entry.item);
+                            this.undo = this.undo.filter(e => e.stamp !== stamp);
+                        },
+                        dismiss(stamp) {
+                            const entry = this.undo.find(e => e.stamp === stamp);
+                            if (!entry) return;
+                            clearTimeout(entry.timer);
+                            this.undo = this.undo.filter(e => e.stamp !== stamp);
+                        },
+                        labelFor(item) {
+                            return item.description || item.part_number || 'equipment row';
+                        }
+                    }">
                         <table class="om-eq-tbl">
                             <thead>
                                 <tr>
@@ -1047,15 +1146,32 @@
                                         <td><input type="text" class="part" data-optional :name="`rooms[{{ $i }}][equipment][${idx}][part_number]`" x-model="item.part_number" placeholder="UC-MMX30-Z" /></td>
                                         <td><input type="text" data-optional :name="`rooms[{{ $i }}][equipment][${idx}][description]`" x-model="item.description" /></td>
                                         <td><input type="text" data-optional :name="`rooms[{{ $i }}][equipment][${idx}][manufacturer]`" x-model="item.manufacturer" placeholder="Crestron" /></td>
-                                        <td><button type="button" class="del" @click="items.splice(idx, 1)" aria-label="Remove">×</button></td>
+                                        <td><button type="button" class="del" @click="remove(idx)" aria-label="Remove">×</button></td>
                                     </tr>
                                 </template>
-                                <tr x-show="items.length === 0">
+                                <tr x-show="items.length === 0 && undo.length === 0">
                                     <td colspan="5" style="text-align: center; color: var(--text-muted); font-style: italic; padding: 1rem;">No equipment yet — add the first row.</td>
                                 </tr>
                             </tbody>
                         </table>
                         <button type="button" class="om-eq-add" @click="items.push({ qty: 1, part_number: '', description: '', manufacturer: '' })">+ Add equipment row</button>
+
+                        {{-- Undo-toast strip. Sits below the equipment table so it doesn't
+                             float over other content. Each removal gets its own row so
+                             quick-fire deletions can all be undone individually. --}}
+                        <div class="om-undo-strip" x-show="undo.length > 0" x-cloak x-transition>
+                            <template x-for="entry in undo" :key="entry.stamp">
+                                <div class="om-undo-row" role="status" aria-live="polite">
+                                    <span class="om-undo-icon" aria-hidden="true">↩</span>
+                                    <span class="om-undo-body">
+                                        Removed <strong x-text="labelFor(entry.item)"></strong>.
+                                        <span class="om-undo-hint">Auto-dismisses in 6s.</span>
+                                    </span>
+                                    <button type="button" class="om-undo-btn" @click="restore(entry.stamp)">Undo</button>
+                                    <button type="button" class="om-undo-x" @click="dismiss(entry.stamp)" aria-label="Dismiss">×</button>
+                                </div>
+                            </template>
+                        </div>
                     </div>
                 </section>
             @endforeach
