@@ -366,23 +366,32 @@
 
 {{-- ============================================================
      2. PROJECT SUMMARY
+
+     Rendered only when there's actual content — a works description
+     OR a signed state to surface. Without either, the section used
+     to render just a header + "Works overview not recorded." + a
+     "Pending sign-off" pill, followed by an empty page (the outer
+     `.page-wrap` block forces a new page). Suppressing the block
+     entirely reclaims that page on freshly-generated documents.
      ============================================================ --}}
+@php
+    $hasWorksDescription = trim($project['works_description']) !== '';
+    $shouldRenderSummary = $hasWorksDescription || $project['is_signed'];
+@endphp
+@if ($shouldRenderSummary)
 <div class="page-wrap">
     <div class="section-title">Works Overview</div>
-    @if (trim($project['works_description']) !== '')
+    @if ($hasWorksDescription)
         <p style="font-size: 10pt; line-height: 1.5; margin-bottom: 8pt;">
             {!! nl2br(e($project['works_description'])) !!}
         </p>
-    @else
-        <p class="asset-empty">Works overview not recorded.</p>
     @endif
 
     @if ($project['is_signed'])
         <p style="margin-top: 6pt;"><span class="pill pill-green">Worksheet signed</span></p>
-    @else
-        <p style="margin-top: 6pt;"><span class="pill pill-amber">Pending sign-off</span></p>
     @endif
 </div>
+@endif
 
 {{-- ============================================================
      3. PER-ROOM PAGES (D-LOCK-3 — all rooms, no skipping)

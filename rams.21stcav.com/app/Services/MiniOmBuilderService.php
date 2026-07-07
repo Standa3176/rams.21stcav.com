@@ -143,13 +143,30 @@ class MiniOmBuilderService
             fn (Worksheet $w) => $w->signoffs->isNotEmpty()
         );
 
+        // Lead engineer — prefer the properly-typed name entered on the
+        // project package's Programme block (where users type "Sonny Tanda")
+        // over the raw account owner name (which is often a login handle
+        // like "sonny"). Same fallback chain the RAMS builder uses
+        // (RamsBuilderService.php: $leName = programme.lead_engineer_name
+        // ?? project.lead_engineer ?? '').
+        $latestPackage = $project->latestPackage
+            ?? $project->packages()->latest('id')->first();
+        $programmeLead = '';
+        if ($latestPackage !== null) {
+            $extracted = is_array($latestPackage->extracted_data)
+                ? $latestPackage->extracted_data
+                : [];
+            $programmeLead = trim((string) ($extracted['programme']['lead_engineer_name'] ?? ''));
+        }
+        $ownerName = trim((string) ($project->owner?->name ?? ''));
+
         return [
             'name'              => (string) ($project->name ?? ''),
             'ref'               => (string) ($project->ref ?? ''),
             'client'            => (string) ($project->client_name ?? ''),
             'site'              => (string) ($project->site_address ?? ''),
             'works_description' => $worksDescription,
-            'lead_engineer'     => (string) ($project->owner?->name ?? ''),
+            'lead_engineer'     => $programmeLead !== '' ? $programmeLead : $ownerName,
             'install_started'   => $project->installation_started_at,
             'handover_date'     => $project->handover_date,
             'is_signed'         => $isSigned,
