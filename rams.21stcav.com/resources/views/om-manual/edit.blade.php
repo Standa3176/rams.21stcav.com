@@ -4,14 +4,41 @@
 
 @push('styles')
 <style>
-    .om-edit-title { font-size: 1.4rem; font-weight: 700; margin: 0; color: var(--text); letter-spacing: -.015em; line-height: 1.2; }
-    .om-edit-title em { font-style: normal; font-weight: 500; color: var(--text-muted); }
-    .om-edit-eyebrow { font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); margin-bottom: .25rem; }
+    /*
+     * O&M edit rail — tier-one polish (2026-07-08).
+     * Was: SCC v2 dark-teal + gold rail chrome with warm-cream fallbacks
+     * that never routed through the palette retune of task 2. Now every
+     * colour flows through the semantic tokens in :root — indigo active
+     * rail with an indigo left-marker, hairline dividers, semantic
+     * status pills. Same layout, tighter tokens.
+     */
+
+    .om-edit-title {
+        font-size: 20px;
+        font-weight: 700;
+        margin: 0;
+        color: var(--ink-900);
+        letter-spacing: -.02em;
+        line-height: 1.2;
+    }
+    .om-edit-title em {
+        font-style: normal;
+        font-weight: 500;
+        color: var(--text-muted);
+    }
+    .om-edit-eyebrow {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: .07em;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+    }
 
     .om-layout {
         display: grid;
         grid-template-columns: 240px 1fr;
-        gap: 1.5rem;
+        gap: 24px;
         max-width: 1200px;
         margin: 0 auto;
         align-items: start;
@@ -25,63 +52,92 @@
         top: 5rem;
         background: var(--surface);
         border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        padding: .5rem;
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-card);
+        padding: 8px;
         max-height: calc(100vh - 6rem);
         overflow-y: auto;
     }
     .om-rail-h {
-        font-size: .62rem;
+        font-size: 10px;
         letter-spacing: .1em;
         text-transform: uppercase;
         color: var(--text-muted);
-        font-weight: 700;
-        padding: .55rem .55rem .25rem;
+        font-weight: 600;
+        padding: 10px 10px 4px;
     }
-    .om-rail-h.first { padding-top: .25rem; }
+    .om-rail-h.first { padding-top: 4px; }
+
     .om-rail-item {
+        position: relative;
         display: flex;
         align-items: center;
-        gap: .45rem;
-        padding: .4rem .55rem;
-        border-radius: 4px;
-        font-size: .78rem;
-        color: var(--text);
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        color: var(--body);
         text-decoration: none;
         font-weight: 500;
-        line-height: 1.3;
+        line-height: 1.35;
+        transition: background 120ms, color 120ms;
     }
-    .om-rail-item:hover { background: var(--bg-muted, #faf7ee); }
+    .om-rail-item:hover {
+        background: color-mix(in oklab, var(--teal-100) 50%, transparent);
+        color: var(--ink-900);
+    }
     .om-rail-item.active {
-        background: var(--accent, #0F3E36);
-        color: #E6B849;
+        background: var(--teal-100);
+        color: var(--teal-700);
         font-weight: 600;
     }
-    .om-rail-item .om-rail-num {
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: .68rem;
-        color: var(--text-muted);
-        font-weight: 700;
-        min-width: 1.5rem;
+    /* 2px indigo left-rail marker on active — same signature as the app
+       sidebar so the pattern is consistent between the global nav and
+       every in-page section nav. */
+    .om-rail-item.active::before {
+        content: "";
+        position: absolute;
+        left: -8px;
+        top: 4px;
+        bottom: 4px;
+        width: 2px;
+        background: var(--teal-700);
+        border-radius: 0 2px 2px 0;
     }
-    .om-rail-item.active .om-rail-num { color: rgba(230,184,73,.7); }
+
+    .om-rail-item .om-rail-num {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--text-muted);
+        font-weight: 600;
+        min-width: 20px;
+        font-variant-numeric: tabular-nums;
+    }
+    .om-rail-item.active .om-rail-num { color: var(--teal-700); }
+
     .om-rail-item .om-rail-status {
         margin-left: auto;
-        font-size: .62rem;
+        font-size: 9px;
         padding: 1px 6px;
-        border-radius: 8px;
-        font-weight: 700;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        border-radius: 999px;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        font-family: inherit;
     }
-    .om-rail-status.done   { background: #DDEBE1; color: #204F3D; }
-    .om-rail-status.tbc    { background: #F4E7CE; color: #7E5717; }
-    .om-rail-status.empty  { background: var(--bg-muted, #EDE7D5); color: var(--text-muted); }
-    .om-rail-status.ai     { background: #E8DEEF; color: #45305A; }
-    .om-rail-status.ext    { background: var(--bg-muted, #EDE7D5); color: var(--text-muted); font-weight: 500; }
-    .om-rail-item.active .om-rail-status  {
-        background: rgba(255,255,255,.15);
-        color: #E6B849;
+    .om-rail-status.done   { background: var(--success-light); color: var(--success); }
+    .om-rail-status.tbc    { background: var(--warning-light); color: #92400E; }
+    .om-rail-status.empty  { background: var(--surface-soft);  color: var(--text-muted);
+                             border: 1px solid var(--border); }
+    .om-rail-status.ai     { background: #F5F3FF;              color: #7C3AED; }
+    .om-rail-status.ext    { background: var(--surface-soft);  color: var(--text-muted);
+                             border: 1px solid var(--border); }
+    .om-rail-item.active .om-rail-status {
+        background: color-mix(in oklab, var(--teal-700) 12%, transparent);
+        color: var(--teal-700);
+        border-color: transparent;
     }
+
     .om-rail-item .om-rail-name {
         min-width: 0;
         overflow: hidden;
@@ -92,92 +148,113 @@
     .om-section {
         background: var(--surface);
         border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        padding: 1.5rem 1.75rem;
-        margin-bottom: 1rem;
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-card);
+        padding: 24px 28px;
+        margin-bottom: 16px;
         scroll-margin-top: 5rem;
     }
     .om-section h2 {
-        font-size: 1.15rem;
+        font-size: 17px;
         font-weight: 700;
-        margin: 0 0 .3rem;
-        color: var(--text);
+        margin: 0 0 4px;
+        color: var(--ink-900);
+        letter-spacing: -.015em;
         display: flex;
         align-items: center;
-        gap: .6rem;
+        gap: 8px;
         flex-wrap: wrap;
     }
     .om-section h2 .num {
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: .78rem;
+        font-family: var(--font-mono);
+        font-size: 12px;
         color: var(--text-muted);
-        font-weight: 700;
-        margin-right: .35rem;
+        font-weight: 600;
+        margin-right: 4px;
+        font-variant-numeric: tabular-nums;
     }
     .om-badge {
-        font-size: .58rem;
-        letter-spacing: .08em;
+        font-size: 10px;
+        letter-spacing: .06em;
         text-transform: uppercase;
         padding: 2px 8px;
-        border-radius: 10px;
-        font-weight: 700;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        border-radius: 999px;
+        font-weight: 600;
+        border: 1px solid transparent;
     }
-    .om-badge.ai     { background: #E8DEEF; color: #45305A; }
-    .om-badge.done   { background: #DDEBE1; color: #204F3D; }
-    .om-badge.tbc    { background: #F4E7CE; color: #7E5717; }
-    .om-badge.edited { background: #FBF8EF; color: var(--text-muted); border: 1px solid var(--border); }
-    .om-badge.gen    { background: #E8DEEF; color: #45305A; }
-    .om-badge.ext    { background: var(--bg-muted, #EDE7D5); color: var(--text-muted); }
+    .om-badge.ai     { background: #F5F3FF;              color: #7C3AED;
+                       border-color: color-mix(in oklab, #8B5CF6 25%, transparent); }
+    .om-badge.done   { background: var(--success-light); color: var(--success);
+                       border-color: color-mix(in oklab, var(--success) 30%, transparent); }
+    .om-badge.tbc    { background: var(--warning-light); color: #92400E;
+                       border-color: color-mix(in oklab, var(--warning) 30%, transparent); }
+    .om-badge.edited { background: var(--surface-soft);  color: var(--text-muted);
+                       border-color: var(--border); }
+    .om-badge.gen    { background: #F5F3FF;              color: #7C3AED;
+                       border-color: color-mix(in oklab, #8B5CF6 25%, transparent); }
+    .om-badge.ext    { background: var(--surface-soft);  color: var(--text-muted);
+                       border-color: var(--border); }
     .om-section p.desc {
         color: var(--text-muted);
-        font-size: .82rem;
+        font-size: 13px;
         line-height: 1.5;
-        margin: 0 0 1rem;
+        margin: 0 0 16px;
     }
 
     .om-meta-strip {
         display: flex;
-        gap: 1.25rem;
-        padding: .8rem 1rem;
+        gap: 20px;
+        padding: 12px 16px;
         background: var(--surface);
         border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        margin-bottom: 1rem;
-        font-size: .85rem;
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-card);
+        margin-bottom: 16px;
+        font-size: 13px;
         flex-wrap: wrap;
     }
-    .om-meta-strip strong { color: var(--text-muted); font-weight: 600; margin-right: .3rem; }
+    .om-meta-strip strong {
+        color: var(--muted);
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        font-size: 10px;
+        margin-right: 4px;
+    }
 
     .om-room {
         background: var(--surface);
         border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        padding: 1.25rem 1.5rem;
-        margin-bottom: 1rem;
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-card);
+        padding: 20px 24px;
+        margin-bottom: 16px;
         scroll-margin-top: 5rem;
     }
     .om-room-h {
         display: flex;
         align-items: center;
-        gap: .75rem;
-        margin-bottom: .75rem;
+        gap: 12px;
+        margin-bottom: 12px;
     }
     .om-room-h .om-room-num {
         width: 28px; height: 28px;
-        background: var(--bg-muted, #EDE7D5);
-        color: var(--text);
-        border-radius: 5px;
+        background: var(--teal-100);
+        color: var(--teal-700);
+        border-radius: 6px;
         display: flex; align-items: center; justify-content: center;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-family: var(--font-mono);
         font-weight: 700;
-        font-size: .78rem;
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
     }
     .om-room-h .om-room-title {
-        font-size: 1.02rem;
+        font-size: 16px;
         font-weight: 700;
         margin: 0;
         flex: 1;
+        letter-spacing: -.01em;
+        color: var(--ink-900);
     }
     .om-room-fields {
         display: grid;
@@ -199,53 +276,82 @@
         margin-top: .3rem;
     }
 
-    .om-eq-tbl { width: 100%; border-collapse: collapse; font-size: .82rem; }
+    .om-eq-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
     .om-eq-tbl th {
-        text-align: left; font-size: .65rem; text-transform: uppercase; letter-spacing: .08em;
-        color: var(--text-muted); font-weight: 700; padding: .35rem .5rem;
-        background: var(--bg-muted, #FBF8EF); border-bottom: 1px solid var(--border);
+        text-align: left;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        color: var(--text-muted);
+        font-weight: 600;
+        padding: 8px 10px;
+        background: var(--surface-soft);
+        border-bottom: 1px solid var(--border);
     }
-    .om-eq-tbl td { padding: .35rem .5rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .om-eq-tbl td {
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--rule);
+        vertical-align: middle;
+    }
+    .om-eq-tbl tbody tr:last-child td { border-bottom: none; }
     .om-eq-tbl input, .om-eq-tbl textarea {
-        width: 100%; border: 1px solid transparent; background: transparent;
-        padding: .3rem .4rem; border-radius: 3px; font-size: .82rem;
-        font-family: inherit; color: var(--text);
+        width: 100%;
+        border: 1px solid transparent;
+        background: transparent;
+        padding: 4px 6px;
+        border-radius: 4px;
+        font-size: 13px;
+        font-family: inherit;
+        color: var(--ink-900);
     }
     .om-eq-tbl input:focus, .om-eq-tbl textarea:focus {
-        background: white; border-color: var(--border); outline: none;
+        background: var(--surface);
+        border-color: var(--teal-500);
+        outline: none;
+        box-shadow: var(--shadow-focus);
     }
     .om-eq-tbl input.qty {
-        width: 3.5rem; text-align: center;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700;
+        width: 56px;
+        text-align: center;
+        font-family: var(--font-mono);
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
     }
     .om-eq-tbl input.part {
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem;
+        font-family: var(--font-mono);
+        font-size: 12px;
     }
     .om-eq-tbl .del {
-        background: transparent; border: 0; color: var(--text-muted);
-        cursor: pointer; padding: .3rem .5rem; border-radius: 3px; font-size: .9rem;
+        background: transparent;
+        border: 0;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 14px;
+        transition: color 120ms, background 120ms;
     }
-    .om-eq-tbl .del:hover { color: #c0392b; background: #F1D9D2; }
+    .om-eq-tbl .del:hover { color: var(--danger); background: var(--danger-light); }
 
-    /* Undo-toast strip (v2c). Sits directly under the equipment table
-       so it stays in-flow rather than floating over the page. One row per
-       deletion; each has a 6-second auto-dismiss timer. */
+    /* Undo-toast strip — retuned from warm cream to amber tokens so the
+       "row deleted, click to restore" callout reads as a soft warning
+       rather than SCC v2 mustard. */
     .om-undo-strip {
-        margin-top: .5rem;
+        margin-top: 8px;
         display: grid;
-        gap: .3rem;
+        gap: 4px;
     }
     .om-undo-row {
         display: grid;
         grid-template-columns: 22px 1fr auto auto;
-        gap: .6rem;
+        gap: 10px;
         align-items: center;
-        background: #F4E7CE;
-        border: 1px solid #E8D5B0;
-        border-radius: 5px;
-        padding: .45rem .7rem;
-        font-size: .8rem;
-        color: #7E5717;
+        background: var(--warning-light);
+        border: 1px solid color-mix(in oklab, var(--warning) 30%, transparent);
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 12px;
+        color: #78350F;
     }
     .om-undo-icon {
         display: inline-flex;
@@ -254,67 +360,83 @@
         width: 22px;
         height: 22px;
         border-radius: 50%;
-        background: rgba(126, 87, 23, .12);
-        color: #7E5717;
+        background: color-mix(in oklab, var(--warning) 18%, transparent);
+        color: #78350F;
         font-weight: 700;
-        font-size: .85rem;
+        font-size: 13px;
     }
-    .om-undo-body strong { color: #5A3E10; font-weight: 700; }
+    .om-undo-body strong { color: #78350F; font-weight: 600; }
     .om-undo-hint {
-        opacity: .65;
-        font-size: .72rem;
-        margin-left: .35rem;
+        opacity: .70;
+        font-size: 11px;
+        margin-left: 4px;
     }
     .om-undo-btn {
-        background: #7E5717;
-        color: #FBF8EF;
+        background: var(--warning);
+        color: #fff;
         border: 0;
-        padding: .3rem .7rem;
+        padding: 4px 10px;
         border-radius: 4px;
-        font-size: .78rem;
+        font-family: inherit;
+        font-size: 12px;
         font-weight: 600;
         cursor: pointer;
         letter-spacing: -.005em;
+        transition: background 120ms;
     }
-    .om-undo-btn:hover { background: #5A3E10; }
+    .om-undo-btn:hover { background: #B45309; }
     .om-undo-x {
         background: transparent;
         border: 0;
-        color: #7E5717;
+        color: #78350F;
         cursor: pointer;
-        font-size: 1rem;
+        font-size: 16px;
         line-height: 1;
-        padding: .2rem .4rem;
-        border-radius: 3px;
+        padding: 3px 6px;
+        border-radius: 4px;
         opacity: .55;
+        transition: opacity 120ms, background 120ms;
     }
-    .om-undo-x:hover { opacity: 1; background: rgba(126, 87, 23, .08); }
+    .om-undo-x:hover { opacity: 1; background: color-mix(in oklab, var(--warning) 12%, transparent); }
 
     .om-repeater-add, .om-eq-add {
-        background: transparent; border: 1px dashed var(--border); padding: .4rem .8rem;
-        border-radius: 4px; font-size: .78rem; color: var(--text-muted);
-        cursor: pointer; margin-top: .5rem; font-weight: 500;
+        background: transparent;
+        border: 1px dashed var(--border-strong);
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-family: inherit;
+        font-size: 12px;
+        color: var(--text-muted);
+        cursor: pointer;
+        margin-top: 8px;
+        font-weight: 500;
+        transition: border-color 120ms, color 120ms, background 120ms;
     }
     .om-repeater-add:hover, .om-eq-add:hover {
-        border-color: var(--accent, #0F3E36); color: var(--accent, #0F3E36);
+        border-color: var(--teal-500);
+        color: var(--teal-700);
+        background: color-mix(in oklab, var(--teal-100) 40%, transparent);
     }
 
     .om-info-card {
         display: grid;
         grid-template-columns: 32px 1fr auto;
-        gap: 1rem;
+        gap: 12px;
         align-items: center;
-        padding: .9rem 1rem;
+        padding: 12px 16px;
         border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        background: var(--bg-muted, #FBF8EF);
-        font-size: .85rem;
-        margin-top: .5rem;
+        border-radius: var(--radius-lg);
+        background: var(--surface-soft);
+        font-size: 13px;
+        margin-top: 8px;
     }
     .om-info-card .kind {
-        width: 32px; height: 32px; border-radius: 4px;
-        background: white; display: flex; align-items: center; justify-content: center;
-        font-size: 1rem; border: 1px solid var(--border);
+        width: 32px; height: 32px;
+        border-radius: 6px;
+        background: var(--surface);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 15px;
+        border: 1px solid var(--border);
     }
     .om-info-card .body { min-width: 0; }
     .om-info-card .body .t { font-weight: 600; color: var(--text); }

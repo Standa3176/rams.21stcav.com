@@ -4,147 +4,234 @@
 
 @push('styles')
 <style>
-/* ── RAMS review page — clean modern dashboard ─────────────────── */
+/*
+ * RAMS review page — tier-one polish (PLAN 260708-b7i follow-up).
+ * Every hardcoded hex retuned to a semantic token so the palette can
+ * shift once from layouts/app.blade.php :root and this screen follows.
+ * Status pills, diff treatments and tab count pills brought in line
+ * with the tier-one preview conventions used on dashboard + project
+ * detail.
+ */
+
+/* ── Hero ────────────────────────────────────────────────────────── */
 .rams-hero {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    padding: 1.1rem 1.25rem;
-    margin-bottom: 1rem;
+    padding: 16px 20px;
+    margin-bottom: 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 1rem;
+    gap: 16px;
+    box-shadow: var(--shadow-card);
 }
-.rams-hero-title { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
+.rams-hero-title { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .rams-hero-title h1 {
-    font-size: 1.4rem; margin: 0;
-    color: var(--text);
-    letter-spacing: -.015em;
+    font-size: 20px;
+    margin: 0;
+    color: var(--ink-900);
+    letter-spacing: -.02em;
     font-weight: 700;
     line-height: 1.2;
 }
 .rams-hero-meta {
-    font-size: .8rem; color: var(--text-muted);
-    display: flex; gap: .75rem; flex-wrap: wrap; margin-top: .25rem;
+    font-size: 12px;
+    color: var(--text-muted);
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 2px;
 }
-.rams-hero-meta strong { color: var(--text); font-weight: 600; }
-.rams-hero-actions { display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; }
+.rams-hero-meta strong {
+    color: var(--muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    font-size: 10px;
+    margin-right: 3px;
+}
+.rams-hero-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 
-/* Status pill */
+/* ── Status pill — tier-one badge shape (hairline + dot + tinted bg) ── */
 .status-pill {
-    display: inline-flex; align-items: center; gap: .35rem;
-    padding: .2rem .65rem; border-radius: 999px;
-    font-size: .7rem; font-weight: 600;
-    text-transform: uppercase; letter-spacing: .04em;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    border: 1px solid transparent;
+    text-transform: none;
 }
-.status-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; }
-.status-pill--completed { background: var(--success-light); color: #166534; }
-.status-pill--completed::before { background: var(--success); }
-.status-pill--approved  { background: #DBEAFE; color: #1E3A8A; }
-.status-pill--approved::before  { background: #2563EB; }
-.status-pill--awaiting  { background: var(--warning-light); color: #92400E; }
-.status-pill--awaiting::before  { background: var(--warning); }
-.status-pill--generating{ background: #EDE9FE; color: #5B21B6; }
-.status-pill--generating::before{ background: #7C3AED; }
-.status-pill--failed    { background: var(--danger-light); color: #991B1B; }
-.status-pill--failed::before    { background: var(--danger); }
-.status-pill--uploaded  { background: var(--bg-deep); color: var(--text-muted); }
-.status-pill--uploaded::before  { background: var(--text-muted); }
+.status-pill::before {
+    content: "";
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+}
+.status-pill--completed { background: var(--success-light); color: var(--success);
+                          border-color: color-mix(in oklab, var(--success) 30%, transparent); }
+.status-pill--approved  { background: var(--teal-100);      color: var(--teal-700);
+                          border-color: color-mix(in oklab, var(--teal-700) 25%, transparent); }
+.status-pill--awaiting  { background: var(--warning-light); color: #92400E;
+                          border-color: color-mix(in oklab, var(--warning) 30%, transparent); }
+.status-pill--generating{ background: #F5F3FF;              color: #7C3AED;
+                          border-color: color-mix(in oklab, #8B5CF6 25%, transparent); }
+.status-pill--failed    { background: var(--danger-light);  color: #991B1B;
+                          border-color: color-mix(in oklab, var(--danger) 30%, transparent); }
+.status-pill--uploaded  { background: var(--surface-soft);  color: var(--text-muted);
+                          border-color: var(--border); }
 
-/* Regen action */
+/* ── Regen action — matched to shared button scale, warning variant ── */
 .btn-regen {
-    display:inline-flex; align-items:center; gap:.35rem;
-    padding:.4rem .8rem; border-radius: var(--radius-sm);
-    background: var(--warning-light); color: #92400E;
-    border: 1px solid #FDE68A;
-    font-size: .8125rem; font-weight: 600; cursor: pointer;
-    transition: background var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border-radius: 6px;
+    background: var(--warning-light);
+    color: #92400E;
+    border: 1px solid color-mix(in oklab, var(--warning) 30%, transparent);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    cursor: pointer;
+    transition: background 120ms, color 120ms, border-color 120ms;
 }
-.btn-regen:hover { background: #FDE68A; text-decoration: none; color: #78350F; }
+.btn-regen:hover {
+    background: color-mix(in oklab, var(--warning) 22%, var(--surface));
+    text-decoration: none;
+    color: #78350F;
+    border-color: color-mix(in oklab, var(--warning) 45%, transparent);
+}
+.btn-regen svg { width: 12px; height: 12px; }
 .btn-regen form { margin: 0; display: inline; }
 
-/* Tab navigation */
+/* ── Tab navigation — matches project-detail tab treatment ────────── */
 .rams-tabs {
-    display: flex; gap: 1.5rem; flex-wrap: wrap;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
     border-bottom: 1px solid var(--border);
-    margin-bottom: 1.25rem;
+    margin-bottom: 20px;
 }
 .rams-tab {
-    display: inline-flex; align-items: center; gap: .5rem;
-    padding: .75rem 0;
-    border: none; background: transparent;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 0;
+    border: none;
+    background: transparent;
     color: var(--text-muted);
-    font-size: .875rem; font-weight: 500;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: -0.005em;
     cursor: pointer;
     position: relative;
-    transition: color var(--transition);
+    transition: color 120ms;
     white-space: nowrap;
     margin-bottom: -1px;
 }
-.rams-tab:hover { color: var(--text); }
-.rams-tab.is-active { color: var(--teal); font-weight: 600; }
+.rams-tab:hover { color: var(--ink-900); }
+.rams-tab.is-active { color: var(--teal-700); font-weight: 600; }
 .rams-tab.is-active::after {
     content: '';
     position: absolute;
     left: 0; right: 0; bottom: 0;
     height: 2px;
-    background: var(--teal);
+    background: var(--teal-700);
+    border-radius: 2px 2px 0 0;
 }
 .rams-tab-count {
-    display: inline-flex; align-items: center; justify-content: center;
-    min-width: 20px; height: 20px; padding: 0 .4rem;
-    background: var(--surface-deep); color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 18px;
+    padding: 0 6px;
+    background: var(--surface-soft);
+    color: var(--text-muted);
     border-radius: 999px;
-    font-size: .68rem; font-weight: 700;
+    font-size: 10px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
 }
-.rams-tab.is-active .rams-tab-count { background: var(--teal); color: #fff; }
+.rams-tab.is-active .rams-tab-count {
+    background: var(--teal-100);
+    color: var(--teal-700);
+}
 
-/* Section heading */
+/* ── Section heading — Inter 15/700 with tight tracking ────────────── */
 .section-heading {
-    font-size: 1rem; font-weight: 600;
-    color: var(--text);
-    margin-top: 1.25rem;
-    margin-bottom: .85rem;
-    padding-bottom: .5rem;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink-900);
+    margin-top: 20px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
     border-bottom: 1px solid var(--border);
-    letter-spacing: -.01em;
+    letter-spacing: -.015em;
     line-height: 1.2;
 }
 .section-heading:first-child { margin-top: 0; }
 
-/* Save bar */
+/* ── Save bar ─────────────────────────────────────────────────────── */
 .rams-save-bar {
-    margin-top: 1.25rem; padding: .9rem 1rem;
+    margin-top: 20px;
+    padding: 12px 16px;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
-    display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; justify-content: flex-end;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
 }
 .rams-save-bar-label {
-    margin-right: auto; font-size: .8rem; color: var(--text-muted);
+    margin-right: auto;
+    font-size: 12px;
+    color: var(--text-muted);
 }
-.rams-save-bar-label strong { color: var(--teal); font-weight: 700; }
+.rams-save-bar-label strong {
+    color: var(--teal-700);
+    font-weight: 600;
+}
 
-/* Subtle card tinting inside tabs */
+/* Subtle card accent inside tabs — indigo tint via the retuned mid var */
 .rams-tab-panel .card,
 .rams-tab-panel > .card-sm { border-top: 2px solid var(--teal-mid); }
 
-/* Diff summary box — clearer hierarchy */
+/* ── Diff banner + row treatments ─────────────────────────────────── */
 .rams-diff-banner {
-    display: flex; gap: .5rem; align-items: center; flex-wrap: wrap;
-    padding: .6rem .85rem; font-size: .8125rem;
-    background: #FEF9E7; border: 1px solid #F5D776; border-radius: var(--radius-sm);
-    margin-bottom: .75rem;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    font-size: 12px;
+    background: var(--warning-light);
+    border: 1px solid color-mix(in oklab, var(--warning) 30%, transparent);
+    border-radius: var(--radius-lg);
+    margin-bottom: 12px;
 }
-.rams-diff-banner strong { color: #92400E; }
+.rams-diff-banner strong {
+    color: #92400E;
+    font-weight: 600;
+}
 
 /* Responsive */
 @media (max-width: 640px) {
     .rams-hero { flex-direction: column; align-items: flex-start; }
     .rams-hero-actions { width: 100%; }
-    .rams-tab { padding: .45rem .7rem; font-size: .8rem; }
+    .rams-tab { padding: 8px 4px; font-size: 12px; }
 }
 </style>
 @endpush
@@ -237,36 +324,56 @@
 
         <div class="rams-hero-actions">
             <a href="{{ route('rams.download-pdf', $rams) }}" class="btn btn-teal btn-sm"
-               onclick="triggerFileDownload(this.href); return false;">↓ PDF</a>
-            <a href="{{ route('rams.download', $rams) }}" class="btn btn-outline btn-sm">↓ DOCX</a>
+               onclick="triggerFileDownload(this.href); return false;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                </svg>
+                PDF
+            </a>
+            <a href="{{ route('rams.download', $rams) }}" class="btn btn-outline btn-sm">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                </svg>
+                DOCX
+            </a>
             <form method="POST" action="{{ route('rams.regenerate', $rams) }}"
                   data-confirm="Regenerate this RAMS document? The current version will be replaced."
                   data-confirm-label="Regenerate"
                   style="margin:0;display:inline;">
                 @csrf
-                <button type="submit" class="btn-regen"
-                        aria-label="Regenerate RAMS via AI">
-                    ↺ Regenerate
+                <button type="submit" class="btn-regen" aria-label="Regenerate RAMS via AI">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                    </svg>
+                    Regenerate
                 </button>
             </form>
 
             <x-row-actions-menu label="More RAMS actions">
                 <a href="{{ route('documents.revisions.view', ['type' => 'rams', 'id' => $rams->id]) }}" class="row-actions-item" title="Revision history">
-                    <span class="row-actions-item__icon" aria-hidden="true">↻</span>
+                    <span class="row-actions-item__icon" aria-hidden="true">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="10"/></svg>
+                    </span>
                     <span>Revision history</span>
                 </a>
                 <a href="{{ route('rams.review', $rams) }}?chat=1" class="row-actions-item" title="Edit via AI chat">
-                    <span class="row-actions-item__icon" aria-hidden="true">✎</span>
+                    <span class="row-actions-item__icon" aria-hidden="true">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                    </span>
                     <span>Edit via AI chat</span>
                 </a>
                 @if ($rams->project_id && $rams->project)
                     <a href="{{ route('projects.show', $rams->project_id) }}" class="row-actions-item" title="Back to project">
-                        <span class="row-actions-item__icon" aria-hidden="true">←</span>
+                        <span class="row-actions-item__icon" aria-hidden="true">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                        </span>
                         <span>Back to project</span>
                     </a>
                 @else
                     <a href="{{ route('projects.index') }}" class="row-actions-item" title="Back to projects">
-                        <span class="row-actions-item__icon" aria-hidden="true">←</span>
+                        <span class="row-actions-item__icon" aria-hidden="true">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                        </span>
                         <span>Back to projects</span>
                     </a>
                 @endif
@@ -299,11 +406,25 @@
         </script>
     @endif
 
-    {{-- ── Diff styles ─────────────────────────────────────────────────────── --}}
+    {{-- ── Diff styles — tier-one retune (2026-07-08). Semantic tokens
+         drive the left-rail accent; backgrounds are ultra-light
+         color-mix() tints of the accent so the row reads as "this cell
+         changed" without a warm-yellow shout. --}}
     <style>
-        .diff-modified { border-left: 3px solid #f59e0b !important; background: #fffdf5 !important; }
-        .diff-added    { border-left: 3px solid #22c55e !important; background: #f7fef9 !important; }
-        .diff-removed  { border-left: 3px solid #ef4444 !important; background: #fefafa !important; text-decoration: line-through; opacity: .7; }
+        .diff-modified {
+            border-left: 3px solid var(--warning) !important;
+            background: color-mix(in oklab, var(--warning) 6%, var(--surface)) !important;
+        }
+        .diff-added {
+            border-left: 3px solid var(--success) !important;
+            background: color-mix(in oklab, var(--success) 6%, var(--surface)) !important;
+        }
+        .diff-removed {
+            border-left: 3px solid var(--danger) !important;
+            background: color-mix(in oklab, var(--danger) 6%, var(--surface)) !important;
+            text-decoration: line-through;
+            opacity: .7;
+        }
     </style>
 
     {{-- ── Diff legend + grouped summary ───────────────────────────────────── --}}

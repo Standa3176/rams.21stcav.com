@@ -827,10 +827,14 @@
             margin-bottom: 1.5rem;
             overflow: hidden; /* keeps the cream header tint inside the radius */
         }
+        /* Tier-one polish 2026-07-08 — was warm cream gradient
+           (#EFEBDF → #E5DFCE) baked in from SCC v2. Now a subtle
+           canvas-soft tint so the section header reads as an eyebrow
+           rather than a marmalade shout. */
         .form-section__header {
-            background: linear-gradient(180deg, #EFEBDF 0%, #E5DFCE 100%);
-            border-bottom: 1px solid var(--ink-200);
-            padding: .9rem 1.25rem;
+            background: var(--surface-soft);
+            border-bottom: 1px solid var(--border);
+            padding: 10px 18px;
         }
         /* When a .section-heading sits inside .form-section__header, drop its
            trailing border + bottom margin (the header bar already provides them). */
