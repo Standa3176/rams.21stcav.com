@@ -79,69 +79,69 @@
     margin: .75rem 0 .5rem;
 }
 
-/* ── Tier-1 Screen 05 v1 — sign-off link hero ────────────────────── */
+/* Audit UI-03 (2026-07-08) — sign-off link hero was SCC v2 dark-teal
+   gradient + gold label. Retuned to the indigo brand family so the
+   worksheet + survey heroes read as one consistent pattern. */
 .ws-signoff-hero {
-    background: linear-gradient(180deg, #123326 0%, #0F3E36 100%);
-    color: #EDE9D9;
-    border-radius: var(--radius);
-    padding: 1rem 1.25rem;
-    margin-bottom: 1.25rem;
+    background: linear-gradient(135deg, var(--teal-700), var(--teal-900));
+    color: #E0E7FF;
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
+    margin-bottom: 20px;
     display: grid;
     grid-template-columns: 26px 1fr auto;
-    gap: 1rem;
+    gap: 16px;
     align-items: center;
-    box-shadow: 0 4px 14px rgba(15, 62, 54, .08);
+    box-shadow: 0 6px 14px -6px rgba(67, 56, 202, 0.35);
 }
 .ws-signoff-hero .icon {
     width: 26px; height: 26px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 1.1rem;
-    opacity: .85;
+    color: #C7D2FE;
 }
 .ws-signoff-hero .body { min-width: 0; }
 .ws-signoff-hero .label {
-    font-size: .68rem;
-    letter-spacing: .1em;
+    font-size: 10px;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    font-weight: 700;
-    color: #E6B849;
-    margin-bottom: .15rem;
+    font-weight: 600;
+    color: #C7D2FE;
+    margin-bottom: 4px;
 }
 .ws-signoff-hero .url {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: .78rem;
-    color: #F4EFDD;
-    opacity: .9;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: #EEF2FF;
     display: block;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    background: rgba(255, 255, 255, .06);
-    padding: .3rem .55rem;
-    border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, .08);
+    background: rgba(255, 255, 255, 0.08);
+    padding: 5px 10px;
+    border-radius: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
     cursor: text;
 }
 .ws-signoff-hero .actions {
     display: flex;
-    gap: .4rem;
+    gap: 6px;
     align-items: center;
     flex-shrink: 0;
 }
 .ws-signoff-hero .actions .btn {
-    background: rgba(255, 255, 255, .08);
-    color: #F4EFDD;
-    border-color: rgba(255, 255, 255, .12);
-    font-size: .78rem;
-    padding: .35rem .7rem;
+    background: rgba(255, 255, 255, 0.10);
+    color: #EEF2FF;
+    border-color: rgba(255, 255, 255, 0.16);
+    font-size: 12px;
+    padding: 5px 12px;
 }
 .ws-signoff-hero .actions .btn:hover {
-    background: rgba(255, 255, 255, .14);
+    background: rgba(255, 255, 255, 0.18);
 }
 .ws-signoff-hero .signed-note {
-    font-size: .72rem;
-    color: #C6DDCD;
-    margin-top: .35rem;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.65);
+    margin-top: 6px;
     display: flex;
     align-items: center;
     gap: .35rem;

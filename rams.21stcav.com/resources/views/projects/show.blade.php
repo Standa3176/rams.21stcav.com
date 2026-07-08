@@ -16,17 +16,9 @@
            PROJECT SHOW VIEW — modern dashboard
         ═══════════════════════════════════════════════════════════════ */
 
-        /* Tier-one page title — Inter 700 with tighter tracking (was
-           display-font 500). Weight bump gives the busiest screen in the
-           app a proper anchor. */
-        .page-header .page-title {
-            font-size: 1.6rem;
-            line-height: 1.15;
-            font-weight: 700;
-            color: var(--ink-900);
-            letter-spacing: -.025em;
-            margin: 0.25rem 0 0.35rem;
-        }
+        /* Audit D-08 (2026-07-08) — page-title override deleted. Layout
+           .page-title in app.blade.php now owns the scale (26px / 700 /
+           -0.025em) — every screen inherits, no more per-page drift. */
 
         /* Main tabbed workspace cards */
         .psv__main > .section-block {

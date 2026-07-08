@@ -87,41 +87,44 @@
 /* Tier-1 Screen 02 v1 — engineer link hero (matches worksheet screen 05
    sign-off hero pattern). Legacy .survey-link-banner class kept below so
    any inline references stay valid but is no longer rendered on this page. */
+/* Audit UI-03 (2026-07-08) — was SCC v2 dark-teal gradient (#123326 →
+   #0F3E36) with gold #E6B849 label + cream #EDE9D9 body. Retuned to the
+   indigo brand family so the "primary shareable URL" hero pattern reads
+   consistently with the worksheet hero + the app-shell brand mark. */
 .survey-link-hero {
-    background: linear-gradient(180deg, #123326 0%, #0F3E36 100%);
-    color: #EDE9D9;
-    border-radius: var(--radius);
-    padding: 1rem 1.25rem;
-    margin-bottom: 1.25rem;
+    background: linear-gradient(135deg, var(--teal-700), var(--teal-900));
+    color: #E0E7FF;
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
+    margin-bottom: 20px;
     display: grid;
     grid-template-columns: 26px 1fr auto;
-    gap: 1rem;
+    gap: 16px;
     align-items: center;
-    box-shadow: 0 4px 14px rgba(15, 62, 54, .08);
+    box-shadow: 0 6px 14px -6px rgba(67, 56, 202, 0.35);
 }
 .survey-link-hero .icon {
     width: 26px; height: 26px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 1.1rem;
-    opacity: .85;
+    color: #C7D2FE;
 }
 .survey-link-hero .body { min-width: 0; }
 .survey-link-hero .label {
-    font-size: .68rem;
-    letter-spacing: .1em;
+    font-size: 10px;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    font-weight: 700;
-    color: #E6B849;
-    margin-bottom: .2rem;
+    font-weight: 600;
+    color: #C7D2FE;
+    margin-bottom: 4px;
 }
 .survey-link-hero .url {
-    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-    font-size: .78rem;
-    color: #F4EFDD;
-    background: rgba(255, 255, 255, .06);
-    padding: .3rem .55rem;
-    border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, .08);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: #EEF2FF;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 5px 10px;
+    border-radius: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
     display: block;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -131,14 +134,14 @@
 }
 .survey-link-hero .actions {
     display: flex;
-    gap: .4rem;
+    gap: 6px;
     align-items: center;
     flex-shrink: 0;
 }
 .survey-link-hero .hint {
-    font-size: .72rem;
-    color: #C6DDCD;
-    margin-top: .35rem;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.65);
+    margin-top: 6px;
 }
 .survey-link-banner {
     background: var(--teal-light);
