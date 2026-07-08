@@ -5,7 +5,10 @@
 @section('content')
 
 <div class="page-header">
-    <h1 class="page-title">Hazard Library</h1>
+    <div class="page-header-left">
+        <h1 class="page-title">Hazard Library</h1>
+        <div class="page-subtitle">Reusable hazard/control templates. Reference these when generating RAMS documents.</div>
+    </div>
 </div>
 
 @if (session('success'))

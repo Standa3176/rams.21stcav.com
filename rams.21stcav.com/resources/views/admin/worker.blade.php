@@ -4,131 +4,170 @@
 
 @section('content')
 <style>
+/*
+ * Queue worker monitor — tier-one polish (2026-07-08).
+ * .worker-card, .worker-status-badge, .cmd-block, .log-block, .section-title,
+ * .copy-btn all retuned to semantic tokens. Terminal-look .cmd-block +
+ * .log-block keep their dark chrome — the intent is "this is a shell
+ * command, copy-and-paste it into your SSH" — but tuned to ink-900 base
+ * instead of arbitrary slate.
+ */
+
 .worker-card {
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 1.5rem;
-    margin-bottom: 1.25rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: 20px 24px;
+    margin-bottom: 16px;
 }
 .worker-status-badge {
     display: inline-flex;
     align-items: center;
-    gap: .45rem;
-    padding: .4rem 1rem;
+    gap: 6px;
+    padding: 4px 12px;
     border-radius: 999px;
-    font-size: .85rem;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: -0.005em;
 }
 .worker-status-badge.running {
-    background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;
+    background: var(--success-light);
+    color: var(--success);
+    border: 1px solid color-mix(in oklab, var(--success) 30%, transparent);
 }
 .worker-status-badge.stopped {
-    background: #fef2f2; color: #991b1b; border: 1px solid #fecaca;
+    background: var(--danger-light);
+    color: #991B1B;
+    border: 1px solid color-mix(in oklab, var(--danger) 30%, transparent);
 }
 .worker-status-badge .dot {
-    width: 9px; height: 9px; border-radius: 50%;
+    width: 7px; height: 7px;
+    border-radius: 50%;
 }
-.running .dot { background: #16a34a; animation: blink 1.6s ease-in-out infinite; }
-.stopped .dot { background: #dc2626; }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+.running .dot {
+    background: var(--success);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--success) 22%, transparent);
+    animation: blink 1.6s ease-in-out infinite;
+}
+.stopped .dot { background: var(--danger); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
+@media (prefers-reduced-motion: reduce) {
+    .running .dot { animation: none; }
+}
+
 .cmd-block {
-    background: #1e293b;
-    color: #7dd3fc;
-    font-family: 'Courier New', monospace;
-    font-size: .82rem;
+    background: var(--ink-900);
+    color: #7DD3FC;
+    font-family: var(--font-mono);
+    font-size: 12px;
     line-height: 1.6;
-    padding: .85rem 1rem;
-    border-radius: 6px;
+    padding: 12px 14px;
+    border-radius: 8px;
     word-break: break-all;
     user-select: all;
     cursor: text;
-    margin: .5rem 0 .5rem;
+    margin: 8px 0;
 }
 .log-block {
-    background: #0f172a;
-    color: #94a3b8;
-    font-family: 'Courier New', monospace;
-    font-size: .78rem;
+    background: var(--ink-900);
+    color: var(--subtle);
+    font-family: var(--font-mono);
+    font-size: 12px;
     line-height: 1.6;
-    padding: 1rem 1.25rem;
-    border-radius: 6px;
+    padding: 14px 18px;
+    border-radius: 8px;
     white-space: pre-wrap;
     word-break: break-all;
     max-height: 240px;
     overflow-y: auto;
 }
 .section-title {
-    font-size: .7rem;
-    font-weight: 700;
+    font-size: 10px;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: .08em;
-    color: #94a3b8;
-    margin-bottom: .4rem;
+    color: var(--text-muted);
+    margin-bottom: 6px;
 }
-.btn-group { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .75rem; }
+.btn-group { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
 .copy-btn {
-    background: #334155; color: #e2e8f0; border: none; border-radius: 5px;
-    padding: .3rem .7rem; font-size: .78rem; cursor: pointer;
+    background: var(--ink-2);
+    color: var(--hairline);
+    border: none;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 120ms;
 }
-.copy-btn:hover { background: #475569; }
+.copy-btn:hover { background: var(--body); }
 </style>
 
-<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;">
-    <div>
-        <h1 class="page-title" style="margin:0 0 .25rem;">Queue Worker Monitor</h1>
-        <p style="margin:0;color:#64748b;font-size:.875rem;">Status is file-based — no exec() is used anywhere on this page.</p>
+<div class="page-header">
+    <div class="page-header-left">
+        <h1 class="page-title">Queue Worker Monitor</h1>
+        <div class="page-subtitle">Status is file-based — no exec() is used anywhere on this page.</div>
     </div>
-    <a href="{{ route('admin.worker.index') }}" class="btn btn-outline btn-sm">↻ Refresh</a>
+    <div class="page-header-actions">
+        <a href="{{ route('admin.worker.index') }}" class="btn btn-outline btn-sm">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+            Refresh
+        </a>
+    </div>
 </div>
 
 {{-- Action banners --}}
 @if (session('action') === 'start')
-<div class="worker-card" style="border-color:#a5b4fc;background:#eef2ff;">
-    <p style="font-weight:600;color:#3730a3;margin:0 0 .4rem;">▶ To start the worker, run this command via SSH or the Plesk terminal:</p>
+<div class="worker-card" style="border-color:var(--brand-100);background:var(--brand-50);">
+    <p style="font-weight:600;color:var(--brand-800);margin:0 0 6px;font-size:13px;">To start the worker, run this command via SSH or the Plesk terminal:</p>
     <div class="cmd-block" id="startCmd">{{ $startCommand }}</div>
-    <button class="copy-btn" onclick="copyCmd('startCmd')">📋 Copy</button>
-    <p style="margin:.5rem 0 0;font-size:.8rem;color:#4338ca;">After running it, wait 10 seconds then refresh this page.</p>
+    <button class="copy-btn" onclick="copyCmd('startCmd')">Copy command</button>
+    <p style="margin:8px 0 0;font-size:12px;color:var(--brand-700);">After running it, wait 10 seconds then refresh this page.</p>
 </div>
 @endif
 
 @if (session('action') === 'stop')
-<div class="alert alert-success" style="margin-bottom:1rem;">
+<div class="alert alert-success" style="margin-bottom:16px;">
     Stop signal sent via the queue cache key. The running worker will stop after it finishes its current job.
     If it does not stop within a minute, use <code>kill &lt;PID&gt;</code> via SSH.
 </div>
 @endif
 
 @if (session('action') === 'restart')
-<div class="worker-card" style="border-color:#a5b4fc;background:#eef2ff;">
-    <p style="font-weight:600;color:#3730a3;margin:0 0 .6rem;">↺ Restart initiated</p>
+<div class="worker-card" style="border-color:var(--brand-100);background:var(--brand-50);">
+    <p style="font-weight:600;color:var(--brand-800);margin:0 0 8px;font-size:13px;">Restart initiated</p>
     @if (session('exec_output'))
-        <div class="section-title" style="color:#4338ca;">Output</div>
-        <div class="log-block" style="color:#c7d2fe;background:#1e1b4b;">{{ session('exec_output') }}</div>
-        <p style="margin:.5rem 0 0;font-size:.78rem;color:#4338ca;">
+        <div class="section-title" style="color:var(--brand-700);">Output</div>
+        <div class="log-block" style="color:var(--brand-100);background:var(--brand-800);">{{ session('exec_output') }}</div>
+        <p style="margin:8px 0 0;font-size:12px;color:var(--brand-700);">
             Status badge will update within ~90 s if the worker is running.
             If you see ✗ errors above, check the logs or run the start command below manually.
         </p>
     @else
-        <p style="margin:0 0 .4rem;color:#4338ca;font-size:.85rem;">
+        <p style="margin:0 0 8px;color:var(--brand-700);font-size:13px;">
             Stop signal sent. Run the start command below to complete the restart.
         </p>
         <div class="cmd-block" id="restartCmd">{{ $startCommand }}</div>
-        <button class="copy-btn" onclick="copyCmd('restartCmd')">📋 Copy</button>
+        <button class="copy-btn" onclick="copyCmd('restartCmd')">Copy command</button>
     @endif
 </div>
 @endif
 
 {{-- Status card --}}
 <div class="worker-card">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px;">
         <div>
-            <div class="section-title">Worker Status <span style="font-weight:400;text-transform:none;font-size:.7rem;">(file-based detection)</span></div>
+            <div class="section-title">Worker Status <span style="font-weight:400;text-transform:none;font-size:10px;">(file-based detection)</span></div>
             <span class="worker-status-badge {{ $isRunning ? 'running' : 'stopped' }}">
                 <span class="dot"></span>
                 {{ $isRunning ? 'Running' : 'Stopped' }}
             </span>
-            <p style="margin:.5rem 0 0;font-size:.78rem;color:#64748b;">
+            <p style="margin:8px 0 0;font-size:12px;color:var(--text-muted);">
                 Detected via heartbeat file and worker log timestamp. Updates within ~90 seconds of a change.
             </p>
         </div>
