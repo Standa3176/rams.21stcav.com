@@ -1,5 +1,46 @@
+/* ── Font — Inter Variable (audit-clean self-host) ──────────────────────
+   Fontsource ships the variable axis so we get 400/500/600/700 from one
+   file instead of 4 static weight files. About 45 kB gzipped once — every
+   page reuses it. Loading BEFORE @tailwind base so the CSS variable set
+   from tailwind.config.js resolves against a warm font cache. */
+@import "@fontsource-variable/inter";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ── Base — tier-one canvas ─────────────────────────────────────────────
+   Applied at the layer so a screen-level `bg-*` still wins. body colour
+   also sets the default for descendants so headings inherit ink from
+   `text-body` context without every page repeating it. Font-feature-
+   settings light up Inter's cv11/ss01/ss03/zero — the tier-one look. */
+@layer base {
+    html {
+        text-rendering: optimizeLegibility;
+        -webkit-text-size-adjust: 100%;
+    }
+    body {
+        @apply bg-canvas text-body font-sans antialiased;
+        font-feature-settings: 'cv11', 'ss01', 'ss03', 'zero';
+    }
+    h1, h2, h3, h4, h5, h6 {
+        @apply text-ink;
+        text-wrap: balance;
+        letter-spacing: -0.015em;
+    }
+}
+
+/* ── Utilities ──────────────────────────────────────────────────────── */
 [x-cloak] { display: none !important; }
+
+/* Tabular numerals — apply on any element carrying digits in columns. */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* Reduce motion — the pulsing "current" step in the delivery progress
+   stepper and hover transitions should respect the OS preference. */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0s !important;
+        transition-duration: 0s !important;
+    }
+}
