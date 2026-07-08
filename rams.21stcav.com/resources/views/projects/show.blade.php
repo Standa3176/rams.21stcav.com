@@ -16,13 +16,15 @@
            PROJECT SHOW VIEW — modern dashboard
         ═══════════════════════════════════════════════════════════════ */
 
+        /* Tier-one page title — Inter 700 with tighter tracking (was
+           display-font 500). Weight bump gives the busiest screen in the
+           app a proper anchor. */
         .page-header .page-title {
-            font-family: var(--font-display);
-            font-size: 1.85rem;
+            font-size: 1.6rem;
             line-height: 1.15;
-            font-weight: 500;
+            font-weight: 700;
             color: var(--ink-900);
-            letter-spacing: -.02em;
+            letter-spacing: -.025em;
             margin: 0.25rem 0 0.35rem;
         }
 
@@ -41,11 +43,10 @@
             margin-bottom: 1rem;
         }
         .psv__main > .section-block .section-card__title {
-            font-family: var(--font-display);
-            font-size: 1rem;
-            font-weight: 600;
+            font-size: 15px;
+            font-weight: 700;
             color: var(--ink-900);
-            letter-spacing: -.01em;
+            letter-spacing: -.015em;
             display: flex;
             align-items: center;
             gap: 8px;
@@ -176,8 +177,8 @@
             line-height: 1;
         }
         .ws-tab.is-active .ws-tab__count {
-            background: var(--teal-700);
-            color: #FFF;
+            background: var(--teal-100);
+            color: var(--teal-700);
         }
         /* Workspace body sits flush below the tab strip */
         .ws > .bg-white {
@@ -237,20 +238,25 @@
             background: var(--surface-deep);
             color: var(--text-muted);
         }
+        /* Tier-one workflow step — current uses indigo gradient +
+           subtle pulse ring (matches the delivery-progress stepper on
+           the v2 preview). Done state carries an emerald-100 pill for
+           consistency with the completed badges elsewhere on the app. */
         .psv-step.is-current {
-            border-color: var(--teal);
-            background: var(--teal);
+            border-color: transparent;
+            background: linear-gradient(135deg, var(--teal-500), var(--teal-700));
             color: #fff;
             font-weight: 600;
+            box-shadow: 0 0 0 3px color-mix(in oklab, var(--teal-500) 22%, transparent);
         }
         .psv-step.is-current .psv-step__num {
-            background: rgba(255,255,255,.25);
+            background: rgba(255,255,255,.22);
             color: #fff;
         }
         .psv-step.is-done {
-            border-color: var(--success);
+            border-color: color-mix(in oklab, var(--success) 22%, transparent);
             background: var(--success-light);
-            color: #166534;
+            color: var(--success);
         }
         .psv-step.is-done .psv-step__num {
             background: var(--success);
@@ -279,8 +285,9 @@
         }
         .psv-progress__fill {
             height: 100%;
-            background: var(--teal);
+            background: linear-gradient(90deg, var(--teal-500), var(--teal-700));
             border-radius: 3px;
+            box-shadow: 0 0 6px 0 color-mix(in oklab, var(--teal-500) 40%, transparent);
             transition: width 400ms ease;
         }
 
@@ -332,8 +339,8 @@
             color: var(--text-muted);
         }
         .psv-tab.is-active .psv-tab-count {
-            background: var(--teal);
-            color: #fff;
+            background: var(--teal-100);
+            color: var(--teal-700);
         }
 
         /* Status badge weight */
