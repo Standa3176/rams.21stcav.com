@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
-status: paused_security_audit_closed
-stopped_at: M-band security audit fully closed on 2026-07-08 — all 8 M-items shipped, data fixes applied on live. Frontend redesign discussed but not scoped.
-last_updated: "2026-07-08T09:15:00.000Z"
-last_activity: 2026-07-08 -- session-2026-07-08 tag pushed. M-band security audit closed end-to-end (M-01 through M-08). O&M loop closed (editor overrides now reach the PDF). Two data fixes applied on live (user sonny → Sonny Tanda + project 84 SHIPCOMP/SHIPADD sentinel strip).
+status: paused_tier_one_redesign_v1_landed
+stopped_at: Tier-one visual redesign v1 landed 2026-07-08 (PLAN 260708-b7i, 5 tasks / 5 commits). Anchor screens (dashboard + project detail) polished; every other screen inherits the palette shift via CSS-variable indirection.
+last_updated: "2026-07-08T11:30:00.000Z"
+last_activity: 2026-07-08 -- Tier-one redesign quick-task 260708-b7i complete. Foundation (Inter Variable + slate/indigo tokens), sidebar chrome (light + 2px indigo left-rail), Blade primitives, dashboard + project detail all shifted from SCC v2 teal/gold/cream to tier-one indigo/slate. 5 atomic commits on feat/worksheet-classifier-universal.
 progress:
   total_phases: 2
   completed_phases: 2
@@ -27,6 +27,56 @@ Milestone: v2.0 (Engineering-Grade AV Drawings) — PAUSED at Phase 23 sub-plan 
 Active work: Tier-1 UX redesign COMPLETE — 5 of 5 screens shipped and live-confirmed
 Status: Session save 2026-07-06 — Tier-1 sweep complete
 Last activity: 2026-07-06 -- Screen 01 v1 shipped (25fe9df) closes the Tier-1 sweep. All five screens live-confirmed. Next session picks up v2.0 Phase 23 (XTEN-AV renderer) OR follow-up backlog items from Tier-1 (mfg_support_overrides generator wiring, Draft (TBC) affordance).
+
+## Session 2026-07-08 (afternoon) — Tier-one visual redesign v1
+
+**PLAN 260708-b7i-jetbuilt-tier-one-redesign** — full quick-task with
+research + 4 tasks planned, 5 tasks shipped. Anchor: JetBuilt reference
++ user-provided design mockup showing 3-panel showcase with light
+sidebar, indigo brand, semantic doc-type icons, radial health score,
+gradient sparklines. Interactive preview shipped at
+https://claude.ai/code/artifact/687370c1-160a-4b79-a957-b21a1b949b92.
+
+- **Task 1** (`49587f1`) — Foundation. Tailwind theme extended with tier-
+  one tokens (cool slate neutrals as semantic aliases, indigo brand,
+  restrained shadow ramp, radii + letter-spacing scale). Inter Variable
+  self-hosted via `@fontsource-variable/inter`. Base CSS applies the
+  Inter feature-settings (cv11/ss01/ss03/zero) globally.
+- **Task 2** (`b879ce7`) — Layout shell + sidebar chrome. CSS custom
+  property retune at :root in layouts/app.blade.php so every screen
+  inherits the new palette through variable indirection — thousands of
+  usages of `.card`, `.btn-primary`, `.btn-teal`, `.badge`, `.stat-*`
+  across ~200 blade files snap to the new tokens with zero renames.
+  Header + logo panel + sidebar all flipped from dark teal/gold/cream
+  to light chrome + indigo brand mark. navigation.blade.php rewritten
+  with ⌘K search affordance and 2px indigo left-rail on active items.
+- **Task 3** (`108bda2`) — Primitive Blade components. The 5 Breeze
+  scaffolding leftovers (primary/secondary/danger buttons, text-input,
+  nav-link, input-label) shifted from `bg-gray-800`/`indigo-500` to
+  the new token classes. Public API preserved.
+- **Task 4** (`75d270c`) — Dashboard tier-one polish. KPI colours,
+  quick-link inline styles, custom `<style>` block hex values — all
+  retuned to token variables. Stat-card component internal `<style>`
+  wrapped in @once and value colour flipped to ink (accent lives in
+  the icon tile, not the raw number — Linear/Attio/Vercel pattern).
+- **Task 5** (`93cc3c8`) — Project detail polish. .page-header
+  .page-title bumped from 500 display-font to 700 Inter with tighter
+  tracking. Workflow stepper current-step gets indigo gradient + pulse
+  ring; done step normalised to var(--success). Progress bar gets
+  gradient + glow. Tab count pills softened to tinted (was solid teal).
+
+**Verification:** npm run build clean at every task boundary. Final
+CSS ~12.4 kB gzipped. DashboardControllerTest 6/6 pass. 5 pre-existing
+`ActualHoursWidgetTest` failures verified as pre-existing on the
+pre-session commit `c3e129e` (same pattern as the earlier
+PublicWorksheetSignoffTest drift closed in `31a4d52`) — unrelated to
+the redesign, worth a separate quick-task.
+
+**Follow-up (logged in SUMMARY.md):** sweep remaining screens
+(RAMS review, O&M edit, surveys, worksheets, cable schedules, admin)
+into the tier-one hierarchy pattern; extract more repeated markup
+into components; wire live global search behind the ⌘K affordance;
+retire the 5 ActualHoursWidgetTest failures.
 
 ## Session 2026-07-08 — deliverables shipped
 
