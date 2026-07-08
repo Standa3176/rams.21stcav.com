@@ -23,14 +23,17 @@
 {{-- ── Stat cards grid ─────────────────────────────────────────────────── --}}
 <div class="dash-stats-grid">
 
+    {{-- Tier-one KPI row (PLAN 260708-b7i). Each icon tile carries the
+         semantic accent — the raw number stays in ink so the four stats
+         read as a rank-ordered set, not four competing colours. --}}
     <x-dashboard.stat-card
         title="Active Projects"
         :value="$statActiveProjects"
         subtitle="Across all stages"
         href="{{ route('projects.index') }}"
-        color="#178A95">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        color="#4F46E5">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
         </svg>
     </x-dashboard.stat-card>
@@ -40,9 +43,9 @@
         :value="$statRams"
         subtitle="Total documents"
         href="{{ route('rams.index') }}"
-        color="#2563EB">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        color="#0284C7">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14 2 14 8 20 8"/>
             <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
@@ -55,8 +58,8 @@
         subtitle="Total surveys"
         href="{{ route('site-surveys.index') }}"
         color="#7C3AED">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
             <polyline points="9 22 9 12 15 12 15 22"/>
         </svg>
@@ -67,9 +70,9 @@
         :value="$statImports"
         subtitle="Packages created"
         href="{{ route('quote-import.create') }}"
-        color="#D97706">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        color="#059669">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="16 16 12 12 8 16"/>
             <line x1="12" y1="12" x2="12" y2="21"/>
             <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
@@ -187,11 +190,11 @@
         @endforeach
 
         @if($projectOverflow > 0)
-            <div style="padding: .9rem 1.25rem; text-align: center; border-top: 1px solid var(--border, #E4DDCB); background: var(--surface-soft, #FBF8EF);">
-                <a href="{{ route('projects.index') }}" style="color: var(--accent, #0F3E36); font-size: .85rem; font-weight: 600; text-decoration: none;">
+            <div style="padding: 12px 20px; text-align: center; border-top: 1px solid var(--border); background: var(--surface-soft);">
+                <a href="{{ route('projects.index') }}" style="color: var(--teal-700); font-size: 13px; font-weight: 600; text-decoration: none;">
                     View all {{ $projects->count() }} projects →
                 </a>
-                <span style="color: var(--text-muted); font-size: .78rem; margin-left: .5rem;">
+                <span style="color: var(--text-muted); font-size: 12px; margin-left: 8px;">
                     (showing {{ $projectPreviewLimit }} most recent · {{ $projectOverflow }} more)
                 </span>
             </div>
@@ -228,14 +231,14 @@
             @foreach($recentRams as $rams)
                 <tr>
                     <td>
-                        <a href="{{ route('rams.review', $rams) }}" style="font-weight:600;">
+                        <a href="{{ route('rams.review', $rams) }}" style="font-weight:600; color:var(--ink-900); text-decoration:none;">
                             {{ $rams->title ?? 'RAMS #'.$rams->id }}
                         </a>
                     </td>
-                    <td style="font-size:.85rem; color:#6B7280;">
+                    <td style="font-size:12px; color:var(--text-muted);">
                         {{ $rams->project?->name ?? '—' }}
                     </td>
-                    <td style="font-size:.8rem; color:#9CA3AF; white-space:nowrap;">
+                    <td style="font-size:12px; color:var(--text-muted); white-space:nowrap; font-variant-numeric: tabular-nums;">
                         {{ $rams->created_at->diffForHumans() }}
                     </td>
                 </tr>
@@ -250,8 +253,8 @@
 {{-- ── Quick links strip ───────────────────────────────────────────────── --}}
 <div class="dash-quick-links">
     <a href="{{ route('rams.create') }}" class="dash-quick-link">
-        <div class="dash-quick-link__icon" style="background:#EFF6FF; color:#2563EB;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <div class="dash-quick-link__icon dql-i-brand">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
         </div>
         <div>
             <div class="dash-quick-link__title">Generate RAMS</div>
@@ -259,8 +262,8 @@
         </div>
     </a>
     <a href="{{ route('site-surveys.create') }}" class="dash-quick-link">
-        <div class="dash-quick-link__icon" style="background:#F5F3FF; color:#7C3AED;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <div class="dash-quick-link__icon dql-i-violet">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         </div>
         <div>
             <div class="dash-quick-link__title">New Site Survey</div>
@@ -268,8 +271,8 @@
         </div>
     </a>
     <a href="{{ route('cable-schedules.create') }}" class="dash-quick-link">
-        <div class="dash-quick-link__icon" style="background:#ECFDF5; color:#059669;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        <div class="dash-quick-link__icon dql-i-success">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
         </div>
         <div>
             <div class="dash-quick-link__title">Cable Schedule</div>
@@ -277,8 +280,8 @@
         </div>
     </a>
     <a href="{{ route('om-manuals.create') }}" class="dash-quick-link">
-        <div class="dash-quick-link__icon" style="background:#FFF7ED; color:#EA580C;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <div class="dash-quick-link__icon dql-i-warning">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
         </div>
         <div>
             <div class="dash-quick-link__title">O&amp;M Manual</div>
@@ -288,20 +291,27 @@
 </div>
 
 <style>
+/*
+ * Dashboard styles — tier-one (PLAN 260708-b7i, 2026-07-08).
+ * All hex values replaced with token variables so the palette can shift
+ * from one place (layouts/app.blade.php :root) and every dashboard
+ * element follows.
+ */
+
 /* Stat grid */
 .dash-stats-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 1rem;
-    margin-bottom: 1.75rem;
+    gap: 12px;
+    margin-bottom: 24px;
 }
 
 /* Two-panel layout */
 .dash-panels {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 1.25rem;
-    margin-bottom: 1.75rem;
+    gap: 20px;
+    margin-bottom: 24px;
     align-items: start;
 }
 .dash-panels--single { grid-template-columns: 1fr; }
@@ -310,130 +320,158 @@
 .dash-quick-links {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 1rem;
+    gap: 12px;
 }
 .dash-quick-link {
     display: flex;
     align-items: center;
-    gap: .875rem;
-    padding: 1rem 1.25rem;
-    background: #fff;
-    border: 1px solid #E5E7EB;
-    border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--surface, #fff);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow-card);
     text-decoration: none;
     color: inherit;
-    transition: box-shadow .15s ease, border-color .15s ease;
+    transition: box-shadow 150ms ease, border-color 150ms ease;
 }
-.dash-quick-link:hover { box-shadow: 0 4px 12px rgba(0,0,0,.08); border-color: #C8E9EC; text-decoration: none; }
-.dash-quick-link__icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.dash-quick-link__title { font-size: .875rem; font-weight: 600; color: #1F2937; }
-.dash-quick-link__sub   { font-size: .75rem; color: #9CA3AF; margin-top: .1rem; }
+.dash-quick-link:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--border-strong);
+    text-decoration: none;
+}
+.dash-quick-link__icon {
+    width: 38px; height: 38px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+/* Icon accent tints — sourced from the semantic palette. Same swatches
+   as the KPI card icons above so a user's eye connects "cable = success
+   green" between the quick-link and the stat card. */
+.dql-i-brand   { background: var(--teal-100); color: var(--teal-700); }
+.dql-i-violet  { background: #F5F3FF;         color: #7C3AED; }
+.dql-i-success { background: var(--success-light); color: var(--success); }
+.dql-i-warning { background: var(--warning-light); color: var(--warning); }
+.dash-quick-link__title { font-size: 13px; font-weight: 600; color: var(--ink-900); letter-spacing: -0.005em; }
+.dash-quick-link__sub   { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 
 /* ── Status filter strip ─────────────────────────────────────────────── */
-.dash-filter-section { margin-bottom: 1.75rem; }
+.dash-filter-section { margin-bottom: 24px; }
 
 .dash-status-strip {
     display: flex;
     flex-wrap: wrap;
-    gap: .5rem;
-    margin-bottom: 1rem;
+    gap: 6px;
+    margin-bottom: 12px;
     align-items: center;
 }
 .dash-chip {
     display: inline-flex;
     align-items: center;
-    gap: .35rem;
-    padding: .3rem .75rem;
-    border: 1px solid #E5E7EB;
-    border-radius: 9999px;
-    font-size: .75rem;
-    font-weight: 600;
-    background: #fff;
-    color: #374151;
+    gap: 6px;
+    padding: 4px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--surface);
+    color: var(--ink-700);
     cursor: pointer;
-    transition: background .12s ease, border-color .12s ease, color .12s ease;
+    font-family: inherit;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 .dash-chip:hover {
-    border-color: var(--chip-colour, #178A95);
-    color: var(--chip-colour, #178A95);
+    border-color: var(--chip-colour, var(--teal-700));
+    color: var(--chip-colour, var(--teal-700));
+    background: color-mix(in oklab, var(--chip-colour, var(--teal-700)) 8%, var(--surface));
 }
 .dash-chip--active {
-    background: var(--chip-colour, #178A95);
-    border-color: var(--chip-colour, #178A95);
+    background: var(--chip-colour, var(--teal-700));
+    border-color: var(--chip-colour, var(--teal-700));
     color: #fff;
+    font-weight: 600;
 }
 .dash-chip__count {
-    background: rgba(0,0,0,.12);
-    border-radius: 9999px;
-    padding: 0 .4rem;
-    font-size: .65rem;
+    background: rgba(0,0,0,.10);
+    border-radius: 999px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
 }
+.dash-chip--active .dash-chip__count { background: rgba(255,255,255,.20); }
 
 /* ── Health grid ─────────────────────────────────────────────────────── */
 .dash-health-grid {
-    background: #fff;
-    border: 1px solid #E5E7EB;
-    border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    background: var(--surface, #fff);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow-card);
     overflow: hidden;
 }
 .dash-health-grid__header {
     display: grid;
     grid-template-columns: 2fr 1fr 1fr 1.25fr 1fr auto;
-    gap: 1rem;
-    padding: .6rem 1.25rem;
-    background: #F9FAFB;
-    border-bottom: 1px solid #E5E7EB;
-    font-size: .7rem;
-    font-weight: 700;
+    gap: 16px;
+    padding: 10px 20px;
+    background: var(--surface-soft, #F8FAFC);
+    border-bottom: 1px solid var(--border);
+    font-size: 10px;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: .06em;
-    color: #6B7280;
+    color: var(--text-muted);
 }
 .dash-health-row {
     display: grid;
     grid-template-columns: 2fr 1fr 1fr 1.25fr 1fr auto;
-    gap: 1rem;
+    gap: 16px;
     align-items: center;
-    padding: .75rem 1.25rem;
-    border-bottom: 1px solid #F3F4F6;
-    transition: background .1s ease;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--rule);
+    transition: background .12s ease;
 }
 .dash-health-row:last-child { border-bottom: none; }
-.dash-health-row:hover { background: #F9FAFB; }
+.dash-health-row:hover { background: color-mix(in oklab, var(--teal-100) 22%, transparent); }
 
-.dash-health-row__link { font-weight: 600; color: #111827; text-decoration: none; }
-.dash-health-row__link:hover { color: #178A95; text-decoration: underline; }
-.dash-health-row__client { font-size: .75rem; color: #9CA3AF; margin-top: 1px; }
-.dash-health-row__updated { font-size: .78rem; color: #9CA3AF; white-space: nowrap; }
-.dash-health-row__none { color: #D1D5DB; font-size: .85rem; }
+.dash-health-row__link {
+    font-weight: 600; color: var(--ink-900);
+    text-decoration: none; letter-spacing: -0.005em;
+    font-size: 13px;
+}
+.dash-health-row__link:hover { color: var(--teal-700); text-decoration: underline; }
+.dash-health-row__client { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+.dash-health-row__updated { font-size: 12px; color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dash-health-row__none { color: var(--text-faint); font-size: 13px; }
 
 /* ── Progress bar widget ─────────────────────────────────────────────── */
 .dash-prog {
     display: flex;
     align-items: center;
-    gap: .5rem;
+    gap: 8px;
 }
 .dash-prog__bar {
     flex: 1;
-    height: 6px;
-    background: #E5E7EB;
-    border-radius: 9999px;
+    height: 5px;
+    background: var(--ink-100);
+    border-radius: 999px;
     overflow: hidden;
     min-width: 48px;
 }
 .dash-prog__fill {
     height: 100%;
-    background: #16A34A;
-    border-radius: 9999px;
+    background: linear-gradient(90deg, var(--teal-500), var(--teal-700));
+    border-radius: 999px;
+    box-shadow: 0 0 6px 0 color-mix(in oklab, var(--teal-500) 40%, transparent);
     transition: width .3s ease;
 }
 .dash-prog__pct {
-    font-size: .72rem;
+    font-size: 11px;
     font-weight: 600;
-    color: #374151;
+    color: var(--ink-700);
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
 /* Responsive */
