@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
-status: paused_tier_one_redesign_v1_landed
-stopped_at: Tier-one visual redesign v1 landed 2026-07-08 (PLAN 260708-b7i, 5 tasks / 5 commits). Anchor screens (dashboard + project detail) polished; every other screen inherits the palette shift via CSS-variable indirection.
-last_updated: "2026-07-08T11:30:00.000Z"
-last_activity: 2026-07-08 -- Tier-one redesign quick-task 260708-b7i complete. Foundation (Inter Variable + slate/indigo tokens), sidebar chrome (light + 2px indigo left-rail), Blade primitives, dashboard + project detail all shifted from SCC v2 teal/gold/cream to tier-one indigo/slate. 5 atomic commits on feat/worksheet-classifier-universal.
+status: paused_tier_one_v1_plus_search_and_sweep
+stopped_at: Tier-one v1 shipped + follow-up moves complete on 2026-07-08 (global ⌘K search + second-tier screen sweep + ActualHoursWidgetTest fix). Every anchor + index screen now tier-one; ⌘K search live across the app.
+last_updated: "2026-07-08T15:00:00.000Z"
+last_activity: 2026-07-08 -- Tier-one v1 (PLAN 260708-b7i) plus three follow-up commits. 8d4ea73 wires the missing Actual Hours widget include (fixes 5 pre-existing test failures). 3368fdb ships GlobalSearchController + Alpine ⌘K palette. 7db8730 polishes O&M / RAMS / Site Survey / Worksheet index screens.
 progress:
   total_phases: 2
   completed_phases: 2
@@ -27,6 +27,43 @@ Milestone: v2.0 (Engineering-Grade AV Drawings) — PAUSED at Phase 23 sub-plan 
 Active work: Tier-1 UX redesign COMPLETE — 5 of 5 screens shipped and live-confirmed
 Status: Session save 2026-07-06 — Tier-1 sweep complete
 Last activity: 2026-07-06 -- Screen 01 v1 shipped (25fe9df) closes the Tier-1 sweep. All five screens live-confirmed. Next session picks up v2.0 Phase 23 (XTEN-AV renderer) OR follow-up backlog items from Tier-1 (mfg_support_overrides generator wiring, Draft (TBC) affordance).
+
+## Session 2026-07-08 (evening) — Follow-up moves
+
+Three commits closing the backlog surfaced in PLAN 260708-b7i's SUMMARY.
+
+- **`8d4ea73` — fix(project-show): wire missing _actual-hours-widget include**.
+  Widget partial existed at `resources/views/projects/_actual-hours-widget.blade.php`
+  but was never `@included` in `projects/show.blade.php`. Controller was passing
+  `$canSeeActualHours` + `$actualHours` to the view; view silently ignored them.
+  Added the include inside the sticky aside column immediately below the
+  Project Summary card. All 5 previously-failing `ActualHoursWidgetTest` cases
+  now pass (6/6 total, 19 assertions).
+
+- **`3368fdb` — feat(search): global ⌘K command palette**. Wires the sidebar's
+  ⌘K search chip (previously visual-only) to a real JSON endpoint + Alpine
+  palette. `GET /search` (GlobalSearchController) does grouped LIKE search
+  across Projects / RAMS / Site Surveys / O&M / Worksheets, capped at 5 per
+  group, ordered by updated_at desc, min 2-char query. LIKE metacharacters
+  escaped before wrapping (`?q=%` doesn't match everything). Alpine palette
+  mounts once in `layouts/app.blade.php`, listens to ⌘K/Ctrl+K globally,
+  200ms debounced fetch with AbortController for inflight cancellation,
+  keyboard-first navigation (↑↓ + Enter + Esc), doc-kind gradient tiles
+  (P/R/S/O/W) matching the tier-one preview's doc-type marks. Sidebar chip
+  dispatches `open-global-search` custom event so palette + shortcut share
+  logic. 10 feature test cases (33 assertions) all pass.
+
+- **`7db8730` — feat(design): second-tier screen sweep — index pages tier-one polish**.
+  O&M / RAMS / Site Survey / Worksheet index pages moved onto the shared
+  `.page-header` + `.page-header-left` + `.page-subtitle` chrome. RAMS index
+  `<style>` block's ~90 lines of hardcoded warm hex (#FFF3CD, #856404,
+  #f0f0f0, etc.) retuned to token vars — status pills now rounded 999px with
+  hairline borders + color-mix() semantic tints. Emoji glyphs in button
+  labels (🗑 ← + ↓ ↺ ✎ 📋 ↻ ✕) replaced with matching 1.75px stroke SVGs
+  for consistent iconography. Modal overlay treatment aligned with the ⌘K
+  palette (color-mix indigo tint + backdrop-filter blur). Regression test
+  filter across RamsController / OmManualController / SiteSurvey / Worksheet:
+  200 passed (527 assertions).
 
 ## Session 2026-07-08 (afternoon) — Tier-one visual redesign v1
 
