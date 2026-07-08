@@ -84,16 +84,21 @@ class GlobalSearchController extends Controller
         }
 
         // ── RAMS documents ───────────────────────────────────────────────────
+        // The RamsDocument schema uses `project_name` + `project_ref` for its
+        // human-scannable columns (not `title` — the initial ship of this
+        // controller assumed a title column that doesn't exist; live 500'd,
+        // 2026-07-08 evening fix).
         $rams = RamsDocument::query()
             ->with('project:id,name')
             ->where(function ($query) use ($like) {
-                $query->where('title', 'like', $like)
+                $query->where('project_name', 'like', $like)
+                    ->orWhere('project_ref', 'like', $like)
                     ->orWhere('client_name', 'like', $like)
                     ->orWhere('site_address', 'like', $like);
             })
             ->orderByDesc('updated_at')
             ->limit(self::GROUP_LIMIT)
-            ->get(['id', 'title', 'client_name', 'status', 'project_id', 'updated_at']);
+            ->get(['id', 'project_name', 'project_ref', 'client_name', 'status', 'project_id', 'updated_at']);
 
         if ($rams->isNotEmpty()) {
             $groups[] = [
@@ -101,8 +106,9 @@ class GlobalSearchController extends Controller
                 'label' => 'RAMS',
                 'items' => $rams->map(fn (RamsDocument $r): array => [
                     'id'       => $r->id,
-                    'title'    => $r->title ?: ('RAMS #' . $r->id),
+                    'title'    => $r->project_name ?: ('RAMS #' . $r->id),
                     'subtitle' => trim(implode(' · ', array_filter([
+                        $r->project_ref,
                         $r->project?->name,
                         $r->client_name,
                     ]))),
@@ -113,13 +119,15 @@ class GlobalSearchController extends Controller
         }
 
         // ── Site surveys ─────────────────────────────────────────────────────
+        // site_surveys carries `project_ref` (not `quote_reference` — that
+        // column lives on `projects` only, 2026-07-08 evening fix).
         $surveys = SiteSurvey::query()
             ->with('project:id,name')
             ->where(function ($query) use ($like) {
                 $query->where('project_name', 'like', $like)
                     ->orWhere('client_name', 'like', $like)
                     ->orWhere('site_address', 'like', $like)
-                    ->orWhere('quote_reference', 'like', $like);
+                    ->orWhere('project_ref', 'like', $like);
             })
             ->orderByDesc('updated_at')
             ->limit(self::GROUP_LIMIT)

@@ -103,6 +103,55 @@ class GlobalSearchControllerTest extends TestCase
         $this->assertSame(1, count($projects['items']));
     }
 
+    public function test_rams_document_match_by_project_name(): void
+    {
+        // Regression guard 2026-07-08 evening — the initial ship of this
+        // controller queried RamsDocument by a non-existent `title` column,
+        // which 500'd on live. This test would have caught it.
+        $u = $this->authed();
+        $project = Project::factory()->create(['user_id' => $u->id]);
+        RamsDocument::create([
+            'user_id'      => $u->id,
+            'project_id'   => $project->id,
+            'project_name' => 'Marker RAMS on Volkswagen boardroom',
+            'project_ref'  => '21CQ30698',
+            'client_name'  => 'Volkswagen Group',
+            'site_address' => '1 Test St',
+            'status'       => RamsDocument::STATUS_COMPLETED,
+            'ai_provider'  => 'claude',
+            'ai_model'     => 'test',
+            'form_data'    => [],
+        ]);
+
+        $groups = $this->get('/search?q=marker')->assertOk()->json('groups');
+        $rams = collect($groups)->firstWhere('key', 'rams');
+        $this->assertNotNull($rams);
+        $this->assertSame('Marker RAMS on Volkswagen boardroom', $rams['items'][0]['title']);
+        $this->assertStringContainsString('21CQ30698', $rams['items'][0]['subtitle']);
+    }
+
+    public function test_site_survey_match_by_project_ref(): void
+    {
+        // Regression guard 2026-07-08 evening — the initial ship queried
+        // site_surveys by `quote_reference`, a column that lives only on
+        // `projects`. site_surveys uses `project_ref`.
+        $u = $this->authed();
+        $project = Project::factory()->create(['user_id' => $u->id]);
+        SiteSurvey::create([
+            'user_id'      => $u->id,
+            'project_id'   => $project->id,
+            'project_name' => 'Marker survey',
+            'project_ref'  => '21CQ99XYZ',
+            'client_name'  => 'Marker Client',
+            'site_address' => '1 Test St',
+        ]);
+
+        $groups = $this->get('/search?q=99XYZ')->assertOk()->json('groups');
+        $surveys = collect($groups)->firstWhere('key', 'surveys');
+        $this->assertNotNull($surveys);
+        $this->assertSame('Marker survey', $surveys['items'][0]['title']);
+    }
+
     public function test_worksheet_match_returns_worksheets_group(): void
     {
         $u = $this->authed();
