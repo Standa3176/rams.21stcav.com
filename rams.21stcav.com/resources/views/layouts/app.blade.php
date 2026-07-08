@@ -1395,11 +1395,14 @@
          `.gsp-backdrop.is-open { display: flex }`. Alpine toggles the
          `.is-open` class via x-bind. Even if Alpine fails to init the
          palette stays hidden — no flash, no stuck-open. --}}
+    {{-- ⌘K / Ctrl+K handled by a capture-phase listener in the script
+         block below (Alpine's bubble-phase keydown lost the race to the
+         browser's omnibox shortcut). Palette responds to the
+         `open-global-search` custom event which both the shortcut and
+         the sidebar chip dispatch. --}}
     <div x-data="globalSearchPalette()"
          x-bind:class="{ 'is-open': open }"
          x-on:keydown.escape.window="close"
-         x-on:keydown.window.prevent.meta.k="toggle"
-         x-on:keydown.window.prevent.ctrl.k="toggle"
          x-on:open-global-search.window="openPalette"
          x-on:keydown.arrow-down.window="onArrow(1)"
          x-on:keydown.arrow-up.window="onArrow(-1)"
@@ -1621,6 +1624,31 @@
     </style>
 
     <script>
+        // ⌘K / Ctrl+K global shortcut interceptor — capture phase.
+        //
+        // Alpine's `@keydown.window.prevent.ctrl.k` looked correct but
+        // the browser was still handling Ctrl+K first and opening its
+        // built-in "focus search bar" affordance (Chrome omnibox search
+        // mode, Firefox Web Search). Root cause: Alpine attaches window
+        // keydown listeners in the BUBBLE phase, and browsers process
+        // some reserved shortcuts before the bubble phase begins.
+        //
+        // Capture-phase listener registered directly on window fixes it
+        // — this listener sees the keydown before Alpine and before the
+        // browser's shortcut handler. preventDefault() here stops the
+        // omnibox from taking focus. Dispatching `open-global-search`
+        // wakes up the same Alpine palette that the sidebar chip uses.
+        (function () {
+            document.addEventListener('keydown', function (e) {
+                if (!(e.ctrlKey || e.metaKey)) return;
+                if (e.altKey || e.shiftKey) return;
+                if ((e.key || '').toLowerCase() !== 'k') return;
+                e.preventDefault();
+                e.stopPropagation();
+                window.dispatchEvent(new CustomEvent('open-global-search'));
+            }, true);  // useCapture = true
+        }());
+
         // ⌘K global search palette Alpine factory. Registered here so it
         // is available on every authenticated page load without touching
         // the per-page script pipeline. Debounces network calls to 200ms
