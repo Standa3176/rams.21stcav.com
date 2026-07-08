@@ -23,123 +23,162 @@
 
     <style>
         /* ═══════════════════════════════════════════════════════════════
-           DESIGN TOKENS — Tier-one (2026-07-08, PLAN 260708-b7i).
-           Cool slate neutrals + indigo brand + light sidebar chrome.
-           Legacy variable NAMES (--teal-*, --gold-*) are retained as
-           indigo aliases so every existing screen inherits the new
-           palette without a global find-replace across ~200 blade files.
+           DESIGN TOKENS — Jetbuilt-clean (2026-07-08).
+           Navy primary + electric blue accent + true B2B SaaS neutrals.
+           Whitespace-first, minimal chrome, flat treatments.
+           Legacy names (--teal-*, --gold-*, --accent, --bg-muted) are
+           retained as aliases so ~200 blade files pick up the palette
+           without a global find-replace.
         ═══════════════════════════════════════════════════════════════ */
         :root {
-            /* Ink scale — cool slate (was warm SCC v2 tones) */
-            --ink-900:        #0B1220;
+            /* ── Ink scale — Slate-cool, Jetbuilt-density ──────────────
+               900 is body text; 700 heading contrast; 500 secondary; 300
+               dividers; 100 subtle backgrounds. */
+            --ink-900:        #0F172A;
             --ink-700:        #334155;
             --ink-500:        #64748B;
+            --ink-400:        #94A3B8;
             --ink-300:        #CBD5E1;
             --ink-200:        #E2E8F0;
             --ink-100:        #F1F5F9;
 
-            /* Surfaces — cool canvas (was warm cream paper) */
-            --paper:          #F6F8FB;
-            --paper-2:        #F1F5F9;
+            /* ── Surfaces — cool workspace canvas ───────────────────── */
+            --paper:          #F7F9FC;   /* page background */
+            --paper-2:        #EEF2F7;   /* deeper zones (rare) */
 
-            /* Brand — indigo (mapped onto legacy --teal-* names so every
-               `.btn-teal` / `.badge-teal` / etc. across the codebase snaps
-               to the new accent without renaming) */
-            --teal-900:       #3730A3;
-            --teal-700:       #4338CA;
-            --teal-500:       #4F46E5;
-            --teal-100:       #E0E7FF;
+            /* ── Primary — Jetbuilt navy ─────────────────────────────── */
+            --nav-900:        #0A1F3D;
+            --nav-800:        #0B2440;
+            --nav-700:        #143263;
+            --nav-100:        #E8EEF7;
 
-            /* Green (kept as success-side option for legacy uses) */
+            /* ── Accent — electric blue (Jetbuilt CTA hue) ──────────── */
+            --accent-700:     #1E5FE0;
+            --accent-600:     #2E7BFF;
+            --accent-500:     #4C8FFF;
+            --accent-100:     #DCE9FF;
+            --accent-50:      #F0F5FF;
+
+            /* Legacy indigo aliases → navy/accent so `.btn-teal`, every
+               `--teal-*` reference, and every `--brand-*` fallback
+               inherit the Jetbuilt look without renaming. */
+            --teal-900:       var(--nav-900);
+            --teal-800:       var(--nav-800);
+            --teal-700:       var(--accent-700);
+            --teal-600:       var(--accent-600);
+            --teal-500:       var(--accent-600);
+            --teal-100:       var(--accent-100);
+            --teal-50:        var(--accent-50);
+
+            /* Brand-* aliases (used by /design gallery + status-badge) */
+            --brand-900:      var(--nav-900);
+            --brand-800:      var(--nav-800);
+            --brand-700:      var(--accent-700);
+            --brand-600:      var(--accent-600);
+            --brand-500:      var(--accent-600);
+            --brand-100:      var(--accent-100);
+            --brand-50:       var(--accent-50);
+
+            /* ── Semantic status — flat Stripe-ish values ───────────── */
+            --signal-success: #10B981;
+            --signal-warning: #F59E0B;
+            --signal-danger:  #EF4444;
+
             --green-600:      #059669;
             --green-500:      #10B981;
             --green-100:      #D1FAE5;
 
-            /* Semantic status */
-            --signal-success: #059669;
-            --signal-warning: #D97706;
-            --signal-danger:  #DC2626;
+            /* Gold retired → accent so any lingering `--gold-*` renders
+               as electric blue instead of an orphan warm hue. */
+            --gold-500:       var(--accent-600);
+            --gold-light:     var(--accent-100);
+            --gold-deep:      var(--accent-700);
 
-            /* Gold retired — alias maps to indigo brand so any lingering
-               `--gold-500` reference on a screen stays visually coherent. */
-            --gold-500:       #4F46E5;
-            --gold-light:     #E0E7FF;
-            --gold-deep:      #3730A3;
-
-            /* Sidebar — light chrome (was dark teal gradient). Indigo
-               active-state with a 2px left rail marker. */
-            --sidebar-bg:     #FBFBFD;
-            --sidebar-bg-2:   #FBFBFD;
-            --sidebar-fg:     #334155;
-            --sidebar-fg-mute:#94A3B8;
-            --sidebar-active-bg: #EEF2FF;
-            --sidebar-active-fg: #4338CA;
+            /* ── Nav shell — Jetbuilt uses a top bar only ─────────────
+               These sidebar-* vars are retained because a handful of
+               legacy screens still reference them; sidebar chrome will
+               be replaced by a full top-nav in Phase C. */
+            --sidebar-bg:     #FFFFFF;
+            --sidebar-bg-2:   #FFFFFF;
+            --sidebar-fg:     var(--ink-700);
+            --sidebar-fg-mute:var(--ink-400);
+            --sidebar-active-bg: var(--accent-50);
+            --sidebar-active-fg: var(--accent-700);
             --sidebar-width:  220px;
-            --header-height:  64px;
+            --header-height:  60px;
 
-            /* Page width — fixed max for predictable layout */
+            /* Page width — fixed max for predictable Jetbuilt-style
+               centered layout. */
             --page-max:       1440px;
 
             /* ── Aliases used by existing RAMS components ────────────── */
-            --teal:           var(--teal-700);
-            --teal-hover:     #3730A3;
-            --teal-active:    #3730A3;
-            --teal-light:     var(--teal-100);
-            --teal-mid:       rgba(79,70,229,.30);
-            --teal-deep:      var(--teal-900);
+            --teal:           var(--accent-600);
+            --teal-hover:     var(--accent-700);
+            --teal-active:    var(--accent-700);
+            --teal-light:     var(--accent-100);
+            --teal-mid:       color-mix(in oklab, var(--accent-600) 30%, transparent);
+            --teal-deep:      var(--nav-900);
             --bg:             var(--paper);
             --bg-deep:        var(--paper-2);
             --surface:        #FFFFFF;
-            --surface-soft:   #F8FAFC;
+            --surface-soft:   #FAFBFD;
             --surface-deep:   var(--ink-100);
             --border:         var(--ink-200);
             --border-strong:  var(--ink-300);
             --rule:           var(--ink-100);
             --text:           var(--ink-900);
+            --body:           var(--ink-900);
+            --muted:          var(--ink-500);
             --text-muted:     var(--ink-500);
             --text-faint:     var(--ink-300);
             --text-on-dark:   #FFFFFF;
+            --card:           #FFFFFF;
             --danger:         var(--signal-danger);
             --danger-light:   #FEE2E2;
             --success:        var(--signal-success);
             --success-light:  #ECFDF5;
             --warning:        var(--signal-warning);
             --warning-light:  #FEF3C7;
-            --gold:           var(--gold-500);
+            --gold:           var(--accent-600);
 
-            /* Audit D-02 (2026-07-08 post-tier-one review) — define the
-               two vars that per-screen `var(--accent, #0F3E36)` and
-               `var(--bg-muted, #FBF8EF)` fallbacks were silently painting
-               SCC v2 dark-teal + warm cream. Cascades to 15+ screens
-               including project-packages/review, om-manual/edit +
-               edit-devices, and every use of the muted-background pattern. */
-            --accent:         var(--teal-700);
+            /* Per-screen fallbacks — `var(--accent, ...)` and
+               `var(--bg-muted, ...)` cascades to 15+ screens. */
+            --accent:         var(--accent-600);
             --bg-muted:       var(--surface-soft);
 
-            /* Typography — Inter Variable everywhere (retire Fraunces
-               display — the tier-one look leans on a single high-quality
-               sans, not a serif/sans pairing) */
+            /* ── Typography — Inter Variable everywhere ─────────────── */
             --font-body:      'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
             --font-sans:      var(--font-body);
             --font-display:   var(--font-body);
             --font-mono:      'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
-            /* Shape */
+            /* Type scale — Jetbuilt runs slightly larger display sizes
+               with generous leading. 28/22/18/16/14/12. */
+            --fs-display:     1.75rem;   /* 28px — page H1 */
+            --fs-h2:          1.375rem;  /* 22px — section H2 */
+            --fs-h3:          1.125rem;  /* 18px — sub-heading */
+            --fs-body:        0.9375rem; /* 15px — body */
+            --fs-small:       0.8125rem; /* 13px — meta/table */
+            --fs-micro:       0.6875rem; /* 11px — eyebrow */
+
+            /* ── Shape — Jetbuilt tighter radii (4/6/8, not 8/12/16) ── */
+            --radius-xs:      4px;
             --radius-sm:      6px;
-            --radius:         8px;
-            --radius-lg:      12px;
-            --radius-xl:      16px;
+            --radius:         6px;
+            --radius-lg:      8px;
+            --radius-xl:      12px;
 
-            /* Shadows — restrained (was too heavy for data-dense screens) */
-            --shadow-card:    0 1px 2px 0 rgb(15 23 42 / 0.03), 0 1px 3px 0 rgb(15 23 42 / 0.05);
-            --shadow-pop:     0 10px 15px -3px rgb(15 23 42 / 0.10), 0 4px 6px -4px rgb(15 23 42 / 0.08);
+            /* ── Shadows — single restrained tier for cards, deeper
+               pop for menus/modals only. No shadow on tables. ──────── */
             --shadow-xs:      0 1px 2px 0 rgb(15 23 42 / 0.04);
+            --shadow-card:    0 1px 2px 0 rgb(15 23 42 / 0.05);
             --shadow-sm:      var(--shadow-card);
-            --shadow-md:      var(--shadow-pop);
-            --shadow-lg:      0 12px 24px -8px rgb(15 23 42 / 0.14), 0 4px 8px -4px rgb(15 23 42 / 0.08);
-            --shadow-focus:   0 0 0 3px rgb(79 70 229 / 0.24);
+            --shadow-md:      0 4px 6px -1px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.05);
+            --shadow-pop:     0 10px 15px -3px rgb(15 23 42 / 0.10), 0 4px 6px -4px rgb(15 23 42 / 0.06);
+            --shadow-lg:      0 20px 25px -5px rgb(15 23 42 / 0.12), 0 8px 10px -6px rgb(15 23 42 / 0.05);
+            --shadow-focus:   0 0 0 3px rgb(46 123 255 / 0.24);
 
-            /* Motion */
+            /* ── Motion ────────────────────────────────────────────── */
             --transition:     150ms ease;
             --transition-slow: 250ms ease;
         }
@@ -151,12 +190,22 @@
         html { font-size: 16px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
         body {
             font-family: var(--font-body);
-            font-size: 14px;
+            font-size: var(--fs-body);   /* 15px — Jetbuilt body cadence */
             line-height: 1.55;
             color: var(--ink-900);
             background: var(--paper);
             min-height: 100vh;
         }
+        h1, h2, h3, h4 {
+            font-weight: 600;
+            letter-spacing: -0.015em;
+            color: var(--ink-900);
+            line-height: 1.3;
+        }
+        h1 { font-size: var(--fs-display); }
+        h2 { font-size: var(--fs-h2); }
+        h3 { font-size: var(--fs-h3); }
+        h4 { font-size: var(--fs-body); }
         a           { color: var(--teal); text-decoration: none; transition: color var(--transition); }
         a:hover     { color: var(--teal-hover); text-decoration: none; }
         img, svg    { display: block; }
@@ -411,31 +460,44 @@
             margin: 0;
             padding: 1.75rem 2rem;
         }
+        /* Jetbuilt page-header — subdued eyebrow (optional), large H1,
+           inline meta beneath, right-aligned primary action. Roomier
+           spacing than tier-one. */
         .page-header {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             justify-content: space-between;
-            margin-bottom: 1.75rem;
+            margin-bottom: 24px;
             flex-wrap: wrap;
-            gap: .75rem;
+            gap: 12px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--ink-100);
         }
         .page-title {
-            font-size: 26px;
-            font-weight: 700;
+            font-size: var(--fs-display);
+            font-weight: 600;
             color: var(--ink-900);
             letter-spacing: -.025em;
-            line-height: 1.15;
+            line-height: 1.2;
         }
         .page-title em {
             font-style: normal;
-            font-weight: 700;
-            color: var(--teal-700);
+            font-weight: 600;
+            color: var(--accent-700);
         }
         .page-subtitle {
-            font-size: 13px;
+            font-size: var(--fs-small);
             color: var(--ink-500);
-            max-width: 64ch;
-            margin-top: .35rem;
+            max-width: 72ch;
+            margin-top: 6px;
+        }
+        .page-eyebrow {
+            font-size: var(--fs-micro);
+            font-weight: 600;
+            color: var(--accent-700);
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            margin-bottom: 4px;
         }
 
         /* ── Page header layout helpers ── */
@@ -512,16 +574,16 @@
         }
 
         /* ═══════════════════════════════════════════════════════════════
-           CARDS — tier-one surface (audit D-12 dark-mode prep)
+           CARDS — Jetbuilt flat surface. Border-only, no shadow. Shadow
+           reserved for modals / floating menus.
         ═══════════════════════════════════════════════════════════════ */
         .card {
             background: var(--surface);
-            border-radius: 12px;
-            border: 1px solid var(--ink-300);
-            box-shadow: var(--shadow-card);
-            padding: 18px;
-            margin-bottom: 18px;
-            /* No overflow clipping — allows row-action dropdowns to escape the card. */
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--ink-200);
+            box-shadow: none;
+            padding: 20px 22px;
+            margin-bottom: 20px;
         }
         .card-sm    { padding: 14px 16px; }
         .card-flush { padding: 0; }
@@ -530,52 +592,63 @@
             align-items: center;
             justify-content: space-between;
             gap: 12px;
-            padding: 14px 18px;
+            padding: 14px 22px;
             border-bottom: 1px solid var(--ink-100);
         }
         .card-title {
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: .10em;
-            text-transform: uppercase;
-            color: var(--ink-700);
+            font-size: var(--fs-body);
+            font-weight: 600;
+            letter-spacing: -.005em;
+            text-transform: none;
+            color: var(--ink-900);
         }
-        .card-body  { padding: 18px; }
+        .card-body  { padding: 20px 22px; }
 
-        /* Stat tiles (v2 KPI tile style) */
+        /* ── KPI tiles — Jetbuilt roomy, single accent stripe ─────── */
         .stat-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 14px;
-            margin-bottom: 22px;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
         }
         .stat-card {
-            background: #FFF;
-            border: 1px solid var(--ink-300);
-            border-radius: 10px;
-            box-shadow: var(--shadow-card);
-            padding: 16px 18px;
+            background: var(--surface);
+            border: 1px solid var(--ink-200);
+            border-radius: var(--radius-lg);
+            box-shadow: none;
+            padding: 18px 20px;
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 6px;
+            position: relative;
+            transition: border-color var(--transition);
         }
+        .stat-card:hover { border-color: var(--ink-300); }
         .stat-label {
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: .10em;
-            text-transform: uppercase;
+            font-size: var(--fs-small);
+            font-weight: 500;
+            letter-spacing: 0;
+            text-transform: none;
             color: var(--ink-500);
         }
         .stat-value {
-            font-size: 28px;
-            font-weight: 700;
+            font-size: 30px;
+            font-weight: 600;
             color: var(--ink-900);
             letter-spacing: -.025em;
-            line-height: 1;
+            line-height: 1.1;
             font-variant-numeric: tabular-nums;
         }
-        .stat-sub   { font-size: 11px; color: var(--ink-500); }
-        .stat-icon  { width: 36px; height: 36px; border-radius: 8px; background: var(--teal-100); color: var(--teal-700); display: grid; place-items: center; margin-bottom: .5rem; }
+        .stat-sub   { font-size: var(--fs-small); color: var(--ink-500); }
+        .stat-icon  {
+            width: 32px; height: 32px;
+            border-radius: var(--radius-sm);
+            background: var(--accent-50);
+            color: var(--accent-700);
+            display: grid;
+            place-items: center;
+            margin-bottom: 6px;
+        }
 
         /* ── Summary card — KV grid ── */
         .kv-grid {
@@ -612,62 +685,72 @@
         .section-card__actions { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
 
         /* ═══════════════════════════════════════════════════════════════
-           BUTTONS — v2 style
+           BUTTONS — Jetbuilt flat. 6px radius, tight 13px type, no
+           shadow, subtle hover. Primary uses the electric blue accent;
+           secondary is a white pill with subtle border.
         ═══════════════════════════════════════════════════════════════ */
         .btn {
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 6px;
-            padding: 9px 16px;
-            border-radius: 7px;
+            padding: 8px 14px;
+            border-radius: var(--radius-sm);
             border: 1px solid transparent;
             font-family: var(--font-body);
-            font-weight: 600;
+            font-weight: 500;
             font-size: 13px;
-            letter-spacing: .01em;
+            line-height: 1.2;
+            letter-spacing: -0.005em;
             cursor: pointer;
-            transition: background .12s, border-color .12s, color .12s;
+            transition: background var(--transition), border-color var(--transition), color var(--transition);
             text-decoration: none;
             white-space: nowrap;
+            box-shadow: none;
         }
         .btn:hover         { text-decoration: none; }
-        .btn:focus-visible { outline: 2px solid var(--teal-700); outline-offset: 2px; }
+        .btn:focus-visible { outline: 2px solid var(--accent-600); outline-offset: 2px; }
         .btn:disabled      { opacity: .5; cursor: not-allowed; pointer-events: none; }
 
         .btn-primary, .btn-teal {
-            background: var(--teal-700);
-            border-color: var(--teal-700);
+            background: var(--accent-600);
+            border-color: var(--accent-600);
             color: #FFF;
         }
-        .btn-primary:hover, .btn-teal:hover { background: var(--teal-800); border-color: var(--teal-800); color: #FFF; }
+        .btn-primary:hover, .btn-teal:hover {
+            background: var(--accent-700);
+            border-color: var(--accent-700);
+            color: #FFF;
+        }
 
         .btn-secondary {
             background: #FFF;
-            border-color: var(--ink-300);
+            border-color: var(--ink-200);
             color: var(--ink-900);
         }
-        .btn-secondary:hover { border-color: var(--ink-500); background: #FAFAF7; }
+        .btn-secondary:hover { border-color: var(--ink-300); background: var(--surface-soft); }
 
-        /* Legacy gold variant maps to gold accent button */
+        /* Legacy gold variant → navy button (Jetbuilt uses navy as its
+           high-emphasis dark option) */
         .btn-gold {
-            background: var(--gold-500);
-            color: var(--ink-900);
-            border-color: var(--gold-500);
+            background: var(--nav-800);
+            color: #FFF;
+            border-color: var(--nav-800);
         }
-        .btn-gold:hover { background: #B8993D; border-color: #B8993D; color: var(--ink-900); }
+        .btn-gold:hover { background: var(--nav-900); border-color: var(--nav-900); color: #FFF; }
 
-        .btn-outline       { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
-        .btn-outline:hover { background: var(--surface-soft); border-color: var(--text-muted); color: var(--text); }
-        .btn-ghost         { background: transparent; color: var(--text-muted); border-color: transparent; }
-        .btn-ghost:hover   { background: var(--surface-soft); color: var(--text); }
+        .btn-outline       { background: var(--surface); color: var(--ink-900); border-color: var(--ink-200); }
+        .btn-outline:hover { background: var(--surface-soft); border-color: var(--ink-300); color: var(--ink-900); }
+        .btn-ghost         { background: transparent; color: var(--ink-500); border-color: transparent; }
+        .btn-ghost:hover   { background: var(--ink-100); color: var(--ink-900); }
 
         .btn-danger            { background: var(--danger); color: #fff; border-color: var(--danger); }
-        .btn-danger:hover      { background: #B91C1C; border-color: #B91C1C; color: #fff; }
+        .btn-danger:hover      { background: #DC2626; border-color: #DC2626; color: #fff; }
         .btn-danger-outline    { background: transparent; color: var(--danger); border-color: #FECACA; }
         .btn-danger-outline:hover { background: var(--danger-light); border-color: #FCA5A5; }
 
-        .btn-sm   { padding: .3rem .75rem; font-size: .8125rem; }
-        .btn-full { width: 100%; justify-content: center; font-size: 1rem; padding: .75rem; }
+        .btn-sm   { padding: 5px 10px; font-size: 12px; }
+        .btn-full { width: 100%; padding: 10px 14px; font-size: 14px; }
 
         /* ═══════════════════════════════════════════════════════════════
            ALERTS  (simple inline)
@@ -729,20 +812,21 @@
         .form-label .req { color: var(--danger); margin-left: .2rem; }
         .form-control {
             width: 100%;
-            padding: .5rem .75rem;
-            border: 1px solid #D1D5DB;
+            padding: 8px 12px;
+            border: 1px solid var(--ink-200);
             border-radius: var(--radius-sm);
-            font-size: .9rem;
+            font-size: var(--fs-body);
             font-family: inherit;
-            color: var(--text);
+            color: var(--ink-900);
             background: var(--surface);
             transition: border-color var(--transition), box-shadow var(--transition);
             appearance: none;
+            line-height: 1.5;
         }
-        .form-control::placeholder { color: var(--text-faint); }
-        .form-control:hover  { border-color: #9CA3AF; }
-        .form-control:focus  { outline: none; border-color: var(--teal); box-shadow: var(--shadow-focus); }
-        .form-control.is-invalid { border-color: var(--danger); box-shadow: 0 0 0 3px rgba(220,38,38,.1); }
+        .form-control::placeholder { color: var(--ink-400); }
+        .form-control:hover  { border-color: var(--ink-300); }
+        .form-control:focus  { outline: none; border-color: var(--accent-600); box-shadow: var(--shadow-focus); }
+        .form-control.is-invalid { border-color: var(--danger); box-shadow: 0 0 0 3px rgba(239,68,68,.12); }
         select.form-control  { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right .75rem center; padding-right: 2.25rem; }
         textarea.form-control { resize: vertical; min-height: 90px; }
         .form-help { font-size: .8rem; color: var(--text-muted); margin-top: .3rem; }
@@ -774,53 +858,58 @@
         .check-item input[type=checkbox]           { accent-color: var(--teal); width: 15px; height: 15px; flex-shrink: 0; }
 
         /* ═══════════════════════════════════════════════════════════════
-           SECTION HEADINGS — uppercase tracked teal (SCC v2 .card-head-title)
+           SECTION HEADINGS — Jetbuilt drops the coloured left-bar
+           accessory. Sub-heading is plain sentence-case type; eyebrow
+           form (kept for legacy uses like uppercase catalog labels) is
+           the mono-tracked variant.
         ═══════════════════════════════════════════════════════════════ */
         .section-heading {
-            font-size: .75rem;
-            font-weight: 700;
-            color: var(--teal-700);
-            letter-spacing: .10em;
-            text-transform: uppercase;
-            padding-bottom: .55rem;
-            margin-bottom: 1rem;
+            font-size: var(--fs-h3);
+            font-weight: 600;
+            color: var(--ink-900);
+            letter-spacing: -0.01em;
+            text-transform: none;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
             border-bottom: 1px solid var(--ink-100);
             display: flex;
             align-items: center;
             gap: 8px;
         }
-        .section-heading::before {
-            content: '';
-            display: inline-block;
-            width: 4px;
-            height: 14px;
-            background: var(--teal-700);
-            border-radius: 2px;
-        }
-        /* Larger panel-style heading for project sub-sections (Project Summary etc.) */
-        .section-heading--panel {
-            font-size: 1rem;
-            text-transform: none;
-            letter-spacing: -.01em;
-            color: var(--ink-900);
-            font-family: var(--font-display);
+        /* Left-rail accent bar retired — Jetbuilt uses whitespace + weight
+           instead. Keep the rule as a no-op so nothing renders if it fires. */
+        .section-heading::before { content: none; }
+
+        /* Legacy variant — still available for callers that want the
+           uppercase catalog eyebrow (e.g. inside dense card headers). */
+        .section-heading--eyebrow {
+            font-size: var(--fs-micro);
             font-weight: 600;
-            padding-bottom: .65rem;
-            margin-bottom: 1rem;
+            color: var(--ink-500);
+            letter-spacing: .10em;
+            text-transform: uppercase;
+        }
+        .section-heading--panel {
+            font-size: var(--fs-h2);
+            text-transform: none;
+            letter-spacing: -.015em;
+            color: var(--ink-900);
+            font-weight: 600;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
             border-bottom: 1px solid var(--ink-100);
         }
-        .section-heading--panel::before {
-            background: var(--teal-700);
-            width: 3px;
-            height: 18px;
-        }
+        .section-heading--panel::before { content: none; }
+
+        /* .section-block flattens the same as .card in the Jetbuilt style —
+           border only, no shadow, roomy interior. */
         .section-block {
             background: var(--surface);
-            border-radius: var(--radius);
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow-xs);
-            padding: 1.5rem;
-            margin-bottom: 1.25rem;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--ink-200);
+            box-shadow: none;
+            padding: 22px 24px;
+            margin-bottom: 20px;
         }
 
         /* ═══════════════════════════════════════════════════════════════
@@ -829,12 +918,11 @@
         ═══════════════════════════════════════════════════════════════ */
         .form-section {
             background: var(--surface);
-            border: 1px solid var(--ink-300);
-            border-left: 3px solid var(--teal-700);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow-sm);
-            margin-bottom: 1.5rem;
-            overflow: hidden; /* keeps the cream header tint inside the radius */
+            border: 1px solid var(--ink-200);
+            border-radius: var(--radius-lg);
+            box-shadow: none;
+            margin-bottom: 20px;
+            overflow: hidden;
         }
         /* Tier-one polish 2026-07-08 — was warm cream gradient
            (#EFEBDF → #E5DFCE) baked in from SCC v2. Now a subtle
@@ -907,22 +995,17 @@
         }
         .room-subsection:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
         .room-subsection__heading {
-            font-size: .72rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: .06em;
-            color: var(--teal-700);
-            margin: 0 0 .6rem;
+            font-size: var(--fs-small);
+            font-weight: 600;
+            text-transform: none;
+            letter-spacing: -0.005em;
+            color: var(--ink-900);
+            margin: 0 0 10px;
             display: flex;
             align-items: center;
             gap: 8px;
         }
-        .room-subsection__heading::before {
-            content: '';
-            width: 3px;
-            height: 12px;
-            background: var(--teal-700);
-        }
+        .room-subsection__heading::before { content: none; }
 
         /* ═══════════════════════════════════════════════════════════════
            EMPTY-FIELD HIGHLIGHT — pure CSS, opt-out via [data-optional]
@@ -968,30 +1051,39 @@
         }
 
         /* ═══════════════════════════════════════════════════════════════
-           TABLES
+           TABLES — Jetbuilt density. Roomy rows (52px), hairline
+           dividers only, no vertical rules, no uppercase headers,
+           soft-blue row hover for scan-tracking. Rendered inside a
+           .card wrapper so the table doesn't need its own border.
         ═══════════════════════════════════════════════════════════════ */
-        .data-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: var(--fs-small);
+        }
         .data-table th {
-            background: var(--surface-soft);
-            color: var(--text-muted);
-            padding: .65rem 1rem;
+            background: transparent;
+            color: var(--ink-500);
+            padding: 12px 16px;
             text-align: left;
-            font-weight: 600;
-            font-size: .7rem;
-            text-transform: uppercase;
-            letter-spacing: .06em;
-            border-bottom: 1px solid var(--border);
+            font-weight: 500;
+            font-size: var(--fs-small);
+            text-transform: none;
+            letter-spacing: 0;
+            border-bottom: 1px solid var(--ink-200);
+            white-space: nowrap;
         }
         .data-table td {
-            padding: .75rem 1rem;
-            border-bottom: 1px solid var(--border);
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--ink-100);
             vertical-align: middle;
-            color: var(--text);
+            color: var(--ink-900);
+            font-size: var(--fs-body);
         }
         .data-table tbody tr:last-child td { border-bottom: none; }
         .data-table tbody tr                { transition: background var(--transition); }
-        .data-table tbody tr:hover          { background: var(--surface-soft); }
-        .data-table .actions                { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; }
+        .data-table tbody tr:hover          { background: var(--accent-50); }
+        .data-table .actions                { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 
         /* ═══════════════════════════════════════════════════════════════
            TEAM ROW / FORM GRID
