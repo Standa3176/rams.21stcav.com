@@ -512,10 +512,10 @@
         }
 
         /* ═══════════════════════════════════════════════════════════════
-           CARDS — v2 paper surface
+           CARDS — tier-one surface (audit D-12 dark-mode prep)
         ═══════════════════════════════════════════════════════════════ */
         .card {
-            background: #FFF;
+            background: var(--surface);
             border-radius: 12px;
             border: 1px solid var(--ink-300);
             box-shadow: var(--shadow-card);

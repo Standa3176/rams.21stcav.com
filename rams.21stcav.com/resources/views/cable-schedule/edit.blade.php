@@ -57,14 +57,23 @@
         <button type="submit" class="btn btn-teal">Save Changes</button>
     </div>
 
-    {{-- Cable table — 9 columns (Phase 22 D-03: chain-link icon column inserted between From and To) --}}
-    <div class="card" style="padding:0;overflow:hidden;">
-        <table class="data-table" id="cables-table">
+    {{-- Cable table — 9 columns (Phase 22 D-03: chain-link icon column
+         inserted between From and To). Audit D-09 (2026-07-08) — the
+         outer .card had overflow:hidden which clipped the table below
+         1100px viewports. Wrapped in overflow-x:auto so tablet users
+         can scroll horizontally to reach rack/port columns. --}}
+    <div class="card" style="padding:0;overflow-x:auto;">
+        <table class="data-table" id="cables-table" style="min-width:960px;">
             <thead>
                 <tr>
                     <th style="width:90px;">Cable ID</th>
                     <th>From</th>
-                    <th style="width:38px;text-align:center;" title="Pick ports">🔗</th>
+                    <th style="width:44px;text-align:center;" aria-label="Pick ports">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;color:var(--muted);" aria-hidden="true">
+                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                        </svg>
+                    </th>
                     <th>To</th>
                     <th>Type</th>
                     <th style="width:80px;">Cores</th>

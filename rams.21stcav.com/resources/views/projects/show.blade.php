@@ -337,6 +337,23 @@
 
         /* Status badge weight */
         .psv .status-badge { font-weight: 500; }
+    /* Audit D-11 (2026-07-08) — 340-line stylesheet shipped zero @media
+       breakpoints, so the stepper/tabs/sticky aside all overflowed
+       below `lg`. PMs open this on iPads on-site. Added defensive
+       responsive rules for the busiest screen in the app. */
+    @media (max-width: 900px) {
+        .psv-tabs { gap: 12px; overflow-x: auto; }
+        .psv-tab { padding: 8px 2px; font-size: 12px; }
+        .psv-stepper { padding-bottom: 8px; }
+        .psv-step { font-size: 12px; }
+        .psv-step__num { width: 20px; height: 20px; font-size: 10px; }
+        .psv__main > .section-block { padding: 16px; }
+    }
+    @media (max-width: 700px) {
+        /* Device rows crush into a single line on the label-photo panel
+           without flex-wrap. Force wrap so thumb + name stack. */
+        .psv__main .flex.items-start { flex-wrap: wrap; }
+    }
     </style>
 @endpush
 

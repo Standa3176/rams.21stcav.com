@@ -27,16 +27,27 @@
     $persons   = $data['persons_at_risk'] ?? [];
 @endphp
 
-<div style="display:grid; grid-template-columns:1fr 320px; gap:1.25rem; align-items:start;">
+{{-- Audit D-10 (2026-07-08) — 1fr/320px grid had no @media breakpoint so
+     the sidebar collapsed over the content on mobile. Added responsive
+     stack + retuned section heading from hardcoded #007B8A / #666 hex
+     to tokens. --}}
+<style>
+    .qi-review-grid { display: grid; grid-template-columns: 1fr 320px; gap: 20px; align-items: start; }
+    .qi-review-h2   { font-size: 15px; font-weight: 700; margin-bottom: 16px; color: var(--ink-900); letter-spacing: -0.015em; }
+    .qi-review-h2 small { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 8px; letter-spacing: 0; }
+    @media (max-width: 900px) {
+        .qi-review-grid { grid-template-columns: 1fr; }
+    }
+</style>
+
+<div class="qi-review-grid">
 
     {{-- ── LEFT: Confirm form ──────────────────────────────────────────────── --}}
     <div>
         <div class="card">
-            <h2 style="font-size:1rem; font-weight:600; margin-bottom:1rem; color:#007B8A;">
+            <h2 class="qi-review-h2">
                 Project Details
-                <span style="font-size:.75rem; font-weight:400; color:#666; margin-left:.5rem;">
-                    (edit before confirming)
-                </span>
+                <small>(edit before confirming)</small>
             </h2>
 
             <form method="POST" action="{{ route('quote-import.confirm', $package) }}" id="confirmForm">
@@ -234,15 +245,9 @@
                 <tr>
                     <td style="color:#888; padding:.3rem 0;">Status</td>
                     <td style="padding:.3rem 0;">
-                        <span style="
-                            display:inline-block;
-                            padding:.2rem .55rem;
-                            border-radius:12px;
-                            font-size:.75rem;
-                            background:#fef9e7;
-                            color:#856404;
-                            border:1px solid #f0c91433;
-                        ">Extracted</span>
+                        <span style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:500;background:var(--warning-light);color:#92400E;border:1px solid color-mix(in oklab, var(--warning) 30%, transparent);">
+                            <span style="width:5px;height:5px;border-radius:50%;background:currentColor;"></span>Extracted
+                        </span>
                     </td>
                 </tr>
                 @if(!empty($data['project_type']))
