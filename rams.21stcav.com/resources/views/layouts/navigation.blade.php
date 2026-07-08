@@ -321,6 +321,20 @@
         Worker
         <span class="snav-admin-dot" aria-hidden="true"></span>
     </a>
+
+    {{-- Design system reference — internal contributor doc. --}}
+    <a href="{{ route('design.gallery') }}"
+       class="snav-link admin-only {{ request()->routeIs('design.gallery') ? 'active' : '' }}"
+       title="Design system reference">
+        <svg class="snav-icon" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="13.5" cy="6.5" r="0.5"/><circle cx="17.5" cy="10.5" r="0.5"/>
+            <circle cx="8.5" cy="7.5" r="0.5"/><circle cx="6.5" cy="12.5" r="0.5"/>
+            <path d="M12 2a10 10 0 1 0 10 10c0-5-3-6-5-6h-3a4 4 0 0 1 0-8h.5"/>
+        </svg>
+        Design
+        <span class="snav-admin-dot" aria-hidden="true"></span>
+    </a>
     @endif
 
 </nav>

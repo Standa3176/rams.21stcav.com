@@ -175,6 +175,14 @@ Route::middleware('auth')->group(function () {
         ->name('search.query')
         ->middleware('throttle:60,1');
 
+    // ── /design — internal design system reference gallery ───────────────
+    // Single-page catalogue of every primitive: palette swatches, type ramp,
+    // buttons, badges, cards, KPI shapes, form controls, focus states.
+    // Admin-only — an internal contributor reference, not a client surface.
+    Route::get('/design', fn () => view('design-gallery'))
+        ->name('design.gallery')
+        ->middleware('admin');
+
     // ── Profile ───────────────────────────────────────────────────────────
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
