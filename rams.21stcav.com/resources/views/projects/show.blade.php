@@ -1808,6 +1808,14 @@
                 </dl>
             </x-section-card>
 
+            {{-- Actual Hours widget (Phase 15 D-13/D-14/D-15/D-16).
+                 Controller passes $canSeeActualHours (bool) + $actualHours
+                 (array|null). The partial trusts this include gate — it
+                 does not re-check the flag internally. --}}
+            @if ($canSeeActualHours && $actualHours !== null)
+                @include('projects._actual-hours-widget', ['actualHours' => $actualHours])
+            @endif
+
             {{-- Project Details --}}
             <x-section-card title="Project Details">
                 <x-slot name="actions">
