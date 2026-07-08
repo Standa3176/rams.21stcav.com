@@ -827,11 +827,18 @@ class RamsController extends Controller
             'sender_note'     => ['nullable', 'string', 'max:1000'],
         ]);
 
+        // Audit WR-02 (2026-07-08) — sender_note is user-controllable free
+        // text that flows into a Mailable. Route is throttled at 5 per hour
+        // (see routes/web.php), but a compromised staff account is still an
+        // arbitrary-recipient spam surface; strip HTML so an XSS payload
+        // can't reach the client's inbox rendered from our domain.
+        $senderNote = strip_tags((string) $request->input('sender_note', ''));
+
         Mail::to($request->input('recipient_email'), $request->input('recipient_name'))
             ->send(new RamsDocumentMail(
                 rams:          $rams,
                 recipientName: $request->input('recipient_name'),
-                senderNote:    $request->input('sender_note', ''),
+                senderNote:    $senderNote,
             ));
 
         $rams->update(['email_sent_at' => now()]);

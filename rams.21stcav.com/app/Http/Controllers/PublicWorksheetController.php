@@ -394,13 +394,18 @@ class PublicWorksheetController extends Controller
             ]
         );
 
+        // Audit CR-01 (2026-07-08): M-06 sibling — was writing the first 8
+        // hex chars of the worksheet UUID token verbatim to
+        // device_label_photos.captured_by. Same fix that shipped for
+        // markSurveyReviewed / markRoomComplete.
         $photo = $service->capture(
             project:    $worksheet->project,
             file:       $request->file('photo'),
             device:     $device,
             worksheet:  $worksheet,
             roomName:   $data['room_name'],
-            capturedBy: substr($token, 0, 8),
+            capturedBy: 'ip:' . ($request->ip() ?: 'unknown')
+                       . '|actor:' . substr(hash('sha256', $token), 0, 12),
         );
 
         return response()->json([

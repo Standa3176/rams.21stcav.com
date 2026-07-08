@@ -308,7 +308,14 @@ Route::middleware('auth')->group(function () {
     Route::post('rams/{rams}/update-and-download', [RamsController::class, 'updateAndDownload'])->name('rams.update-and-download');
     Route::get('rams/{rams}/download', [RamsController::class, 'download'])->name('rams.download');
     Route::get('rams/{rams}/download-pdf', [RamsController::class, 'downloadPdf'])->name('rams.download-pdf');
-    Route::post('rams/{rams}/email', [RamsController::class, 'email'])->name('rams.email');
+    // Audit WR-02 (2026-07-08) — throttle:5,60 caps the arbitrary-recipient
+    // spam surface a compromised staff account could open. Before the fix
+    // an authed user could iterate every rams id and use the company mail
+    // server at unlimited rate. See RamsController::email for the
+    // strip_tags() defence on sender_note.
+    Route::post('rams/{rams}/email', [RamsController::class, 'email'])
+        ->name('rams.email')
+        ->middleware('throttle:5,60');
     Route::post('rams/{rams}/status', [RamsController::class, 'updateStatus'])->name('rams.status');
     Route::post('rams/{rams}/regenerate', [RamsController::class, 'regenerate'])->name('rams.regenerate');
     Route::delete('rams/{rams}/destroy', [RamsController::class, 'destroy'])->name('rams.destroy');
