@@ -1374,6 +1374,318 @@
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
     @endauth
 
+    {{-- ── GLOBAL SEARCH — ⌘K COMMAND PALETTE ────────────────────────────
+         Renders once at the layout level so every authenticated page
+         inherits the shortcut. Backed by GET /search
+         (GlobalSearchController). 200ms debounced fetch, min 2-char query,
+         grouped result list, keyboard-first (↑↓ + Enter + Esc). Full
+         Alpine factory defined in the script block below. --}}
+    @auth
+    <div x-data="globalSearchPalette()"
+         x-show="open"
+         x-cloak
+         x-transition.opacity.duration.150ms
+         @keydown.escape.window="close"
+         @keydown.window.prevent.meta.k="toggle"
+         @keydown.window.prevent.ctrl.k="toggle"
+         @open-global-search.window="openPalette"
+         @keydown.arrow-down.window="onArrow(1)"
+         @keydown.arrow-up.window="onArrow(-1)"
+         @keydown.enter.window="onEnter"
+         class="gsp-backdrop"
+         role="dialog"
+         aria-modal="true"
+         aria-label="Global search">
+        <div @click.away="close" @click.stop class="gsp-panel">
+            <div class="gsp-input-wrap">
+                <svg class="gsp-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>
+                </svg>
+                <input x-ref="input"
+                       type="text"
+                       class="gsp-input"
+                       placeholder="Search projects, documents, sites…"
+                       autocomplete="off"
+                       spellcheck="false"
+                       x-model="query"
+                       @input.debounce.200ms="fetch()">
+                <button class="gsp-kbd" @click="close" type="button" aria-label="Close (Esc)">Esc</button>
+            </div>
+
+            <div class="gsp-results" x-ref="results">
+                <template x-if="query.length < 2 && !loading">
+                    <div class="gsp-empty">
+                        <div class="gsp-empty-title">Start typing to search</div>
+                        <div class="gsp-empty-sub">Find projects, RAMS, surveys, O&amp;M, or worksheets by name, client, or reference.</div>
+                    </div>
+                </template>
+
+                <template x-if="query.length >= 2 && loading">
+                    <div class="gsp-loading">Searching…</div>
+                </template>
+
+                <template x-if="query.length >= 2 && !loading && groups.length === 0">
+                    <div class="gsp-empty">
+                        <div class="gsp-empty-title">No matches for &ldquo;<span x-text="query"></span>&rdquo;</div>
+                        <div class="gsp-empty-sub">Try a client name, project reference, or site address.</div>
+                    </div>
+                </template>
+
+                <template x-for="group in groups" :key="group.key">
+                    <div class="gsp-group">
+                        <div class="gsp-group-label" x-text="group.label"></div>
+                        <template x-for="(item, i) in group.items" :key="group.key + ':' + item.id">
+                            <a class="gsp-item"
+                               :href="item.url"
+                               :class="{ 'is-focused': flatIndex(group.key, i) === focused }"
+                               @mouseenter="focused = flatIndex(group.key, i)"
+                               @focus="focused = flatIndex(group.key, i)">
+                                <div class="gsp-item-kind" :class="'gsp-k-' + item.kind" x-text="kindLetter(item.kind)"></div>
+                                <div class="gsp-item-body">
+                                    <div class="gsp-item-title" x-text="item.title"></div>
+                                    <div class="gsp-item-sub" x-text="item.subtitle" x-show="item.subtitle"></div>
+                                </div>
+                                <div class="gsp-item-jump">Jump &crarr;</div>
+                            </a>
+                        </template>
+                    </div>
+                </template>
+            </div>
+
+            <div class="gsp-footer">
+                <span class="gsp-hint"><kbd>&uarr;</kbd><kbd>&darr;</kbd> Navigate</span>
+                <span class="gsp-hint"><kbd>&crarr;</kbd> Open</span>
+                <span class="gsp-hint"><kbd>Esc</kbd> Close</span>
+                <span class="gsp-hint gsp-hint-right">Powered by <code>/search</code></span>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* ═══════════════════════════════════════════════════════════════
+           GLOBAL SEARCH PALETTE — ⌘K
+           Renders inside the layout so every authenticated page inherits
+           the shortcut. Uses tokens from :root — light card, indigo
+           active row, hairline dividers, doc-kind gradient chips.
+        ═══════════════════════════════════════════════════════════════ */
+        .gsp-backdrop {
+            position: fixed; inset: 0; z-index: 500;
+            background: color-mix(in oklab, var(--ink-900) 55%, transparent);
+            backdrop-filter: blur(4px);
+            display: flex; align-items: flex-start; justify-content: center;
+            padding: 12vh 1rem 1rem;
+        }
+        .gsp-panel {
+            width: 100%; max-width: 620px;
+            background: var(--card, #fff);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+            display: flex; flex-direction: column;
+            max-height: 70vh;
+        }
+        .gsp-input-wrap {
+            display: flex; align-items: center; gap: 10px;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .gsp-input-icon { width: 16px; height: 16px; color: var(--text-muted); flex-shrink: 0; }
+        .gsp-input {
+            flex: 1;
+            border: none; outline: none; background: transparent;
+            font-family: inherit; font-size: 15px; color: var(--ink-900);
+            padding: 0;
+        }
+        .gsp-input::placeholder { color: var(--text-faint); }
+        .gsp-kbd {
+            padding: 3px 8px; border-radius: 5px;
+            background: var(--paper); border: 1px solid var(--border);
+            color: var(--text-muted); font-family: var(--font-mono);
+            font-size: 11px; font-weight: 500; cursor: pointer;
+        }
+        .gsp-kbd:hover { color: var(--ink-900); border-color: var(--ink-300); }
+
+        .gsp-results { flex: 1; overflow-y: auto; padding: 6px 0 10px; }
+        .gsp-empty, .gsp-loading { padding: 32px 20px; text-align: center; }
+        .gsp-empty-title { color: var(--ink-900); font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+        .gsp-empty-sub   { color: var(--text-muted); font-size: 12px; margin-top: 4px; max-width: 380px; margin-left: auto; margin-right: auto; }
+        .gsp-loading     { color: var(--text-muted); font-size: 13px; }
+
+        .gsp-group { padding: 6px 0; }
+        .gsp-group + .gsp-group { border-top: 1px solid var(--rule); }
+        .gsp-group-label {
+            padding: 8px 20px 4px;
+            color: var(--text-muted);
+            font-size: 10px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.08em;
+        }
+
+        .gsp-item {
+            display: grid;
+            grid-template-columns: 28px 1fr auto;
+            gap: 12px; align-items: center;
+            padding: 8px 20px;
+            text-decoration: none; color: inherit; cursor: pointer;
+            transition: background 100ms;
+        }
+        .gsp-item:hover, .gsp-item.is-focused {
+            background: var(--sidebar-active-bg);
+            text-decoration: none;
+        }
+        .gsp-item-kind {
+            width: 26px; height: 26px;
+            border-radius: 6px;
+            display: grid; place-items: center;
+            font-size: 11px; font-weight: 700;
+            color: #fff; letter-spacing: -0.02em;
+        }
+        .gsp-k-project   { background: linear-gradient(135deg, var(--teal-500), var(--teal-700)); }
+        .gsp-k-rams      { background: linear-gradient(135deg, #38BDF8, #0284C7); }
+        .gsp-k-survey    { background: linear-gradient(135deg, #A78BFA, #7C3AED); }
+        .gsp-k-om        { background: linear-gradient(135deg, #FBBF24, #D97706); }
+        .gsp-k-worksheet { background: linear-gradient(135deg, #34D399, #059669); }
+
+        .gsp-item-body { min-width: 0; }
+        .gsp-item-title {
+            color: var(--ink-900); font-size: 13px; font-weight: 600;
+            letter-spacing: -0.005em;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .gsp-item-sub {
+            color: var(--text-muted); font-size: 11px; margin-top: 1px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .gsp-item-jump {
+            color: var(--text-muted); font-size: 10px; font-weight: 500;
+            opacity: 0; transition: opacity 100ms;
+        }
+        .gsp-item:hover .gsp-item-jump,
+        .gsp-item.is-focused .gsp-item-jump { opacity: 1; color: var(--teal-700); }
+
+        .gsp-footer {
+            display: flex; align-items: center; gap: 12px;
+            padding: 8px 16px;
+            border-top: 1px solid var(--border);
+            background: var(--paper);
+            font-size: 11px; color: var(--text-muted);
+        }
+        .gsp-hint { display: inline-flex; align-items: center; gap: 5px; }
+        .gsp-hint-right { margin-left: auto; }
+        .gsp-hint code {
+            padding: 1px 5px; border-radius: 3px; background: var(--card);
+            border: 1px solid var(--border);
+            font-family: var(--font-mono); font-size: 10px;
+        }
+        .gsp-hint kbd {
+            padding: 1px 5px; border-radius: 3px;
+            background: var(--card); border: 1px solid var(--border);
+            color: var(--body); font-family: var(--font-mono);
+            font-size: 10px; font-weight: 500;
+        }
+
+        @media (max-width: 640px) {
+            .gsp-backdrop { padding: 8vh 12px 12px; }
+            .gsp-item-jump { display: none; }
+            .gsp-footer { gap: 8px; }
+            .gsp-footer .gsp-hint-right { display: none; }
+        }
+    </style>
+
+    <script>
+        // ⌘K global search palette Alpine factory. Registered here so it
+        // is available on every authenticated page load without touching
+        // the per-page script pipeline. Debounces network calls to 200ms
+        // and aborts inflight requests when a fresh keystroke lands.
+        function globalSearchPalette() {
+            return {
+                open: false,
+                query: '',
+                groups: [],
+                loading: false,
+                focused: 0,
+                _abort: null,
+
+                toggle() {
+                    this.open ? this.close() : this.openPalette();
+                },
+                openPalette() {
+                    this.open = true;
+                    this.focused = 0;
+                    this.$nextTick(() => this.$refs.input && this.$refs.input.focus());
+                },
+                close() {
+                    this.open = false;
+                    if (this._abort) { try { this._abort.abort(); } catch (e) {} this._abort = null; }
+                },
+
+                async fetch() {
+                    if (this.query.trim().length < 2) {
+                        this.groups = [];
+                        return;
+                    }
+                    if (this._abort) { try { this._abort.abort(); } catch (e) {} }
+                    this._abort = new AbortController();
+                    this.loading = true;
+                    try {
+                        const res = await fetch(
+                            '{{ route('search.query') }}?q=' + encodeURIComponent(this.query),
+                            { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                              signal: this._abort.signal }
+                        );
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+                        const data = await res.json();
+                        this.groups = data.groups || [];
+                        this.focused = 0;
+                    } catch (e) {
+                        if (e.name !== 'AbortError') {
+                            console.warn('global-search fetch failed', e);
+                            this.groups = [];
+                        }
+                    } finally {
+                        this.loading = false;
+                        this._abort = null;
+                    }
+                },
+
+                flatItems() {
+                    const out = [];
+                    this.groups.forEach(g => g.items.forEach(item => out.push({ key: g.key, item })));
+                    return out;
+                },
+                flatIndex(groupKey, itemIdx) {
+                    let idx = 0;
+                    for (const g of this.groups) {
+                        if (g.key === groupKey) return idx + itemIdx;
+                        idx += g.items.length;
+                    }
+                    return -1;
+                },
+                onArrow(dir) {
+                    if (!this.open) return;
+                    const total = this.flatItems().length;
+                    if (!total) return;
+                    this.focused = (this.focused + dir + total) % total;
+                    this.$nextTick(() => {
+                        const el = this.$refs.results
+                            && this.$refs.results.querySelector('.gsp-item.is-focused');
+                        if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+                    });
+                },
+                onEnter() {
+                    if (!this.open) return;
+                    const flat = this.flatItems();
+                    const pick = flat[this.focused];
+                    if (pick && pick.item && pick.item.url) window.location.href = pick.item.url;
+                },
+                kindLetter(kind) {
+                    return ({ project: 'P', rams: 'R', survey: 'S', om: 'O', worksheet: 'W' })[kind] || '·';
+                },
+            };
+        }
+    </script>
+    @endauth
+
     {{-- ── SIDEBAR ──────────────────────────────────────────────────────── --}}
     @auth
     <aside class="app-sidebar" id="appSidebar">

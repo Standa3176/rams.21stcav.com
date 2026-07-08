@@ -9,6 +9,7 @@ use App\Http\Controllers\CommissioningItemController;
 use App\Http\Controllers\CommissioningResyncController;
 use App\Http\Controllers\CommissioningSignoffController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\GlobalSearchController;
 use App\Http\Controllers\DocumentEditController;
 use App\Http\Controllers\HazardTemplateController;
 use App\Http\Controllers\InstallProgrammeController;
@@ -164,6 +165,15 @@ Route::middleware('auth')->group(function () {
 
     // ── Dashboard ─────────────────────────────────────────────────────────
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // ── Global search (⌘K command palette) ───────────────────────────────
+    // JSON-only endpoint feeding the palette Alpine component in the app
+    // layout. Rate-limited generously — a 200ms-debounced palette is nowhere
+    // near 60 rpm, but a runaway JS bug that fires on every keystroke would
+    // be stopped fast.
+    Route::get('/search', GlobalSearchController::class)
+        ->name('search.query')
+        ->middleware('throttle:60,1');
 
     // ── Profile ───────────────────────────────────────────────────────────
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

@@ -135,8 +135,17 @@
 <nav class="sidebar-nav" aria-label="Main navigation">
     @php $isAdmin = auth()->user()?->isAdmin(); @endphp
 
-    {{-- ── Global search affordance (⌘K) ─────────────────────────── --}}
-    <div class="snav-search" role="button" tabindex="0" aria-label="Global search (coming soon)">
+    {{-- ── Global search affordance (⌘K) ─────────────────────────────
+         Clicking or Enter/Space fires the same shortcut the ⌘K/Ctrl+K
+         handler in layouts/app.blade.php listens to — dispatched via a
+         synthetic keyboard event on window so the Alpine palette
+         component picks it up without a new event contract. --}}
+    <div class="snav-search"
+         role="button" tabindex="0"
+         aria-label="Global search (Ctrl+K)"
+         @click="$dispatch('open-global-search')"
+         @keydown.enter.prevent="$dispatch('open-global-search')"
+         @keydown.space.prevent="$dispatch('open-global-search')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>
         </svg>
