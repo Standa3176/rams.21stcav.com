@@ -50,6 +50,7 @@ class Worksheet extends Model
         'generated_data',
         'filename',
         'access_token',
+        'access_token_expires_at',
         'pre_install_confirmations',
         'completion_email_sent_at',
         'failed_email_sent_at',
@@ -82,6 +83,7 @@ class Worksheet extends Model
             'pre_install_confirmations'  => 'array',
             'completion_email_sent_at'   => 'datetime',
             'failed_email_sent_at'       => 'datetime',
+            'access_token_expires_at'    => 'datetime',
         ];
     }
 
@@ -166,6 +168,30 @@ class Worksheet extends Model
     public function publicUrl(): string
     {
         return route('public-worksheet.show', ['token' => $this->access_token]);
+    }
+
+    /**
+     * Audit M-05 (2026-07) — the token is expired when `expires_at` sits in
+     * the past. Null `expires_at` means "never expires" so legacy worksheets
+     * (created before the column landed) keep working unchanged.
+     */
+    public function isTokenExpired(): bool
+    {
+        return $this->access_token_expires_at !== null
+            && $this->access_token_expires_at->isPast();
+    }
+
+    /**
+     * Regenerate the UUID so any leaked copy of the previous URL becomes
+     * inert immediately. Called by the admin "Revoke link" action. Clears
+     * `access_token_expires_at` so the fresh token has no expiry until the
+     * PM sets one (matches the existing "never expires by default" contract).
+     */
+    public function regenerateAccessToken(): void
+    {
+        $this->access_token             = (string) Str::uuid();
+        $this->access_token_expires_at  = null;
+        $this->save();
     }
 
     /**

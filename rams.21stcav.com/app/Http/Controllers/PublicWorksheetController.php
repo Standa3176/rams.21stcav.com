@@ -23,8 +23,10 @@ use Illuminate\View\View;
  *   POST /worksheet/{token}/sign   — record a client sign-off (throttle:10,1)
  *
  * Behaviour notes:
- *  - Worksheets do NOT expire (locked design — unlike site surveys which can
- *    have an expires_at). PMs can revoke a link by regenerating the worksheet.
+ *  - Worksheets do NOT expire by default. Audit M-05 (2026-05-17) added an
+ *    optional `access_token_expires_at` — null = never expires (default),
+ *    set-and-past = 410 Gone. The admin "Revoke link" action regenerates
+ *    the UUID so any leaked copy of the old URL becomes inert immediately.
  *  - Sign-off is APPEND-ONLY: a fresh submission inserts a new
  *    worksheet_signoffs row even when one already exists for this worksheet.
  *    `Worksheet::latestSignoff()` resolves the most-recent acceptance for
@@ -505,6 +507,16 @@ class PublicWorksheetController extends Controller
         $worksheet = Worksheet::where('access_token', $token)->first();
 
         abort_if($worksheet === null, 404, 'Worksheet not found. Please check your link.');
+
+        // Audit M-05 (2026-07) — expired-token gate. 410 Gone is semantically
+        // right here: the URL was valid, the resource still exists on the
+        // admin side, but this specific token is retired. Fresh links can be
+        // re-issued from the admin worksheet page.
+        abort_if(
+            $worksheet->isTokenExpired(),
+            410,
+            'This worksheet link has expired. Please contact the project manager for a new link.',
+        );
 
         return $worksheet;
     }

@@ -495,6 +495,8 @@ Route::middleware('auth')->group(function () {
         ->name('worksheets.engineer-report-pdf')
         ->middleware('throttle:30,1');
     Route::post('worksheets/{worksheet}/retry-generation', [WorksheetController::class, 'retryGeneration'])->name('worksheets.retry-generation');
+    // Audit M-05 — revoke the public sign-off link (regenerates the UUID).
+    Route::post('worksheets/{worksheet}/revoke-token', [WorksheetController::class, 'revokeToken'])->name('worksheets.revoke-token');
     Route::delete('worksheets/{worksheet}', [WorksheetController::class, 'destroy'])->name('worksheets.destroy');
     Route::get('worksheets/{worksheet}', [WorksheetController::class, 'show'])->name('worksheets.show');
     Route::get('worksheets', [WorksheetController::class, 'index'])->name('worksheets.index');

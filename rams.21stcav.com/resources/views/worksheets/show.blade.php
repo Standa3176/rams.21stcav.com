@@ -258,6 +258,18 @@
         <div class="actions">
             <x-copy-link-button :url="$worksheetPublicUrl" label="Copy" />
             <a href="{{ $worksheetPublicUrl }}" target="_blank" class="btn btn-sm">Open ↗</a>
+            {{-- Audit M-05 — revoke the current token so any leaked copy of
+                 the URL becomes inert. A fresh UUID replaces this one and
+                 the page reloads showing the new link. --}}
+            <form method="POST"
+                  action="{{ route('worksheets.revoke-token', $worksheet) }}"
+                  onsubmit="return confirm('Revoke the current sign-off link? The client will need the new link before signing.');"
+                  style="display:inline;">
+                @csrf
+                <button type="submit" class="btn btn-sm btn-danger" aria-label="Revoke and regenerate the sign-off link">
+                    Revoke &amp; regenerate
+                </button>
+            </form>
         </div>
     </div>
 @endif

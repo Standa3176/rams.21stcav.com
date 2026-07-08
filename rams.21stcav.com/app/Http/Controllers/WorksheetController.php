@@ -259,6 +259,27 @@ class WorksheetController extends Controller
         return back()->with('success', 'Worksheet regeneration queued. The document will be ready to download shortly.');
     }
 
+    /**
+     * Audit M-05 (2026-05-17) — regenerate the public access_token so any
+     * leaked copy of the previous URL becomes inert immediately. The client
+     * needs a fresh link (copy the new URL from the admin show page). Admin
+     * gate reuses the same "any authenticated user" pattern as the other
+     * mutations on this controller (single-tenant workspace).
+     */
+    public function revokeToken(Worksheet $worksheet): RedirectResponse
+    {
+        abort_unless(auth()->check(), 403);
+
+        $worksheet->regenerateAccessToken();
+
+        Log::info('WorksheetController: access_token revoked + regenerated', [
+            'worksheet_id' => $worksheet->id,
+            'user_id'      => auth()->id(),
+        ]);
+
+        return back()->with('success', 'Sign-off link revoked. A new link has been generated — copy it below to share.');
+    }
+
     public function destroy(Worksheet $worksheet): RedirectResponse
     {
         abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.

@@ -242,6 +242,12 @@ Status: **CLOSED** — the fragile exec path is deleted; the surviving spawn pat
   - Add an `access_token_expires_at` to `worksheets` mirroring `site_surveys.expires_at`.
   - Add a manual "revoke link" admin button that regenerates the token.
   - Stop using token-prefix as an actor identity — it leaks 8 chars of a security-relevant secret into the DB.
+- **RESOLUTION (2026-07-08):**
+  - Migration `2026_07_08_000001_add_access_token_expires_at_to_worksheets_table` adds a nullable `access_token_expires_at` column mirroring the site_surveys precedent. Null = never expires (default; legacy rows keep working).
+  - `Worksheet::isTokenExpired()` returns true when `access_token_expires_at` is set and in the past. `PublicWorksheetController::resolveWorksheet` now aborts 410 Gone (semantically right — URL was valid, resource still exists on the admin side, this token is retired) so every public route (show, sign, photos, label-photos, room-complete, survey-reviewed, downloads) is gated automatically.
+  - `Worksheet::regenerateAccessToken()` rotates the UUID and clears the expiry. The admin `POST /worksheets/{worksheet}/revoke-token` route (WorksheetController::revokeToken) fronts it, and the `worksheets.show` blade renders a "Revoke &amp; regenerate" button beside Copy / Open with a `confirm()` gate. Any leaked copy of the old URL is inert immediately — the old token no longer resolves to any row → 404.
+  - Actor-identity leak (token-prefix in `reviewed_by` / `completed_by`) is already fixed under M-06 (35da76d) — `ip:… |actor:<sha256-slice>` is written instead.
+  - `tests/Feature/Worksheet/WorksheetTokenExpiryTest` — 11 cases covering: default never-expires, past/future expiry, regenerate-clears-expiry, public routes return 410 when expired, old URL 404s after revoke, admin revoke rotates + flashes success, unauthenticated revoke redirects to login, admin show page exposes the revoke form. All pass alongside the 12 pre-existing signoff cases (23/75 assertions).
 
 #### M-06  `markRoomComplete` and `markSurveyReviewed` log token prefix as `reviewed_by` / `completed_by`
 - File: `app/Http/Controllers/PublicWorksheetController.php:221, 268`
