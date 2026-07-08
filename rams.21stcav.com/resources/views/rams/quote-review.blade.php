@@ -79,7 +79,7 @@
 .repeater-table textarea:focus {
     outline: none;
     border-color: var(--teal);
-    box-shadow: 0 0 0 2px rgba(23,138,149,.12);
+    box-shadow: var(--shadow-focus);
 }
 .repeater-table textarea { resize: vertical; min-height: 60px; }
 .col-qty   { width: 70px; }

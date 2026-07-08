@@ -60,7 +60,7 @@
                             </td>
                             <td>{{ $w->client_name ?? '—' }}</td>
                             <td>
-                                <x-dashboard.status-badge :status="$w->status" />
+                                <x-status-badge :status="$w->status" />
                             </td>
                             <td style="color:var(--text-faint);font-size:.875rem;">
                                 {{ $w->updated_at->diffForHumans() }}

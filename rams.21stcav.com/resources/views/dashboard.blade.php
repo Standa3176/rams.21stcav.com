@@ -165,7 +165,7 @@
                 @endif
             </div>
             <div>
-                <x-dashboard.status-badge :status="$project->status"/>
+                <x-status-badge :status="$project->status"/>
             </div>
             <div>
                 <x-dashboard.health-badge :health="$health"/>

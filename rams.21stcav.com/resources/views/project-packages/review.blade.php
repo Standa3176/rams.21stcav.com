@@ -83,7 +83,7 @@
 .repeater-table textarea:focus {
     outline: none;
     border-color: var(--teal);
-    box-shadow: 0 0 0 2px rgba(23,138,149,.12);
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--teal) 12%, transparent);
 }
 .repeater-table textarea { resize: vertical; min-height: 60px; }
 
@@ -226,7 +226,7 @@
     transition: background .15s, color .15s, border-color .15s, box-shadow .15s;
 }
 .review-tab-btn:hover {
-    background: rgba(23,138,149,.12);
+    background: color-mix(in oklab, var(--teal) 12%, transparent);
     border-color: var(--teal-mid);
 }
 .review-tab-btn.active {

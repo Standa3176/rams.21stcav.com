@@ -107,6 +107,15 @@
             --warning-light:  #FEF3C7;
             --gold:           var(--gold-500);
 
+            /* Audit D-02 (2026-07-08 post-tier-one review) — define the
+               two vars that per-screen `var(--accent, #0F3E36)` and
+               `var(--bg-muted, #FBF8EF)` fallbacks were silently painting
+               SCC v2 dark-teal + warm cream. Cascades to 15+ screens
+               including project-packages/review, om-manual/edit +
+               edit-devices, and every use of the muted-background pattern. */
+            --accent:         var(--teal-700);
+            --bg-muted:       var(--surface-soft);
+
             /* Typography — Inter Variable everywhere (retire Fraunces
                display — the tier-one look leans on a single high-quality
                sans, not a serif/sans pairing) */
@@ -630,7 +639,7 @@
             border-color: var(--teal-700);
             color: #FFF;
         }
-        .btn-primary:hover, .btn-teal:hover { background: #0A4951; border-color: #0A4951; color: #FFF; }
+        .btn-primary:hover, .btn-teal:hover { background: var(--teal-800); border-color: var(--teal-800); color: #FFF; }
 
         .btn-secondary {
             background: #FFF;
@@ -732,7 +741,7 @@
         }
         .form-control::placeholder { color: var(--text-faint); }
         .form-control:hover  { border-color: #9CA3AF; }
-        .form-control:focus  { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px rgba(23,138,149,.15); }
+        .form-control:focus  { outline: none; border-color: var(--teal); box-shadow: var(--shadow-focus); }
         .form-control.is-invalid { border-color: var(--danger); box-shadow: 0 0 0 3px rgba(220,38,38,.1); }
         select.form-control  { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right .75rem center; padding-right: 2.25rem; }
         textarea.form-control { resize: vertical; min-height: 90px; }
@@ -1136,7 +1145,7 @@
         }
         .chat-drawer-ftr textarea:focus {
             outline: none; border-color: var(--teal);
-            box-shadow: 0 0 0 3px rgba(23,138,149,.15);
+            box-shadow: var(--shadow-focus);
         }
         .chat-drawer-ftr button[type="submit"] {
             background: var(--teal); color: #fff; border: none; border-radius: 8px;

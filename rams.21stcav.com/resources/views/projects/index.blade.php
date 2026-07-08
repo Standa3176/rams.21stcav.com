@@ -295,7 +295,7 @@
 }
 .proj-stat-card--link:hover {
     border-color: var(--teal-mid);
-    box-shadow: 0 2px 10px rgba(23,138,149,.12);
+    box-shadow: 0 2px 10px color-mix(in oklab, var(--teal) 12%, transparent);
     text-decoration: none;
 }
 .proj-stat-card--active {
@@ -385,7 +385,7 @@
 .proj-search-input:focus {
     outline: none;
     border-color: var(--teal);
-    box-shadow: 0 0 0 3px rgba(23,138,149,.15);
+    box-shadow: var(--shadow-focus);
 }
 
 /* ── Enhanced table ─────────────────────────────────────────────────────── */

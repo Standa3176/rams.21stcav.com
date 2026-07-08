@@ -284,7 +284,7 @@
      meta strip below the hero. Error alert stays inline. --}}
 <div style="display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:0 .25rem 1.1rem; font-size:.85rem; color:var(--text-muted); flex-wrap:wrap;">
     <div style="display:inline-flex; align-items:center; gap:.6rem;">
-        <x-dashboard.status-badge :status="$worksheet->status" />
+        <x-status-badge :status="$worksheet->status" />
         @if(in_array($worksheet->status, ['pending', 'generating']))
             <span style="display:inline-flex; align-items:center; gap:.4rem;">
                 <span style="width:8px; height:8px; border-radius:50%; background:#D97706; display:inline-block;"></span>
