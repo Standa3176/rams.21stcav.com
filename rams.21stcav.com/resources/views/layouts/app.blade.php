@@ -6,75 +6,79 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Operations Platform') — 21st Century AV</title>
 
-    {{-- Modern dashboard typography: Inter (sans-only). --}}
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+    {{-- Inter Variable ships from Vite via @fontsource-variable/inter (see
+         resources/css/app.css). No external CDN fetch — CSP-safe + offline. --}}
 
     <style>
         /* ═══════════════════════════════════════════════════════════════
-           DESIGN TOKENS — Modern dashboard (matches latest reference)
-           Solid dark teal sidebar + cool white surfaces + green CTAs
+           DESIGN TOKENS — Tier-one (2026-07-08, PLAN 260708-b7i).
+           Cool slate neutrals + indigo brand + light sidebar chrome.
+           Legacy variable NAMES (--teal-*, --gold-*) are retained as
+           indigo aliases so every existing screen inherits the new
+           palette without a global find-replace across ~200 blade files.
         ═══════════════════════════════════════════════════════════════ */
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,700&family=Inter:wght@400;500;600;700&display=swap');
         :root {
-            /* Ink scale — warmer (SCC v2 alignment) */
-            --ink-900:        #0F1418;
-            --ink-700:        #2A3138;
-            --ink-500:        #6A7280;
-            --ink-300:        #C5CCD3;
-            --ink-200:        #DDE2E7;
-            --ink-100:        #EDEFF2;
+            /* Ink scale — cool slate (was warm SCC v2 tones) */
+            --ink-900:        #0B1220;
+            --ink-700:        #334155;
+            --ink-500:        #64748B;
+            --ink-300:        #CBD5E1;
+            --ink-200:        #E2E8F0;
+            --ink-100:        #F1F5F9;
 
-            /* Surfaces — cream paper (SCC v2) */
-            --paper:          #F7F6F2;
-            --paper-2:        #F2EEE6;
+            /* Surfaces — cool canvas (was warm cream paper) */
+            --paper:          #F6F8FB;
+            --paper-2:        #F1F5F9;
 
-            /* Teal — deeper (SCC v2) */
-            --teal-900:       #073A41;
-            --teal-700:       #0F5963;
-            --teal-500:       #1A7984;
-            --teal-100:       #DAEAEA;
+            /* Brand — indigo (mapped onto legacy --teal-* names so every
+               `.btn-teal` / `.badge-teal` / etc. across the codebase snaps
+               to the new accent without renaming) */
+            --teal-900:       #3730A3;
+            --teal-700:       #4338CA;
+            --teal-500:       #4F46E5;
+            --teal-100:       #E0E7FF;
 
             /* Green (kept as success-side option for legacy uses) */
-            --green-600:      #1F7A3D;
-            --green-500:      #22C55E;
-            --green-100:      #DCFCE7;
+            --green-600:      #059669;
+            --green-500:      #10B981;
+            --green-100:      #D1FAE5;
 
-            /* Signal — slightly muted to fit warm palette */
-            --signal-success: #1F7A3D;
-            --signal-warning: #B5841A;
-            --signal-danger:  #B33A2C;
+            /* Semantic status */
+            --signal-success: #059669;
+            --signal-warning: #D97706;
+            --signal-danger:  #DC2626;
 
-            /* Gold — accent (SCC v2 brand mark) */
-            --gold-500:       #C8A65A;
-            --gold-light:     #ECDFB8;
-            --gold-deep:      #9F7E3D;
+            /* Gold retired — alias maps to indigo brand so any lingering
+               `--gold-500` reference on a screen stays visually coherent. */
+            --gold-500:       #4F46E5;
+            --gold-light:     #E0E7FF;
+            --gold-deep:      #3730A3;
 
-            /* Sidebar — dark teal gradient (SCC v2) */
-            --sidebar-bg:     #163C3D;
-            --sidebar-bg-2:   #0E2C2D;
-            --sidebar-fg:     #B8CCC9;
-            --sidebar-fg-mute:#6B8584;
-            --sidebar-active-bg: rgba(255,255,255,.08);
-            --sidebar-active-fg: #FFFFFF;
+            /* Sidebar — light chrome (was dark teal gradient). Indigo
+               active-state with a 2px left rail marker. */
+            --sidebar-bg:     #FBFBFD;
+            --sidebar-bg-2:   #FBFBFD;
+            --sidebar-fg:     #334155;
+            --sidebar-fg-mute:#94A3B8;
+            --sidebar-active-bg: #EEF2FF;
+            --sidebar-active-fg: #4338CA;
             --sidebar-width:  220px;
             --header-height:  64px;
 
             /* Page width — fixed max for predictable layout */
             --page-max:       1440px;
 
-            /* ── Aliases used by existing RAMS components ── */
+            /* ── Aliases used by existing RAMS components ────────────── */
             --teal:           var(--teal-700);
-            --teal-hover:     #0A4951;
-            --teal-active:    #073A41;
+            --teal-hover:     #3730A3;
+            --teal-active:    #3730A3;
             --teal-light:     var(--teal-100);
-            --teal-mid:       rgba(15,89,99,.30);
+            --teal-mid:       rgba(79,70,229,.30);
             --teal-deep:      var(--teal-900);
             --bg:             var(--paper);
             --bg-deep:        var(--paper-2);
             --surface:        #FFFFFF;
-            --surface-soft:   #FAFAF7;
+            --surface-soft:   #F8FAFC;
             --surface-deep:   var(--ink-100);
             --border:         var(--ink-200);
             --border-strong:  var(--ink-300);
@@ -84,33 +88,35 @@
             --text-faint:     var(--ink-300);
             --text-on-dark:   #FFFFFF;
             --danger:         var(--signal-danger);
-            --danger-light:   #F7E2DD;
+            --danger-light:   #FEE2E2;
             --success:        var(--signal-success);
-            --success-light:  rgba(31,122,61,.10);
+            --success-light:  #ECFDF5;
             --warning:        var(--signal-warning);
-            --warning-light:  #FBEFD7;
-            /* Gold alias kept for legacy uses */
+            --warning-light:  #FEF3C7;
             --gold:           var(--gold-500);
 
-            /* Typography — Fraunces display + Inter body (SCC v2) */
-            --font-body:      'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+            /* Typography — Inter Variable everywhere (retire Fraunces
+               display — the tier-one look leans on a single high-quality
+               sans, not a serif/sans pairing) */
+            --font-body:      'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
             --font-sans:      var(--font-body);
-            --font-display:   'Fraunces', Georgia, serif;
-            --font-mono:      ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+            --font-display:   var(--font-body);
+            --font-mono:      'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
             /* Shape */
             --radius-sm:      6px;
-            --radius:         10px;
-            --radius-lg:      14px;
-            --radius-xl:      18px;
+            --radius:         8px;
+            --radius-lg:      12px;
+            --radius-xl:      16px;
 
-            /* Shadows */
-            --shadow-card:    0 1px 2px rgba(15,23,42,.04), 0 4px 10px rgba(15,23,42,.04);
-            --shadow-pop:     0 6px 20px rgba(15,23,42,.10), 0 0 0 1px rgba(15,23,42,.04);
-            --shadow-xs:      0 1px 2px rgba(15,23,42,.04);
+            /* Shadows — restrained (was too heavy for data-dense screens) */
+            --shadow-card:    0 1px 2px 0 rgb(15 23 42 / 0.03), 0 1px 3px 0 rgb(15 23 42 / 0.05);
+            --shadow-pop:     0 10px 15px -3px rgb(15 23 42 / 0.10), 0 4px 6px -4px rgb(15 23 42 / 0.08);
+            --shadow-xs:      0 1px 2px 0 rgb(15 23 42 / 0.04);
             --shadow-sm:      var(--shadow-card);
             --shadow-md:      var(--shadow-pop);
-            --shadow-lg:      0 12px 28px rgba(15,23,42,.12);
+            --shadow-lg:      0 12px 24px -8px rgb(15 23 42 / 0.14), 0 4px 8px -4px rgb(15 23 42 / 0.08);
+            --shadow-focus:   0 0 0 3px rgb(79 70 229 / 0.24);
 
             /* Motion */
             --transition:     150ms ease;
@@ -161,19 +167,17 @@
             position: fixed;
             top: 0; left: 0; right: 0;
             height: var(--header-height);
-            background: rgba(255,254,252,.86);
-            backdrop-filter: saturate(140%) blur(14px);
-            -webkit-backdrop-filter: saturate(140%) blur(14px);
+            background: color-mix(in oklab, var(--paper) 82%, transparent);
+            backdrop-filter: saturate(180%) blur(14px);
+            -webkit-backdrop-filter: saturate(180%) blur(14px);
             border-bottom: 1px solid var(--border);
             z-index: 200;
             display: flex;
             align-items: center;
             padding: 0 1.25rem 0 0;
-            position: fixed;
         }
-        /* Header: clean white, no gradient */
 
-        /* Logo panel — solid teal sidebar, green tile mark */
+        /* Logo panel — tier-one light chrome with indigo gradient mark. */
         .header-logo-panel {
             width: var(--sidebar-width);
             flex-shrink: 0;
@@ -183,28 +187,37 @@
             padding: 0 18px;
             height: 100%;
             background: var(--sidebar-bg);
-            color: #fff;
+            color: var(--ink-900);
+            border-right: 1px solid var(--border);
         }
         .header-logo-mark {
-            width: 36px; height: 36px;
-            background: var(--gold-500);
-            color: var(--sidebar-bg);
+            width: 34px; height: 34px;
+            background: linear-gradient(135deg, var(--teal-500) 0%, var(--teal-700) 55%, var(--teal-900) 100%);
+            color: #fff;
             border-radius: 8px;
             display: grid;
             place-items: center;
             flex-shrink: 0;
-            font-family: var(--font-display);
-            font-weight: 700;
-            font-size: 17px;
-            box-shadow: 0 1px 3px rgba(200,166,90,.35);
+            font-weight: 800;
+            font-size: 15px;
+            letter-spacing: -0.03em;
+            box-shadow: 0 6px 14px -6px rgba(79,70,229,.55),
+                        inset 0 -2px 0 rgba(0,0,0,.12),
+                        inset 0 1px 0 rgba(255,255,255,.14);
+            position: relative;
         }
-        .header-logo-mark svg { color: var(--sidebar-bg); }
+        .header-logo-mark::after {
+            content: ""; position: absolute; inset: 3px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,.18);
+            pointer-events: none;
+        }
+        .header-logo-mark svg { color: #fff; position: relative; z-index: 1; }
         .header-logo-name {
-            font-family: var(--font-display);
-            font-size: 18px;
-            font-weight: 600;
-            color: #fff;
-            letter-spacing: -.01em;
+            font-size: 17px;
+            font-weight: 800;
+            color: var(--ink-900);
+            letter-spacing: -.03em;
             line-height: 1.05;
         }
         .header-logo-name span { display: none; }
@@ -336,18 +349,19 @@
             left: 0;
             width: var(--sidebar-width);
             bottom: 0;
-            background: linear-gradient(180deg, var(--sidebar-bg) 0%, var(--sidebar-bg-2) 100%);
+            background: var(--sidebar-bg);
             color: var(--sidebar-fg);
+            border-right: 1px solid var(--border);
             overflow-y: auto;
             overflow-x: hidden;
             z-index: 100;
             scrollbar-width: thin;
-            scrollbar-color: rgba(255,255,255,.1) transparent;
+            scrollbar-color: var(--ink-200) transparent;
             transition: transform .25s ease;
         }
         .app-sidebar::-webkit-scrollbar       { width: 4px; }
         .app-sidebar::-webkit-scrollbar-track { background: transparent; }
-        .app-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 2px; }
+        .app-sidebar::-webkit-scrollbar-thumb { background: var(--ink-200); border-radius: 2px; }
         .app-sidebar.sidebar-open             { transform: translateX(0) !important; }
 
         /* Mobile overlay */
@@ -385,16 +399,15 @@
             gap: .75rem;
         }
         .page-title {
-            font-family: var(--font-display);
-            font-size: 32px;
-            font-weight: 500;
+            font-size: 26px;
+            font-weight: 700;
             color: var(--ink-900);
-            letter-spacing: -.02em;
-            line-height: 1.1;
+            letter-spacing: -.025em;
+            line-height: 1.15;
         }
         .page-title em {
-            font-style: italic;
-            font-weight: 500;
+            font-style: normal;
+            font-weight: 700;
             color: var(--teal-700);
         }
         .page-subtitle {
@@ -402,13 +415,6 @@
             color: var(--ink-500);
             max-width: 64ch;
             margin-top: .35rem;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .page-subtitle::before {
-            content: '📍';
-            font-size: 14px;
         }
 
         /* ── Page header layout helpers ── */
@@ -540,11 +546,10 @@
             color: var(--ink-500);
         }
         .stat-value {
-            font-family: var(--font-display);
             font-size: 28px;
-            font-weight: 600;
+            font-weight: 700;
             color: var(--ink-900);
-            letter-spacing: -.02em;
+            letter-spacing: -.025em;
             line-height: 1;
             font-variant-numeric: tabular-nums;
         }
