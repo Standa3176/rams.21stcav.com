@@ -16,20 +16,70 @@
     <div class="alert alert-warning">{{ session('warning') }}</div>
 @endif
 
-{{-- ── Dual-tab: Upload PDF | QuoteWerks Lookup (D-10) ────────────────── --}}
+{{-- ── Dual-tab: Upload PDF | QuoteWerks Lookup (audit UI-04 2026-07-08).
+     Tab strip retuned — was flex with no gap so the two labels ran into
+     each other on some viewports. Alpine :style attr binding replaced
+     with class binding + `.qi-tab.is-active` for a clean 20px underline
+     accent that matches .rams-tabs / .psv-tabs elsewhere in the app. --}}
+<style>
+    .qi-tabs {
+        display: flex;
+        gap: 24px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 20px;
+    }
+    .qi-tab {
+        padding: 10px 0;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-muted);
+        position: relative;
+        margin-bottom: -1px;
+        transition: color 120ms;
+    }
+    .qi-tab:hover { color: var(--ink-900); }
+    .qi-tab.is-active { color: var(--teal-700); font-weight: 600; }
+    .qi-tab.is-active::after {
+        content: "";
+        position: absolute;
+        left: 0; right: 0; bottom: 0;
+        height: 2px;
+        background: var(--teal-700);
+        border-radius: 2px 2px 0 0;
+    }
+
+    .qi-dropzone {
+        border: 2px dashed var(--teal-500);
+        border-radius: 8px;
+        padding: 32px 24px;
+        text-align: center;
+        cursor: pointer;
+        transition: background 150ms, border-color 150ms;
+        background: color-mix(in oklab, var(--teal-100) 20%, var(--card));
+    }
+    .qi-dropzone:hover { border-color: var(--teal-700); background: color-mix(in oklab, var(--teal-100) 35%, var(--card)); }
+    .qi-dropzone.is-drag { border-color: var(--success); background: color-mix(in oklab, var(--success-light) 60%, var(--card)); }
+    .qi-dropzone.has-file { border-color: var(--success); background: color-mix(in oklab, var(--success-light) 40%, var(--card)); }
+    .qi-dropzone-label { color: var(--body); font-size: 13px; }
+    .qi-dropzone-label label { color: var(--teal-700); cursor: pointer; font-weight: 600; }
+    .qi-dropzone-selected { color: var(--success-700); font-weight: 600; font-size: 13px; }
+    .qi-dropzone svg { display: inline-block; margin-bottom: 8px; color: var(--teal-700); }
+</style>
+
 <div x-data="{ importTab: 'pdf' }" style="max-width:680px;">
 
-    {{-- Tab strip --}}
-    <div style="display:flex; border-bottom:1px solid var(--border); margin-bottom:1.25rem;">
-        <button @click="importTab='pdf'"
-                style="padding:.75rem 1.25rem; border:none; background:none; cursor:pointer; font-size:.9375rem; font-weight:600; border-bottom:2px solid transparent;"
-                :style="importTab==='pdf' ? 'border-bottom-color:var(--teal); color:var(--teal)' : 'color:var(--text-muted)'"
+    <div class="qi-tabs" role="tablist">
+        <button type="button" @click="importTab='pdf'"
+                class="qi-tab" :class="{ 'is-active': importTab==='pdf' }"
                 role="tab" :aria-selected="importTab==='pdf'">
             Upload PDF
         </button>
-        <button @click="importTab='quotewerks'"
-                style="padding:.75rem 1.25rem; border:none; background:none; cursor:pointer; font-size:.9375rem; font-weight:600; border-bottom:2px solid transparent;"
-                :style="importTab==='quotewerks' ? 'border-bottom-color:var(--teal); color:var(--teal)' : 'color:var(--text-muted)'"
+        <button type="button" @click="importTab='quotewerks'"
+                class="qi-tab" :class="{ 'is-active': importTab==='quotewerks' }"
                 role="tab" :aria-selected="importTab==='quotewerks'">
             QuoteWerks Lookup
         </button>
@@ -48,23 +98,18 @@
                 QuoteWerks PDF <span class="req">*</span>
             </label>
 
-            <div id="dropZone" style="
-                border: 2px dashed #007B8A;
-                border-radius: 8px;
-                padding: 2rem 1.5rem;
-                text-align: center;
-                cursor: pointer;
-                transition: background .15s;
-                background: #f8fdfd;
-            ">
-                <div id="dropLabel" style="color:#666; font-size:.9rem;">
-                    <span style="font-size:1.5rem; display:block; margin-bottom:.4rem;">📄</span>
-                    Drag &amp; drop your QuoteWerks PDF here, or
-                    <label for="quote_pdf" style="color:#007B8A; cursor:pointer; font-weight:600;">
-                        click to browse
-                    </label>
+            <div id="dropZone" class="qi-dropzone">
+                <div id="dropLabel" class="qi-dropzone-label">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <path d="M14 2v6h6"/><path d="M12 18v-6M9 15l3 3 3-3"/>
+                    </svg>
+                    <div>
+                        Drag &amp; drop your QuoteWerks PDF here, or
+                        <label for="quote_pdf">click to browse</label>
+                    </div>
                 </div>
-                <div id="fileSelected" style="display:none; color:#007B8A; font-weight:600; font-size:.9rem;"></div>
+                <div id="fileSelected" style="display:none;" class="qi-dropzone-selected"></div>
             </div>
 
             <input id="quote_pdf" name="quote_pdf" type="file" accept=".pdf"
@@ -83,7 +128,10 @@
 
             <div style="display:flex; gap:.75rem; flex-wrap:wrap; align-items:flex-start;">
                 <div style="flex:1; min-width:200px;">
-                    <select name="project_id" id="project_id" class="form-control">
+                    {{-- audit UI-05 — data-optional stops the "empty required" coral
+                         paint from firing on the "New project (auto-create)"
+                         default, which is a valid selection. --}}
+                    <select name="project_id" id="project_id" class="form-control" data-optional>
                         <option value="">— New project (auto-create) —</option>
                         @foreach ($projects as $p)
                             <option value="{{ $p->id }}"
@@ -146,8 +194,10 @@
         dropLabel.style.display  = 'none';
         fileSelected.style.display = '';
         fileSelected.textContent = '✓ ' + name;
-        zone.style.borderColor = '#28a745';
-        zone.style.background  = '#f0fff4';
+        // audit UI-04 — class toggles replace inline hex so the drag/drop
+        // states inherit the tier-one token palette.
+        zone.classList.remove('is-drag');
+        zone.classList.add('has-file');
     }
 
     zone.addEventListener('click', () => input.click());
@@ -158,16 +208,16 @@
 
     zone.addEventListener('dragover', e => {
         e.preventDefault();
-        zone.style.background = '#e8f8f9';
+        zone.classList.add('is-drag');
     });
 
     zone.addEventListener('dragleave', () => {
-        zone.style.background = '#f8fdfd';
+        zone.classList.remove('is-drag');
     });
 
     zone.addEventListener('drop', e => {
         e.preventDefault();
-        zone.style.background = '#f8fdfd';
+        zone.classList.remove('is-drag');
         const file = e.dataTransfer.files[0];
         if (file && file.type === 'application/pdf') {
             const dt = new DataTransfer();
