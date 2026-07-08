@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
-status: paused_tier1_v2_complete
-stopped_at: Tier-1 UX v2 polish sweep complete on 2026-07-07 — all 5 screens shipped v2, live-review polished
-last_updated: "2026-07-07T18:00:00.000Z"
-last_activity: 2026-07-07 -- session-tier1-v2-complete tag pushed. Post-live-review polish shipped across all 5 screens: AI-only accordion (04), hint dedup + empty-cat collapse (03), row action collapse (01), meta strip merge (05), rooms collapsed default + coral chips (02).
+status: paused_security_audit_closed
+stopped_at: M-band security audit fully closed on 2026-07-08 — all 8 M-items shipped, data fixes applied on live. Frontend redesign discussed but not scoped.
+last_updated: "2026-07-08T09:15:00.000Z"
+last_activity: 2026-07-08 -- session-2026-07-08 tag pushed. M-band security audit closed end-to-end (M-01 through M-08). O&M loop closed (editor overrides now reach the PDF). Two data fixes applied on live (user sonny → Sonny Tanda + project 84 SHIPCOMP/SHIPADD sentinel strip).
 progress:
   total_phases: 2
   completed_phases: 2
@@ -27,6 +27,29 @@ Milestone: v2.0 (Engineering-Grade AV Drawings) — PAUSED at Phase 23 sub-plan 
 Active work: Tier-1 UX redesign COMPLETE — 5 of 5 screens shipped and live-confirmed
 Status: Session save 2026-07-06 — Tier-1 sweep complete
 Last activity: 2026-07-06 -- Screen 01 v1 shipped (25fe9df) closes the Tier-1 sweep. All five screens live-confirmed. Next session picks up v2.0 Phase 23 (XTEN-AV renderer) OR follow-up backlog items from Tier-1 (mfg_support_overrides generator wiring, Draft (TBC) affordance).
+
+## Session 2026-07-08 — deliverables shipped
+
+Security audit close-out — final M-band pass (audit ref: `.planning/audits/security-audit-2026-05-17.md`):
+
+- **O&M loop close** (`be2f18e`) — `OmManualGeneratorService::generateContent` now merges `extracted_data.manufacturer_support_overrides` + `extracted_data.service_escalation` from the editor into the generated §7 support matrix + §11 escalation path. Closes the storage-vs-render gap flagged in the 2026-07-06 follow-up backlog. `tests/Unit/Services/OmManualOverrideMergeTest` (8 cases / 23 assertions) covers the 4 new normalisation helpers.
+- **M-01/02/03/06/07/08 batch** (`35da76d`) — DocumentEditSafetyValidator denylist extended (shell_exec, popen, assert, create_function, include*, require*); `SetSecurityHeaders` middleware registered via `bootstrap/app.php` (X-Frame-Options, CSP frame-ancestors, nosniff, Referrer-Policy, HSTS on HTTPS); `SqlRawInvariantGuardTest` CI ratchet against unsafe whereRaw shapes; `PublicWorksheetController::markSurveyReviewed/markRoomComplete` stops leaking 8 chars of the token as `reviewed_by`, writes `ip:… |actor:<sha256-slice>` instead; `PublicSurveyController::validatePublicSurvey` accepts the resolved SiteSurvey and scopes `rooms.*.id` with `Rule::exists(...)->where('site_survey_id', $survey->id)`; draft-mode O&M gets a diagonal `DRAFT · NOT FOR ISSUE` band on every PDF page + `DRAFT-` filename prefix on PDF and DOCX downloads.
+- **Stale signoff test cleanup** (`31a4d52`) — 3 pre-existing `PublicWorksheetSignoffTest` failures fixed. Signoff test payloads gained the missing `happy_with_work='1'` field after the Q19 controller gate change; admin show page assertion switched from Title-Case "Client Sign-Off Link" to the current sentence-case "Client sign-off link" label. Full 12-case suite (50 assertions) green.
+- **M-04 prompt-injection defence** (`ba7fa9f`) — Two-layer defence for the method-statement AI pipeline: (a) `MethodStatementPrompt::build()` wraps every user-controllable field in `<<user_data>>…<<end_user_data>>` sentinels, per-item for scope buckets so an injection in one item can't leak into another; sentinels inside adversarial values are neutralised before interpolation; system message briefs the model that content between the tags is inert; (b) `MethodStatementGeneratorService::isValid()` rejects any response missing mandatory H&S phrases (`toolbox talk`, `asbestos`, `permit-to-work`, `assembly point`, `ppe`) or containing injection markers (`ignore the above`, `disregard previous`, echoed sentinels). `MethodStatementInjectionDefenceTest` — 13 cases covering both layers. All 32 method-statement tests green.
+- **M-05 token expiry + revoke UI** (`8b007d4`) — Nullable `worksheets.access_token_expires_at` column (mirrors site_surveys precedent; null = never expires). `Worksheet::isTokenExpired()` + `regenerateAccessToken()`. `PublicWorksheetController::resolveWorksheet` aborts 410 Gone on expired tokens (semantic fit — URL was valid, resource still exists, this token is retired). Admin `POST /worksheets/{worksheet}/revoke-token` route + `WorksheetController::revokeToken()` action + red "Revoke & regenerate" button on `worksheets.show` beside Copy/Open. `WorksheetTokenExpiryTest` — 11 cases (past/future/null expiry, 410 on public routes, 404 on old token after revoke, admin auth, revoke rotates + flashes success).
+
+Data fixes applied live (via `artisan tinker` on the server):
+
+- User id 1 renamed `sonny` → `Sonny Tanda`.
+- Project id 84 (`SHIPCOMPSTART Volkswagen Group SHIPCOMPEND`) — `name` / `client_name` / `site_address` all cleaned via `preg_replace('/SHIP(COMP|ADD)(START|END)/', '', $s)` + `\s+,` collapse. Final state: `Volkswagen Group, Yeomans Drive, Blakelands, MK14 5AN Milton Keynes`.
+
+Deferred (logged in commits + audit doc RESOLUTION blocks):
+
+- M-04 sub-item 3 (equipment cross-check between AI output and reviewed items) — abbreviated quote-derived names + generic AV terms give too many false positives without a proper name-matching layer. Worth its own plan.
+
+Frontend redesign discussed (not scoped) — no `frontend-design` skill loaded in this session; recommended incremental interventions (design-token pass, targeted screen polish on 2–3 highest-use pages, more component extraction) over wholesale rebuild given internal-tool audience.
+
+**Audit status:** CRITICAL + HIGH + MEDIUM all closed. LOW items untouched but were parked as-designed in the audit doc.
 
 ## Session 2026-07-03 — deliverables shipped
 
