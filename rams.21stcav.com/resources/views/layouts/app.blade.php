@@ -1381,22 +1381,27 @@
          grouped result list, keyboard-first (↑↓ + Enter + Esc). Full
          Alpine factory defined in the script block below. --}}
     @auth
+    {{-- All Alpine directives use `x-on:` prefix instead of the `@`
+         shorthand. Blade only reserves the `@` at the very start of a
+         line/expression for directives, but the shorthand inside HTML
+         attributes has burnt us once (see fix 2026-07-08 evening) —
+         `x-on:` sidesteps the whole class of ambiguity. --}}
     <div x-data="globalSearchPalette()"
          x-show="open"
          x-cloak
-         x-transition.opacity.duration.150ms
-         @keydown.escape.window="close"
-         @keydown.window.prevent.meta.k="toggle"
-         @keydown.window.prevent.ctrl.k="toggle"
-         @open-global-search.window="openPalette"
-         @keydown.arrow-down.window="onArrow(1)"
-         @keydown.arrow-up.window="onArrow(-1)"
-         @keydown.enter.window="onEnter"
+         x-on:keydown.escape.window="close"
+         x-on:keydown.window.prevent.meta.k="toggle"
+         x-on:keydown.window.prevent.ctrl.k="toggle"
+         x-on:open-global-search.window="openPalette"
+         x-on:keydown.arrow-down.window="onArrow(1)"
+         x-on:keydown.arrow-up.window="onArrow(-1)"
+         x-on:keydown.enter.window="onEnter"
+         x-on:click.self="close"
          class="gsp-backdrop"
          role="dialog"
          aria-modal="true"
          aria-label="Global search">
-        <div @click.away="close" @click.stop class="gsp-panel">
+        <div class="gsp-panel" x-on:click.stop>
             <div class="gsp-input-wrap">
                 <svg class="gsp-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
                     <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>
@@ -1408,8 +1413,8 @@
                        autocomplete="off"
                        spellcheck="false"
                        x-model="query"
-                       @input.debounce.200ms="fetch()">
-                <button class="gsp-kbd" @click="close" type="button" aria-label="Close (Esc)">Esc</button>
+                       x-on:input.debounce.200ms="runSearch()">
+                <button class="gsp-kbd" x-on:click="close" type="button" aria-label="Close (Esc)">Esc</button>
             </div>
 
             <div class="gsp-results" x-ref="results">
@@ -1424,7 +1429,14 @@
                     <div class="gsp-loading">Searching…</div>
                 </template>
 
-                <template x-if="query.length >= 2 && !loading && groups.length === 0">
+                <template x-if="query.length >= 2 && !loading && error">
+                    <div class="gsp-empty">
+                        <div class="gsp-empty-title" style="color: var(--danger);">Search unavailable</div>
+                        <div class="gsp-empty-sub" x-text="error"></div>
+                    </div>
+                </template>
+
+                <template x-if="query.length >= 2 && !loading && !error && groups.length === 0">
                     <div class="gsp-empty">
                         <div class="gsp-empty-title">No matches for &ldquo;<span x-text="query"></span>&rdquo;</div>
                         <div class="gsp-empty-sub">Try a client name, project reference, or site address.</div>
@@ -1436,11 +1448,11 @@
                         <div class="gsp-group-label" x-text="group.label"></div>
                         <template x-for="(item, i) in group.items" :key="group.key + ':' + item.id">
                             <a class="gsp-item"
-                               :href="item.url"
-                               :class="{ 'is-focused': flatIndex(group.key, i) === focused }"
-                               @mouseenter="focused = flatIndex(group.key, i)"
-                               @focus="focused = flatIndex(group.key, i)">
-                                <div class="gsp-item-kind" :class="'gsp-k-' + item.kind" x-text="kindLetter(item.kind)"></div>
+                               x-bind:href="item.url"
+                               x-bind:class="{ 'is-focused': flatIndex(group.key, i) === focused }"
+                               x-on:mouseenter="focused = flatIndex(group.key, i)"
+                               x-on:focus="focused = flatIndex(group.key, i)">
+                                <div class="gsp-item-kind" x-bind:class="'gsp-k-' + item.kind" x-text="kindLetter(item.kind)"></div>
                                 <div class="gsp-item-body">
                                     <div class="gsp-item-title" x-text="item.title"></div>
                                     <div class="gsp-item-sub" x-text="item.subtitle" x-show="item.subtitle"></div>
@@ -1597,6 +1609,19 @@
         // is available on every authenticated page load without touching
         // the per-page script pipeline. Debounces network calls to 200ms
         // and aborts inflight requests when a fresh keystroke lands.
+        //
+        // Fix history:
+        //  2026-07-08 evening — first ship broke in two ways.
+        //   (a) Method was named `fetch()`, and inside the body a call to
+        //       `fetch(url, opts)` legally resolved to the outer name,
+        //       shadowing window.fetch and recursing. Renamed to
+        //       runSearch(); explicit `window.fetch` used in the body.
+        //   (b) The panel used @click.away to close, but the click that
+        //       fired open-global-search from the sidebar was still
+        //       bubbling — it hit the palette root the moment it became
+        //       visible and closed it on the same tick. Switched to
+        //       click.self on the backdrop (fires only when the user
+        //       clicks the DIMMED area, never the panel).
         function globalSearchPalette() {
             return {
                 open: false,
@@ -1604,34 +1629,53 @@
                 groups: [],
                 loading: false,
                 focused: 0,
+                error: null,
                 _abort: null,
 
                 toggle() {
                     this.open ? this.close() : this.openPalette();
                 },
                 openPalette() {
+                    if (this.open) return;
                     this.open = true;
                     this.focused = 0;
-                    this.$nextTick(() => this.$refs.input && this.$refs.input.focus());
+                    this.error = null;
+                    // 60ms setTimeout beats the CSS transition + any focus race
+                    // where the input isn't yet in the render tree when
+                    // $nextTick fires.
+                    setTimeout(() => {
+                        if (this.$refs.input) this.$refs.input.focus();
+                    }, 60);
                 },
                 close() {
                     this.open = false;
                     if (this._abort) { try { this._abort.abort(); } catch (e) {} this._abort = null; }
                 },
 
-                async fetch() {
-                    if (this.query.trim().length < 2) {
+                async runSearch() {
+                    const q = String(this.query || '').trim();
+                    if (q.length < 2) {
                         this.groups = [];
+                        this.error = null;
                         return;
                     }
                     if (this._abort) { try { this._abort.abort(); } catch (e) {} }
                     this._abort = new AbortController();
                     this.loading = true;
+                    this.error = null;
                     try {
-                        const res = await fetch(
-                            '{{ route('search.query') }}?q=' + encodeURIComponent(this.query),
-                            { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                              signal: this._abort.signal }
+                        // window.fetch — explicit reference so a future rename
+                        // of this method can never shadow the browser primitive.
+                        const res = await window.fetch(
+                            '{{ route('search.query') }}?q=' + encodeURIComponent(q),
+                            {
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                },
+                                credentials: 'same-origin',
+                                signal: this._abort.signal,
+                            },
                         );
                         if (!res.ok) throw new Error('HTTP ' + res.status);
                         const data = await res.json();
@@ -1641,6 +1685,7 @@
                         if (e.name !== 'AbortError') {
                             console.warn('global-search fetch failed', e);
                             this.groups = [];
+                            this.error = e.message || 'Search failed';
                         }
                     } finally {
                         this.loading = false;
