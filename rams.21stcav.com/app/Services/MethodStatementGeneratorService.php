@@ -47,6 +47,43 @@ class MethodStatementGeneratorService
     /** Number of phases the fallback must return. */
     private const FALLBACK_PHASE_COUNT = 6;
 
+    /**
+     * Audit M-04 (2026-07) — mandatory Step 1 H&S phrases. The prompt already
+     * REQUIRES the model to include these; the validator now enforces it so a
+     * prompt-injection payload that flips Step 1 (e.g. "skip permit-to-work",
+     * "no PPE required") cannot land as generated content. Compared
+     * case-insensitively as substrings — any wording that includes all five is
+     * accepted, so the model retains room to phrase them naturally.
+     *
+     * If any are missing, isValid() returns false → retry → fall back to the
+     * static 6-phase template that hardcodes every phrase.
+     */
+    private const MANDATORY_STEP1_PHRASES = [
+        'toolbox talk',
+        'asbestos',
+        'permit-to-work',
+        'assembly point',
+        'ppe',
+    ];
+
+    /**
+     * Audit M-04 — injection-attempt tells. A well-formed method statement
+     * describes site work; it never asks the reader to disregard prior
+     * instructions or echoes back the sentinels from the input prompt.
+     * If any of these appear the response is rejected without a retry.
+     */
+    private const INJECTION_MARKER_PHRASES = [
+        'ignore the above',
+        'ignore previous',
+        'ignore all previous',
+        'disregard the above',
+        'disregard previous',
+        'disregard all previous',
+        'system prompt',
+        '<<user_data>>',
+        '<<end_user_data>>',
+    ];
+
     public function __construct(
         private readonly MethodStatementService $methodStatement,
         private readonly AICacheService         $cache,
@@ -385,6 +422,26 @@ class MethodStatementGeneratorService
             return false;
         }
 
+        // Guard 6 (audit M-04): mandatory Step 1 H&S phrases must all be
+        // present somewhere in the response. Missing any is a compliance
+        // failure — either the model wandered off, or a prompt-injection
+        // succeeded in stripping the safety brief.
+        $lowered = strtolower($text);
+        foreach (self::MANDATORY_STEP1_PHRASES as $phrase) {
+            if (strpos($lowered, $phrase) === false) {
+                return false;
+            }
+        }
+
+        // Guard 7 (audit M-04): injection-attempt tells. Any of these in the
+        // output means either the model was tricked or it echoed our own
+        // sentinel tags back — both cases are unsafe to render.
+        foreach (self::INJECTION_MARKER_PHRASES as $marker) {
+            if (strpos($lowered, $marker) !== false) {
+                return false;
+            }
+        }
+
         return true;
     }
 
@@ -461,6 +518,19 @@ class MethodStatementGeneratorService
 
         if (preg_match('/\|[\s:]*-{2,}[\s:]*\|/', $text)) {
             return 'contains markdown table syntax';
+        }
+
+        // Audit M-04 — reason strings for the new guards.
+        $lowered = strtolower($text);
+        foreach (self::MANDATORY_STEP1_PHRASES as $phrase) {
+            if (strpos($lowered, $phrase) === false) {
+                return sprintf('missing mandatory H&S phrase "%s"', $phrase);
+            }
+        }
+        foreach (self::INJECTION_MARKER_PHRASES as $marker) {
+            if (strpos($lowered, $marker) !== false) {
+                return sprintf('contains injection marker "%s"', $marker);
+            }
         }
 
         return 'unknown';
