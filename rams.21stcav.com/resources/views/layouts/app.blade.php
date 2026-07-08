@@ -9,6 +9,18 @@
     {{-- Inter Variable ships from Vite via @fontsource-variable/inter (see
          resources/css/app.css). No external CDN fetch — CSP-safe + offline. --}}
 
+    {{-- Layout-level Vite include — gates Alpine + Axios + the token CSS
+         onto every authenticated page. Historically pages opted in via
+         @push('styles')@vite(...), but two layout-level components need
+         Alpine to work (⌘K global search palette + the app-confirm modal
+         at the bottom of this file), so opt-in-per-page silently broke
+         them everywhere but project-detail. Auth pages have their own
+         @vite in their layout, so this @auth guard avoids double-loading
+         Alpine on login/register. --}}
+    @auth
+        @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @endauth
+
     <style>
         /* ═══════════════════════════════════════════════════════════════
            DESIGN TOKENS — Tier-one (2026-07-08, PLAN 260708-b7i).
