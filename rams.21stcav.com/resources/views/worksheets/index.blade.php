@@ -5,8 +5,9 @@
 @section('content')
 
 <div class="page-header">
-    <div>
+    <div class="page-header-left">
         <h1 class="page-title">Worksheets</h1>
+        <div class="page-subtitle">Client-facing sign-off worksheets generated from a project's install scope.</div>
     </div>
 </div>
 

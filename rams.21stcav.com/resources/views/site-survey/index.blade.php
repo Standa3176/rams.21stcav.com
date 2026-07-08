@@ -5,17 +5,41 @@
 @section('content')
 
 <div class="page-header">
-    <h1 class="page-title">{{ $showDeleted ? 'Site Surveys — Deleted' : 'Site Surveys' }}</h1>
-    <div style="display:flex;gap:.5rem;align-items:center;">
+    <div class="page-header-left">
+        <h1 class="page-title">{{ $showDeleted ? 'Site Surveys — Deleted' : 'Site Surveys' }}</h1>
+        <div class="page-subtitle">
+            @if ($showDeleted)
+                Soft-deleted survey records. Admins can restore.
+            @else
+                Room-by-room site assessments captured via the engineer link.
+            @endif
+        </div>
+    </div>
+    <div class="page-header-actions">
         @if ($isAdmin)
             @if ($showDeleted)
-                <a href="{{ route('site-surveys.index') }}" class="btn btn-outline btn-sm">← Live Records</a>
+                <a href="{{ route('site-surveys.index') }}" class="btn btn-outline btn-sm">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                    Live Records
+                </a>
             @else
-                <a href="{{ route('site-surveys.index', ['show_deleted' => 1]) }}" class="btn btn-outline btn-sm">🗑 View Deleted</a>
+                <a href="{{ route('site-surveys.index', ['show_deleted' => 1]) }}" class="btn btn-outline btn-sm">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"/>
+                    </svg>
+                    View Deleted
+                </a>
             @endif
         @endif
         @if (! $showDeleted)
-            <a href="{{ route('site-surveys.create') }}" class="btn btn-teal">+ New Survey</a>
+            <a href="{{ route('site-surveys.create') }}" class="btn btn-teal btn-sm">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                New Survey
+            </a>
         @endif
     </div>
 </div>

@@ -4,117 +4,156 @@
 
 @push('styles')
 <style>
+/*
+ * RAMS index — tier-one polish (2026-07-08, PLAN 260708-b7i follow-up).
+ * Was: hardcoded warm hex (#FFF3CD, #856404, #f0f0f0, #ccc) that
+ * bypassed the token retune from task 2. Now every colour flows
+ * through the semantic vars in :root so the palette shifts once from
+ * layouts/app.blade.php.
+ */
+
 /* Status select ─────────────────────────────────────────────────────── */
 .status-select {
-    border: 1.5px solid #ccc;
-    border-radius: 4px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
     font-size: .8125rem;
     font-weight: 600;
-    padding: .2rem .5rem;
+    padding: .25rem .55rem;
     cursor: pointer;
     appearance: none;
     -webkit-appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2364748B'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
-    background-position: right .45rem center;
-    padding-right: 1.4rem;
-    transition: background .15s, color .15s;
+    background-position: right .5rem center;
+    padding-right: 1.5rem;
+    transition: background .12s, color .12s, border-color .12s;
 }
-.status-select[data-status="draft"]       { background-color:#eee;    color:#555; }
-.status-select[data-status="for_review"]  { background-color:#FFF3CD; color:#856404; }
-.status-select[data-status="approved"]    { background-color:#D4EDDA; color:#155724; }
-.status-select[data-status="superseded"]  { background-color:#FFDEDE; color:#7b1c1c; }
+.status-select[data-status="draft"]       { background-color: var(--ink-100);       color: var(--ink-700); }
+.status-select[data-status="for_review"]  { background-color: var(--warning-light); color: #92400E;
+                                            border-color: color-mix(in oklab, var(--warning) 30%, transparent); }
+.status-select[data-status="approved"]    { background-color: var(--success-light); color: var(--success);
+                                            border-color: color-mix(in oklab, var(--success) 30%, transparent); }
+.status-select[data-status="superseded"]  { background-color: var(--danger-light);  color: #991B1B;
+                                            border-color: color-mix(in oklab, var(--danger) 30%, transparent); }
 
-/* Pipeline status badges ─────────────────────────────────────────────── */
+/* Pipeline status badges — soft pills, thin border to match tier-one
+   badge treatment across the app. */
 .status-badge {
-    display: inline-block;
-    font-size: .78rem;
-    font-weight: 600;
-    padding: .2rem .55rem;
-    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    font-size: .75rem;
+    font-weight: 500;
+    padding: .15rem .55rem;
+    border-radius: 999px;
     white-space: nowrap;
+    border: 1px solid transparent;
+    letter-spacing: -0.005em;
 }
-.status-badge.uploaded            { background:#f0f0f0; color:#555; }
-.status-badge.awaiting_review     { background:#fffbeb; color:#92400e; border:1px solid #f59e0b; }
-.status-badge.approved            { background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd; }
-.status-badge.approved_generation { background:#eff6ff; color:#1d4ed8; }
-.status-badge.generating          { background:#f0fdf4; color:#166534; }
-.status-badge.completed           { background:#f0fdf4; color:#166534; border:1px solid #86efac; }
-.status-badge.failed              { background:#fef2f2; color:#991b1b; border:1px solid #fca5a5; }
+.status-badge.uploaded            { background: var(--ink-100);       color: var(--ink-700);
+                                    border-color: var(--border); }
+.status-badge.awaiting_review     { background: var(--warning-light); color: #92400E;
+                                    border-color: color-mix(in oklab, var(--warning) 30%, transparent); }
+.status-badge.approved            { background: var(--teal-100);      color: var(--teal-700);
+                                    border-color: color-mix(in oklab, var(--teal-700) 25%, transparent); }
+.status-badge.approved_generation { background: var(--teal-100);      color: var(--teal-700); }
+.status-badge.generating          { background: var(--success-light); color: var(--success); }
+.status-badge.completed           { background: var(--success-light); color: var(--success);
+                                    border-color: color-mix(in oklab, var(--success) 30%, transparent); }
+.status-badge.failed              { background: var(--danger-light);  color: #991B1B;
+                                    border-color: color-mix(in oklab, var(--danger) 30%, transparent); }
 
 /* Failed error message ───────────────────────────────────────────────── */
 .error-detail {
     display: block;
     font-size: .73rem;
-    color: #991b1b;
-    margin-top: .25rem;
+    color: #991B1B;
+    margin-top: .3rem;
     max-width: 260px;
     word-break: break-word;
     line-height: 1.35;
 }
 
-/* Superseded row ─────────────────────────────────────────────────────── */
+/* Superseded row — muted; blocked from interacting. */
 tr.superseded td { opacity: .45; }
 tr.superseded td.actions-cell * { pointer-events: none; }
 
-/* Soft-deleted row ───────────────────────────────────────────────────── */
-tr.soft-deleted td { opacity: .5; background:#fff8f8; }
+/* Soft-deleted row — subtle danger-tint background; actions stay
+   clickable for admin restore. */
+tr.soft-deleted td { opacity: .55; background: color-mix(in oklab, var(--danger-light) 40%, var(--card)); }
 tr.soft-deleted td.actions-cell * { pointer-events: auto; }
 
-/* Email modal overlay ───────────────────────────────────────────────── */
+/* Email modal overlay — tier-one dialog treatment. */
 .modal-overlay {
     display: none;
     position: fixed; inset: 0;
-    background: rgba(0,0,0,.45);
+    background: color-mix(in oklab, var(--ink-900) 55%, transparent);
+    backdrop-filter: blur(4px);
     z-index: 999;
     align-items: center;
     justify-content: center;
 }
 .modal-overlay.open { display: flex; }
 .modal-box {
-    background: #fff;
-    border-radius: 8px;
-    padding: 1.75rem 2rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px 28px;
     width: 100%;
     max-width: 480px;
-    box-shadow: 0 8px 32px rgba(0,0,0,.2);
+    box-shadow: var(--shadow-lg);
     position: relative;
 }
 .modal-close {
     position: absolute;
-    top: .75rem; right: 1rem;
-    background: none; border: none;
-    font-size: 1.3rem;
+    top: 12px; right: 14px;
+    background: transparent; border: none;
+    font-size: 22px;
     cursor: pointer;
-    color: #888;
+    color: var(--text-muted);
     line-height: 1;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: color .12s, background .12s;
 }
-.modal-close:hover { color: #333; }
+.modal-close:hover { color: var(--ink-900); background: var(--surface-soft); }
 </style>
 @endpush
 
 @section('content')
 
-    {{-- Page header --}}
+    {{-- Page header — tier-one polish (2026-07-08). Was custom inline
+         flex + emoji-prefixed button labels. Now uses the shared
+         .page-header-left / .page-header-actions helpers so this screen
+         inherits the same hierarchy pattern as the dashboard + project
+         detail. --}}
     <div class="page-header">
-        <h1 class="page-title">RAMS Documents</h1>
-        <div style="display:flex;gap:.5rem;align-items:center;">
+        <div class="page-header-left">
+            <h1 class="page-title">RAMS Documents</h1>
+            <div class="page-subtitle">Risk assessments and method statements generated from approved projects.</div>
+        </div>
+        <div class="page-header-actions">
             @if ($isAdmin)
                 @if (request()->boolean('show_deleted'))
-                    <a href="{{ route('rams.index') }}" class="btn btn-outline btn-sm" style="color:#991b1b;border-color:#fca5a5;">
+                    <a href="{{ route('rams.index') }}" class="btn btn-danger-outline btn-sm">
                         Hide Deleted
                     </a>
                 @else
                     <a href="{{ route('rams.index', ['show_deleted' => 1]) }}" class="btn btn-outline btn-sm">
-                        🗑 View Deleted
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"/>
+                        </svg>
+                        View Deleted
                     </a>
                 @endif
             @endif
             <a href="{{ route('rams.upload.create') }}" class="btn btn-outline btn-sm">
                 From Quote PDF
             </a>
-            <a href="{{ route('rams.create') }}" class="btn btn-teal">
-                + Create RAMS
+            <a href="{{ route('rams.create') }}" class="btn btn-teal btn-sm">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Create RAMS
             </a>
         </div>
     </div>
