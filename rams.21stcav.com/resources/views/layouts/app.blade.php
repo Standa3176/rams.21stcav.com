@@ -1386,9 +1386,17 @@
          line/expression for directives, but the shorthand inside HTML
          attributes has burnt us once (see fix 2026-07-08 evening) —
          `x-on:` sidesteps the whole class of ambiguity. --}}
+    {{-- Class-based show/hide (was x-show="open"). Blocking bug found
+         2026-07-08 — the palette was rendering on every page load
+         because before Alpine booted, no `display: none` was applied.
+         x-cloak's `[x-cloak]{display:none !important}` should have
+         covered the gap but did not on this codebase (unknown reason).
+         Bulletproof: CSS defaults `.gsp-backdrop { display: none }` +
+         `.gsp-backdrop.is-open { display: flex }`. Alpine toggles the
+         `.is-open` class via x-bind. Even if Alpine fails to init the
+         palette stays hidden — no flash, no stuck-open. --}}
     <div x-data="globalSearchPalette()"
-         x-show="open"
-         x-cloak
+         x-bind:class="{ 'is-open': open }"
          x-on:keydown.escape.window="close"
          x-on:keydown.window.prevent.meta.k="toggle"
          x-on:keydown.window.prevent.ctrl.k="toggle"
@@ -1480,12 +1488,20 @@
            the shortcut. Uses tokens from :root — light card, indigo
            active row, hairline dividers, doc-kind gradient chips.
         ═══════════════════════════════════════════════════════════════ */
+        /* Default: hidden. `.is-open` class toggled by Alpine when the
+           palette should show. Not using x-show + x-cloak because the
+           combination failed to keep the palette hidden on page load in
+           this codebase (fix 2026-07-08 evening #2). */
         .gsp-backdrop {
             position: fixed; inset: 0; z-index: 500;
             background: color-mix(in oklab, var(--ink-900) 55%, transparent);
             backdrop-filter: blur(4px);
-            display: flex; align-items: flex-start; justify-content: center;
+            display: none;
+            align-items: flex-start; justify-content: center;
             padding: 12vh 1rem 1rem;
+        }
+        .gsp-backdrop.is-open {
+            display: flex;
         }
         .gsp-panel {
             width: 100%; max-width: 620px;
