@@ -13,117 +13,101 @@
         [x-cloak] { display: none !important; }
 
         /* ═══════════════════════════════════════════════════════════════
-           PROJECT SHOW VIEW — modern dashboard
+           PROJECT SHOW VIEW — Jetbuilt-clean (2026-07-09).
+           Was a 340-line tier-one stylesheet with coloured left-rail
+           accents on every card title, gradient CTA pills, and glowing
+           progress bars. Rewritten to a lean sheet that leans on the
+           layout tokens: flat cards, no left-rails, single accent for
+           active/current state, plain type hierarchy.
         ═══════════════════════════════════════════════════════════════ */
 
-        /* Audit D-08 (2026-07-08) — page-title override deleted. Layout
-           .page-title in app.blade.php now owns the scale (26px / 700 /
-           -0.025em) — every screen inherits, no more per-page drift. */
-
-        /* Main tabbed workspace cards */
+        /* Main workspace cards — flat surface, no shadow, single accent
+           only if something is truly interactive. Class names retained
+           so the deep Blade markup below doesn't need to move. */
         .psv__main > .section-block {
             background: var(--surface);
-            border: 1px solid var(--border);
+            border: 1px solid var(--ink-200);
             border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-xs);
-            padding: 1.5rem 1.5rem;
+            box-shadow: none;
+            padding: 20px 22px;
             margin: 0;
         }
         .psv__main > .section-block .section-card__header {
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 0.7rem;
-            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--ink-100);
+            padding-bottom: 12px;
+            margin-bottom: 16px;
         }
         .psv__main > .section-block .section-card__title {
-            font-size: 15px;
-            font-weight: 700;
+            font-size: var(--fs-h3);
+            font-weight: 600;
             color: var(--ink-900);
             letter-spacing: -.015em;
             display: flex;
             align-items: center;
             gap: 8px;
         }
-        .psv__main > .section-block .section-card__title::before {
-            content: '';
-            display: inline-block;
-            width: 3px;
-            height: 18px;
-            background: var(--teal-700);
-            border-radius: 2px;
-        }
+        /* Left-rail accent retired — Jetbuilt uses type weight, not a
+           coloured bar, to mark headings. */
+        .psv__main > .section-block .section-card__title::before { content: none; }
 
-        /* Right sticky panel cards — flush header bar with cream tint for weight */
+        /* Right sticky panel cards — same flat treatment, tighter body. */
         .psv__sticky > .section-block {
             background: var(--surface);
-            border: 1px solid var(--ink-300);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow-xs);
+            border: 1px solid var(--ink-200);
+            border-radius: var(--radius-lg);
+            box-shadow: none;
             padding: 0;
             margin: 0;
             overflow: hidden;
         }
         .psv__sticky > .section-block .section-card__header {
-            background: var(--paper-2);
-            border-bottom: 1px solid var(--ink-200);
-            padding: .65rem 1.1rem;
+            background: var(--surface);
+            border-bottom: 1px solid var(--ink-100);
+            padding: 12px 18px;
             margin: 0;
         }
         .psv__sticky > .section-block .section-card__title {
-            font-size: .72rem;
-            font-weight: 700;
-            color: var(--teal-700);
-            text-transform: uppercase;
-            letter-spacing: .10em;
+            font-size: var(--fs-small);
+            font-weight: 600;
+            color: var(--ink-900);
+            text-transform: none;
+            letter-spacing: -0.005em;
             display: flex;
             align-items: center;
             gap: 8px;
         }
-        .psv__sticky > .section-block .section-card__title::before {
-            content: '';
-            display: inline-block;
-            width: 4px;
-            height: 14px;
-            background: var(--teal-700);
-            border-radius: 2px;
-        }
-        .psv__sticky > .section-block .section-card__body { padding: 1rem 1.25rem; }
+        .psv__sticky > .section-block .section-card__title::before { content: none; }
+        .psv__sticky > .section-block .section-card__body { padding: 16px 18px; }
 
-        /* Workflow card — same flush-header treatment as the right column */
+        /* Workflow card — same flat header. */
         .psv__workflow > .section-block {
             background: var(--surface);
-            border: 1px solid var(--ink-300);
+            border: 1px solid var(--ink-200);
             border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-xs);
+            box-shadow: none;
             padding: 0;
             overflow: hidden;
         }
         .psv__workflow > .section-block .section-card__header {
-            background: var(--paper-2);
-            border-bottom: 1px solid var(--ink-200);
-            padding: .65rem 1.25rem;
+            background: var(--surface);
+            border-bottom: 1px solid var(--ink-100);
+            padding: 12px 22px;
             margin: 0;
         }
         .psv__workflow > .section-block .section-card__title {
-            font-size: .72rem;
-            font-weight: 700;
-            color: var(--teal-700);
-            text-transform: uppercase;
-            letter-spacing: .10em;
+            font-size: var(--fs-small);
+            font-weight: 600;
+            color: var(--ink-900);
+            text-transform: none;
+            letter-spacing: -0.005em;
             display: flex;
             align-items: center;
             gap: 8px;
         }
-        .psv__workflow > .section-block .section-card__title::before {
-            content: '';
-            display: inline-block;
-            width: 4px;
-            height: 14px;
-            background: var(--teal-700);
-            border-radius: 2px;
-        }
-        .psv__workflow > .section-block .section-card__body { padding: 1.25rem 1.5rem; }
+        .psv__workflow > .section-block .section-card__title::before { content: none; }
+        .psv__workflow > .section-block .section-card__body { padding: 18px 22px; }
 
-        /* Workspace tab strip — flat horizontal nav (SCC v2 style) */
+        /* Workspace tab strip — accent underline (matches top-nav). */
         .ws { background: transparent; padding: 0; border-radius: 0; }
         .ws-tabs {
             display: flex;
@@ -135,23 +119,23 @@
         .ws-tab {
             background: transparent;
             border: none;
-            padding: .65rem 1rem;
+            padding: 10px 14px;
             margin-bottom: -1px;
-            font-size: .8125rem;
+            font-size: var(--fs-small);
             font-weight: 500;
             color: var(--ink-500);
             cursor: pointer;
             display: inline-flex;
             align-items: center;
-            gap: .45rem;
+            gap: 8px;
             border-bottom: 2px solid transparent;
-            transition: color .12s, border-color .12s;
+            transition: color var(--transition), border-color var(--transition);
             white-space: nowrap;
         }
         .ws-tab:hover { color: var(--ink-900); }
         .ws-tab.is-active {
-            color: var(--teal-700);
-            border-bottom-color: var(--teal-700);
+            color: var(--ink-900);
+            border-bottom-color: var(--accent-600);
             font-weight: 600;
         }
         .ws-tab__count {
@@ -165,150 +149,148 @@
             color: var(--ink-700);
             border-radius: 999px;
             font-size: 11px;
-            font-weight: 600;
+            font-weight: 500;
             line-height: 1;
         }
         .ws-tab.is-active .ws-tab__count {
-            background: var(--teal-100);
-            color: var(--teal-700);
+            background: var(--accent-50);
+            color: var(--accent-700);
         }
-        /* Workspace body sits flush below the tab strip */
         .ws > .bg-white {
             border-top-left-radius: 0;
             border-top-right-radius: 0;
             border-top: none;
         }
 
-        /* Table-row hover */
+        /* Table-row hover — matches the accent-50 hover the .data-table
+           primitive uses everywhere else. */
         .psv__main table tbody tr { transition: background-color var(--transition); }
-        .psv__main table tbody tr:hover { background-color: var(--surface-soft); }
+        .psv__main table tbody tr:hover { background-color: var(--accent-50); }
 
-        /* Project ref / breadcrumb */
+        /* Project ref / breadcrumb — mono meta, plain colour. */
         .psv-ref {
             font-family: var(--font-mono);
-            font-size: .8125rem;
-            color: var(--text-muted);
-            letter-spacing: .02em;
+            font-size: var(--fs-small);
+            color: var(--ink-500);
+            letter-spacing: 0;
         }
 
-        /* Workflow stepper — pill steps with progress bar */
+        /* Workflow stepper — pill steps, flat accent for current, muted
+           for done. No gradients, no shadow, no pulse ring. */
         .psv-stepper {
             display: flex;
-            gap: .5rem;
+            gap: 8px;
             flex-wrap: nowrap;
             overflow-x: auto;
-            padding-bottom: .25rem;
-            margin-bottom: 1rem;
+            padding-bottom: 4px;
+            margin-bottom: 16px;
         }
-        .psv-stepper::-webkit-scrollbar { height: 6px; }
-        .psv-stepper::-webkit-scrollbar-track { background: var(--bg-deep); border-radius: 3px; }
-        .psv-stepper::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+        .psv-stepper::-webkit-scrollbar { height: 4px; }
+        .psv-stepper::-webkit-scrollbar-track { background: transparent; }
+        .psv-stepper::-webkit-scrollbar-thumb { background: var(--ink-200); border-radius: 2px; }
 
         .psv-step {
             display: inline-flex;
             align-items: center;
-            gap: .5rem;
-            padding: .45rem .9rem .45rem .55rem;
+            gap: 8px;
+            padding: 6px 14px 6px 8px;
             border-radius: 999px;
-            font-size: .8125rem;
+            font-size: var(--fs-small);
             font-weight: 500;
-            border: 1px solid var(--border);
+            border: 1px solid var(--ink-200);
             background: var(--surface);
-            color: var(--text-muted);
+            color: var(--ink-500);
             white-space: nowrap;
-            transition: all var(--transition);
+            transition: color var(--transition), border-color var(--transition), background var(--transition);
             flex-shrink: 0;
         }
         .psv-step__num {
-            width: 22px; height: 22px;
+            width: 20px; height: 20px;
             border-radius: 50%;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: .7rem;
+            font-size: 11px;
             font-weight: 600;
-            background: var(--surface-deep);
-            color: var(--text-muted);
+            background: var(--ink-100);
+            color: var(--ink-500);
         }
-        /* Tier-one workflow step — current uses indigo gradient +
-           subtle pulse ring (matches the delivery-progress stepper on
-           the v2 preview). Done state carries an emerald-100 pill for
-           consistency with the completed badges elsewhere on the app. */
         .psv-step.is-current {
-            border-color: transparent;
-            background: linear-gradient(135deg, var(--teal-500), var(--teal-700));
+            border-color: var(--accent-600);
+            background: var(--accent-600);
             color: #fff;
             font-weight: 600;
-            box-shadow: 0 0 0 3px color-mix(in oklab, var(--teal-500) 22%, transparent);
+            box-shadow: none;
         }
         .psv-step.is-current .psv-step__num {
             background: rgba(255,255,255,.22);
             color: #fff;
         }
         .psv-step.is-done {
-            border-color: color-mix(in oklab, var(--success) 22%, transparent);
+            border-color: color-mix(in oklab, var(--success) 30%, transparent);
             background: var(--success-light);
-            color: var(--success);
+            color: #065F46;
         }
         .psv-step.is-done .psv-step__num {
             background: var(--success);
             color: #fff;
         }
 
-        /* Workflow progress bar */
+        /* Workflow progress bar — flat accent fill. */
         .psv-progress {
             display: flex;
             align-items: center;
-            gap: .85rem;
-            margin-top: 0.25rem;
+            gap: 12px;
+            margin-top: 4px;
         }
         .psv-progress__label {
-            font-size: .75rem;
-            color: var(--text-muted);
+            font-size: var(--fs-small);
+            color: var(--ink-500);
             white-space: nowrap;
             flex-shrink: 0;
         }
         .psv-progress__track {
             flex: 1;
             height: 6px;
-            background: var(--surface-deep);
-            border-radius: 3px;
+            background: var(--ink-100);
+            border-radius: 999px;
             overflow: hidden;
         }
         .psv-progress__fill {
             height: 100%;
-            background: linear-gradient(90deg, var(--teal-500), var(--teal-700));
-            border-radius: 3px;
-            box-shadow: 0 0 6px 0 color-mix(in oklab, var(--teal-500) 40%, transparent);
+            background: var(--accent-600);
+            border-radius: 999px;
+            box-shadow: none;
             transition: width 400ms ease;
         }
 
-        /* Document tabs (inside workspace card) */
+        /* Document tabs inside the workspace card — same accent underline
+           as the top-nav so the whole app tabs consistently. */
         .psv-tabs {
             display: flex;
-            gap: 1.5rem;
+            gap: 24px;
             flex-wrap: wrap;
-            border-bottom: 1px solid var(--border);
-            margin-bottom: 1.25rem;
+            border-bottom: 1px solid var(--ink-200);
+            margin-bottom: 20px;
         }
         .psv-tab {
             display: inline-flex;
             align-items: center;
-            gap: .5rem;
-            padding: .75rem 0;
+            gap: 8px;
+            padding: 12px 0;
             border: none;
             background: transparent;
-            color: var(--text-muted);
-            font-size: .875rem;
+            color: var(--ink-500);
+            font-size: var(--fs-body);
             font-weight: 500;
             cursor: pointer;
             position: relative;
             transition: color var(--transition);
             white-space: nowrap;
         }
-        .psv-tab:hover { color: var(--text); }
+        .psv-tab:hover { color: var(--ink-900); }
         .psv-tab.is-active {
-            color: var(--teal);
+            color: var(--ink-900);
             font-weight: 600;
         }
         .psv-tab.is-active::after {
@@ -316,26 +298,26 @@
             position: absolute;
             left: 0; right: 0; bottom: -1px;
             height: 2px;
-            background: var(--teal);
+            background: var(--accent-600);
+            border-radius: 2px 2px 0 0;
         }
         .psv-tab-count {
             display: inline-flex;
             align-items: center;
             justify-content: center;
             min-width: 20px; height: 20px;
-            padding: 0 .4rem;
+            padding: 0 6px;
             border-radius: 999px;
-            font-size: .68rem;
-            font-weight: 700;
-            background: var(--surface-deep);
-            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 500;
+            background: var(--ink-100);
+            color: var(--ink-500);
         }
         .psv-tab.is-active .psv-tab-count {
-            background: var(--teal-100);
-            color: var(--teal-700);
+            background: var(--accent-50);
+            color: var(--accent-700);
         }
 
-        /* Status badge weight */
         .psv .status-badge { font-weight: 500; }
     /* Audit D-11 (2026-07-08) — 340-line stylesheet shipped zero @media
        breakpoints, so the stepper/tabs/sticky aside all overflowed
@@ -542,7 +524,7 @@
                 ->sum(fn ($w) => $w->photos->count()) > 0;
         @endphp
         <a href="{{ route('projects.mini-om.pdf', $project) }}"
-           class="inline-flex items-center gap-2 border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium px-4 py-2 rounded-lg text-sm transition-colors"
+           class="btn btn-outline"
            title="Auto-built client-facing PDF — rooms, photos, asset list, sign-offs"
            target="_blank" rel="noopener">
             <span aria-hidden="true">📄</span>
@@ -561,20 +543,20 @@
 
         @if ($nextStep && ! empty($nextStep['cta']) && ! empty($nextStep['href']))
             <a href="{{ $nextStep['href'] }}"
-               class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-medium px-5 py-2.5 rounded-lg text-sm shadow-sm hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm transition-all duration-150">
+               class="btn btn-primary">
                 {{ $nextStep['cta'] }}
             </a>
         @elseif ($nextStep && ! empty($nextStep['cta']) && ! empty($nextStep['form_action']))
             <form method="POST" action="{{ $nextStep['form_action'] }}" class="m-0">
                 @csrf
                 <button type="submit"
-                        class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-medium px-5 py-2.5 rounded-lg text-sm shadow-sm hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm transition-all duration-150">
+                        class="btn btn-primary">
                     {{ $nextStep['cta'] }}
                 </button>
             </form>
         @elseif (! $primaryPackage)
             <a href="{{ route('quote-import.create', ['project_id' => $project->id]) }}"
-               class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-medium px-5 py-2.5 rounded-lg text-sm shadow-sm hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm transition-all duration-150">
+               class="btn btn-primary">
                 ↑ Upload Quote
             </a>
         @endif
@@ -617,32 +599,38 @@
     {{-- ─────────────────── MAIN COLUMN ─────────────────── --}}
     <div class="psv__main flex flex-col gap-6 min-w-0">
 
-        {{-- ── Next Step Card (PRIMARY FOCUS) ─────────────────────────────── --}}
-        {{-- Tier-1 Screen 01 v1 — banner tightened. Same visual grammar as
-             before (icon · label · title · desc · CTA) with padding dropped
-             from p-7 → p-4 and icon w-14/text-2xl → w-11/text-xl so the
-             workflow stepper below sits closer to the fold. --}}
+        {{-- ── Next Step Card (PRIMARY FOCUS) ───────────────────────────────
+             Jetbuilt-clean (2026-07-09) — was a teal→cyan gradient panel
+             with a dark-teal circle icon and lift/glow CTA. Retunes to a
+             flat accent-50 canvas with the accent-600 solid mark + button
+             so the hero speaks the same visual language as the top-nav. --}}
         @if ($nextStep)
-        <section class="relative bg-gradient-to-r from-teal-50 to-cyan-50 border-2 border-teal-300 rounded-xl p-4 shadow-sm ring-1 ring-teal-200/50 flex items-center gap-4 mb-2" role="region" aria-label="Next Step">
-            <div class="flex-none w-11 h-11 bg-teal-600 text-white rounded-full flex items-center justify-center text-xl shadow-sm ring-4 ring-teal-100" aria-hidden="true">
+        <section role="region" aria-label="Next Step"
+                 style="position:relative; display:flex; align-items:center; gap:16px; padding:18px 20px; margin-bottom:8px;
+                        background: var(--accent-50);
+                        border: 1px solid color-mix(in oklab, var(--accent-600) 22%, transparent);
+                        border-radius: var(--radius-lg);">
+            <div aria-hidden="true"
+                 style="flex:none; width:40px; height:40px; border-radius: var(--radius-sm);
+                        background: var(--accent-600); color: #fff;
+                        display:flex; align-items:center; justify-content:center;
+                        font-size:18px;">
                 {{ $nextStep['icon'] }}
             </div>
-            <div class="flex-1 min-w-0">
-                <div class="text-xs font-bold uppercase tracking-wider text-teal-700 mb-0.5">Next Step</div>
-                <h3 class="text-base font-bold text-gray-900 leading-tight">{{ $nextStep['title'] }}</h3>
-                <p class="text-sm text-gray-600 mt-0.5 max-w-prose leading-snug">{{ $nextStep['desc'] }}</p>
+            <div style="flex:1; min-width:0;">
+                <div style="font-size: var(--fs-micro); font-weight:600; text-transform:uppercase; letter-spacing:.08em; color: var(--accent-700); margin-bottom:2px;">Next Step</div>
+                <h3 style="font-size: var(--fs-body); font-weight:600; color: var(--ink-900); line-height:1.35; letter-spacing:-.01em;">{{ $nextStep['title'] }}</h3>
+                <p style="font-size: var(--fs-small); color: var(--ink-700); margin-top:2px; max-width: 60ch; line-height:1.45;">{{ $nextStep['desc'] }}</p>
             </div>
-            <div class="flex-none flex items-center">
+            <div style="flex:none; display:flex; align-items:center;">
                 @if (! empty($nextStep['cta']) && ! empty($nextStep['href']))
-                    <a href="{{ $nextStep['href'] }}"
-                       class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm shadow-md hover:shadow-lg hover:-translate-y-px active:translate-y-0 active:shadow-md transition-all duration-150 whitespace-nowrap">
+                    <a href="{{ $nextStep['href'] }}" class="btn btn-primary" style="white-space:nowrap;">
                         {{ $nextStep['cta'] }} →
                     </a>
                 @elseif (! empty($nextStep['cta']) && ! empty($nextStep['form_action']))
                     <form method="POST" action="{{ $nextStep['form_action'] }}" class="m-0">
                         @csrf
-                        <button type="submit"
-                                class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm shadow-md hover:shadow-lg hover:-translate-y-px active:translate-y-0 active:shadow-md transition-all duration-150 whitespace-nowrap">
+                        <button type="submit" class="btn btn-primary" style="white-space:nowrap;">
                             {{ $nextStep['cta'] }} →
                         </button>
                     </form>
@@ -682,37 +670,49 @@
                 @endif
             </x-slot>
 
-            {{-- Tier-1 Screen 01 v1 — compacted chip strip. Same three states
-                 (past ✓ · current ● · future N) but px-3 py-1 text-xs so a
-                 7-step lifecycle fits on one line at 1200px+ viewports without
-                 horizontal scroll. Connector dot bumped up 3px so the visual
-                 rhythm doesn't feel broken. --}}
+            {{-- Workflow stepper — Jetbuilt-clean (2026-07-09).
+                 Was Tailwind teal-* utility classes → stock Tailwind
+                 teal palette, ignoring our accent tokens. Retuned to
+                 inline styles that pull from the CSS vars so past/current/
+                 future states speak the same language as everything else. --}}
             <div class="flex items-center gap-2 overflow-x-auto py-1">
                 @foreach ($lifecycle as $i => $step)
                     @php
-                        $stepLabel  = \App\Models\Project::STATUS_LABELS[$step];
-                        $isActive   = $step === $project->status;
-                        $isPast     = $i < $currentIdx;
+                        $stepLabel = \App\Models\Project::STATUS_LABELS[$step];
+                        $isActive  = $step === $project->status;
+                        $isPast    = $i < $currentIdx;
                     @endphp
                     @if ($isActive)
-                        <div class="flex-none inline-flex items-center gap-1.5 border-2 border-teal-600 text-teal-700 bg-white px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap">
-                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-teal-600 text-white text-[9px]">●</span>
+                        {{-- Current step: solid accent pill so the eye lands here first. --}}
+                        <div class="flex-none inline-flex items-center gap-1.5 whitespace-nowrap"
+                             style="padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
+                                    background: var(--accent-600); color: #fff; border: 1px solid var(--accent-600);">
+                            <span style="display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; background: rgba(255,255,255,.22); color:#fff; font-size:9px;">●</span>
                             {{ $stepLabel }}
                         </div>
                     @elseif ($isPast)
-                        <div class="flex-none inline-flex items-center gap-1.5 bg-teal-600 text-white px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap">
-                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/25 text-white text-[9px]">✓</span>
+                        {{-- Done step: quiet accent-50 pill + accent tick so the trail
+                             behind us reads as a set, not as new load-bearing UI. --}}
+                        <div class="flex-none inline-flex items-center gap-1.5 whitespace-nowrap"
+                             style="padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 500;
+                                    background: var(--accent-50); color: var(--accent-700);
+                                    border: 1px solid color-mix(in oklab, var(--accent-600) 22%, transparent);">
+                            <span style="display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; background: var(--accent-600); color:#fff; font-size:9px;">✓</span>
                             {{ $stepLabel }}
                         </div>
                     @else
-                        <div class="flex-none inline-flex items-center gap-1.5 bg-gray-100 text-gray-500 border border-gray-200 px-3 py-1 rounded-full text-xs whitespace-nowrap">
-                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white text-gray-500 border border-gray-300 text-[9px]">{{ $i + 1 }}</span>
+                        <div class="flex-none inline-flex items-center gap-1.5 whitespace-nowrap"
+                             style="padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 500;
+                                    background: var(--ink-100); color: var(--ink-500);
+                                    border: 1px solid var(--ink-200);">
+                            <span style="display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; background: #fff; color: var(--ink-500); border: 1px solid var(--ink-200); font-size:9px;">{{ $i + 1 }}</span>
                             {{ $stepLabel }}
                         </div>
                     @endif
 
                     @if (! $loop->last)
-                        <div class="flex-none w-2 h-px {{ $isPast ? 'bg-teal-600' : 'bg-gray-300' }}"></div>
+                        <div class="flex-none"
+                             style="width: 8px; height: 1px; background: {{ $isPast ? 'var(--accent-600)' : 'var(--ink-200)' }};"></div>
                     @endif
                 @endforeach
             </div>
