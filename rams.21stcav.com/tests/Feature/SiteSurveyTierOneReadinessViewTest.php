@@ -53,8 +53,13 @@ class SiteSurveyTierOneReadinessViewTest extends TestCase
             'project_name' => 'T1 UI Project',
             'client_name'  => 'Acme Ltd',
             'status'       => 'draft',
-            'access_token' => $token,
         ]);
+        // Re-audit S-03 — access_token was dropped from $fillable, so
+        // SiteSurvey::create() no longer accepts it. Set it via
+        // forceFill() so the test can drive a known token through the
+        // public URL. The boot::creating hook has already set a random
+        // UUID; this overrides it.
+        $survey->forceFill(['access_token' => $token])->save();
 
         // Fully-ready room.
         $ready = $survey->rooms()->create([

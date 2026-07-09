@@ -44,10 +44,17 @@ class SiteSurvey extends Model
         'superseded_at',
         'status',
         'filename',
-        'access_token',
+        // Re-audit S-03 — `access_token` dropped from $fillable so no
+        // `$survey->update([...])` payload can rotate the public engineer
+        // link. The only writer is boot::creating() (line 72) which uses
+        // direct property assignment and bypasses $fillable.
         'expires_at',
         'submitted_at',
-        'submitted_notification_sent_at',
+        // Re-audit S-02 — `submitted_notification_sent_at` dropped from
+        // $fillable so a client can't fake "office notified {N min ago}"
+        // via a validated payload. The one legitimate writer
+        // (SurveyService::submitPublic) uses ->forceFill() which bypasses
+        // $fillable, so behaviour is unchanged.
         'survey_type',
         'survey_data',
     ];

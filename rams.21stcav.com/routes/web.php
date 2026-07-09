@@ -321,9 +321,18 @@ Route::middleware('auth')->group(function () {
     Route::delete('rams/{rams}/destroy', [RamsController::class, 'destroy'])->name('rams.destroy');
 
     // ── Retry / recovery actions ──────────────────────────────────────────
-    Route::post('rams/{rams}/retry-extraction', [RamsController::class, 'retryExtraction'])->name('rams.retry-extraction');
-    Route::post('rams/{rams}/retry-generation', [RamsController::class, 'retryGeneration'])->name('rams.retry-generation');
-    Route::post('rams/from-project/{project}', [RamsController::class, 'generateFromProject'])->name('rams.from-project');
+    // Re-audit S-01 — every retry dispatches an AI/DOCX queue job. Cap
+    // 10 requests per minute per user so a wedged UI or compromised
+    // account can't burn queue capacity + AI spend at unlimited RPS.
+    Route::post('rams/{rams}/retry-extraction', [RamsController::class, 'retryExtraction'])
+        ->name('rams.retry-extraction')
+        ->middleware('throttle:10,1');
+    Route::post('rams/{rams}/retry-generation', [RamsController::class, 'retryGeneration'])
+        ->name('rams.retry-generation')
+        ->middleware('throttle:10,1');
+    Route::post('rams/from-project/{project}', [RamsController::class, 'generateFromProject'])
+        ->name('rams.from-project')
+        ->middleware('throttle:10,1');
 
     // ── Restore / permanent delete (admin only) ───────────────────────────
     Route::post('rams/{id}/restore', [RamsController::class, 'restore'])->name('rams.restore');
@@ -353,7 +362,9 @@ Route::middleware('auth')->group(function () {
     Route::post('cable-schedules/generate-from-project/{project}', [CableScheduleController::class, 'generateFromProject'])->name('cable-schedules.generate-from-project');
     Route::get('cable-schedules/{cableSchedule}/status', [CableScheduleController::class, 'status'])->name('cable-schedules.status');
     Route::get('cable-schedules/{cableSchedule}/download', [CableScheduleController::class, 'download'])->name('cable-schedules.download');
-    Route::post('cable-schedules/{cableSchedule}/retry-generation', [CableScheduleController::class, 'retryGeneration'])->name('cable-schedules.retry-generation');
+    Route::post('cable-schedules/{cableSchedule}/retry-generation', [CableScheduleController::class, 'retryGeneration'])
+        ->name('cable-schedules.retry-generation')
+        ->middleware('throttle:10,1'); // Re-audit S-01 — AI-cost DoS cap.
 
     Route::resource('cable-schedules', CableScheduleController::class)
         ->only(['index', 'create', 'store', 'destroy']);
@@ -424,7 +435,9 @@ Route::middleware('auth')->group(function () {
     Route::get('om-manuals/{omManual}/devices/csv-template', [OmManualController::class, 'downloadAssetTemplate'])->name('om-manuals.devices.csv-template');
     Route::post('om-manuals/{omManual}/devices/import-csv', [OmManualController::class, 'importAssetsCsv'])->name('om-manuals.devices.import-csv');
     Route::post('om-manuals/{omManual}/generate', [OmManualController::class, 'generate'])->name('om-manuals.generate');
-    Route::post('om-manuals/{omManual}/retry-generation', [OmManualController::class, 'retryGeneration'])->name('om-manuals.retry-generation');
+    Route::post('om-manuals/{omManual}/retry-generation', [OmManualController::class, 'retryGeneration'])
+        ->name('om-manuals.retry-generation')
+        ->middleware('throttle:10,1'); // Re-audit S-01 — AI-cost DoS cap.
     Route::get('om-manuals/{omManual}/download', [OmManualController::class, 'download'])->name('om-manuals.download');
     Route::get('om-manuals/{omManual}/download-pdf', [OmManualController::class, 'downloadPdf'])->name('om-manuals.download-pdf');
     Route::post('om-manuals/{id}/restore', [OmManualController::class, 'restore'])->name('om-manuals.restore');
@@ -519,7 +532,9 @@ Route::middleware('auth')->group(function () {
     Route::get('worksheets/{worksheet}/engineer-report.pdf', [WorksheetController::class, 'engineerReportPdf'])
         ->name('worksheets.engineer-report-pdf')
         ->middleware('throttle:30,1');
-    Route::post('worksheets/{worksheet}/retry-generation', [WorksheetController::class, 'retryGeneration'])->name('worksheets.retry-generation');
+    Route::post('worksheets/{worksheet}/retry-generation', [WorksheetController::class, 'retryGeneration'])
+        ->name('worksheets.retry-generation')
+        ->middleware('throttle:10,1'); // Re-audit S-01 — AI-cost DoS cap.
     // Audit M-05 — revoke the public sign-off link (regenerates the UUID).
     Route::post('worksheets/{worksheet}/revoke-token', [WorksheetController::class, 'revokeToken'])->name('worksheets.revoke-token');
     Route::delete('worksheets/{worksheet}', [WorksheetController::class, 'destroy'])->name('worksheets.destroy');

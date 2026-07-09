@@ -30,7 +30,17 @@ class WorksheetTokenExpiryTest extends TestCase
         $user    = User::factory()->create();
         $project = Project::factory()->create(['user_id' => $user->id]);
 
-        return Worksheet::create(array_merge([
+        // Re-audit S-03 — access_token + access_token_expires_at were
+        // dropped from Worksheet::$fillable to close a token-rotation
+        // vector. The base attributes below stay in the mass-assign
+        // payload; guarded fields in $overrides are applied via
+        // forceFill so the test can still drive expiry through this
+        // helper without weakening the model's guard list.
+        $guarded = ['access_token', 'access_token_expires_at'];
+        $fillOverrides = array_diff_key($overrides, array_flip($guarded));
+        $forceOverrides = array_intersect_key($overrides, array_flip($guarded));
+
+        $worksheet = Worksheet::create(array_merge([
             'user_id'      => $user->id,
             'project_id'   => $project->id,
             'project_name' => 'Acme Boardroom AV Refresh',
@@ -42,7 +52,13 @@ class WorksheetTokenExpiryTest extends TestCase
                 'project' => ['name' => 'Acme Boardroom AV Refresh'],
                 'rooms'   => [['name' => 'Boardroom', 'is_surveyed' => true, 'equipment' => []]],
             ],
-        ], $overrides));
+        ], $fillOverrides));
+
+        if ($forceOverrides !== []) {
+            $worksheet->forceFill($forceOverrides)->save();
+        }
+
+        return $worksheet;
     }
 
     // ─── Model helpers ──────────────────────────────────────────────────────

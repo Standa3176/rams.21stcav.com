@@ -49,8 +49,13 @@ class Worksheet extends Model
         'error_message',
         'generated_data',
         'filename',
-        'access_token',
-        'access_token_expires_at',
+        // Re-audit S-03 — `access_token` and `access_token_expires_at` are
+        // dropped from $fillable so no `$w->update([...])` payload can
+        // silently rotate a live public sign-off token. The two
+        // legitimate writers use direct property assignment:
+        //   • boot::creating() (line 71) sets initial UUID
+        //   • WorksheetController::revokeToken via regenerateAccessToken() (line 192)
+        // Both bypass $fillable, so behaviour is unchanged.
         'pre_install_confirmations',
         'completion_email_sent_at',
         'failed_email_sent_at',
