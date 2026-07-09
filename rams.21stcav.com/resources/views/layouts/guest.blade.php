@@ -7,16 +7,42 @@
 
         <title>{{ config('rams.company_abbr', 'RAMS') }} · {{ config('app.name', 'Sign in') }}</title>
 
-        {{-- Tier-one auth layer (post-audit UI-01). Was Figtree from
-             fonts.bunny.net + bg-gray-100 + default Breeze mark. Now uses
-             the same Inter Variable + slate canvas + indigo brand mark
-             the authenticated shell uses so the first paint is on-brand. --}}
+        {{-- Auth layer — Jetbuilt-clean (2026-07-09). Was an indigo
+             gradient hexagon + glossy-inset chrome from the tier-one
+             pass. Retunes to the flat navy mark that matches the
+             top-nav lockup in the authenticated shell, so the first
+             paint reads as one product. --}}
         @vite(['resources/css/app.css', 'resources/js/app.js'])
 
         <style>
+            /* Token stub — guest layout doesn't inherit the :root block
+               from layouts/app.blade.php, so the handful of vars used on
+               the auth pages get inlined here. Keep in lockstep with the
+               main layout — nav-800, accent-*, ink-*, paper, surface,
+               radius-*, fs-*. */
+            :root {
+                --paper: #F7F9FC;
+                --surface: #FFFFFF;
+                --ink-900: #0F172A;
+                --ink-700: #334155;
+                --ink-500: #64748B;
+                --ink-300: #CBD5E1;
+                --ink-200: #E2E8F0;
+                --ink-100: #F1F5F9;
+                --body: var(--ink-900);
+                --nav-800: #0B2440;
+                --accent-600: #2E7BFF;
+                --accent-700: #1E5FE0;
+                --radius-sm: 6px;
+                --radius-lg: 8px;
+                --fs-body: 0.9375rem;
+                --fs-small: 0.8125rem;
+                --fs-h3: 1.125rem;
+            }
             body {
-                background: var(--canvas, #F6F8FB);
-                color: var(--body, #334155);
+                background: var(--paper);
+                color: var(--body);
+                font-size: var(--fs-body);
             }
             .auth-shell {
                 min-height: 100vh;
@@ -24,56 +50,68 @@
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                gap: 24px;
-                padding: 40px 16px;
+                gap: 28px;
+                padding: 48px 16px;
             }
             .auth-brand {
                 display: inline-flex;
                 align-items: center;
-                gap: 14px;
+                gap: 12px;
                 text-decoration: none;
             }
             .auth-brand-mark {
-                width: 42px; height: 42px;
-                border-radius: 10px;
-                background: linear-gradient(135deg, var(--brand-500, #6366F1) 0%, var(--brand-700, #4338CA) 55%, var(--brand-800, #3730A3) 100%);
+                width: 36px; height: 36px;
+                border-radius: var(--radius-sm);
+                background: var(--nav-800);
                 display: grid; place-items: center;
                 color: #fff;
-                box-shadow: 0 6px 14px -6px rgba(79,70,229,0.55),
-                            inset 0 -2px 0 rgba(0,0,0,0.12),
-                            inset 0 1px 0 rgba(255,255,255,0.14);
-                position: relative;
+                box-shadow: none;
             }
-            .auth-brand-mark::after {
-                content: ""; position: absolute; inset: 3px;
-                border-radius: 8px;
-                border: 1px solid rgba(255,255,255,0.18);
-                pointer-events: none;
-            }
+            .auth-brand-mark svg { color: #fff; }
             .auth-brand-name {
-                color: var(--ink, #0B1220);
-                font-size: 20px;
-                font-weight: 800;
-                letter-spacing: -0.03em;
-                line-height: 1;
+                color: var(--ink-900);
+                font-size: 18px;
+                font-weight: 600;
+                letter-spacing: -0.02em;
+                line-height: 1.15;
             }
             .auth-brand-tagline {
-                color: var(--muted, #64748B);
-                font-size: 12px;
-                margin-top: 3px;
+                color: var(--ink-500);
+                font-size: var(--fs-small);
+                margin-top: 2px;
             }
             .auth-card {
                 width: 100%;
-                max-width: 420px;
-                background: var(--card, #FFFFFF);
-                border: 1px solid var(--border, #E2E8F0);
-                border-radius: 12px;
-                box-shadow: 0 12px 24px -8px rgb(15 23 42 / 0.14), 0 4px 8px -4px rgb(15 23 42 / 0.08);
-                padding: 28px 32px;
+                max-width: 400px;
+                background: var(--surface);
+                border: 1px solid var(--ink-200);
+                border-radius: var(--radius-lg);
+                box-shadow: none;
+                padding: 32px 32px 28px;
             }
+            .auth-card__title {
+                font-size: var(--fs-h3);
+                font-weight: 600;
+                color: var(--ink-900);
+                letter-spacing: -0.015em;
+                margin-bottom: 6px;
+            }
+            .auth-card__sub {
+                font-size: var(--fs-small);
+                color: var(--ink-500);
+                margin-bottom: 22px;
+            }
+            .auth-footer {
+                font-size: var(--fs-small);
+                color: var(--ink-500);
+                text-align: center;
+                margin-top: 4px;
+            }
+            .auth-footer a { color: var(--accent-700); font-weight: 500; }
+            .auth-footer a:hover { color: var(--accent-600); }
             @media (max-width: 480px) {
-                .auth-card { padding: 20px 20px; }
-                .auth-shell { padding: 24px 12px; }
+                .auth-card { padding: 24px 20px; }
+                .auth-shell { padding: 32px 12px; }
             }
         </style>
     </head>
@@ -81,9 +119,9 @@
         <div class="auth-shell">
             <a href="/" class="auth-brand" aria-label="{{ config('rams.company_name', 'RAMS Platform') }}">
                 <div class="auth-brand-mark" aria-hidden="true">
-                    <svg width="22" height="22" viewBox="0 0 32 32" fill="none">
-                        <path d="M6 10l10-6 10 6v12l-10 6-10-6V10z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-                        <path d="M6 10l10 6 10-6M16 16v12" stroke="currentColor" stroke-width="2" stroke-linejoin="round" opacity="0.7"/>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2 L22 7 L22 17 L12 22 L2 17 L2 7 Z"/>
                     </svg>
                 </div>
                 <div>

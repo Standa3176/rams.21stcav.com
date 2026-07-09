@@ -2,11 +2,12 @@ import defaultTheme from 'tailwindcss/defaultTheme';
 import forms from '@tailwindcss/forms';
 
 /**
- * Tailwind theme — tier-one design tokens (2026-07-08, PLAN 260708-b7i).
+ * Tailwind theme — Jetbuilt-clean (2026-07-09).
  *
- * Cool slate neutrals + indigo brand + semantic status. Legacy Figtree is
- * retired from the UI (still referenced by DOCX / PDF templates in
- * resources/views/pdf/ where dompdf/mpdf don't read this config).
+ * Navy primary + electric blue accent + Slate neutrals, mirroring the
+ * CSS custom properties in layouts/app.blade.php :root. Semantic aliases
+ * sit alongside so screens don't have to rediscover "which grey is the
+ * border" each time.
  *
  * @type {import('tailwindcss').Config}
  */
@@ -25,39 +26,57 @@ export default {
                 mono: ['"JetBrains Mono"', ...defaultTheme.fontFamily.mono],
             },
 
-            // Semantic aliases sit alongside slate-* so screens don't have to
-            // rediscover "which grey is the border" every time.
             colors: {
-                ink:              '#0B1220',
+                ink:              '#0F172A',
                 'ink-2':          '#1E293B',
-                body:             '#334155',
+                body:             '#0F172A',
                 muted:            '#64748B',
                 subtle:           '#94A3B8',
                 hairline:         '#E2E8F0',
                 'hairline-strong':'#CBD5E1',
-                'hairline-soft':  '#EEF2F7',
-                canvas:           '#F6F8FB',
-                'canvas-soft':    '#F1F5F9',
+                'hairline-soft':  '#F1F5F9',
+                canvas:           '#F7F9FC',
+                'canvas-soft':    '#FAFBFD',
                 card:             '#FFFFFF',
-                sidebar:          '#FBFBFD',
+                sidebar:          '#FFFFFF',
+
+                // Legacy `brand.*` aliases retained for the Breeze auth
+                // components (`bg-brand-600`, `focus:ring-brand-600`, etc.).
+                // Remapped to the Jetbuilt electric-blue accent so no
+                // component code has to change.
                 brand: {
-                    50:  '#EEF2FF',
-                    100: '#E0E7FF',
-                    500: '#6366F1',
-                    600: '#4F46E5',
-                    700: '#4338CA',
-                    800: '#3730A3',
+                    50:  '#F0F5FF',
+                    100: '#DCE9FF',
+                    500: '#4C8FFF',
+                    600: '#2E7BFF',
+                    700: '#1E5FE0',
+                    800: '#0B2440',
+                },
+
+                // Explicit accent + nav sets for new code that wants the
+                // semantic name rather than the historical `brand.*` slot.
+                accent: {
+                    50:  '#F0F5FF',
+                    100: '#DCE9FF',
+                    500: '#4C8FFF',
+                    600: '#2E7BFF',
+                    700: '#1E5FE0',
+                },
+                nav: {
+                    700: '#143263',
+                    800: '#0B2440',
+                    900: '#0A1F3D',
                 },
             },
 
-            // Tailwind defaults are too heavy for data-dense UI — every card
-            // would feel like it's floating an inch off the page.
+            // Flatter than Tailwind defaults — Jetbuilt cards use border,
+            // not shadow, and modals stop at `popover`.
             boxShadow: {
-                card:         '0 1px 2px 0 rgb(15 23 42 / 0.03), 0 1px 3px 0 rgb(15 23 42 / 0.05)',
-                'card-hover': '0 4px 6px -1px rgb(15 23 42 / 0.06), 0 2px 4px -2px rgb(15 23 42 / 0.05)',
-                lift:         '0 12px 24px -8px rgb(15 23 42 / 0.14), 0 4px 8px -4px rgb(15 23 42 / 0.08)',
-                popover:      '0 10px 15px -3px rgb(15 23 42 / 0.10), 0 4px 6px -4px rgb(15 23 42 / 0.08)',
-                'inset-focus':'0 0 0 3px rgb(79 70 229 / 0.24)',
+                card:         '0 1px 2px 0 rgb(15 23 42 / 0.05)',
+                'card-hover': '0 4px 6px -1px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.05)',
+                lift:         '0 20px 25px -5px rgb(15 23 42 / 0.12), 0 8px 10px -6px rgb(15 23 42 / 0.05)',
+                popover:      '0 10px 15px -3px rgb(15 23 42 / 0.10), 0 4px 6px -4px rgb(15 23 42 / 0.06)',
+                'inset-focus':'0 0 0 3px rgb(46 123 255 / 0.24)',
             },
 
             borderRadius: {
