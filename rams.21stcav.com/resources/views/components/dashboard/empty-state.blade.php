@@ -13,7 +13,7 @@
         @elseif($slot->isNotEmpty())
             {{ $slot }}
         @else
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
                  stroke="currentColor" stroke-width="1.75" stroke-linecap="round"
                  stroke-linejoin="round" aria-hidden="true">
                 <rect x="2" y="3" width="20" height="14" rx="2"/>
@@ -25,36 +25,42 @@
     <div class="dash-empty-state__title">{{ $title }}</div>
 
     @if($message)
-    <div class="dash-empty-state__message">{{ $message }}</div>
+        <div class="dash-empty-state__message">{{ $message }}</div>
     @endif
 
     @if($href && $action)
-    <a href="{{ $href }}" class="btn btn-teal btn-sm" style="margin-top:1.25rem;">
-        {{ $action }}
-    </a>
+        <a href="{{ $href }}" class="btn btn-primary btn-sm" style="margin-top:20px;">
+            {{ $action }}
+        </a>
     @endif
 </div>
 
 <style>
+/*
+ * Dashboard empty state — Jetbuilt-clean (2026-07-09).
+ * Was tier-one warm-teal chip on a grey ground. Retunes to the
+ * accent-tinted chip + ink typography so it speaks the same language
+ * as the KPI icon chips and quick-link tiles.
+ */
 .dash-empty-state {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 4rem 1.5rem;
+    padding: 56px 24px;
     text-align: center;
-    color: #6B7280;
+    color: var(--ink-500);
 }
 .dash-empty-state__icon {
-    width: 52px;
-    height: 52px;
-    border-radius: 14px;
-    background: #EBF6F7;
-    color: #178A95;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-sm);
+    background: var(--accent-50);
+    color: var(--accent-700);
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 1.1rem;
+    margin-bottom: 16px;
 }
-.dash-empty-state__title   { font-size: .9375rem; font-weight: 600; color: #1F2937; margin-bottom: .4rem; }
-.dash-empty-state__message { font-size: .875rem; color: #6B7280; max-width: 340px; line-height: 1.5; }
+.dash-empty-state__title   { font-size: var(--fs-body); font-weight: 600; color: var(--ink-900); margin-bottom: 6px; letter-spacing: -0.005em; }
+.dash-empty-state__message { font-size: var(--fs-small); color: var(--ink-500); max-width: 340px; line-height: 1.5; }
 </style>

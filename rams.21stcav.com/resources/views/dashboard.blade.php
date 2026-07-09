@@ -111,11 +111,96 @@
 
     {{-- ── Project health grid ─────────────────────────────────────────── --}}
     @if($projects->isEmpty())
-        <x-dashboard.empty-state
-            title="No active projects"
-            message="Create or import a project to get started."
-            href="{{ route('projects.create') }}"
-            action="Create Project"/>
+        {{-- Batch 7 UX-01 — zero-state onboarding. Was a small centred
+             "no active projects" card that offered only one path
+             (Create Project). Now a proper onboarding panel that
+             surfaces the two real paths (import a QuoteWerks PDF vs
+             create a fresh project) plus a link to the survey flow so
+             a new user can pick the entry point that fits how their
+             work actually arrives. --}}
+        <div class="dash-onboard">
+            <div class="dash-onboard__ico" aria-hidden="true">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2 L22 7 L22 17 L12 22 L2 17 L2 7 Z"/>
+                </svg>
+            </div>
+            <h2 class="dash-onboard__title">Welcome to RAMS</h2>
+            <p class="dash-onboard__sub">
+                Get started by importing a QuoteWerks PDF (fastest — auto-populates rooms + equipment)
+                or creating a project by hand.
+            </p>
+            <div class="dash-onboard__actions">
+                <a href="{{ route('quote-import.create') }}" class="btn btn-primary">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="16 16 12 12 8 16"/>
+                        <line x1="12" y1="12" x2="12" y2="21"/>
+                        <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+                    </svg>
+                    Import Quote PDF
+                </a>
+                <a href="{{ route('projects.create') }}" class="btn btn-outline">
+                    Create project by hand
+                </a>
+            </div>
+            <p class="dash-onboard__hint">
+                Just started a site visit? <a href="{{ route('site-surveys.create') }}">Capture a survey first →</a>
+            </p>
+        </div>
+
+        <style>
+            .dash-onboard {
+                background: var(--surface);
+                border: 1px solid var(--ink-200);
+                border-radius: var(--radius-lg);
+                padding: 40px 32px;
+                text-align: center;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 24px;
+            }
+            .dash-onboard__ico {
+                width: 56px; height: 56px;
+                border-radius: var(--radius-lg);
+                background: var(--accent-50);
+                color: var(--accent-700);
+                display: grid;
+                place-items: center;
+                margin-bottom: 4px;
+            }
+            .dash-onboard__title {
+                font-size: var(--fs-h2);
+                font-weight: 600;
+                color: var(--ink-900);
+                letter-spacing: -0.02em;
+                margin: 0;
+            }
+            .dash-onboard__sub {
+                font-size: var(--fs-body);
+                color: var(--ink-500);
+                max-width: 44ch;
+                line-height: 1.55;
+                margin: 4px 0 20px;
+            }
+            .dash-onboard__actions {
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            .dash-onboard__hint {
+                font-size: var(--fs-small);
+                color: var(--ink-500);
+                margin-top: 20px;
+            }
+            .dash-onboard__hint a {
+                color: var(--accent-700);
+                font-weight: 500;
+                text-decoration: none;
+            }
+            .dash-onboard__hint a:hover { color: var(--accent-600); }
+        </style>
     @else
     <div class="dash-health-grid">
         <div class="dash-health-grid__header">
@@ -226,9 +311,33 @@
             </thead>
             <tbody>
             @foreach($recentRams as $rams)
+                @php
+                    /*
+                     * Batch 7 UX-10 — status-aware routing. Previously every
+                     * row deep-linked to the review edit page regardless of
+                     * lifecycle state — a `generating` document opened as
+                     * an empty edit form, and a `completed` document was
+                     * one click away from being re-drafted.
+                     *
+                     * Route rules:
+                     *   - generating / approved_for_generation → project
+                     *     detail (the RAMS tab there shows the poller UI)
+                     *   - failed → review edit page (fix + regenerate)
+                     *   - everything else (uploaded, awaiting_review,
+                     *     approved, completed, superseded) → review page
+                     */
+                    $ramsHref = match ($rams->status) {
+                        \App\Models\RamsDocument::STATUS_GENERATING,
+                        \App\Models\RamsDocument::STATUS_APPROVED_FOR_GENERATION
+                            => $rams->project_id
+                                ? route('projects.show', $rams->project_id)
+                                : route('rams.review', $rams),
+                        default => route('rams.review', $rams),
+                    };
+                @endphp
                 <tr>
                     <td>
-                        <a href="{{ route('rams.review', $rams) }}" style="font-weight:600; color:var(--ink-900); text-decoration:none;">
+                        <a href="{{ $ramsHref }}" style="font-weight:600; color:var(--ink-900); text-decoration:none;">
                             {{ $rams->title ?? 'RAMS #'.$rams->id }}
                         </a>
                     </td>
