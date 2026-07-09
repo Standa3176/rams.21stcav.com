@@ -91,40 +91,43 @@
    #0F3E36) with gold #E6B849 label + cream #EDE9D9 body. Retuned to the
    indigo brand family so the "primary shareable URL" hero pattern reads
    consistently with the worksheet hero + the app-shell brand mark. */
+/* Survey engineer-link hero — Jetbuilt-clean (2026-07-09).
+   Flat navy panel, no gradient, no shadow. Matches the worksheet
+   sign-off hero so the two hero patterns speak one language. */
 .survey-link-hero {
-    background: linear-gradient(135deg, var(--teal-700), var(--teal-900));
+    background: var(--nav-800);
     color: #E0E7FF;
     border-radius: var(--radius-lg);
-    padding: 16px 20px;
+    padding: 18px 22px;
     margin-bottom: 20px;
     display: grid;
     grid-template-columns: 26px 1fr auto;
     gap: 16px;
     align-items: center;
-    box-shadow: 0 6px 14px -6px rgba(67, 56, 202, 0.35);
+    box-shadow: none;
 }
 .survey-link-hero .icon {
     width: 26px; height: 26px;
     display: flex; align-items: center; justify-content: center;
-    color: #C7D2FE;
+    color: var(--accent-500);
 }
 .survey-link-hero .body { min-width: 0; }
 .survey-link-hero .label {
     font-size: 10px;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     font-weight: 600;
-    color: #C7D2FE;
+    color: var(--accent-500);
     margin-bottom: 4px;
 }
 .survey-link-hero .url {
     font-family: var(--font-mono);
     font-size: 12px;
-    color: #EEF2FF;
-    background: rgba(255, 255, 255, 0.08);
-    padding: 5px 10px;
-    border-radius: 5px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #F1F5F9;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255, 255, 255, 0.10);
     display: block;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -194,9 +197,10 @@
 .room-view-hdr--empty      { background:#F9FAFB; }
 .room-view-name {
     flex:1;
-    font-weight:700;
-    font-size:.975rem;
-    color:#0B3C45;
+    font-weight:600;
+    font-size: var(--fs-body);
+    color: var(--ink-900);
+    letter-spacing: -0.005em;
 }
 .room-view-badge {
     font-size:.7rem;
@@ -228,28 +232,29 @@
     margin-bottom:1rem;
 }
 .field-table th {
-    background:#F3F6F7;
-    font-size:.7rem;
-    font-weight:700;
-    text-transform:uppercase;
-    letter-spacing:.05em;
-    color:var(--text-muted);
-    padding:.5rem .75rem;
-    text-align:left;
-    border-bottom:1px solid var(--border);
+    background: transparent;
+    font-size: var(--fs-small);
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--ink-500);
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--ink-200);
 }
 .field-table td {
-    padding:.45rem .75rem;
-    border-bottom:1px solid #f5f5f5;
-    vertical-align:top;
-    color:#374151;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--ink-100);
+    vertical-align: top;
+    color: var(--ink-900);
+    font-size: var(--fs-body);
 }
-.field-table tr:last-child td { border-bottom:none; }
+.field-table tr:last-child td { border-bottom: none; }
 .field-table td:first-child {
-    width:34%;
-    font-weight:600;
-    color:#4B5563;
-    font-size:.82rem;
+    width: 34%;
+    font-weight: 500;
+    color: var(--ink-500);
+    font-size: var(--fs-small);
 }
 .field-table td:last-child {
     white-space:pre-wrap;
@@ -257,11 +262,11 @@
 
 /* ── Section heading inside room ─────────────────── */
 .room-section-hdr {
-    font-size:.7rem;
-    font-weight:800;
-    text-transform:uppercase;
-    letter-spacing:.07em;
-    color:var(--teal);
+    font-size: var(--fs-small);
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: -0.005em;
+    color: var(--ink-900);
     border-top:1px solid #f0f0f0;
     padding-top:.75rem;
     margin:.75rem 0 .5rem;
@@ -768,7 +773,7 @@
             }
         @endphp
         @if($room->av_requirements || $room->av_equipment_list || count($roomBullets) > 0)
-        <div class="room-section-hdr" style="color:#3730A3;">📺 AV Scope</div>
+        <div class="room-section-hdr">📺 AV Scope</div>
         @if(count($roomBullets) > 0)
         <ul style="padding-left:1.25rem;margin:.25rem 0 .75rem;font-size:.875rem;color:#374151;line-height:1.5;">
             @foreach($roomBullets as $b)

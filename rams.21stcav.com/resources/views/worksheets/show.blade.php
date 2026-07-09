@@ -79,47 +79,47 @@
     margin: .75rem 0 .5rem;
 }
 
-/* Audit UI-03 (2026-07-08) — sign-off link hero was SCC v2 dark-teal
-   gradient + gold label. Retuned to the indigo brand family so the
-   worksheet + survey heroes read as one consistent pattern. */
+/* Sign-off hero — Jetbuilt-clean (2026-07-09). Flat navy panel with
+   accent-tinted URL chip, no gradient, no shadow. Reads as one
+   consistent hero surface across worksheets + surveys. */
 .ws-signoff-hero {
-    background: linear-gradient(135deg, var(--teal-700), var(--teal-900));
+    background: var(--nav-800);
     color: #E0E7FF;
     border-radius: var(--radius-lg);
-    padding: 16px 20px;
+    padding: 18px 22px;
     margin-bottom: 20px;
     display: grid;
     grid-template-columns: 26px 1fr auto;
     gap: 16px;
     align-items: center;
-    box-shadow: 0 6px 14px -6px rgba(67, 56, 202, 0.35);
+    box-shadow: none;
 }
 .ws-signoff-hero .icon {
     width: 26px; height: 26px;
     display: flex; align-items: center; justify-content: center;
-    color: #C7D2FE;
+    color: var(--accent-500);
 }
 .ws-signoff-hero .body { min-width: 0; }
 .ws-signoff-hero .label {
     font-size: 10px;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     font-weight: 600;
-    color: #C7D2FE;
+    color: var(--accent-500);
     margin-bottom: 4px;
 }
 .ws-signoff-hero .url {
     font-family: var(--font-mono);
     font-size: 12px;
-    color: #EEF2FF;
+    color: #F1F5F9;
     display: block;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    background: rgba(255, 255, 255, 0.08);
-    padding: 5px 10px;
-    border-radius: 5px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.06);
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255, 255, 255, 0.10);
     cursor: text;
 }
 .ws-signoff-hero .actions {
