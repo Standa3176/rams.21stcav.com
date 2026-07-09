@@ -86,7 +86,12 @@
             border-radius: var(--radius-lg);
             box-shadow: none;
             padding: 0;
-            overflow: hidden;
+            /* Re-audit UI-02 — was overflow:hidden, which clipped the
+               "Completed" + "Archived" chips at the right edge of the
+               workflow stepper on 1280px viewports. Switch to
+               overflow-x:auto so the inner stepper strip can scroll
+               without the header/body corners breaking their radius. */
+            overflow-x: auto;
         }
         .psv__workflow > .section-block .section-card__header {
             background: var(--surface);

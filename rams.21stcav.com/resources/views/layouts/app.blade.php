@@ -1016,10 +1016,17 @@
             text-transform: uppercase;
             letter-spacing: .05em;
         }
-        .badge-teal  { background: var(--teal-light); color: var(--teal); }
-        .badge-grey  { background: #F3F4F6; color: #4B5563; }
-        .badge-red   { background: #FEF2F2; color: #B91C1C; }
-        .badge-green { background: #F0FDF4; color: #15803D; }
+        .badge-teal   { background: var(--accent-100);  color: var(--accent-700); }
+        .badge-grey   { background: var(--ink-100);     color: var(--ink-700); }
+        .badge-red    { background: var(--danger-light);color: #991B1B; }
+        .badge-green  { background: var(--success-light); color: #065F46; }
+        /* Re-audit UI-04 — the yellow/blue/warning variants were referenced
+           by OmManual::statusBadgeClass() (extracted/generating states) but
+           had no matching rule; O&M list rendered a shape-less naked label.
+           Added here so every documented badge class has a fill. */
+        .badge-yellow { background: var(--warning-light); color: #92400E; }
+        .badge-blue   { background: #DBEAFE;             color: #1E40AF; }
+        .badge-warning{ background: var(--warning-light); color: #92400E; }
 
         /* ═══════════════════════════════════════════════════════════════
            PAGINATION

@@ -239,7 +239,7 @@
         instantly restart PHP-FPM and restore the site:
     </p>
     <div class="cmd-block" id="fpmRestart" style="color:#fca5a5;background:#1c0a0a;">systemctl restart php-fpm83</div>
-    <button class="copy-btn" onclick="copyCmd('fpmRestart')" style="background:#7f1d1d;margin-bottom:.6rem;">📋 Copy command</button>
+    <button class="copy-btn" onclick="copyCmd('fpmRestart')" style="background:#7f1d1d;color:#fff;margin-bottom:.6rem;">📋 Copy command</button>
     <p style="font-size:.8rem;color:#991b1b;margin:0;">
         ⚠️ This command <strong>cannot be run as a page button</strong> — it restarts the PHP process
         that would handle the button click, so no response would ever come back.

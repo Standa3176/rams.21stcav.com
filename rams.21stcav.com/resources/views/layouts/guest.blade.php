@@ -5,7 +5,12 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title>{{ config('rams.company_abbr', 'RAMS') }} · {{ config('app.name', 'Sign in') }}</title>
+        {{-- Re-audit UI-03 — was `{abbr} · {app.name}`, which resolved
+             to "RAMS · Laravel" in the tab because .env still has the
+             Breeze default APP_NAME. Authenticated pages end in "— 21st
+             Century AV" via config('rams.company_name'), so the auth
+             pages inherit the same suffix. --}}
+        <title>Sign in — {{ config('rams.company_name', '21st Century AV') }}</title>
 
         {{-- Auth layer — Jetbuilt-clean (2026-07-09). Was an indigo
              gradient hexagon + glossy-inset chrome from the tier-one

@@ -423,6 +423,17 @@ tr.soft-deleted td.actions-cell * { pointer-events: auto; }
                                                     </form>
                                                 </x-row-actions-menu>
                                             @endif
+                                        @else
+                                            {{-- Re-audit UI-06 — completed / draft / for-review rows with
+                                                 no filename previously rendered an empty Actions column
+                                                 (min-width:260px reserved), leaving the user with no way
+                                                 to open the doc from the list. Fallback to a Review link
+                                                 so every non-empty row has at least one action. --}}
+                                            <a href="{{ route('rams.review', $doc) }}"
+                                               class="btn btn-outline btn-sm"
+                                               title="Open the RAMS review page">
+                                                ✎ Review
+                                            </a>
                                         @endif
 
                                         {{-- Skip the trailing "always-visible Delete" — for completed rows
