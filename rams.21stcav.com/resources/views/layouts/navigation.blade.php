@@ -1,167 +1,242 @@
 {{--
-    Sidebar navigation — tier-one v2 (2026-07-08, PLAN 260708-b7i).
-    Rendered inside <aside class="app-sidebar"> by app.blade.php.
-    Entire file is inside @auth — guests never see this partial.
+    Top navigation bar — Jetbuilt-style horizontal shell (2026-07-08).
+    Rendered inside <nav class="app-topnav"> by app.blade.php. Replaces
+    the previous vertical sidebar. Entire file is inside @auth so guests
+    never see it.
 --}}
 @auth
 <style>
-    /* ── Sidebar nav — tier-one light chrome ─────────────────────────
-       Was: dark teal background with white foreground + gold admin
-       accent. Now: light sidebar with indigo active rail + muted body
-       text + soft admin-section separator.
-    */
-    .sidebar-nav {
-        display: flex;
-        flex-direction: column;
-        gap: 1px;
-        padding: 12px 10px 4rem;
-    }
-
-    /* ⌘K search shortcut at the top of the sidebar. Non-functional
-       affordance in v2 (real search wired later) — the visible chip is
-       a tier-one cue that global search exists. */
-    .snav-search {
+    /* ── Top-nav row — Jetbuilt horizontal shell ──────────────────── */
+    .tnav-brand {
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 7px 10px;
-        margin: 4px 6px 12px;
-        background: #FFFFFF;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        color: var(--text-muted);
-        font-size: 12px;
-        cursor: text;
-        transition: border-color .12s, background .12s;
+        gap: 10px;
+        padding: 0 20px 0 24px;
+        height: 100%;
+        color: var(--ink-900);
+        text-decoration: none;
+        border-right: 1px solid var(--ink-100);
+        flex-shrink: 0;
     }
-    .snav-search:hover { border-color: var(--ink-300); background: var(--surface); }
-    .snav-search svg { width: 13px; height: 13px; color: var(--text-faint); flex-shrink: 0; }
-    .snav-search-input { flex: 1; color: var(--text-faint); }
-    .snav-search-kbd {
-        margin-left: auto;
-        padding: 1px 6px; border-radius: 4px;
-        background: var(--paper);
-        border: 1px solid var(--border);
-        color: var(--text-muted);
-        font-family: var(--font-mono);
-        font-size: 10px; font-weight: 500;
+    .tnav-brand:hover { text-decoration: none; color: var(--ink-900); }
+    .tnav-brand-mark {
+        width: 30px; height: 30px;
+        background: var(--nav-800);
+        color: #fff;
+        border-radius: var(--radius-sm);
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: -0.03em;
+    }
+    .tnav-brand-mark svg { color: #fff; }
+    .tnav-brand-name {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--ink-900);
+        letter-spacing: -.015em;
     }
 
-    .snav-label {
-        padding: 12px 12px 6px;
+    /* ── Primary nav links — horizontal row ─────────────────────────
+       Fills the space between brand and right-hand controls. Overflows
+       to a hamburger below 900px (see @media at the bottom). */
+    .tnav-primary {
+        display: flex;
+        align-items: stretch;
+        height: 100%;
+        gap: 2px;
+        padding: 0 16px;
+        flex: 1;
+        min-width: 0;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    .tnav-primary::-webkit-scrollbar { display: none; }
+
+    .tnav-link {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 14px;
+        height: 100%;
+        color: var(--ink-500);
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: -0.005em;
+        text-decoration: none;
+        white-space: nowrap;
+        transition: color var(--transition);
+    }
+    .tnav-link:hover {
+        color: var(--ink-900);
+        text-decoration: none;
+    }
+    .tnav-link.active {
+        color: var(--ink-900);
+        font-weight: 600;
+    }
+    /* Active-state bottom rail — Jetbuilt uses a 2px accent underline */
+    .tnav-link.active::after {
+        content: "";
+        position: absolute;
+        left: 12px; right: 12px; bottom: -1px;
+        height: 2px;
+        background: var(--accent-600);
+        border-radius: 2px 2px 0 0;
+    }
+    .tnav-icon {
+        width: 14px; height: 14px;
+        color: currentColor;
+        flex-shrink: 0;
+        opacity: .9;
+    }
+
+    /* ── Admin overflow menu — dropdown pinned right ──────────────── */
+    .tnav-admin {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        height: 100%;
+        margin-left: 4px;
+    }
+    .tnav-admin-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 12px;
+        height: 100%;
+        background: transparent;
+        border: none;
+        color: var(--ink-500);
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: color var(--transition);
+    }
+    .tnav-admin-btn:hover { color: var(--ink-900); }
+    .tnav-admin-btn.active { color: var(--ink-900); font-weight: 600; }
+    .tnav-admin-menu {
+        position: absolute;
+        top: calc(100% - 1px);
+        right: 0;
+        min-width: 220px;
+        background: var(--surface);
+        border: 1px solid var(--ink-200);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-pop);
+        z-index: 300;
+        padding: 6px;
+        display: none;
+    }
+    .tnav-admin[data-open="1"] .tnav-admin-menu { display: block; }
+    .tnav-admin-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: var(--radius-sm);
+        color: var(--ink-700);
+        font-size: 13px;
+        font-weight: 500;
+        text-decoration: none;
+        transition: background var(--transition);
+    }
+    .tnav-admin-item:hover {
+        background: var(--surface-soft);
+        color: var(--ink-900);
+        text-decoration: none;
+    }
+    .tnav-admin-item.active {
+        background: var(--accent-50);
+        color: var(--accent-700);
+    }
+    .tnav-admin-item svg { width: 14px; height: 14px; color: currentColor; flex-shrink: 0; opacity: .9; }
+    .tnav-admin-sep { height: 1px; background: var(--ink-100); margin: 6px -6px; }
+    .tnav-admin-label {
+        padding: 8px 10px 4px;
         font-size: 10px;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: .10em;
-        color: var(--sidebar-fg-mute);
-        white-space: nowrap;
-        user-select: none;
+        color: var(--ink-400);
     }
 
-    .snav-link {
-        position: relative;
-        display: flex;
+    /* ── Search chip — Jetbuilt uses a persistent ⌘K trigger ─────── */
+    .tnav-search {
+        display: inline-flex;
         align-items: center;
-        gap: 10px;
-        padding: 7px 12px;
-        border-radius: 6px;
-        color: var(--sidebar-fg);
-        font-size: 13px;
+        gap: 8px;
+        margin: 0 10px 0 auto;
+        padding: 6px 10px;
+        background: var(--surface-soft);
+        border: 1px solid var(--ink-200);
+        border-radius: var(--radius-sm);
+        color: var(--ink-500);
+        font-size: 12px;
+        cursor: text;
+        min-width: 180px;
+        transition: border-color var(--transition), background var(--transition);
+        flex-shrink: 0;
+    }
+    .tnav-search:hover { border-color: var(--ink-300); background: var(--surface); }
+    .tnav-search svg { width: 12px; height: 12px; color: var(--ink-400); flex-shrink: 0; }
+    .tnav-search-label { color: var(--ink-500); flex: 1; }
+    .tnav-search-kbd {
+        padding: 1px 6px;
+        border-radius: 4px;
+        background: var(--surface);
+        border: 1px solid var(--ink-200);
+        color: var(--ink-500);
+        font-family: var(--font-mono);
+        font-size: 10px;
         font-weight: 500;
-        text-decoration: none;
-        transition: background .12s, color .12s;
-        line-height: 1.35;
-    }
-    .snav-link:hover {
-        background: color-mix(in oklab, var(--sidebar-active-bg) 50%, transparent);
-        color: var(--ink-900);
-        text-decoration: none;
-    }
-    .snav-link:hover .snav-icon { color: var(--teal-700); }
-
-    .snav-link.active {
-        background: var(--sidebar-active-bg);
-        color: var(--sidebar-active-fg);
-        font-weight: 600;
-    }
-    .snav-link.active .snav-icon { color: var(--teal-700); opacity: 1; }
-    /* Left rail marker on active item — subtle 2px indigo accent. */
-    .snav-link.active::before {
-        content: "";
-        position: absolute;
-        left: -10px;
-        top: 5px;
-        bottom: 5px;
-        width: 2px;
-        background: var(--teal-700);
-        border-radius: 0 2px 2px 0;
     }
 
-    .snav-icon {
-        width: 15px; height: 15px;
-        flex-shrink: 0;
-        color: var(--sidebar-fg-mute);
-        opacity: 1;
-        transition: color .12s;
+    @media (max-width: 1100px) {
+        .tnav-search { min-width: 40px; padding: 6px 8px; }
+        .tnav-search-label, .tnav-search-kbd { display: none; }
     }
 
-    .snav-sep {
-        height: 1px;
-        background: var(--border);
-        margin: 10px 12px;
-    }
-
-    /* Admin dot — indigo (was gold) at 4px. Sits at the row end and
-       marks admin-only items so a non-admin toggle later stays clear. */
-    .snav-admin-dot {
-        margin-left: auto;
-        width: 4px; height: 4px;
-        border-radius: 50%;
-        background: var(--teal-500);
-        flex-shrink: 0;
-        opacity: .7;
-    }
-
-    /* Admin-only nav — same colour system as regular items, no more
-       gold tint. Left-rail marker still fires on active. */
-    .snav-label.admin-only { color: var(--sidebar-fg-mute); }
-    .snav-link.admin-only { color: var(--sidebar-fg); }
-    .snav-link.admin-only:hover {
-        background: color-mix(in oklab, var(--sidebar-active-bg) 50%, transparent);
-        color: var(--ink-900);
+    @media (max-width: 768px) {
+        .tnav-brand { padding: 0 12px 0 16px; }
+        .tnav-brand-name { display: none; }
+        .tnav-link { padding: 0 10px; font-size: 12px; }
+        .tnav-link .tnav-icon { display: none; }
     }
 </style>
 
-<nav class="sidebar-nav" aria-label="Main navigation">
-    @php $isAdmin = auth()->user()?->isAdmin(); @endphp
+@php
+    $isAdmin = auth()->user()?->isAdmin();
+    /*
+     * Route-active detection — the sidebar used a per-item routeIs() call
+     * which stays correct here but the admin-dropdown needs to know if
+     * ANY admin route is active so the "Admin ▾" button can highlight.
+     */
+    $adminActive = request()->routeIs('admin.*')
+        || request()->routeIs('hazard-templates.*')
+        || request()->routeIs('rams.settings*')
+        || request()->routeIs('design.gallery');
+@endphp
 
-    {{-- ── Global search affordance (⌘K) ─────────────────────────────
-         Fires an `open-global-search` custom event the palette component
-         in layouts/app.blade.php listens to. All Alpine directives use
-         the `x-on:` prefix so Blade cannot mis-parse `@` shortcuts inside
-         attribute values (fix 2026-07-08 evening). --}}
-    <div class="snav-search"
-         role="button" tabindex="0"
-         aria-label="Global search (Ctrl+K)"
-         x-data
-         x-on:click="$dispatch('open-global-search')"
-         x-on:keydown.enter.prevent="$dispatch('open-global-search')"
-         x-on:keydown.space.prevent="$dispatch('open-global-search')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>
+{{-- Brand — lockup lives on the far left. --}}
+<a href="{{ route('dashboard') }}" class="tnav-brand" aria-label="RAMS home">
+    <div class="tnav-brand-mark" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2 L22 7 L22 17 L12 22 L2 17 L2 7 Z"/>
         </svg>
-        <span class="snav-search-input">Search…</span>
-        <span class="snav-search-kbd">⌘K</span>
     </div>
+    <span class="tnav-brand-name">RAMS</span>
+</a>
 
-    {{-- ── MAIN ──────────────────────────────────────────────────── --}}
-    <div class="snav-label">Main</div>
-
+{{-- Primary horizontal nav — main workspace sections. --}}
+<div class="tnav-primary" aria-label="Main navigation">
     @if ($isAdmin)
     <a href="{{ route('dashboard') }}"
-       class="snav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
-        <svg class="snav-icon" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+       class="tnav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
+        <svg class="tnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
             <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
         </svg>
@@ -170,172 +245,174 @@
     @endif
 
     <a href="{{ route('projects.index') }}"
-       class="snav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}">
-        <svg class="snav-icon" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+       class="tnav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}">
+        <svg class="tnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
         </svg>
         Projects
     </a>
 
     @if ($isAdmin)
-    <div class="snav-sep"></div>
+        <a href="{{ route('rams.index') }}"
+           class="tnav-link {{ request()->routeIs('rams.*') && ! request()->routeIs('rams.upload*') && ! request()->routeIs('rams.settings*') ? 'active' : '' }}">
+            <svg class="tnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+            RAMS
+        </a>
 
-    {{-- ── DELIVERY TOOLS ────────────────────────────────────────── --}}
-    <div class="snav-label admin-only">Delivery Tools</div>
+        <a href="{{ route('site-surveys.index') }}"
+           class="tnav-link {{ request()->routeIs('site-surveys.*') ? 'active' : '' }}">
+            <svg class="tnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+            Surveys
+        </a>
 
-    <a href="{{ route('rams.index') }}"
-       class="snav-link admin-only {{ request()->routeIs('rams.*') && ! request()->routeIs('rams.upload*') && ! request()->routeIs('rams.settings*') ? 'active' : '' }}">
-        <svg class="snav-icon" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-        </svg>
-        RAMS
-    </a>
+        <a href="{{ route('om-manuals.index') }}"
+           class="tnav-link {{ request()->routeIs('om-manuals.*') ? 'active' : '' }}"
+           title="Operations &amp; Maintenance Manuals">
+            <svg class="tnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+            O&amp;M
+        </a>
 
-    <a href="{{ route('site-surveys.index') }}"
-       class="snav-link admin-only {{ request()->routeIs('site-surveys.*') ? 'active' : '' }}">
-        <svg class="snav-icon" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-            <polyline points="9 22 9 12 15 12 15 22"/>
-        </svg>
-        Site Surveys
-    </a>
+        <a href="{{ route('cable-schedules.index') }}"
+           class="tnav-link {{ request()->routeIs('cable-schedules.*') ? 'active' : '' }}">
+            <svg class="tnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="8" y1="6"  x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+                <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6"  x2="3.01" y2="6"/>
+                <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+            </svg>
+            Cables
+        </a>
 
-    <a href="{{ route('cable-schedules.index') }}"
-       class="snav-link admin-only {{ request()->routeIs('cable-schedules.*') ? 'active' : '' }}">
-        <svg class="snav-icon" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="8" y1="6"  x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
-            <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6"  x2="3.01" y2="6"/>
-            <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-        </svg>
-        Cable Schedules
-    </a>
-
-    <a href="{{ route('om-manuals.index') }}"
-       class="snav-link admin-only {{ request()->routeIs('om-manuals.*') ? 'active' : '' }}"
-       title="Operations &amp; Maintenance Manuals">
-        <svg class="snav-icon" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-        </svg>
-        O&amp;M Manuals
-    </a>
-
-    <div class="snav-sep"></div>
-
-    {{-- ── IMPORT ─────────────────────────────────────────────────── --}}
-    <div class="snav-label admin-only">Import</div>
-
-    <a href="{{ route('quote-import.create') }}"
-       class="snav-link admin-only {{ request()->routeIs('quote-import.*') ? 'active' : '' }}"
-       title="Import a QuoteWerks PDF to generate a project package">
-        <svg class="snav-icon" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="16 16 12 12 8 16"/>
-            <line x1="12" y1="12" x2="12" y2="21"/>
-            <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
-        </svg>
-        Quote Import
-    </a>
+        <a href="{{ route('quote-import.create') }}"
+           class="tnav-link {{ request()->routeIs('quote-import.*') ? 'active' : '' }}"
+           title="Import a QuoteWerks PDF to generate a project package">
+            <svg class="tnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="16 16 12 12 8 16"/>
+                <line x1="12" y1="12" x2="12" y2="21"/>
+                <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+            </svg>
+            Import
+        </a>
     @endif
 
-    {{-- ── ADMIN (admin only) ────────────────────────────────────── --}}
+    {{-- Admin dropdown — collapses configuration + tooling into a
+         single overflow menu so the main row stays scan-tight. --}}
     @if ($isAdmin)
-    <div class="snav-sep"></div>
-    <div class="snav-label admin-only">Admin</div>
+    <div class="tnav-admin"
+         x-data="{ open: false }"
+         :data-open="open ? '1' : '0'"
+         x-on:click.outside="open = false">
+        <button type="button"
+                class="tnav-admin-btn {{ $adminActive ? 'active' : '' }}"
+                x-on:click="open = !open"
+                :aria-expanded="open">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            Admin
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9"/>
+            </svg>
+        </button>
+        <div class="tnav-admin-menu" role="menu">
+            <div class="tnav-admin-label">Library</div>
+            <a href="{{ route('hazard-templates.index') }}"
+               class="tnav-admin-item {{ request()->routeIs('hazard-templates.*') ? 'active' : '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                Hazard Templates
+            </a>
+            <a href="{{ route('admin.solution-types.index') }}"
+               class="tnav-admin-item {{ request()->routeIs('admin.solution-types.*') ? 'active' : '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                </svg>
+                Solution Types
+            </a>
 
-    <a href="{{ route('admin.users.index') }}"
-       class="snav-link admin-only {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
-        <svg class="snav-icon" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-            <circle cx="9" cy="7" r="4"/>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-        </svg>
-        Users
-        <span class="snav-admin-dot" aria-hidden="true"></span>
-    </a>
+            <div class="tnav-admin-sep"></div>
 
-    <a href="{{ route('admin.solution-types.index') }}"
-       class="snav-link admin-only {{ request()->routeIs('admin.solution-types.*') ? 'active' : '' }}">
-        <svg class="snav-icon" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-        </svg>
-        Solution Types
-        <span class="snav-admin-dot" aria-hidden="true"></span>
-    </a>
+            <div class="tnav-admin-label">Users &amp; System</div>
+            <a href="{{ route('admin.users.index') }}"
+               class="tnav-admin-item {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+                Users
+            </a>
+            <a href="{{ route('admin.worker.index') }}"
+               class="tnav-admin-item {{ request()->routeIs('admin.worker*') ? 'active' : '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/>
+                    <line x1="12" y1="17" x2="12" y2="21"/>
+                </svg>
+                Worker Monitor
+            </a>
 
-    <a href="{{ route('hazard-templates.index') }}"
-       class="snav-link admin-only {{ request()->routeIs('hazard-templates.*') ? 'active' : '' }}">
-        <svg class="snav-icon" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-            <line x1="12" y1="9" x2="12" y2="13"/>
-            <line x1="12" y1="17" x2="12.01" y2="17"/>
-        </svg>
-        Hazard Templates
-        <span class="snav-admin-dot" aria-hidden="true"></span>
-    </a>
+            <div class="tnav-admin-sep"></div>
 
-    <a href="{{ route('rams.settings') }}"
-       class="snav-link admin-only {{ request()->routeIs('rams.settings*') ? 'active' : '' }}"
-       title="AI Provider Settings">
-        <svg class="snav-icon" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.07 4.93A10 10 0 1 0 4.93 19.07"/><path d="M19.07 4.93L12 12"/>
-        </svg>
-        AI Settings
-        <span class="snav-admin-dot" aria-hidden="true"></span>
-    </a>
+            <div class="tnav-admin-label">AI</div>
+            <a href="{{ route('rams.settings') }}"
+               class="tnav-admin-item {{ request()->routeIs('rams.settings*') ? 'active' : '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.07 4.93A10 10 0 1 0 4.93 19.07"/><path d="M19.07 4.93L12 12"/>
+                </svg>
+                AI Settings
+            </a>
+            <a href="{{ route('admin.ai-usage.index') }}"
+               class="tnav-admin-item {{ request()->routeIs('admin.ai-usage.*') ? 'active' : '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="3 6 9 12 13 8 21 16"/>
+                    <circle cx="9" cy="12" r="1"/><circle cx="13" cy="8" r="1"/><circle cx="21" cy="16" r="1"/>
+                </svg>
+                AI Usage
+            </a>
 
-    <a href="{{ route('admin.ai-usage.index') }}"
-       class="snav-link admin-only {{ request()->routeIs('admin.ai-usage.*') ? 'active' : '' }}"
-       title="AI Usage">
-        <svg class="snav-icon" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="3 6 9 12 13 8 21 16"/>
-            <circle cx="9" cy="12" r="1"/><circle cx="13" cy="8" r="1"/><circle cx="21" cy="16" r="1"/>
-        </svg>
-        AI Usage
-        <span class="snav-admin-dot" aria-hidden="true"></span>
-    </a>
+            <div class="tnav-admin-sep"></div>
 
-    <a href="{{ route('admin.worker.index') }}"
-       class="snav-link admin-only {{ request()->routeIs('admin.worker*') ? 'active' : '' }}"
-       title="Queue Worker Monitor">
-        <svg class="snav-icon" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/>
-            <line x1="12" y1="17" x2="12" y2="21"/>
-        </svg>
-        Worker
-        <span class="snav-admin-dot" aria-hidden="true"></span>
-    </a>
-
-    {{-- Design system reference — internal contributor doc. --}}
-    <a href="{{ route('design.gallery') }}"
-       class="snav-link admin-only {{ request()->routeIs('design.gallery') ? 'active' : '' }}"
-       title="Design system reference">
-        <svg class="snav-icon" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="13.5" cy="6.5" r="0.5"/><circle cx="17.5" cy="10.5" r="0.5"/>
-            <circle cx="8.5" cy="7.5" r="0.5"/><circle cx="6.5" cy="12.5" r="0.5"/>
-            <path d="M12 2a10 10 0 1 0 10 10c0-5-3-6-5-6h-3a4 4 0 0 1 0-8h.5"/>
-        </svg>
-        Design
-        <span class="snav-admin-dot" aria-hidden="true"></span>
-    </a>
+            <a href="{{ route('design.gallery') }}"
+               class="tnav-admin-item {{ request()->routeIs('design.gallery') ? 'active' : '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="13.5" cy="6.5" r="0.5"/><circle cx="17.5" cy="10.5" r="0.5"/>
+                    <circle cx="8.5" cy="7.5" r="0.5"/><circle cx="6.5" cy="12.5" r="0.5"/>
+                    <path d="M12 2a10 10 0 1 0 10 10c0-5-3-6-5-6h-3a4 4 0 0 1 0-8h.5"/>
+                </svg>
+                Design System
+            </a>
+        </div>
+    </div>
     @endif
+</div>
 
-</nav>
+{{-- Search chip — Jetbuilt keeps ⌘K permanent in the top bar. --}}
+<div class="tnav-search"
+     role="button" tabindex="0"
+     aria-label="Global search (Ctrl+K)"
+     x-data
+     x-on:click="$dispatch('open-global-search')"
+     x-on:keydown.enter.prevent="$dispatch('open-global-search')"
+     x-on:keydown.space.prevent="$dispatch('open-global-search')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>
+    </svg>
+    <span class="tnav-search-label">Search…</span>
+    <span class="tnav-search-kbd">⌘K</span>
+</div>
 @endauth

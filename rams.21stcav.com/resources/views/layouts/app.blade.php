@@ -231,122 +231,52 @@
         .rule-gold { display: none; } /* legacy — no longer used */
 
         /* ═══════════════════════════════════════════════════════════════
-           HEADER  — translucent paper with hairline rule
+           TOP-NAV SHELL — Jetbuilt horizontal bar. Replaces the paired
+           app-header + app-sidebar. 60px tall, sticky, white ground with
+           hairline bottom border. Brand left, primary links middle,
+           search + user right.
         ═══════════════════════════════════════════════════════════════ */
-        .app-header {
+        .app-topnav {
             position: fixed;
             top: 0; left: 0; right: 0;
             height: var(--header-height);
-            background: color-mix(in oklab, var(--paper) 82%, transparent);
-            backdrop-filter: saturate(180%) blur(14px);
-            -webkit-backdrop-filter: saturate(180%) blur(14px);
-            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+            border-bottom: 1px solid var(--ink-200);
             z-index: 200;
             display: flex;
             align-items: center;
-            padding: 0 1.25rem 0 0;
+            padding: 0;
         }
 
-        /* Logo panel — tier-one light chrome with indigo gradient mark. */
-        .header-logo-panel {
-            width: var(--sidebar-width);
-            flex-shrink: 0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 0 18px;
-            height: 100%;
-            background: var(--sidebar-bg);
-            color: var(--ink-900);
-            border-right: 1px solid var(--border);
-        }
-        .header-logo-mark {
-            width: 34px; height: 34px;
-            background: linear-gradient(135deg, var(--teal-500) 0%, var(--teal-700) 55%, var(--teal-900) 100%);
-            color: #fff;
-            border-radius: 8px;
-            display: grid;
-            place-items: center;
-            flex-shrink: 0;
-            font-weight: 800;
-            font-size: 15px;
-            letter-spacing: -0.03em;
-            box-shadow: 0 6px 14px -6px rgba(79,70,229,.55),
-                        inset 0 -2px 0 rgba(0,0,0,.12),
-                        inset 0 1px 0 rgba(255,255,255,.14);
-            position: relative;
-        }
-        .header-logo-mark::after {
-            content: ""; position: absolute; inset: 3px;
-            border-radius: 6px;
-            border: 1px solid rgba(255,255,255,.18);
-            pointer-events: none;
-        }
-        .header-logo-mark svg { color: #fff; position: relative; z-index: 1; }
-        .header-logo-name {
-            font-size: 17px;
-            font-weight: 800;
-            color: var(--ink-900);
-            letter-spacing: -.03em;
-            line-height: 1.05;
-        }
-        .header-logo-name span { display: none; }
+        /* Legacy .app-header alias — some public / auth-preview pages
+           still emit the old class; keep them functional. */
+        .app-header { display: none; }
 
-        /* Mobile hamburger */
-        .header-hamburger {
-            display: none;
-            align-items: center;
-            justify-content: center;
-            width: 36px;
-            height: 36px;
-            border: none;
-            background: transparent;
-            color: var(--text-muted);
-            border-radius: var(--radius-sm);
-            margin-left: .75rem;
-            flex-shrink: 0;
-            transition: background var(--transition), color var(--transition);
-        }
-        .header-hamburger:hover { background: var(--teal-light); color: var(--teal); }
-
-        /* Page title in header */
-        .header-platform {
-            flex: 1;
-            padding: 0 1.25rem;
-            font-size: .9375rem;
-            font-weight: 600;
-            color: var(--text);
-            letter-spacing: -.01em;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        /* User menu */
-        .header-right { display: flex; align-items: center; padding-right: .25rem; }
+        /* User menu — Jetbuilt-shaped, pinned right of the search chip. */
+        .header-right { display: flex; align-items: center; padding-right: 12px; flex-shrink: 0; }
         .user-menu    { position: relative; }
         .user-btn {
             display: flex;
             align-items: center;
-            gap: .5rem;
+            gap: 8px;
             background: transparent;
             border: 1px solid transparent;
-            border-radius: var(--radius);
-            padding: .35rem .6rem .35rem .4rem;
-            color: var(--text);
-            font-size: .875rem;
+            border-radius: var(--radius-sm);
+            padding: 4px 6px 4px 4px;
+            color: var(--ink-900);
+            font-size: var(--fs-small);
             font-weight: 500;
             transition: background var(--transition), border-color var(--transition);
             cursor: pointer;
         }
-        .user-btn:hover { background: var(--teal-light); border-color: var(--teal-mid); }
+        .user-btn:hover { background: var(--surface-soft); border-color: var(--ink-200); }
         .user-avatar {
-            width: 30px; height: 30px;
+            width: 28px; height: 28px;
             border-radius: 50%;
-            background: var(--teal);
+            background: var(--nav-800);
             color: #fff;
-            font-size: .75rem;
-            font-weight: 700;
+            font-size: 11px;
+            font-weight: 600;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -411,54 +341,29 @@
         .user-dropdown-item.danger:hover { background: #FEF2F2; }
 
         /* ═══════════════════════════════════════════════════════════════
-           SIDEBAR  — fixed, dark teal
+           SIDEBAR — retired. Selectors kept as no-ops so any leftover
+           references from partials/scripts don't 404 into visible junk.
         ═══════════════════════════════════════════════════════════════ */
-        .app-sidebar {
-            position: fixed;
-            top: var(--header-height);
-            left: 0;
-            width: var(--sidebar-width);
-            bottom: 0;
-            background: var(--sidebar-bg);
-            color: var(--sidebar-fg);
-            border-right: 1px solid var(--border);
-            overflow-y: auto;
-            overflow-x: hidden;
-            z-index: 100;
-            scrollbar-width: thin;
-            scrollbar-color: var(--ink-200) transparent;
-            transition: transform .25s ease;
-        }
-        .app-sidebar::-webkit-scrollbar       { width: 4px; }
-        .app-sidebar::-webkit-scrollbar-track { background: transparent; }
-        .app-sidebar::-webkit-scrollbar-thumb { background: var(--ink-200); border-radius: 2px; }
-        .app-sidebar.sidebar-open             { transform: translateX(0) !important; }
-
-        /* Mobile overlay */
-        .sidebar-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,.4);
-            z-index: 99;
-            backdrop-filter: blur(2px);
-        }
-        .sidebar-overlay.visible { display: block; }
+        .app-sidebar    { display: none; }
+        .sidebar-overlay { display: none; }
 
         /* ═══════════════════════════════════════════════════════════════
-           MAIN CONTENT
+           MAIN CONTENT — no left margin now (top-nav only)
         ═══════════════════════════════════════════════════════════════ */
-        .app-content             { padding-top: var(--header-height); min-height: 100vh; background: var(--bg); }
-        .app-content.with-sidebar { margin-left: var(--sidebar-width); }
+        .app-content              { padding-top: var(--header-height); min-height: 100vh; background: var(--bg); }
+        .app-content.with-sidebar { margin-left: 0; }
 
         /* ═══════════════════════════════════════════════════════════════
-           PAGE WRAPPER — content fills to right of sidebar, no centering gap
-           (matches SCC v2 .main-col which has no max-width).
+           PAGE WRAPPER — Jetbuilt centres content in a max-width shell
+           with generous horizontal padding.
         ═══════════════════════════════════════════════════════════════ */
         .page-wrap {
-            max-width: none;
-            margin: 0;
-            padding: 1.75rem 2rem;
+            max-width: var(--page-max);
+            margin: 0 auto;
+            padding: 28px 32px 48px;
+        }
+        @media (max-width: 900px) {
+            .page-wrap { padding: 20px 16px 32px; }
         }
         /* Jetbuilt page-header — subdued eyebrow (optional), large H1,
            inline meta beneath, right-aligned primary action. Roomier
@@ -1382,12 +1287,9 @@
         /* ═══════════════════════════════════════════════════════════════
            RESPONSIVE
         ═══════════════════════════════════════════════════════════════ */
-        @media (max-width: 1024px) {
-            .app-sidebar { transform: translateX(calc(-1 * var(--sidebar-width))); }
-            .app-content.with-sidebar { margin-left: 0; }
-            .header-hamburger { display: flex; }
-            .header-logo-panel { border-right: none; }
-        }
+        /* Top-nav has its own responsive rules in navigation.blade.php.
+           Kept an empty block here so the media-query rhythm below still
+           holds. */
         @media (max-width: 768px) {
             .page-wrap    { padding: 1.25rem 1rem; }
             .card         { padding: 1.25rem; }
@@ -1414,82 +1316,54 @@
 </head>
 <body>
 
-    {{-- ── HEADER ──────────────────────────────────────────────────────── --}}
-    <header class="app-header">
-        <div class="header-logo-panel">
-            <div class="header-logo-mark" aria-hidden="true">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
-                     stroke-linejoin="round">
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"/>
-                    <circle cx="12" cy="10" r="3"/>
-                </svg>
-            </div>
-            <div class="header-logo-name">
-                RAMS
-                <span>Operations Platform</span>
-            </div>
-        </div>
-
+    {{-- ── TOP-NAV SHELL (Jetbuilt-style horizontal bar) ─────────────────
+         Layout: brand · primary links · search chip · user menu.
+         The nav partial (layouts/navigation) emits the brand + links +
+         search chip; the user menu stays inline here because it references
+         auth()->user() and the sign-out form. --}}
+    <nav class="app-topnav" role="navigation" aria-label="Application navigation">
         @auth
-        <button class="header-hamburger" id="sidebarToggle" aria-label="Toggle sidebar">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                 stroke-linejoin="round" aria-hidden="true">
-                <line x1="3" y1="6"  x2="21" y2="6"/>
-                <line x1="3" y1="12" x2="21" y2="12"/>
-                <line x1="3" y1="18" x2="21" y2="18"/>
-            </svg>
-        </button>
-        @endauth
+            @include('layouts.navigation')
 
-        <div class="header-platform">@yield('title', 'Operations Dashboard')</div>
+            <div class="header-right">
+                <div class="user-menu" id="userMenuContainer">
+                    <button class="user-btn" id="userMenuBtn" aria-haspopup="true" aria-expanded="false">
+                        <div class="user-avatar" aria-hidden="true">
+                            {{ strtoupper(mb_substr(auth()->user()->name, 0, 1)) }}
+                        </div>
+                        <span class="user-btn-name">{{ auth()->user()->name }}</span>
+                        <svg class="user-chevron" width="12" height="12" viewBox="0 0 24 24"
+                             fill="none" stroke="currentColor" stroke-width="2.5"
+                             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                    </button>
 
-        @auth
-        <div class="header-right">
-            <div class="user-menu" id="userMenuContainer">
-                <button class="user-btn" id="userMenuBtn" aria-haspopup="true" aria-expanded="false">
-                    <div class="user-avatar" aria-hidden="true">
-                        {{ strtoupper(mb_substr(auth()->user()->name, 0, 1)) }}
+                    <div class="user-dropdown" id="userDropdown" hidden>
+                        <div class="user-dropdown-info">
+                            <div class="user-dropdown-name">{{ auth()->user()->name }}</div>
+                            @if(auth()->user()->email ?? false)
+                                <div class="user-dropdown-email">{{ auth()->user()->email }}</div>
+                            @endif
+                        </div>
+                        <form method="POST" action="{{ route('logout') }}" style="margin:0">
+                            @csrf
+                            <button type="submit" class="user-dropdown-item danger">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                     stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                     stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                                    <polyline points="16 17 21 12 16 7"/>
+                                    <line x1="21" y1="12" x2="9" y2="12"/>
+                                </svg>
+                                Sign out
+                            </button>
+                        </form>
                     </div>
-                    <span class="user-btn-name">{{ auth()->user()->name }}</span>
-                    <svg class="user-chevron" width="13" height="13" viewBox="0 0 24 24"
-                         fill="none" stroke="currentColor" stroke-width="2.5"
-                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <polyline points="6 9 12 15 18 9"/>
-                    </svg>
-                </button>
-
-                <div class="user-dropdown" id="userDropdown" hidden>
-                    <div class="user-dropdown-info">
-                        <div class="user-dropdown-name">{{ auth()->user()->name }}</div>
-                        @if(auth()->user()->email ?? false)
-                        <div class="user-dropdown-email">{{ auth()->user()->email }}</div>
-                        @endif
-                    </div>
-                    <form method="POST" action="{{ route('logout') }}" style="margin:0">
-                        @csrf
-                        <button type="submit" class="user-dropdown-item danger">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                                 stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                 stroke-linejoin="round" aria-hidden="true">
-                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                                <polyline points="16 17 21 12 16 7"/>
-                                <line x1="21" y1="12" x2="9" y2="12"/>
-                            </svg>
-                            Sign out
-                        </button>
-                    </form>
                 </div>
             </div>
-        </div>
         @endauth
-    </header>
-
-    {{-- ── MOBILE OVERLAY ──────────────────────────────────────────────── --}}
-    @auth
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
-    @endauth
+    </nav>
 
     {{-- ── GLOBAL SEARCH — ⌘K COMMAND PALETTE ────────────────────────────
          Renders once at the layout level so every authenticated page
@@ -1892,15 +1766,10 @@
     </script>
     @endauth
 
-    {{-- ── SIDEBAR ──────────────────────────────────────────────────────── --}}
-    @auth
-    <aside class="app-sidebar" id="appSidebar">
-        @include('layouts.navigation')
-    </aside>
-    @endauth
+    {{-- Sidebar retired 2026-07-08 — nav lives inside the top-nav shell. --}}
 
     {{-- ── MAIN CONTENT ────────────────────────────────────────────────── --}}
-    <main class="app-content @auth with-sidebar @endauth">
+    <main class="app-content">
         <div class="page-wrap">
             @hasSection('content')
                 @yield('content')
@@ -2144,22 +2013,9 @@
             });
         }());
 
-        /* ── Mobile sidebar toggle ──────────────────────────────── */
-        (function () {
-            var toggle  = document.getElementById('sidebarToggle');
-            var sidebar = document.getElementById('appSidebar');
-            var overlay = document.getElementById('sidebarOverlay');
-            if (!toggle || !sidebar) return;
-            function open()  { sidebar.classList.add('sidebar-open'); overlay && overlay.classList.add('visible'); }
-            function close() { sidebar.classList.remove('sidebar-open'); overlay && overlay.classList.remove('visible'); }
-            toggle.addEventListener('click', function () {
-                sidebar.classList.contains('sidebar-open') ? close() : open();
-            });
-            overlay && overlay.addEventListener('click', close);
-            document.addEventListener('keydown', function (e) {
-                if (e.key === 'Escape') close();
-            });
-        }());
+        /* Mobile sidebar toggle retired — the top-nav shell is
+           permanently visible; nav-primary overflows horizontally on
+           narrow viewports (see navigation.blade.php responsive rules). */
     </script>
 </body>
 </html>
