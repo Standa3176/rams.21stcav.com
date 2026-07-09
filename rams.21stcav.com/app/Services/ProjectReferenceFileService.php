@@ -237,6 +237,21 @@ class ProjectReferenceFileService
                 'file' => 'File type not allowed.',
             ]);
         }
+
+        // 6. WR-03 — text/plain is only allowed when the extension is
+        //    .csv. The config keeps text/plain in allowed_mimes because
+        //    CSV files commonly sniff that way, but a naked text/plain
+        //    that claims to be a PDF, DOCX, XLSX, or DWG is a MIME-
+        //    confusion attempt: the streaming response would emit
+        //    Content-Type: text/plain with Content-Disposition: inline
+        //    for the .pdf case, letting an attacker deliver text content
+        //    under the guise of a trusted extension. Gate at upload time
+        //    so no such row ever lands in project_reference_files.
+        if ($mime === 'text/plain' && $ext !== 'csv') {
+            throw ValidationException::withMessages([
+                'file' => 'File type not allowed.',
+            ]);
+        }
     }
 
     private function sniffFileMime(string $absolutePath): ?string

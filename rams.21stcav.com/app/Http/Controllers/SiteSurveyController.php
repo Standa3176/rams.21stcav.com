@@ -308,6 +308,24 @@ class SiteSurveyController extends Controller
 
         $data = $this->validateSurvey($request);
 
+        // WR-05 — validateSurvey accepts `project_id` as `exists:projects,id`
+        // which lets a caller silently re-parent this survey to any other
+        // project by posting a different id. That's a data-integrity risk
+        // in the shared workspace (accidental re-parent) even without a
+        // per-user authorisation model. Reject any update where the
+        // incoming project_id doesn't match the current attachment.
+        $incomingProjectId = array_key_exists('project_id', $data)
+            ? ($data['project_id'] !== null ? (int) $data['project_id'] : null)
+            : $siteSurvey->project_id;
+
+        if ($incomingProjectId !== $siteSurvey->project_id) {
+            abort(403, 'Cannot re-parent this survey to a different project via update. Use the create-from-project flow instead.');
+        }
+
+        // Force the validated payload to carry the survey's current project_id
+        // so downstream service code can't be fooled by a null / omitted key.
+        $data['project_id'] = $siteSurvey->project_id;
+
         /** @var \App\Models\User $user */
         $user = auth()->user();
         $this->service->update($siteSurvey, $user, $data);

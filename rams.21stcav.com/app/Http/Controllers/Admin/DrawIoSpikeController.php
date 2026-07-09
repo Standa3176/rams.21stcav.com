@@ -7,10 +7,12 @@ use App\Models\Project;
 use App\Models\ProjectDrawing;
 use App\Services\Drawings\DrawingService;
 use App\Services\Drawings\DrawIoBuilderService;
+use App\Services\Drawings\SvgSanitizerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
@@ -34,6 +36,7 @@ class DrawIoSpikeController extends Controller
     public function __construct(
         private readonly DrawIoBuilderService $builder,
         private readonly DrawingService $drawings,
+        private readonly SvgSanitizerService $svgSanitizer,
     ) {}
 
     public function show(Project $project): View
@@ -77,8 +80,22 @@ class DrawIoSpikeController extends Controller
             'svg' => ['required', 'string', 'min:50', 'max:5242880'],
         ]);
 
+        // WR-04 — the SVG payload is client-controlled and later served
+        // back to viewers, so sanitise before persist. Strips <script>,
+        // <foreignObject>, on* event handlers, and javascript:/data:
+        // schemes on href/xlink:href. If the input can't be parsed as
+        // XML, sanitize() returns '' — treat that as a 422 rather than
+        // writing an empty file to disk.
+        $clean = $this->svgSanitizer->sanitize($validated['svg']);
+
+        if ($clean === '') {
+            throw ValidationException::withMessages([
+                'svg' => 'SVG payload could not be parsed or was empty after sanitisation.',
+            ]);
+        }
+
         $drawing = $this->resolveOrCreateSpikeDrawing($project);
-        $path = $this->drawings->saveSpikeSvg($drawing, $validated['svg']);
+        $path = $this->drawings->saveSpikeSvg($drawing, $clean);
 
         return response()->json(['ok' => true, 'svg_path' => basename($path)]);
     }
