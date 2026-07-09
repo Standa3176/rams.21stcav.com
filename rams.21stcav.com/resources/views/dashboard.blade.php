@@ -23,16 +23,16 @@
 {{-- ── Stat cards grid ─────────────────────────────────────────────────── --}}
 <div class="dash-stats-grid">
 
-    {{-- Tier-one KPI row (PLAN 260708-b7i). Each icon tile carries the
-         semantic accent — the raw number stays in ink so the four stats
-         read as a rank-ordered set, not four competing colours. --}}
+    {{-- Jetbuilt-clean KPI row — every tile takes the single accent tint
+         so the row reads as a set. `color=""` opts out of per-tile hex
+         overrides; the stat-card component falls back to the accent
+         variable defined at :root. --}}
     <x-dashboard.stat-card
         title="Active Projects"
         :value="$statActiveProjects"
         subtitle="Across all stages"
-        href="{{ route('projects.index') }}"
-        color="#4F46E5">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        href="{{ route('projects.index') }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
         </svg>
@@ -42,9 +42,8 @@
         title="RAMS Generated"
         :value="$statRams"
         subtitle="Total documents"
-        href="{{ route('rams.index') }}"
-        color="#0284C7">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        href="{{ route('rams.index') }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14 2 14 8 20 8"/>
@@ -56,9 +55,8 @@
         title="Site Surveys"
         :value="$statSurveys"
         subtitle="Total surveys"
-        href="{{ route('site-surveys.index') }}"
-        color="#7C3AED">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        href="{{ route('site-surveys.index') }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
             <polyline points="9 22 9 12 15 12 15 22"/>
@@ -69,9 +67,8 @@
         title="Quote Imports"
         :value="$statImports"
         subtitle="Packages created"
-        href="{{ route('quote-import.create') }}"
-        color="#059669">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        href="{{ route('quote-import.create') }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="16 16 12 12 8 16"/>
             <line x1="12" y1="12" x2="12" y2="21"/>
@@ -190,11 +187,11 @@
         @endforeach
 
         @if($projectOverflow > 0)
-            <div style="padding: 12px 20px; text-align: center; border-top: 1px solid var(--border); background: var(--surface-soft);">
-                <a href="{{ route('projects.index') }}" style="color: var(--teal-700); font-size: 13px; font-weight: 600; text-decoration: none;">
+            <div style="padding: 14px 20px; text-align: center; border-top: 1px solid var(--ink-100); background: var(--surface);">
+                <a href="{{ route('projects.index') }}" style="color: var(--accent-700); font-size: 13px; font-weight: 500; text-decoration: none;">
                     View all {{ $projects->count() }} projects →
                 </a>
-                <span style="color: var(--text-muted); font-size: 12px; margin-left: 8px;">
+                <span style="color: var(--ink-500); font-size: 12px; margin-left: 8px;">
                     (showing {{ $projectPreviewLimit }} most recent · {{ $projectOverflow }} more)
                 </span>
             </div>
@@ -292,160 +289,159 @@
 
 <style>
 /*
- * Dashboard styles — tier-one (PLAN 260708-b7i, 2026-07-08).
- * All hex values replaced with token variables so the palette can shift
- * from one place (layouts/app.blade.php :root) and every dashboard
- * element follows.
+ * Dashboard — Jetbuilt-clean (2026-07-09).
+ * Flat cards, single accent icon tint, no coloured chip-per-status.
  */
 
-/* Stat grid */
 .dash-stats-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    margin-bottom: 24px;
+    gap: 16px;
+    margin-bottom: 32px;
 }
 
-/* Two-panel layout */
 .dash-panels {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 20px;
-    margin-bottom: 24px;
+    margin-bottom: 32px;
     align-items: start;
 }
 .dash-panels--single { grid-template-columns: 1fr; }
 
-/* Quick links */
+/* ── Quick links — flat tile row, single accent icon chip ──────────── */
 .dash-quick-links {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
+    gap: 16px;
 }
 .dash-quick-link {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 14px 16px;
-    background: var(--surface, #fff);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    box-shadow: var(--shadow-card);
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--radius-lg);
+    box-shadow: none;
     text-decoration: none;
     color: inherit;
-    transition: box-shadow 150ms ease, border-color 150ms ease;
+    transition: border-color var(--transition), background var(--transition);
 }
 .dash-quick-link:hover {
-    box-shadow: var(--shadow-md);
-    border-color: var(--border-strong);
+    border-color: var(--ink-300);
+    background: var(--surface-soft);
     text-decoration: none;
 }
 .dash-quick-link__icon {
-    width: 38px; height: 38px;
-    border-radius: 8px;
+    width: 36px; height: 36px;
+    border-radius: var(--radius-sm);
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
+    background: var(--accent-50);
+    color: var(--accent-700);
 }
-/* Icon accent tints — sourced from the semantic palette. Same swatches
-   as the KPI card icons above so a user's eye connects "cable = success
-   green" between the quick-link and the stat card. */
-.dql-i-brand   { background: var(--teal-100); color: var(--teal-700); }
-.dql-i-violet  { background: #F5F3FF;         color: #7C3AED; }
-.dql-i-success { background: var(--success-light); color: var(--success); }
-.dql-i-warning { background: var(--warning-light); color: var(--warning); }
-.dash-quick-link__title { font-size: 13px; font-weight: 600; color: var(--ink-900); letter-spacing: -0.005em; }
-.dash-quick-link__sub   { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+/* Legacy tint slots retired — every quick-link icon takes the single
+   accent so the row reads flat like Jetbuilt. Selectors kept as no-ops
+   so old markup with the class names still renders correctly. */
+.dql-i-brand,
+.dql-i-violet,
+.dql-i-success,
+.dql-i-warning { background: var(--accent-50); color: var(--accent-700); }
+.dash-quick-link__title { font-size: var(--fs-body); font-weight: 600; color: var(--ink-900); letter-spacing: -0.005em; }
+.dash-quick-link__sub   { font-size: var(--fs-small); color: var(--ink-500); margin-top: 2px; }
 
-/* ── Status filter strip ─────────────────────────────────────────────── */
+/* ── Status filter strip — Jetbuilt drops the coloured chip. Every
+   chip is a neutral pill; the active one flips to the accent. ─────── */
 .dash-filter-section { margin-bottom: 24px; }
 
 .dash-status-strip {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
     align-items: center;
 }
 .dash-chip {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 4px 12px;
-    border: 1px solid var(--border);
+    padding: 5px 12px;
+    border: 1px solid var(--ink-200);
     border-radius: 999px;
-    font-size: 12px;
+    font-size: var(--fs-small);
     font-weight: 500;
     background: var(--surface);
     color: var(--ink-700);
     cursor: pointer;
     font-family: inherit;
-    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+    transition: background var(--transition), border-color var(--transition), color var(--transition);
 }
 .dash-chip:hover {
-    border-color: var(--chip-colour, var(--teal-700));
-    color: var(--chip-colour, var(--teal-700));
-    background: color-mix(in oklab, var(--chip-colour, var(--teal-700)) 8%, var(--surface));
+    border-color: var(--ink-300);
+    color: var(--ink-900);
+    background: var(--surface-soft);
 }
 .dash-chip--active {
-    background: var(--chip-colour, var(--teal-700));
-    border-color: var(--chip-colour, var(--teal-700));
+    background: var(--accent-600);
+    border-color: var(--accent-600);
     color: #fff;
     font-weight: 600;
 }
 .dash-chip__count {
-    background: rgba(0,0,0,.10);
+    background: color-mix(in oklab, currentColor 12%, transparent);
     border-radius: 999px;
-    padding: 1px 6px;
-    font-size: 10px;
+    padding: 1px 7px;
+    font-size: 11px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
 }
 .dash-chip--active .dash-chip__count { background: rgba(255,255,255,.20); }
 
-/* ── Health grid ─────────────────────────────────────────────────────── */
+/* ── Health grid — flat card, hairline dividers, accent-50 row hover  */
 .dash-health-grid {
-    background: var(--surface, #fff);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    box-shadow: var(--shadow-card);
+    background: var(--surface);
+    border: 1px solid var(--ink-200);
+    border-radius: var(--radius-lg);
+    box-shadow: none;
     overflow: hidden;
 }
 .dash-health-grid__header {
     display: grid;
     grid-template-columns: 2fr 1fr 1fr 1.25fr 1fr auto;
     gap: 16px;
-    padding: 10px 20px;
-    background: var(--surface-soft, #F8FAFC);
-    border-bottom: 1px solid var(--border);
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .06em;
-    color: var(--text-muted);
+    padding: 12px 20px;
+    background: transparent;
+    border-bottom: 1px solid var(--ink-200);
+    font-size: var(--fs-small);
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--ink-500);
 }
 .dash-health-row {
     display: grid;
     grid-template-columns: 2fr 1fr 1fr 1.25fr 1fr auto;
     gap: 16px;
     align-items: center;
-    padding: 12px 20px;
-    border-bottom: 1px solid var(--rule);
-    transition: background .12s ease;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--ink-100);
+    transition: background var(--transition);
 }
 .dash-health-row:last-child { border-bottom: none; }
-.dash-health-row:hover { background: color-mix(in oklab, var(--teal-100) 22%, transparent); }
+.dash-health-row:hover { background: var(--accent-50); }
 
 .dash-health-row__link {
     font-weight: 600; color: var(--ink-900);
     text-decoration: none; letter-spacing: -0.005em;
-    font-size: 13px;
+    font-size: var(--fs-body);
 }
-.dash-health-row__link:hover { color: var(--teal-700); text-decoration: underline; }
-.dash-health-row__client { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
-.dash-health-row__updated { font-size: 12px; color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.dash-health-row__none { color: var(--text-faint); font-size: 13px; }
+.dash-health-row__link:hover { color: var(--accent-700); text-decoration: none; }
+.dash-health-row__client { font-size: var(--fs-small); color: var(--ink-500); margin-top: 2px; }
+.dash-health-row__updated { font-size: var(--fs-small); color: var(--ink-500); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dash-health-row__none { color: var(--ink-300); font-size: var(--fs-body); }
 
-/* ── Progress bar widget ─────────────────────────────────────────────── */
+/* ── Progress bar widget — flat accent, no shadow ─────────────────── */
 .dash-prog {
     display: flex;
     align-items: center;
@@ -453,22 +449,22 @@
 }
 .dash-prog__bar {
     flex: 1;
-    height: 5px;
+    height: 6px;
     background: var(--ink-100);
     border-radius: 999px;
     overflow: hidden;
-    min-width: 48px;
+    min-width: 60px;
 }
 .dash-prog__fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--teal-500), var(--teal-700));
+    background: var(--accent-600);
     border-radius: 999px;
-    box-shadow: 0 0 6px 0 color-mix(in oklab, var(--teal-500) 40%, transparent);
+    box-shadow: none;
     transition: width .3s ease;
 }
 .dash-prog__pct {
-    font-size: 11px;
-    font-weight: 600;
+    font-size: var(--fs-small);
+    font-weight: 500;
     color: var(--ink-700);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
@@ -484,9 +480,9 @@
     .dash-health-row {
         grid-template-columns: 1fr 1fr;
         grid-template-rows: auto auto auto;
-        gap: .4rem;
+        gap: 6px;
     }
-    .dash-health-row__programme, .dash-health-row__updated { font-size: .72rem; }
+    .dash-health-row__programme, .dash-health-row__updated { font-size: 12px; }
 }
 @media (max-width: 768px) {
     .dash-panels     { grid-template-columns: 1fr; }
