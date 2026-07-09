@@ -15,7 +15,7 @@
 
     .om-edit-title {
         font-size: 20px;
-        font-weight: 700;
+        font-weight: 600;
         margin: 0;
         color: var(--ink-900);
         letter-spacing: -.02em;
@@ -156,7 +156,7 @@
     }
     .om-section h2 {
         font-size: 17px;
-        font-weight: 700;
+        font-weight: 600;
         margin: 0 0 4px;
         color: var(--ink-900);
         letter-spacing: -.015em;
@@ -244,13 +244,13 @@
         border-radius: 6px;
         display: flex; align-items: center; justify-content: center;
         font-family: var(--font-mono);
-        font-weight: 700;
+        font-weight: 600;
         font-size: 12px;
         font-variant-numeric: tabular-nums;
     }
     .om-room-h .om-room-title {
         font-size: 16px;
-        font-weight: 700;
+        font-weight: 600;
         margin: 0;
         flex: 1;
         letter-spacing: -.01em;
@@ -362,7 +362,7 @@
         border-radius: 50%;
         background: color-mix(in oklab, var(--warning) 18%, transparent);
         color: #78350F;
-        font-weight: 700;
+        font-weight: 600;
         font-size: 13px;
     }
     .om-undo-body strong { color: #78350F; font-weight: 600; }
@@ -498,7 +498,7 @@
     }
     .om-autogen-item h3 {
         font-size: .95rem;
-        font-weight: 700;
+        font-weight: 600;
         margin: 0 0 .3rem;
         display: flex;
         align-items: center;
@@ -508,7 +508,7 @@
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         font-size: .72rem;
         color: var(--text-muted);
-        font-weight: 700;
+        font-weight: 600;
         min-width: 2rem;
     }
     .om-autogen-item p {

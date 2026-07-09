@@ -75,10 +75,13 @@
     justify-content: center;
     width: 32px; height: 32px;
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--teal-500), var(--teal-700));
+    /* Re-audit D-07 — was a linear-gradient(teal-500 → teal-700), which
+       resolved through the alias to accent-blue → deep-navy but stayed a
+       gradient in a flat app. Retuned to a flat accent-600 fill. */
+    background: var(--accent-600);
     color: #fff;
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 600;
     flex-shrink: 0;
     box-shadow: inset 0 -1px 0 rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.14);
 }

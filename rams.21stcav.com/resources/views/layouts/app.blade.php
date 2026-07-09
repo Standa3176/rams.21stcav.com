@@ -1573,18 +1573,25 @@
             background: var(--accent-50);
             box-shadow: inset 0 0 0 2px var(--accent-600);
         }
+        /* Re-audit D-03 — the 5 doc-kind chips shipped as sky / purple /
+           amber / green gradients, which contradicted the flat Jetbuilt
+           aesthetic and let amber + green collide with the warning /
+           success semantic tokens. Retuned to a single flat accent tint;
+           the P/R/S/O/W monogram letter carries the semantic. */
         .gsp-item-kind {
             width: 26px; height: 26px;
             border-radius: 6px;
             display: grid; place-items: center;
-            font-size: 11px; font-weight: 700;
-            color: #fff; letter-spacing: -0.02em;
+            font-size: 11px; font-weight: 600;
+            color: var(--accent-700);
+            background: var(--accent-100);
+            letter-spacing: -0.02em;
         }
-        .gsp-k-project   { background: linear-gradient(135deg, var(--teal-500), var(--teal-700)); }
-        .gsp-k-rams      { background: linear-gradient(135deg, #38BDF8, #0284C7); }
-        .gsp-k-survey    { background: linear-gradient(135deg, #A78BFA, #7C3AED); }
-        .gsp-k-om        { background: linear-gradient(135deg, #FBBF24, #D97706); }
-        .gsp-k-worksheet { background: linear-gradient(135deg, #34D399, #059669); }
+        .gsp-k-project,
+        .gsp-k-rams,
+        .gsp-k-survey,
+        .gsp-k-om,
+        .gsp-k-worksheet { background: var(--accent-100); color: var(--accent-700); }
 
         .gsp-item-body { min-width: 0; }
         .gsp-item-title {

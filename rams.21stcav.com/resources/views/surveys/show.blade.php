@@ -782,7 +782,7 @@
                         <button type="button"
                                 @click="rooms[currentRoomIdx].type = '{{ $val }}'"
                                 :class="rooms[currentRoomIdx].type === '{{ $val }}'
-                                    ? 'border-brand-teal bg-teal-50 text-brand-teal'
+                                    ? 'border-brand-teal bg-accent-50 text-brand-teal'
                                     : 'border-gray-200 text-gray-600 hover:border-gray-300'"
                                 class="py-3 px-2 rounded-xl border-2 text-sm font-medium
                                        text-center min-h-[44px] transition-colors">
@@ -1198,7 +1198,7 @@
                             <button type="button"
                                     @click="toggleWallConstruction('{{ $val }}')"
                                     :class="(rooms[currentRoomIdx].engineer_feedback.wall_construction || []).includes('{{ $val }}')
-                                        ? 'border-brand-teal bg-teal-50 text-brand-teal'
+                                        ? 'border-brand-teal bg-accent-50 text-brand-teal'
                                         : 'border-gray-200 text-gray-600 hover:border-gray-300'"
                                     class="py-3 px-2 rounded-xl border-2 text-sm font-medium text-center min-h-[44px] transition-colors">
                                 {{ $display }}

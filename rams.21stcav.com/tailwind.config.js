@@ -51,6 +51,13 @@ export default {
                     600: '#2E7BFF',
                     700: '#1E5FE0',
                     800: '#0B2440',
+                    // Re-audit D-08 — surveys/show.blade.php uses
+                    // `text-brand-teal` / `bg-brand-teal` / `focus:ring-brand-teal`
+                    // in 60+ places. Was silently no-op'ing because the
+                    // key wasn't declared; add here so every existing
+                    // survey-form class resolves to the accent hue instead
+                    // of the invisible fallback.
+                    teal: '#2E7BFF',
                 },
 
                 // Explicit accent + nav sets for new code that wants the

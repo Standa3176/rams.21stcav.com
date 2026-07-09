@@ -18,7 +18,7 @@
             min-height: 100vh;
             padding-bottom: 3rem;
         }
-        a { color: #178A95; text-decoration: none; }
+        a { color: #2E7BFF; text-decoration: none; }
         a:hover { text-decoration: underline; }
 
         /* ── Layout ───────────────────────────────────────────────────── */
@@ -30,7 +30,7 @@
 
         /* ── Header ───────────────────────────────────────────────────── */
         .ws-header {
-            background: #0B3C45;
+            background: #0F172A;
             color: #fff;
             padding: 1rem 1.25rem .9rem;
             margin-bottom: 1.25rem;
@@ -94,7 +94,7 @@
             display: flex; align-items: center; justify-content: space-between;
             margin-bottom: .55rem; padding-bottom: .45rem;
             border-bottom: 1px solid #F0F0F0;
-            font-size: .85rem; font-weight: 700; color: #0B3C45;
+            font-size: .85rem; font-weight: 700; color: #0F172A;
         }
         .pending-item {
             display: flex; align-items: center; gap: .5rem;
@@ -157,7 +157,7 @@
         .card-title {
             font-size: .9rem;
             font-weight: 700;
-            color: #0B3C45;
+            color: #0F172A;
             margin-bottom: .85rem;
             padding-bottom: .55rem;
             border-bottom: 1px solid #F0F0F0;
@@ -165,7 +165,7 @@
         .room-name {
             font-size: 1.05rem;
             font-weight: 700;
-            color: #0B3C45;
+            color: #0F172A;
             margin-bottom: .75rem;
         }
 
@@ -175,7 +175,7 @@
             font-weight: 800;
             letter-spacing: .06em;
             text-transform: uppercase;
-            color: #178A95;
+            color: #2E7BFF;
             margin: .9rem 0 .4rem;
             padding-top: .55rem;
             border-top: 1px solid #F0F0F0;
@@ -242,7 +242,7 @@
         }
         .form-control:focus {
             outline: none;
-            border-color: #178A95;
+            border-color: #2E7BFF;
             box-shadow: 0 0 0 3px rgba(23,138,149,.15);
         }
         textarea.form-control { resize: vertical; min-height: 90px; }
@@ -259,13 +259,13 @@
             margin-top: .2rem;
             width: 1.05rem;
             height: 1.05rem;
-            accent-color: #178A95;
+            accent-color: #2E7BFF;
             flex: 0 0 auto;
         }
 
         /* ── Signature pad ────────────────────────────────────────────── */
         .sig-pad-wrap {
-            border: 2px dashed #178A95;
+            border: 2px dashed #2E7BFF;
             border-radius: 10px;
             background: #F8FAFB;
             padding: .65rem;
@@ -302,10 +302,10 @@
             touch-action: manipulation;
             font-family: inherit;
         }
-        .btn-teal     { background: #178A95; color: #fff; border-color: #178A95; }
+        .btn-teal     { background: #2E7BFF; color: #fff; border-color: #2E7BFF; }
         .btn-teal:hover:not([disabled]) { background: #157B85; border-color: #157B85; }
         .btn-teal[disabled] { opacity: .55; cursor: not-allowed; }
-        .btn-outline  { background: transparent; color: #178A95; border-color: #178A95; }
+        .btn-outline  { background: transparent; color: #2E7BFF; border-color: #2E7BFF; }
         .btn-outline:hover { background: #EBF6F7; }
         .btn-sm       { padding: .45rem .85rem; font-size: .82rem; min-height: 40px; }
 
@@ -321,7 +321,7 @@
         /* ── Top WORKSHEET ribbon (distinguishes from Site Survey link) ─── */
         .doc-ribbon {
             background: #FBBF24;
-            color: #0B3C45;
+            color: #0F172A;
             padding: .35rem 1rem;
             text-align: center;
             font-size: .72rem;
@@ -348,13 +348,13 @@
         .room-summary::marker { display: none; }
         details[open] > .room-summary { background: #ECFEFF; border-color: #67E8F9; }
         .room-chevron {
-            color: #178A95; font-size: .85rem; flex-shrink: 0;
+            color: #2E7BFF; font-size: .85rem; flex-shrink: 0;
             transition: transform 200ms ease;
         }
         details[open] > .room-summary .room-chevron { transform: rotate(90deg); }
-        .room-summary-name { flex: 1; font-weight: 700; color: #0B3C45; font-size: 1rem; }
+        .room-summary-name { flex: 1; font-weight: 700; color: #0F172A; font-size: 1rem; }
         .photo-count-pill {
-            background: #178A95; color: #fff;
+            background: #2E7BFF; color: #fff;
             padding: .15rem .55rem; border-radius: 14px;
             font-size: .68rem; font-weight: 700;
         }
@@ -373,7 +373,7 @@
         .room-drawer.amber { border-color: rgba(245,158,11,.4); }
         .room-drawer.grey  { border-color: rgba(107,114,128,.35); }
         /* 260504-ij9 — accent variant for Survey Reference drawer (visual differentiator). */
-        .room-drawer.teal.teal--accent { border-left-width: 4px; border-left-color: #178A95; }
+        .room-drawer.teal.teal--accent { border-left-width: 4px; border-left-color: #2E7BFF; }
 
         .room-drawer summary {
             list-style: none;
@@ -390,14 +390,14 @@
         }
         .room-drawer summary::-webkit-details-marker { display: none; }
         .room-drawer summary::marker { display: none; }
-        .room-drawer.teal  summary { background: rgba(23,138,149,.06); color: #0B3C45; }
+        .room-drawer.teal  summary { background: rgba(46,123,255,.06); color: #0F172A; }
         .room-drawer.gold  summary { background: rgba(251,191,36,.08); color: #92400E; }
         .room-drawer.amber summary { background: rgba(245,158,11,.08); color: #92400E; }
         .room-drawer.grey  summary { background: rgba(107,114,128,.06); color: #374151; }
         .room-drawer summary:hover { filter: brightness(.97); }
         .room-drawer summary .chev {
             font-size: 1.1rem; transition: transform 200ms ease;
-            color: #178A95;
+            color: #2E7BFF;
         }
         .room-drawer.gold summary .chev,
         .room-drawer.amber summary .chev { color: #D97706; }
@@ -437,7 +437,7 @@
         .photo-tray { margin-top: .85rem; padding-top: .85rem; border-top: 1px dashed #E5E7EB; }
         .photo-tray-title {
             font-size: .72rem; font-weight: 800; letter-spacing: .06em;
-            text-transform: uppercase; color: #178A95; margin-bottom: .55rem;
+            text-transform: uppercase; color: #2E7BFF; margin-bottom: .55rem;
         }
         .photo-warn {
             background: #FEF3C7; color: #92400E;
@@ -710,19 +710,19 @@
                     <div class="room-drawer-body">
                         @if(! empty($siteLogistics['parking_restraints']))
                             <div style="margin-bottom:.65rem;">
-                                <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Parking arrangements</div>
+                                <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#2E7BFF;margin-bottom:.3rem;">Parking arrangements</div>
                                 <div style="font-size:.88rem;color:#374151;white-space:pre-wrap;">{{ $siteLogistics['parking_restraints'] }}</div>
                             </div>
                         @endif
                         @if(! empty($siteLogistics['site_access_notes']))
                             <div style="margin-bottom:.65rem;">
-                                <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Site access notes</div>
+                                <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#2E7BFF;margin-bottom:.3rem;">Site access notes</div>
                                 <div style="font-size:.88rem;color:#374151;white-space:pre-wrap;">{{ $siteLogistics['site_access_notes'] }}</div>
                             </div>
                         @endif
                         @if(! empty($siteLogistics['delivery_routes']))
                             <div style="margin-bottom:.65rem;">
-                                <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Delivery routes</div>
+                                <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#2E7BFF;margin-bottom:.3rem;">Delivery routes</div>
                                 <div style="font-size:.88rem;color:#374151;white-space:pre-wrap;">{{ $siteLogistics['delivery_routes'] }}</div>
                             </div>
                         @endif
@@ -732,7 +732,7 @@
                                 $parts = array_filter([$statusLabel, $siteLogistics['comms_room_access_notes'] ?? '']);
                             @endphp
                             <div style="margin-bottom:.65rem;">
-                                <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Comms room access</div>
+                                <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#2E7BFF;margin-bottom:.3rem;">Comms room access</div>
                                 <div style="font-size:.88rem;color:#374151;">{{ implode(' — ', $parts) }}</div>
                             </div>
                         @endif
@@ -745,7 +745,7 @@
                                 ]);
                             @endphp
                             <div style="margin-bottom:.65rem;">
-                                <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Distance from depot</div>
+                                <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#2E7BFF;margin-bottom:.3rem;">Distance from depot</div>
                                 <div style="font-size:.88rem;color:#374151;">{{ implode(' — ', $parts) }}</div>
                             </div>
                         @endif
@@ -1010,7 +1010,7 @@
                                     ])->all();
                                 @endphp
                                 <div style="margin-bottom:.85rem;">
-                                    <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.4rem;">Survey photos</div>
+                                    <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#2E7BFF;margin-bottom:.4rem;">Survey photos</div>
                                     @if($surveyPhotos->isEmpty())
                                         <div class="muted" style="font-size:.8rem;">No survey photos for this room.</div>
                                     @else
@@ -1048,7 +1048,7 @@
                                 @endphp
                                 @if(! empty($heightLines))
                                     <div style="margin-bottom:.65rem;">
-                                        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Mounting heights</div>
+                                        <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#2E7BFF;margin-bottom:.3rem;">Mounting heights</div>
                                         <ul class="actions">
                                             @foreach($heightLines as $hl)<li>{{ $hl }}</li>@endforeach
                                         </ul>
@@ -1064,7 +1064,7 @@
                                 @endphp
                                 @if(! empty($wahLabels))
                                     <div style="margin-bottom:.65rem;">
-                                        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Working at height — methods</div>
+                                        <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#2E7BFF;margin-bottom:.3rem;">Working at height — methods</div>
                                         <div style="font-size:.88rem;color:#374151;">{{ implode(', ', $wahLabels) }}</div>
                                     </div>
                                 @endif
@@ -1073,7 +1073,7 @@
                                 @php $cableRoutes = (array) ($ef['cable_routes'] ?? []); @endphp
                                 @if(! empty($cableRoutes))
                                     <div style="margin-bottom:.65rem;">
-                                        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Cable routes planned</div>
+                                        <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#2E7BFF;margin-bottom:.3rem;">Cable routes planned</div>
                                         <ul class="actions">
                                             @foreach($cableRoutes as $cr)
                                                 @php
@@ -1105,7 +1105,7 @@
                                 @endphp
                                 @if(! empty($wcLabels) || ! empty($prepFlags))
                                     <div style="margin-bottom:.65rem;">
-                                        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Wall construction &amp; prep</div>
+                                        <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#2E7BFF;margin-bottom:.3rem;">Wall construction &amp; prep</div>
                                         <div style="font-size:.88rem;color:#374151;">
                                             @if(! empty($wcLabels))<div><strong>Construction:</strong> {{ implode(', ', $wcLabels) }}</div>@endif
                                             @if(! empty($prepFlags))<div><strong>Prep needed:</strong> {{ implode(', ', $prepFlags) }}</div>@endif
@@ -1117,7 +1117,7 @@
                                 @php $brackets = (array) ($ef['brackets_required'] ?? []); @endphp
                                 @if(! empty($brackets))
                                     <div style="margin-bottom:.65rem;">
-                                        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Brackets required</div>
+                                        <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#2E7BFF;margin-bottom:.3rem;">Brackets required</div>
                                         <ul class="actions">
                                             @foreach($brackets as $b)
                                                 @php
@@ -1138,7 +1138,7 @@
                                 @php $ti = (array) ($ef['table_info'] ?? []); @endphp
                                 @if(! empty($ti['has_grommets']))
                                     <div style="margin-bottom:.65rem;">
-                                        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Table info</div>
+                                        <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#2E7BFF;margin-bottom:.3rem;">Table info</div>
                                         <div style="font-size:.88rem;color:#374151;">
                                             {{ ($ti['grommet_count'] ?? '?') }}× {{ trim((string) ($ti['grommet_size'] ?? '')) }} grommets
                                             @if(! empty($ti['notes'])) — {{ $ti['notes'] }}@endif
@@ -1150,7 +1150,7 @@
                                 @php $fb = (array) ($ef['floor_box_info'] ?? []); @endphp
                                 @if(! empty($fb['has_floor_box']))
                                     <div style="margin-bottom:.65rem;">
-                                        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#178A95;margin-bottom:.3rem;">Floor box info</div>
+                                        <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#2E7BFF;margin-bottom:.3rem;">Floor box info</div>
                                         <div style="font-size:.88rem;color:#374151;">
                                             {{ ($fb['power_outlets'] ?? 0) }} power, {{ ($fb['data_outlets'] ?? 0) }} data
                                             @if(! empty($fb['cable_space'])) • {{ trim((string) $fb['cable_space']) }} cable space @endif
@@ -1495,7 +1495,7 @@
                 ctx.lineWidth   = 2.2;
                 ctx.lineCap     = 'round';
                 ctx.lineJoin    = 'round';
-                ctx.strokeStyle = '#0B3C45';
+                ctx.strokeStyle = '#0F172A';
             }
 
             function pointerPos(evt) {
