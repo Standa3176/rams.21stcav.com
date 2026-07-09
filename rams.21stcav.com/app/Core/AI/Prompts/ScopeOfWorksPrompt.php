@@ -16,6 +16,10 @@ namespace App\Core\AI\Prompts;
  */
 class ScopeOfWorksPrompt extends BasePrompt
 {
+    // Audit M-04 — project / client / site / room-lines are all quote-PDF
+    // sourced or PM-typed, so wrap them before interpolation.
+    use \App\Core\AI\Prompts\Concerns\WrapsUserData;
+
     public function systemMessage(): string
     {
         return implode(' ', [
@@ -27,6 +31,7 @@ class ScopeOfWorksPrompt extends BasePrompt
             'Also produce a `works_overview` field: a 2–3 sentence executive summary of the overall project.',
             'The works_overview is shorter than scope_of_works — suitable for a cover page or document header.',
             'No bullet points, no markdown. Plain British English prose.',
+            self::userDataNote(),
         ]);
     }
 
@@ -42,11 +47,13 @@ class ScopeOfWorksPrompt extends BasePrompt
 
     public function build(array $context = []): string
     {
-        $ctx         = array_merge($this->storedContext, $context);
-        $projectName = trim((string) ($ctx['project_name'] ?? 'this project'));
-        $clientName  = trim((string) ($ctx['client_name']  ?? ''));
-        $siteAddress = trim((string) ($ctx['site_address'] ?? ''));
-        $roomLines   = trim((string) ($ctx['room_lines']   ?? ''));
+        $ctx = array_merge($this->storedContext, $context);
+
+        // Audit M-04 — every user-controllable field wrapped in sentinels.
+        $projectName = $this->wrapUserData((string) ($ctx['project_name'] ?? 'this project'));
+        $clientName  = $this->wrapUserData((string) ($ctx['client_name']  ?? ''));
+        $siteAddress = $this->wrapUserData((string) ($ctx['site_address'] ?? ''));
+        $roomLines   = $this->wrapUserData((string) ($ctx['room_lines']   ?? ''));
 
         $clientLine  = $clientName  ? "\nClient: {$clientName}"  : '';
         $siteLine    = $siteAddress ? "\nSite: {$siteAddress}"   : '';

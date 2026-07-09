@@ -22,6 +22,11 @@ namespace App\Core\AI\Prompts;
  */
 class WorksheetPrompt extends BasePrompt
 {
+    // Audit M-04 — sentinel-wrap user-controllable fields. Room + project
+    // meta are quote-PDF / engineer-typed, so every string interpolated
+    // into the prompt below is user-controllable.
+    use \App\Core\AI\Prompts\Concerns\WrapsUserData;
+
     private array $room;
     private array $projectMeta;
 
@@ -51,7 +56,8 @@ class WorksheetPrompt extends BasePrompt
     {
         return 'You are a senior UK AV installation expert writing engineer job cards. '
              . 'Use British English spelling throughout. '
-             . 'Respond ONLY with valid JSON — no markdown fences, no commentary.';
+             . 'Respond ONLY with valid JSON — no markdown fences, no commentary. '
+             . self::userDataNote();
     }
 
     public function maxTokens(): int
@@ -80,61 +86,68 @@ class WorksheetPrompt extends BasePrompt
         $room = $context['room'] ?? $this->room;
         $meta = $context['project'] ?? $this->projectMeta;
 
-        $roomName      = $room['room_name'] ?? $room['name'] ?? 'Unknown Room';
-        $projectName   = $meta['name'] ?? 'Unknown Project';
-        $clientName    = $meta['client_name'] ?? '';
+        // Audit M-04 — every user-controllable string is wrapped in
+        // sentinel tags before interpolation. Room name + project name +
+        // client + equipment names + survey text all come from quoted
+        // PDFs or engineer-typed fields.
+        $roomName      = $this->wrapUserData((string) ($room['room_name'] ?? $room['name'] ?? 'Unknown Room'));
+        $projectName   = $this->wrapUserData((string) ($meta['name'] ?? 'Unknown Project'));
+        $clientName    = $this->wrapUserData((string) ($meta['client_name'] ?? ''));
 
-        // ── Equipment list ────────────────────────────────────────────────────
+        // ── Equipment list — wrap each item name (quote-PDF sourced) ─────────
         $equipment = $room['equipment'] ?? [];
         $equipmentLines = [];
         foreach ($equipment as $item) {
             $qty  = $item['quantity'] ?? 1;
-            $name = $item['name'] ?? $item['description'] ?? 'Unknown Item';
-            $cat  = $item['category'] ?? '';
+            $rawName = (string) ($item['name'] ?? $item['description'] ?? 'Unknown Item');
+            $rawCat  = (string) ($item['category'] ?? '');
+            $name = $this->wrapUserData($rawName);
+            $cat  = $this->wrapUserData($rawCat);
             $equipmentLines[] = "  - {$qty}x {$name}" . ($cat ? " [{$cat}]" : '');
         }
         $equipmentBlock = $equipmentLines
             ? implode("\n", $equipmentLines)
             : '  (No equipment listed)';
 
-        // ── Survey fields ─────────────────────────────────────────────────────
+        // ── Survey fields — every value wrapped (engineer-typed) ─────────────
         $surveyLines = [];
 
         if (! empty($room['ceiling_type'])) {
-            $surveyLines[] = '  - Ceiling type: ' . $room['ceiling_type'];
+            $surveyLines[] = '  - Ceiling type: ' . $this->wrapUserData((string) $room['ceiling_type']);
         }
         if (! empty($room['ceiling_height_m'])) {
-            $surveyLines[] = '  - Ceiling height: ' . $room['ceiling_height_m'] . 'm';
+            // Numeric — no sentinel wrap needed, but cast to string to be safe.
+            $surveyLines[] = '  - Ceiling height: ' . (string) $room['ceiling_height_m'] . 'm';
         }
         if (! empty($room['wall_material'])) {
-            $surveyLines[] = '  - Wall material: ' . $room['wall_material'];
+            $surveyLines[] = '  - Wall material: ' . $this->wrapUserData((string) $room['wall_material']);
         }
         if (! empty($room['display_mounting'])) {
-            $surveyLines[] = '  - Display mounting: ' . $room['display_mounting'];
+            $surveyLines[] = '  - Display mounting: ' . $this->wrapUserData((string) $room['display_mounting']);
         }
         if (! empty($room['display_size_in'])) {
-            $surveyLines[] = '  - Display size: ' . $room['display_size_in'] . '"';
+            $surveyLines[] = '  - Display size: ' . (string) $room['display_size_in'] . '"';
         }
         if (! empty($room['speaker_mounting'])) {
-            $surveyLines[] = '  - Speaker mounting: ' . $room['speaker_mounting'];
+            $surveyLines[] = '  - Speaker mounting: ' . $this->wrapUserData((string) $room['speaker_mounting']);
         }
         if (! empty($room['cable_route_desc'])) {
-            $surveyLines[] = '  - Cable route: ' . $room['cable_route_desc'];
+            $surveyLines[] = '  - Cable route: ' . $this->wrapUserData((string) $room['cable_route_desc']);
         }
         if (! empty($room['access_notes'])) {
-            $surveyLines[] = '  - Access notes: ' . $room['access_notes'];
+            $surveyLines[] = '  - Access notes: ' . $this->wrapUserData((string) $room['access_notes']);
         }
         if (! empty($room['notes'])) {
-            $surveyLines[] = '  - Room notes: ' . $room['notes'];
+            $surveyLines[] = '  - Room notes: ' . $this->wrapUserData((string) $room['notes']);
         }
 
         $surveyBlock = $surveyLines
             ? implode("\n", $surveyLines)
             : '  (No survey data available for this room)';
 
-        // ── Content pack context (framing only — AI must not invent from these) ──
-        $roomDescription = trim((string) ($room['description']    ?? ''));
-        $worksOverview   = trim((string) ($room['works_overview'] ?? ''));
+        // ── Content pack context — wrap the whole prose block ─────────────────
+        $roomDescription = $this->wrapUserData((string) ($room['description']    ?? ''));
+        $worksOverview   = $this->wrapUserData((string) ($room['works_overview'] ?? ''));
 
         $descriptionBlock = $roomDescription
             ? "\nROOM DESCRIPTION (use for context only):\n  {$roomDescription}"

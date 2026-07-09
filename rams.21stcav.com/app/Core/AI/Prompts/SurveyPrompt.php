@@ -18,11 +18,15 @@ namespace App\Core\AI\Prompts;
  */
 class SurveyPrompt extends BasePrompt
 {
+    // Audit M-04 — sentinel-wrap surveyor-typed notes and quote-derived
+    // project fields before interpolation.
+    use \App\Core\AI\Prompts\Concerns\WrapsUserData;
+
     public function systemMessage(): string
     {
         return 'You are an experienced AV systems surveyor for UK commercial installations. '
              . 'Analyse survey data and provide structured installation recommendations. '
-             . 'Respond ONLY with valid JSON.';
+             . 'Respond ONLY with valid JSON. ' . self::userDataNote();
     }
 
     public function maxTokens(): int
@@ -32,10 +36,15 @@ class SurveyPrompt extends BasePrompt
 
     public function build(array $context = []): string
     {
-        $projectName  = $context['project_name']  ?? 'AV Installation Project';
-        $site         = $context['site_address']  ?? 'Site Address';
-        $generalNotes = $context['general_notes'] ?? '';
-        $rooms        = json_encode($context['rooms'] ?? [], JSON_PRETTY_PRINT);
+        // Audit M-04 — wrap every user-controllable field before it hits
+        // the prompt text. `$rooms` is JSON-encoded structured data that
+        // includes surveyor-typed notes per room, so wrap the whole
+        // payload as one block to preserve the JSON shape.
+        $projectName  = $this->wrapUserData((string) ($context['project_name']  ?? 'AV Installation Project'));
+        $site         = $this->wrapUserData((string) ($context['site_address']  ?? 'Site Address'));
+        $generalNotes = $this->wrapUserData((string) ($context['general_notes'] ?? ''));
+        $rawRooms     = json_encode($context['rooms'] ?? [], JSON_PRETTY_PRINT);
+        $rooms        = $this->wrapUserData((string) $rawRooms);
         $isRetry      = (bool) ($context['is_retry'] ?? false);
         $retrySuffix  = $isRetry ? $this->retrySuffix() : '';
 

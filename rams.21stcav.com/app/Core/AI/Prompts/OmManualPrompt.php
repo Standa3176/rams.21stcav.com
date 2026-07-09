@@ -11,6 +11,13 @@ namespace App\Core\AI\Prompts;
  */
 class OmManualPrompt extends BasePrompt
 {
+    // Audit M-04 — sentinel-wrap user-controllable fields interpolated into
+    // the content-generation prompt. Extraction pass doesn't interpolate
+    // untrusted text (the PDF is a separate content channel), but the
+    // system-message note is added there too so the model still knows how
+    // to interpret sentinels if any downstream caller ever adds them.
+    use \App\Core\AI\Prompts\Concerns\WrapsUserData;
+
     private string $mode;
 
     private function __construct(string $mode)
@@ -45,10 +52,11 @@ class OmManualPrompt extends BasePrompt
         return match ($this->mode) {
             'extraction' => 'You are an AV project document analyser. '
                           . 'Extract structured data from QuoteWerks PDF quotes. '
-                          . 'Respond ONLY with valid JSON.',
+                          . 'Respond ONLY with valid JSON. ' . self::userDataNote(),
             'content'    => 'You are a senior AV systems engineer writing O&M manuals '
                           . 'for UK commercial installations. '
-                          . 'Respond ONLY with valid JSON — no markdown, no commentary.',
+                          . 'Respond ONLY with valid JSON — no markdown, no commentary. '
+                          . self::userDataNote(),
             default      => parent::systemMessage(),
         };
     }
@@ -119,15 +127,25 @@ PROMPT;
      */
     private function buildContentPrompt(array $context): string
     {
-        $projectName  = $context['project_name']  ?? 'AV Installation Project';
-        $client       = $context['client_name']   ?? 'Client';
-        $site         = $context['site_address']  ?? 'Site Address';
-        $ref          = $context['project_ref']   ?? '';
-        $rooms        = json_encode($context['rooms'] ?? [], JSON_PRETTY_PRINT);
-        $notes        = $context['notes']         ?? '';
+        // Audit M-04 — every user-controllable field is wrapped in sentinel
+        // tags before interpolation. `$rooms` is JSON-encoded structured
+        // data extracted from the quote PDF, so its string fields carry
+        // the same trust risk as the top-level project fields.
+        $projectName  = $this->wrapUserData((string) ($context['project_name']  ?? 'AV Installation Project'));
+        $client       = $this->wrapUserData((string) ($context['client_name']   ?? 'Client'));
+        $site         = $this->wrapUserData((string) ($context['site_address']  ?? 'Site Address'));
+        $ref          = $this->wrapUserData((string) ($context['project_ref']   ?? ''));
+        $notes        = $this->wrapUserData((string) ($context['notes']         ?? ''));
+        $scopeOfWorks = $this->wrapUserData((string) ($context['scope_of_works'] ?? ''));
+
+        // Rooms is structured JSON — wrap the whole payload as one block
+        // rather than field-by-field so the JSON shape is preserved for
+        // the model but the whole thing is marked untrusted.
+        $rawRooms     = json_encode($context['rooms'] ?? [], JSON_PRETTY_PRINT);
+        $rooms        = $this->wrapUserData((string) $rawRooms);
+
         $isRetry      = (bool) ($context['is_retry'] ?? false);
         $retrySuffix  = $isRetry ? $this->retrySuffix() : '';
-        $scopeOfWorks = trim((string) ($context['scope_of_works'] ?? ''));
 
         $scopeBlock = $scopeOfWorks !== ''
             ? "\nPROJECT SCOPE\n-------------\n{$scopeOfWorks}\n"

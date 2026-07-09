@@ -35,6 +35,11 @@ namespace App\Core\AI\Prompts;
  */
 class RoomOverviewSummaryPrompt extends BasePrompt
 {
+    // Audit M-04 — the room `overview` field is PM-typed prose (the exact
+    // path a hostile author would use to inject instructions), so wrap the
+    // whole rooms JSON payload before interpolation.
+    use \App\Core\AI\Prompts\Concerns\WrapsUserData;
+
     public function systemMessage(): string
     {
         return implode("\n", [
@@ -82,6 +87,8 @@ class RoomOverviewSummaryPrompt extends BasePrompt
             '  - Provision of power via Crestron PoE+ switch to support occupancy sensors and room booking panels',
             '',
             'Output valid JSON only.',
+            '',
+            self::userDataNote(),
         ]);
     }
 
@@ -115,7 +122,11 @@ class RoomOverviewSummaryPrompt extends BasePrompt
             return array_filter($r, fn ($v) => $v !== null && $v !== '');
         }, $roomPayload);
 
-        $payload = json_encode(array_values($roomPayload), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        // Audit M-04 — wrap the whole JSON payload as one block so the
+        // JSON shape is preserved for the model but every embedded
+        // `room` + `overview` string is inside the untrusted sentinel.
+        $rawPayload = json_encode(array_values($roomPayload), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $payload    = $this->wrapUserData((string) $rawPayload);
 
         // Build optional solution type guidance block
         $hasSolutionType = false;
