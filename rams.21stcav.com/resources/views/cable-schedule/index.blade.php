@@ -123,18 +123,14 @@
         @endif
 
     @elseif ($schedules->isEmpty())
+        {{-- Re-audit UX-02 — was `heading=` / `body=`, but <x-empty-state>
+             expects `title=` / `description=`. Users only saw the default
+             "Nothing here yet" without the intended copy. --}}
         <x-empty-state
-            heading="No cable schedules yet"
-            body="Upload a QuoteWerks PDF and let the AI generate a cable schedule for you.">
-            <x-slot name="action">
-                <a href="{{ route('cable-schedules.create') }}" class="btn btn-teal btn-sm">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
-                        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                    </svg>
-                    New from Quote PDF
-                </a>
-            </x-slot>
-        </x-empty-state>
+            title="No cable schedules yet"
+            description="Upload a QuoteWerks PDF and let the AI generate a cable schedule for you."
+            :href="route('cable-schedules.create')"
+            action="+ New from Quote PDF" />
     @else
         <table class="data-table">
             <thead>

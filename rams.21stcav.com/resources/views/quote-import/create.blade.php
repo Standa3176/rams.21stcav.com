@@ -62,6 +62,12 @@
         background: color-mix(in oklab, var(--teal-100) 20%, var(--card));
     }
     .qi-dropzone:hover { border-color: var(--teal-700); background: color-mix(in oklab, var(--teal-100) 35%, var(--card)); }
+    /* Re-audit UX-03 — visible keyboard focus so tabbing here isn't silent. */
+    .qi-dropzone:focus-visible {
+        outline: none;
+        border-color: var(--accent-600);
+        box-shadow: var(--shadow-focus);
+    }
     .qi-dropzone.is-drag { border-color: var(--success); background: color-mix(in oklab, var(--success-light) 60%, var(--card)); }
     .qi-dropzone.has-file { border-color: var(--success); background: color-mix(in oklab, var(--success-light) 40%, var(--card)); }
     .qi-dropzone-label { color: var(--body); font-size: 13px; }
@@ -98,7 +104,18 @@
                 QuoteWerks PDF <span class="req">*</span>
             </label>
 
-            <div id="dropZone" class="qi-dropzone">
+            {{-- Re-audit UX-03 — the file input is display:none, so keyboard
+                 users could only trigger upload via the small inline
+                 "click to browse" label. Added role=button + tabindex=0 to
+                 the drop zone and wired Enter/Space to click the hidden
+                 input, so the whole tile becomes a proper button. --}}
+            <div id="dropZone"
+                 class="qi-dropzone"
+                 role="button"
+                 tabindex="0"
+                 aria-label="Upload QuoteWerks PDF — press Enter or Space to open the file picker, or drop a PDF file onto this area"
+                 onclick="document.getElementById('quote_pdf').click()"
+                 onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); document.getElementById('quote_pdf').click(); }">
                 <div id="dropLabel" class="qi-dropzone-label">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>

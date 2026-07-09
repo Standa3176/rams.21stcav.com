@@ -161,6 +161,18 @@
             background: var(--accent-50);
             color: var(--accent-700);
         }
+        /* Re-audit UX-05 — empty-tab affordance. Muted background +
+           faint text so populated tabs still pop against the row. */
+        .ws-tab__count--empty {
+            background: transparent;
+            color: var(--ink-400);
+            border: 1px solid var(--ink-200);
+        }
+        .ws-tab.is-active .ws-tab__count--empty {
+            background: transparent;
+            color: var(--accent-700);
+            border-color: var(--accent-100);
+        }
         .ws > .bg-white {
             border-top-left-radius: 0;
             border-top-right-radius: 0;
@@ -534,14 +546,21 @@
            target="_blank" rel="noopener">
             <span aria-hidden="true">📄</span>
             <span>Mini O&amp;M</span>
+            {{-- Re-audit UX-08 — was a title-tooltip only, invisible on
+                 touch and keyboard. Now the pill carries a visible sub-
+                 label so the state reads without hover. --}}
             @if ($hasAnyWorksheetPhoto)
-                <span class="ml-1 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-700 border border-green-200">
-                    ✓
+                <span class="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-700 border border-green-200"
+                      aria-label="Mini O&M is ready — photos captured">
+                    <span aria-hidden="true">✓</span>
+                    <span>Ready</span>
                 </span>
             @else
-                <span class="ml-1 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-200"
+                <span class="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-200"
+                      aria-label="Draft — Mini O&M still generates but uses brand-only cover and placeholder room blocks until worksheet photos arrive"
                       title="Mini O&M still works — uses brand-only cover + placeholder room blocks until photos arrive">
-                    ⚠
+                    <span aria-hidden="true">⚠</span>
+                    <span>Draft</span>
                 </span>
             @endif
         </a>
@@ -755,13 +774,19 @@
                     ];
                 @endphp
                 @foreach ($tabs as $t)
+                    {{-- Re-audit UX-05 — was `@if($count > 0)` gate, so on a
+                         fresh project 7/9 tabs rendered label-only and the
+                         user couldn't tell which held data. Now render the
+                         count pill unconditionally (muted "0" for empties);
+                         populated tabs still pop via the accent-50 fill
+                         when active. Project Data has no count → skip. --}}
                     <button type="button" role="tab" class="ws-tab"
                             @click="setTab('{{ $t['key'] }}')"
                             :class="activeTab==='{{ $t['key'] }}' ? 'is-active' : ''"
                             :aria-selected="activeTab==='{{ $t['key'] }}'">
                         <span class="ws-tab__label">{{ $t['label'] }}</span>
-                        @if ($t['count'] !== null && $t['count'] > 0)
-                            <span class="ws-tab__count">{{ $t['count'] }}</span>
+                        @if ($t['count'] !== null)
+                            <span class="ws-tab__count {{ $t['count'] === 0 ? 'ws-tab__count--empty' : '' }}">{{ $t['count'] }}</span>
                         @endif
                     </button>
                 @endforeach

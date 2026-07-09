@@ -103,11 +103,15 @@
         @endif
 
     @elseif ($surveys->isEmpty())
-        <div class="empty-state">
-            <h3>No site surveys yet</h3>
-            <p>Capture room-by-room AV requirements on site using the survey form.</p>
-            <a href="{{ route('site-surveys.create') }}" class="btn btn-teal">+ New Survey</a>
-        </div>
+        {{-- Re-audit UX-07 — bespoke .empty-state div drifted from every
+             other list. Now uses the shared component so heading weight,
+             spacing, and CTA sizing match cable-schedules, rams,
+             projects/show, worksheets. --}}
+        <x-empty-state
+            title="No site surveys yet"
+            description="Capture room-by-room AV requirements on site using the survey form."
+            :href="route('site-surveys.create')"
+            action="+ New Survey" />
     @else
         <table class="data-table">
             <thead>

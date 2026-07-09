@@ -491,6 +491,15 @@
 
     {{-- ── Edit & Download form ─────────────────────────────────────────────── --}}
     <div class="card">
+        {{-- Re-audit UX-06 — was zero dirty-state feedback. Editing any
+             tab and navigating away silently lost edits. Now:
+             1. window.beforeunload guard fires when the form has any
+                unsaved change (input / textarea / select), warning the
+                user before they lose work.
+             2. Submit clears the dirty flag so the save flow isn't
+                self-blocked.
+             The setup script sits below the form and hooks all 3 input
+             types via a single delegated listener; no per-tab plumbing. --}}
         <form method="POST" action="{{ route('rams.update-and-download', $rams) }}" id="rams-review-form">
             @csrf
 
@@ -1189,5 +1198,30 @@
             <button type="submit" class="btn btn-outline btn-sm" style="margin-bottom:.05rem;">Send</button>
         </form>
     </div>
+
+    {{-- Re-audit UX-06 — dirty-state guard. Watches the main RAMS review
+         form for any change and installs a beforeunload prompt while the
+         form is dirty. Submitting clears the flag so the save flow isn't
+         self-blocked. Only fires on the review form (id=rams-review-form)
+         — the email form + regen forms below are separate handlers. --}}
+    <script>
+    (function () {
+        var form = document.getElementById('rams-review-form');
+        if (!form) return;
+        var dirty = false;
+        var mark = function () { dirty = true; };
+        // Delegated listener catches every input/change/textarea/select edit
+        // inside the form without per-field plumbing.
+        form.addEventListener('input', mark, { passive: true });
+        form.addEventListener('change', mark, { passive: true });
+        form.addEventListener('submit', function () { dirty = false; });
+        window.addEventListener('beforeunload', function (e) {
+            if (!dirty) return undefined;
+            e.preventDefault();
+            e.returnValue = ''; // required by Chrome to trigger the prompt
+            return '';
+        });
+    })();
+    </script>
 
 @endsection
