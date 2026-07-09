@@ -109,6 +109,7 @@
                     <td><input type="number" name="items[{{ $i }}][approx_length_m]" value="{{ $item->approx_length_m }}" class="form-control" style="min-width:0;" step="0.1" min="0"></td>
                     <td><input type="text" name="items[{{ $i }}][notes]"         value="{{ $item->notes }}"         class="form-control" style="min-width:0;" maxlength="500"></td>
                     <td><button type="button" onclick="this.closest('tr').remove()"
+                                aria-label="Remove cable row" title="Remove cable"
                                 style="background:none;border:none;color:#c0392b;cursor:pointer;font-size:1.1rem;">✕</button></td>
                 </tr>
                 @endforeach
@@ -154,6 +155,7 @@ function addRow() {
         <td><input type="number" name="items[${i}][approx_length_m]" class="form-control" style="min-width:0;" step="0.1" min="0"></td>
         <td><input type="text" name="items[${i}][notes]"             class="form-control" style="min-width:0;" maxlength="500"></td>
         <td><button type="button" onclick="this.closest('tr').remove()"
+                    aria-label="Remove cable row" title="Remove cable"
                     style="background:none;border:none;color:#c0392b;cursor:pointer;font-size:1.1rem;">✕</button></td>
     `;
     document.getElementById('cables-body').appendChild(tr);

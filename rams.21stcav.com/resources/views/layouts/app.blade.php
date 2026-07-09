@@ -1398,6 +1398,10 @@
          x-on:keydown.arrow-down.window="onArrow(1)"
          x-on:keydown.arrow-up.window="onArrow(-1)"
          x-on:keydown.enter.window="onEnter"
+         {{-- Batch 6 A11y — Tab focus trap. Keeps keyboard focus inside
+              the palette while it's open so screen-reader / keyboard-only
+              users can't accidentally tab into the page behind. --}}
+         x-on:keydown.tab="trapTab($event)"
          x-on:click.self="close"
          class="gsp-backdrop"
          role="dialog"
@@ -1554,6 +1558,13 @@
         .gsp-item:hover, .gsp-item.is-focused {
             background: var(--sidebar-active-bg);
             text-decoration: none;
+        }
+        /* Batch 6 A11y — keyboard :focus-visible ring matches the app's
+           input-focus signature. Only fires on keyboard nav, not mouse. */
+        .gsp-item:focus-visible {
+            outline: none;
+            background: var(--accent-50);
+            box-shadow: inset 0 0 0 2px var(--accent-600);
         }
         .gsp-item-kind {
             width: 26px; height: 26px;
@@ -1760,6 +1771,39 @@
                 },
                 kindLetter(kind) {
                     return ({ project: 'P', rams: 'R', survey: 'S', om: 'O', worksheet: 'W' })[kind] || '·';
+                },
+
+                /*
+                 * Batch 6 A11y — focus trap. Called on keydown.tab while
+                 * the palette is open. Collects every focusable element
+                 * inside .gsp-panel and wraps focus from last → first
+                 * (Tab) and first → last (Shift+Tab).
+                 *
+                 * Query includes `.gsp-item` (which is an <a> so
+                 * naturally focusable), the input, and the Esc button.
+                 * Skips elements with `tabindex="-1"` and disabled
+                 * controls so we don't refocus a hidden target.
+                 */
+                trapTab(event) {
+                    if (!this.open) return;
+                    const panel = this.$root && this.$root.querySelector('.gsp-panel');
+                    if (!panel) return;
+
+                    const focusables = Array.from(panel.querySelectorAll(
+                        'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+                    )).filter(el => el.offsetParent !== null);
+
+                    if (focusables.length === 0) return;
+                    const first = focusables[0];
+                    const last  = focusables[focusables.length - 1];
+
+                    if (event.shiftKey && document.activeElement === first) {
+                        event.preventDefault();
+                        last.focus();
+                    } else if (!event.shiftKey && document.activeElement === last) {
+                        event.preventDefault();
+                        first.focus();
+                    }
                 },
             };
         }
