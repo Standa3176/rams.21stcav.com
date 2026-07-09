@@ -53,7 +53,7 @@
 
     <div class="flex items-center justify-between mb-6">
         <div>
-            <a href="{{ route('projects.drawings.index', $project) }}" class="text-sm text-teal-600 hover:underline">&larr; Back to drawings</a>
+            <a href="{{ route('projects.drawings.index', $project) }}" class="text-sm text-accent-700 hover:underline">&larr; Back to drawings</a>
             <h1 class="text-2xl font-semibold mt-1" x-text="`${rackLabel} &mdash; Edit`"></h1>
             <p class="text-sm text-gray-500">Project: {{ $project->name }} &middot; Revision {{ $drawing->revisionLabel() }}</p>
         </div>
@@ -62,7 +62,7 @@
             <button type="button"
                     @click="save()"
                     :disabled="saving"
-                    class="bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-medium px-4 py-2 rounded-lg text-sm shadow-sm">
+                    class="bg-accent-600 hover:bg-accent-700 disabled:opacity-50 text-white font-medium px-4 py-2 rounded-lg text-sm shadow-sm">
                 <span x-show="!saving">Save Rack</span>
                 <span x-show="saving" x-cloak>Saving&hellip;</span>
             </button>

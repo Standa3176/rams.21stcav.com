@@ -8,8 +8,6 @@
 ])
 
 @php
-    $tag       = $href ? 'a' : 'div';
-    $attrs     = $href ? "href=\"{$href}\"" : '';
     /*
      * Colour resolution — a legacy call passes a per-tile hex; we honour
      * that but the Jetbuilt-clean default is to use the CSS accent
@@ -19,9 +17,21 @@
     $iconStyle = $color
         ? "background: color-mix(in oklab, {$color} 12%, transparent); color: {$color};"
         : "background: var(--accent-50); color: var(--accent-700);";
+
+    /*
+     * Re-audit UI-01 / UX-01 fix — the old `$attrs = "href=\"{$href}\""`
+     * pattern printed via `{{ $attrs }}` HTML-escaped the quotes, so every
+     * KPI tile rendered `href="&quot;http…&quot;"` and 404'd on click.
+     * Split into two explicit branches so the anchor emits a real
+     * attribute and the div branch stays plain.
+     */
 @endphp
 
-<{{ $tag }} {{ $attrs }} class="dash-stat-card {{ $href ? 'dash-stat-card--link' : '' }}">
+@if ($href)
+    <a href="{{ $href }}" class="dash-stat-card dash-stat-card--link">
+@else
+    <div class="dash-stat-card">
+@endif
     <div class="dash-stat-card__body">
         <div class="dash-stat-card__label">{{ $title }}</div>
         <div class="dash-stat-card__value tabular">{{ $value }}</div>
@@ -35,7 +45,11 @@
             {{ $slot }}
         </div>
     @endif
-</{{ $tag }}>
+@if ($href)
+    </a>
+@else
+    </div>
+@endif
 
 @once
 <style>

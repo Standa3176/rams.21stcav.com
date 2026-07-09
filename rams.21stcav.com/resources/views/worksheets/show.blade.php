@@ -80,7 +80,9 @@
 }
 
 /* .ws-signoff-hero styles retired 2026-07-09 — the panel now uses the
-   shared <x-link-hero> component which ships its own @once stylesheet. */
+   shared x-link-hero component which ships its own stylesheet via a
+   Blade once-directive (do NOT prefix "once" with an @-sign here —
+   Blade compiles directive tokens even inside CSS comments). */
 </style>
 @endpush
 

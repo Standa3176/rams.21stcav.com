@@ -33,7 +33,7 @@
                 {{-- Signal Flow card (Phase 17 flow preserved — auto-gen Yes/No) --}}
                 <form method="POST"
                       action="{{ route('projects.drawings.picker', $project) }}"
-                      class="border border-gray-200 rounded-lg p-4 mb-3 hover:border-teal-500 transition">
+                      class="border border-gray-200 rounded-lg p-4 mb-3 hover:border-accent-600 transition">
                     @csrf
                     <input type="hidden" name="kind" value="schematic">
                     <div class="flex items-start justify-between gap-4">
@@ -54,7 +54,7 @@
                             </label>
                         </div>
                         <button type="submit"
-                                class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                class="bg-accent-600 hover:bg-accent-700 text-white px-4 py-2 rounded-md text-sm font-medium">
                             Create
                         </button>
                     </div>
@@ -64,7 +64,7 @@
                      CONTEXT.md "engineer always builds the rack manually". --}}
                 <form method="POST"
                       action="{{ route('projects.drawings.picker', $project) }}"
-                      class="border border-gray-200 rounded-lg p-4 mb-3 hover:border-teal-500 transition">
+                      class="border border-gray-200 rounded-lg p-4 mb-3 hover:border-accent-600 transition">
                     @csrf
                     <input type="hidden" name="kind" value="rack">
                     <div class="flex items-start justify-between gap-4">
@@ -78,7 +78,7 @@
                             </p>
                         </div>
                         <button type="submit"
-                                class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                class="bg-accent-600 hover:bg-accent-700 text-white px-4 py-2 rounded-md text-sm font-medium">
                             Create
                         </button>
                     </div>

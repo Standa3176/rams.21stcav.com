@@ -92,7 +92,10 @@
    indigo brand family so the "primary shareable URL" hero pattern reads
    consistently with the worksheet hero + the app-shell brand mark. */
 /* .survey-link-hero styles retired 2026-07-09 — the panel now uses the
-   shared <x-link-hero> component which ships its own @once stylesheet.
+   shared x-link-hero component which ships its own stylesheet via a
+   Blade once-directive guard (do NOT prefix "once" with an @-sign
+   inside CSS comments — Blade compiles directive tokens EVERYWHERE,
+   including CSS comments, and would emit an unclosed if block).
    .survey-link-banner (below) is a separate legacy fallback panel not
    currently rendered on this page; kept as-is until proven dead. */
 .survey-link-banner {
@@ -480,14 +483,12 @@
      the office both know the loop closed. When null on a submitted
      row, show the failed / not-sent state so the operator can chase. --}}
 @if($survey->isSubmitted())
-    <div class="survey-notify"
-         role="status"
-         @if($survey->submitted_notification_sent_at)
-             style="background: var(--success-light); border:1px solid color-mix(in oklab, var(--success) 30%, transparent); color: var(--success);"
-         @else
-             style="background: var(--warning-light); border:1px solid color-mix(in oklab, var(--warning) 30%, transparent); color:#92400E;"
-         @endif
-    >
+    @php
+        $notifyStyle = $survey->submitted_notification_sent_at
+            ? 'background: var(--success-light); border:1px solid color-mix(in oklab, var(--success) 30%, transparent); color: var(--success);'
+            : 'background: var(--warning-light); border:1px solid color-mix(in oklab, var(--warning) 30%, transparent); color:#92400E;';
+    @endphp
+    <div class="survey-notify" role="status" style="{{ $notifyStyle }}">
         @if($survey->submitted_notification_sent_at)
             <strong style="font-weight:600;">✓ Office notified</strong>
             {{ $survey->submitted_notification_sent_at->diffForHumans() }}
@@ -1132,7 +1133,9 @@
         @if($room->photos->isNotEmpty())
         @php
             // 260508 — pre-compute the room photo set for the lightbox cycler.
-            // Sort matches the @foreach below so loop index aligns with array index.
+            // Sort matches the foreach below so loop index aligns with array index.
+            // (Do NOT prefix "foreach" with @ — Blade compiles directive tokens
+            // even inside PHP comments and would emit a stray endforeach.)
             $roomPhotosLb = $room->photos->sortBy('sort_order')->values()->map(fn ($photo) => [
                 'url'     => route('site-surveys.photos.serve', $photo),
                 'caption' => $photo->caption ?? $photo->original_name ?? '',

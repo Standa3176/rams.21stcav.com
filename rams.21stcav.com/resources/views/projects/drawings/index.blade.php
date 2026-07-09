@@ -19,7 +19,7 @@
 <div class="max-w-7xl mx-auto p-6">
     <div class="flex items-center justify-between mb-6">
         <div>
-            <a href="{{ route('projects.show', $project) }}" class="text-sm text-teal-600 hover:underline">← Back to project</a>
+            <a href="{{ route('projects.show', $project) }}" class="text-sm text-accent-700 hover:underline">← Back to project</a>
             <h1 class="text-2xl font-semibold mt-1">Drawings — {{ $project->name }}</h1>
             <p class="text-sm text-gray-500">Project ref: {{ $project->ref ?? '—' }}</p>
         </div>
@@ -29,7 +29,7 @@
         <button type="button"
                 x-data
                 @click="$dispatch('open-create-drawing')"
-                class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-medium px-4 py-2 rounded-lg text-sm shadow-sm">
+                class="inline-flex items-center gap-2 bg-accent-600 hover:bg-accent-700 text-white font-medium px-4 py-2 rounded-lg text-sm shadow-sm">
             <span aria-hidden="true">＋</span>
             <span>Create Drawing</span>
         </button>
@@ -59,7 +59,7 @@
             </div>
             <div class="flex gap-2">
                 <a href="{{ route('projects.drawings.bound-pdf', $project) }}"
-                   class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium px-3 py-2 rounded-lg">
+                   class="inline-flex items-center bg-accent-600 hover:bg-accent-700 text-white text-sm font-medium px-3 py-2 rounded-lg">
                     Download Bound PDF
                 </a>
                 <a href="{{ route('projects.drawings.bundle', $project) }}"
@@ -94,9 +94,9 @@
                 @include('projects.drawings._status-pill', ['drawing' => $drawing])
 
                 @if ($drawing->isReady())
-                    <a href="{{ route('projects.drawings.download', [$project, $drawing, 'pdf']) }}" class="text-sm text-teal-700 hover:underline">PDF</a>
-                    <a href="{{ route('projects.drawings.download', [$project, $drawing, 'svg']) }}" class="text-sm text-teal-700 hover:underline">SVG</a>
-                    <a href="{{ route('projects.drawings.download', [$project, $drawing, 'png']) }}" class="text-sm text-teal-700 hover:underline">PNG</a>
+                    <a href="{{ route('projects.drawings.download', [$project, $drawing, 'pdf']) }}" class="text-sm text-accent-700 hover:underline">PDF</a>
+                    <a href="{{ route('projects.drawings.download', [$project, $drawing, 'svg']) }}" class="text-sm text-accent-700 hover:underline">SVG</a>
+                    <a href="{{ route('projects.drawings.download', [$project, $drawing, 'png']) }}" class="text-sm text-accent-700 hover:underline">PNG</a>
                 @endif
 
                 <a href="{{ route('projects.drawings.show', [$project, $drawing]) }}"
@@ -142,8 +142,8 @@
                 @include('projects.drawings._status-pill', ['drawing' => $drawing])
 
                 @if ($drawing->isReady())
-                    <a href="{{ route('projects.drawings.download', [$project, $drawing, 'pdf']) }}" class="text-sm text-teal-700 hover:underline">PDF</a>
-                    <a href="{{ route('projects.drawings.download', [$project, $drawing, 'svg']) }}" class="text-sm text-teal-700 hover:underline">SVG</a>
+                    <a href="{{ route('projects.drawings.download', [$project, $drawing, 'pdf']) }}" class="text-sm text-accent-700 hover:underline">PDF</a>
+                    <a href="{{ route('projects.drawings.download', [$project, $drawing, 'svg']) }}" class="text-sm text-accent-700 hover:underline">SVG</a>
                 @endif
 
                 <a href="{{ route('projects.drawings.show', [$project, $drawing]) }}"

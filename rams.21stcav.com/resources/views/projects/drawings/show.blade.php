@@ -21,7 +21,7 @@
 <div class="max-w-7xl mx-auto p-6">
     <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div class="min-w-0">
-            <a href="{{ route('projects.drawings.index', $project) }}" class="text-sm text-teal-600 hover:underline">← All drawings</a>
+            <a href="{{ route('projects.drawings.index', $project) }}" class="text-sm text-accent-700 hover:underline">← All drawings</a>
             <h1 class="text-2xl font-semibold mt-1 truncate">
                 {{ $drawing->kindLabel() }} — {{ $drawing->room?->name ?? 'Whole project' }}
             </h1>
@@ -41,7 +41,7 @@
                      branch at line ~55 (Warning 9 fix — no second render
                      branch added). --}}
                 <a href="{{ route('projects.drawings.edit', [$project, $drawing]) }}"
-                   class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white font-medium px-3 py-1.5 rounded-md text-sm">
+                   class="inline-flex items-center bg-accent-600 hover:bg-accent-700 text-white font-medium px-3 py-1.5 rounded-md text-sm">
                     Edit Rack
                 </a>
             @endif

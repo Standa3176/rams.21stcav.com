@@ -501,7 +501,7 @@
                 <span aria-hidden="true">📐</span>
                 <span>Drawings</span>
                 @if ($countDrawings > 0)
-                    <span class="ml-1 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold rounded-full bg-teal-100 text-teal-700 border border-teal-200">
+                    <span class="ml-1 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold rounded-full bg-accent-100 text-accent-700 border border-accent-100">
                         {{ $countDrawings }}
                     </span>
                 @endif
@@ -576,7 +576,7 @@
                         Reason for Reopening <span class="text-red-600">*</span>
                     </label>
                     <input id="reopen_reason" name="reopen_reason" type="text"
-                           class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                           class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-600 focus:border-accent-600"
                            placeholder="e.g. Customer requested additional works" required>
                 </div>
                 <div class="shrink-0">
@@ -770,7 +770,7 @@
                     <div class="relative flex-1 max-w-sm">
                         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true">🔍</span>
                         <input type="text" x-model.debounce.150ms="q"
-                               class="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                               class="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-accent-600 focus:border-accent-600"
                                placeholder="Filter records by name or reference…">
                     </div>
                     <div class="ml-auto flex gap-2 items-center">
@@ -792,7 +792,7 @@
                         <span x-show="activeTab==='rams'" x-cloak>
                             @if ($headerAwaitingRams)
                                 <a href="{{ route('rams.quote-review.show', $headerAwaitingRams) }}"
-                                   class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">
+                                   class="btn btn-primary btn-sm">
                                     ✎ Review & Generate
                                 </a>
                             @elseif ($generatingRams)
@@ -1033,7 +1033,7 @@
                                     <tr data-name="{{ \Illuminate\Support\Str::lower(($rams->project_name ?? '').' '.($rams->project_ref ?? '')) }}"
                                         class="border-b border-gray-100 last:border-0 {{ $sup ? 'opacity-50' : '' }}"
                                         x-show="q === '' || $el.dataset.name.includes(q.toLowerCase())">
-                                        <td class="py-3 px-3 text-center font-semibold text-teal-600">v{{ $ramsVersionMap[$rams->id] ?? '—' }}</td>
+                                        <td class="py-3 px-3 text-center font-semibold text-accent-700">v{{ $ramsVersionMap[$rams->id] ?? '—' }}</td>
                                         <td class="py-3 px-3">
                                             <div class="font-medium text-gray-900">{{ $rams->project_name ?: '—' }}</div>
                                             @if ($rams->project_ref)<div class="text-xs text-gray-500">{{ $rams->project_ref }}</div>@endif
@@ -1048,13 +1048,13 @@
                                             <div class="flex flex-wrap gap-2 items-center {{ $sup ? 'pointer-events-none' : '' }}">
                                                 @if ($status === \App\Models\RamsDocument::STATUS_AWAITING_REVIEW)
                                                     <a href="{{ route('rams.quote-review.show', $rams) }}"
-                                                       class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">✎ Review</a>
+                                                       class="btn btn-primary btn-sm">✎ Review</a>
 
                                                 @elseif ($status === \App\Models\RamsDocument::STATUS_APPROVED)
                                                     <form method="POST" action="{{ route('rams.retry-generation', $rams) }}" class="m-0 inline-block">
                                                         @csrf
                                                         <button type="submit"
-                                                                class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">▶ Generate</button>
+                                                                class="btn btn-primary btn-sm">▶ Generate</button>
                                                     </form>
 
                                                 @elseif (in_array($status, [
@@ -1083,7 +1083,7 @@
                                                     <a href="{{ route('rams.review', $rams) }}"
                                                        class="inline-flex items-center bg-gray-900 hover:bg-gray-800 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">View</a>
                                                     <a href="{{ route('rams.review', $rams) }}?chat=1"
-                                                       class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm" title="Edit content via AI chat">✎ AI Chat</a>
+                                                       class="btn btn-primary btn-sm" title="Edit content via AI chat">✎ AI Chat</a>
                                                     <x-row-actions-menu>
                                                         <a href="{{ route('rams.download', $rams) }}" class="row-actions-item">
                                                             <span class="row-actions-item__icon" aria-hidden="true">↓</span>
@@ -1153,7 +1153,7 @@
                                                     <a href="{{ route('rams.review', $rams) }}"
                                                        class="inline-flex items-center bg-gray-900 hover:bg-gray-800 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">View</a>
                                                     <a href="{{ route('rams.review', $rams) }}?chat=1"
-                                                       class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm" title="Edit content via AI chat">✎ AI Chat</a>
+                                                       class="btn btn-primary btn-sm" title="Edit content via AI chat">✎ AI Chat</a>
                                                     <x-row-actions-menu>
                                                         <a href="{{ route('rams.download', $rams) }}" class="row-actions-item">
                                                             <span class="row-actions-item__icon" aria-hidden="true">↓</span>
@@ -1261,7 +1261,7 @@
                                                class="inline-flex items-center bg-gray-900 hover:bg-gray-800 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">View</a>
                                             @if ($ws->isGenerated())
                                                 <a href="{{ route('worksheets.show', $ws) }}?chat=1"
-                                                   class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm" title="Edit content via AI chat">✎ AI Chat</a>
+                                                   class="btn btn-primary btn-sm" title="Edit content via AI chat">✎ AI Chat</a>
                                             @endif
                                             {{-- Engineer Report PDF (260602-rcd) — always visible; greyed
                                                  when no engineer activity yet (per locked decision). Uses
@@ -1360,7 +1360,7 @@
                                             <a href="{{ route('cable-schedules.edit', $cs) }}"
                                                class="inline-flex items-center bg-gray-900 hover:bg-gray-800 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">View</a>
                                             <a href="{{ route('cable-schedules.edit', $cs) }}?chat=1"
-                                               class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm" title="Edit content via AI chat">✎ AI Chat</a>
+                                               class="btn btn-primary btn-sm" title="Edit content via AI chat">✎ AI Chat</a>
 
                                             <x-row-actions-menu>
                                                 @if (! empty($cs->filename))
@@ -1478,7 +1478,7 @@
                                                 <a href="{{ route('om-manuals.edit', $manual) }}"
                                                    class="inline-flex items-center bg-gray-900 hover:bg-gray-800 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">View</a>
                                                 <a href="{{ route('om-manuals.edit', $manual) }}?chat=1"
-                                                   class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm" title="Edit content via AI chat">✎ AI Chat</a>
+                                                   class="btn btn-primary btn-sm" title="Edit content via AI chat">✎ AI Chat</a>
 
                                                 <x-row-actions-menu>
                                                     @if ($manual->project_id)
@@ -1521,7 +1521,7 @@
                                                 @php $omHasMenu = true; @endphp
                                             @elseif ($manual->status === \App\Models\OmManual::STATUS_EXTRACTED)
                                                 <a href="{{ route('om-manuals.edit', $manual) }}"
-                                                   class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">✎ Review</a>
+                                                   class="btn btn-primary btn-sm">✎ Review</a>
                                             @else
                                                 <a href="{{ route('om-manuals.edit', $manual) }}"
                                                    class="inline-flex items-center bg-gray-900 hover:bg-gray-800 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">View</a>
@@ -1616,7 +1616,7 @@
                                 <tr data-name="{{ \Illuminate\Support\Str::lower(($pq->original_filename ?? '').' '.($pq->quote_reference ?? '')) }}"
                                     class="border-b border-gray-100 last:border-0"
                                     x-show="q === '' || $el.dataset.name.includes(q.toLowerCase())">
-                                    <td class="py-3 px-3 text-center font-semibold text-teal-600">v{{ $pq->version_number }}</td>
+                                    <td class="py-3 px-3 text-center font-semibold text-accent-700">v{{ $pq->version_number }}</td>
                                     <td class="py-3 px-3">
                                         <span title="{{ $pq->original_filename }}" class="font-mono text-xs text-gray-700">
                                             {{ \Illuminate\Support\Str::limit($pq->original_filename, 45) }}
@@ -1681,7 +1681,7 @@
                             <div class="bg-white border border-gray-200 rounded-lg p-5 mb-4"
                                  data-name="{{ \Illuminate\Support\Str::lower($roomName) }}"
                                  x-show="q === '' || $el.dataset.name.includes(q.toLowerCase())">
-                                <h3 class="text-base font-semibold text-teal-700 mb-3 flex items-center gap-2">
+                                <h3 class="text-base font-semibold text-accent-700 mb-3 flex items-center gap-2">
                                     {{ $roomName }}
                                     <span class="text-xs font-normal text-gray-500">
                                         {{ $roomDevices->count() }} {{ \Illuminate\Support\Str::plural('device', $roomDevices->count()) }}

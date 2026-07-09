@@ -40,7 +40,7 @@
                           class="inline">
                         @csrf
                         <button type="submit"
-                                class="px-3 py-1.5 rounded bg-teal-600 text-white text-sm font-medium hover:bg-teal-700">
+                                class="px-3 py-1.5 rounded bg-accent-600 text-white text-sm font-medium hover:bg-accent-700">
                             Yes, regenerate
                         </button>
                     </form>
