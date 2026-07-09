@@ -85,6 +85,7 @@
             <select name="client"
                     aria-label="Filter by client"
                     class="form-control proj-select"
+                    data-optional
                     onchange="this.form.submit()">
                 <option value="">All clients</option>
                 @foreach ($clients as $name)
@@ -267,161 +268,167 @@
 
 @push('styles')
 <style>
+/* ── projects/index Jetbuilt-clean (2026-07-09) ──────────────────────────
+   Retunes stat row + filter tabs + search input to the accent-only
+   language shipped in Phases A–E. Class names retained so the deep
+   Blade markup below doesn't need to move. */
 
-/* ── Stat cards ─────────────────────────────────────────────────────────── */
+/* ── Stat cards ─────────────────────────────────────────────────────── */
 .proj-stat-row {
     display: flex;
-    gap: .625rem;
-    margin-bottom: 1.5rem;
+    gap: 10px;
+    margin-bottom: 24px;
     overflow-x: auto;
-    padding-bottom: .25rem;
+    padding-bottom: 4px;
     scrollbar-width: none;
 }
 .proj-stat-row::-webkit-scrollbar { display: none; }
 
 .proj-stat-card {
     background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: .85rem 1.25rem;
-    min-width: 100px;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--radius-lg);
+    padding: 14px 20px;
+    min-width: 110px;
     flex-shrink: 0;
     text-align: center;
+    box-shadow: none;
 }
 .proj-stat-card--link {
     text-decoration: none;
     cursor: pointer;
-    transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
+    transition: border-color var(--transition), background var(--transition);
 }
 .proj-stat-card--link:hover {
-    border-color: var(--teal-mid);
-    box-shadow: 0 2px 10px color-mix(in oklab, var(--teal) 12%, transparent);
+    border-color: var(--ink-300);
+    background: var(--surface-soft);
     text-decoration: none;
+    box-shadow: none;
 }
 .proj-stat-card--active {
-    border-color: var(--teal);
-    background: var(--teal-light);
+    border-color: var(--accent-600);
+    background: var(--accent-50);
 }
 .proj-stat-card__value {
-    font-size: 1.625rem;
-    font-weight: 800;
-    color: var(--text);
-    line-height: 1;
-    letter-spacing: -.02em;
-}
-.proj-stat-card--active .proj-stat-card__value { color: var(--teal); }
-.proj-stat-card__label {
-    font-size: .68rem;
+    font-size: 22px;
     font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: .05em;
-    margin-top: .3rem;
+    color: var(--ink-900);
+    line-height: 1.15;
+    letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums;
+}
+.proj-stat-card--active .proj-stat-card__value { color: var(--accent-700); }
+.proj-stat-card__label {
+    font-size: var(--fs-small);
+    font-weight: 500;
+    color: var(--ink-500);
+    text-transform: none;
+    letter-spacing: 0;
+    margin-top: 4px;
     white-space: nowrap;
 }
 
-/* ── Filter bar ─────────────────────────────────────────────────────────── */
+/* ── Filter bar ─────────────────────────────────────────────────────── */
 .proj-filter-bar {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: .75rem;
-    margin-bottom: 1.25rem;
+    gap: 12px;
+    margin-bottom: 20px;
 }
 
-/* Status tabs */
 .proj-filter-tabs {
     display: flex;
-    gap: .25rem;
+    gap: 6px;
     flex-wrap: wrap;
     align-items: center;
 }
 .proj-filter-tab {
     display: inline-flex;
     align-items: center;
-    gap: .35rem;
-    padding: .35rem .85rem;
-    border-radius: 9999px;
-    font-size: .8125rem;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: var(--fs-small);
     font-weight: 500;
-    color: var(--text-muted);
-    border: 1px solid var(--border);
+    color: var(--ink-700);
+    border: 1px solid var(--ink-200);
     background: var(--surface);
     text-decoration: none;
     transition: background var(--transition), border-color var(--transition), color var(--transition);
     white-space: nowrap;
 }
 .proj-filter-tab:hover {
-    background: var(--teal-light);
-    border-color: var(--teal-mid);
-    color: var(--teal);
+    background: var(--surface-soft);
+    border-color: var(--ink-300);
+    color: var(--ink-900);
     text-decoration: none;
 }
 .proj-filter-tab.active {
-    background: var(--teal);
-    border-color: var(--teal);
+    background: var(--accent-600);
+    border-color: var(--accent-600);
     color: #fff;
+    font-weight: 600;
 }
-.proj-filter-tab.active .proj-filter-tab__count { opacity: .75; }
-.proj-filter-tab__count { font-size: .7rem; font-weight: 700; opacity: .65; }
+.proj-filter-tab__count {
+    font-size: 11px;
+    font-weight: 600;
+    background: color-mix(in oklab, currentColor 12%, transparent);
+    border-radius: 999px;
+    padding: 1px 7px;
+    font-variant-numeric: tabular-nums;
+}
+.proj-filter-tab.active .proj-filter-tab__count { background: rgba(255,255,255,.20); }
 
-/* Search form */
-.proj-search-form       { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
-.proj-select            { width: 200px; font-size: .875rem; }
+/* ── Search form ────────────────────────────────────────────────────── */
+.proj-search-form       { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.proj-select            { width: 200px; font-size: var(--fs-small); }
 .proj-search-input-wrap { position: relative; }
-.proj-search-icon       { position: absolute; left: .65rem; top: 50%; transform: translateY(-50%); color: var(--text-faint); pointer-events: none; }
+.proj-search-icon       { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--ink-400); pointer-events: none; }
 .proj-search-input {
-    padding: .4rem .75rem .4rem 2.1rem;
-    border: 1px solid #D1D5DB;
-    border-radius: 8px;
-    font-size: .875rem;
+    padding: 7px 12px 7px 32px;
+    border: 1px solid var(--ink-200);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-small);
     font-family: inherit;
-    color: var(--text);
+    color: var(--ink-900);
     background: var(--surface);
     width: 260px;
     transition: border-color var(--transition), box-shadow var(--transition);
 }
 .proj-search-input:focus {
     outline: none;
-    border-color: var(--teal);
+    border-color: var(--accent-600);
     box-shadow: var(--shadow-focus);
 }
 
-/* ── Enhanced table ─────────────────────────────────────────────────────── */
+/* ── Enhanced table ─────────────────────────────────────────────────── */
+.proj-table tbody tr td { padding: 14px 16px; vertical-align: middle; }
+.proj-table thead tr th { padding: 12px 16px; }
 
-/* Increase row breathing room */
-.proj-table tbody tr td {
-    padding: 1rem 1rem;
-    vertical-align: middle;
-}
-.proj-table thead tr th {
-    padding: .65rem 1rem;
-}
-
-/* Project name cell */
-.proj-td--project   { max-width: 0; }   /* lets the cell shrink to table width */
+.proj-td--project   { max-width: 0; }
 .proj-name-link {
     display: block;
-    font-size: .9375rem;
-    font-weight: 700;
-    color: var(--teal);
+    font-size: var(--fs-body);
+    font-weight: 600;
+    color: var(--ink-900);
     text-decoration: none;
-    line-height: 1.3;
+    line-height: 1.35;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    letter-spacing: -0.005em;
 }
-.proj-name-link:hover { text-decoration: underline; }
+.proj-name-link:hover { color: var(--accent-700); text-decoration: none; }
 
-/* Client + site meta row below name */
 .proj-cell--meta {
     display: flex;
     align-items: center;
-    gap: .3rem;
+    gap: 6px;
     flex-wrap: wrap;
-    font-size: .775rem;
-    color: var(--text-muted);
+    font-size: var(--fs-small);
+    color: var(--ink-500);
     margin-top: 3px;
     line-height: 1.4;
 }
