@@ -802,13 +802,13 @@
                  engineers see the warning whether they're at top or bottom of the page.
                  Anchor jumps straight to the first unreviewed room's <details> block. --}}
             @if($signOffBlocked)
-                <div id="signoff-block-top" style="margin-bottom:1rem;padding:.75rem .95rem;border-radius:8px;background:#FEF3C7;color:#92400E;border:1px solid #FBBF24;font-size:.88rem;line-height:1.5;">
+                <div id="signoff-block-top" style="margin-bottom:16px;padding:12px 14px;border-radius: var(--radius-lg);background: var(--warning-light);color:#92400E;border:1px solid color-mix(in oklab, var(--warning) 30%, transparent);font-size: var(--fs-small);line-height:1.5;">
                     <strong>⚠ Sign-off blocked.</strong>
                     Review the survey reference for these rooms first:
                     <strong>{{ implode(', ', $unreviewedRooms) }}</strong>.
                     @if($firstUnreviewedSlug !== '')
                         <a href="#room-{{ $firstUnreviewedSlug }}"
-                           style="display:inline-block;margin-left:.4rem;font-weight:700;color:#92400E;text-decoration:underline;">Jump to first unreviewed room →</a>
+                           style="display:inline-block;margin-left:.4rem;font-weight:600;color:#92400E;text-decoration:underline;">Jump to first unreviewed room →</a>
                     @endif
                 </div>
             @endif

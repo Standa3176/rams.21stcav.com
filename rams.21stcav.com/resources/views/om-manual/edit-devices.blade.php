@@ -51,14 +51,19 @@
          create duplicates or overwrite the wrong device.
          ══════════════════════════════════════════════════════════════════════ --}}
     @if ($manual->project_id && $devices->isNotEmpty())
-        <div class="card" style="padding:1.1rem 1.25rem; margin-bottom:1.25rem; background: linear-gradient(180deg, #FBF8EF 0%, #FFFFFF 100%); border: 1px solid #E4DDCB;">
-            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:.7rem;">
-                <h2 style="font-size:1rem;font-weight:700;margin:0;color:#0F3E36;">📄 Bulk import from CSV</h2>
+        {{-- Jetbuilt-clean bulk-import card (2026-07-09).
+             Was a warm cream gradient (#FBF8EF → #FFF) with dark teal
+             heading — legacy SCC v2 chrome. Retunes to the flat card
+             primitive + ink-900 heading so this section shares the
+             visual language of every other panel in the app. --}}
+        <div class="card" style="padding:20px 22px; margin-bottom:20px;">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:12px;">
+                <h2 style="font-size: var(--fs-h3); font-weight:600; margin:0; color: var(--ink-900); letter-spacing:-0.015em;">📄 Bulk import from CSV</h2>
                 <span style="font-size:.75rem;color:var(--text-muted);">
                     {{ $devices->count() }} device {{ Str::plural('row', $devices->count()) }} available
                 </span>
             </div>
-            <p style="margin:0 0 .9rem;font-size:.85rem;color:#4A4F4C;line-height:1.5;">
+            <p style="margin:0 0 .9rem;font-size: var(--fs-small);color: var(--ink-700);line-height:1.5;">
                 Download the pre-populated CSV, fill in serial numbers / IPs / VLANs / etc. in your spreadsheet,
                 then upload it back. Rows are matched by internal <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.78rem;">device_id</span>
                 — leave that column alone and any unknown IDs are silently skipped.
