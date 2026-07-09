@@ -79,74 +79,8 @@
     margin: .75rem 0 .5rem;
 }
 
-/* Sign-off hero — Jetbuilt-clean (2026-07-09). Flat navy panel with
-   accent-tinted URL chip, no gradient, no shadow. Reads as one
-   consistent hero surface across worksheets + surveys. */
-.ws-signoff-hero {
-    background: var(--nav-800);
-    color: #E0E7FF;
-    border-radius: var(--radius-lg);
-    padding: 18px 22px;
-    margin-bottom: 20px;
-    display: grid;
-    grid-template-columns: 26px 1fr auto;
-    gap: 16px;
-    align-items: center;
-    box-shadow: none;
-}
-.ws-signoff-hero .icon {
-    width: 26px; height: 26px;
-    display: flex; align-items: center; justify-content: center;
-    color: var(--accent-500);
-}
-.ws-signoff-hero .body { min-width: 0; }
-.ws-signoff-hero .label {
-    font-size: 10px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    font-weight: 600;
-    color: var(--accent-500);
-    margin-bottom: 4px;
-}
-.ws-signoff-hero .url {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: #F1F5F9;
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    background: rgba(255, 255, 255, 0.06);
-    padding: 6px 10px;
-    border-radius: var(--radius-sm);
-    border: 1px solid rgba(255, 255, 255, 0.10);
-    cursor: text;
-}
-.ws-signoff-hero .actions {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    flex-shrink: 0;
-}
-.ws-signoff-hero .actions .btn {
-    background: rgba(255, 255, 255, 0.10);
-    color: #EEF2FF;
-    border-color: rgba(255, 255, 255, 0.16);
-    font-size: 12px;
-    padding: 5px 12px;
-}
-.ws-signoff-hero .actions .btn:hover {
-    background: rgba(255, 255, 255, 0.18);
-}
-.ws-signoff-hero .signed-note {
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.65);
-    margin-top: 6px;
-    display: flex;
-    align-items: center;
-    gap: .35rem;
-}
-.ws-signoff-hero .signed-note.comments { color: #F4E7CE; }
+/* .ws-signoff-hero styles retired 2026-07-09 — the panel now uses the
+   shared <x-link-hero> component which ships its own @once stylesheet. */
 </style>
 @endpush
 
@@ -236,26 +170,24 @@
      ══════════════════════════════════════════════════════════════════════ --}}
 @if($worksheet->access_token)
     @php $worksheetPublicUrl = $worksheet->publicUrl(); @endphp
-    <div class="ws-signoff-hero" role="region" aria-label="Client sign-off link">
-        <div class="icon" aria-hidden="true">🔗</div>
-        <div class="body">
-            <div class="label">Client sign-off link</div>
-            <input type="text" value="{{ $worksheetPublicUrl }}" readonly data-optional
-                   class="url"
-                   onclick="this.select()"
-                   aria-label="Sign-off URL — click to select">
-            @if($worksheet->isSigned())
-                @php $sig = $worksheet->latestSignoff(); @endphp
-                <div class="signed-note {{ $sig->signed_with_comments ? 'comments' : '' }}">
-                    ✓ Signed by <strong>{{ $sig->client_name }}</strong> on
-                    {{ $sig->signed_at->format('d M Y H:i') }}
-                    @if($sig->signed_with_comments)
-                        · signed with comments
-                    @endif
-                </div>
-            @endif
-        </div>
-        <div class="actions">
+    <x-link-hero
+        :url="$worksheetPublicUrl"
+        label="Client sign-off link"
+        icon="🔗"
+        regionLabel="Client sign-off link"
+        urlAriaLabel="Sign-off URL — click to select">
+        @if($worksheet->isSigned())
+            @php $sig = $worksheet->latestSignoff(); @endphp
+            <x-slot name="hint">
+                ✓ Signed by <strong>{{ $sig->client_name }}</strong> on
+                {{ $sig->signed_at->format('d M Y H:i') }}
+                @if($sig->signed_with_comments)
+                    · signed with comments
+                @endif
+            </x-slot>
+        @endif
+
+        <x-slot name="actions">
             <x-copy-link-button :url="$worksheetPublicUrl" label="Copy" />
             <a href="{{ $worksheetPublicUrl }}" target="_blank" class="btn btn-sm">Open ↗</a>
             {{-- Audit M-05 — revoke the current token so any leaked copy of
@@ -270,8 +202,8 @@
                     Revoke &amp; regenerate
                 </button>
             </form>
-        </div>
-    </div>
+        </x-slot>
+    </x-link-hero>
 @endif
 
 {{-- Stale-data banner (260602-o2a) — renders only when project.latestPackage

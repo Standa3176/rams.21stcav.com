@@ -91,61 +91,10 @@
    #0F3E36) with gold #E6B849 label + cream #EDE9D9 body. Retuned to the
    indigo brand family so the "primary shareable URL" hero pattern reads
    consistently with the worksheet hero + the app-shell brand mark. */
-/* Survey engineer-link hero — Jetbuilt-clean (2026-07-09).
-   Flat navy panel, no gradient, no shadow. Matches the worksheet
-   sign-off hero so the two hero patterns speak one language. */
-.survey-link-hero {
-    background: var(--nav-800);
-    color: #E0E7FF;
-    border-radius: var(--radius-lg);
-    padding: 18px 22px;
-    margin-bottom: 20px;
-    display: grid;
-    grid-template-columns: 26px 1fr auto;
-    gap: 16px;
-    align-items: center;
-    box-shadow: none;
-}
-.survey-link-hero .icon {
-    width: 26px; height: 26px;
-    display: flex; align-items: center; justify-content: center;
-    color: var(--accent-500);
-}
-.survey-link-hero .body { min-width: 0; }
-.survey-link-hero .label {
-    font-size: 10px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    font-weight: 600;
-    color: var(--accent-500);
-    margin-bottom: 4px;
-}
-.survey-link-hero .url {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: #F1F5F9;
-    background: rgba(255, 255, 255, 0.06);
-    padding: 6px 10px;
-    border-radius: var(--radius-sm);
-    border: 1px solid rgba(255, 255, 255, 0.10);
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    cursor: text;
-    width: 100%;
-}
-.survey-link-hero .actions {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    flex-shrink: 0;
-}
-.survey-link-hero .hint {
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.65);
-    margin-top: 6px;
-}
+/* .survey-link-hero styles retired 2026-07-09 — the panel now uses the
+   shared <x-link-hero> component which ships its own @once stylesheet.
+   .survey-link-banner (below) is a separate legacy fallback panel not
+   currently rendered on this page; kept as-is until proven dead. */
 .survey-link-banner {
     background: var(--teal-light);
     border: 1px solid var(--teal-mid);
@@ -478,25 +427,18 @@
      (line-parity with the previous banner behaviour).
      ══════════════════════════════════════════════════════════════════════ --}}
 @if($survey->access_token && !$survey->isSubmitted())
-    <div class="survey-link-hero" role="region" aria-label="Engineer link">
-        <div class="icon" aria-hidden="true">📱</div>
-        <div class="body">
-            <div class="label">Engineer link · share with the surveyor</div>
-            <input type="text" value="{{ $surveyUrl }}" readonly data-optional
-                   class="url"
-                   onclick="this.select()"
-                   aria-label="Engineer survey URL — click to select"
-                   id="survey-link-text">
-            <div class="hint">Opens the mobile-friendly capture form. No login required for the on-site engineer.</div>
-        </div>
-        <div class="actions">
+    <x-link-hero
+        :url="$surveyUrl"
+        label="Engineer link · share with the surveyor"
+        icon="📱"
+        regionLabel="Engineer link"
+        urlAriaLabel="Engineer survey URL — click to select">
+        <x-slot name="hint">Opens the mobile-friendly capture form. No login required for the on-site engineer.</x-slot>
+        <x-slot name="actions">
             <x-copy-link-button :url="$surveyUrl" label="Copy link" />
-            <a href="{{ $surveyUrl }}" target="_blank" class="btn btn-sm"
-               style="background: rgba(255,255,255,.08); color: #F4EFDD; border: 1px solid rgba(255,255,255,.12);">
-                Open ↗
-            </a>
-        </div>
-    </div>
+            <a href="{{ $surveyUrl }}" target="_blank" class="btn btn-sm">Open ↗</a>
+        </x-slot>
+    </x-link-hero>
 @endif
 
 @if (session('success'))
