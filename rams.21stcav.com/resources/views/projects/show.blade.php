@@ -1239,6 +1239,16 @@
                                         @if ($ws->project_ref)<div class="text-xs text-gray-500">{{ $ws->project_ref }}</div>@endif
                                         {{-- Stale-data pill (260602-o2a) — renders only when stale --}}
                                         @include('worksheets._stale-banner', ['worksheet' => $ws, 'variant' => 'pill'])
+                                        {{-- Batch 11 UX-07 — ready-for-signoff pill. Green cue so
+                                             the PM can see at a glance which worksheets to send
+                                             out for client sign-off. --}}
+                                        @if ($ws->isReadyForSignoff())
+                                            <span class="inline-block ml-1 px-2 py-1 text-xs rounded"
+                                                  style="background: var(--success-light); color: var(--success); border:1px solid color-mix(in oklab, var(--success) 30%, transparent);"
+                                                  title="Engineer work captured — ready for the client to sign off">
+                                                Ready to sign
+                                            </span>
+                                        @endif
                                     </td>
                                     <td class="py-3 px-3"><x-status-badge :status="$ws->status" :label="$ws->statusLabel()" /></td>
                                     <td class="py-3 px-3 text-gray-500 whitespace-nowrap">

@@ -427,6 +427,14 @@
         }
     </style>
 
+    {{-- Batch 11 UX-09 — fires when the source ProjectPackage has been
+         edited after this RAMS was generated. Nudges the user to
+         regenerate so the DOCX picks up the latest scope/equipment
+         changes. Component renders nothing when RAMS is fresh. --}}
+    <x-stale-banner :doc="$rams"
+                    label="RAMS document"
+                    :regenUrl="route('rams.retry-generation', $rams)" />
+
     {{-- ── Diff legend + grouped summary ───────────────────────────────────── --}}
     @if (($diff['summary']['total'] ?? 0) > 0)
         <div class="rams-diff-banner">

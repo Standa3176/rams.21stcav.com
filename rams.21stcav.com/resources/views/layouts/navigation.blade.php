@@ -200,6 +200,50 @@
         .tnav-search-label, .tnav-search-kbd { display: none; }
     }
 
+    /* Running-jobs chip — Jetbuilt-clean amber pill with a pulsing dot.
+       Sits between the admin dropdown and the search chip; only rendered
+       for admins when count > 0. */
+    .tnav-running {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 10px;
+        margin-right: 6px;
+        background: var(--warning-light);
+        color: #92400E;
+        border: 1px solid color-mix(in oklab, var(--warning) 30%, transparent);
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 500;
+        text-decoration: none;
+        transition: background var(--transition), border-color var(--transition);
+        flex-shrink: 0;
+    }
+    .tnav-running:hover {
+        background: color-mix(in oklab, var(--warning) 20%, var(--surface));
+        border-color: color-mix(in oklab, var(--warning) 45%, transparent);
+        color: #78350F;
+        text-decoration: none;
+    }
+    .tnav-running__pulse {
+        width: 7px; height: 7px;
+        border-radius: 50%;
+        background: var(--warning);
+        box-shadow: 0 0 0 3px color-mix(in oklab, var(--warning) 22%, transparent);
+        animation: tnavPulse 1.6s ease-in-out infinite;
+    }
+    .tnav-running__count { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .tnav-running__label { color: currentColor; opacity: .82; }
+
+    @media (max-width: 1100px) {
+        .tnav-running__label { display: none; }
+    }
+
+    @keyframes tnavPulse {
+        0%, 100% { opacity: 1;   transform: scale(1); }
+        50%      { opacity: .55; transform: scale(.78); }
+    }
+
     @media (max-width: 768px) {
         .tnav-brand { padding: 0 12px 0 16px; }
         .tnav-brand-name { display: none; }
@@ -400,6 +444,38 @@
     </div>
     @endif
 </div>
+
+{{-- Batch 11 UX-06 — global running-indicator.
+     Admin-only chip that shows how many RAMS / O&M / worksheet jobs are
+     currently processing across the whole workspace. Clicking jumps to
+     the Worker Monitor. Query is a small handful of indexed COUNT()s
+     — cheap enough to run on every page render. When there's nothing
+     running, the chip stays hidden so the nav row doesn't gain a
+     permanent status pip. --}}
+@if ($isAdmin)
+    @php
+        $ramsRunning = \App\Models\RamsDocument::query()
+            ->whereIn('status', [
+                \App\Models\RamsDocument::STATUS_GENERATING,
+                \App\Models\RamsDocument::STATUS_APPROVED_FOR_GENERATION,
+            ])
+            ->count();
+        $omRunning = \App\Models\OmManual::query()
+            ->where('status', \App\Models\OmManual::STATUS_GENERATING)
+            ->count();
+        $runningJobs = $ramsRunning + $omRunning;
+    @endphp
+    @if ($runningJobs > 0)
+        <a href="{{ route('admin.worker.index') }}"
+           class="tnav-running"
+           aria-label="{{ $runningJobs }} job{{ $runningJobs === 1 ? '' : 's' }} currently running — view Worker Monitor"
+           title="{{ $ramsRunning }} RAMS + {{ $omRunning }} O&amp;M generating">
+            <span class="tnav-running__pulse" aria-hidden="true"></span>
+            <span class="tnav-running__count">{{ $runningJobs }}</span>
+            <span class="tnav-running__label">running</span>
+        </a>
+    @endif
+@endif
 
 {{-- Search chip — Jetbuilt keeps ⌘K permanent in the top bar. --}}
 <div class="tnav-search"

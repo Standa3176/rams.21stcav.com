@@ -168,6 +168,48 @@
 
      Old sign-off card lower down was removed to avoid duplicating the URL.
      ══════════════════════════════════════════════════════════════════════ --}}
+{{-- Batch 11 UX-07 — ready-for-signoff cue. Renders above the sign-off
+     link hero when the worksheet has engineer activity but no signature
+     yet, so the PM immediately knows to send the link to the client. --}}
+@if ($worksheet->isReadyForSignoff())
+    <div class="ws-ready" role="status">
+        <span class="ws-ready__ico" aria-hidden="true">✓</span>
+        <div class="ws-ready__body">
+            <strong>Ready for client sign-off.</strong>
+            Engineer work is captured and the sign-off link below is live —
+            send it to the client to complete this worksheet.
+        </div>
+    </div>
+    <style>
+        .ws-ready {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            background: var(--success-light);
+            border: 1px solid color-mix(in oklab, var(--success) 30%, transparent);
+            color: #065F46;
+            border-radius: var(--radius-lg);
+            font-size: var(--fs-small);
+            line-height: 1.55;
+        }
+        .ws-ready__ico {
+            flex-shrink: 0;
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            background: var(--success);
+            color: #fff;
+            display: grid;
+            place-items: center;
+            font-size: 12px;
+            margin-top: 2px;
+        }
+        .ws-ready__body { min-width: 0; }
+        .ws-ready strong { font-weight: 600; color: #065F46; margin-right: 4px; }
+    </style>
+@endif
+
 @if($worksheet->access_token)
     @php $worksheetPublicUrl = $worksheet->publicUrl(); @endphp
     <x-link-hero

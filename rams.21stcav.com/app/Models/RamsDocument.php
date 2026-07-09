@@ -191,4 +191,77 @@ class RamsDocument extends Model
             default                              => 'badge-grey',
         };
     }
+
+    // ── Stale-data signal (batch 11 UX-09) ────────────────────────────────────
+    //
+    // Ports the Worksheet::isStale() pattern to RAMS. Same threat: the source
+    // ProjectPackage advances (re-import, re-review, quote-fix) after this
+    // document snapshots, and the RAMS DOCX now reflects out-of-date scope.
+    //
+    // Only fires on completed / for-review states — a pipeline row doesn't
+    // have a shipped snapshot to be stale against, and a failed row has its
+    // own retry surface.
+
+    /**
+     * True iff the project's latestPackage was updated after this RAMS's
+     * generated snapshot (RAMS document is out of date relative to source).
+     *
+     * Defensive against:
+     *  - status not in {completed, for_review, draft} → false
+     *  - project is null                              → false
+     *  - project has no latestPackage                 → false
+     *  - generated_data missing                       → false
+     *  - generated_data.generated_at missing/invalid  → false (legacy shape)
+     */
+    public function isStale(): bool
+    {
+        if (! in_array($this->status, [
+            self::STATUS_COMPLETED,
+            self::STATUS_FOR_REVIEW,
+            self::STATUS_DRAFT,
+        ], true)) {
+            return false;
+        }
+
+        $this->loadMissing('project.latestPackage');
+
+        $project = $this->project;
+        if ($project === null) {
+            return false;
+        }
+
+        $package = $project->latestPackage;
+        if ($package === null) {
+            return false;
+        }
+
+        $data = $this->generated_data;
+        if (! is_array($data)) {
+            return false;
+        }
+
+        $generatedAt = $data['generated_at'] ?? null;
+        if (! is_string($generatedAt) || trim($generatedAt) === '') {
+            return false;
+        }
+
+        return \Illuminate\Support\Carbon::parse($generatedAt)->lt($package->updated_at);
+    }
+
+    /**
+     * When isStale() is true, returns the Carbon timestamp of the source
+     * package's last update. Null when fresh or any defensive branch fired.
+     */
+    public function staleSince(): ?\Illuminate\Support\Carbon
+    {
+        if (! $this->isStale()) {
+            return null;
+        }
+
+        $updatedAt = $this->project?->latestPackage?->updated_at;
+
+        return $updatedAt instanceof \Illuminate\Support\Carbon
+            ? $updatedAt
+            : ($updatedAt ? \Illuminate\Support\Carbon::parse($updatedAt) : null);
+    }
 }

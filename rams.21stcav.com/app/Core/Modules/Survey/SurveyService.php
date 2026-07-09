@@ -574,6 +574,11 @@ class SurveyService
         });
 
         // ── PM notification email — outside transaction so mail failure cannot roll back submission ──
+        // Batch 11 UX-08 — when Mail::send returns without throwing, stamp
+        // submitted_notification_sent_at so the site-survey/show view can
+        // surface "Office notified {diffForHumans}". Failure branch still
+        // logs a warning; the timestamp remains null and the UI reads
+        // "Office notification not sent" so both parties see the truth.
         if ($result->project_id) {
             try {
                 $project   = Project::find($result->project_id);
@@ -582,6 +587,10 @@ class SurveyService
                 if ($recipient?->email) {
                     $completed = $result->rooms()->where('is_completed', true)->count();
                     Mail::to($recipient->email)->send(new SurveySubmittedMail($result, $completed));
+
+                    $result->forceFill([
+                        'submitted_notification_sent_at' => now(),
+                    ])->save();
                 }
             } catch (\Throwable $e) {
                 Log::warning('SurveyService: failed to send survey submitted email', [

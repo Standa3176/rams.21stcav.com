@@ -350,6 +350,37 @@ class Worksheet extends Model
         return false;
     }
 
+    // ── Ready-for-signoff signal (batch 11 UX-07) ─────────────────────────────
+    //
+    // Computed lifecycle state: the worksheet has a shipped snapshot (DRAFT
+    // or FINAL), the engineer has captured on-site work, and the client
+    // hasn't signed off yet. Drives:
+    //   - a "Ready to sign" pill on projects/show worksheet rows so the PM
+    //     knows which worksheets to send out for sign-off
+    //   - a green "Ready for client sign-off" ribbon on worksheets/show
+    //
+    // Defensive against:
+    //   - status not in {DRAFT, FINAL} → false (nothing to sign yet)
+    //   - already signed              → false (nothing left to do)
+    //   - no engineer activity        → false (empty document — don't nag)
+
+    /**
+     * True when the worksheet is ready to be handed to the client for
+     * sign-off — shipped, engineer-captured, but not yet signed.
+     */
+    public function isReadyForSignoff(): bool
+    {
+        if (! in_array($this->status, [self::STATUS_DRAFT, self::STATUS_FINAL], true)) {
+            return false;
+        }
+
+        if ($this->isSigned()) {
+            return false;
+        }
+
+        return $this->hasEngineerActivity();
+    }
+
     // ── Pre-install confirmation accessors (260504-iy4 — H4) ───────────────────
     //
     // Two-namespace JSON shape:

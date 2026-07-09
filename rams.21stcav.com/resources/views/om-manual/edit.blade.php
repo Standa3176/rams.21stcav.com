@@ -564,6 +564,13 @@
     <x-slot:title>{{ $manual->project_name ?? 'O&M Manual' }}</x-slot:title>
 </x-edit-action-bar>
 
+{{-- Batch 11 UX-09 — surface a "regenerate" nudge when the source
+     ProjectPackage has been updated after this manual snapshot. Renders
+     nothing when the manual is fresh. --}}
+<x-stale-banner :doc="$manual"
+                label="O&amp;M manual"
+                :regenUrl="route('om-manuals.retry-generation', $manual)" />
+
 @php
     $data       = is_array($manual->extracted_data) ? $manual->extracted_data : [];
     $project    = is_array($data['project'] ?? null) ? $data['project'] : [];

@@ -99,4 +99,65 @@ class OmManual extends Model
             default                 => 'badge-grey',
         };
     }
+
+    // ── Stale-data signal (batch 11 UX-09) ────────────────────────────────────
+    //
+    // Ports the Worksheet::isStale() pattern to O&M. Same threat: an operator
+    // updates the source ProjectPackage after this manual has snapshotted, and
+    // the .docx now reflects out-of-date scope. Only fires on draft / final —
+    // the extracted-awaiting-review state isn't a "shipped" surface, and
+    // generating / failed have their own retry paths.
+
+    /**
+     * True iff the project's latestPackage was updated after this O&M's
+     * generated snapshot. Falls back on defensive branches — see the RAMS
+     * / Worksheet counterparts for the same shape.
+     */
+    public function isStale(): bool
+    {
+        if (! in_array($this->status, [self::STATUS_DRAFT, self::STATUS_FINAL], true)) {
+            return false;
+        }
+
+        $this->loadMissing('project.latestPackage');
+
+        $project = $this->project;
+        if ($project === null) {
+            return false;
+        }
+
+        $package = $project->latestPackage;
+        if ($package === null) {
+            return false;
+        }
+
+        $data = $this->generated_data;
+        if (! is_array($data)) {
+            return false;
+        }
+
+        $generatedAt = $data['generated_at'] ?? null;
+        if (! is_string($generatedAt) || trim($generatedAt) === '') {
+            return false;
+        }
+
+        return \Illuminate\Support\Carbon::parse($generatedAt)->lt($package->updated_at);
+    }
+
+    /**
+     * When isStale() is true, returns the Carbon timestamp of the source
+     * package's last update. Null when fresh or any defensive branch fired.
+     */
+    public function staleSince(): ?\Illuminate\Support\Carbon
+    {
+        if (! $this->isStale()) {
+            return null;
+        }
+
+        $updatedAt = $this->project?->latestPackage?->updated_at;
+
+        return $updatedAt instanceof \Illuminate\Support\Carbon
+            ? $updatedAt
+            : ($updatedAt ? \Illuminate\Support\Carbon::parse($updatedAt) : null);
+    }
 }

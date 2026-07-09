@@ -474,6 +474,44 @@
     </div>
 </div>
 
+{{-- Batch 11 UX-08 — office-notification confirmation. When SurveyService
+     managed to send the SurveySubmittedMail on submission, we stamped
+     submitted_notification_sent_at. Surface that here so the engineer +
+     the office both know the loop closed. When null on a submitted
+     row, show the failed / not-sent state so the operator can chase. --}}
+@if($survey->isSubmitted())
+    <div class="survey-notify"
+         role="status"
+         @if($survey->submitted_notification_sent_at)
+             style="background: var(--success-light); border:1px solid color-mix(in oklab, var(--success) 30%, transparent); color: var(--success);"
+         @else
+             style="background: var(--warning-light); border:1px solid color-mix(in oklab, var(--warning) 30%, transparent); color:#92400E;"
+         @endif
+    >
+        @if($survey->submitted_notification_sent_at)
+            <strong style="font-weight:600;">✓ Office notified</strong>
+            {{ $survey->submitted_notification_sent_at->diffForHumans() }}
+            ({{ $survey->submitted_notification_sent_at->format('d M Y H:i') }})
+        @else
+            <strong style="font-weight:600;">⚠ Office notification not sent</strong>
+            <span style="font-weight:400;">— check the mail log or notify the PM directly.</span>
+        @endif
+    </div>
+    <style>
+        .survey-notify {
+            display: flex;
+            gap: 8px;
+            align-items: baseline;
+            flex-wrap: wrap;
+            padding: 10px 14px;
+            font-size: var(--fs-small);
+            border-radius: var(--radius-lg);
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+    </style>
+@endif
+
 {{-- Tier 1 readiness strip (mirrors progress strip, powered by SiteSurveyTierOneReadinessService) --}}
 @if(isset($tierOne) && ($tierOne['summary']['total_rooms'] ?? 0) > 0)
     @php $t1 = $tierOne['summary']; @endphp
