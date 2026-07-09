@@ -470,7 +470,9 @@ class CableScheduleController extends Controller
 
     public function retryGeneration(CableSchedule $cableSchedule): RedirectResponse
     {
-        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
+        // Re-audit S-04 — route through CableSchedulePolicy::update so all
+        // four retry-generation handlers share one enforcement point.
+        $this->authorize('update', $cableSchedule);
 
         if ($cableSchedule->status === CableSchedule::STATUS_GENERATING) {
             return back()->with('error', 'This cable schedule is already being generated. Please wait.');

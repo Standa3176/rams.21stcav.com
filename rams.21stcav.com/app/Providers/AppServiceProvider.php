@@ -3,16 +3,20 @@
 namespace App\Providers;
 
 use App\Core\Modules\Projects\ProjectDataService;
+use App\Models\CableSchedule;
 use App\Models\InstallTask;
 use App\Models\OmManual;
 use App\Models\Project;
 use App\Models\ProjectDrawing;
 use App\Models\RamsDocument;
+use App\Models\Worksheet;
 use App\Observers\InstallTaskObserver;
+use App\Policies\CableSchedulePolicy;
 use App\Policies\OmManualPolicy;
 use App\Policies\ProjectDrawingPolicy;
 use App\Policies\ProjectPolicy;
 use App\Policies\RamsDocumentPolicy;
+use App\Policies\WorksheetPolicy;
 use App\Services\PdfOcrExtractorService;
 use App\Services\PdfTextExtractorService;
 use App\Services\WorkerMonitorService;
@@ -74,6 +78,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(OmManual::class, OmManualPolicy::class);
         Gate::policy(ProjectDrawing::class, ProjectDrawingPolicy::class);
         Gate::policy(Project::class, ProjectPolicy::class);
+        // Re-audit S-04 — one enforcement point per model so retry-generation
+        // handlers share the same shape as RamsController's authorize() call.
+        Gate::policy(Worksheet::class, WorksheetPolicy::class);
+        Gate::policy(CableSchedule::class, CableSchedulePolicy::class);
 
         // ── Phase 16: commissioning generation trigger (D-03) ────────────────
         // Observer fires CommissioningItemGenerator::generate() when the

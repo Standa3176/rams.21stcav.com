@@ -454,16 +454,14 @@
      permanent status pip. --}}
 @if ($isAdmin)
     @php
-        $ramsRunning = \App\Models\RamsDocument::query()
-            ->whereIn('status', [
-                \App\Models\RamsDocument::STATUS_GENERATING,
-                \App\Models\RamsDocument::STATUS_APPROVED_FOR_GENERATION,
-            ])
-            ->count();
-        $omRunning = \App\Models\OmManual::query()
-            ->where('status', \App\Models\OmManual::STATUS_GENERATING)
-            ->count();
-        $runningJobs = $ramsRunning + $omRunning;
+        // Re-audit S-05 — was two inline COUNT() queries on every admin
+        // page render. WorkerStatusService caches for 15s so a burst of
+        // page navigations shares one query and a wedged queue can't
+        // amplify DB load across the nav.
+        $running = app(\App\Services\WorkerStatusService::class)->runningCounts();
+        $ramsRunning = $running['rams'];
+        $omRunning   = $running['om'];
+        $runningJobs = $running['total'];
     @endphp
     @if ($runningJobs > 0)
         <a href="{{ route('admin.worker.index') }}"

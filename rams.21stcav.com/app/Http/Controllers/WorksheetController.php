@@ -238,7 +238,9 @@ class WorksheetController extends Controller
      */
     public function retryGeneration(Worksheet $worksheet): RedirectResponse
     {
-        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
+        // Re-audit S-04 — route through WorksheetPolicy::update so all
+        // four retry-generation handlers share one enforcement point.
+        $this->authorize('update', $worksheet);
 
         if ($worksheet->status === Worksheet::STATUS_GENERATING) {
             return back()->with('error', 'This worksheet is already being generated. Please wait.');

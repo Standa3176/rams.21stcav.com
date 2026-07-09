@@ -233,7 +233,9 @@ class OmManualController extends Controller
      */
     public function retryGeneration(OmManual $omManual): RedirectResponse
     {
-        abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
+        // Re-audit S-04 — route through OmManualPolicy::update so all
+        // four retry-generation handlers share one enforcement point.
+        $this->authorize('update', $omManual);
 
         if (empty($omManual->extracted_data)) {
             return back()->with('error', 'Cannot retry — extracted data is missing. Please create a new O&M manual.');
