@@ -1062,7 +1062,22 @@
                                                     \App\Models\RamsDocument::STATUS_APPROVED_FOR_GENERATION,
                                                     \App\Models\RamsDocument::STATUS_GENERATING,
                                                 ], true))
-                                                    <span class="inline-flex items-center gap-2 text-sm text-gray-500"><svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 11-6.219-8.56" stroke-linecap="round"/></svg><span>Processing…</span></span>
+                                                    {{-- Batch 11 UX-05 — surface elapsed time on the processing
+                                                         state. Past 5 minutes we shift the pill to amber and add
+                                                         "taking longer than expected" so the operator knows to
+                                                         check the worker log rather than waiting silently. --}}
+                                                    @php
+                                                        $elapsed = $rams->updated_at?->diffInMinutes(now()) ?? 0;
+                                                        $stalled = $elapsed >= 5;
+                                                    @endphp
+                                                    <span class="inline-flex items-center gap-2 text-sm {{ $stalled ? 'text-amber-700' : 'text-gray-500' }}"
+                                                          @if($stalled) title="Started {{ $rams->updated_at->diffForHumans() }} — this is longer than a typical run. Check the worker log." @endif>
+                                                        <svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 11-6.219-8.56" stroke-linecap="round"/></svg>
+                                                        <span>{{ $stalled ? 'Taking longer than expected…' : 'Processing…' }}</span>
+                                                        @if($stalled)
+                                                            <span class="text-xs" style="font-variant-numeric: tabular-nums;">({{ $rams->updated_at->diffForHumans(null, true) }})</span>
+                                                        @endif
+                                                    </span>
 
                                                 @elseif ($status === \App\Models\RamsDocument::STATUS_COMPLETED && $rams->filename)
                                                     <a href="{{ route('rams.review', $rams) }}"
@@ -1104,19 +1119,30 @@
                                                     @php $ramsHasMenu = true; @endphp
 
                                                 @elseif ($status === \App\Models\RamsDocument::STATUS_FAILED)
-                                                    {{-- PRIMARY: Retry — failed rows have nothing else to act on --}}
+                                                    {{-- PRIMARY: Retry — failed rows have nothing else to act on.
+                                                         Batch 11 UX-04 — surface the actual failure reason so the
+                                                         user isn't left guessing why the job died. --}}
                                                     <span class="inline-flex items-center text-sm text-red-700 font-medium">⚠ Failed</span>
+                                                    @if (! empty($rams->error_message))
+                                                        <details class="inline-block m-0"
+                                                                 style="vertical-align:middle;font-size:12px;">
+                                                            <summary style="cursor:pointer;color:var(--ink-500);text-decoration:underline;text-decoration-style:dotted;">
+                                                                See why
+                                                            </summary>
+                                                            <div style="max-width:360px;margin-top:4px;padding:8px 10px;background:var(--danger-light);color:#991B1B;border:1px solid color-mix(in oklab, var(--danger) 30%, transparent);border-radius:var(--radius-sm);white-space:pre-wrap;word-break:break-word;line-height:1.4;">
+                                                                {{ $rams->error_message }}
+                                                            </div>
+                                                        </details>
+                                                    @endif
                                                     @if (! empty($rams->reviewed_data))
                                                         <form method="POST" action="{{ route('rams.retry-generation', $rams) }}" class="m-0 inline-block">
                                                             @csrf
-                                                            <button type="submit"
-                                                                    class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">↻ Retry</button>
+                                                            <button type="submit" class="btn btn-primary btn-sm">↻ Retry</button>
                                                         </form>
                                                     @else
                                                         <form method="POST" action="{{ route('rams.retry-extraction', $rams) }}" class="m-0 inline-block">
                                                             @csrf
-                                                            <button type="submit"
-                                                                    class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">↻ Retry</button>
+                                                            <button type="submit" class="btn btn-primary btn-sm">↻ Retry</button>
                                                         </form>
                                                     @endif
 
@@ -1406,15 +1432,36 @@
                                     <td class="py-3 px-3">
                                         <div class="flex flex-wrap gap-2 items-center">
                                             @if ($manual->status === \App\Models\OmManual::STATUS_GENERATING)
-                                                <span class="inline-flex items-center gap-2 text-sm text-gray-500"><svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 11-6.219-8.56" stroke-linecap="round"/></svg><span>Processing…</span></span>
+                                                {{-- Batch 11 UX-05 — same stalled-processing surface as the RAMS row above. --}}
+                                                @php
+                                                    $omElapsed = $manual->updated_at?->diffInMinutes(now()) ?? 0;
+                                                    $omStalled = $omElapsed >= 5;
+                                                @endphp
+                                                <span class="inline-flex items-center gap-2 text-sm {{ $omStalled ? 'text-amber-700' : 'text-gray-500' }}"
+                                                      @if($omStalled) title="Started {{ $manual->updated_at->diffForHumans() }} — this is longer than a typical run. Check the worker log." @endif>
+                                                    <svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 11-6.219-8.56" stroke-linecap="round"/></svg>
+                                                    <span>{{ $omStalled ? 'Taking longer than expected…' : 'Processing…' }}</span>
+                                                    @if($omStalled)
+                                                        <span class="text-xs" style="font-variant-numeric: tabular-nums;">({{ $manual->updated_at->diffForHumans(null, true) }})</span>
+                                                    @endif
+                                                </span>
                                             @elseif ($manual->status === \App\Models\OmManual::STATUS_FAILED)
-                                                {{-- PRIMARY: Retry — failed rows have nothing else to act on --}}
-                                                <span class="inline-flex items-center text-sm text-red-700 font-medium" title="{{ $manual->error_message }}">⚠ Failed</span>
+                                                {{-- PRIMARY: Retry — failed rows have nothing else to act on.
+                                                     Batch 11 UX-04 — expose the failure reason inline via a
+                                                     collapsible so the operator doesn't have to hover-hunt. --}}
+                                                <span class="inline-flex items-center text-sm text-red-700 font-medium">⚠ Failed</span>
+                                                @if (! empty($manual->error_message))
+                                                    <details class="inline-block m-0" style="vertical-align:middle;font-size:12px;">
+                                                        <summary style="cursor:pointer;color:var(--ink-500);text-decoration:underline;text-decoration-style:dotted;">See why</summary>
+                                                        <div style="max-width:360px;margin-top:4px;padding:8px 10px;background:var(--danger-light);color:#991B1B;border:1px solid color-mix(in oklab, var(--danger) 30%, transparent);border-radius:var(--radius-sm);white-space:pre-wrap;word-break:break-word;line-height:1.4;">
+                                                            {{ $manual->error_message }}
+                                                        </div>
+                                                    </details>
+                                                @endif
                                                 @if (! empty($manual->extracted_data))
                                                     <form method="POST" action="{{ route('om-manuals.retry-generation', $manual) }}" class="m-0 inline-block">
                                                         @csrf
-                                                        <button type="submit"
-                                                                class="inline-flex items-center bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md text-sm font-medium shadow-sm transition-all duration-150 hover:shadow hover:-translate-y-px active:translate-y-0 active:shadow-sm">↻ Retry</button>
+                                                        <button type="submit" class="btn btn-primary btn-sm">↻ Retry</button>
                                                     </form>
                                                 @endif
                                             @elseif ($manual->isGenerated())
