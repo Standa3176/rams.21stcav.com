@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
-status: paused_tier_one_v1_plus_search_and_sweep
-stopped_at: Tier-one v1 shipped + follow-up moves complete on 2026-07-08 (global ⌘K search + second-tier screen sweep + ActualHoursWidgetTest fix). Every anchor + index screen now tier-one; ⌘K search live across the app.
-last_updated: "2026-07-08T15:00:00.000Z"
-last_activity: 2026-07-08 -- Tier-one v1 (PLAN 260708-b7i) plus three follow-up commits. 8d4ea73 wires the missing Actual Hours widget include (fixes 5 pre-existing test failures). 3368fdb ships GlobalSearchController + Alpine ⌘K palette. 7db8730 polishes O&M / RAMS / Site Survey / Worksheet index screens.
+status: paused_jetbuilt_redesign_plus_reaudit_shipped
+stopped_at: Jetbuilt-clean visual redesign + prompt-injection port + a11y + workflow UX + full re-audit + 3 remaining QA-backlog MEDIUMs all shipped through 2026-07-10. Every audit item + regression + drift point flagged in the re-audit is closed. 598 tests green across QuoteParser + Worksheet + CableSchedule + Rams suites.
+last_updated: "2026-07-10T00:00:00.000Z"
+last_activity: 2026-07-10 -- 01918b1 closes the deferred RAMS QA backlog (M-04 CSV flock, M-09 microsecond timestamps × 6 sites, M-11 filename regex control-char strip) plus 2 stale QuoteParserServiceTest expectations updated to reflect current parser behaviour. 40+ commits total this session.
 progress:
   total_phases: 2
   completed_phases: 2
@@ -19,14 +19,58 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-30)
 
 **Core value:** One dataset powers every document.
-**Current focus:** Tier-1 UX redesign — COMPLETE. Ready to resume v2.0 Phase 23.
+**Current focus:** Post-redesign polish + audit closure — COMPLETE. Ready to resume v2.0 Phase 23.
 
 ## Current Position
 
 Milestone: v2.0 (Engineering-Grade AV Drawings) — PAUSED at Phase 23 sub-plan 1 (context gathered)
-Active work: Tier-1 UX redesign COMPLETE — 5 of 5 screens shipped and live-confirmed
-Status: Session save 2026-07-06 — Tier-1 sweep complete
-Last activity: 2026-07-06 -- Screen 01 v1 shipped (25fe9df) closes the Tier-1 sweep. All five screens live-confirmed. Next session picks up v2.0 Phase 23 (XTEN-AV renderer) OR follow-up backlog items from Tier-1 (mfg_support_overrides generator wiring, Draft (TBC) affordance).
+Active work: Jetbuilt visual language + full audit backlog + re-audit follow-up all shipped
+Status: Session save 2026-07-10 — every P0/P1/P2 finding from both audits closed; deferred RAMS QA backlog also closed
+Last activity: 2026-07-10 -- 40+ commits across a single working session: Jetbuilt palette + top-nav rebuild, security batches WR-01/3/4/5, a11y batch 6, dashboard UX batch 7, Batch 11 async feedback + stale-banner + running-indicator + ready-for-signoff, Batch 12 x-link-hero extraction, then a full 4-agent re-audit that surfaced 28 findings all shipped in 4 batches, plus 3 lingering RAMS QA MEDIUMs (M-04/M-09/M-11).
+
+## Session 2026-07-09 to 2026-07-10 — Jetbuilt redesign + full re-audit closure
+
+A single long working session covering the visual identity reset, security hardening, UX workflows, and two full independent audits. Every commit ships to `live/feat/worksheet-classifier-universal`; 254–598 tests green depending on the suite scope.
+
+**Phase A–D · Jetbuilt-clean visual identity** (`60d18ec`, `1f98126`, `89bcde7`) — palette shift from indigo/teal (`--teal-*` aliased) to navy `#0B2440` + electric-blue accent `#2E7BFF` + slate ink scale + `#F7F9FC` paper. `.card` / `.btn` / `.data-table` / `.section-block` flatten (border-only, no shadow). Sidebar retired; horizontal top-nav with brand → primary links → admin dropdown → ⌘K search chip → user menu. Dashboard rebuilt with single-accent KPI icon set + flat health grid + accent-only chip system.
+
+**Phase E-prep · Auth pages** (`72fe830`) — `layouts/guest.blade.php` gets a token stub `:root` block so login inherits the same tokens. Navy square hex mark instead of indigo gradient. `tailwind.config.js` remaps `brand.*` to accent palette so every Breeze utility resolves through the new tokens.
+
+**Phase E · projects/show rebuild** (`c8c862d`) — 340-line local stylesheet flattens (no coloured left-rail accents, no gradients, no glow shadows). Next-Step hero, workflow stepper, table hover, tabs all speak the accent language. Nine Tailwind `bg-teal-600` CTAs collapse to `.btn.btn-primary`.
+
+**Phase F/1 · projects/index** (`de3b0e8`) — stat cards + filter tabs + search on the shared token stack; project-name link neutralised so the title reads as content, not accent.
+
+**Phase F/2 · survey + worksheet detail** (`fc4f2ab`) — both "share link" hero panels drop the teal-cyan gradient for a flat navy panel with accent-tinted label. Field-table headers drop uppercase + 700 weight for sentence-case ink-500. 300 lines of duplicated hex/gradient CSS removed.
+
+**Phase F/3 · om-manual + public-worksheet cleanup** (`02ab05d`) — bulk-import CSV card retunes from warm cream gradient to flat card primitive. Public sign-off blocked banner uses semantic warning tokens.
+
+**Security WR-01 · M-04 prompt-injection port** (`0766c75`) — new `App\Core\AI\Prompts\Concerns\WrapsUserData` trait extracts MethodStatementPrompt's sentinel-wrap pattern into a shared surface. 6 sibling prompts (OmManualPrompt, WorksheetPrompt, SurveyPrompt, ScopeOfWorksPrompt, RoomOverviewSummaryPrompt, OmRoomOverviewPrompt) now wrap every user-controlled field before interpolation, and every system message tells the model the sentinels are inert data. 13/13 injection-defence tests still green.
+
+**Security WR-03/4/5** (`9a6837c`) — `text/plain` uploads restricted to `.csv` extension so a `.pdf` with `text/plain` bytes can't slip past `ProjectReferenceFileService::validateUpload`. New `App\Services\Drawings\SvgSanitizerService` parses client SVGs with `DOMDocument` (LIBXML_NONET + LIBXML_NOENT), strips `<script>` / `<foreignObject>` / `on*` handlers / `javascript:` and `data:image/svg+xml` schemes. `SiteSurveyController::update` blocks any request that tries to change `project_id` mid-update.
+
+**Batch 6 · A11y** (`ef981be`) — 10 icon-only `×` remove buttons in rams/review + cable-schedule/edit gain `aria-label`; ⌘K palette gains a Tab focus trap so keyboard focus can't escape; `.gsp-item:focus-visible` shows an inset accent ring.
+
+**Batch 7 · Dashboard UX** (`517e479`) — `dashboard.blade.php` when `$projects->isEmpty()` renders a proper onboarding panel (Import Quote PDF · Create by hand · Survey shortcut). Recent-RAMS row routing: generating docs go to `project.show`, everything else to `rams.review`. Shared `<x-dashboard.empty-state>` retunes to accent tokens.
+
+**Batch 11 · Async feedback** (`6b56543`) — failed RAMS + O&M rows expose `error_message` via a `<details><summary>See why</summary>` block instead of hover-only tooltip. Generating rows past 5 minutes flip to amber with "Taking longer than expected…" + elapsed duration.
+
+**Batch 11 deferred** (`0890ac9`) — new `App\Services\WorkerStatusService` (later cached in Batch D), `Worksheet::isReadyForSignoff()` computed state with green "Ready to sign" pill on projects/show + full-width ribbon on worksheets/show, `submitted_notification_sent_at` migration + SurveyService stamp + confirmation banner, `RamsDocument::isStale()` + `OmManual::isStale()` mirroring `Worksheet::isStale()`, new `<x-stale-banner>` shared component mounted on rams/review + om-manual/edit.
+
+**Batch 12 · Component extraction** (`b501dbc`) — new `<x-link-hero>` shared component. Worksheet sign-off + survey engineer-link hero panels both render through it now. ~120 lines of duplicated CSS deleted from the two callers.
+
+**Re-audit · 4 parallel agents** (2026-07-09) — UI · UX · Design · Security. 28 findings surfaced (3 P0, 15 P1, 10 P2). Full artifact at `https://claude.ai/code/artifact/17907090-3995-455f-9e6d-5b55b10d5540`.
+
+**Re-audit P0 batch** (`67c6b84`) — dashboard KPI cards fixed (stat-card `href` was HTML-escaped through `{{ $attrs }}` → all 4 tiles 404'd on click). 9 `bg-teal-600` blocks on projects/show + 17 teal utility hits across 5 drawings/*.blade.php files remapped to `accent-*`. Also fixed 2 orphan `@once` tokens inside CSS comments that were compiling as real Blade directives and 500ing site-survey/show + worksheets/show.
+
+**Re-audit security batch** (`827f3fb`) — 6 retry-generation routes gain `throttle:10,1` (AI cost DoS). `access_token` + `access_token_expires_at` + `submitted_notification_sent_at` dropped from `SiteSurvey::$fillable` and `Worksheet::$fillable`. Test cascade repaired via `forceFill` for the 2 suites that seeded controlled tokens.
+
+**Re-audit batches A/B/C/D** (`588ea8f`, `4de0bc6`, `be99db0`, `397a584`) — 5 UI defects (workflow stepper clip, login title, `.badge-yellow` fill, worker button contrast, RAMS list completed-row fallback), 6 design drift items (command palette gradient pills, mobile responsive-nav-link indigo, O&M editor type rhythm, worksheets/public-show hex sweep, admin avatar gradient, `brand.teal` alias declared), 6 UX gaps (cable-schedules empty-state prop names, quote-import drop zone keyboard reachability, projects/show tab count affordance, RAMS review dirty-state + beforeunload guard, site-surveys empty-state consolidation, Mini O&M sub-label), 2 defence-in-depth (retry-generation authorisation consistency across 4 pipelines + new WorksheetPolicy + CableSchedulePolicy, new `App\Services\WorkerStatusService` caches the top-nav COUNT() query for 15s).
+
+**Post-audit RAMS QA closure** (`01918b1`) — 2 stale `QuoteParserServiceTest` expectations updated to reflect current parser behaviour (SHIPEMAIL from third-party domains no longer leaks into `prepared_by`; dedup now SUMs quantities across duplicate part+area rows). 3 remaining MEDIUM findings closed: M-04 `flock(LOCK_EX)` on cable schedule CSV writes, M-09 6 filename sites upgraded from `Ymd_His` to `Ymd_His_u` (microsecond precision, no same-second retry collision), M-11 filename regex expanded to strip ASCII control chars + DEL. H-02/H-06/H-07/H-09/M-08/M-16 all confirmed shipped in prior passes.
+
+**Cumulative test count green:** 598 across the touched suites (117 QuoteParser + 177 Worksheet + 31 CableSchedule + 273 Rams). The re-audit artifact backlog is now empty; the RAMS QA backlog has only 12 LOW housekeeping items left (`REVIEW-qa-260418.md`), none of which are worth targeting individually.
+
+**Next session pick-up:** either (a) resume v2.0 Phase 23 XTEN-AV renderer work as originally planned, or (b) let the redesign settle in real use for a week before poking further.
 
 ## Session 2026-07-08 (evening) — Follow-up moves
 
