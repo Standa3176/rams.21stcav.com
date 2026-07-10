@@ -17,10 +17,17 @@ class CableScheduleXlsxService
         private readonly DocumentArtifactStorage $artifacts = new DocumentArtifactStorage(),
     ) {}
 
-    private const TEAL      = '007B8A';
+    // Cable-schedule re-audit — palette retuned from tier-one teal
+    // (007B8A) + pale-teal alt row (F0FBFC) + generic mid-grey to
+    // the Jetbuilt-clean navy/accent/slate stack. The XLSX now
+    // reads as one product surface with the rest of the app when
+    // opened in Excel.
+    private const NAVY      = '0B2440';  // header fill
+    private const ACCENT    = '2E7BFF';  // title text
     private const WHITE     = 'FFFFFF';
-    private const ROW_ALT   = 'F0FBFC';
-    private const MID_GREY  = '666666';
+    private const ROW_ALT   = 'F7F9FC';  // paper canvas — matches --paper
+    private const MID_GREY  = '64748B';  // matches --ink-500
+    private const HAIRLINE  = 'E2E8F0';  // matches --ink-200
 
     /**
      * Build a formatted .xlsx cable schedule and return its absolute path.
@@ -35,7 +42,7 @@ class CableScheduleXlsxService
         $sheet->mergeCells('A1:H1');
         $sheet->setCellValue('A1', '21st Century AV Ltd — Cable Schedule');
         $sheet->getStyle('A1')->applyFromArray([
-            'font'      => ['bold' => true, 'size' => 14, 'color' => ['argb' => 'FF' . self::TEAL]],
+            'font'      => ['bold' => true, 'size' => 14, 'color' => ['argb' => 'FF' . self::ACCENT]],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT],
         ]);
         $sheet->getRowDimension(1)->setRowHeight(24);
@@ -73,9 +80,9 @@ class CableScheduleXlsxService
 
         $headerStyle = [
             'font'      => ['bold' => true, 'color' => ['argb' => 'FF' . self::WHITE]],
-            'fill'      => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FF' . self::TEAL]],
+            'fill'      => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FF' . self::NAVY]],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
-            'borders'   => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['argb' => 'FFCCCCCC']]],
+            'borders'   => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['argb' => 'FF' . self::HAIRLINE]]],
         ];
         $sheet->getStyle('A4:H4')->applyFromArray($headerStyle);
         $sheet->getRowDimension(4)->setRowHeight(20);
@@ -101,7 +108,7 @@ class CableScheduleXlsxService
 
             $sheet->getStyle("A{$rowNum}:H{$rowNum}")->applyFromArray([
                 'fill'    => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => $bg]],
-                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['argb' => 'FFCCCCCC']]],
+                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['argb' => 'FF' . self::HAIRLINE]]],
                 'font'    => ['size' => 9],
             ]);
 
@@ -114,7 +121,7 @@ class CableScheduleXlsxService
                 $sheet->setCellValue($col . $rowNum, '');
             }
             $sheet->getStyle("A{$rowNum}:H{$rowNum}")->applyFromArray([
-                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['argb' => 'FFCCCCCC']]],
+                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['argb' => 'FF' . self::HAIRLINE]]],
                 'font'    => ['size' => 9],
             ]);
             $rowNum++;
@@ -136,7 +143,10 @@ class CableScheduleXlsxService
         ]);
 
         // ── Save ──────────────────────────────────────────────────────────────
-        $filename     = 'cable_schedule_' . $schedule->id . '_' . now()->format('Ymd') . '.xlsx';
+        // Cable-schedule re-audit — the M-09 pass missed this file. Bump
+        // to Ymd_His_u so concurrent retries within the same wall-clock
+        // second don't overwrite a successful earlier build mid-download.
+        $filename     = 'cable_schedule_' . $schedule->id . '_' . now()->format('Ymd_His_u') . '.xlsx';
         $absolutePath = $this->artifacts->writePath(DocumentArtifactStorage::TYPE_CABLE, $filename);
 
         (new Xlsx($spreadsheet))->save($absolutePath);

@@ -106,7 +106,13 @@ class BuildCableScheduleJob implements ShouldQueue
             Log::info('BuildCableScheduleJob: completed successfully', [
                 'cable_schedule_id' => $this->cableScheduleId,
                 'attempt'           => $this->attempts(),
-                'filename'          => $schedule->filename,
+                // Cable-schedule re-audit — `$schedule->filename` was a
+                // reference to a column that doesn't exist on the
+                // cable_schedules table, so the log line always emitted
+                // `filename => null`. The actual filename lives in
+                // source_filename (which is overwritten with the output
+                // filename by the XLSX/CSV writer).
+                'filename'          => $schedule->fresh()->source_filename,
                 'status'            => 'draft',
                 'output_format'     => $hasSpreadsheet ? 'xlsx' : 'csv',
             ]);
@@ -179,7 +185,11 @@ class BuildCableScheduleJob implements ShouldQueue
      */
     private function buildCsvFallback(CableSchedule $schedule): void
     {
-        $filename = 'cable_schedule_' . $schedule->id . '_' . now()->format('Ymd') . '.csv';
+        // Cable-schedule re-audit — the M-09 pass missed the CSV fallback
+        // too (only the XLSX writer got Ymd_His_u earlier). Bump to
+        // microsecond precision so concurrent retries within the same
+        // wall-clock second don't collide.
+        $filename = 'cable_schedule_' . $schedule->id . '_' . now()->format('Ymd_His_u') . '.csv';
         $filePath = app(DocumentArtifactStorage::class)
             ->writePath(DocumentArtifactStorage::TYPE_CABLE, $filename);
 

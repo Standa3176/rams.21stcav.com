@@ -45,15 +45,15 @@
 >
     <div
         class="port-picker-modal card"
-        style="max-width:780px;width:92vw;max-height:90vh;overflow:auto;background:#fff;padding:1.25rem;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.3);"
+        style="max-width:780px;width:92vw;max-height:90vh;overflow:auto;background:var(--surface);padding:1.25rem;border-radius:var(--radius-lg);box-shadow:var(--shadow-pop);"
         @click.stop
     >
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-            <h2 style="font-size:1.15rem;margin:0;color:var(--accent-700);">
+            <h2 style="font-size:1.15rem;margin:0;color:var(--accent-700);font-weight:600;letter-spacing:-0.015em;">
                 Pick ports for row <span x-text="rowIndex + 1"></span>
             </h2>
             <button type="button" @click="cancel()" aria-label="Close picker"
-                    style="background:none;border:none;font-size:1.4rem;cursor:pointer;line-height:1;color:#666;">×</button>
+                    style="background:none;border:none;font-size:1.4rem;cursor:pointer;line-height:1;color:var(--ink-500);">×</button>
         </div>
 
         <div class="picker-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;">
@@ -100,10 +100,14 @@
             </section>
         </div>
 
-        {{-- Inline override warning + required note (DRAW-39) --}}
+        {{-- Inline override warning + required note (DRAW-39).
+             Cable-schedule re-audit — retuned from hardcoded warm hex
+             (bg #FFF8E1, border #FBC02D, text #5D4037) to the semantic
+             warning tokens so the callout matches every other warning
+             banner in the app. --}}
         <div x-show="warningReason()" x-cloak
-             style="margin-top:1rem;padding:.75rem;background:#FFF8E1;border:1px solid #FBC02D;border-radius:6px;">
-            <p style="margin:0 0 .5rem;font-weight:600;color:#5D4037;font-size:.875rem;">
+             style="margin-top:1rem;padding:.75rem;background:var(--warning-light);border:1px solid color-mix(in oklab, var(--warning) 30%, transparent);border-radius:var(--radius-sm);">
+            <p style="margin:0 0 .5rem;font-weight:600;color:#92400E;font-size:.875rem;">
                 ⚠ <span x-text="warningReason()"></span>
             </p>
             <label class="form-label" for="picker-override-note" style="font-size:.8rem;">
@@ -117,7 +121,7 @@
                 rows="2"
                 placeholder="e.g. HDBaseT extender installed between source HDMI and dest RJ45 wall plate"
             ></textarea>
-            <small style="color:#5D4037;font-size:.75rem;">
+            <small style="color:#92400E;font-size:.75rem;">
                 <span x-text="500 - (overrideNote ? overrideNote.length : 0)"></span> characters remaining
             </small>
         </div>
@@ -128,13 +132,16 @@
             </button>
             <div style="display:flex;gap:.5rem;">
                 <button type="button" class="btn btn-outline" @click="cancel()">Cancel</button>
-                <button type="button" class="btn btn-teal" :disabled="!canApply()" @click="apply()">
+                {{-- Cable-schedule re-audit — btn-teal was still resolving
+                     via the alias to accent, but be explicit for future
+                     readers now that the alias is retired-in-comment. --}}
+                <button type="button" class="btn btn-primary" :disabled="!canApply()" @click="apply()">
                     Apply
                 </button>
             </div>
         </div>
 
-        <p style="margin-top:.75rem;font-size:.75rem;color:#777;">
+        <p style="margin-top:.75rem;font-size:.75rem;color:var(--ink-500);">
             Use the picker to keep text and ports in sync.
             For freeform text (e.g. "Mains via 13A spur"), leave the picker closed on that row.
         </p>
