@@ -197,18 +197,26 @@ class BuildCableScheduleJob implements ShouldQueue
             throw new \RuntimeException("BuildCableScheduleJob: failed to acquire exclusive lock on {$filePath}");
         }
 
+        // Cable-schedule re-audit — pass explicit $escape='' to every
+        // fputcsv() call. PHP 8.4 deprecates the previously-implicit
+        // default ("\") and PHP 8.5 will make it a fatal error. Passing
+        // an empty string turns off backslash-escape processing entirely
+        // — Excel / Google Sheets / LibreOffice all handle standard
+        // double-quote CSV escaping without it.
+        $csvArgs = [",", "\"", ""];
+
         // Header info
-        fputcsv($fp, ['21st Century AV Ltd — Cable Schedule']);
+        fputcsv($fp, ['21st Century AV Ltd — Cable Schedule'], ...$csvArgs);
         fputcsv($fp, [implode('  |  ', array_filter([
             $schedule->project_name,
             $schedule->project_ref ? 'Ref: ' . $schedule->project_ref : null,
             $schedule->client_name ? 'Client: ' . $schedule->client_name : null,
             'Generated: ' . now()->format('d/m/Y'),
-        ]))]);
-        fputcsv($fp, []); // spacer
+        ]))], ...$csvArgs);
+        fputcsv($fp, [], ...$csvArgs); // spacer
 
         // Column headers
-        fputcsv($fp, ['Cable ID', 'From Location', 'To Location', 'Cable Type', 'Cores', 'Length (m)', 'Notes', 'Status']);
+        fputcsv($fp, ['Cable ID', 'From Location', 'To Location', 'Cable Type', 'Cores', 'Length (m)', 'Notes', 'Status'], ...$csvArgs);
 
         // Data rows
         foreach ($schedule->items as $item) {
@@ -221,7 +229,7 @@ class BuildCableScheduleJob implements ShouldQueue
                 $item->approx_length_m ?? '',
                 $item->notes           ?? '',
                 '',
-            ]);
+            ], ...$csvArgs);
         }
 
         // Release the exclusive lock before fclose so a concurrent

@@ -17,7 +17,11 @@
             @if ($showDeleted)
                 Soft-deleted cable schedules. Admins can restore or permanently remove.
             @else
-                XLSX cable routing sheets generated from a QuoteWerks PDF.
+                {{-- Cable-schedule re-audit — was "XLSX cable routing
+                     sheets…" but PhpSpreadsheet isn't installed on this
+                     environment and the job falls back to CSV. Honest
+                     copy so users aren't surprised by the file extension. --}}
+                Cable routing sheets generated from a QuoteWerks PDF — exported as XLSX (or CSV where PhpSpreadsheet isn't available).
             @endif
         </div>
     </div>
@@ -139,7 +143,11 @@
                     <th>Client</th>
                     <th>Status</th>
                     <th>Cables</th>
-                    <th>Source File</th>
+                    {{-- Cable-schedule re-audit — column was labelled
+                         "Source File" but source_filename is overwritten
+                         with the OUTPUT filename after generation, so the
+                         header was misleading. Renamed for accuracy. --}}
+                    <th>Output File</th>
                     <th>Created</th>
                     <th style="text-align:right;"></th>
                 </tr>
@@ -175,6 +183,18 @@
                     </td>
                     <td style="text-align:right;">
                         <div style="display:inline-flex;gap:6px;">
+                            {{-- Cable-schedule re-audit — the download route existed
+                                 (cable-schedules.download) but nothing in the UI
+                                 linked to it, so users had no way to actually pull
+                                 the generated XLSX/CSV. Rendered only when
+                                 source_filename is set (i.e., generation has run). --}}
+                            @if ($s->source_filename)
+                                <a href="{{ route('cable-schedules.download', $s) }}"
+                                   class="btn btn-primary btn-sm"
+                                   title="Download {{ pathinfo($s->source_filename, PATHINFO_EXTENSION) === 'csv' ? 'CSV' : 'XLSX' }}">
+                                    ↓ {{ strtoupper(pathinfo($s->source_filename, PATHINFO_EXTENSION)) ?: 'File' }}
+                                </a>
+                            @endif
                             <a href="{{ route('cable-schedules.edit', $s) }}" class="btn btn-outline btn-sm">Edit</a>
                             <form method="POST" action="{{ route('cable-schedules.destroy', $s->id) }}"
                                   data-confirm="Delete this cable schedule? Admins can restore it later."

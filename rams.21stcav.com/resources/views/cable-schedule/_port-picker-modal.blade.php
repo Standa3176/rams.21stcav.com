@@ -49,7 +49,7 @@
         @click.stop
     >
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-            <h2 style="font-size:1.15rem;margin:0;color:#1B7A7A;">
+            <h2 style="font-size:1.15rem;margin:0;color:var(--accent-700);">
                 Pick ports for row <span x-text="rowIndex + 1"></span>
             </h2>
             <button type="button" @click="cancel()" aria-label="Close picker"
@@ -59,7 +59,7 @@
         <div class="picker-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;">
             {{-- SOURCE column (D-02) --}}
             <section>
-                <h3 style="font-size:.85rem;letter-spacing:.05em;color:#1B7A7A;margin:0 0 .5rem;text-transform:uppercase;">Source</h3>
+                <h3 style="font-size:.85rem;letter-spacing:.05em;color:var(--accent-700);margin:0 0 .5rem;text-transform:uppercase;">Source</h3>
 
                 <label class="form-label" style="font-size:.8rem;">Device</label>
                 <select class="form-control" x-model.number="sourceDeviceId" @change="sourcePortId = null">
@@ -80,7 +80,7 @@
 
             {{-- DESTINATION column (D-02) --}}
             <section>
-                <h3 style="font-size:.85rem;letter-spacing:.05em;color:#1B7A7A;margin:0 0 .5rem;text-transform:uppercase;">Destination</h3>
+                <h3 style="font-size:.85rem;letter-spacing:.05em;color:var(--accent-700);margin:0 0 .5rem;text-transform:uppercase;">Destination</h3>
 
                 <label class="form-label" style="font-size:.8rem;">Device</label>
                 <select class="form-control" x-model.number="destDeviceId" @change="destPortId = null">

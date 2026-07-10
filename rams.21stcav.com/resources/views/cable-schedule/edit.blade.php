@@ -7,6 +7,16 @@
 <div class="page-header">
     <h1 class="page-title">{{ $schedule->project_name }}</h1>
     <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+        {{-- Cable-schedule re-audit — the download endpoint existed
+             but neither the edit page nor the index linked to it, so
+             users had no way to actually pull the generated file. --}}
+        @if ($schedule->source_filename)
+            <a href="{{ route('cable-schedules.download', $schedule) }}"
+               class="btn btn-primary btn-sm"
+               title="Download the generated {{ pathinfo($schedule->source_filename, PATHINFO_EXTENSION) === 'csv' ? 'CSV' : 'XLSX' }}">
+                ↓ Download {{ strtoupper(pathinfo($schedule->source_filename, PATHINFO_EXTENSION)) ?: 'File' }}
+            </a>
+        @endif
         <a href="{{ route('documents.revisions.view', ['type' => 'cable', 'id' => $schedule->id]) }}" class="btn btn-outline btn-sm">↻ History</a>
         <x-document-edit-drawer
             type="cable"
@@ -66,7 +76,12 @@
         <table class="data-table" id="cables-table" style="min-width:960px;">
             <thead>
                 <tr>
-                    <th style="width:90px;">Cable ID</th>
+                    {{-- Cable-schedule re-audit — Cable ID column widened
+                         120→90px was clipping the standard "CAB-001" 7-char
+                         label at ~5 visible chars because .form-control's
+                         width:100% + 24px padding + 15px body font left
+                         only ~5 chars in the 90px cell. --}}
+                    <th style="width:120px;">Cable ID</th>
                     <th>From</th>
                     <th style="width:44px;text-align:center;" aria-label="Pick ports">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;color:var(--muted);" aria-hidden="true">
@@ -76,8 +91,8 @@
                     </th>
                     <th>To</th>
                     <th>Type</th>
-                    <th style="width:80px;">Cores</th>
-                    <th style="width:80px;">Length (m)</th>
+                    <th style="width:70px;">Cores</th>
+                    <th style="width:90px;">Length&nbsp;(m)</th>
                     <th>Notes</th>
                     <th style="width:44px;"></th>
                 </tr>
@@ -97,9 +112,10 @@
                         <button type="button"
                                 class="picker-trigger"
                                 data-row-index="{{ $i }}"
+                                aria-label="{{ $item->source_device_id ? 'Edit port mapping' : 'Pick ports for this cable' }}"
                                 title="Pick ports for this cable"
                                 onclick="openPortPickerForRow(this)"
-                                style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:.25rem;line-height:1;color:{{ $item->source_device_id ? '#1B7A7A' : '#bbb' }};">
+                                style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:.25rem;line-height:1;color:{{ $item->source_device_id ? 'var(--accent-600)' : 'var(--ink-400)' }};">
                             🔗
                         </button>
                     </td>
@@ -110,7 +126,7 @@
                     <td><input type="text" name="items[{{ $i }}][notes]"         value="{{ $item->notes }}"         class="form-control" style="min-width:0;" maxlength="500"></td>
                     <td><button type="button" onclick="this.closest('tr').remove()"
                                 aria-label="Remove cable row" title="Remove cable"
-                                style="background:none;border:none;color:#c0392b;cursor:pointer;font-size:1.1rem;">✕</button></td>
+                                style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:1.1rem;">✕</button></td>
                 </tr>
                 @endforeach
             </tbody>
@@ -147,7 +163,7 @@ function addRow() {
             <input type="hidden" name="items[${i}][connector_override_note]" value="" data-fk="connector_override_note">
             <button type="button" class="picker-trigger" data-row-index="${i}" title="Pick ports for this cable"
                     onclick="openPortPickerForRow(this)"
-                    style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:.25rem;line-height:1;color:#bbb;">🔗</button>
+                    style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:.25rem;line-height:1;color:var(--ink-400);">🔗</button>
         </td>
         <td><input type="text" name="items[${i}][to_location]"       class="form-control" style="min-width:0;" maxlength="200"></td>
         <td><input type="text" name="items[${i}][cable_type]"        class="form-control" style="min-width:0;" maxlength="100"></td>
@@ -219,7 +235,13 @@ window.addEventListener('port-picker:applied', function (e) {
     }
 
     // D-03 icon state: faded outline when unset, teal when set.
-    trigger.style.color = (d.sourceDeviceId ? '#1B7A7A' : '#bbb');
+    // Cable-schedule re-audit — was hardcoded teal/grey. Now reads the
+    // Jetbuilt accent-600 vs ink-400 via CSS custom properties so the
+    // link icon flips consistently with the rest of the app.
+    var rootStyle = getComputedStyle(document.documentElement);
+    var setColor  = rootStyle.getPropertyValue('--accent-600').trim() || '#2E7BFF';
+    var unsetColor = rootStyle.getPropertyValue('--ink-400').trim() || '#94A3B8';
+    trigger.style.color = (d.sourceDeviceId ? setColor : unsetColor);
 });
 </script>
 @endpush
