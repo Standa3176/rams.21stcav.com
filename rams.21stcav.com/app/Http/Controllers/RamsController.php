@@ -806,7 +806,11 @@ class RamsController extends Controller
             $base = pathinfo($rams->filename ?? 'rams', PATHINFO_FILENAME);
         }
         // Strip characters that are invalid in filenames.
-        $pdfName = preg_replace('/[\\\\\/:\*\?"<>|]/', '_', $base) . '.pdf';
+        // Re-audit M-11 fix — the original regex only removed the classic
+        // Windows-forbidden characters. Also strip ASCII control chars
+        // (\x00-\x1F) and DEL (\x7F) so a client name with a stray tab
+        // or newline doesn't corrupt the Content-Disposition header.
+        $pdfName = preg_replace('/[\\\\\/:\*\?"<>|\x00-\x1F\x7F]/', '_', $base) . '.pdf';
 
         return response()->download($pdfPath, $pdfName, [
             'Content-Type' => 'application/pdf',

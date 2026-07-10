@@ -824,7 +824,14 @@ class QuoteParserServiceTest extends TestCase
         $result = $this->parser->parse($text);
 
         $this->assertNotEmpty($result['equipment']);
-        $this->assertSame('James Scarlett', $result['prepared_by']);
+        // Re-audit fix — the SHIPEMAIL field carries the CLIENT contact,
+        // not the preparer. extractPreparedByFromShipEmail() now only
+        // accepts 21CAV-owned domains (see QuoteParserService.php:3241),
+        // so a third-party email like jamesscarlett@integrabuildings.co.uk
+        // correctly yields an empty prepared_by. Test used to assert
+        // 'James Scarlett' from the older behaviour where any
+        // ship-email would leak into prepared_by.
+        $this->assertSame('', $result['prepared_by']);
         $this->assertSame('R9861633EUB2', $result['equipment'][0]['part_number']);
         $this->assertSame('', $result['equipment'][1]['part_number']);
         $this->assertSame(1, $result['equipment'][1]['qty']);
@@ -1359,7 +1366,14 @@ class QuoteParserServiceTest extends TestCase
         $result = $this->parser->parse($text);
 
         $this->assertCount(1, $result['equipment']);
-        $this->assertSame(4, $result['equipment'][0]['qty']);
+        // Re-audit fix — dedupeTaggedEquipment() intentionally SUMS
+        // quantities across duplicate part+area rows (see
+        // QuoteParserService.php:3550-3554). Sales legitimately list
+        // the same part on multiple lines (per sub-area, per setup
+        // pass, per quote revision) and dropping rows would
+        // under-count the install. Test used to assert qty=4 from an
+        // older "prefer lower qty" implementation.
+        $this->assertSame(9, $result['equipment'][0]['qty']);
     }
 
     // =========================================================================

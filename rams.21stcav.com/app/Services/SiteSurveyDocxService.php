@@ -77,9 +77,11 @@ class SiteSurveyDocxService
         }
 
         // ── Save ──────────────────────────────────────────────────────────────
+        // Re-audit M-09 fix — microsecond precision so concurrent retries
+        // don't collide within the same wall-clock second.
         $filename = 'site_survey_'
             . $survey->id . '_'
-            . now()->format('Ymd_His') . '.docx';
+            . now()->format('Ymd_His_u') . '.docx';
         $filePath = $storageDir . '/' . $filename;
 
         IOFactory::createWriter($phpWord, 'Word2007')->save($filePath);

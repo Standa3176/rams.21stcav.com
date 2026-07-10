@@ -3521,8 +3521,15 @@ class QuoteParserService
      * De-duplicate tagged equipment rows produced by OCR column bleed.
      *
      * Priority:
-     * - For same area+part number, keep a single row (lower qty preferred).
-     * - For rows without part numbers, de-dupe by area+normalised description.
+     * - For same area+part number, keep a SINGLE row and SUM the
+     *   quantities across duplicates (see the SUM branch below —
+     *   sales list the same part on multiple lines legitimately).
+     * - Description merge: pick the richer (longer, non-garbled)
+     *   description across the duplicate rows.
+     * - Location merge: promote a non-empty location if the surviving
+     *   row is missing one.
+     * - For rows without part numbers, de-dupe by area+normalised
+     *   description under the same rules.
      */
     private function dedupeTaggedEquipment(array $equipment): array
     {

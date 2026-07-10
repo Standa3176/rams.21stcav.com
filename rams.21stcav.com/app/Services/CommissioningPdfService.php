@@ -85,10 +85,12 @@ class CommissioningPdfService
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
 
+        // Re-audit M-09 fix — Ymd_His_u so concurrent retries in the
+        // same second don't collide.
         $filename = sprintf(
             'snagging_programme_%d_%s_%s.pdf',
             $programme->id,
-            now()->format('Ymd_His'),
+            now()->format('Ymd_His_u'),
             $suffix,
         );
 

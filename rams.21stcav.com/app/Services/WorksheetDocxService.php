@@ -93,7 +93,12 @@ class WorksheetDocxService
         }
 
         // ── Save ─────────────────────────────────────────────────────────────
-        $filename = 'worksheet_' . $worksheet->id . '_' . now()->format('Ymd_His') . '.docx';
+        // Re-audit M-09 fix — was Ymd_His (second precision), collision
+        // vector for concurrent retries within the same wall-clock second.
+        // Ymd_His_u appends microseconds so a same-second retry writes
+        // to a unique filename and a successful earlier build isn't
+        // overwritten mid-download.
+        $filename = 'worksheet_' . $worksheet->id . '_' . now()->format('Ymd_His_u') . '.docx';
         $fullPath = $this->artifacts->writePath(DocumentArtifactStorage::TYPE_WORKSHEET, $filename);
 
         try {

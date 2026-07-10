@@ -129,7 +129,9 @@ class DocxBuilderService
         $this->buildAppendixA($phpWord, $data);
 
         // Write file to the unified documents disk (H-07).
-        $filename = 'rams_' . $record->id . '_' . now()->format('Ymd_His') . '.docx';
+        // Re-audit M-09 fix — Ymd_His_u so concurrent retries within the
+        // same second don't collide.
+        $filename = 'rams_' . $record->id . '_' . now()->format('Ymd_His_u') . '.docx';
         $filePath = $this->artifacts->writePath(DocumentArtifactStorage::TYPE_RAMS, $filename);
 
         IOFactory::createWriter($phpWord, 'Word2007')->save($filePath);

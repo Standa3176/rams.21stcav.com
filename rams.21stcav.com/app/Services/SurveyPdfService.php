@@ -47,7 +47,9 @@ class SurveyPdfService
         // mode ignores them — extra eager-load is cheap (single query).
         $survey->loadMissing(['rooms.photos', 'rooms.questions', 'variations']);
 
-        $filename = 'site_survey_' . $survey->id . '_' . now()->format('Ymd_His') . '.pdf';
+        // Re-audit M-09 fix — Ymd_His_u so concurrent retries within the
+        // same wall-clock second don't collide.
+        $filename = 'site_survey_' . $survey->id . '_' . now()->format('Ymd_His_u') . '.pdf';
         $path     = Storage::disk('local')->path('site-surveys/' . $filename);
 
         $this->renderer->fromBlade(
@@ -126,7 +128,9 @@ class SurveyPdfService
         $survey->loadMissing(['rooms.photos', 'rooms.questions', 'variations.photo', 'project:id,name']);
 
         $slug      = \Illuminate\Support\Str::slug($survey->project_name ?: ('survey-' . $survey->id));
-        $timestamp = now()->format('Ymd_His');
+        // Re-audit M-09 fix — Ymd_His_u so concurrent retries in the
+        // same second don't collide.
+        $timestamp = now()->format('Ymd_His_u');
         $filename  = "client-survey-{$survey->id}-{$slug}-{$timestamp}.pdf";
 
         /** @var \App\Services\DocumentArtifactStorage $artifacts */

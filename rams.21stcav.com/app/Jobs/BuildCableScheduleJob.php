@@ -183,7 +183,19 @@ class BuildCableScheduleJob implements ShouldQueue
         $filePath = app(DocumentArtifactStorage::class)
             ->writePath(DocumentArtifactStorage::TYPE_CABLE, $filename);
 
+        // Re-audit M-04 fix — take an exclusive lock before truncating +
+        // writing. Two workers processing the same cable_schedule_id in
+        // parallel (retry race) would otherwise interleave writes and
+        // corrupt the CSV. The outer status-transition guard is a
+        // best-effort race hedge — this closes the file-level window.
         $fp = fopen($filePath, 'w');
+        if ($fp === false) {
+            throw new \RuntimeException("BuildCableScheduleJob: failed to open {$filePath}");
+        }
+        if (! flock($fp, LOCK_EX)) {
+            fclose($fp);
+            throw new \RuntimeException("BuildCableScheduleJob: failed to acquire exclusive lock on {$filePath}");
+        }
 
         // Header info
         fputcsv($fp, ['21st Century AV Ltd — Cable Schedule']);
@@ -212,6 +224,11 @@ class BuildCableScheduleJob implements ShouldQueue
             ]);
         }
 
+        // Release the exclusive lock before fclose so a concurrent
+        // reader (rare — CSV downloads open a new handle) doesn't
+        // observe the tail of a partial write.
+        fflush($fp);
+        flock($fp, LOCK_UN);
         fclose($fp);
 
         // Persist filename via source_filename (always exists on table)
