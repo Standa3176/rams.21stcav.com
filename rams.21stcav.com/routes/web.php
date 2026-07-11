@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AIUsageController;
+use App\Http\Controllers\Admin\DeviceCableRuleController;
 use App\Http\Controllers\Admin\DeviceController;
 use App\Http\Controllers\Admin\SolutionTypeController;
 use App\Http\Controllers\Admin\UserController;
@@ -276,6 +277,15 @@ Route::middleware('auth')->group(function () {
             ->name('admin.devices.edit');
         Route::put('/admin/devices/{device}', [DeviceController::class, 'update'])
             ->name('admin.devices.update');
+
+        // ── Device Cable Rules — Tier 3-D data-driven cable inference ────────
+        // Full CRUD on the priority-ordered rule set consumed by
+        // CableScheduleGeneratorService::inferCableRun(). show route omitted
+        // because the edit view already renders every field.
+        Route::resource('admin/device-cable-rules', DeviceCableRuleController::class)
+            ->except(['show'])
+            ->names('admin.device-cable-rules')
+            ->parameters(['device-cable-rules' => 'deviceCableRule']);
 
         // ── Worker Monitor (admin only) ───────────────────────────────────────
         Route::prefix('admin')->group(function () {

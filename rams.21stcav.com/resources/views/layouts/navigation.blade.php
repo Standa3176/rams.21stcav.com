@@ -263,7 +263,8 @@
         || request()->routeIs('hazard-templates.*')
         || request()->routeIs('rams.settings*')
         || request()->routeIs('design.gallery')
-        || request()->routeIs('admin.devices.*');
+        || request()->routeIs('admin.devices.*')
+        || request()->routeIs('admin.device-cable-rules.*');
 @endphp
 
 {{-- Brand — lockup lives on the far left. --}}
@@ -397,6 +398,14 @@
                     <line x1="9" y1="20" x2="9" y2="22"/><line x1="15" y1="20" x2="15" y2="22"/>
                 </svg>
                 Devices
+            </a>
+            <a href="{{ route('admin.device-cable-rules.index') }}"
+               class="tnav-admin-item {{ request()->routeIs('admin.device-cable-rules.*') ? 'active' : '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M4 6h8"/><path d="M12 6a4 4 0 0 1 4 4v4a4 4 0 0 0 4 4"/>
+                    <circle cx="4" cy="6" r="2"/><circle cx="20" cy="18" r="2"/>
+                </svg>
+                Cable Rules
             </a>
 
             <div class="tnav-admin-sep"></div>

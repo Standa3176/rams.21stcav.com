@@ -4,6 +4,8 @@ namespace Tests\Unit\Services\Cable;
 
 use App\Core\Modules\Projects\ProjectDataService;
 use App\Services\CableScheduleGeneratorService;
+use Database\Seeders\DeviceCableRulesSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery;
 use Tests\TestCase;
 
@@ -26,6 +28,21 @@ use Tests\TestCase;
  */
 class CableScheduleGeneratorServiceTest extends TestCase
 {
+    use RefreshDatabase;
+
+    /**
+     * Quick task 260711-q7q — inferCableRun() now reads from
+     * device_cable_rules. Every test method that touches
+     * buildRowsFromEquipmentLines() (or any consumer of
+     * inferCableRun) needs the canonical 15-rule seed pack loaded.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(DeviceCableRulesSeeder::class);
+    }
+
     private function make(): CableScheduleGeneratorService
     {
         // buildRowsFromEquipmentLines does not touch ProjectDataService — the

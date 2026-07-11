@@ -6,6 +6,7 @@ use App\Core\Modules\Projects\ProjectDataService;
 use App\Models\CableSchedule;
 use App\Models\CableScheduleItem;
 use App\Models\Device;
+use App\Models\DeviceCableRule;
 use App\Services\Cable\StencilPortResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -1058,155 +1059,28 @@ class CableScheduleGeneratorService
      * not a default. signal_type is one of the 8 keys in
      * config('cables.signal_type_colours'); the XLSX layer uses it to tint the
      * Signal column at ~15% opacity.
+     *
+     * Quick task 260711-q7q — refactored from a 13-branch hardcoded cascade
+     * into a data-driven walk over DeviceCableRule::forInference(). Rules
+     * are ordered by priority ASC; the first rule whose keyword list
+     * word-boundary-matches the equipment name wins. Missing / disabled
+     * rules fall through to the TBC placeholder so the schedule still
+     * generates cleanly. Admin CRUD lives at /admin/device-cable-rules.
      */
     private function inferCableRun(string $equipName): array
     {
         $lower = strtolower($equipName);
 
-        // ── Display / projection → HDMI ──────────────────────────────────────
-        if ($this->matchesAny($lower, ['display', 'screen', 'monitor', 'tv', 'samsung', 'lg',
-            'sony', 'uhd', '4k', 'oled', 'qled', 'qm85', 'qe65', 'qe75', 'projector'])) {
-            return [
-                'cable_type'  => 'HDMI 2.0',
-                'signal_type' => 'video',
-                'cores'       => null,
-                'to'          => 'AV Rack / Matrix Switcher',
-                'notes'       => 'Signal: HDMI from source/matrix',
-            ];
-        }
-
-        // ── HDBaseT extender → Cat6a ─────────────────────────────────────────
-        if ($this->matchesAny($lower, ['hdbaset', 'extender', 'csc'])) {
-            return [
-                'cable_type'  => 'Cat6a (shielded)',
-                'signal_type' => 'video',
-                'cores'       => null,
-                'to'          => 'Display / Receiver',
-                'notes'       => 'HDBaseT link — max 70m Cat6a',
-            ];
-        }
-
-        // ── Speaker → speaker cable ──────────────────────────────────────────
-        if ($this->matchesAny($lower, ['speaker', 'pendant', 'loudspeaker'])) {
-            return [
-                'cable_type'  => '2-core speaker cable (1.5mm LSZH)',
-                'signal_type' => 'speaker',
-                'cores'       => '2',
-                'to'          => 'Amplifier output',
-                'notes'       => 'Speaker level from amplifier',
-            ];
-        }
-
-        // ── Microphone → Cat6 (Shure) or XLR ────────────────────────────────
-        if ($this->matchesAny($lower, ['microphone', 'mic', 'mxw', 'lavalier'])) {
-            $isShure = $this->matchesAny($lower, ['shure', 'mxw', 'mx']);
-            return [
-                'cable_type'  => $isShure ? 'Cat6 (Shure network)' : 'XLR',
-                'signal_type' => 'audio',
-                'cores'       => $isShure ? null : '3',
-                'to'          => $isShure ? 'Shure access point / DSP' : 'DSP / Mixer input',
-                'notes'       => $isShure ? 'Shure Microflex Wireless' : 'Analogue mic input',
-            ];
-        }
-
-        // ── DSP / audio processor → Cat6 (Dante) ────────────────────────────
-        if ($this->matchesAny($lower, ['dsp', 'q-sys', 'qsys', 'biamp', 'audio processor'])) {
-            return [
-                'cable_type'  => 'Cat6 (Dante/AES67)',
-                'signal_type' => 'audio',
-                'cores'       => null,
-                'to'          => 'Network switch (AV VLAN)',
-                'notes'       => 'Dante audio network',
-            ];
-        }
-
-        // ── Amplifier → Cat6 (Dante) or analogue ─────────────────────────────
-        if ($this->matchesAny($lower, ['amplifier', 'amp', 'lea audio', 'lea '])) {
-            $isDante = $this->matchesAny($lower, ['dante', 'lea']);
-            return [
-                'cable_type'  => $isDante ? 'Cat6 (Dante)' : 'Audio Multicore',
-                'signal_type' => 'audio',
-                'cores'       => null,
-                'to'          => $isDante ? 'Network switch (AV VLAN)' : 'DSP output',
-                'notes'       => $isDante ? 'Dante amplifier — network audio' : 'Analogue from DSP',
-            ];
-        }
-
-        // ── Cisco / VC codec → Cat6 PoE ─────────────────────────────────────
-        if ($this->matchesAny($lower, ['cisco', 'room kit', 'codec', 'poly', 'logitech'])) {
-            return [
-                'cable_type'  => 'Cat6 (PoE)',
-                'signal_type' => 'video',
-                'cores'       => null,
-                'to'          => 'Network switch (PoE)',
-                'notes'       => 'VC codec — requires PoE+ or local PSU',
-            ];
-        }
-
-        // ── Camera / PTZ → Cat6 PoE ──────────────────────────────────────────
-        if ($this->matchesAny($lower, ['camera', 'ptz', 'quad cam', 'webcam'])) {
-            return [
-                'cable_type'  => 'Cat6 (PoE)',
-                'signal_type' => 'video',
-                'cores'       => null,
-                'to'          => 'Codec / Network switch (PoE)',
-                'notes'       => 'Camera — PoE powered',
-            ];
-        }
-
-        // ── Touch panel / navigator → Cat6 PoE ──────────────────────────────
-        if ($this->matchesAny($lower, ['navigator', 'touch panel', 'keypad', 'button panel'])) {
-            return [
-                'cable_type'  => 'Cat6 (PoE)',
-                'signal_type' => 'control',
-                'cores'       => null,
-                'to'          => 'Network switch (PoE)',
-                'notes'       => 'Control interface — PoE powered',
-            ];
-        }
-
-        // ── Control / sensor → Cat6 ─────────────────────────────────────────
-        if ($this->matchesAny($lower, ['control', 'crestron', 'extron', 'amx', 'sensor', 'partition'])) {
-            return [
-                'cable_type'  => 'Cat6',
-                'signal_type' => 'control',
-                'cores'       => null,
-                'to'          => 'Control processor',
-                'notes'       => 'Control signal',
-            ];
-        }
-
-        // ── Network switch → Cat6 (uplink) ──────────────────────────────────
-        if ($this->matchesAny($lower, ['switch', 'netgear', 'cisco switch'])) {
-            return [
-                'cable_type'  => 'Cat6',
-                'signal_type' => 'network',
-                'cores'       => null,
-                'to'          => 'Building network / patch panel',
-                'notes'       => 'Uplink to client network',
-            ];
-        }
-
-        // ── Patch panel → Cat6 ──────────────────────────────────────────────
-        if ($this->matchesAny($lower, ['patch panel', 'keystone'])) {
-            return [
-                'cable_type'  => 'Cat6',
-                'signal_type' => 'network',
-                'cores'       => null,
-                'to'          => 'Network switch',
-                'notes'       => 'Patch panel termination',
-            ];
-        }
-
-        // ── Wireless mic access point → Cat6 PoE ────────────────────────────
-        if ($this->matchesAny($lower, ['mxwapx', 'access point', 'wap'])) {
-            return [
-                'cable_type'  => 'Cat6 (PoE)',
-                'signal_type' => 'audio',
-                'cores'       => null,
-                'to'          => 'Network switch (PoE)',
-                'notes'       => 'Wireless mic access point',
-            ];
+        foreach (DeviceCableRule::forInference() as $rule) {
+            if ($this->matchesAny($lower, (array) $rule->keywords)) {
+                return [
+                    'cable_type'  => (string) $rule->cable_type,
+                    'signal_type' => (string) $rule->signal_type,
+                    'cores'       => $rule->cores,
+                    'to'          => (string) $rule->to_endpoint,
+                    'notes'       => (string) ($rule->notes ?? ''),
+                ];
+            }
         }
 
         // ── Unknown hardware → TBC ──────────────────────────────────────────

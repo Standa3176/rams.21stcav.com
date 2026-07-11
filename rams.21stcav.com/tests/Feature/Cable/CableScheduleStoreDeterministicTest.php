@@ -6,6 +6,7 @@ use App\Models\CableSchedule;
 use App\Models\User;
 use App\Services\PdfTextExtractorService;
 use App\Services\QuoteLineExtractorService;
+use Database\Seeders\DeviceCableRulesSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
@@ -13,6 +14,18 @@ use Tests\TestCase;
 class CableScheduleStoreDeterministicTest extends TestCase
 {
     use RefreshDatabase;
+
+    /**
+     * Quick task 260711-q7q — inferCableRun now reads from
+     * device_cable_rules, so the canonical seed pack must be loaded
+     * before the controller runs generation.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(DeviceCableRulesSeeder::class);
+    }
 
     public function test_store_generates_rows_deterministically_without_ai(): void
     {

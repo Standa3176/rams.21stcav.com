@@ -12,6 +12,7 @@ use App\Models\Project;
 use App\Models\User;
 use App\Services\Cable\StencilPortResolver;
 use App\Services\CableScheduleGeneratorService;
+use Database\Seeders\DeviceCableRulesSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
@@ -28,6 +29,18 @@ use Tests\TestCase;
 class CableScheduleDagGenerationTest extends TestCase
 {
     use RefreshDatabase;
+
+    /**
+     * Quick task 260711-q7q — inferCableRun now reads from
+     * device_cable_rules, so the canonical seed pack must be loaded
+     * before any generate() call.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(DeviceCableRulesSeeder::class);
+    }
 
     private function makeSvc(): CableScheduleGeneratorService
     {
