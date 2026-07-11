@@ -42,6 +42,7 @@ class CableScheduleItem extends Model
         'approx_length_m',
         'notes',
         'sort_order',
+        'signal_type',
         // ── Phase 22 port-level additions (DRAW-37) ─────────────────────────
         'source_device_id',
         'source_port_id',

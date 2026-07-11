@@ -36,6 +36,9 @@ class CableScheduleXlsxRegressionTest extends TestCase
 {
     use RefreshDatabase;
 
+    // T1-A (2026-07-11): XLSX now has 9 columns (Signal inserted between
+    // Cable Type and Cores). Byte-identity still holds because both
+    // fixtures leave signal_type NULL → both render an empty Signal cell.
     public function test_xlsx_byte_identical_for_null_and_populated_fks(): void
     {
         // PhpSpreadsheet is a runtime dependency of CableScheduleXlsxService.
