@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AIUsageController;
+use App\Http\Controllers\Admin\DeviceController;
 use App\Http\Controllers\Admin\SolutionTypeController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\CableScheduleController;
@@ -263,6 +264,18 @@ Route::middleware('auth')->group(function () {
         Route::resource('admin/solution-types', SolutionTypeController::class)
             ->names('admin.solution-types')
             ->parameters(['solution-types' => 'solutionType']);
+
+        // ── Devices — Tier 4 admin editor (quick task 260711-q7q) ─────────────
+        // Follow-up to 260711-oh4: exposes signal_role + is_critical +
+        // pse_budget_w + pd_load_w + room_name for admin edits. No create /
+        // destroy — device rows are created by the label-photo capture flow
+        // and quote-import pipeline; this surface is edit-only.
+        Route::get('/admin/devices', [DeviceController::class, 'index'])
+            ->name('admin.devices.index');
+        Route::get('/admin/devices/{device}/edit', [DeviceController::class, 'edit'])
+            ->name('admin.devices.edit');
+        Route::put('/admin/devices/{device}', [DeviceController::class, 'update'])
+            ->name('admin.devices.update');
 
         // ── Worker Monitor (admin only) ───────────────────────────────────────
         Route::prefix('admin')->group(function () {

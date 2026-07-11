@@ -262,7 +262,8 @@
     $adminActive = request()->routeIs('admin.*')
         || request()->routeIs('hazard-templates.*')
         || request()->routeIs('rams.settings*')
-        || request()->routeIs('design.gallery');
+        || request()->routeIs('design.gallery')
+        || request()->routeIs('admin.devices.*');
 @endphp
 
 {{-- Brand — lockup lives on the far left. --}}
@@ -385,6 +386,17 @@
                     <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
                 </svg>
                 Solution Types
+            </a>
+            <a href="{{ route('admin.devices.index') }}"
+               class="tnav-admin-item {{ request()->routeIs('admin.devices.*') ? 'active' : '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="4" y="4" width="16" height="16" rx="2"/>
+                    <line x1="2" y1="9"  x2="4" y2="9"/><line x1="2"  y1="15" x2="4"  y2="15"/>
+                    <line x1="20" y1="9" x2="22" y2="9"/><line x1="20" y1="15" x2="22" y2="15"/>
+                    <line x1="9" y1="2"  x2="9" y2="4"/><line x1="15" y1="2"  x2="15" y2="4"/>
+                    <line x1="9" y1="20" x2="9" y2="22"/><line x1="15" y1="20" x2="15" y2="22"/>
+                </svg>
+                Devices
             </a>
 
             <div class="tnav-admin-sep"></div>
