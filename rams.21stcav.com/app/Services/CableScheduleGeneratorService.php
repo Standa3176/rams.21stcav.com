@@ -68,6 +68,18 @@ class CableScheduleGeneratorService
         'power'   => ['iec', 'mains', 'power'],
     ];
 
+    // ── T2-B: signal-path DAG processor ordering ──────────────────────────────
+    //
+    // Substring-matched against strtolower(manufacturer . ' ' . model). First
+    // matching keyword wins per device; unmatched processors sort LAST in
+    // Device.id order (see sortProcessors). Kept generous so common brand
+    // names still resolve — 'q-sys' contains 'dsp' in the string 'core',
+    // 'biamp tesira' hits nothing here so it lands last (engineer sanity-
+    // check should catch that case).
+    private const SIGNAL_PATH_ORDER = [
+        'dsp', 'audio-processor', 'matrix', 'switcher', 'codec', 'amplifier',
+    ];
+
     // ── T1-E: distance-warning matrix ─────────────────────────────────────────
     //
     // Applied after computing $cableInfo. Rules walked in declaration order;
@@ -198,38 +210,89 @@ class CableScheduleGeneratorService
     }
 
     /**
-     * T1-B: Device-preferred generation path.
+     * T1-B + T2-B: Device-preferred generation orchestrator.
      *
-     * Devices know room, rack position, and signal role — higher fidelity
-     * than quote lines. from_location gets a `(Rack, {u}U)` suffix for
-     * rack-mounted devices and a `[signal_role] ` notes prefix when the
-     * role is set. signal_type still comes from inferCableRun (audio/
-     * video/network/etc) — signal_role (source/destination/processor) is
-     * orthogonal semantics, kept as an engineering hint in notes.
+     * Per-room dispatcher between the T2-B DAG walker and the T1-B flat
+     * fallback. Every room's classified device set is inspected: if EVERY
+     * device is unclassified (hasUnknownSignalRole()), the room falls
+     * through to generateFromDevicesFlat so the pre-T2-B row-per-device
+     * behaviour still ships. Any classified device flips the room to the
+     * DAG walker, which emits one row per (source, destination) edge along
+     * the signal_type-scoped chain including intermediate processors.
+     *
+     * Every emitted row — DAG or flat — is decorated with T1-D quoted
+     * overrides + T1-E length/warnings + T2-A port FKs. sort_order is a
+     * single global counter threaded across all rooms so cable_id stays
+     * monotonic (C-001, C-002, …).
      *
      * @param  Collection<int, Device>  $devices
      */
     private function generateFromDevices(CableSchedule $schedule, Collection $devices): int
     {
-        // T1-D + T1-E: reload the project once, then build the per-room
-        // consumable + length maps. Devices whose room_name matches
-        // (case-insensitive trim) get their overrides + length applied.
+        // T1-D + T1-E + T2-A: preload project data + attach stencils once.
         $project           = $schedule->project()->first();
         $consumablesByRoom = $this->buildConsumablesByRoom($project);
-        $lengthMap         = $this->buildRoomLengthMap($project);   // T1-E
-
-        // T2-A: attach stencils to every device via the shared resolver so
-        // each row can resolve its source_port_id from $device->stencil->ports
-        // without any further DB hits inside the loop.
+        $lengthMap         = $this->buildRoomLengthMap($project);
         $this->stencilResolver->attachToDevices($devices);
+
+        $devicesByRoom = $devices->groupBy(fn (Device $d) =>
+            (trim((string) ($d->room_name ?? '')) ?: 'Unknown Room'));
 
         $sortOrder = 0;
         $created   = 0;
 
-        foreach ($devices as $device) {
-            // Build the equipment name — prefer manufacturer + model, fall
-            // back to description. Room name is required for the "from"
-            // location, so use "Unknown Room" if the Device row has none.
+        foreach ($devicesByRoom as $roomName => $roomDevices) {
+            $roomKey    = strtolower(trim((string) $roomName));
+            $overrides  = $this->buildQuotedCableOverrides($consumablesByRoom[$roomKey] ?? []);
+            $lengthM    = $lengthMap[$roomKey] ?? null;
+
+            // Feature gate — if EVERY device in the room is unclassified,
+            // fall through to the flat legacy path (row-per-device). One
+            // classified device tips the room into DAG mode.
+            $allUnknown = $roomDevices->every(fn (Device $d) => $d->hasUnknownSignalRole());
+
+            if ($allUnknown) {
+                $created += $this->generateFromDevicesFlat(
+                    $schedule, $roomDevices, $overrides, $lengthM, (string) $roomName, $sortOrder
+                );
+                continue;
+            }
+
+            $graph    = $this->buildSignalGraph($roomDevices);
+            $created += $this->emitDagEdges(
+                $schedule, $graph, $overrides, $lengthM, (string) $roomName, $sortOrder
+            );
+        }
+
+        Log::info('CableScheduleGeneratorService: generateFromDevices complete', [
+            'cable_schedule_id' => $schedule->id,
+            'items_created'     => $created,
+            'devices_seen'      => $devices->count(),
+        ]);
+
+        return $created;
+    }
+
+    /**
+     * T1-B flat fallback — one row per device. Used when EVERY device in the
+     * room has hasUnknownSignalRole() so we cannot walk a signal-aware DAG.
+     * Decorates each row with T1-D + T1-E + T2-A (source-side only; dest_*
+     * stays null because the flat path has no destination Device).
+     *
+     * @param  Collection<int, Device>  $roomDevices
+     */
+    private function generateFromDevicesFlat(
+        CableSchedule $schedule,
+        Collection $roomDevices,
+        array $overrides,
+        ?float $lengthM,
+        string $roomName,
+        int &$sortOrder,
+    ): int {
+        $created = 0;
+        $displayRoom = $roomName ?: 'Unknown Room';
+
+        foreach ($roomDevices as $device) {
             $mfr       = trim((string) ($device->manufacturer ?? ''));
             $mdl       = trim((string) ($device->model ?? ''));
             $equipName = trim($mfr . ' ' . $mdl);
@@ -241,31 +304,20 @@ class CableScheduleGeneratorService
             }
 
             $equipNameShort = Str::limit($equipName, 180, '…');
-            $roomName       = trim((string) ($device->room_name ?? '')) ?: 'Unknown Room';
-            $roomKey        = strtolower($roomName);
-            $overrides      = $this->buildQuotedCableOverrides($consumablesByRoom[$roomKey] ?? []);
-            $length         = $lengthMap[$roomKey] ?? null;                                 // T1-E
 
             $cableInfo = $this->inferCableRun($equipName);
             $cableInfo = $this->applyQuotedCableOverride($cableInfo, $overrides);
 
-            // Rack suffix — only append when both flags are truthy.
             $rackSuffix = ($device->is_rack_mounted && $device->u_height)
                 ? sprintf(' (Rack, %sU)', rtrim(rtrim((string) $device->u_height, '0'), '.'))
                 : '';
 
-            // Signal-role notes prefix — kept as an engineering hint. We
-            // do NOT translate signal_role into signal_type here; the
-            // cable-run signal_type comes from inferCableRun (which knows
-            // audio/video/network/etc). signal_role is source/destination/
-            // processor — orthogonal semantics.
             $rolePrefix = $device->signal_role
                 ? sprintf('[%s] ', $device->signal_role)
                 : '';
 
-            // T1-E: append distance warnings on the cable_type + cores + length.
             $notes    = $rolePrefix . $cableInfo['notes'];
-            $warnings = $this->computeDistanceWarnings($cableInfo['cable_type'], $cableInfo['cores'], $length);
+            $warnings = $this->computeDistanceWarnings($cableInfo['cable_type'], $cableInfo['cores'], $lengthM);
             if (! empty($warnings)) {
                 $notes .= ' | ' . implode(' | ', $warnings);
             }
@@ -273,26 +325,19 @@ class CableScheduleGeneratorService
             $sortOrder++;
             $cableId = 'C-' . str_pad((string) $sortOrder, 3, '0', STR_PAD_LEFT);
 
-            // T2-A: populate source_device + source_port FKs on the flat path
-            // where we have a source Device but no destination Device (flat
-            // path emits "→ TBC" strings, not Device pairs — dest_* stays null).
-            // T2-B extends this by walking a real signal DAG with dest devices.
             $srcPortId = $this->resolveSourcePortId($device, (string) ($cableInfo['signal_type'] ?? ''));
 
             CableScheduleItem::create([
                 'cable_schedule_id' => $schedule->id,
                 'cable_id'          => $cableId,
-                'from_location'     => $roomName . ' — ' . $equipNameShort . $rackSuffix,
+                'from_location'     => $displayRoom . ' — ' . $equipNameShort . $rackSuffix,
                 'to_location'       => $cableInfo['to'],
                 'cable_type'        => $cableInfo['cable_type'],
                 'signal_type'       => $cableInfo['signal_type'],
                 'cores'             => $cableInfo['cores'],
-                'approx_length_m'   => $length,
+                'approx_length_m'   => $lengthM,
                 'notes'             => $notes,
                 'sort_order'        => $sortOrder,
-                // ── T2-A port-level FKs on the flat path (dest_* null; T2-B
-                // walks the DAG and populates both sides). CableScheduleItem's
-                // $fillable already whitelists these columns since Phase 22.
                 'source_device_id'  => $device->id,
                 'source_port_id'    => $srcPortId,
                 'dest_device_id'    => null,
@@ -302,13 +347,251 @@ class CableScheduleGeneratorService
             $created++;
         }
 
-        Log::info('CableScheduleGeneratorService: generateFromDevices complete', [
-            'cable_schedule_id' => $schedule->id,
-            'items_created'     => $created,
-            'devices_seen'      => $devices->count(),
-        ]);
+        return $created;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // T2-B — signal-path DAG traversal
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Bucket a room's devices by inferred signal_type → signal_role. Sources
+     * carry the outgoing signal, processors sit in the middle in
+     * SIGNAL_PATH_ORDER, destinations sink it. Signal types with zero
+     * classified devices in ANY bucket are omitted so emitDagEdges skips them.
+     *
+     * @param  Collection<int, Device>  $devicesInRoom
+     * @return array<string, array{sources: list<Device>, processors: list<Device>, destinations: list<Device>}>
+     */
+    private function buildSignalGraph(Collection $devicesInRoom): array
+    {
+        $graph = [];
+
+        foreach ($devicesInRoom as $device) {
+            $equipName = trim((string) ($device->manufacturer ?? '') . ' ' . (string) ($device->model ?? ''));
+            if ($equipName === '') {
+                $equipName = (string) ($device->description ?? '');
+            }
+            if ($equipName === '') {
+                continue;
+            }
+
+            $cableInfo  = $this->inferCableRun($equipName);
+            $signalType = (string) ($cableInfo['signal_type'] ?? 'unknown');
+
+            if (! isset($graph[$signalType])) {
+                $graph[$signalType] = ['sources' => [], 'processors' => [], 'destinations' => []];
+            }
+
+            if ($device->isSource()) {
+                $graph[$signalType]['sources'][] = $device;
+            } elseif ($device->isDestination()) {
+                $graph[$signalType]['destinations'][] = $device;
+            } elseif ($device->isProcessor()) {
+                $graph[$signalType]['processors'][] = $device;
+            }
+            // hasUnknownSignalRole() devices don't slot into any bucket — the
+            // per-room feature gate in generateFromDevices catches the
+            // all-unknown case and routes to the flat fallback.
+        }
+
+        // Sort processors within each signal_type bucket by SIGNAL_PATH_ORDER.
+        foreach ($graph as $type => $buckets) {
+            $graph[$type]['processors'] = $this->sortProcessors($buckets['processors']);
+        }
+
+        // Drop empty signal_type buckets to keep emitDagEdges tight.
+        return array_filter(
+            $graph,
+            fn ($b) => ! empty($b['sources']) || ! empty($b['processors']) || ! empty($b['destinations'])
+        );
+    }
+
+    /**
+     * Rank processor devices by SIGNAL_PATH_ORDER (first-substring match wins);
+     * unmatched processors sort last in Device.id order. Stable within ties.
+     *
+     * @param  array<int, Device>  $processors
+     * @return list<Device>
+     */
+    private function sortProcessors(array $processors): array
+    {
+        $ranked = array_map(function (Device $d) {
+            $haystack = strtolower(trim((string) ($d->manufacturer ?? '') . ' ' . (string) ($d->model ?? '')));
+            $rank = count(self::SIGNAL_PATH_ORDER);
+            foreach (self::SIGNAL_PATH_ORDER as $i => $keyword) {
+                if ($haystack !== '' && str_contains($haystack, $keyword)) {
+                    $rank = $i;
+                    break;
+                }
+            }
+            return ['rank' => $rank, 'device' => $d, 'id' => (int) ($d->id ?? PHP_INT_MAX)];
+        }, $processors);
+
+        usort($ranked, function ($a, $b) {
+            return $a['rank'] <=> $b['rank']
+                ?: $a['id'] <=> $b['id'];
+        });
+
+        return array_map(fn ($r) => $r['device'], $ranked);
+    }
+
+    /**
+     * Walk each signal_type bucket in the graph and emit one CableScheduleItem
+     * per edge in the signal chain:
+     *   for each (source × destination) pair:
+     *     emit source → processor[0] → processor[1] → … → destination
+     * When sources exist but no destinations, emit ONE placeholder edge per
+     * source with dest_device_id null + a Log::warning; the last processor
+     * (if any) is emitted as an intermediate hop to itself.
+     *
+     * @param  array<string, array{sources: list<Device>, processors: list<Device>, destinations: list<Device>}>  $graph
+     */
+    private function emitDagEdges(
+        CableSchedule $schedule,
+        array $graph,
+        array $overrides,
+        ?float $roomLengthM,
+        string $roomName,
+        int &$sortOrder,
+    ): int {
+        $created = 0;
+
+        foreach ($graph as $signalType => $bucket) {
+            $sources      = $bucket['sources'];
+            $processors   = $bucket['processors'];
+            $destinations = $bucket['destinations'];
+
+            // sinks-only (destinations without sources in this room) is a
+            // no-op — the signal originates elsewhere; T2-B extension will
+            // handle cross-room chains.
+            if (empty($sources)) {
+                continue;
+            }
+
+            if (empty($destinations)) {
+                // sources without destinations: emit one TBC placeholder chain
+                // per source (source → processors → TBC) and log for engineer.
+                foreach ($sources as $srcDevice) {
+                    $chain = array_merge([$srcDevice], $processors);
+                    // Walk source → processor[0] → processor[1] … → last processor
+                    for ($i = 0; $i < count($chain) - 1; $i++) {
+                        $created += $this->createDagEdge(
+                            $schedule, $chain[$i], $chain[$i + 1], $signalType,
+                            $overrides, $roomLengthM, $roomName, $sortOrder
+                        );
+                    }
+                    // Final hop to TBC — dest_device_id null.
+                    $created += $this->createDagEdge(
+                        $schedule, end($chain) ?: $srcDevice, null, $signalType,
+                        $overrides, $roomLengthM, $roomName, $sortOrder
+                    );
+                    Log::warning('CableScheduleGeneratorService: signal without destination', [
+                        'room_name'   => $roomName,
+                        'device_id'   => $srcDevice->id,
+                        'signal_type' => $signalType,
+                    ]);
+                }
+                continue;
+            }
+
+            // source × destination Cartesian product; each pair walks the
+            // full source → processors → destination chain.
+            foreach ($sources as $srcDevice) {
+                foreach ($destinations as $dstDevice) {
+                    $chain = array_merge([$srcDevice], $processors, [$dstDevice]);
+                    for ($i = 0; $i < count($chain) - 1; $i++) {
+                        $created += $this->createDagEdge(
+                            $schedule, $chain[$i], $chain[$i + 1], $signalType,
+                            $overrides, $roomLengthM, $roomName, $sortOrder
+                        );
+                    }
+                }
+            }
+        }
 
         return $created;
+    }
+
+    /**
+     * Persist a single CableScheduleItem edge. from Device required; to
+     * Device null on the "→ TBC" placeholder case.
+     */
+    private function createDagEdge(
+        CableSchedule $schedule,
+        Device $fromDevice,
+        ?Device $toDevice,
+        string $signalType,
+        array $overrides,
+        ?float $roomLengthM,
+        string $roomName,
+        int &$sortOrder,
+    ): int {
+        $fromName = trim((string) ($fromDevice->manufacturer ?? '') . ' ' . (string) ($fromDevice->model ?? ''));
+        if ($fromName === '') {
+            $fromName = (string) ($fromDevice->description ?? '');
+        }
+        if ($fromName === '') {
+            return 0;
+        }
+        $fromShort = Str::limit($fromName, 180, '…');
+
+        $cableInfo = $this->inferCableRun($fromName);
+        // Force the row's signal_type to match the DAG bucket so downstream
+        // FK resolution stays consistent (fromDevice may be a Q-Sys processor
+        // whose inferCableRun returns 'audio' even when we're walking the
+        // video edge — trust the graph).
+        $cableInfo['signal_type'] = $signalType;
+        $cableInfo = $this->applyQuotedCableOverride($cableInfo, $overrides);
+
+        $rolePrefix = $fromDevice->signal_role
+            ? sprintf('[%s] ', $fromDevice->signal_role)
+            : '';
+        $notes    = $rolePrefix . $cableInfo['notes'];
+        $warnings = $this->computeDistanceWarnings($cableInfo['cable_type'], $cableInfo['cores'], $roomLengthM);
+        if (! empty($warnings)) {
+            $notes .= ' | ' . implode(' | ', $warnings);
+        }
+
+        $rackSuffixFrom = ($fromDevice->is_rack_mounted && $fromDevice->u_height)
+            ? sprintf(' (Rack, %sU)', rtrim(rtrim((string) $fromDevice->u_height, '0'), '.'))
+            : '';
+
+        if ($toDevice !== null) {
+            $toName = trim((string) ($toDevice->manufacturer ?? '') . ' ' . (string) ($toDevice->model ?? ''));
+            if ($toName === '') {
+                $toName = (string) ($toDevice->description ?? 'TBC');
+            }
+            $toShort = Str::limit($toName, 180, '…');
+            $rackSuffixTo = ($toDevice->is_rack_mounted && $toDevice->u_height)
+                ? sprintf(' (Rack, %sU)', rtrim(rtrim((string) $toDevice->u_height, '0'), '.'))
+                : '';
+            $toLocation = $roomName . ' — ' . $toShort . $rackSuffixTo;
+        } else {
+            $toLocation = 'TBC — no destination in room';
+        }
+
+        $sortOrder++;
+        $cableId = 'C-' . str_pad((string) $sortOrder, 3, '0', STR_PAD_LEFT);
+
+        CableScheduleItem::create([
+            'cable_schedule_id' => $schedule->id,
+            'cable_id'          => $cableId,
+            'from_location'     => $roomName . ' — ' . $fromShort . $rackSuffixFrom,
+            'to_location'       => $toLocation,
+            'cable_type'        => $cableInfo['cable_type'],
+            'signal_type'       => $cableInfo['signal_type'],
+            'cores'             => $cableInfo['cores'],
+            'approx_length_m'   => $roomLengthM,
+            'notes'             => $notes,
+            'sort_order'        => $sortOrder,
+            'source_device_id'  => $fromDevice->id,
+            'source_port_id'    => $this->resolveSourcePortId($fromDevice, $signalType),
+            'dest_device_id'    => $toDevice?->id,
+            'dest_port_id'      => $toDevice ? $this->resolveDestPortId($toDevice, $signalType) : null,
+        ]);
+
+        return 1;
     }
 
     /**

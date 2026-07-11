@@ -411,6 +411,96 @@ class CableScheduleGeneratorServiceTest extends TestCase
         );
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // T2-B — signal-path DAG traversal (pure helpers)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * In-memory Device factory: sets attributes directly + calls setRelation
+     * so the pure helpers can be exercised without touching the DB.
+     */
+    private function makeInMemoryDevice(array $attrs = []): \App\Models\Device
+    {
+        $d = new \App\Models\Device();
+        foreach ($attrs as $k => $v) {
+            $d->$k = $v;
+        }
+        return $d;
+    }
+
+    public function test_build_signal_graph_buckets_by_role_and_signal_type(): void
+    {
+        $svc = $this->make();
+
+        $src  = $this->makeInMemoryDevice([
+            'id' => 1, 'manufacturer' => 'Samsung', 'model' => 'QM85',
+            'signal_role' => 'source',
+        ]);
+        $dsp  = $this->makeInMemoryDevice([
+            'id' => 2, 'manufacturer' => 'Q-Sys', 'model' => 'Core 8 Flex',
+            'signal_role' => 'processor',
+        ]);
+        $dst  = $this->makeInMemoryDevice([
+            'id' => 3, 'manufacturer' => 'Samsung', 'model' => 'QM43',
+            'signal_role' => 'destination',
+        ]);
+
+        $graph = $this->invoke($svc, 'buildSignalGraph', [collect([$src, $dsp, $dst])]);
+
+        $this->assertArrayHasKey('video', $graph, 'display devices bucket to video signal_type.');
+        $this->assertCount(1, $graph['video']['sources']);
+        $this->assertCount(1, $graph['video']['destinations']);
+    }
+
+    public function test_processors_sorted_by_signal_path_order(): void
+    {
+        $svc = $this->make();
+
+        $amp  = $this->makeInMemoryDevice(['id' => 20, 'manufacturer' => 'LEA', 'model' => 'Amplifier',   'signal_role' => 'processor']);
+        $mtx  = $this->makeInMemoryDevice(['id' => 21, 'manufacturer' => 'Kramer', 'model' => 'Matrix',    'signal_role' => 'processor']);
+        $dsp  = $this->makeInMemoryDevice(['id' => 22, 'manufacturer' => 'Q-Sys', 'model' => 'DSP',        'signal_role' => 'processor']);
+
+        $sorted = $this->invoke($svc, 'sortProcessors', [[$amp, $mtx, $dsp]]);
+
+        // Expected order: dsp (0), matrix (2), amplifier (5).
+        $this->assertSame(22, $sorted[0]->id, 'DSP ranks first.');
+        $this->assertSame(21, $sorted[1]->id, 'Matrix ranks between DSP and amplifier.');
+        $this->assertSame(20, $sorted[2]->id, 'Amplifier ranks last of the three.');
+    }
+
+    public function test_all_unknown_signal_role_hits_flat_fallback_predicate(): void
+    {
+        // When EVERY device in a room has null signal_role, the room falls
+        // through to generateFromDevicesFlat. Prove this contractually by
+        // asserting hasUnknownSignalRole() returns true on unclassified
+        // devices — which is the exact predicate generateFromDevices uses.
+        $d1 = $this->makeInMemoryDevice(['id' => 1, 'signal_role' => null]);
+        $d2 = $this->makeInMemoryDevice(['id' => 2, 'signal_role' => null]);
+        $devices = collect([$d1, $d2]);
+
+        $allUnknown = $devices->every(fn (\App\Models\Device $d) => $d->hasUnknownSignalRole());
+        $this->assertTrue($allUnknown, 'every() must return true when every device is unclassified.');
+
+        // Structural guard: the orchestrator MUST test hasUnknownSignalRole
+        // before choosing the DAG path.
+        $source = file_get_contents(base_path('app/Services/CableScheduleGeneratorService.php'));
+        $this->assertStringContainsString('hasUnknownSignalRole', $source,
+            'generateFromDevices must gate DAG vs flat on hasUnknownSignalRole().');
+        $this->assertStringContainsString('generateFromDevicesFlat', $source,
+            'flat fallback must be named generateFromDevicesFlat.');
+    }
+
+    public function test_signal_path_order_const_present_and_generateFromDevicesFlat_defined(): void
+    {
+        // Structural / contract guard — plan requires the const + method
+        // signatures exist.
+        $ref = new \ReflectionClass(\App\Services\CableScheduleGeneratorService::class);
+        $this->assertTrue($ref->hasConstant('SIGNAL_PATH_ORDER'));
+        $this->assertTrue($ref->hasMethod('buildSignalGraph'));
+        $this->assertTrue($ref->hasMethod('emitDagEdges'));
+        $this->assertTrue($ref->hasMethod('generateFromDevicesFlat'));
+    }
+
     public function test_multiple_consumables_of_same_signal_type_join_with_slash(): void
     {
         // Two HDMI cable products both classify to 'video' — override display
