@@ -445,7 +445,10 @@ class CableScheduleGeneratorServiceTest extends TestCase
             'signal_role' => 'destination',
         ]);
 
-        $graph = $this->invoke($svc, 'buildSignalGraph', [collect([$src, $dsp, $dst])]);
+        // T2-B-ext: buildSignalGraph now takes ($localDevices, $centralDevices).
+        // Passing an explicit empty collect() as the central set proves the
+        // no-central-room contract stays byte-for-byte identical.
+        $graph = $this->invoke($svc, 'buildSignalGraph', [collect([$src, $dsp, $dst]), collect()]);
 
         $this->assertArrayHasKey('video', $graph, 'display devices bucket to video signal_type.');
         $this->assertCount(1, $graph['video']['sources']);

@@ -80,6 +80,21 @@ class CableScheduleGeneratorService
         'dsp', 'audio-processor', 'matrix', 'switcher', 'codec', 'amplifier',
     ];
 
+    // ── T2-B-ext: central-room fallback for cross-room signal chains ──────────
+    //
+    // Substring-matched (case-insensitive) against strtolower(trim(room_name)).
+    // A device whose room_name matches ANY of these keywords is treated as a
+    // "central room" device. When a local room's buildSignalGraph bucket is
+    // empty for a signal_type + role (source / processor / destination),
+    // matching central-room devices slot in as the fallback endpoint. Local
+    // ALWAYS wins — central devices never displace a local counterpart. When
+    // a project has zero central-room matches, per-room graphs are
+    // byte-for-byte identical to pre-T2-B-ext behaviour.
+    private const CENTRAL_ROOM_KEYWORDS = [
+        'comms room', 'comms', 'av rack', 'rack room', 'equipment room',
+        'server room', 'central', 'plant room',
+    ];
+
     // ── T1-E: distance-warning matrix ─────────────────────────────────────────
     //
     // Applied after computing $cableInfo. Rules walked in declaration order;
@@ -238,6 +253,23 @@ class CableScheduleGeneratorService
         $devicesByRoom = $devices->groupBy(fn (Device $d) =>
             (trim((string) ($d->room_name ?? '')) ?: 'Unknown Room'));
 
+        // T2-B-ext: precompute the central-room device set once per generation.
+        // A device is "central" when its room_name substring-matches ANY of
+        // CENTRAL_ROOM_KEYWORDS. Empty collection when the project has no
+        // central-room match — the byte-for-byte pre-extension contract.
+        $centralDevices = $devices->filter(function (Device $d): bool {
+            $name = strtolower(trim((string) ($d->room_name ?? '')));
+            if ($name === '') {
+                return false;
+            }
+            foreach (self::CENTRAL_ROOM_KEYWORDS as $kw) {
+                if ($kw !== '' && str_contains($name, $kw)) {
+                    return true;
+                }
+            }
+            return false;
+        })->values();
+
         $sortOrder = 0;
         $created   = 0;
 
@@ -258,7 +290,19 @@ class CableScheduleGeneratorService
                 continue;
             }
 
-            $graph    = $this->buildSignalGraph($roomDevices);
+            // T2-B-ext: when the room IS the central room, pass an empty
+            // central collection so its devices aren't double-counted. The
+            // room's $localDevices already IS the central set for itself.
+            $isCentralRoom = false;
+            foreach (self::CENTRAL_ROOM_KEYWORDS as $kw) {
+                if ($kw !== '' && $roomKey !== '' && str_contains($roomKey, $kw)) {
+                    $isCentralRoom = true;
+                    break;
+                }
+            }
+            $centralForThisRoom = $isCentralRoom ? collect() : $centralDevices;
+
+            $graph    = $this->buildSignalGraph($roomDevices, $centralForThisRoom);
             $created += $this->emitDagEdges(
                 $schedule, $graph, $overrides, $lengthM, (string) $roomName, $sortOrder
             );
@@ -360,14 +404,22 @@ class CableScheduleGeneratorService
      * SIGNAL_PATH_ORDER, destinations sink it. Signal types with zero
      * classified devices in ANY bucket are omitted so emitDagEdges skips them.
      *
-     * @param  Collection<int, Device>  $devicesInRoom
+     * T2-B-ext: after the local walk fills its buckets, central-room devices
+     * fall through into any (signal_type + role) bucket left empty by the
+     * local walk. Local always wins — a room with a local audio source keeps
+     * that source even if the central room has one too. When $centralDevices
+     * is empty (project has no central-room match, or the current room IS
+     * the central room), behaviour is byte-for-byte identical to pre-ext.
+     *
+     * @param  Collection<int, Device>  $localDevices    devices in the current room
+     * @param  Collection<int, Device>  $centralDevices  devices in the project's central room (empty when N/A)
      * @return array<string, array{sources: list<Device>, processors: list<Device>, destinations: list<Device>}>
      */
-    private function buildSignalGraph(Collection $devicesInRoom): array
+    private function buildSignalGraph(Collection $localDevices, Collection $centralDevices): array
     {
         $graph = [];
 
-        foreach ($devicesInRoom as $device) {
+        foreach ($localDevices as $device) {
             $equipName = trim((string) ($device->manufacturer ?? '') . ' ' . (string) ($device->model ?? ''));
             if ($equipName === '') {
                 $equipName = (string) ($device->description ?? '');
@@ -393,6 +445,49 @@ class CableScheduleGeneratorService
             // hasUnknownSignalRole() devices don't slot into any bucket — the
             // per-room feature gate in generateFromDevices catches the
             // all-unknown case and routes to the flat fallback.
+        }
+
+        // T2-B-ext: snapshot which (signal_type + role) buckets the LOCAL walk
+        // filled BEFORE walking centrals. This is the "local always wins" gate
+        // — central devices only slot into buckets the local room left empty.
+        // Taken after the local walk so all local devices count; taken before
+        // the central walk so central additions don't self-block.
+        $localHas = [];
+        foreach ($graph as $type => $buckets) {
+            $localHas[$type] = [
+                'sources'      => ! empty($buckets['sources']),
+                'processors'   => ! empty($buckets['processors']),
+                'destinations' => ! empty($buckets['destinations']),
+            ];
+        }
+
+        foreach ($centralDevices as $device) {
+            $equipName = trim((string) ($device->manufacturer ?? '') . ' ' . (string) ($device->model ?? ''));
+            if ($equipName === '') {
+                $equipName = (string) ($device->description ?? '');
+            }
+            if ($equipName === '') {
+                continue;
+            }
+
+            $cableInfo  = $this->inferCableRun($equipName);
+            $signalType = (string) ($cableInfo['signal_type'] ?? 'unknown');
+
+            if (! isset($graph[$signalType])) {
+                $graph[$signalType] = ['sources' => [], 'processors' => [], 'destinations' => []];
+            }
+
+            $hasLocalSource = (bool) ($localHas[$signalType]['sources']      ?? false);
+            $hasLocalProc   = (bool) ($localHas[$signalType]['processors']   ?? false);
+            $hasLocalDest   = (bool) ($localHas[$signalType]['destinations'] ?? false);
+
+            if ($device->isSource() && ! $hasLocalSource) {
+                $graph[$signalType]['sources'][] = $device;
+            } elseif ($device->isDestination() && ! $hasLocalDest) {
+                $graph[$signalType]['destinations'][] = $device;
+            } elseif ($device->isProcessor() && ! $hasLocalProc) {
+                $graph[$signalType]['processors'][] = $device;
+            }
         }
 
         // Sort processors within each signal_type bucket by SIGNAL_PATH_ORDER.
@@ -551,6 +646,16 @@ class CableScheduleGeneratorService
         $warnings = $this->computeDistanceWarnings($cableInfo['cable_type'], $cableInfo['cores'], $roomLengthM);
         if (! empty($warnings)) {
             $notes .= ' | ' . implode(' | ', $warnings);
+        }
+
+        // T2-B-ext: cross-room prefix when the source device lives in a
+        // different room than the target room (i.e. this edge was completed
+        // via CENTRAL_ROOM_KEYWORDS fallback). Same-room rows early-out and
+        // never receive the prefix. Uses ' | ' separator to match the T1-E
+        // warning join convention.
+        $fromRoom = trim((string) ($fromDevice->room_name ?? ''));
+        if ($fromRoom !== '' && $fromRoom !== $roomName) {
+            $notes = sprintf('Cross-room: %s → %s | ', $fromRoom, $roomName) . $notes;
         }
 
         $rackSuffixFrom = ($fromDevice->is_rack_mounted && $fromDevice->u_height)

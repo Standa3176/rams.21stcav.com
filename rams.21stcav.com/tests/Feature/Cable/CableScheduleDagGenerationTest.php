@@ -213,6 +213,184 @@ class CableScheduleDagGenerationTest extends TestCase
         $this->assertSame('C-002', $items[1]->cable_id);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // T2-B-ext — cross-room signal-graph chains
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public function test_cross_room_dsp_serves_local_amp_speaker_chain(): void
+    {
+        $project = $this->newProject();
+
+        // Boardroom: local audio processor (LEA amp, hits 'amplifier' → audio)
+        // + local audio destination (Biamp Tesira DSP, hits 'biamp' → audio).
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'Amp', 'manufacturer' => 'LEA', 'model' => 'LEA Audio Amplifier',
+            'part_no' => 'lea-amp', 'signal_role' => Device::ROLE_PROCESSOR, 'qty' => 1,
+        ]);
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'Zone Mixer', 'manufacturer' => 'Biamp', 'model' => 'Tesira Zone Mixer DSP',
+            'part_no' => 'biamp-mix', 'signal_role' => Device::ROLE_DESTINATION, 'qty' => 1,
+        ]);
+        // Comms Room: audio source (Q-Sys Core DSP, hits 'dsp'/'q-sys' → audio).
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Comms Room',
+            'description' => 'DSP', 'manufacturer' => 'Q-Sys', 'model' => 'Core 8 Flex DSP',
+            'part_no' => 'qsys-core', 'signal_role' => Device::ROLE_SOURCE, 'qty' => 1,
+        ]);
+
+        $schedule = $this->newSchedule($project);
+        $this->makeSvc()->generate($schedule);
+
+        $items = CableScheduleItem::where('cable_schedule_id', $schedule->id)->get();
+
+        // Boardroom's audio bucket completes via the central Q-Sys DSP: chain
+        // Q-Sys DSP → LEA amp → Biamp DSP = 2 edges. Edge 1 is cross-room.
+        $crossRoomRow = $items->first(fn ($i) =>
+            str_contains((string) ($i->notes ?? ''), 'Cross-room: Comms Room → Boardroom')
+        );
+        $this->assertNotNull($crossRoomRow,
+            'Boardroom must emit a cross-room row for the Comms Room DSP (central fallback).');
+
+        // Local amp → biamp-dsp edge exists WITHOUT cross-room prefix.
+        $boardroomLocalRows = $items->filter(fn ($i) =>
+            str_contains((string) ($i->from_location ?? ''), 'Boardroom')
+            && ! str_contains((string) ($i->notes ?? ''), 'Cross-room:')
+        );
+        $this->assertGreaterThan(0, $boardroomLocalRows->count(),
+            'Same-room edges within Boardroom must not carry a Cross-room prefix.');
+    }
+
+    public function test_project_with_no_central_room_uses_pure_local_dag(): void
+    {
+        $project = $this->newProject();
+
+        // Boardroom + Reception — neither name substring-matches
+        // CENTRAL_ROOM_KEYWORDS ('comms', 'rack', 'central', 'server',
+        // 'plant', 'equipment room'). Both are self-contained rooms.
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'Blu-ray', 'manufacturer' => 'Sony', 'model' => 'UBP-X800',
+            'part_no' => 'x800', 'signal_role' => Device::ROLE_SOURCE, 'qty' => 1,
+        ]);
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'Display', 'manufacturer' => 'Samsung', 'model' => 'QM85 Display',
+            'part_no' => 'qm85', 'signal_role' => Device::ROLE_DESTINATION, 'qty' => 1,
+        ]);
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Reception',
+            'description' => 'Blu-ray', 'manufacturer' => 'Sony', 'model' => 'UBP-X700',
+            'part_no' => 'x700', 'signal_role' => Device::ROLE_SOURCE, 'qty' => 1,
+        ]);
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Reception',
+            'description' => 'Display', 'manufacturer' => 'Samsung', 'model' => 'QM55 Display',
+            'part_no' => 'qm55', 'signal_role' => Device::ROLE_DESTINATION, 'qty' => 1,
+        ]);
+
+        $schedule = $this->newSchedule($project);
+        $count    = $this->makeSvc()->generate($schedule);
+
+        // Two rooms, each source → destination = 1 edge → 2 edges total.
+        // Zero central-room matches → identical to pre-ext output.
+        $this->assertSame(2, $count,
+            'No central room → per-room graphs must produce pre-ext row count.');
+
+        $items = CableScheduleItem::where('cable_schedule_id', $schedule->id)->get();
+        foreach ($items as $item) {
+            $this->assertStringNotContainsString('Cross-room:', (string) ($item->notes ?? ''),
+                'No central room → no row should carry the Cross-room prefix.');
+        }
+    }
+
+    public function test_local_source_wins_over_central_source(): void
+    {
+        $project = $this->newProject();
+
+        // Boardroom: local video source (Sony UBP) AND local video destination.
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'Blu-ray', 'manufacturer' => 'Sony', 'model' => 'UBP-X800',
+            'part_no' => 'x800', 'signal_role' => Device::ROLE_SOURCE, 'qty' => 1,
+        ]);
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'Display', 'manufacturer' => 'Samsung', 'model' => 'QM85 Display',
+            'part_no' => 'qm85', 'signal_role' => Device::ROLE_DESTINATION, 'qty' => 1,
+        ]);
+        // Comms Room ALSO has a video source (would collide on signal_type=video).
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Comms Room',
+            'description' => 'Media Server', 'manufacturer' => 'Sony', 'model' => 'BRAVIA Media Server',
+            'part_no' => 'bmsvr', 'signal_role' => Device::ROLE_SOURCE, 'qty' => 1,
+        ]);
+
+        $schedule = $this->newSchedule($project);
+        $this->makeSvc()->generate($schedule);
+
+        $items = CableScheduleItem::where('cable_schedule_id', $schedule->id)->get();
+
+        // Boardroom rows must use the LOCAL Sony UBP as source — never the
+        // central BRAVIA Media Server. Central-fallback is skipped when the
+        // local room already has a source for that signal_type.
+        $boardroomRows = $items->filter(fn ($i) =>
+            str_contains((string) ($i->from_location ?? ''), 'Boardroom')
+        );
+        $this->assertGreaterThan(0, $boardroomRows->count());
+        foreach ($boardroomRows as $row) {
+            $this->assertStringNotContainsString('BRAVIA Media Server', (string) ($row->from_location ?? ''),
+                'Local source must win — central Sony BRAVIA must not appear as Boardroom source.');
+            $this->assertStringNotContainsString('Cross-room: Comms Room → Boardroom', (string) ($row->notes ?? ''),
+                'When local source exists, central source must not be pulled → no cross-room prefix.');
+        }
+    }
+
+    public function test_cross_room_note_prefix_appears_only_on_across_room_rows(): void
+    {
+        $project = $this->newProject();
+
+        // Boardroom: local processor + local destination (both audio).
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'Amp', 'manufacturer' => 'LEA', 'model' => 'LEA Audio Amplifier',
+            'part_no' => 'lea-amp', 'signal_role' => Device::ROLE_PROCESSOR, 'qty' => 1,
+        ]);
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'Zone Mixer', 'manufacturer' => 'Biamp', 'model' => 'Tesira Zone Mixer DSP',
+            'part_no' => 'biamp-mix', 'signal_role' => Device::ROLE_DESTINATION, 'qty' => 1,
+        ]);
+        // Comms Room: audio source (only cross-room contributor).
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Comms Room',
+            'description' => 'DSP', 'manufacturer' => 'Q-Sys', 'model' => 'Core 8 Flex DSP',
+            'part_no' => 'qsys-core', 'signal_role' => Device::ROLE_SOURCE, 'qty' => 1,
+        ]);
+
+        $schedule = $this->newSchedule($project);
+        $this->makeSvc()->generate($schedule);
+
+        $items = CableScheduleItem::where('cable_schedule_id', $schedule->id)
+            ->orderBy('sort_order')->get();
+
+        $crossRoomRows = $items->filter(fn ($i) =>
+            str_contains((string) ($i->notes ?? ''), 'Cross-room:')
+        );
+        $localRows = $items->filter(fn ($i) =>
+            ! str_contains((string) ($i->notes ?? ''), 'Cross-room:')
+        );
+
+        // Chain in Boardroom's audio bucket: DSP(Comms) → amp(Board) → biamp(Board).
+        // First edge is cross-room; second is same-room. Comms Room also emits
+        // its own DSP → TBC (source without destination) row — same-room, no prefix.
+        $this->assertGreaterThanOrEqual(1, $crossRoomRows->count(),
+            'At least one cross-room edge (Comms DSP → Boardroom amp) must exist.');
+        $this->assertGreaterThanOrEqual(1, $localRows->count(),
+            'At least one same-room edge must exist without the cross-room prefix.');
+    }
+
     public function test_dag_edges_receive_t2a_port_fks_when_stencils_have_matching_signal_type(): void
     {
         $project = $this->newProject();
