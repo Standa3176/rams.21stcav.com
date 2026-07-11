@@ -203,12 +203,20 @@ class CableScheduleXlsxRegressionTest extends TestCase
      * dest_device_id, dest_port_id, connector_override_note). This test runs
      * everywhere (no runtime deps) so it's the canary that fires first if
      * anyone wires the new columns into the legacy XLSX / schematic stack.
+     *
+     * NB (T2-A / 260711-n2x): CableScheduleGeneratorService.php is intentionally
+     * REMOVED from surfaceFiles because T2-A opts the generator into writing
+     * source_device_id / source_port_id (flat path) — the whole point of T2-A
+     * is that the deterministic generator now emits port-level FKs at write
+     * time so the port-picker preselects without a follow-up
+     * cables:backfill-port-fks run. The XLSX + schematic stack remains guarded
+     * — those v1.3 read paths still must not couple to the FK columns.
      */
     public function test_v13_surface_files_have_zero_phase22_column_references(): void
     {
         $surfaceFiles = [
             base_path('app/Services/CableScheduleXlsxService.php'),
-            base_path('app/Services/CableScheduleGeneratorService.php'),
+            // CableScheduleGeneratorService.php removed 260711-n2x — see docblock above.
             base_path('app/Services/Drawings/SchematicGeneratorService.php'),
             base_path('app/Services/Drawings/SchematicD2SourceBuilder.php'),
             base_path('app/Services/Drawings/DrawingDataResolverService.php'),

@@ -4,8 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\CableScheduleItem;
 use App\Models\Device;
-use App\Models\DeviceStencil;
 use App\Services\Cable\CablePortFkResolverService;
+use App\Services\Cable\StencilPortResolver;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -207,14 +207,9 @@ class BackfillCablePortFksCommand extends Command
     }
 
     /**
-     * Load the project's devices and attach their matched DeviceStencil (with
-     * ports) via setRelation so the resolver can access $device->stencil
-     * ->ports inside the iteration loop without further DB hits.
-     *
-     * Device::with(['stencil.ports' => ...]) does NOT work — the Device model
-     * has no native stencil relation; stencils are looked up by normalised
-     * part_number. This helper performs the lookup once per project and
-     * attaches via setRelation('stencil', $stencil).
+     * Load the project's devices with their DeviceStencil (with ports) attached
+     * via the shared StencilPortResolver. Thin wrapper — the resolver owns
+     * the canonical normalised-part_number bulk-lookup shape.
      *
      * @return \Illuminate\Support\Collection<int, Device>
      */
@@ -224,33 +219,6 @@ class BackfillCablePortFksCommand extends Command
             ->where('project_id', $projectId)
             ->get();
 
-        if ($devices->isEmpty()) {
-            return collect();
-        }
-
-        // Build the normalised part_number → DeviceStencil map for the
-        // project's devices.
-        $partNumbers = $devices
-            ->pluck('part_no')
-            ->filter()
-            ->map(fn ($pn) => DeviceStencil::normalisePartNumber((string) $pn))
-            ->unique()
-            ->values()
-            ->all();
-
-        $stencilsByPartNumber = DeviceStencil::query()
-            ->whereIn('part_number', $partNumbers)
-            ->with('ports')
-            ->get()
-            ->keyBy('part_number');
-
-        return $devices->each(function (Device $d) use ($stencilsByPartNumber) {
-            $key = DeviceStencil::normalisePartNumber((string) ($d->part_no ?? ''));
-            $stencil = $stencilsByPartNumber->get($key);
-            // Always set the relation (even to null) so accessor checks are
-            // deterministic and we don't trigger lazy-load attempts on a
-            // non-existent relation method.
-            $d->setRelation('stencil', $stencil);
-        });
+        return app(StencilPortResolver::class)->attachToDevices($devices);
     }
 }

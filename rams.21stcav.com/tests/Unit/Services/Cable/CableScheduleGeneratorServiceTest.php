@@ -32,8 +32,9 @@ class CableScheduleGeneratorServiceTest extends TestCase
         // mock is only required to satisfy the constructor's readonly typed
         // dependency. Zero interactions expected.
         $projectData = Mockery::mock(ProjectDataService::class);
+        $stencilResolver = Mockery::mock(\App\Services\Cable\StencilPortResolver::class);
 
-        return new CableScheduleGeneratorService($projectData);
+        return new CableScheduleGeneratorService($projectData, $stencilResolver);
     }
 
     public function test_microsoft_teams_license_does_not_classify_as_microphone(): void
@@ -309,6 +310,105 @@ class CableScheduleGeneratorServiceTest extends TestCase
         // Length null → computeDistanceWarnings short-circuits to []. This is
         // the correctness invariant that keeps un-surveyed rooms warning-free.
         $this->assertSame([], $this->invoke($svc, 'computeDistanceWarnings', ['HDMI 2.0', null, null]));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // T2-A — port-FK resolution on the flat generateFromDevices path
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Build a Device with a pre-attached in-memory DeviceStencil + ports. No
+     * DB — everything is set via ->setRelation so the resolvers can access
+     * $device->stencil->ports without touching Eloquent's query builder.
+     *
+     * @param  array<int, array{signal_type: string, direction: ?string, side: string, sort_order?: int}>  $portSpecs
+     */
+    private function makeDeviceWithStencil(array $portSpecs): \App\Models\Device
+    {
+        $device  = new \App\Models\Device();
+        $device->id            = 42;
+        $device->project_id    = 1;
+        $device->manufacturer  = 'Acme';
+        $device->model         = 'X1';
+        $device->part_no       = 'acme-x1';
+
+        $stencil = new \App\Models\DeviceStencil();
+        $stencil->id           = 7;
+        $stencil->part_number  = 'acme-x1';
+
+        $ports = collect();
+        foreach ($portSpecs as $i => $spec) {
+            $port = new \App\Models\DevicePort();
+            $port->id            = 100 + $i;
+            $port->signal_type   = $spec['signal_type'];
+            $port->direction     = $spec['direction'];
+            $port->side          = $spec['side'];
+            $port->sort_order    = $spec['sort_order'] ?? $i;
+            $port->port_id       = "p-{$port->id}";
+            $ports->push($port);
+        }
+        $stencil->setRelation('ports', $ports);
+        $device->setRelation('stencil', $stencil);
+
+        return $device;
+    }
+
+    public function test_flat_path_populates_source_device_and_port_ids_when_stencil_has_matching_signal_type(): void
+    {
+        $svc = $this->make();
+
+        $device = $this->makeDeviceWithStencil([
+            ['signal_type' => 'video', 'direction' => 'out', 'side' => 'right', 'sort_order' => 0],
+            ['signal_type' => 'video', 'direction' => 'out', 'side' => 'right', 'sort_order' => 1],
+            ['signal_type' => 'audio', 'direction' => 'out', 'side' => 'right', 'sort_order' => 2],
+        ]);
+
+        $portId = $this->invoke($svc, 'resolveSourcePortId', [$device, 'video']);
+        $this->assertSame(100, $portId, 'sort_order=0 wins ASC across two video-out ports.');
+
+        // Fallback: direction null + side=right also counts as source.
+        $device2 = $this->makeDeviceWithStencil([
+            ['signal_type' => 'video', 'direction' => null, 'side' => 'right', 'sort_order' => 0],
+        ]);
+        $this->assertSame(100, $this->invoke($svc, 'resolveSourcePortId', [$device2, 'video']));
+    }
+
+    public function test_flat_path_leaves_ports_null_when_stencil_has_no_ports_auto_generated_placeholder(): void
+    {
+        $svc = $this->make();
+
+        // Empty-ports stencil: auto-generated placeholder before Phase 24
+        // curation adds ports.
+        $device = new \App\Models\Device();
+        $device->id = 42;
+        $stencil = new \App\Models\DeviceStencil();
+        $stencil->setRelation('ports', collect());
+        $device->setRelation('stencil', $stencil);
+
+        $this->assertNull($this->invoke($svc, 'resolveSourcePortId', [$device, 'video']));
+        $this->assertNull($this->invoke($svc, 'resolveDestPortId',   [$device, 'video']));
+    }
+
+    public function test_flat_path_leaves_dest_ids_null(): void
+    {
+        // Contract statement: the flat generateFromDevices path has no dest
+        // Device (rows emit "→ TBC" strings), so dest_device_id and
+        // dest_port_id ALWAYS stay null. Verified structurally by scanning
+        // the source for the pattern.
+        $source = file_get_contents(base_path('app/Services/CableScheduleGeneratorService.php'));
+
+        // The flat path CableScheduleItem::create must set dest_device_id
+        // and dest_port_id explicitly to null.
+        $this->assertMatchesRegularExpression(
+            '/dest_device_id\s*\'\s*=>\s*null/',
+            $source,
+            'flat generateFromDevices must set dest_device_id => null explicitly.'
+        );
+        $this->assertMatchesRegularExpression(
+            '/dest_port_id\s*\'\s*=>\s*null/',
+            $source,
+            'flat generateFromDevices must set dest_port_id => null explicitly.'
+        );
     }
 
     public function test_multiple_consumables_of_same_signal_type_join_with_slash(): void

@@ -6,6 +6,7 @@ use App\Core\Modules\Projects\ProjectDataService;
 use App\Models\CableSchedule;
 use App\Models\CableScheduleItem;
 use App\Models\Device;
+use App\Services\Cable\StencilPortResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -103,6 +104,7 @@ class CableScheduleGeneratorService
 
     public function __construct(
         private readonly ProjectDataService $projectDataService,
+        private readonly StencilPortResolver $stencilResolver,
     ) {}
 
     // =========================================================================
@@ -216,6 +218,11 @@ class CableScheduleGeneratorService
         $consumablesByRoom = $this->buildConsumablesByRoom($project);
         $lengthMap         = $this->buildRoomLengthMap($project);   // T1-E
 
+        // T2-A: attach stencils to every device via the shared resolver so
+        // each row can resolve its source_port_id from $device->stencil->ports
+        // without any further DB hits inside the loop.
+        $this->stencilResolver->attachToDevices($devices);
+
         $sortOrder = 0;
         $created   = 0;
 
@@ -266,6 +273,12 @@ class CableScheduleGeneratorService
             $sortOrder++;
             $cableId = 'C-' . str_pad((string) $sortOrder, 3, '0', STR_PAD_LEFT);
 
+            // T2-A: populate source_device + source_port FKs on the flat path
+            // where we have a source Device but no destination Device (flat
+            // path emits "→ TBC" strings, not Device pairs — dest_* stays null).
+            // T2-B extends this by walking a real signal DAG with dest devices.
+            $srcPortId = $this->resolveSourcePortId($device, (string) ($cableInfo['signal_type'] ?? ''));
+
             CableScheduleItem::create([
                 'cable_schedule_id' => $schedule->id,
                 'cable_id'          => $cableId,
@@ -277,6 +290,13 @@ class CableScheduleGeneratorService
                 'approx_length_m'   => $length,
                 'notes'             => $notes,
                 'sort_order'        => $sortOrder,
+                // ── T2-A port-level FKs on the flat path (dest_* null; T2-B
+                // walks the DAG and populates both sides). CableScheduleItem's
+                // $fillable already whitelists these columns since Phase 22.
+                'source_device_id'  => $device->id,
+                'source_port_id'    => $srcPortId,
+                'dest_device_id'    => null,
+                'dest_port_id'      => null,
             ]);
 
             $created++;
@@ -628,6 +648,73 @@ class CableScheduleGeneratorService
             'to'          => 'TBC — confirm on survey',
             'notes'       => 'Cable type to be confirmed during site survey',
         ];
+    }
+
+    // =========================================================================
+    // T2-A — PORT-LEVEL FK RESOLUTION
+    // =========================================================================
+
+    /**
+     * Pick the source-side port on a Device by signal_type. Prefers
+     * direction='out'; also accepts unset direction with side='right' (the
+     * legacy Tier-1 convention where "right" == outbound). Sorted by
+     * DevicePort::$sort_order ASC; first pick wins. Returns null when the
+     * device has no stencil, no ports, or no matching port.
+     */
+    private function resolveSourcePortId(Device $device, string $signalType): ?int
+    {
+        $stencil = $device->getRelation('stencil') ?? null;
+        if ($stencil === null || $stencil->ports === null || $stencil->ports->isEmpty()) {
+            return null;
+        }
+
+        $ports = $stencil->ports
+            ->filter(function ($p) use ($signalType) {
+                if ($p->signal_type !== $signalType) {
+                    return false;
+                }
+                if ($p->direction === 'out') {
+                    return true;
+                }
+                if ($p->direction === null && $p->side === 'right') {
+                    return true;
+                }
+                return false;
+            })
+            ->sortBy('sort_order')
+            ->values();
+
+        return $ports->first()?->id;
+    }
+
+    /**
+     * Symmetric destination-side pick. Prefers direction='in'; falls back to
+     * direction null + side='left'. See resolveSourcePortId docblock.
+     */
+    private function resolveDestPortId(Device $device, string $signalType): ?int
+    {
+        $stencil = $device->getRelation('stencil') ?? null;
+        if ($stencil === null || $stencil->ports === null || $stencil->ports->isEmpty()) {
+            return null;
+        }
+
+        $ports = $stencil->ports
+            ->filter(function ($p) use ($signalType) {
+                if ($p->signal_type !== $signalType) {
+                    return false;
+                }
+                if ($p->direction === 'in') {
+                    return true;
+                }
+                if ($p->direction === null && $p->side === 'left') {
+                    return true;
+                }
+                return false;
+            })
+            ->sortBy('sort_order')
+            ->values();
+
+        return $ports->first()?->id;
     }
 
     // =========================================================================
