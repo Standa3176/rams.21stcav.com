@@ -568,7 +568,16 @@ class CableScheduleGeneratorService
     private function matchesAny(string $haystack, array $keywords): bool
     {
         foreach ($keywords as $kw) {
-            if ($kw !== '' && str_contains($haystack, $kw)) return true;
+            if ($kw === '') continue;
+            // T1-C: word-boundary match kills false positives — "amp" in
+            // "lamp", "mic" in "Microsoft", "csc" in "Cisco". \b handles
+            // alpha/digit boundaries. Multi-word keywords like "patch
+            // panel" still match because \b is between-token, not per-char.
+            // The `i` flag is defensive — all current call sites lowercase
+            // the haystack first, but a future consumer might not.
+            if (preg_match('/\b' . preg_quote($kw, '/') . '\b/i', $haystack) === 1) {
+                return true;
+            }
         }
         return false;
     }
