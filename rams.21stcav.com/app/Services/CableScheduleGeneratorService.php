@@ -8,6 +8,7 @@ use App\Models\CableScheduleItem;
 use App\Models\Device;
 use App\Services\Cable\StencilPortResolver;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -215,6 +216,12 @@ class CableScheduleGeneratorService
             }
         }
 
+        // T3-C: decorate any PoE cable rows whose destination switch is
+        // approaching or exceeding pse_budget_w. Runs AFTER all rows are
+        // persisted so the decorator sees the complete row set. Null-metadata
+        // groups are silently skipped inside checkPoeBudgets — soft opt-in.
+        $this->checkPoeBudgets($schedule->id);
+
         Log::info('CableScheduleGeneratorService: generation complete', [
             'cable_schedule_id' => $schedule->id,
             'items_created'     => $created,
@@ -307,6 +314,11 @@ class CableScheduleGeneratorService
                 $schedule, $graph, $overrides, $lengthM, (string) $roomName, $sortOrder
             );
         }
+
+        // T3-C: post-persist PoE budget check — see generate() for the same
+        // pattern. Placed after every DAG + flat row is written so the
+        // decorator sees the full row set.
+        $this->checkPoeBudgets($schedule->id);
 
         Log::info('CableScheduleGeneratorService: generateFromDevices complete', [
             'cable_schedule_id' => $schedule->id,
@@ -738,6 +750,134 @@ class CableScheduleGeneratorService
             return true;
         }
         return false;
+    }
+
+    // =========================================================================
+    // T3-C — PoE BUDGET SOLVER (post-persist decorator)
+    // =========================================================================
+
+    /**
+     * T3-C — walk every PoE cable row in the persisted schedule, group by
+     * destination switch, and append a '⚠ PoE budget…' or '⚠⚠ OVER BUDGET…'
+     * warning when the group's total pd_load_w meets/exceeds 80% / 100% of
+     * the switch's pse_budget_w.
+     *
+     * Soft opt-in gates (each silently skips the group when tripped):
+     *   - destination Device missing / not ROLE_DESTINATION
+     *   - destination display name doesn't contain 'switch'
+     *   - pse_budget_w null / <= 0
+     *   - ANY source pd_load_w null in the group (all-or-nothing)
+     *
+     * Non-PoE rows never receive a warning — the group filter is scoped by
+     * a case-insensitive '/poe/i' match on the row's cable_type BEFORE any
+     * DB aggregate is computed. Bulk UPDATE per group keeps N (typical: 4-24
+     * ports per switch) → 1 SQL statement per group instead of N.
+     *
+     * Driver-aware CONCAT expression: MySQL/MariaDB use CONCAT(...); sqlite
+     * uses ||. Single-quote escape is standard SQL doubling ("''") so the
+     * warning string (server-computed from numeric watts + hard-coded
+     * literals + Device fields) survives both drivers.
+     */
+    private function checkPoeBudgets(int $scheduleId): void
+    {
+        // Load every candidate row on the schedule; PHP-side preg_match
+        // filter avoids porting a MySQL LIKE collation to sqlite tests.
+        $rows = CableScheduleItem::where('cable_schedule_id', $scheduleId)
+            ->whereNotNull('dest_device_id')
+            ->get(['id', 'cable_type', 'notes', 'dest_device_id', 'source_device_id']);
+
+        $rows = $rows->filter(
+            fn ($r) => $r->cable_type !== null && preg_match('/poe/i', (string) $r->cable_type) === 1
+        );
+
+        if ($rows->isEmpty()) {
+            return;
+        }
+
+        $groups = $rows->groupBy('dest_device_id');
+
+        foreach ($groups as $destId => $group) {
+            $switch = Device::find($destId);
+            if ($switch === null) {
+                continue;
+            }
+            if ($switch->signal_role !== Device::ROLE_DESTINATION) {
+                continue;
+            }
+
+            $displayName = trim(((string) ($switch->manufacturer ?? '')) . ' ' . ((string) ($switch->model ?? '')));
+            if ($displayName === '') {
+                $displayName = (string) ($switch->description ?? 'Switch');
+            }
+
+            $lowerHay = strtolower($displayName);
+            if (! str_contains($lowerHay, 'switch')) {
+                continue;
+            }
+
+            $budget = $switch->pse_budget_w;
+            if ($budget === null || (float) $budget <= 0.0) {
+                continue;
+            }
+
+            // Sum pd_load_w across every DISTINCT source in the group. Any
+            // null bails the whole group — soft opt-in, no partial estimates.
+            $sourceIds = $group->pluck('source_device_id')->filter()->unique()->values();
+            if ($sourceIds->isEmpty()) {
+                continue;
+            }
+
+            $sources = Device::whereIn('id', $sourceIds)->get(['id', 'pd_load_w']);
+            if ($sources->contains(fn ($d) => $d->pd_load_w === null)) {
+                continue;
+            }
+
+            $total = (float) $sources->sum('pd_load_w');
+            $pct   = (int) round($total / (float) $budget * 100);
+
+            if ($pct < 80) {
+                continue;
+            }
+
+            $warning = $pct >= 100
+                ? sprintf(
+                    '⚠⚠ OVER BUDGET Switch %s PoE budget: %sW of %sW (%d%%)',
+                    $displayName,
+                    $this->fmtWatts($total),
+                    $this->fmtWatts((float) $budget),
+                    $pct
+                )
+                : sprintf(
+                    '⚠ Switch %s PoE budget: %sW of %sW (%d%%)',
+                    $displayName,
+                    $this->fmtWatts($total),
+                    $this->fmtWatts((float) $budget),
+                    $pct
+                );
+
+            // Bulk UPDATE per group. Driver-aware CONCAT keeps prod (MySQL)
+            // and tests (sqlite) both green without introducing an ORM per-
+            // row overhead. Standard SQL '' escape doubles single quotes.
+            $ids       = $group->pluck('id')->all();
+            $driver    = DB::connection()->getDriverName();
+            $prefix    = $warning . ' | ';
+            $prefixEsc = str_replace("'", "''", $prefix);
+
+            $expr = ($driver === 'mysql' || $driver === 'mariadb')
+                ? DB::raw("CONCAT('" . $prefixEsc . "', COALESCE(notes, ''))")
+                : DB::raw("'" . $prefixEsc . "' || COALESCE(notes, '')");
+
+            CableScheduleItem::whereIn('id', $ids)->update(['notes' => $expr]);
+        }
+    }
+
+    /**
+     * Format a watts value for display: strip trailing zeros and any
+     * dangling decimal point. 62.0 → '62', 62.5 → '62.5', 15.75 → '15.75'.
+     */
+    private function fmtWatts(float $v): string
+    {
+        return rtrim(rtrim(number_format($v, 2, '.', ''), '0'), '.');
     }
 
     /**

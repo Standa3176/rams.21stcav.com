@@ -638,4 +638,221 @@ class CableScheduleDagGenerationTest extends TestCase
         $this->assertSame(1, (int) $items[0]->sort_order);
         $this->assertSame(2, (int) $items[1]->sort_order);
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // T3-C — PoE budget solver post-persist decorator
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public function test_poe_budget_under_80pct_no_warning(): void
+    {
+        $project = $this->newProject();
+
+        // Cisco Catalyst PoE Switch (destination) — 'cisco' hits the codec
+        // branch in inferCableRun → signal_type=video, cable_type='Cat6 (PoE)'.
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'PoE Switch', 'manufacturer' => 'Cisco', 'model' => 'Catalyst PoE Switch',
+            'part_no' => 'sw-100', 'signal_role' => Device::ROLE_DESTINATION,
+            'pse_budget_w' => 100.0, 'qty' => 1,
+        ]);
+        // 3 PoE cameras × 20W = 60W / 100W = 60% → below 80% threshold.
+        foreach (['A', 'B', 'C'] as $s) {
+            Device::create([
+                'project_id' => $project->id, 'room_name' => 'Boardroom',
+                'description' => 'Camera', 'manufacturer' => 'Poly', 'model' => "Studio Cam {$s}",
+                'part_no' => 'cam-' . $s, 'signal_role' => Device::ROLE_SOURCE,
+                'pd_load_w' => 20.0, 'qty' => 1,
+            ]);
+        }
+
+        $schedule = $this->newSchedule($project);
+        $this->makeSvc()->generate($schedule);
+
+        $items = CableScheduleItem::where('cable_schedule_id', $schedule->id)->get();
+        $this->assertGreaterThan(0, $items->count());
+        foreach ($items as $item) {
+            $this->assertStringNotContainsString('PoE budget:', (string) ($item->notes ?? ''),
+                'Under 80% must not decorate rows with the PoE budget warning.');
+        }
+    }
+
+    public function test_poe_budget_at_80pct_triggers_warning(): void
+    {
+        $project = $this->newProject();
+
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'PoE Switch', 'manufacturer' => 'Cisco', 'model' => 'Catalyst PoE Switch',
+            'part_no' => 'sw-100', 'signal_role' => Device::ROLE_DESTINATION,
+            'pse_budget_w' => 100.0, 'qty' => 1,
+        ]);
+        // 4 × 20W = 80W / 100W = exactly 80% → trigger boundary.
+        foreach (['A', 'B', 'C', 'D'] as $s) {
+            Device::create([
+                'project_id' => $project->id, 'room_name' => 'Boardroom',
+                'description' => 'Camera', 'manufacturer' => 'Poly', 'model' => "Studio Cam {$s}",
+                'part_no' => 'cam-' . $s, 'signal_role' => Device::ROLE_SOURCE,
+                'pd_load_w' => 20.0, 'qty' => 1,
+            ]);
+        }
+
+        $schedule = $this->newSchedule($project);
+        $this->makeSvc()->generate($schedule);
+
+        // 4 sources × 1 switch → 4 PoE rows, each with the ⚠ warning prefix.
+        $items = CableScheduleItem::where('cable_schedule_id', $schedule->id)->get();
+        $this->assertGreaterThanOrEqual(4, $items->count());
+        foreach ($items as $item) {
+            $this->assertStringContainsString('⚠ Switch', (string) ($item->notes ?? ''),
+                'At 80% every PoE row in the group must carry the ⚠ warning.');
+            $this->assertStringContainsString('80W of 100W (80%)', (string) ($item->notes ?? ''),
+                'Warning string must render exact wattage + percentage.');
+        }
+    }
+
+    public function test_poe_budget_over_100pct_triggers_over_budget_warning(): void
+    {
+        $project = $this->newProject();
+
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'PoE Switch', 'manufacturer' => 'Cisco', 'model' => 'Catalyst PoE Switch',
+            'part_no' => 'sw-62', 'signal_role' => Device::ROLE_DESTINATION,
+            'pse_budget_w' => 62.0, 'qty' => 1,
+        ]);
+        // 4 × 20W = 80W / 62W = 129% → OVER BUDGET.
+        foreach (['A', 'B', 'C', 'D'] as $s) {
+            Device::create([
+                'project_id' => $project->id, 'room_name' => 'Boardroom',
+                'description' => 'Camera', 'manufacturer' => 'Poly', 'model' => "Studio Cam {$s}",
+                'part_no' => 'cam-' . $s, 'signal_role' => Device::ROLE_SOURCE,
+                'pd_load_w' => 20.0, 'qty' => 1,
+            ]);
+        }
+
+        $schedule = $this->newSchedule($project);
+        $this->makeSvc()->generate($schedule);
+
+        $items = CableScheduleItem::where('cable_schedule_id', $schedule->id)->get();
+        $this->assertGreaterThanOrEqual(4, $items->count());
+        foreach ($items as $item) {
+            $this->assertStringContainsString('⚠⚠ OVER BUDGET', (string) ($item->notes ?? ''),
+                'Over-100% must escalate to the ⚠⚠ OVER BUDGET warning.');
+            $this->assertStringContainsString('(129%)', (string) ($item->notes ?? ''),
+                'Percentage should render as (129%).');
+        }
+    }
+
+    public function test_poe_budget_null_budget_or_load_skips_check(): void
+    {
+        // Branch A: pse_budget_w null on the switch → whole group skipped.
+        $project = $this->newProject();
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'PoE Switch', 'manufacturer' => 'Cisco', 'model' => 'Catalyst PoE Switch',
+            'part_no' => 'sw-null', 'signal_role' => Device::ROLE_DESTINATION,
+            'qty' => 1, // no pse_budget_w
+        ]);
+        foreach (['A', 'B'] as $s) {
+            Device::create([
+                'project_id' => $project->id, 'room_name' => 'Boardroom',
+                'description' => 'Camera', 'manufacturer' => 'Poly', 'model' => "Studio Cam {$s}",
+                'part_no' => 'cam-' . $s, 'signal_role' => Device::ROLE_SOURCE,
+                'pd_load_w' => 30.0, 'qty' => 1,
+            ]);
+        }
+        $schedule = $this->newSchedule($project);
+        $this->makeSvc()->generate($schedule);
+
+        $items = CableScheduleItem::where('cable_schedule_id', $schedule->id)->get();
+        foreach ($items as $item) {
+            $this->assertStringNotContainsString('PoE budget:', (string) ($item->notes ?? ''),
+                'Null pse_budget_w → whole group skipped, no warning.');
+        }
+
+        // Branch B: budget set but one source pd_load_w is null → whole
+        // group skipped (all-or-nothing to avoid under-reporting aggregates).
+        $project2 = $this->newProject();
+        Device::create([
+            'project_id' => $project2->id, 'room_name' => 'Boardroom',
+            'description' => 'PoE Switch', 'manufacturer' => 'Cisco', 'model' => 'Catalyst PoE Switch',
+            'part_no' => 'sw-100', 'signal_role' => Device::ROLE_DESTINATION,
+            'pse_budget_w' => 100.0, 'qty' => 1,
+        ]);
+        Device::create([
+            'project_id' => $project2->id, 'room_name' => 'Boardroom',
+            'description' => 'Cam A', 'manufacturer' => 'Poly', 'model' => 'Studio Cam A',
+            'part_no' => 'cam-a', 'signal_role' => Device::ROLE_SOURCE,
+            'pd_load_w' => 30.0, 'qty' => 1,
+        ]);
+        Device::create([
+            'project_id' => $project2->id, 'room_name' => 'Boardroom',
+            'description' => 'Cam B', 'manufacturer' => 'Poly', 'model' => 'Studio Cam B',
+            'part_no' => 'cam-b', 'signal_role' => Device::ROLE_SOURCE,
+            'qty' => 1, // pd_load_w null
+        ]);
+        $schedule2 = $this->newSchedule($project2);
+        $this->makeSvc()->generate($schedule2);
+
+        $items2 = CableScheduleItem::where('cable_schedule_id', $schedule2->id)->get();
+        foreach ($items2 as $item) {
+            $this->assertStringNotContainsString('PoE budget:', (string) ($item->notes ?? ''),
+                'Any null pd_load_w in the group → whole group skipped.');
+        }
+    }
+
+    public function test_non_poe_rows_never_receive_budget_warning(): void
+    {
+        $project = $this->newProject();
+
+        // Tight-budget switch — same setup as the OVER BUDGET test to ensure
+        // the group WOULD warn if a row qualified.
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'PoE Switch', 'manufacturer' => 'Cisco', 'model' => 'Catalyst PoE Switch',
+            'part_no' => 'sw-62', 'signal_role' => Device::ROLE_DESTINATION,
+            'pse_budget_w' => 62.0, 'qty' => 1,
+        ]);
+        // 4 Poly PoE sources — video bucket, cable_type='Cat6 (PoE)'.
+        foreach (['A', 'B', 'C', 'D'] as $s) {
+            Device::create([
+                'project_id' => $project->id, 'room_name' => 'Boardroom',
+                'description' => 'Camera', 'manufacturer' => 'Poly', 'model' => "Studio Cam {$s}",
+                'part_no' => 'cam-' . $s, 'signal_role' => Device::ROLE_SOURCE,
+                'pd_load_w' => 20.0, 'qty' => 1,
+            ]);
+        }
+        // Sony Blu-ray source — also video bucket (via 'sony' → display
+        // branch, cable_type='HDMI 2.0'). Rows to the same switch, but NOT
+        // PoE → must not receive the budget warning.
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'Blu-ray', 'manufacturer' => 'Sony', 'model' => 'UBP-X800 Blu-ray',
+            'part_no' => 'sony-src', 'signal_role' => Device::ROLE_SOURCE, 'qty' => 1,
+        ]);
+
+        $schedule = $this->newSchedule($project);
+        $this->makeSvc()->generate($schedule);
+
+        $items = CableScheduleItem::where('cable_schedule_id', $schedule->id)->get();
+
+        $poeRows = $items->filter(fn ($i) =>
+            $i->cable_type !== null && str_contains(strtolower((string) $i->cable_type), 'poe')
+        );
+        $nonPoeRows = $items->filter(fn ($i) =>
+            $i->cable_type !== null && ! str_contains(strtolower((string) $i->cable_type), 'poe')
+        );
+
+        $this->assertGreaterThan(0, $poeRows->count(), 'expected at least one PoE row.');
+        $this->assertGreaterThan(0, $nonPoeRows->count(), 'expected at least one non-PoE row.');
+
+        foreach ($poeRows as $row) {
+            $this->assertStringContainsString('⚠⚠ OVER BUDGET', (string) ($row->notes ?? ''),
+                'PoE rows in the over-budget group must receive the OVER BUDGET warning.');
+        }
+        foreach ($nonPoeRows as $row) {
+            $this->assertStringNotContainsString('PoE budget:', (string) ($row->notes ?? ''),
+                'Non-PoE rows must never receive the PoE budget warning even when sharing a destination.');
+        }
+    }
 }

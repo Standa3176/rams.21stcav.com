@@ -38,6 +38,11 @@ class Device extends Model
         // T3-B (260711-oh4): critical-processor flag — see CableScheduleGeneratorService
         // for the paired primary + '-R' redundant-row emission it drives.
         'is_critical',
+        // T3-C (260711-oh4): PoE budget solver metadata — see checkPoeBudgets.
+        // pse_budget_w = watts available on a PSE switch (destination role).
+        // pd_load_w    = watts drawn by a PD (source role) over its PoE cable.
+        'pse_budget_w',
+        'pd_load_w',
         // Phase 18 Plan 01 rack metadata (CRIT-06: nullable-first, no defaults)
         'u_height',
         'is_rack_mounted',
@@ -68,6 +73,11 @@ class Device extends Model
         // `=== true` guard at the redundant-row emit site treats absent data
         // as "not critical" (soft opt-in).
         'is_critical' => 'boolean',
+        // T3-C (260711-oh4): float casts — null preserved so checkPoeBudgets
+        // can honour the null-skip contract (any null in a group → skip
+        // silently). Nullable-first, no defaults.
+        'pse_budget_w' => 'float',
+        'pd_load_w'    => 'float',
     ];
 
     public function project(): BelongsTo
