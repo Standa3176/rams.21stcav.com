@@ -51,6 +51,22 @@ class CableScheduleGeneratorService
         'support services', 'consumables', 'services', 'options', 'delivery', 'carriage',
     ];
 
+    // ── T1-D: quoted cable product → signal_type reclassification map ─────────
+    //
+    // Consumables classified by classifyItems() as 'cable_consumable' walk this
+    // map to pin their signal_type. First matching bucket wins per consumable.
+    // Special case (handled in code, not here): 'shure' + a 'network' bucket
+    // hit reclassifies to 'audio' — Shure Microflex Wireless is Cat-over-
+    // Ethernet audio, not general networking.
+    private const QUOTED_CABLE_SIGNAL_KEYWORDS = [
+        'video'   => ['hdmi', 'displayport', 'dp', 'sdi', 'coax'],
+        'network' => ['cat5', 'cat6', 'cat6a', 'cat7', 'rj45', 'ethernet', 'network'],
+        'audio'   => ['xlr', 'trs', 'balanced', 'unbalanced'],   // shure+cat handled in code
+        'speaker' => ['speaker cable'],
+        'usb'     => ['usb'],
+        'power'   => ['iec', 'mains', 'power'],
+    ];
+
     public function __construct(
         private readonly ProjectDataService $projectDataService,
     ) {}
@@ -87,6 +103,12 @@ class CableScheduleGeneratorService
             // Classify every item
             $classified = $this->classifyItems($allItems);
 
+            // T1-D: build quoted-cable override map from the room's consumables
+            // so every install_hardware row whose inferred signal_type has a
+            // matching consumable adopts that consumable's cable_type + a
+            // "Quoted: <name>" notes prefix.
+            $overrides = $this->buildQuotedCableOverrides($classified['cable_consumable']);
+
             // Only install_hardware produces cable rows
             foreach ($classified['install_hardware'] as $item) {
                 $equipName = (string) ($item['name'] ?? $item['description'] ?? '');
@@ -95,6 +117,7 @@ class CableScheduleGeneratorService
                 $equipNameShort = Str::limit($equipName, 180, '…');
 
                 $cableInfo = $this->inferCableRun($equipName);
+                $cableInfo = $this->applyQuotedCableOverride($cableInfo, $overrides);
 
                 $sortOrder++;
                 $cableId = 'C-' . str_pad((string) $sortOrder, 3, '0', STR_PAD_LEFT);
@@ -139,6 +162,13 @@ class CableScheduleGeneratorService
      */
     private function generateFromDevices(CableSchedule $schedule, Collection $devices): int
     {
+        // T1-D: build a per-room quoted-cable override map by reloading the
+        // project's canonical dataset via ProjectDataService and classifying
+        // each room's consumables. Rooms whose name matches the device's
+        // room_name (case-insensitive trim) get their overrides applied.
+        $project           = $schedule->project()->first();
+        $consumablesByRoom = $this->buildConsumablesByRoom($project);
+
         $sortOrder = 0;
         $created   = 0;
 
@@ -158,8 +188,11 @@ class CableScheduleGeneratorService
 
             $equipNameShort = Str::limit($equipName, 180, '…');
             $roomName       = trim((string) ($device->room_name ?? '')) ?: 'Unknown Room';
+            $roomKey        = strtolower($roomName);
+            $overrides      = $this->buildQuotedCableOverrides($consumablesByRoom[$roomKey] ?? []);
 
             $cableInfo = $this->inferCableRun($equipName);
+            $cableInfo = $this->applyQuotedCableOverride($cableInfo, $overrides);
 
             // Rack suffix — only append when both flags are truthy.
             $rackSuffix = ($device->is_rack_mounted && $device->u_height)
@@ -234,6 +267,11 @@ class CableScheduleGeneratorService
         $rows = [];
         $sortOrder = 0;
 
+        // T1-D: buildRowsFromEquipmentLines has no room context, so all
+        // consumables collapse into one global override map applied to every
+        // install_hardware row.
+        $overrides = $this->buildQuotedCableOverrides($classified['cable_consumable']);
+
         foreach ($classified['install_hardware'] as $item) {
             $equipName = (string) ($item['name'] ?? $item['description'] ?? '');
             if ($equipName === '') {
@@ -243,6 +281,7 @@ class CableScheduleGeneratorService
             $equipNameShort = Str::limit($equipName, 180, '…');
 
             $cableInfo = $this->inferCableRun($equipName);
+            $cableInfo = $this->applyQuotedCableOverride($cableInfo, $overrides);
             $sortOrder++;
 
             $rows[] = [
@@ -534,6 +573,121 @@ class CableScheduleGeneratorService
             'to'          => 'TBC — confirm on survey',
             'notes'       => 'Cable type to be confirmed during site survey',
         ];
+    }
+
+    // =========================================================================
+    // T1-D — QUOTED CABLE OVERRIDES
+    // =========================================================================
+
+    /**
+     * Walk the room's cable_consumable bucket and produce a per-signal_type
+     * override map. First matching bucket wins per consumable. Shure + Cat
+     * network gear is reclassified as audio (Shure Microflex Wireless is
+     * Cat-over-Ethernet AUDIO, not general networking).
+     *
+     * Multiple consumables of the same signal_type join with ' / ' in the
+     * input array order — deterministic. Empty input returns an empty map.
+     *
+     * @param  array<int, array<string, mixed>>  $consumables classifyItems() 'cable_consumable' bucket
+     * @return array<string, string>  signal_type => concatenated cable_type display name
+     */
+    private function buildQuotedCableOverrides(array $consumables): array
+    {
+        $byType = [];
+
+        foreach ($consumables as $c) {
+            $rawName = (string) ($c['name'] ?? $c['description'] ?? '');
+            if ($rawName === '') {
+                continue;
+            }
+
+            $lower = strtolower($rawName);
+            $matched = null;
+
+            foreach (self::QUOTED_CABLE_SIGNAL_KEYWORDS as $type => $keywords) {
+                if ($this->matchesAny($lower, $keywords)) {
+                    $matched = $type;
+                    break;
+                }
+            }
+
+            if ($matched === null) {
+                continue;
+            }
+
+            // Shure Cat-over-Ethernet special case: 'shure' + 'network'
+            // reclassifies to 'audio' because Shure Microflex Wireless is
+            // Cat-audio, not general networking.
+            if ($matched === 'network' && $this->matchesAny($lower, ['shure'])) {
+                $matched = 'audio';
+            }
+
+            if (! isset($byType[$matched])) {
+                $byType[$matched] = [];
+            }
+            $byType[$matched][] = trim($rawName);
+        }
+
+        // Join same-signal_type consumables with ' / ' preserving array order.
+        return array_map(fn (array $names) => implode(' / ', $names), $byType);
+    }
+
+    /**
+     * Apply the per-signal_type overrides to a single inferCableRun() shape.
+     * Only touches cable_type + notes; signal_type, cores, to unchanged.
+     *
+     * @param  array<string, mixed>   $cableInfo output of inferCableRun()
+     * @param  array<string, string>  $overrides output of buildQuotedCableOverrides()
+     * @return array<string, mixed>
+     */
+    private function applyQuotedCableOverride(array $cableInfo, array $overrides): array
+    {
+        $signalType = (string) ($cableInfo['signal_type'] ?? '');
+        if ($signalType === '' || ! isset($overrides[$signalType])) {
+            return $cableInfo;
+        }
+
+        $override = $overrides[$signalType];
+        $cableInfo['cable_type'] = $override;
+        $cableInfo['notes']      = 'Quoted: ' . $override . ' | ' . ($cableInfo['notes'] ?? '');
+
+        return $cableInfo;
+    }
+
+    /**
+     * Per-room consumable bucket for device-preferred generation path. Walks
+     * ProjectDataService::resolve()'s room set, filters non-physical rooms,
+     * and classifies each room's equipment so downstream code can build
+     * quoted-cable overrides + apply them per device row.
+     *
+     * Returned map is keyed by strtolower(trim(room_name)) so device lookups
+     * (which also lowercase-trim) match reliably. Null project → empty map.
+     *
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    private function buildConsumablesByRoom(?object $project): array
+    {
+        if ($project === null) {
+            return [];
+        }
+
+        $data  = $this->projectDataService->resolve($project);
+        $rooms = $data['rooms'] ?? [];
+        $out   = [];
+
+        foreach ($rooms as $room) {
+            $name = strtolower(trim((string) ($room['room_name'] ?? $room['name'] ?? '')));
+            if ($name === '' || in_array($name, self::NON_PHYSICAL_ROOMS, true)) {
+                continue;
+            }
+
+            $classified = $this->classifyItems($room['equipment'] ?? []);
+            if (! empty($classified['cable_consumable'])) {
+                $out[$name] = $classified['cable_consumable'];
+            }
+        }
+
+        return $out;
     }
 
     // =========================================================================

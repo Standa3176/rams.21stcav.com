@@ -110,6 +110,111 @@ class CableScheduleGeneratorServiceTest extends TestCase
         $this->assertArrayHasKey('signal_type', $row);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // T1-D — quoted cable products override cable_type by signal_type
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public function test_quoted_hdmi_cable_overrides_video_rows(): void
+    {
+        // Kramer HDMI product classifies as cable_consumable (isCableProduct:
+        // 'hdmi' + 'cable') and pins video-signal rows to the quoted product.
+        $rows = $this->make()->buildRowsFromEquipmentLines([
+            ['name' => 'Samsung QM85 Display'],
+            ['name' => 'Kramer C-HM/HM-6 HDMI Cable', 'category' => 'cables'],
+        ]);
+
+        $displayRow = collect($rows)->firstWhere('signal_type', 'video');
+        $this->assertNotNull($displayRow, 'Expected a video row for the Samsung display.');
+        $this->assertSame('Kramer C-HM/HM-6 HDMI Cable', $displayRow['cable_type']);
+        $this->assertStringStartsWith('Quoted: Kramer C-HM/HM-6 HDMI Cable | ', $displayRow['notes']);
+    }
+
+    public function test_quoted_belden_cable_overrides_audio_rows(): void
+    {
+        // Belden XLR classifies to audio; Kramer HDMI to video. Each
+        // consumable pins its own signal_type only.
+        $rows = $this->make()->buildRowsFromEquipmentLines([
+            ['name' => 'Shure MXW Microphone'],
+            ['name' => 'Samsung QM85 Display'],
+            ['name' => 'Belden 8451 XLR Audio Cable', 'category' => 'cables'],
+            ['name' => 'Kramer HDMI Cable', 'category' => 'cables'],
+        ]);
+
+        $micRow = collect($rows)->firstWhere('signal_type', 'audio');
+        $this->assertNotNull($micRow, 'Expected an audio row for the mic.');
+        $this->assertSame('Belden 8451 XLR Audio Cable', $micRow['cable_type']);
+        $this->assertStringStartsWith('Quoted: Belden 8451 XLR Audio Cable | ', $micRow['notes']);
+
+        $displayRow = collect($rows)->firstWhere('signal_type', 'video');
+        $this->assertNotNull($displayRow);
+        $this->assertSame('Kramer HDMI Cable', $displayRow['cable_type']);
+        $this->assertStringStartsWith('Quoted: Kramer HDMI Cable | ', $displayRow['notes']);
+    }
+
+    public function test_shure_cat6_reclassifies_from_network_to_audio(): void
+    {
+        // 'Shure Cat6 Patch Cable' would classify as 'network' via cat6, but
+        // the shure+network special case pins it to 'audio'. The Shure mic
+        // audio row should then adopt this consumable.
+        $rows = $this->make()->buildRowsFromEquipmentLines([
+            ['name' => 'Shure MXW Microphone'],
+            ['name' => 'Shure Cat6 Patch Cable', 'category' => 'cables'],
+        ]);
+
+        $micRow = collect($rows)->firstWhere('signal_type', 'audio');
+        $this->assertNotNull($micRow, 'Expected an audio row for the Shure microphone.');
+        $this->assertSame('Shure Cat6 Patch Cable', $micRow['cable_type']);
+        $this->assertStringStartsWith('Quoted: Shure Cat6 Patch Cable | ', $micRow['notes']);
+    }
+
+    public function test_no_consumables_leaves_rows_unchanged(): void
+    {
+        // Regression guard: rows without any cable_consumable input retain
+        // the pre-T1-D inferred cable_type + notes exactly.
+        $rows = $this->make()->buildRowsFromEquipmentLines([
+            ['name' => 'Samsung QM85 Display'],
+        ]);
+
+        $this->assertCount(1, $rows);
+        $row = $rows[0];
+
+        // Pre-T1-D shape — HDMI 2.0 + video, no "Quoted:" prefix.
+        $this->assertSame('HDMI 2.0', $row['cable_type']);
+        $this->assertSame('video', $row['signal_type']);
+        $this->assertStringNotContainsString('Quoted:', $row['notes']);
+    }
+
+    public function test_multiple_consumables_of_same_signal_type_join_with_slash(): void
+    {
+        // Two HDMI cable products both classify to 'video' — override display
+        // joins them in array order with ' / '.
+        $rows = $this->make()->buildRowsFromEquipmentLines([
+            ['name' => 'Samsung QM85 Display'],
+            ['name' => 'Kramer HDMI Cable', 'category' => 'cables'],
+            ['name' => 'Cat6 Patch Lead', 'category' => 'cables'],
+        ]);
+
+        // The 'Kramer HDMI Cable' pins video; the 'Cat6 Patch Lead' pins
+        // network. So video row gets Kramer HDMI.
+        $displayRow = collect($rows)->firstWhere('signal_type', 'video');
+        $this->assertNotNull($displayRow);
+        $this->assertSame('Kramer HDMI Cable', $displayRow['cable_type']);
+
+        // Two hdmi cables at once → joined with ' / '.
+        $rows2 = $this->make()->buildRowsFromEquipmentLines([
+            ['name' => 'Samsung QM85 Display'],
+            ['name' => 'Kramer HDMI Cable', 'category' => 'cables'],
+            ['name' => 'Premium Displayport Cable', 'category' => 'cables'],
+        ]);
+        $displayRow2 = collect($rows2)->firstWhere('signal_type', 'video');
+        $this->assertNotNull($displayRow2);
+        $this->assertSame(
+            'Kramer HDMI Cable / Premium Displayport Cable',
+            $displayRow2['cable_type'],
+            'Same-signal_type consumables must join with " / " in array order.'
+        );
+    }
+
     protected function tearDown(): void
     {
         Mockery::close();
