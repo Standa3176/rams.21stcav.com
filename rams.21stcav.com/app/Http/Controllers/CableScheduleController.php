@@ -6,6 +6,7 @@ use App\Jobs\BuildCableScheduleJob;
 use App\Models\CableSchedule;
 use App\Models\CableScheduleItem;
 use App\Models\Device;
+use App\Models\DeviceStencil;
 use App\Models\Project;
 use App\Services\CableScheduleGeneratorService;
 use App\Services\PdfTextExtractorService;
@@ -137,10 +138,39 @@ class CableScheduleController extends Controller
         // them by row.
         $devicesWithPorts = [];
         if ($cableSchedule->project_id) {
-            $devicesWithPorts = Device::query()
+            // Device has no native `stencil()` relationship — stencils are
+            // joined by normalised part_number via DeviceStencilCacheService,
+            // NOT by a foreign key. Bulk-lookup + setRelation() mirrors the
+            // pattern documented in BackfillCablePortFksCommand::loadProject
+            // DevicesWithStencils() so both call sites converge on one shape.
+            $devices = Device::query()
                 ->where('project_id', $cableSchedule->project_id)
-                ->with(['stencil.ports' => fn ($q) => $q->orderBy('side')->orderBy('sort_order')])
-                ->get()
+                ->get();
+
+            $partNumbers = $devices
+                ->pluck('part_no')
+                ->filter()
+                ->map(fn ($pn) => DeviceStencil::normalisePartNumber((string) $pn))
+                ->unique()
+                ->values()
+                ->all();
+
+            $stencilsByPartNumber = $partNumbers
+                ? DeviceStencil::query()
+                    ->whereIn('part_number', $partNumbers)
+                    ->with(['ports' => fn ($q) => $q->orderBy('side')->orderBy('sort_order')])
+                    ->get()
+                    ->keyBy('part_number')
+                : collect();
+
+            $devicesWithPorts = $devices
+                ->each(function (Device $d) use ($stencilsByPartNumber) {
+                    $key = DeviceStencil::normalisePartNumber((string) ($d->part_no ?? ''));
+                    // Always set the relation (even to null) so the accessor
+                    // below is deterministic and never triggers a lazy-load
+                    // attempt on the non-existent stencil() method.
+                    $d->setRelation('stencil', $stencilsByPartNumber->get($key));
+                })
                 ->map(function (Device $d) {
                     $label = trim(($d->manufacturer ?? '') . ' ' . ($d->model ?? ''));
                     if ($label === '') {
