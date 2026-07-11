@@ -6,6 +6,7 @@ use App\Core\Modules\Projects\ProjectDataService;
 use App\Models\CableSchedule;
 use App\Models\CableScheduleItem;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
  * Deterministic cable schedule generator.
@@ -80,6 +81,8 @@ class CableScheduleGeneratorService
                 $equipName = (string) ($item['name'] ?? $item['description'] ?? '');
                 if ($equipName === '') continue;
 
+                $equipNameShort = Str::limit($equipName, 180, '…');
+
                 $cableInfo = $this->inferCableRun($equipName);
 
                 $sortOrder++;
@@ -88,7 +91,7 @@ class CableScheduleGeneratorService
                 CableScheduleItem::create([
                     'cable_schedule_id' => $schedule->id,
                     'cable_id'          => $cableId,
-                    'from_location'     => $roomName . ' — ' . $equipName,
+                    'from_location'     => $roomName . ' — ' . $equipNameShort,
                     'to_location'       => $cableInfo['to'],
                     'cable_type'        => $cableInfo['cable_type'],
                     'cores'             => $cableInfo['cores'],
@@ -147,12 +150,14 @@ class CableScheduleGeneratorService
                 continue;
             }
 
+            $equipNameShort = Str::limit($equipName, 180, '…');
+
             $cableInfo = $this->inferCableRun($equipName);
             $sortOrder++;
 
             $rows[] = [
                 'cable_id'        => 'C-' . str_pad((string) $sortOrder, 3, '0', STR_PAD_LEFT),
-                'from_location'   => trim($sourceLabel) . ' — ' . $equipName,
+                'from_location'   => trim($sourceLabel) . ' — ' . $equipNameShort,
                 'to_location'     => $cableInfo['to'],
                 'cable_type'      => $cableInfo['cable_type'],
                 'cores'           => $cableInfo['cores'],
