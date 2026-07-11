@@ -67,6 +67,40 @@ class CableScheduleGeneratorService
         'power'   => ['iec', 'mains', 'power'],
     ];
 
+    // ── T1-E: distance-warning matrix ─────────────────────────────────────────
+    //
+    // Applied after computing $cableInfo. Rules walked in declaration order;
+    // matched warnings joined with ' | ' and appended to notes.
+    //   - cable_type_regex : preg regex tested against the row's cable_type
+    //   - threshold_m      : length > this in metres triggers the warning
+    //   - requires_cores   : null = any; non-null = must string-match exactly
+    private const DISTANCE_WARNING_RULES = [
+        [
+            'cable_type_regex' => '/\bHDMI\b/i',
+            'threshold_m'      => 15,
+            'requires_cores'   => null,
+            'warning'          => '⚠ HDMI passive > 15m unreliable — recommend HDBaseT extender',
+        ],
+        [
+            'cable_type_regex' => '/\bCat6a?\b.*PoE/i',
+            'threshold_m'      => 100,
+            'requires_cores'   => null,
+            'warning'          => '⚠ Cat6 PoE > 100m — power delivery unreliable',
+        ],
+        [
+            'cable_type_regex' => '/HDBaseT|Cat6a \(shielded\)/i',
+            'threshold_m'      => 100,
+            'requires_cores'   => null,
+            'warning'          => '⚠ HDBaseT max range 100m Cat6a — split with fibre extender',
+        ],
+        [
+            'cable_type_regex' => '/speaker cable/i',
+            'threshold_m'      => 30,
+            'requires_cores'   => '2',
+            'warning'          => '⚠ Long speaker run — consider 4-core star quad or thicker gauge',
+        ],
+    ];
+
     public function __construct(
         private readonly ProjectDataService $projectDataService,
     ) {}
@@ -92,6 +126,7 @@ class CableScheduleGeneratorService
 
         $data      = $this->projectDataService->resolve($project);
         $rooms     = $this->resolveRoomsWithEquipment($data);
+        $lengthMap = $this->buildRoomLengthMap($project);   // T1-E
         $sortOrder = 0;
         $created   = 0;
 
@@ -109,6 +144,11 @@ class CableScheduleGeneratorService
             // "Quoted: <name>" notes prefix.
             $overrides = $this->buildQuotedCableOverrides($classified['cable_consumable']);
 
+            // T1-E: resolve the approx length for THIS room from the survey
+            // narrative map. Case-insensitive trim match. Null when no survey
+            // narrative parseable.
+            $length = $lengthMap[strtolower(trim($roomName))] ?? null;
+
             // Only install_hardware produces cable rows
             foreach ($classified['install_hardware'] as $item) {
                 $equipName = (string) ($item['name'] ?? $item['description'] ?? '');
@@ -118,6 +158,13 @@ class CableScheduleGeneratorService
 
                 $cableInfo = $this->inferCableRun($equipName);
                 $cableInfo = $this->applyQuotedCableOverride($cableInfo, $overrides);
+
+                // T1-E: append distance warnings when length + rule matches.
+                $warnings = $this->computeDistanceWarnings($cableInfo['cable_type'], $cableInfo['cores'], $length);
+                $notes    = $cableInfo['notes'] . ($cableRouteDesc ? ' | Route: ' . $cableRouteDesc : '');
+                if (! empty($warnings)) {
+                    $notes .= ' | ' . implode(' | ', $warnings);
+                }
 
                 $sortOrder++;
                 $cableId = 'C-' . str_pad((string) $sortOrder, 3, '0', STR_PAD_LEFT);
@@ -130,8 +177,8 @@ class CableScheduleGeneratorService
                     'cable_type'        => $cableInfo['cable_type'],
                     'signal_type'       => $cableInfo['signal_type'],
                     'cores'             => $cableInfo['cores'],
-                    'approx_length_m'   => null,
-                    'notes'             => $cableInfo['notes'] . ($cableRouteDesc ? ' | Route: ' . $cableRouteDesc : ''),
+                    'approx_length_m'   => $length,
+                    'notes'             => $notes,
                     'sort_order'        => $sortOrder,
                 ]);
 
@@ -162,12 +209,12 @@ class CableScheduleGeneratorService
      */
     private function generateFromDevices(CableSchedule $schedule, Collection $devices): int
     {
-        // T1-D: build a per-room quoted-cable override map by reloading the
-        // project's canonical dataset via ProjectDataService and classifying
-        // each room's consumables. Rooms whose name matches the device's
-        // room_name (case-insensitive trim) get their overrides applied.
+        // T1-D + T1-E: reload the project once, then build the per-room
+        // consumable + length maps. Devices whose room_name matches
+        // (case-insensitive trim) get their overrides + length applied.
         $project           = $schedule->project()->first();
         $consumablesByRoom = $this->buildConsumablesByRoom($project);
+        $lengthMap         = $this->buildRoomLengthMap($project);   // T1-E
 
         $sortOrder = 0;
         $created   = 0;
@@ -190,6 +237,7 @@ class CableScheduleGeneratorService
             $roomName       = trim((string) ($device->room_name ?? '')) ?: 'Unknown Room';
             $roomKey        = strtolower($roomName);
             $overrides      = $this->buildQuotedCableOverrides($consumablesByRoom[$roomKey] ?? []);
+            $length         = $lengthMap[$roomKey] ?? null;                                 // T1-E
 
             $cableInfo = $this->inferCableRun($equipName);
             $cableInfo = $this->applyQuotedCableOverride($cableInfo, $overrides);
@@ -208,6 +256,13 @@ class CableScheduleGeneratorService
                 ? sprintf('[%s] ', $device->signal_role)
                 : '';
 
+            // T1-E: append distance warnings on the cable_type + cores + length.
+            $notes    = $rolePrefix . $cableInfo['notes'];
+            $warnings = $this->computeDistanceWarnings($cableInfo['cable_type'], $cableInfo['cores'], $length);
+            if (! empty($warnings)) {
+                $notes .= ' | ' . implode(' | ', $warnings);
+            }
+
             $sortOrder++;
             $cableId = 'C-' . str_pad((string) $sortOrder, 3, '0', STR_PAD_LEFT);
 
@@ -219,8 +274,8 @@ class CableScheduleGeneratorService
                 'cable_type'        => $cableInfo['cable_type'],
                 'signal_type'       => $cableInfo['signal_type'],
                 'cores'             => $cableInfo['cores'],
-                'approx_length_m'   => null,
-                'notes'             => $rolePrefix . $cableInfo['notes'],
+                'approx_length_m'   => $length,
+                'notes'             => $notes,
                 'sort_order'        => $sortOrder,
             ]);
 
@@ -684,6 +739,169 @@ class CableScheduleGeneratorService
             $classified = $this->classifyItems($room['equipment'] ?? []);
             if (! empty($classified['cable_consumable'])) {
                 $out[$name] = $classified['cable_consumable'];
+            }
+        }
+
+        return $out;
+    }
+
+    // =========================================================================
+    // T1-E — SURVEY NARRATIVE LENGTH + DISTANCE WARNINGS
+    // =========================================================================
+
+    /**
+     * Extract the LAST numeric metre measurement from a narrative string. The
+     * regex is deliberately greedy on m/metre/meter variants so engineer
+     * copy-paste from different sources normalises. Returns null on empty
+     * text or no match.
+     *
+     * Examples:
+     *   'Route drops 3m at wall then extends 45m to rack' → 45.0
+     *   '12.5 metres to comms room'                       → 12.5
+     *   'no numeric measurement'                          → null
+     */
+    private function parseLengthFromNarrative(?string $text): ?float
+    {
+        if ($text === null) {
+            return null;
+        }
+        $text = trim($text);
+        if ($text === '') {
+            return null;
+        }
+
+        if (preg_match_all('/(\d+(?:\.\d+)?)\s*(?:m|metres?|meters?)\b/i', $text, $m) === false) {
+            return null;
+        }
+
+        if (empty($m[1])) {
+            return null;
+        }
+
+        return (float) end($m[1]);
+    }
+
+    /**
+     * Priority chain for the room's cable-route narrative:
+     *   1. cable_routes (JSON array of {category,from,to,length_m,notes}) —
+     *      concatenate notes + synthetic "X m" markers for each length_m so
+     *      the regex naturally picks up the last measurement.
+     *   2. engineer_feedback['cable_routes'] — legacy JSON payload holder;
+     *      no-op on the current schema but kept for forward compatibility.
+     *   3. cable_route_desc — legacy single-row text column.
+     *
+     * First non-empty (after trim) wins. Returns null on empty/missing rooms.
+     */
+    private function extractRoomNarrative(\App\Models\SiteSurveyRoom $room): ?string
+    {
+        // Priority 1: JSON cable_routes array (post-260503-rgg schema). Cast
+        // is 'array' on the model so we always get an array or null. Build
+        // a synthetic narrative: join non-empty notes and append "<length> m"
+        // markers per entry so parseLengthFromNarrative picks up the last.
+        $routes = $room->cable_routes;
+        if (is_array($routes) && ! empty($routes)) {
+            $parts = [];
+            foreach ($routes as $entry) {
+                if (! is_array($entry)) {
+                    continue;
+                }
+                $note = trim((string) ($entry['notes'] ?? ''));
+                if ($note !== '') {
+                    $parts[] = $note;
+                }
+                $len = $entry['length_m'] ?? null;
+                if ($len !== null && $len !== '') {
+                    $parts[] = ((string) $len) . ' m';
+                }
+            }
+            $joined = trim(implode(' | ', $parts));
+            if ($joined !== '') {
+                return $joined;
+            }
+        }
+
+        // Priority 2: engineer_feedback JSON blob's cable_routes key (future
+        // holder — no such column on the current site_survey_rooms schema,
+        // so data_get returns null and this branch is a no-op).
+        $ef = data_get($room, 'engineer_feedback.cable_routes');
+        if (is_string($ef) && trim($ef) !== '') {
+            return trim($ef);
+        }
+
+        // Priority 3: legacy cable_route_desc text column.
+        $legacy = trim((string) ($room->cable_route_desc ?? ''));
+        if ($legacy !== '') {
+            return $legacy;
+        }
+
+        return null;
+    }
+
+    /**
+     * Walk DISTANCE_WARNING_RULES and return the list of matched warnings for
+     * a single row. Empty when length is unknown or no rule matched.
+     *
+     * @return array<int, string>
+     */
+    private function computeDistanceWarnings(string $cableType, ?string $cores, ?float $lengthM): array
+    {
+        if ($lengthM === null) {
+            return [];
+        }
+
+        $warnings = [];
+        foreach (self::DISTANCE_WARNING_RULES as $rule) {
+            if (! preg_match($rule['cable_type_regex'], $cableType)) {
+                continue;
+            }
+            if ($lengthM <= $rule['threshold_m']) {
+                continue;
+            }
+            if ($rule['requires_cores'] !== null && (string) $cores !== $rule['requires_cores']) {
+                continue;
+            }
+            $warnings[] = $rule['warning'];
+        }
+
+        return $warnings;
+    }
+
+    /**
+     * Build a per-room approx_length map keyed by strtolower(trim(room_name))
+     * from the project's LATEST site survey. Rooms whose narrative parses to
+     * no numeric length are omitted. Null project or no survey → empty map.
+     *
+     * @return array<string, float>
+     */
+    private function buildRoomLengthMap(?object $project): array
+    {
+        if ($project === null) {
+            return [];
+        }
+
+        // Project has siteSurveys() HasMany. Use the latest by created_at so
+        // repeat surveys don't confuse the length lookup.
+        try {
+            $survey = method_exists($project, 'siteSurveys')
+                ? $project->siteSurveys()->latest()->first()
+                : null;
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        if ($survey === null) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($survey->rooms as $room) {
+            $roomName = strtolower(trim((string) ($room->room_name ?? '')));
+            if ($roomName === '') {
+                continue;
+            }
+            $length = $this->parseLengthFromNarrative($this->extractRoomNarrative($room));
+            if ($length !== null) {
+                $out[$roomName] = $length;
             }
         }
 

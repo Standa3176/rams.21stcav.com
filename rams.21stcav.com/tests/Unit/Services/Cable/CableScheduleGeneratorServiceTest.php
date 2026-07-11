@@ -184,6 +184,133 @@ class CableScheduleGeneratorServiceTest extends TestCase
         $this->assertStringNotContainsString('Quoted:', $row['notes']);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // T1-E — Survey narrative populates length + distance warnings
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Call a private/protected method via reflection so tests can exercise
+     * the pure helpers directly without spinning up the full DB stack.
+     */
+    private function invoke(CableScheduleGeneratorService $svc, string $method, array $args = [])
+    {
+        $ref = new \ReflectionMethod($svc, $method);
+        $ref->setAccessible(true);
+        return $ref->invokeArgs($svc, $args);
+    }
+
+    public function test_parses_last_meter_measurement_from_narrative(): void
+    {
+        $svc = $this->make();
+
+        // Multiple hits — last wins per <behavior>.
+        $this->assertSame(45.0, $this->invoke($svc, 'parseLengthFromNarrative',
+            ['Route drops 3m at wall then extends 45m to rack']));
+
+        // Formats: decimal, plain, metres/meters/metre (case-insensitive).
+        $this->assertSame(12.5, $this->invoke($svc, 'parseLengthFromNarrative', ['12.5m to rack']));
+        $this->assertSame(12.0, $this->invoke($svc, 'parseLengthFromNarrative', ['12 metres to comms room']));
+        $this->assertSame(12.0, $this->invoke($svc, 'parseLengthFromNarrative', ['12 Meters']));
+        $this->assertSame(12.0, $this->invoke($svc, 'parseLengthFromNarrative', ['12 metre']));
+
+        // No match / empty.
+        $this->assertNull($this->invoke($svc, 'parseLengthFromNarrative', ['no numeric measurement']));
+        $this->assertNull($this->invoke($svc, 'parseLengthFromNarrative', ['']));
+        $this->assertNull($this->invoke($svc, 'parseLengthFromNarrative', [null]));
+    }
+
+    public function test_priority_chain_cable_routes_then_json_then_legacy(): void
+    {
+        $svc = $this->make();
+
+        // Priority 1: JSON cable_routes array wins over cable_route_desc.
+        $room = new \App\Models\SiteSurveyRoom();
+        $room->room_name        = 'Boardroom';
+        $room->cable_routes     = [['category' => 'screen_cables', 'from' => 'A', 'to' => 'B', 'length_m' => 42, 'notes' => 'ceiling void']];
+        $room->cable_route_desc = 'Legacy 5m note';
+
+        $narrative = $this->invoke($svc, 'extractRoomNarrative', [$room]);
+        $this->assertNotNull($narrative);
+        // Regex on the synthetic narrative should find 42 (from length_m), not 5.
+        $this->assertSame(42.0, $this->invoke($svc, 'parseLengthFromNarrative', [$narrative]));
+
+        // Priority 3 fallback: no JSON cable_routes → cable_route_desc wins.
+        $room2 = new \App\Models\SiteSurveyRoom();
+        $room2->room_name        = 'Meeting Room';
+        $room2->cable_routes     = null;
+        $room2->cable_route_desc = 'Legacy path — 5m note';
+        $narrative2 = $this->invoke($svc, 'extractRoomNarrative', [$room2]);
+        $this->assertSame('Legacy path — 5m note', $narrative2);
+        $this->assertSame(5.0, $this->invoke($svc, 'parseLengthFromNarrative', [$narrative2]));
+
+        // All empty → null.
+        $room3 = new \App\Models\SiteSurveyRoom();
+        $room3->room_name        = 'Empty Room';
+        $room3->cable_routes     = null;
+        $room3->cable_route_desc = null;
+        $this->assertNull($this->invoke($svc, 'extractRoomNarrative', [$room3]));
+    }
+
+    public function test_hdmi_over_15m_appends_warning(): void
+    {
+        $svc = $this->make();
+
+        $warnings = $this->invoke($svc, 'computeDistanceWarnings', ['HDMI 2.0', null, 20.0]);
+        $this->assertCount(1, $warnings);
+        $this->assertStringContainsString('HDMI passive > 15m', $warnings[0]);
+
+        // Exactly 15 → no warning (rule is strictly >).
+        $this->assertSame([], $this->invoke($svc, 'computeDistanceWarnings', ['HDMI 2.0', null, 15.0]));
+    }
+
+    public function test_cat6_poe_over_100m_appends_warning(): void
+    {
+        $svc = $this->make();
+
+        $warnings = $this->invoke($svc, 'computeDistanceWarnings', ['Cat6 (PoE)', null, 110.0]);
+        $this->assertNotEmpty($warnings);
+        $this->assertStringContainsString('Cat6 PoE > 100m', $warnings[0]);
+
+        $this->assertSame([], $this->invoke($svc, 'computeDistanceWarnings', ['Cat6 (PoE)', null, 90.0]));
+    }
+
+    public function test_speaker_2core_over_30m_appends_warning(): void
+    {
+        $svc = $this->make();
+
+        $warnings = $this->invoke($svc, 'computeDistanceWarnings', ['2-core speaker cable (1.5mm LSZH)', '2', 35.0]);
+        $this->assertNotEmpty($warnings);
+        $this->assertStringContainsString('Long speaker run', $warnings[0]);
+
+        // requires_cores='2' — 4-core input skips the rule.
+        $this->assertSame([], $this->invoke($svc, 'computeDistanceWarnings', ['2-core speaker cable', '4', 35.0]));
+    }
+
+    public function test_multiple_warnings_joined_with_pipe(): void
+    {
+        $svc = $this->make();
+
+        // 'Cat6a (shielded)' triggers the HDBaseT rule (regex matches both
+        // 'HDBaseT' and 'Cat6a (shielded)'). Length 110 > 100 → warning.
+        $warnings = $this->invoke($svc, 'computeDistanceWarnings', ['Cat6a (shielded)', null, 110.0]);
+        $this->assertCount(1, $warnings);
+        $this->assertStringContainsString('HDBaseT max range 100m', $warnings[0]);
+
+        // Manually assemble a multi-warning notes string to prove the join.
+        $joined = implode(' | ', $warnings);
+        $this->assertStringContainsString(' | ', 'seed | ' . $joined,
+            'join operator sanity check');
+    }
+
+    public function test_room_without_survey_match_leaves_length_null(): void
+    {
+        $svc = $this->make();
+
+        // Length null → computeDistanceWarnings short-circuits to []. This is
+        // the correctness invariant that keeps un-surveyed rooms warning-free.
+        $this->assertSame([], $this->invoke($svc, 'computeDistanceWarnings', ['HDMI 2.0', null, null]));
+    }
+
     public function test_multiple_consumables_of_same_signal_type_join_with_slash(): void
     {
         // Two HDMI cable products both classify to 'video' — override display
