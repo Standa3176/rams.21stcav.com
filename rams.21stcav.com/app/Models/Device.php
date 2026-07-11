@@ -35,6 +35,9 @@ class Device extends Model
         'manufacturer',
         'part_no',
         'signal_role',
+        // T3-B (260711-oh4): critical-processor flag — see CableScheduleGeneratorService
+        // for the paired primary + '-R' redundant-row emission it drives.
+        'is_critical',
         // Phase 18 Plan 01 rack metadata (CRIT-06: nullable-first, no defaults)
         'u_height',
         'is_rack_mounted',
@@ -61,6 +64,10 @@ class Device extends Model
         'is_rack_mounted' => 'boolean',
         'requires_ventilation_gap_above' => 'boolean',
         'requires_ventilation_gap_below' => 'boolean',
+        // T3-B (260711-oh4): boolean cast keeps null → null so the strict
+        // `=== true` guard at the redundant-row emit site treats absent data
+        // as "not critical" (soft opt-in).
+        'is_critical' => 'boolean',
     ];
 
     public function project(): BelongsTo

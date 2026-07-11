@@ -439,4 +439,203 @@ class CableScheduleDagGenerationTest extends TestCase
         $this->assertSame($srcPort->id, $item->source_port_id, 'source port FK must be populated.');
         $this->assertSame($dstPort->id, $item->dest_port_id, 'dest port FK must be populated.');
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // T3-B — redundant-row emission for is_critical processors
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public function test_critical_processor_emits_redundant_row_pair(): void
+    {
+        $project = $this->newProject();
+
+        // Chain: Sony source → Atlona HDBaseT critical processor → Samsung display.
+        // Both edges have the critical processor at one endpoint → 2 primary +
+        // 2 redundant rows.
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'Blu-ray', 'manufacturer' => 'Sony', 'model' => 'UBP-X800',
+            'part_no' => 'x800', 'signal_role' => Device::ROLE_SOURCE, 'qty' => 1,
+        ]);
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'HDBaseT Extender', 'manufacturer' => 'Atlona', 'model' => 'HDBaseT Extender',
+            'part_no' => 'at-hdbt', 'signal_role' => Device::ROLE_PROCESSOR,
+            'is_critical' => true, 'qty' => 1,
+        ]);
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'Display', 'manufacturer' => 'Samsung', 'model' => 'QM85 Display',
+            'part_no' => 'qm85', 'signal_role' => Device::ROLE_DESTINATION, 'qty' => 1,
+        ]);
+
+        $schedule = $this->newSchedule($project);
+        $count    = $this->makeSvc()->generate($schedule);
+
+        // 2 primary + 2 redundant = 4 rows total.
+        $this->assertSame(4, $count);
+
+        $items = CableScheduleItem::where('cable_schedule_id', $schedule->id)
+            ->orderBy('sort_order')->get();
+        $this->assertCount(4, $items);
+
+        // Interleave: primary(1), redundant(2), primary(3), redundant(4).
+        $this->assertFalse((bool) $items[0]->is_redundant, 'row 1 is the primary source→proc edge.');
+        $this->assertTrue((bool)  $items[1]->is_redundant, 'row 2 is the redundant twin of row 1.');
+        $this->assertFalse((bool) $items[2]->is_redundant, 'row 3 is the primary proc→dst edge.');
+        $this->assertTrue((bool)  $items[3]->is_redundant, 'row 4 is the redundant twin of row 3.');
+
+        // Redundant cable_ids end in '-R', anchored to primary padded number.
+        $this->assertStringEndsWith('-R', (string) $items[1]->cable_id);
+        $this->assertStringEndsWith('-R', (string) $items[3]->cable_id);
+        $this->assertSame($items[0]->cable_id . '-R', $items[1]->cable_id);
+        $this->assertSame($items[2]->cable_id . '-R', $items[3]->cable_id);
+
+        // Redundant rows carry the required notes prefix.
+        $this->assertStringStartsWith('[REDUNDANT]', (string) ($items[1]->notes ?? ''));
+        $this->assertStringStartsWith('[REDUNDANT]', (string) ($items[3]->notes ?? ''));
+
+        // sort_order strictly monotonic 1,2,3,4 (no gaps, no fractions).
+        $this->assertSame(1, (int) $items[0]->sort_order);
+        $this->assertSame(2, (int) $items[1]->sort_order);
+        $this->assertSame(3, (int) $items[2]->sort_order);
+        $this->assertSame(4, (int) $items[3]->sort_order);
+    }
+
+    public function test_non_critical_processor_emits_single_edge(): void
+    {
+        $project = $this->newProject();
+
+        // Same chain as the critical test but is_critical=false. Zero
+        // redundant rows should emerge.
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'Blu-ray', 'manufacturer' => 'Sony', 'model' => 'UBP-X800',
+            'part_no' => 'x800', 'signal_role' => Device::ROLE_SOURCE, 'qty' => 1,
+        ]);
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'HDBaseT Extender', 'manufacturer' => 'Atlona', 'model' => 'HDBaseT Extender',
+            'part_no' => 'at-hdbt', 'signal_role' => Device::ROLE_PROCESSOR,
+            'is_critical' => false, 'qty' => 1,
+        ]);
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'Display', 'manufacturer' => 'Samsung', 'model' => 'QM85 Display',
+            'part_no' => 'qm85', 'signal_role' => Device::ROLE_DESTINATION, 'qty' => 1,
+        ]);
+
+        $schedule = $this->newSchedule($project);
+        $count    = $this->makeSvc()->generate($schedule);
+
+        $this->assertSame(2, $count, 'Non-critical chain emits only primary edges.');
+
+        $items = CableScheduleItem::where('cable_schedule_id', $schedule->id)->get();
+        foreach ($items as $item) {
+            $this->assertNotTrue((bool) $item->is_redundant,
+                'No row should be redundant when is_critical=false.');
+        }
+    }
+
+    public function test_multiple_critical_processors_emit_paired_rows_per_edge(): void
+    {
+        $project = $this->newProject();
+
+        // Chain: Sony source → Atlona1 (critical proc) → Atlona2 (critical proc) → Samsung display.
+        // Both processors unmatched by SIGNAL_PATH_ORDER → sort by id ASC.
+        // 3 primary edges → 3 primary + 3 redundant = 6 rows.
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'Blu-ray', 'manufacturer' => 'Sony', 'model' => 'UBP-X800',
+            'part_no' => 'x800', 'signal_role' => Device::ROLE_SOURCE, 'qty' => 1,
+        ]);
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'HDBaseT One', 'manufacturer' => 'Atlona', 'model' => 'HDBaseT Extender A',
+            'part_no' => 'at-hdbt-a', 'signal_role' => Device::ROLE_PROCESSOR,
+            'is_critical' => true, 'qty' => 1,
+        ]);
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'HDBaseT Two', 'manufacturer' => 'Atlona', 'model' => 'HDBaseT Extender B',
+            'part_no' => 'at-hdbt-b', 'signal_role' => Device::ROLE_PROCESSOR,
+            'is_critical' => true, 'qty' => 1,
+        ]);
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'Display', 'manufacturer' => 'Samsung', 'model' => 'QM85 Display',
+            'part_no' => 'qm85', 'signal_role' => Device::ROLE_DESTINATION, 'qty' => 1,
+        ]);
+
+        $schedule = $this->newSchedule($project);
+        $count    = $this->makeSvc()->generate($schedule);
+
+        $this->assertSame(6, $count, '3 primary + 3 redundant edges expected.');
+
+        $items = CableScheduleItem::where('cable_schedule_id', $schedule->id)
+            ->orderBy('sort_order')->get();
+        $this->assertCount(6, $items);
+
+        $primaryIds   = [];
+        $redundantIds = [];
+        foreach ($items as $item) {
+            if (str_ends_with((string) $item->cable_id, '-R')) {
+                $redundantIds[] = (string) $item->cable_id;
+            } else {
+                $primaryIds[] = (string) $item->cable_id;
+            }
+        }
+        $this->assertCount(3, $primaryIds);
+        $this->assertCount(3, $redundantIds);
+
+        // Every redundant cable_id maps to a distinct primary — no reuse.
+        $strippedRedundantIds = array_map(fn ($r) => substr($r, 0, -2), $redundantIds);
+        sort($primaryIds);
+        sort($strippedRedundantIds);
+        $this->assertSame($primaryIds, $strippedRedundantIds,
+            'Each redundant row must anchor to a distinct primary cable_id.');
+
+        // sort_order strictly monotonic 1..6, no gaps or fractional values.
+        foreach ($items as $i => $item) {
+            $this->assertSame($i + 1, (int) $item->sort_order);
+        }
+    }
+
+    public function test_project_without_is_critical_data_uses_default_no_redundancy(): void
+    {
+        $project = $this->newProject();
+
+        // Every device leaves is_critical unset (null via nullable migration).
+        // Zero redundant rows must emerge — soft opt-in preserved.
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'Blu-ray', 'manufacturer' => 'Sony', 'model' => 'UBP-X800',
+            'part_no' => 'x800', 'signal_role' => Device::ROLE_SOURCE, 'qty' => 1,
+        ]);
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'HDBaseT Extender', 'manufacturer' => 'Atlona', 'model' => 'HDBaseT Extender',
+            'part_no' => 'at-hdbt', 'signal_role' => Device::ROLE_PROCESSOR, 'qty' => 1,
+        ]);
+        Device::create([
+            'project_id' => $project->id, 'room_name' => 'Boardroom',
+            'description' => 'Display', 'manufacturer' => 'Samsung', 'model' => 'QM85 Display',
+            'part_no' => 'qm85', 'signal_role' => Device::ROLE_DESTINATION, 'qty' => 1,
+        ]);
+
+        $schedule = $this->newSchedule($project);
+        $count    = $this->makeSvc()->generate($schedule);
+
+        $this->assertSame(2, $count, 'Null is_critical must behave identically to false.');
+
+        $items = CableScheduleItem::where('cable_schedule_id', $schedule->id)
+            ->orderBy('sort_order')->get();
+        foreach ($items as $item) {
+            $this->assertNotTrue((bool) $item->is_redundant,
+                'Null is_critical must not produce redundant rows.');
+        }
+
+        // sort_order stays monotonic 1,2 (baseline sanity).
+        $this->assertSame(1, (int) $items[0]->sort_order);
+        $this->assertSame(2, (int) $items[1]->sort_order);
+    }
 }

@@ -43,6 +43,10 @@ class CableScheduleItem extends Model
         'notes',
         'sort_order',
         'signal_type',
+        // ── T3-B (260711-oh4): redundant-row flag ───────────────────────────
+        // Set true on '-R' rows emitted alongside is_critical processor edges;
+        // null everywhere else (backfill-safe on pre-migration rows).
+        'is_redundant',
         // ── Phase 22 port-level additions (DRAW-37) ─────────────────────────
         'source_device_id',
         'source_port_id',
@@ -53,6 +57,9 @@ class CableScheduleItem extends Model
 
     protected $casts = [
         'approx_length_m' => 'float',
+        // T3-B (260711-oh4): boolean cast keeps null → null so legacy rows
+        // (pre-migration) read as false without a data backfill.
+        'is_redundant' => 'boolean',
     ];
 
     // ── Relationships ────────────────────────────────────────────────────────

@@ -679,7 +679,7 @@ class CableScheduleGeneratorService
         $sortOrder++;
         $cableId = 'C-' . str_pad((string) $sortOrder, 3, '0', STR_PAD_LEFT);
 
-        CableScheduleItem::create([
+        $primaryPayload = [
             'cable_schedule_id' => $schedule->id,
             'cable_id'          => $cableId,
             'from_location'     => $roomName . ' — ' . $fromShort . $rackSuffixFrom,
@@ -694,9 +694,50 @@ class CableScheduleGeneratorService
             'source_port_id'    => $this->resolveSourcePortId($fromDevice, $signalType),
             'dest_device_id'    => $toDevice?->id,
             'dest_port_id'      => $toDevice ? $this->resolveDestPortId($toDevice, $signalType) : null,
-        ]);
+        ];
 
-        return 1;
+        CableScheduleItem::create($primaryPayload);
+        $emitted = 1;
+
+        // T3-B: emit paired '-R' redundant row when either endpoint is a
+        // critical processor. The redundant row shares every column with the
+        // primary EXCEPT cable_id (primary + '-R'), sort_order (primary+1),
+        // notes (prefixed) and is_redundant=true. Global sort_order counter
+        // increments TWICE per critical edge — never fractional.
+        if ($this->isCriticalEdge($fromDevice, $toDevice)) {
+            $sortOrder++;
+            $redundantPayload = $primaryPayload;
+            $redundantPayload['cable_id']     = $cableId . '-R';
+            $redundantPayload['sort_order']   = $sortOrder;
+            $redundantPayload['notes']        = '[REDUNDANT] Primary + backup path — diverse routing recommended | ' . $notes;
+            $redundantPayload['is_redundant'] = true;
+
+            CableScheduleItem::create($redundantPayload);
+            $emitted++;
+        }
+
+        return $emitted;
+    }
+
+    /**
+     * T3-B — return true when either endpoint of a DAG edge is a Device
+     * flagged signal_role=processor AND is_critical=true. Belt-and-braces
+     * "either endpoint" rule: a critical processor at EITHER end of the
+     * edge triggers the paired redundant row so diverse-routing recommendations
+     * surface consistently regardless of walk direction.
+     *
+     * is_critical strictly === true — null (pre-migration) and false both
+     * short-circuit to false, keeping the feature soft opt-in.
+     */
+    private function isCriticalEdge(Device $fromDevice, ?Device $toDevice): bool
+    {
+        if ($fromDevice->isProcessor() && $fromDevice->is_critical === true) {
+            return true;
+        }
+        if ($toDevice !== null && $toDevice->isProcessor() && $toDevice->is_critical === true) {
+            return true;
+        }
+        return false;
     }
 
     /**
