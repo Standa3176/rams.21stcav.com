@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Core\Modules\Projects\ProjectDataService;
 use App\Models\CableSchedule;
 use App\Models\CableScheduleItem;
+use App\Models\Device;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -63,6 +65,15 @@ class CableScheduleGeneratorService
             ? $schedule->project
             : $schedule->project()->first();
 
+        // T1-B: prefer Device model when project has one. Devices know their
+        // room, rack position, and signal role — higher fidelity than quote
+        // lines. Zero-device projects fall through to the byte-for-byte
+        // existing quote-line path below.
+        $devices = Device::where('project_id', $project->id)->get();
+        if ($devices->isNotEmpty()) {
+            return $this->generateFromDevices($schedule, $devices);
+        }
+
         $data      = $this->projectDataService->resolve($project);
         $rooms     = $this->resolveRoomsWithEquipment($data);
         $sortOrder = 0;
@@ -109,6 +120,84 @@ class CableScheduleGeneratorService
             'cable_schedule_id' => $schedule->id,
             'items_created'     => $created,
             'rooms_processed'   => count($rooms),
+        ]);
+
+        return $created;
+    }
+
+    /**
+     * T1-B: Device-preferred generation path.
+     *
+     * Devices know room, rack position, and signal role — higher fidelity
+     * than quote lines. from_location gets a `(Rack, {u}U)` suffix for
+     * rack-mounted devices and a `[signal_role] ` notes prefix when the
+     * role is set. signal_type still comes from inferCableRun (audio/
+     * video/network/etc) — signal_role (source/destination/processor) is
+     * orthogonal semantics, kept as an engineering hint in notes.
+     *
+     * @param  Collection<int, Device>  $devices
+     */
+    private function generateFromDevices(CableSchedule $schedule, Collection $devices): int
+    {
+        $sortOrder = 0;
+        $created   = 0;
+
+        foreach ($devices as $device) {
+            // Build the equipment name — prefer manufacturer + model, fall
+            // back to description. Room name is required for the "from"
+            // location, so use "Unknown Room" if the Device row has none.
+            $mfr       = trim((string) ($device->manufacturer ?? ''));
+            $mdl       = trim((string) ($device->model ?? ''));
+            $equipName = trim($mfr . ' ' . $mdl);
+            if ($equipName === '') {
+                $equipName = trim((string) ($device->description ?? ''));
+            }
+            if ($equipName === '') {
+                continue;
+            }
+
+            $equipNameShort = Str::limit($equipName, 180, '…');
+            $roomName       = trim((string) ($device->room_name ?? '')) ?: 'Unknown Room';
+
+            $cableInfo = $this->inferCableRun($equipName);
+
+            // Rack suffix — only append when both flags are truthy.
+            $rackSuffix = ($device->is_rack_mounted && $device->u_height)
+                ? sprintf(' (Rack, %sU)', rtrim(rtrim((string) $device->u_height, '0'), '.'))
+                : '';
+
+            // Signal-role notes prefix — kept as an engineering hint. We
+            // do NOT translate signal_role into signal_type here; the
+            // cable-run signal_type comes from inferCableRun (which knows
+            // audio/video/network/etc). signal_role is source/destination/
+            // processor — orthogonal semantics.
+            $rolePrefix = $device->signal_role
+                ? sprintf('[%s] ', $device->signal_role)
+                : '';
+
+            $sortOrder++;
+            $cableId = 'C-' . str_pad((string) $sortOrder, 3, '0', STR_PAD_LEFT);
+
+            CableScheduleItem::create([
+                'cable_schedule_id' => $schedule->id,
+                'cable_id'          => $cableId,
+                'from_location'     => $roomName . ' — ' . $equipNameShort . $rackSuffix,
+                'to_location'       => $cableInfo['to'],
+                'cable_type'        => $cableInfo['cable_type'],
+                'signal_type'       => $cableInfo['signal_type'],
+                'cores'             => $cableInfo['cores'],
+                'approx_length_m'   => null,
+                'notes'             => $rolePrefix . $cableInfo['notes'],
+                'sort_order'        => $sortOrder,
+            ]);
+
+            $created++;
+        }
+
+        Log::info('CableScheduleGeneratorService: generateFromDevices complete', [
+            'cable_schedule_id' => $schedule->id,
+            'items_created'     => $created,
+            'devices_seen'      => $devices->count(),
         ]);
 
         return $created;
