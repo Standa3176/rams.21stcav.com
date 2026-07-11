@@ -24,6 +24,7 @@ use App\Support\Filesystem\WindowsSafeFilesystem;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Queue\Events\Looping;
 use Illuminate\Queue\Events\WorkerStopping;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
@@ -106,19 +107,27 @@ class AppServiceProvider extends ServiceProvider
         // Non-blocking — app still starts; HEIC uploads will surface the error
         // at upload time via HeicImageConverter. See CONTEXT.md D-11 (fail-loud)
         // and 14-RESEARCH.md Pitfall 1 (libheif delegate trap).
+        //
+        // Cache-gated so the RAMS queue:work cron (fires every minute) doesn't
+        // spam laravel.log with ~1440 identical warnings a day. Cache::add()
+        // returns true only when the key wasn't set — so we log once per
+        // 24h window until the delegate is installed. Same gating on the
+        // catch block so a broken imagick extension doesn't spam either.
         if (extension_loaded('imagick') && class_exists(\Imagick::class)) {
             try {
                 $formats = (new \Imagick)->queryFormats('HEI*');
-                if (empty($formats)) {
+                if (empty($formats) && Cache::add('heic-delegate-missing-warned', 1, now()->addDay())) {
                     Log::warning(
                         'AppServiceProvider: imagick loaded but HEIC delegate missing. '
                         .'HEIC uploads will fail. Install libheif-dev and recompile ImageMagick.'
                     );
                 }
             } catch (\Throwable $e) {
-                Log::warning(
-                    'AppServiceProvider: imagick extension check failed: '.$e->getMessage()
-                );
+                if (Cache::add('imagick-check-failed-warned', 1, now()->addDay())) {
+                    Log::warning(
+                        'AppServiceProvider: imagick extension check failed: '.$e->getMessage()
+                    );
+                }
             }
         }
     }
