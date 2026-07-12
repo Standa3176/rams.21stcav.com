@@ -5,7 +5,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\DeviceCableRuleRequest;
 use App\Models\DeviceCableRule;
+use App\Services\CableScheduleGeneratorService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
@@ -93,6 +96,34 @@ class DeviceCableRuleController extends Controller
         return redirect()
             ->route('admin.device-cable-rules.index')
             ->with('success', "Rule #{$id} deleted.");
+    }
+
+    /**
+     * 260712-ip3 — JSON preview endpoint. Given an equipment name +
+     * optional cable length, returns the matched rule + full walker
+     * trace so admins can eyeball rule behaviour without SSH-ing to the
+     * box. Read-only; persists nothing. Route is registered BEFORE the
+     * resource route so the string `preview` isn't caught by the
+     * `{deviceCableRule}` param.
+     *
+     * @see \App\Services\CableScheduleGeneratorService::previewInference
+     */
+    public function preview(Request $request, CableScheduleGeneratorService $generator): JsonResponse
+    {
+        $data = $request->validate([
+            'equipment' => ['required', 'string', 'min:1', 'max:255'],
+            'length_m'  => ['nullable', 'numeric', 'gt:0', 'max:100000'],
+        ]);
+
+        Log::info('Admin: device cable rule preview requested', [
+            'admin_id'  => auth()->id(),
+            'equipment' => $data['equipment'],
+            'length_m'  => $data['length_m'] ?? null,
+        ]);
+
+        return response()->json(
+            $generator->previewInference($data['equipment'], isset($data['length_m']) ? (float) $data['length_m'] : null)
+        );
     }
 
     /**

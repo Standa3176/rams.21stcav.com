@@ -919,6 +919,189 @@ class CableScheduleGeneratorService
     }
 
     // =========================================================================
+    // 260712-ip3 — RULE PREVIEW (admin JSON endpoint, read-only trace)
+    // =========================================================================
+
+    /**
+     * Preview which DeviceCableRule wins for a given equipment name +
+     * optional cable length, PLUS a full trace of every rule the walker
+     * inspected with a per-rule verdict + human-readable reason.
+     *
+     * Read-only. Persists nothing. Reuses `DeviceCableRule::forInference()`
+     * and the private `pickTier()` helper so the preview output is
+     * byte-identical to what `inferCableRun()` would return in prod for
+     * the same (name, length) pair.
+     *
+     * Trace verdicts:
+     *   - matched              — this rule won; walker stops here
+     *   - skipped_keywords     — no positive keyword hit
+     *   - skipped_negative     — positive hit BUT a negative_keywords entry
+     *                             also hit (260712-ip3 exclusion path)
+     *   - skipped_earlier_match — an earlier rule already matched (walker
+     *                             logs the rest for admin visibility)
+     *
+     * @return array<string, mixed>
+     */
+    public function previewInference(string $equipmentName, ?float $lengthM = null): array
+    {
+        $lower = strtolower($equipmentName);
+        $trace = [];
+        $matched = null;
+        $matchedFlatRow = null;
+        $matchedTiers = null;
+
+        foreach (DeviceCableRule::forInference() as $rule) {
+            $keywords  = (array) ($rule->keywords ?? []);
+            $negatives = (array) ($rule->negative_keywords ?? []);
+
+            if ($matched !== null) {
+                $trace[] = [
+                    'rule_id'   => $rule->id,
+                    'priority'  => $rule->priority,
+                    'keywords'  => $keywords,
+                    'negatives' => $negatives,
+                    'verdict'   => 'skipped_earlier_match',
+                    'reason'    => 'An earlier rule already matched — walker halted after the first hit.',
+                ];
+                continue;
+            }
+
+            if (! $this->matchesAny($lower, $keywords)) {
+                $trace[] = [
+                    'rule_id'   => $rule->id,
+                    'priority'  => $rule->priority,
+                    'keywords'  => $keywords,
+                    'negatives' => $negatives,
+                    'verdict'   => 'skipped_keywords',
+                    'reason'    => 'No positive keyword matched the equipment name.',
+                ];
+                continue;
+            }
+
+            $hitNegative = $this->firstMatchingKeyword($lower, $negatives);
+            if ($hitNegative !== null) {
+                $trace[] = [
+                    'rule_id'   => $rule->id,
+                    'priority'  => $rule->priority,
+                    'keywords'  => $keywords,
+                    'negatives' => $negatives,
+                    'verdict'   => 'skipped_negative',
+                    'reason'    => sprintf(
+                        "'%s' in negative_keywords excluded this rule.",
+                        $hitNegative
+                    ),
+                ];
+                continue;
+            }
+
+            $matched = $rule;
+            $matchedFlatRow = [
+                'cable_type'  => (string) $rule->cable_type,
+                'signal_type' => (string) $rule->signal_type,
+                'cores'       => $rule->cores,
+                'to'          => (string) $rule->to_endpoint,
+                'notes'       => (string) ($rule->notes ?? ''),
+            ];
+            $matchedTiers = $rule->length_tiers;
+
+            $trace[] = [
+                'rule_id'   => $rule->id,
+                'priority'  => $rule->priority,
+                'keywords'  => $keywords,
+                'negatives' => $negatives,
+                'verdict'   => 'matched',
+                'reason'    => 'Positive keyword matched with no negative exclusion.',
+            ];
+        }
+
+        $baseOutput = [
+            'input' => [
+                'equipment_name' => $equipmentName,
+                'length_m'       => $lengthM,
+            ],
+            'trace' => $trace,
+        ];
+
+        if ($matched === null) {
+            return $baseOutput + [
+                'matched_rule_id'  => null,
+                'matched_priority' => null,
+                'cable_type'       => 'TBC',
+                'signal_type'      => 'unknown',
+                'cores'            => null,
+                'to'               => 'TBC — confirm on survey',
+                'notes'            => 'Cable type to be confirmed during site survey',
+                'tier_used'        => null,
+            ];
+        }
+
+        // Resolve the final row via the SAME pickTier() logic used by
+        // inferCableRun() so preview and prod output stay byte-identical.
+        if (! is_array($matchedTiers) || $matchedTiers === []) {
+            $resolved = $matchedFlatRow;
+            $tierUsed = null;
+        } else {
+            $resolved = $this->pickTier($matchedTiers, $lengthM, $matchedFlatRow);
+            $tierUsed = $this->resolveTierUsed($matchedTiers, $lengthM);
+        }
+
+        return $baseOutput + [
+            'matched_rule_id'  => $matched->id,
+            'matched_priority' => $matched->priority,
+            'cable_type'       => $resolved['cable_type'],
+            'signal_type'      => $resolved['signal_type'],
+            'cores'            => $resolved['cores'],
+            'to'               => $resolved['to'],
+            'notes'            => $resolved['notes'],
+            'tier_used'        => $tierUsed,
+        ];
+    }
+
+    /**
+     * 260712-ip3 — return the FIRST keyword from $keywords that word-
+     * boundary-matches $haystack, or null when none match. Used by the
+     * preview trace so the admin sees WHICH negative keyword excluded
+     * the rule rather than a bare "excluded" verdict.
+     */
+    private function firstMatchingKeyword(string $haystack, array $keywords): ?string
+    {
+        foreach ($keywords as $kw) {
+            if ($kw === '') continue;
+            if (preg_match('/\b' . preg_quote($kw, '/') . '\b/i', $haystack) === 1) {
+                return (string) $kw;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 260712-ip3 — mirror the pickTier() choice for the preview payload
+     * without merging into a full row. Returns the tier entry that
+     * pickTier() would have selected, or null when the tiers array is
+     * empty. Follows the same semantics as pickTier(): null length
+     * returns tier[0], over-max returns the last tier.
+     *
+     * @param  array<int, array<string, mixed>>  $tiers
+     * @return array<string, mixed>|null
+     */
+    private function resolveTierUsed(array $tiers, ?float $lengthM): ?array
+    {
+        if ($tiers === []) {
+            return null;
+        }
+        if ($lengthM === null) {
+            return $tiers[0];
+        }
+        foreach ($tiers as $tier) {
+            $maxM = $tier['max_m'] ?? null;
+            if ($maxM === null || (float) $lengthM <= (float) $maxM) {
+                return $tier;
+            }
+        }
+        return end($tiers) ?: $tiers[array_key_last($tiers)];
+    }
+
+    // =========================================================================
     // ROOM RESOLUTION (distribute flat equipment to rooms when needed)
     // =========================================================================
 

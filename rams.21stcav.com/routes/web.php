@@ -282,6 +282,12 @@ Route::middleware('auth')->group(function () {
         // Full CRUD on the priority-ordered rule set consumed by
         // CableScheduleGeneratorService::inferCableRun(). show route omitted
         // because the edit view already renders every field.
+        //
+        // 260712-ip3: the preview endpoint MUST be registered BEFORE the
+        // resource route so Laravel doesn't try to bind `preview` as a
+        // `{deviceCableRule}` model-bound parameter and 404 on the string.
+        Route::get('admin/device-cable-rules/preview', [DeviceCableRuleController::class, 'preview'])
+            ->name('admin.device-cable-rules.preview');
         Route::resource('admin/device-cable-rules', DeviceCableRuleController::class)
             ->except(['show'])
             ->names('admin.device-cable-rules')

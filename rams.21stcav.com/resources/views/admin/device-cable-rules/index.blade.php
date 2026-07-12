@@ -28,6 +28,139 @@
     <div class="alert alert-error">{{ session('error') }}</div>
 @endif
 
+{{-- 260712-ip3: inline rule tester — hits the JSON preview endpoint and
+     renders the full walker trace so admins can eyeball rule behaviour
+     without SSH-ing to the box. Alpine.js card, no build step. --}}
+<div class="section-block" style="margin-bottom:1.25rem;" x-data="rulePreview()">
+    <h2 class="section-heading" style="display:flex;align-items:center;gap:.5rem;">
+        🧪 Test a rule
+    </h2>
+    <p style="font-size:.825rem;color:var(--text-muted);margin-bottom:.75rem;">
+        Type an equipment name (and optionally a cable length in metres) to walk the priority-ordered rule set and see which rule wins. Read-only — nothing is saved.
+    </p>
+    <div class="form-grid-2" style="align-items:end;">
+        <div class="form-group">
+            <label class="form-label">Equipment name</label>
+            <input type="text" x-model="equipment" class="form-control"
+                   placeholder="e.g. Logitech USB 3.0 Webcam"
+                   @keydown.enter.prevent="run()">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Length (m) — optional</label>
+            <input type="number" step="0.1" min="0" x-model.number="lengthM" class="form-control"
+                   placeholder="e.g. 20"
+                   style="max-width:150px;"
+                   @keydown.enter.prevent="run()">
+        </div>
+    </div>
+    <div style="margin-top:.5rem;">
+        <button type="button" class="btn btn-teal btn-sm" @click="run()" x-bind:disabled="loading || !equipment">
+            <span x-show="!loading">Preview</span>
+            <span x-show="loading">Running…</span>
+        </button>
+    </div>
+
+    <template x-if="error">
+        <div class="alert alert-error" style="margin-top:.75rem;" x-text="error"></div>
+    </template>
+
+    <template x-if="result">
+        <div style="margin-top:1rem;">
+            <div style="padding:.75rem;border:1px solid var(--border);border-radius:6px;background:var(--surface-soft);margin-bottom:.75rem;">
+                <template x-if="result.matched_rule_id !== null">
+                    <div>
+                        <strong>Matched rule #<span x-text="result.matched_rule_id"></span> (priority <span x-text="result.matched_priority"></span>)</strong>
+                        → cable_type <code x-text="result.cable_type"></code>,
+                        signal_type <code x-text="result.signal_type"></code>,
+                        to <span x-text="result.to"></span>.
+                        <template x-if="result.tier_used">
+                            <div style="margin-top:.25rem;font-size:.85rem;color:var(--text-muted);">
+                                Tier used: max_m <span x-text="result.tier_used.max_m"></span>
+                                (<span x-text="result.tier_used.cable_type"></span>)
+                            </div>
+                        </template>
+                        <template x-if="result.notes">
+                            <div style="margin-top:.25rem;font-size:.85rem;color:var(--text-muted);">
+                                Notes: <span x-text="result.notes"></span>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+                <template x-if="result.matched_rule_id === null">
+                    <div>
+                        <strong>No rule matched.</strong> Cable falls through to the <code>TBC</code> placeholder — confirm on survey.
+                    </div>
+                </template>
+            </div>
+
+            <details open>
+                <summary style="cursor:pointer;font-weight:600;font-size:.875rem;">
+                    Walker trace (<span x-text="result.trace.length"></span> rules inspected)
+                </summary>
+                <table class="data-table" style="margin-top:.5rem;font-size:.8rem;">
+                    <thead>
+                        <tr>
+                            <th style="width:70px;">Priority</th>
+                            <th>Keywords</th>
+                            <th style="width:140px;">Verdict</th>
+                            <th>Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="row in result.trace" :key="row.rule_id">
+                            <tr>
+                                <td style="font-variant-numeric:tabular-nums;color:var(--text-muted);" x-text="row.priority"></td>
+                                <td x-text="row.keywords.join(', ')"></td>
+                                <td>
+                                    <span x-bind:style="row.verdict === 'matched' ? 'color:var(--success);font-weight:600;' : 'color:var(--text-muted);'"
+                                          x-text="row.verdict"></span>
+                                </td>
+                                <td style="color:var(--text-muted);" x-text="row.reason"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </details>
+        </div>
+    </template>
+</div>
+
+@push('scripts')
+<script>
+    function rulePreview() {
+        return {
+            equipment: '',
+            lengthM: null,
+            loading: false,
+            result: null,
+            error: null,
+            async run() {
+                if (!this.equipment) return;
+                this.loading = true;
+                this.error = null;
+                this.result = null;
+                try {
+                    const params = new URLSearchParams({ equipment: this.equipment });
+                    if (this.lengthM) params.append('length_m', this.lengthM);
+                    const res = await fetch("{{ route('admin.device-cable-rules.preview') }}?" + params.toString(), {
+                        headers: { 'Accept': 'application/json' },
+                    });
+                    if (!res.ok) {
+                        this.error = 'Preview endpoint returned HTTP ' + res.status + '.';
+                        return;
+                    }
+                    this.result = await res.json();
+                } catch (e) {
+                    this.error = e.message || 'Preview request failed.';
+                } finally {
+                    this.loading = false;
+                }
+            },
+        };
+    }
+</script>
+@endpush
+
 <div class="card" style="padding:0;overflow:hidden;">
     <table class="data-table">
         <thead>
