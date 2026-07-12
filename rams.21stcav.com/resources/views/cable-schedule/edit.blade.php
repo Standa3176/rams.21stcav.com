@@ -18,6 +18,31 @@
             </a>
         @endif
         <a href="{{ route('documents.revisions.view', ['type' => 'cable', 'id' => $schedule->id]) }}" class="btn btn-outline btn-sm">↻ History</a>
+        {{-- 260712-ip3: surface the buried retry-generation route as a
+             first-class button. Reuses the existing
+             cable-schedules.retry-generation POST + policy check —
+             appConfirm modal fires via data-confirm before submit. --}}
+        @if(auth()->user()?->can('update', $schedule))
+            <form method="POST"
+                  action="{{ route('cable-schedules.retry-generation', $schedule) }}"
+                  style="display:inline;margin:0;">
+                @csrf
+                <button type="submit"
+                        class="btn btn-outline btn-sm"
+                        data-confirm="Regenerate this cable schedule? Existing rows will be replaced."
+                        data-confirm-label="Regenerate"
+                        @if($schedule->status === \App\Models\CableSchedule::STATUS_GENERATING)
+                            disabled
+                            style="opacity:.5;pointer-events:none;cursor:not-allowed;"
+                            title="Generation already in progress"
+                        @else
+                            title="Regenerate cable rows from current project data"
+                        @endif
+                >
+                    ↻ Regenerate
+                </button>
+            </form>
+        @endif
         <x-document-edit-drawer
             type="cable"
             :id="$schedule->id"
