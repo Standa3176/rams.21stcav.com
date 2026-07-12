@@ -34,7 +34,17 @@ use Illuminate\Support\Facades\Cache;
  * The admin FormRequest sorts entries ascending on max_m at persist
  * time so the read-side never re-sorts.
  *
+ * Negative keywords (260712-ip3):
+ * When `negative_keywords` is a non-empty array, the inference walker
+ * treats the rule as SKIPPED whenever the equipment name matches ANY
+ * entry in this list — even if the positive keyword list ALSO matched.
+ * This kills brand-name collisions like `Logitech USB 3.0 Webcam`
+ * hitting the priority 70 VC codec rule on the `logitech` keyword
+ * BEFORE the priority 141 USB 3 rule can win. Null / empty array =
+ * no exclusion, behaviour identical to pre-260712-ip3.
+ *
  * @see \App\Services\CableScheduleGeneratorService::inferCableRun
+ * @see \App\Services\CableScheduleGeneratorService::ruleMatches
  */
 class DeviceCableRule extends Model
 {
@@ -52,13 +62,15 @@ class DeviceCableRule extends Model
         'notes',
         'is_active',
         'length_tiers',
+        'negative_keywords',
     ];
 
     protected $casts = [
-        'priority'     => 'integer',
-        'keywords'     => 'array',
-        'is_active'    => 'boolean',
-        'length_tiers' => 'array',
+        'priority'          => 'integer',
+        'keywords'          => 'array',
+        'is_active'         => 'boolean',
+        'length_tiers'      => 'array',
+        'negative_keywords' => 'array',
     ];
 
     /**

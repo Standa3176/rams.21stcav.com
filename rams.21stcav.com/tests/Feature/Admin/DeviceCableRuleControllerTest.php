@@ -240,6 +240,76 @@ class DeviceCableRuleControllerTest extends TestCase
         $this->assertNull($rule->length_tiers);
     }
 
+    // ── H. 260712-ip3 negative_keywords CRUD ─────────────────────────────
+
+    public function test_admin_can_store_rule_with_negative_keywords(): void
+    {
+        $this->actingAs($this->admin)
+            ->post(route('admin.device-cable-rules.store'), [
+                'priority'              => 55,
+                'keywords_raw'          => "widget",
+                'negative_keywords_raw' => "usb 3\nusb-c webcam",
+                'cable_type'            => 'Widget Cable',
+                'cores'                 => '',
+                'signal_type'           => 'video',
+                'to_endpoint'           => 'Widget host',
+                'notes'                 => 'test',
+                'is_active'             => '1',
+            ])
+            ->assertRedirect(route('admin.device-cable-rules.index'));
+
+        $rule = DeviceCableRule::where('priority', 55)->firstOrFail();
+        $this->assertSame(['usb 3', 'usb-c webcam'], (array) $rule->negative_keywords);
+    }
+
+    public function test_admin_can_clear_negative_keywords_via_empty_textarea(): void
+    {
+        // Seed a rule with a non-empty exclusion list, then PUT with an
+        // empty negative_keywords_raw — model must store null (not []).
+        $rule = DeviceCableRule::create([
+            'priority'          => 56,
+            'keywords'          => ['widget'],
+            'negative_keywords' => ['usb 3'],
+            'cable_type'        => 'Widget Cable',
+            'signal_type'       => 'video',
+            'to_endpoint'       => 'Widget host',
+            'notes'             => 'seeded',
+            'is_active'         => true,
+        ]);
+        $this->assertSame(['usb 3'], (array) $rule->negative_keywords);
+
+        $this->actingAs($this->admin)
+            ->put(route('admin.device-cable-rules.update', $rule), [
+                'priority'              => 56,
+                'keywords_raw'          => "widget",
+                'negative_keywords_raw' => '',
+                'cable_type'            => 'Widget Cable',
+                'cores'                 => '',
+                'signal_type'           => 'video',
+                'to_endpoint'           => 'Widget host',
+                'notes'                 => 'cleared',
+                'is_active'             => '1',
+            ])
+            ->assertRedirect(route('admin.device-cable-rules.index'));
+
+        $rule->refresh();
+        $this->assertNull($rule->negative_keywords,
+            'An empty negative_keywords_raw payload must collapse to null on the model.');
+    }
+
+    public function test_seeded_codec_rule_has_expected_negative_keywords(): void
+    {
+        // The seeder in this test is the same one loaded on live — this
+        // pins that priority 70's exclusion list is exactly what the
+        // deploy checklist expects.
+        $codec = DeviceCableRule::where('priority', 70)->firstOrFail();
+
+        $this->assertSame(
+            ['usb 3', 'usb 3.0', 'usb-c webcam', 'usb hub'],
+            (array) $codec->negative_keywords,
+        );
+    }
+
     // ── F. cache flush on save/delete ────────────────────────────────────
 
     public function test_saving_or_deleting_a_rule_flushes_the_inference_cache(): void

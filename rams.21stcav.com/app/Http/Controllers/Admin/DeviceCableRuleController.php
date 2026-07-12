@@ -96,14 +96,15 @@ class DeviceCableRuleController extends Controller
     }
 
     /**
-     * Pull the validated payload minus the textarea shim
-     * (`keywords_raw`); FormRequest already merged the split array as
-     * `keywords`, so we hand the model a clean fillable set.
+     * Pull the validated payload minus the textarea shims
+     * (`keywords_raw`, `negative_keywords_raw`); FormRequest already
+     * merged the split arrays as `keywords` and `negative_keywords`,
+     * so we hand the model a clean fillable set.
      */
     private function extractData(DeviceCableRuleRequest $request): array
     {
         $data = $request->validated();
-        unset($data['keywords_raw']);
+        unset($data['keywords_raw'], $data['negative_keywords_raw']);
 
         $data['is_active'] = $request->boolean('is_active', true);
 

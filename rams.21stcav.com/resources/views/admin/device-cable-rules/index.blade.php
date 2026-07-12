@@ -50,6 +50,10 @@
                 <td>
                     <div style="color:var(--body);max-width:340px;line-height:1.5;">
                         {{ implode(', ', (array) $rule->keywords) }}
+                        {{-- 260712-ip3: exclusion count hint --}}
+                        @if (! empty($rule->negative_keywords))
+                            <span style="font-size:.7rem;color:var(--text-muted);margin-left:.25rem;" title="Negative keywords: {{ implode(', ', (array) $rule->negative_keywords) }}">{{ count($rule->negative_keywords) }} excl</span>
+                        @endif
                     </div>
                 </td>
                 <td>

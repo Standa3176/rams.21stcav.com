@@ -1055,7 +1055,11 @@ class CableScheduleGeneratorService
         $lower = strtolower($equipName);
 
         foreach (DeviceCableRule::forInference() as $rule) {
-            if (! $this->matchesAny($lower, (array) $rule->keywords)) {
+            // 260712-ip3: ruleMatches() folds both keyword hit + negative
+            // exclusion into a single test so brand-name collisions
+            // (e.g. Logitech USB 3.0 Webcam vs the VC codec rule) skip
+            // cleanly instead of hijacking a higher-priority rule.
+            if (! $this->ruleMatches($lower, $rule)) {
                 continue;
             }
 
@@ -1495,6 +1499,30 @@ class CableScheduleGeneratorService
     {
         $equipKeywords = ['camera', 'projector', 'speaker', 'display', 'codec', 'sensor'];
         return $this->matchesAny($name, $equipKeywords);
+    }
+
+    /**
+     * 260712-ip3 — combined keyword hit + negative exclusion test for a
+     * DeviceCableRule. Returns true only when the equipment name matches
+     * ANY of the rule's positive keywords AND NONE of its negative
+     * keywords. Null / empty negative_keywords short-circuits to the
+     * plain keyword test (pre-260712-ip3 behaviour).
+     *
+     * @see inferCableRun()
+     * @see previewInference() — same predicate, driving the trace UI
+     */
+    private function ruleMatches(string $lower, DeviceCableRule $rule): bool
+    {
+        if (! $this->matchesAny($lower, (array) $rule->keywords)) {
+            return false;
+        }
+
+        $negatives = $rule->negative_keywords ?? [];
+        if (! empty($negatives) && $this->matchesAny($lower, (array) $negatives)) {
+            return false;
+        }
+
+        return true;
     }
 
     private function matchesAny(string $haystack, array $keywords): bool

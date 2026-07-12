@@ -42,6 +42,23 @@
               placeholder="samsung&#10;qm85&#10;projector">{{ $keywordsRaw }}</textarea>
 </div>
 
+{{-- 260712-ip3: negative_keywords exclusion shim mirrors the Keywords
+     textarea above. When any entry here matches the equipment name the
+     rule is SKIPPED even if the positive keyword list matched. --}}
+@php
+    $negativesRaw = old('negative_keywords_raw', implode("\n", (array) ($rule->negative_keywords ?? [])));
+@endphp
+<div class="section-block" style="margin-bottom:1.25rem;">
+    <h2 class="section-heading">Negative Keywords</h2>
+    <p style="font-size:.825rem;color:var(--text-muted);margin-bottom:.75rem;">
+        One keyword per line. Rule is SKIPPED when the equipment name matches ANY keyword here — used to disambiguate brand collisions (e.g. add <code>usb 3</code> and <code>usb-c webcam</code> here on the VC codec rule so Logitech USB 3.0 webcams don't collide). Leave blank for no exclusion.
+    </p>
+    <textarea name="negative_keywords_raw"
+              class="form-control"
+              rows="4"
+              placeholder="usb 3&#10;usb-c webcam">{{ $negativesRaw }}</textarea>
+</div>
+
 <div class="section-block" style="margin-bottom:1.25rem;">
     <h2 class="section-heading">Cable Output</h2>
     <div class="form-grid-2">

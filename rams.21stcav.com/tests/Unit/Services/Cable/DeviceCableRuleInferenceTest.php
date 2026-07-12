@@ -252,6 +252,126 @@ class DeviceCableRuleInferenceTest extends TestCase
         $this->assertStringNotContainsString('⚠', $row['notes']);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // 260712-ip3 — negative_keywords exclusion cases
+    //
+    // These exercise the new ruleMatches() helper on inferCableRun() —
+    // brand-name collisions ("Logitech USB 3.0 Webcam" hitting the
+    // priority 70 codec rule on the `logitech` keyword) fall through to
+    // the correct USB 3 rule at priority 141 once the codec rule declares
+    // an exclusion list.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public function test_negative_keywords_skip_matching_rule(): void
+    {
+        // Manually add a synthetic rule at a low priority so it wins the
+        // walk if allowed to. Its negative_keywords MUST short-circuit
+        // the match even though the positive keyword hit.
+        DeviceCableRule::create([
+            'priority'          => 5,
+            'keywords'          => ['codec'],
+            'negative_keywords' => ['usb 3'],
+            'cable_type'        => 'Synthetic Codec Cable',
+            'signal_type'       => 'video',
+            'to_endpoint'       => 'Test endpoint',
+            'notes'             => 'Should be skipped when USB 3 present',
+            'is_active'         => true,
+        ]);
+        DeviceCableRule::flushCache();
+
+        // 'Logitech USB 3.0 Codec' — positive `codec` hits, but negative
+        // `usb 3` also hits, so this rule is SKIPPED. Fallthrough to the
+        // priority 70 seeded codec rule (which ALSO now excludes usb 3)
+        // → falls through to priority 141 USB 3 rule instead.
+        $row = $this->inferDirect('Logitech USB 3.0 Codec', null);
+
+        $this->assertNotSame('Synthetic Codec Cable', $row['cable_type'],
+            'ruleMatches() must skip the rule when a negative keyword hits.');
+    }
+
+    public function test_negative_keywords_null_behaves_as_no_exclusion(): void
+    {
+        // Wipe seeded rules and install one rule with null negatives.
+        // A positive keyword hit MUST match (identical to pre-260712-ip3
+        // behaviour).
+        DeviceCableRule::query()->delete();
+        DeviceCableRule::create([
+            'priority'          => 10,
+            'keywords'          => ['widget'],
+            'negative_keywords' => null,
+            'cable_type'        => 'Widget Cable',
+            'signal_type'       => 'video',
+            'to_endpoint'       => 'Widget host',
+            'notes'             => 'Null negatives — no exclusion',
+            'is_active'         => true,
+        ]);
+        DeviceCableRule::flushCache();
+
+        $row = $this->inferDirect('Acme Widget XL', null);
+
+        $this->assertSame('Widget Cable', $row['cable_type']);
+        $this->assertSame('video', $row['signal_type']);
+    }
+
+    public function test_negative_keywords_empty_array_behaves_as_no_exclusion(): void
+    {
+        // Empty array MUST behave identically to null — ruleMatches()
+        // short-circuits when the list is empty.
+        DeviceCableRule::query()->delete();
+        DeviceCableRule::create([
+            'priority'          => 10,
+            'keywords'          => ['widget'],
+            'negative_keywords' => [],
+            'cable_type'        => 'Widget Cable',
+            'signal_type'       => 'video',
+            'to_endpoint'       => 'Widget host',
+            'notes'             => 'Empty negatives — no exclusion',
+            'is_active'         => true,
+        ]);
+        DeviceCableRule::flushCache();
+
+        $row = $this->inferDirect('Acme Widget XL', null);
+
+        $this->assertSame('Widget Cable', $row['cable_type']);
+    }
+
+    public function test_logitech_usb3_webcam_routes_to_usb3_rule_after_seed(): void
+    {
+        // The real-world regression case: Logitech USB 3.0 Webcam was
+        // hijacked by the priority 70 codec rule on the `logitech`
+        // keyword AND by the priority 80 camera rule on the `webcam`
+        // keyword. Both now declare exclusion lists that catch `usb 3`,
+        // so the walk falls through to priority 141 USB 3 rule.
+        $row = $this->inferDirect('Logitech USB 3.0 Webcam', null);
+
+        $this->assertSame('usb', $row['signal_type'],
+            'Logitech USB 3.0 Webcam must route to the USB 3 rule (priority 141), NOT the codec rule (priority 70).');
+    }
+
+    public function test_logitech_rally_bar_still_matches_codec_rule(): void
+    {
+        // Proves the negative_keywords list is precise, not scorched-earth.
+        // 'Logitech Rally Bar' has no `usb 3` / `usb-c webcam` etc, so
+        // the priority 70 VC codec rule still wins.
+        $row = $this->inferDirect('Logitech Rally Bar', null);
+
+        $this->assertSame('Cat6 (PoE)', $row['cable_type'],
+            'A Logitech VC codec without USB 3 in the name must still match the priority 70 codec rule.');
+        $this->assertSame('video', $row['signal_type']);
+    }
+
+    public function test_cisco_room_kit_still_matches_codec_rule_after_negatives_added(): void
+    {
+        // Regression guard — the codec rule's `negative_keywords` include
+        // `usb hub`, `usb-c webcam`, `usb 3`, `usb 3.0`. A plain
+        // 'Cisco Codec Room Kit Pro' hits none of those and must still
+        // match priority 70 as it did pre-260712-ip3.
+        $row = $this->inferDirect('Cisco Codec Room Kit Pro', null);
+
+        $this->assertSame('Cat6 (PoE)', $row['cable_type']);
+        $this->assertSame('video', $row['signal_type']);
+    }
+
     protected function tearDown(): void
     {
         Mockery::close();

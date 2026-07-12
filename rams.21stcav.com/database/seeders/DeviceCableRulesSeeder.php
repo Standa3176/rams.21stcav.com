@@ -9,6 +9,12 @@ use Illuminate\Database\Seeder;
  * Quick task 260711-q7q — 13 canonical cable inference rules.
  * Quick task 260712-euh — length_tiers added to 12 rules + 5 new rules
  * (USB2, USB3, DisplayPort, SDI, Optical fibre) at priorities 140-144.
+ * Quick task 260712-ip3 — negative_keywords exclusion lists added to
+ * three rules to kill brand-name collisions: analogue amplifier (61)
+ * skips lamp/champagne word-boundary hits, VC codec (70) skips USB 3
+ * variants + usb-c webcam + usb hub so `Logitech USB 3.0 Webcam`
+ * routes to the priority 141 USB 3 rule instead of the codec rule, and
+ * camera / PTZ (80) skips USB 3 + usb-c webcam for the same reason.
  * Total row count after seeding = 20.
  *
  * Idempotent (updateOrCreate keyed on priority). Every rule mirrors a
@@ -31,6 +37,11 @@ use Illuminate\Database\Seeder;
  * OVERRIDES the flat cable_type. At null length the picker returns
  * tier 1 whose cable_type matches the pre-260712-euh flat string, so
  * every existing regression test remains byte-for-byte identical.
+ *
+ * Every row explicitly declares `negative_keywords` (null for rules
+ * with no exclusion) so `updateOrCreate` scrubs any stale non-null
+ * value on re-seed — the field is a canonical part of the row, not
+ * a diff-mode patch.
  */
 class DeviceCableRulesSeeder extends Seeder
 {
@@ -53,41 +64,44 @@ class DeviceCableRulesSeeder extends Seeder
     {
         return [
             [
-                'priority'     => 10,
-                'keywords'     => ['display', 'screen', 'monitor', 'tv', 'samsung', 'lg', 'sony', 'uhd', '4k', 'oled', 'qled', 'qm85', 'qe65', 'qe75', 'projector'],
-                'cable_type'   => 'HDMI 2.0',
-                'signal_type'  => 'video',
-                'cores'        => null,
-                'to_endpoint'  => 'AV Rack / Matrix Switcher',
-                'notes'        => 'Signal: HDMI from source/matrix',
-                'length_tiers' => [
+                'priority'          => 10,
+                'keywords'          => ['display', 'screen', 'monitor', 'tv', 'samsung', 'lg', 'sony', 'uhd', '4k', 'oled', 'qled', 'qm85', 'qe65', 'qe75', 'projector'],
+                'cable_type'        => 'HDMI 2.0',
+                'signal_type'       => 'video',
+                'cores'             => null,
+                'to_endpoint'       => 'AV Rack / Matrix Switcher',
+                'notes'             => 'Signal: HDMI from source/matrix',
+                'negative_keywords' => null,
+                'length_tiers'      => [
                     ['max_m' => 15,  'cable_type' => 'HDMI 2.0',                 'cores' => null, 'to_endpoint' => 'AV Rack / Matrix Switcher', 'notes' => 'Passive HDMI — under 15m'],
                     ['max_m' => 70,  'cable_type' => 'Cat6a (shielded) HDBaseT', 'cores' => null, 'to_endpoint' => 'HDBaseT receiver at display', 'notes' => 'HDBaseT link — 15–70m Cat6a shielded'],
                     ['max_m' => 300, 'cable_type' => 'HDMI over fibre extender', 'cores' => null, 'to_endpoint' => 'Fibre receiver at display',   'notes' => 'Fibre HDMI extender — long run'],
                 ],
             ],
             [
-                'priority'     => 20,
-                'keywords'     => ['hdbaset', 'extender', 'csc'],
-                'cable_type'   => 'Cat6a (shielded)',
-                'signal_type'  => 'video',
-                'cores'        => null,
-                'to_endpoint'  => 'Display / Receiver',
-                'notes'        => 'HDBaseT link — max 70m Cat6a',
-                'length_tiers' => [
+                'priority'          => 20,
+                'keywords'          => ['hdbaset', 'extender', 'csc'],
+                'cable_type'        => 'Cat6a (shielded)',
+                'signal_type'       => 'video',
+                'cores'             => null,
+                'to_endpoint'       => 'Display / Receiver',
+                'notes'             => 'HDBaseT link — max 70m Cat6a',
+                'negative_keywords' => null,
+                'length_tiers'      => [
                     ['max_m' => 100, 'cable_type' => 'Cat6a (shielded)',       'cores' => null, 'to_endpoint' => 'Display / Receiver',      'notes' => 'HDBaseT max 100m Cat6a'],
                     ['max_m' => 300, 'cable_type' => 'HDBaseT over fibre',     'cores' => null, 'to_endpoint' => 'Fibre HDBaseT extender', 'notes' => 'HDBaseT-over-fibre extender'],
                 ],
             ],
             [
-                'priority'     => 30,
-                'keywords'     => ['speaker', 'pendant', 'loudspeaker'],
-                'cable_type'   => '2-core speaker cable (1.5mm LSZH)',
-                'signal_type'  => 'speaker',
-                'cores'        => '2',
-                'to_endpoint'  => 'Amplifier output',
-                'notes'        => 'Speaker level from amplifier',
-                'length_tiers' => [
+                'priority'          => 30,
+                'keywords'          => ['speaker', 'pendant', 'loudspeaker'],
+                'cable_type'        => '2-core speaker cable (1.5mm LSZH)',
+                'signal_type'       => 'speaker',
+                'cores'             => '2',
+                'to_endpoint'       => 'Amplifier output',
+                'notes'             => 'Speaker level from amplifier',
+                'negative_keywords' => null,
+                'length_tiers'      => [
                     ['max_m' => 30,  'cable_type' => '2-core speaker cable (1.5mm LSZH)',         'cores' => '2', 'to_endpoint' => 'Amplifier output', 'notes' => 'Speaker level — under 30m'],
                     ['max_m' => 100, 'cable_type' => '4-core star quad speaker cable (2.5mm LSZH)', 'cores' => '4', 'to_endpoint' => 'Amplifier output', 'notes' => 'Long speaker run — star quad, thicker gauge'],
                 ],
@@ -95,14 +109,15 @@ class DeviceCableRulesSeeder extends Seeder
             // Shure microphone variant — must match before the generic mic
             // rule (priority 41) so 'Shure MXW Microphone' picks Cat6.
             [
-                'priority'     => 40,
-                'keywords'     => ['shure', 'mxw', 'mx'],
-                'cable_type'   => 'Cat6 (Shure network)',
-                'signal_type'  => 'audio',
-                'cores'        => null,
-                'to_endpoint'  => 'Shure access point / DSP',
-                'notes'        => 'Shure Microflex Wireless',
-                'length_tiers' => [
+                'priority'          => 40,
+                'keywords'          => ['shure', 'mxw', 'mx'],
+                'cable_type'        => 'Cat6 (Shure network)',
+                'signal_type'       => 'audio',
+                'cores'             => null,
+                'to_endpoint'       => 'Shure access point / DSP',
+                'notes'             => 'Shure Microflex Wireless',
+                'negative_keywords' => null,
+                'length_tiers'      => [
                     ['max_m' => 90,  'cable_type' => 'Cat6 (Shure network)',            'cores' => null, 'to_endpoint' => 'Shure access point / DSP', 'notes' => 'Shure MXW Cat6 up to 90m'],
                     ['max_m' => 300, 'cable_type' => 'Fibre + Shure media converter',   'cores' => null, 'to_endpoint' => 'Fibre + Shure converter', 'notes' => 'Long Shure MXW run — fibre + media converter'],
                 ],
@@ -110,24 +125,26 @@ class DeviceCableRulesSeeder extends Seeder
             // Priority 41 generic microphone — analogue XLR is fine to 100m+,
             // no meaningful tier swap. length_tiers stays null.
             [
-                'priority'     => 41,
-                'keywords'     => ['microphone', 'mic', 'mxw', 'lavalier'],
-                'cable_type'   => 'XLR',
-                'signal_type'  => 'audio',
-                'cores'        => '3',
-                'to_endpoint'  => 'DSP / Mixer input',
-                'notes'        => 'Analogue mic input',
-                'length_tiers' => null,
+                'priority'          => 41,
+                'keywords'          => ['microphone', 'mic', 'mxw', 'lavalier'],
+                'cable_type'        => 'XLR',
+                'signal_type'       => 'audio',
+                'cores'             => '3',
+                'to_endpoint'       => 'DSP / Mixer input',
+                'notes'             => 'Analogue mic input',
+                'negative_keywords' => null,
+                'length_tiers'      => null,
             ],
             [
-                'priority'     => 50,
-                'keywords'     => ['dsp', 'q-sys', 'qsys', 'biamp', 'audio processor'],
-                'cable_type'   => 'Cat6 (Dante/AES67)',
-                'signal_type'  => 'audio',
-                'cores'        => null,
-                'to_endpoint'  => 'Network switch (AV VLAN)',
-                'notes'        => 'Dante audio network',
-                'length_tiers' => [
+                'priority'          => 50,
+                'keywords'          => ['dsp', 'q-sys', 'qsys', 'biamp', 'audio processor'],
+                'cable_type'        => 'Cat6 (Dante/AES67)',
+                'signal_type'       => 'audio',
+                'cores'             => null,
+                'to_endpoint'       => 'Network switch (AV VLAN)',
+                'notes'             => 'Dante audio network',
+                'negative_keywords' => null,
+                'length_tiers'      => [
                     ['max_m' => 90,  'cable_type' => 'Cat6 (Dante/AES67)',             'cores' => null, 'to_endpoint' => 'Network switch (AV VLAN)', 'notes' => 'Dante audio over Cat6'],
                     ['max_m' => 300, 'cable_type' => 'Fibre + Dante media converter',  'cores' => null, 'to_endpoint' => 'Fibre + Dante converter',  'notes' => 'Long Dante run — fibre + Dante media converter'],
                 ],
@@ -135,156 +152,182 @@ class DeviceCableRulesSeeder extends Seeder
             // Priority 60 Dante amplifier — same tier logic as priority 50,
             // but kept flat here to prove null-tier fallthrough still works.
             [
-                'priority'     => 60,
-                'keywords'     => ['dante', 'lea'],
-                'cable_type'   => 'Cat6 (Dante)',
-                'signal_type'  => 'audio',
-                'cores'        => null,
-                'to_endpoint'  => 'Network switch (AV VLAN)',
-                'notes'        => 'Dante amplifier — network audio',
-                'length_tiers' => null,
+                'priority'          => 60,
+                'keywords'          => ['dante', 'lea'],
+                'cable_type'        => 'Cat6 (Dante)',
+                'signal_type'       => 'audio',
+                'cores'             => null,
+                'to_endpoint'       => 'Network switch (AV VLAN)',
+                'notes'             => 'Dante amplifier — network audio',
+                'negative_keywords' => null,
+                'length_tiers'      => null,
             ],
             // Priority 61 analogue amplifier — analogue speaker-level runs
             // don't tier-swap. length_tiers stays null.
+            // 260712-ip3: exclude 'lamp' + 'champagne' word-boundary hits
+            // so those brand names / product classes don't false-match the
+            // `amp` keyword (defensive — matchesAny uses \b so 'lamp' /
+            // 'champagne' don't match `\bamp\b` today, but the exclusion
+            // list documents intent + guards against a future keyword add).
             [
-                'priority'     => 61,
-                'keywords'     => ['amplifier', 'amp', 'lea audio', 'lea '],
-                'cable_type'   => 'Audio Multicore',
-                'signal_type'  => 'audio',
-                'cores'        => null,
-                'to_endpoint'  => 'DSP output',
-                'notes'        => 'Analogue from DSP',
-                'length_tiers' => null,
+                'priority'          => 61,
+                'keywords'          => ['amplifier', 'amp', 'lea audio', 'lea '],
+                'cable_type'        => 'Audio Multicore',
+                'signal_type'       => 'audio',
+                'cores'             => null,
+                'to_endpoint'       => 'DSP output',
+                'notes'             => 'Analogue from DSP',
+                'negative_keywords' => ['lamp', 'champagne'],
+                'length_tiers'      => null,
             ],
+            // 260712-ip3: VC codec rule — exclude USB 3 / USB 3.0 / usb-c
+            // webcam / usb hub so a Logitech USB 3.0 Webcam line no longer
+            // false-matches on the `logitech` keyword before the priority
+            // 141 USB 3 rule can win. Real-world regression from 260712-euh
+            // verification.
             [
-                'priority'     => 70,
-                'keywords'     => ['cisco', 'room kit', 'codec', 'poly', 'logitech'],
-                'cable_type'   => 'Cat6 (PoE)',
-                'signal_type'  => 'video',
-                'cores'        => null,
-                'to_endpoint'  => 'Network switch (PoE)',
-                'notes'        => 'VC codec — requires PoE+ or local PSU',
-                'length_tiers' => [
+                'priority'          => 70,
+                'keywords'          => ['cisco', 'room kit', 'codec', 'poly', 'logitech'],
+                'cable_type'        => 'Cat6 (PoE)',
+                'signal_type'       => 'video',
+                'cores'             => null,
+                'to_endpoint'       => 'Network switch (PoE)',
+                'notes'             => 'VC codec — requires PoE+ or local PSU',
+                'negative_keywords' => ['usb 3', 'usb 3.0', 'usb-c webcam', 'usb hub'],
+                'length_tiers'      => [
                     ['max_m' => 90,  'cable_type' => 'Cat6 (PoE)',                    'cores' => null, 'to_endpoint' => 'Network switch (PoE)',   'notes' => 'VC codec Cat6 PoE'],
                     ['max_m' => 300, 'cable_type' => 'Fibre + PoE media converter',   'cores' => null, 'to_endpoint' => 'Fibre + PoE converter',  'notes' => 'Long codec run — fibre + PoE media converter'],
                 ],
             ],
+            // 260712-ip3: camera / PTZ rule — same USB 3 / usb-c webcam
+            // exclusion as the codec rule above, for the mirror-image
+            // false-match case (a Logitech USB 3.0 webcam would otherwise
+            // still hit `webcam` here and land as Cat6 PoE).
             [
-                'priority'     => 80,
-                'keywords'     => ['camera', 'ptz', 'quad cam', 'webcam'],
-                'cable_type'   => 'Cat6 (PoE)',
-                'signal_type'  => 'video',
-                'cores'        => null,
-                'to_endpoint'  => 'Codec / Network switch (PoE)',
-                'notes'        => 'Camera — PoE powered',
-                'length_tiers' => [
+                'priority'          => 80,
+                'keywords'          => ['camera', 'ptz', 'quad cam', 'webcam'],
+                'cable_type'        => 'Cat6 (PoE)',
+                'signal_type'       => 'video',
+                'cores'             => null,
+                'to_endpoint'       => 'Codec / Network switch (PoE)',
+                'notes'             => 'Camera — PoE powered',
+                'negative_keywords' => ['usb 3', 'usb-c webcam'],
+                'length_tiers'      => [
                     ['max_m' => 90,  'cable_type' => 'Cat6 (PoE)',                    'cores' => null, 'to_endpoint' => 'Codec / Network switch (PoE)', 'notes' => 'Camera Cat6 PoE'],
                     ['max_m' => 300, 'cable_type' => 'Fibre + PoE media converter',   'cores' => null, 'to_endpoint' => 'Fibre + PoE converter',        'notes' => 'Long camera run — fibre + PoE media converter'],
                 ],
             ],
             [
-                'priority'     => 90,
-                'keywords'     => ['navigator', 'touch panel', 'keypad', 'button panel'],
-                'cable_type'   => 'Cat6 (PoE)',
-                'signal_type'  => 'control',
-                'cores'        => null,
-                'to_endpoint'  => 'Network switch (PoE)',
-                'notes'        => 'Control interface — PoE powered',
-                'length_tiers' => [
+                'priority'          => 90,
+                'keywords'          => ['navigator', 'touch panel', 'keypad', 'button panel'],
+                'cable_type'        => 'Cat6 (PoE)',
+                'signal_type'       => 'control',
+                'cores'             => null,
+                'to_endpoint'       => 'Network switch (PoE)',
+                'notes'             => 'Control interface — PoE powered',
+                'negative_keywords' => null,
+                'length_tiers'      => [
                     ['max_m' => 90,  'cable_type' => 'Cat6 (PoE)',                    'cores' => null, 'to_endpoint' => 'Network switch (PoE)',  'notes' => 'Control PoE Cat6'],
                     ['max_m' => 200, 'cable_type' => 'Fibre + PoE media converter',   'cores' => null, 'to_endpoint' => 'Fibre + PoE converter', 'notes' => 'Long control run — fibre + PoE media converter'],
                 ],
             ],
             [
-                'priority'     => 100,
-                'keywords'     => ['control', 'crestron', 'extron', 'amx', 'sensor', 'partition'],
-                'cable_type'   => 'Cat6',
-                'signal_type'  => 'control',
-                'cores'        => null,
-                'to_endpoint'  => 'Control processor',
-                'notes'        => 'Control signal',
-                'length_tiers' => [
+                'priority'          => 100,
+                'keywords'          => ['control', 'crestron', 'extron', 'amx', 'sensor', 'partition'],
+                'cable_type'        => 'Cat6',
+                'signal_type'       => 'control',
+                'cores'             => null,
+                'to_endpoint'       => 'Control processor',
+                'notes'             => 'Control signal',
+                'negative_keywords' => null,
+                'length_tiers'      => [
                     ['max_m' => 100, 'cable_type' => 'Cat6',                       'cores' => null, 'to_endpoint' => 'Control processor',  'notes' => 'Control Cat6'],
                     ['max_m' => 300, 'cable_type' => 'Fibre + media converter',    'cores' => null, 'to_endpoint' => 'Fibre + converter',  'notes' => 'Long control run — fibre + media converter'],
                 ],
             ],
             [
-                'priority'     => 110,
-                'keywords'     => ['switch', 'netgear', 'cisco switch'],
-                'cable_type'   => 'Cat6',
-                'signal_type'  => 'network',
-                'cores'        => null,
-                'to_endpoint'  => 'Building network / patch panel',
-                'notes'        => 'Uplink to client network',
-                'length_tiers' => [
+                'priority'          => 110,
+                'keywords'          => ['switch', 'netgear', 'cisco switch'],
+                'cable_type'        => 'Cat6',
+                'signal_type'       => 'network',
+                'cores'             => null,
+                'to_endpoint'       => 'Building network / patch panel',
+                'notes'             => 'Uplink to client network',
+                'negative_keywords' => null,
+                'length_tiers'      => [
                     ['max_m' => 100, 'cable_type' => 'Cat6',                       'cores' => null, 'to_endpoint' => 'Building network / patch panel', 'notes' => 'Uplink Cat6'],
                     ['max_m' => 500, 'cable_type' => 'Single-mode fibre uplink',   'cores' => null, 'to_endpoint' => 'Fibre patch panel',              'notes' => 'Long uplink — SMF fibre'],
                 ],
             ],
             [
-                'priority'     => 120,
-                'keywords'     => ['patch panel', 'keystone'],
-                'cable_type'   => 'Cat6',
-                'signal_type'  => 'network',
-                'cores'        => null,
-                'to_endpoint'  => 'Network switch',
-                'notes'        => 'Patch panel termination',
-                'length_tiers' => [
+                'priority'          => 120,
+                'keywords'          => ['patch panel', 'keystone'],
+                'cable_type'        => 'Cat6',
+                'signal_type'       => 'network',
+                'cores'             => null,
+                'to_endpoint'       => 'Network switch',
+                'notes'             => 'Patch panel termination',
+                'negative_keywords' => null,
+                'length_tiers'      => [
                     ['max_m' => 100, 'cable_type' => 'Cat6',                       'cores' => null, 'to_endpoint' => 'Network switch',   'notes' => 'Cat6 patch'],
                     ['max_m' => 500, 'cable_type' => 'Single-mode fibre patch',    'cores' => null, 'to_endpoint' => 'Fibre patch panel', 'notes' => 'Long patch — SMF fibre'],
                 ],
             ],
             [
-                'priority'     => 130,
-                'keywords'     => ['mxwapx', 'access point', 'wap'],
-                'cable_type'   => 'Cat6 (PoE)',
-                'signal_type'  => 'audio',
-                'cores'        => null,
-                'to_endpoint'  => 'Network switch (PoE)',
-                'notes'        => 'Wireless mic access point',
-                'length_tiers' => [
+                'priority'          => 130,
+                'keywords'          => ['mxwapx', 'access point', 'wap'],
+                'cable_type'        => 'Cat6 (PoE)',
+                'signal_type'       => 'audio',
+                'cores'             => null,
+                'to_endpoint'       => 'Network switch (PoE)',
+                'notes'             => 'Wireless mic access point',
+                'negative_keywords' => null,
+                'length_tiers'      => [
                     ['max_m' => 90,  'cable_type' => 'Cat6 (PoE)',                  'cores' => null, 'to_endpoint' => 'Network switch (PoE)',  'notes' => 'WAP Cat6 PoE'],
                     ['max_m' => 300, 'cable_type' => 'Fibre + PoE media converter', 'cores' => null, 'to_endpoint' => 'Fibre + PoE converter', 'notes' => 'Long WAP run — fibre + PoE media converter'],
                 ],
             ],
             // ── 260712-euh: 5 NEW rules at priorities 140-144 ─────────────
             [
-                'priority'     => 140,
-                'keywords'     => ['usb 2.0', 'usb2', 'usb 2'],
-                'cable_type'   => 'USB 2.0',
-                'signal_type'  => 'usb',
-                'cores'        => null,
-                'to_endpoint'  => 'USB host',
-                'notes'        => 'USB 2.0 — 5m passive max',
-                'length_tiers' => [
+                'priority'          => 140,
+                'keywords'          => ['usb 2.0', 'usb2', 'usb 2'],
+                'cable_type'        => 'USB 2.0',
+                'signal_type'       => 'usb',
+                'cores'             => null,
+                'to_endpoint'       => 'USB host',
+                'notes'             => 'USB 2.0 — 5m passive max',
+                'negative_keywords' => null,
+                'length_tiers'      => [
                     ['max_m' => 5,  'cable_type' => 'USB 2.0',                          'cores' => null, 'to_endpoint' => 'USB host',              'notes' => 'USB 2.0 — 5m passive max'],
                     ['max_m' => 20, 'cable_type' => 'USB 2.0 with active repeater',     'cores' => null, 'to_endpoint' => 'USB host',              'notes' => 'USB 2.0 — active repeater'],
                     ['max_m' => 50, 'cable_type' => 'USB over fibre extender',          'cores' => null, 'to_endpoint' => 'Fibre USB extender',    'notes' => 'USB 2.0 over fibre'],
                 ],
             ],
             [
-                'priority'     => 141,
-                'keywords'     => ['usb 3.0', 'usb3', 'usb-c', 'usb 3'],
-                'cable_type'   => 'USB 3.0',
-                'signal_type'  => 'usb',
-                'cores'        => null,
-                'to_endpoint'  => 'USB host',
-                'notes'        => 'USB 3.0 — 3m passive max',
-                'length_tiers' => [
+                'priority'          => 141,
+                'keywords'          => ['usb 3.0', 'usb3', 'usb-c', 'usb 3'],
+                'cable_type'        => 'USB 3.0',
+                'signal_type'       => 'usb',
+                'cores'             => null,
+                'to_endpoint'       => 'USB host',
+                'notes'             => 'USB 3.0 — 3m passive max',
+                'negative_keywords' => null,
+                'length_tiers'      => [
                     ['max_m' => 3,  'cable_type' => 'USB 3.0',                          'cores' => null, 'to_endpoint' => 'USB host',              'notes' => 'USB 3.0 — 3m passive max'],
                     ['max_m' => 15, 'cable_type' => 'Active optical USB 3.0',           'cores' => null, 'to_endpoint' => 'USB host',              'notes' => 'USB 3.0 — active optical'],
                     ['max_m' => 50, 'cable_type' => 'USB 3.0 over fibre extender',      'cores' => null, 'to_endpoint' => 'Fibre USB 3.0 extender', 'notes' => 'USB 3.0 over fibre'],
                 ],
             ],
             [
-                'priority'     => 142,
-                'keywords'     => ['displayport', 'dp ', 'dp1.4', 'dp 1.4', 'dp2.1'],
-                'cable_type'   => 'DisplayPort 1.4',
-                'signal_type'  => 'video',
-                'cores'        => null,
-                'to_endpoint'  => 'DP host',
-                'notes'        => 'DisplayPort — 2m passive max at 4K60',
-                'length_tiers' => [
+                'priority'          => 142,
+                'keywords'          => ['displayport', 'dp ', 'dp1.4', 'dp 1.4', 'dp2.1'],
+                'cable_type'        => 'DisplayPort 1.4',
+                'signal_type'       => 'video',
+                'cores'             => null,
+                'to_endpoint'       => 'DP host',
+                'notes'             => 'DisplayPort — 2m passive max at 4K60',
+                'negative_keywords' => null,
+                'length_tiers'      => [
                     ['max_m' => 2,   'cable_type' => 'DisplayPort 1.4',                  'cores' => null, 'to_endpoint' => 'DP host',               'notes' => 'DisplayPort — 2m passive max at 4K60'],
                     ['max_m' => 15,  'cable_type' => 'Active DisplayPort optical',       'cores' => null, 'to_endpoint' => 'DP host',               'notes' => 'DisplayPort — active optical'],
                     ['max_m' => 100, 'cable_type' => 'DisplayPort over fibre extender',  'cores' => null, 'to_endpoint' => 'Fibre DP extender',     'notes' => 'DisplayPort over fibre'],
@@ -294,27 +337,29 @@ class DeviceCableRulesSeeder extends Seeder
                 // 12G-SDI tier deferred (max_m is smaller than 3G, so the
                 // ascending-first-match walk would never trigger it — future
                 // enhancement needs a bandwidth-aware tier picker).
-                'priority'     => 143,
-                'keywords'     => ['sdi', '3g-sdi', '12g-sdi', 'bnc'],
-                'cable_type'   => '3G-SDI coax',
-                'signal_type'  => 'video',
-                'cores'        => null,
-                'to_endpoint'  => 'SDI monitor / router',
-                'notes'        => '3G-SDI over coax',
-                'length_tiers' => [
+                'priority'          => 143,
+                'keywords'          => ['sdi', '3g-sdi', '12g-sdi', 'bnc'],
+                'cable_type'        => '3G-SDI coax',
+                'signal_type'       => 'video',
+                'cores'             => null,
+                'to_endpoint'       => 'SDI monitor / router',
+                'notes'             => '3G-SDI over coax',
+                'negative_keywords' => null,
+                'length_tiers'      => [
                     ['max_m' => 100, 'cable_type' => '3G-SDI coax',              'cores' => null, 'to_endpoint' => 'SDI monitor / router', 'notes' => '3G-SDI over coax'],
                     ['max_m' => 500, 'cable_type' => 'SDI over fibre extender',  'cores' => null, 'to_endpoint' => 'Fibre SDI extender',   'notes' => 'Long SDI run — fibre extender'],
                 ],
             ],
             [
-                'priority'     => 144,
-                'keywords'     => ['fibre', 'fiber', 'om3', 'om4', 'os2', 'sfp', 'lc-lc', 'sc-sc'],
-                'cable_type'   => 'OM4 multimode fibre',
-                'signal_type'  => 'network',
-                'cores'        => null,
-                'to_endpoint'  => 'Fibre patch panel',
-                'notes'        => 'Optical fibre run',
-                'length_tiers' => [
+                'priority'          => 144,
+                'keywords'          => ['fibre', 'fiber', 'om3', 'om4', 'os2', 'sfp', 'lc-lc', 'sc-sc'],
+                'cable_type'        => 'OM4 multimode fibre',
+                'signal_type'       => 'network',
+                'cores'             => null,
+                'to_endpoint'       => 'Fibre patch panel',
+                'notes'             => 'Optical fibre run',
+                'negative_keywords' => null,
+                'length_tiers'      => [
                     ['max_m' => 550,   'cable_type' => 'OM4 multimode fibre',       'cores' => null, 'to_endpoint' => 'Fibre patch panel', 'notes' => 'OM4 multimode fibre — up to 550m'],
                     ['max_m' => 40000, 'cable_type' => 'OS2 single-mode fibre',     'cores' => null, 'to_endpoint' => 'Fibre patch panel', 'notes' => 'OS2 single-mode fibre — long haul'],
                 ],

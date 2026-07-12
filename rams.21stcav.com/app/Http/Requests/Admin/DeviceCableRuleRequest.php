@@ -26,6 +26,14 @@ use Illuminate\Foundation\Http\FormRequest;
  * JSON collapses to null so the model stores null rather than `[]`.
  * Each tier row is validated element-wise: `max_m > 0`, `cable_type`
  * required + max 200 chars, `cores` / `to_endpoint` / `notes` optional.
+ *
+ * Quick task 260712-ip3 — negative_keywords textarea shim.
+ * Mirrors the keywords_raw pattern: form POSTs `negative_keywords_raw`
+ * (one entry per line, optional). prepareForValidation() splits it
+ * into a lowercased/trimmed array and merges it as `negative_keywords`.
+ * Empty payload collapses to null so the model stores null (not []),
+ * which the inference walker treats as "no exclusion". Non-empty
+ * arrays are matched element-wise via matchesAny() word-boundary.
  */
 class DeviceCableRuleRequest extends FormRequest
 {
@@ -54,6 +62,10 @@ class DeviceCableRuleRequest extends FormRequest
             'length_tiers.*.cores'      => ['nullable', 'string', 'max:50'],
             'length_tiers.*.to_endpoint'=> ['nullable', 'string', 'max:200'],
             'length_tiers.*.notes'      => ['nullable', 'string', 'max:500'],
+            // 260712-ip3 negative_keywords
+            'negative_keywords_raw' => ['nullable', 'string'],
+            'negative_keywords'     => ['nullable', 'array'],
+            'negative_keywords.*'   => ['string', 'max:120'],
         ];
     }
 
@@ -77,9 +89,24 @@ class DeviceCableRuleRequest extends FormRequest
         // but null is the canonical "no tier logic" flag.
         $tiers = $this->normaliseLengthTiers($this->input('length_tiers'));
 
+        // 260712-ip3: split negative_keywords_raw the same way as keywords_raw.
+        // Empty payload → null (not []) so the model stores the canonical
+        // "no exclusion" flag. ruleMatches() short-circuits when the field
+        // is null / empty.
+        $rawNeg = (string) $this->input('negative_keywords_raw', '');
+
+        $negatives = array_values(array_filter(
+            array_map(
+                static fn (string $line): string => strtolower(trim($line)),
+                preg_split('/\r\n|\r|\n/', $rawNeg) ?: []
+            ),
+            static fn (string $kw): bool => $kw !== ''
+        ));
+
         $this->merge([
-            'keywords'     => $keywords,
-            'length_tiers' => $tiers,
+            'keywords'          => $keywords,
+            'length_tiers'      => $tiers,
+            'negative_keywords' => $negatives === [] ? null : $negatives,
         ]);
     }
 
