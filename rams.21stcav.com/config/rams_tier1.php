@@ -182,6 +182,53 @@ return [
             'post_severity'   => 2,
         ],
 
+        [
+            'hazard'          => 'Laser Projector Eye Safety',
+            'persons_at_risk' => ['21CAV Engineers', 'Client Staff', 'Members of Public'],
+            'pre_likelihood'  => 3,
+            'pre_severity'    => 5,
+            'controls'        => [
+                'BS EN 60825-1:2014+A11:2021 laser class determined and recorded for every laser-based projector before install commences.',
+                'Direct-beam viewing avoided at all times while projector is powered on; engineers work from behind or to the side of the projected beam.',
+                'Laser safety warning label affixed to projector chassis and mount, and to the room entry point where a Class 3R or higher device is installed.',
+                'Projector powered down and lens cap fitted before any lens cleaning, filter change or optical adjustment.',
+                'Commissioning-time verification that installed throw geometry keeps the primary beam above 2.1m head height in any accessible aisle, walkway or spectator area.',
+            ],
+            'post_likelihood' => 1,
+            'post_severity'   => 4,
+        ],
+
+        [
+            'hazard'          => 'RF Exposure from Wireless AV Devices (Wireless Mics, DECT, Wi-Fi APs, Bluetooth Beacons)',
+            'persons_at_risk' => ['21CAV Engineers', 'Client Staff'],
+            'pre_likelihood'  => 2,
+            'pre_severity'    => 3,
+            'controls'        => [
+                'Control of Electromagnetic Fields at Work Regulations 2016 observed — no engineer to remain within 20cm of a live high-power transmitter (>100mW EIRP) for extended periods during antenna alignment or spectrum survey.',
+                'Every deployed wireless device confirmed to carry a valid UKCA or CE mark and to operate on an Ofcom licence-exempt or correctly-licensed frequency band before power-up.',
+                'Antenna alignment and RF-survey work performed with transmitter at lowest usable power; power stepped up only after physical position is set.',
+                'Pregnant engineers to declare and be reassigned from prolonged high-power antenna work or RF-survey duties; task reassignment authorised without penalty.',
+            ],
+            'post_likelihood' => 1,
+            'post_severity'   => 2,
+        ],
+
+        [
+            'hazard'          => 'Cable Pulling Injuries (Back Strain, Rope Burn, Hand Laceration during pulls through conduit/tray/ceiling void)',
+            'persons_at_risk' => ['21CAV Engineers', 'Other Trades'],
+            'pre_likelihood'  => 4,
+            'pre_severity'    => 3,
+            'controls'        => [
+                'MHOR 1992 applied to any cable-drum lift exceeding 20kg — two-person handling mandatory; mechanical drum stand used to unspool where site permits.',
+                'Pulling gloves (cut-resistance level B or above, EN 388) worn during any conduit, tray or containment pull.',
+                'Cable-pull lubricant used on runs longer than 10m or through more than 2 bends; jacket-compatible formulation confirmed against LSZH or PVC jacket spec (see COSHH baseline).',
+                'Mechanical pull-winch preferred over hand-pull for runs longer than 30m or where friction load is unknown; hand-pull limited to short straight runs.',
+                'Designated banksman at the receiving end of any blind pull (through ceiling void, riser or bulkhead) to prevent cable snag and trip hazard on the pull side.',
+            ],
+            'post_likelihood' => 2,
+            'post_severity'   => 2,
+        ],
+
     ],
 
     /*
