@@ -269,65 +269,15 @@ class CableScheduleGeneratorServiceTest extends TestCase
         $this->assertNull($this->invoke($svc, 'extractRoomNarrative', [$room3]));
     }
 
-    public function test_hdmi_over_15m_appends_warning(): void
-    {
-        $svc = $this->make();
-
-        $warnings = $this->invoke($svc, 'computeDistanceWarnings', ['HDMI 2.0', null, 20.0]);
-        $this->assertCount(1, $warnings);
-        $this->assertStringContainsString('HDMI passive > 15m', $warnings[0]);
-
-        // Exactly 15 → no warning (rule is strictly >).
-        $this->assertSame([], $this->invoke($svc, 'computeDistanceWarnings', ['HDMI 2.0', null, 15.0]));
-    }
-
-    public function test_cat6_poe_over_100m_appends_warning(): void
-    {
-        $svc = $this->make();
-
-        $warnings = $this->invoke($svc, 'computeDistanceWarnings', ['Cat6 (PoE)', null, 110.0]);
-        $this->assertNotEmpty($warnings);
-        $this->assertStringContainsString('Cat6 PoE > 100m', $warnings[0]);
-
-        $this->assertSame([], $this->invoke($svc, 'computeDistanceWarnings', ['Cat6 (PoE)', null, 90.0]));
-    }
-
-    public function test_speaker_2core_over_30m_appends_warning(): void
-    {
-        $svc = $this->make();
-
-        $warnings = $this->invoke($svc, 'computeDistanceWarnings', ['2-core speaker cable (1.5mm LSZH)', '2', 35.0]);
-        $this->assertNotEmpty($warnings);
-        $this->assertStringContainsString('Long speaker run', $warnings[0]);
-
-        // requires_cores='2' — 4-core input skips the rule.
-        $this->assertSame([], $this->invoke($svc, 'computeDistanceWarnings', ['2-core speaker cable', '4', 35.0]));
-    }
-
-    public function test_multiple_warnings_joined_with_pipe(): void
-    {
-        $svc = $this->make();
-
-        // 'Cat6a (shielded)' triggers the HDBaseT rule (regex matches both
-        // 'HDBaseT' and 'Cat6a (shielded)'). Length 110 > 100 → warning.
-        $warnings = $this->invoke($svc, 'computeDistanceWarnings', ['Cat6a (shielded)', null, 110.0]);
-        $this->assertCount(1, $warnings);
-        $this->assertStringContainsString('HDBaseT max range 100m', $warnings[0]);
-
-        // Manually assemble a multi-warning notes string to prove the join.
-        $joined = implode(' | ', $warnings);
-        $this->assertStringContainsString(' | ', 'seed | ' . $joined,
-            'join operator sanity check');
-    }
-
-    public function test_room_without_survey_match_leaves_length_null(): void
-    {
-        $svc = $this->make();
-
-        // Length null → computeDistanceWarnings short-circuits to []. This is
-        // the correctness invariant that keeps un-surveyed rooms warning-free.
-        $this->assertSame([], $this->invoke($svc, 'computeDistanceWarnings', ['HDMI 2.0', null, null]));
-    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // computeDistanceWarnings tests retired 2026-07-12 (260712-euh).
+    //
+    // The 5 test cases below used to exercise the DISTANCE_WARNING_RULES const
+    // + computeDistanceWarnings method (both deleted in Task 2). Equivalent
+    // behaviour is now tested through the length-tier picker in
+    // DeviceCableRuleInferenceTest (see 260712-euh T5 cases: HDMI short /
+    // medium / long / over-max / null length; PTZ camera; generic mic).
+    // ─────────────────────────────────────────────────────────────────────────
 
     // ─────────────────────────────────────────────────────────────────────────
     // T2-A — port-FK resolution on the flat generateFromDevices path

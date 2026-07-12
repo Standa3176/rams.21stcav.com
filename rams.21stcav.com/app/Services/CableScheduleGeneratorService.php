@@ -97,39 +97,13 @@ class CableScheduleGeneratorService
         'server room', 'central', 'plant room',
     ];
 
-    // ── T1-E: distance-warning matrix ─────────────────────────────────────────
+    // ── T1-E: retired 2026-07-12 (260712-euh) ─────────────────────────────────
     //
-    // Applied after computing $cableInfo. Rules walked in declaration order;
-    // matched warnings joined with ' | ' and appended to notes.
-    //   - cable_type_regex : preg regex tested against the row's cable_type
-    //   - threshold_m      : length > this in metres triggers the warning
-    //   - requires_cores   : null = any; non-null = must string-match exactly
-    private const DISTANCE_WARNING_RULES = [
-        [
-            'cable_type_regex' => '/\bHDMI\b/i',
-            'threshold_m'      => 15,
-            'requires_cores'   => null,
-            'warning'          => '⚠ HDMI passive > 15m unreliable — recommend HDBaseT extender',
-        ],
-        [
-            'cable_type_regex' => '/\bCat6a?\b.*PoE/i',
-            'threshold_m'      => 100,
-            'requires_cores'   => null,
-            'warning'          => '⚠ Cat6 PoE > 100m — power delivery unreliable',
-        ],
-        [
-            'cable_type_regex' => '/HDBaseT|Cat6a \(shielded\)/i',
-            'threshold_m'      => 100,
-            'requires_cores'   => null,
-            'warning'          => '⚠ HDBaseT max range 100m Cat6a — split with fibre extender',
-        ],
-        [
-            'cable_type_regex' => '/speaker cable/i',
-            'threshold_m'      => 30,
-            'requires_cores'   => '2',
-            'warning'          => '⚠ Long speaker run — consider 4-core star quad or thicker gauge',
-        ],
-    ];
+    // The hardcoded DISTANCE_WARNING_RULES + computeDistanceWarnings method
+    // used to append '⚠' warnings after inferCableRun() picked a flat cable_type.
+    // Length-aware behaviour is now data-driven via DeviceCableRule::length_tiers —
+    // the tier picker in inferCableRun() both swaps the cable and appends the
+    // appropriate '⚠' / '⚠⚠' warning as part of its return value. See docblock.
 
     public function __construct(
         private readonly ProjectDataService $projectDataService,
@@ -187,15 +161,13 @@ class CableScheduleGeneratorService
 
                 $equipNameShort = Str::limit($equipName, 180, '…');
 
-                $cableInfo = $this->inferCableRun($equipName);
+                $cableInfo = $this->inferCableRun($equipName, $length);
                 $cableInfo = $this->applyQuotedCableOverride($cableInfo, $overrides);
 
-                // T1-E: append distance warnings when length + rule matches.
-                $warnings = $this->computeDistanceWarnings($cableInfo['cable_type'], $cableInfo['cores'], $length);
-                $notes    = $cableInfo['notes'] . ($cableRouteDesc ? ' | Route: ' . $cableRouteDesc : '');
-                if (! empty($warnings)) {
-                    $notes .= ' | ' . implode(' | ', $warnings);
-                }
+                // 260712-euh: length-based tier swap + warning is inside
+                // inferCableRun($equipName, $length) now — no post-hoc
+                // computeDistanceWarnings() call needed.
+                $notes = $cableInfo['notes'] . ($cableRouteDesc ? ' | Route: ' . $cableRouteDesc : '');
 
                 $sortOrder++;
                 $cableId = 'C-' . str_pad((string) $sortOrder, 3, '0', STR_PAD_LEFT);
@@ -362,7 +334,7 @@ class CableScheduleGeneratorService
 
             $equipNameShort = Str::limit($equipName, 180, '…');
 
-            $cableInfo = $this->inferCableRun($equipName);
+            $cableInfo = $this->inferCableRun($equipName, $lengthM);
             $cableInfo = $this->applyQuotedCableOverride($cableInfo, $overrides);
 
             $rackSuffix = ($device->is_rack_mounted && $device->u_height)
@@ -373,11 +345,8 @@ class CableScheduleGeneratorService
                 ? sprintf('[%s] ', $device->signal_role)
                 : '';
 
-            $notes    = $rolePrefix . $cableInfo['notes'];
-            $warnings = $this->computeDistanceWarnings($cableInfo['cable_type'], $cableInfo['cores'], $lengthM);
-            if (! empty($warnings)) {
-                $notes .= ' | ' . implode(' | ', $warnings);
-            }
+            // 260712-euh: length tier + warning already inside $cableInfo['notes'].
+            $notes = $rolePrefix . $cableInfo['notes'];
 
             $sortOrder++;
             $cableId = 'C-' . str_pad((string) $sortOrder, 3, '0', STR_PAD_LEFT);
@@ -441,7 +410,10 @@ class CableScheduleGeneratorService
                 continue;
             }
 
-            $cableInfo  = $this->inferCableRun($equipName);
+            // 260712-euh: buildSignalGraph only cares about signal_type for
+            // bucketing — length doesn't affect signal_type, so pass null
+            // explicitly to avoid appending spurious length warnings here.
+            $cableInfo  = $this->inferCableRun($equipName, null);
             $signalType = (string) ($cableInfo['signal_type'] ?? 'unknown');
 
             if (! isset($graph[$signalType])) {
@@ -483,7 +455,8 @@ class CableScheduleGeneratorService
                 continue;
             }
 
-            $cableInfo  = $this->inferCableRun($equipName);
+            // 260712-euh: buildSignalGraph — length null (see local branch).
+            $cableInfo  = $this->inferCableRun($equipName, null);
             $signalType = (string) ($cableInfo['signal_type'] ?? 'unknown');
 
             if (! isset($graph[$signalType])) {
@@ -644,7 +617,7 @@ class CableScheduleGeneratorService
         }
         $fromShort = Str::limit($fromName, 180, '…');
 
-        $cableInfo = $this->inferCableRun($fromName);
+        $cableInfo = $this->inferCableRun($fromName, $roomLengthM);
         // Force the row's signal_type to match the DAG bucket so downstream
         // FK resolution stays consistent (fromDevice may be a Q-Sys processor
         // whose inferCableRun returns 'audio' even when we're walking the
@@ -655,11 +628,8 @@ class CableScheduleGeneratorService
         $rolePrefix = $fromDevice->signal_role
             ? sprintf('[%s] ', $fromDevice->signal_role)
             : '';
-        $notes    = $rolePrefix . $cableInfo['notes'];
-        $warnings = $this->computeDistanceWarnings($cableInfo['cable_type'], $cableInfo['cores'], $roomLengthM);
-        if (! empty($warnings)) {
-            $notes .= ' | ' . implode(' | ', $warnings);
-        }
+        // 260712-euh: tier + length warning already merged into $cableInfo['notes'].
+        $notes = $rolePrefix . $cableInfo['notes'];
 
         // T2-B-ext: cross-room prefix when the source device lives in a
         // different room than the target room (i.e. this edge was completed
@@ -925,7 +895,10 @@ class CableScheduleGeneratorService
 
             $equipNameShort = Str::limit($equipName, 180, '…');
 
-            $cableInfo = $this->inferCableRun($equipName);
+            // 260712-euh: standalone quote flow has no survey → pass null
+            // length. Length-tiered rules return their tier 1 (safest passive)
+            // + a "Length not confirmed" warning appended to notes.
+            $cableInfo = $this->inferCableRun($equipName, null);
             $cableInfo = $this->applyQuotedCableOverride($cableInfo, $overrides);
             $sortOrder++;
 
@@ -1066,21 +1039,40 @@ class CableScheduleGeneratorService
      * word-boundary-matches the equipment name wins. Missing / disabled
      * rules fall through to the TBC placeholder so the schedule still
      * generates cleanly. Admin CRUD lives at /admin/device-cable-rules.
+     *
+     * Quick task 260712-euh — length-tier picker. When the matched rule has
+     * a non-empty `length_tiers` array, pickTier() walks it ascending on
+     * `max_m` and returns the first tier whose max_m ≥ $lengthM; the
+     * tier's cable_type / cores / to_endpoint / notes OVERRIDE the flat
+     * row. Length null → first tier + '⚠ Length not confirmed' warning.
+     * Length over-max → last tier + '⚠⚠ exceeds max range' warning.
+     * signal_type stays from the flat rule (tier picker never touches it,
+     * DAG walker + XLSX colouring depend on stable signal_type).
+     * Null / empty tiers → flat row returned unchanged.
      */
-    private function inferCableRun(string $equipName): array
+    private function inferCableRun(string $equipName, ?float $lengthM = null): array
     {
         $lower = strtolower($equipName);
 
         foreach (DeviceCableRule::forInference() as $rule) {
-            if ($this->matchesAny($lower, (array) $rule->keywords)) {
-                return [
-                    'cable_type'  => (string) $rule->cable_type,
-                    'signal_type' => (string) $rule->signal_type,
-                    'cores'       => $rule->cores,
-                    'to'          => (string) $rule->to_endpoint,
-                    'notes'       => (string) ($rule->notes ?? ''),
-                ];
+            if (! $this->matchesAny($lower, (array) $rule->keywords)) {
+                continue;
             }
+
+            $flatRow = [
+                'cable_type'  => (string) $rule->cable_type,
+                'signal_type' => (string) $rule->signal_type,
+                'cores'       => $rule->cores,
+                'to'          => (string) $rule->to_endpoint,
+                'notes'       => (string) ($rule->notes ?? ''),
+            ];
+
+            $tiers = $rule->length_tiers;
+            if (! is_array($tiers) || $tiers === []) {
+                return $flatRow;
+            }
+
+            return $this->pickTier($tiers, $lengthM, $flatRow);
         }
 
         // ── Unknown hardware → TBC ──────────────────────────────────────────
@@ -1090,6 +1082,73 @@ class CableScheduleGeneratorService
             'cores'       => null,
             'to'          => 'TBC — confirm on survey',
             'notes'       => 'Cable type to be confirmed during site survey',
+        ];
+    }
+
+    /**
+     * 260712-euh — pick a length_tier entry.
+     *
+     * Contract:
+     *   - $lengthM null              → tier[0] + '⚠ Length not confirmed…' notes
+     *   - first tier where max_m ≥ L → that tier
+     *   - $lengthM > every tier max  → last tier + '⚠⚠ exceeds max range…' notes
+     *
+     * Only cable_type / cores / to_endpoint / notes are overridden. signal_type
+     * stays from the parent flat rule so the DAG walker + XLSX colouring
+     * stay consistent (a fibre HDMI tier is still 'video', not 'network').
+     *
+     * @param  array<int, array<string, mixed>>  $tiers    ascending on max_m (sorted by FormRequest)
+     * @param  array<string, mixed>              $flatRow  full inferCableRun() flat shape
+     * @return array<string, mixed>
+     */
+    private function pickTier(array $tiers, ?float $lengthM, array $flatRow): array
+    {
+        if ($lengthM === null) {
+            $chosen  = $tiers[0];
+            $warning = '⚠ Length not confirmed on survey — assuming passive tier';
+            return $this->mergeTierIntoFlat($chosen, $flatRow, $warning);
+        }
+
+        foreach ($tiers as $tier) {
+            $maxM = $tier['max_m'] ?? null;
+            if ($maxM === null || (float) $lengthM <= (float) $maxM) {
+                return $this->mergeTierIntoFlat($tier, $flatRow, null);
+            }
+        }
+
+        // Over-max: append the last tier + escalation warning.
+        $chosen    = end($tiers) ?: $tiers[array_key_last($tiers)];
+        $lengthTxt = rtrim(rtrim(number_format((float) $lengthM, 1, '.', ''), '0'), '.');
+        $warning   = sprintf(
+            '⚠⚠ Length %sm exceeds max range for this cable type — consider signal repeater / regen',
+            $lengthTxt
+        );
+
+        return $this->mergeTierIntoFlat($chosen, $flatRow, $warning);
+    }
+
+    /**
+     * 260712-euh — merge a tier row into the flat inferCableRun() shape.
+     * Only overrides cable_type / cores / to / notes; signal_type is preserved.
+     * The optional $warning is appended to notes via the ' | ' separator that
+     * the rest of the service uses.
+     *
+     * @param  array<string, mixed>  $tier
+     * @param  array<string, mixed>  $flatRow
+     */
+    private function mergeTierIntoFlat(array $tier, array $flatRow, ?string $warning): array
+    {
+        $tierNotes = (string) ($tier['notes'] ?? '');
+        if ($warning !== null) {
+            $tierNotes = $tierNotes === '' ? $warning : $tierNotes . ' | ' . $warning;
+        }
+
+        return [
+            'cable_type'  => (string) ($tier['cable_type'] ?? $flatRow['cable_type']),
+            'signal_type' => $flatRow['signal_type'],
+            'cores'       => $tier['cores'] ?? $flatRow['cores'],
+            'to'          => (string) ($tier['to_endpoint'] ?? $flatRow['to']),
+            'notes'       => $tierNotes,
         ];
     }
 
@@ -1365,35 +1424,6 @@ class CableScheduleGeneratorService
         }
 
         return null;
-    }
-
-    /**
-     * Walk DISTANCE_WARNING_RULES and return the list of matched warnings for
-     * a single row. Empty when length is unknown or no rule matched.
-     *
-     * @return array<int, string>
-     */
-    private function computeDistanceWarnings(string $cableType, ?string $cores, ?float $lengthM): array
-    {
-        if ($lengthM === null) {
-            return [];
-        }
-
-        $warnings = [];
-        foreach (self::DISTANCE_WARNING_RULES as $rule) {
-            if (! preg_match($rule['cable_type_regex'], $cableType)) {
-                continue;
-            }
-            if ($lengthM <= $rule['threshold_m']) {
-                continue;
-            }
-            if ($rule['requires_cores'] !== null && (string) $cores !== $rule['requires_cores']) {
-                continue;
-            }
-            $warnings[] = $rule['warning'];
-        }
-
-        return $warnings;
     }
 
     /**
