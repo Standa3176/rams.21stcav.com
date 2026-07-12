@@ -62,8 +62,8 @@ class DeviceCableRuleInferenceTest extends TestCase
 
         $this->assertSame($countAfterFirst, $countAfterSecond,
             'Re-running the seeder must not produce duplicates.');
-        $this->assertSame(15, $countAfterSecond,
-            '13 original branches + 2 splits (mic + amp) = 15 canonical rules.');
+        $this->assertSame(20, $countAfterSecond,
+            '15 canonical rules + 5 new tier-aware rules (USB2, USB3, DP, SDI, fibre) = 20.');
     }
 
     // ── canonical byte-for-byte cases ────────────────────────────────────
@@ -155,6 +155,101 @@ class DeviceCableRuleInferenceTest extends TestCase
 
         $this->assertSame('Cat6 (Dante)', $row['cable_type']);
         $this->assertSame('audio', $row['signal_type']);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 260712-euh — length-tier selection cases (8)
+    //
+    // These call inferCableRun($name, $lengthM) directly via reflection so
+    // the private helper is exercised with real lengths. The seeder loads
+    // 20 rules; the 12 tier-aware rules pin the picker's swap behaviour.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Reflection helper — inferCableRun is private on the service.
+     * @return array<string, mixed>
+     */
+    private function inferDirect(string $name, ?float $lengthM): array
+    {
+        $svc = $this->make();
+        $ref = new \ReflectionMethod($svc, 'inferCableRun');
+        $ref->setAccessible(true);
+        return $ref->invoke($svc, $name, $lengthM);
+    }
+
+    public function test_hdmi_display_short_run_returns_passive_hdmi_tier(): void
+    {
+        $row = $this->inferDirect('Samsung QM85 Display', 10.0);
+
+        $this->assertSame('HDMI 2.0', $row['cable_type']);
+        $this->assertSame('video', $row['signal_type']);
+        $this->assertStringContainsString('Passive HDMI', $row['notes']);
+        $this->assertStringNotContainsString('⚠', $row['notes']);
+    }
+
+    public function test_hdmi_display_medium_run_returns_hdbaset_tier(): void
+    {
+        $row = $this->inferDirect('Samsung QM85 Display', 40.0);
+
+        $this->assertSame('Cat6a (shielded) HDBaseT', $row['cable_type']);
+        $this->assertSame('video', $row['signal_type']);
+        $this->assertStringContainsString('HDBaseT', $row['notes']);
+    }
+
+    public function test_hdmi_display_long_run_returns_fibre_tier(): void
+    {
+        $row = $this->inferDirect('Samsung QM85 Display', 150.0);
+
+        $this->assertStringContainsStringIgnoringCase('fibre', $row['cable_type']);
+        $this->assertSame('video', $row['signal_type']);
+    }
+
+    public function test_hdmi_display_over_max_appends_escalation_warning(): void
+    {
+        $row = $this->inferDirect('Samsung QM85 Display', 400.0);
+
+        // The final tier's max_m is 300; 400 exceeds it → last tier + escalation warning.
+        $this->assertStringContainsString('⚠⚠', $row['notes']);
+        $this->assertStringContainsString('exceeds max range', $row['notes']);
+        $this->assertStringContainsString('400m', $row['notes']);
+    }
+
+    public function test_hdmi_display_null_length_returns_passive_tier_with_warning(): void
+    {
+        $row = $this->inferDirect('Samsung QM85 Display', null);
+
+        $this->assertSame('HDMI 2.0', $row['cable_type']);
+        $this->assertSame('video', $row['signal_type']);
+        $this->assertStringContainsString('⚠', $row['notes']);
+        $this->assertStringContainsString('Length not confirmed', $row['notes']);
+    }
+
+    public function test_ptz_camera_short_run_returns_cat6_poe(): void
+    {
+        $row = $this->inferDirect('AVer PTZ Camera', 30.0);
+
+        $this->assertSame('Cat6 (PoE)', $row['cable_type']);
+        $this->assertSame('video', $row['signal_type']);
+    }
+
+    public function test_ptz_camera_long_run_swaps_to_fibre_poe(): void
+    {
+        $row = $this->inferDirect('AVer PTZ Camera', 150.0);
+
+        $this->assertStringContainsStringIgnoringCase('fibre', $row['cable_type']);
+        $this->assertSame('video', $row['signal_type']);
+    }
+
+    public function test_generic_microphone_length_ignored_because_no_tiers(): void
+    {
+        // Rule 41 (generic mic) has length_tiers = null → flat cable_type
+        // used regardless of length. No 'Length not confirmed' warning
+        // because null tiers bypasses the tier picker entirely.
+        $row = $this->inferDirect('Sennheiser Microphone', 50.0);
+
+        $this->assertSame('XLR', $row['cable_type']);
+        $this->assertSame('audio', $row['signal_type']);
+        $this->assertStringNotContainsString('⚠', $row['notes']);
     }
 
     protected function tearDown(): void

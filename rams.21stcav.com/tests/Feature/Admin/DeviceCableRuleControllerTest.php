@@ -126,6 +126,120 @@ class DeviceCableRuleControllerTest extends TestCase
         $this->assertNull(DeviceCableRule::find($id));
     }
 
+    // ── G. 260712-euh length_tiers CRUD ──────────────────────────────────
+
+    public function test_admin_can_store_a_rule_with_length_tiers(): void
+    {
+        // Post two tiers in DESCENDING order — FormRequest must sort them.
+        $tiersJson = json_encode([
+            ['max_m' => 70, 'cable_type' => 'Cat6a HDBaseT', 'cores' => null, 'to_endpoint' => 'HDBaseT rx', 'notes' => 'medium'],
+            ['max_m' => 15, 'cable_type' => 'HDMI 2.0',      'cores' => null, 'to_endpoint' => 'AV rack',   'notes' => 'short'],
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.device-cable-rules.store'), [
+                'priority'     => 26,
+                'keywords_raw' => "some display\nvideo",
+                'cable_type'   => 'HDMI 2.0',
+                'cores'        => '',
+                'signal_type'  => 'video',
+                'to_endpoint'  => 'AV rack',
+                'notes'        => 'display note',
+                'is_active'    => '1',
+                'length_tiers' => $tiersJson,
+            ])
+            ->assertRedirect(route('admin.device-cable-rules.index'));
+
+        $rule = DeviceCableRule::where('priority', 26)->firstOrFail();
+        $this->assertIsArray($rule->length_tiers);
+        $this->assertCount(2, $rule->length_tiers);
+        // Sorted ascending on max_m: tier 0 must be the 15m one.
+        $this->assertSame(15, (int) $rule->length_tiers[0]['max_m']);
+        $this->assertSame(70, (int) $rule->length_tiers[1]['max_m']);
+    }
+
+    public function test_admin_can_update_length_tiers_on_existing_rule(): void
+    {
+        $rule = DeviceCableRule::where('priority', 10)->firstOrFail();
+
+        // Post 4 tiers in mixed order to prove the sort.
+        $tiersJson = json_encode([
+            ['max_m' => 200, 'cable_type' => 'Fibre extender',     'notes' => 'long'],
+            ['max_m' => 40,  'cable_type' => 'HDBaseT',            'notes' => 'medium'],
+            ['max_m' => 10,  'cable_type' => 'HDMI 2.0',           'notes' => 'short'],
+            ['max_m' => 100, 'cable_type' => 'HDBaseT-over-fibre', 'notes' => 'long-ish'],
+        ]);
+
+        $this->actingAs($this->admin)
+            ->put(route('admin.device-cable-rules.update', $rule), [
+                'priority'     => 10,
+                'keywords_raw' => "display\nprojector",
+                'cable_type'   => 'HDMI 2.0',
+                'cores'        => '',
+                'signal_type'  => 'video',
+                'to_endpoint'  => 'AV Rack / Matrix Switcher',
+                'notes'        => 'admin edited',
+                'is_active'    => '1',
+                'length_tiers' => $tiersJson,
+            ])
+            ->assertRedirect(route('admin.device-cable-rules.index'));
+
+        $rule->refresh();
+        $this->assertCount(4, $rule->length_tiers);
+        $this->assertSame([10, 40, 100, 200], array_map(
+            static fn ($t) => (int) $t['max_m'],
+            $rule->length_tiers,
+        ));
+    }
+
+    public function test_store_rejects_length_tier_with_zero_max_m(): void
+    {
+        $tiersJson = json_encode([
+            ['max_m' => 0, 'cable_type' => 'Invalid tier'],
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->post(route('admin.device-cable-rules.store'), [
+                'priority'     => 27,
+                'keywords_raw' => "keyword",
+                'cable_type'   => 'HDMI 2.0',
+                'cores'        => '',
+                'signal_type'  => 'video',
+                'to_endpoint'  => 'AV rack',
+                'notes'        => '',
+                'is_active'    => '1',
+                'length_tiers' => $tiersJson,
+            ]);
+
+        $response->assertSessionHasErrors('length_tiers.0.max_m');
+        $this->assertNull(DeviceCableRule::where('priority', 27)->first());
+    }
+
+    public function test_admin_can_clear_length_tiers_by_posting_empty_array(): void
+    {
+        $rule = DeviceCableRule::where('priority', 10)->firstOrFail();
+        // Sanity: seeder gave rule 10 three tiers.
+        $this->assertNotEmpty($rule->length_tiers);
+
+        $this->actingAs($this->admin)
+            ->put(route('admin.device-cable-rules.update', $rule), [
+                'priority'     => 10,
+                'keywords_raw' => "display\nprojector",
+                'cable_type'   => 'HDMI 2.0',
+                'cores'        => '',
+                'signal_type'  => 'video',
+                'to_endpoint'  => 'AV Rack / Matrix Switcher',
+                'notes'        => 'cleared',
+                'is_active'    => '1',
+                'length_tiers' => '[]',
+            ])
+            ->assertRedirect(route('admin.device-cable-rules.index'));
+
+        $rule->refresh();
+        // Empty array collapses to null via FormRequest normalisation.
+        $this->assertNull($rule->length_tiers);
+    }
+
     // ── F. cache flush on save/delete ────────────────────────────────────
 
     public function test_saving_or_deleting_a_rule_flushes_the_inference_cache(): void
