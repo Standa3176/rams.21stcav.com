@@ -21,6 +21,19 @@ use Illuminate\Support\Facades\Cache;
  * A stale cache is bounded at 1 hour even if the boot hook is bypassed
  * (e.g. direct SQL via tinker).
  *
+ * Length tiers (260712-euh):
+ * When a rule's `length_tiers` array is populated, inferCableRun($name,
+ * ?float $lengthM) picks the FIRST tier whose `max_m` is ≥ $lengthM;
+ * that tier's cable_type / cores / to_endpoint / notes OVERRIDE the
+ * flat row values (signal_type stays from the flat row). Null / empty
+ * tiers array = flat cable_type used. Null $lengthM = tier 1 (safest
+ * passive) + '⚠ Length not confirmed' warning. Over-max $lengthM =
+ * LAST tier + '⚠⚠ exceeds max range' warning. Shape per tier:
+ *   ['max_m' => (int|float), 'cable_type' => (string), 'cores' => ?string,
+ *    'to_endpoint' => ?string, 'notes' => ?string]
+ * The admin FormRequest sorts entries ascending on max_m at persist
+ * time so the read-side never re-sorts.
+ *
  * @see \App\Services\CableScheduleGeneratorService::inferCableRun
  */
 class DeviceCableRule extends Model
@@ -38,12 +51,14 @@ class DeviceCableRule extends Model
         'to_endpoint',
         'notes',
         'is_active',
+        'length_tiers',
     ];
 
     protected $casts = [
-        'priority'  => 'integer',
-        'keywords'  => 'array',
-        'is_active' => 'boolean',
+        'priority'     => 'integer',
+        'keywords'     => 'array',
+        'is_active'    => 'boolean',
+        'length_tiers' => 'array',
     ];
 
     /**
