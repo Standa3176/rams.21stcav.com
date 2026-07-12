@@ -53,7 +53,15 @@
                     </div>
                 </td>
                 <td>
-                    <div style="color:var(--ink-900);font-weight:500;">{{ $rule->cable_type }}</div>
+                    <div style="color:var(--ink-900);font-weight:500;">
+                        {{ $rule->cable_type }}
+                        {{-- 260712-euh: length-tier count badge --}}
+                        @if (! empty($rule->length_tiers))
+                            <span style="display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;font-size:10px;font-weight:600;background:var(--accent-soft, var(--surface-soft));color:var(--accent, var(--text-muted));border:1px solid var(--border);">
+                                {{ count($rule->length_tiers) }} tier{{ count($rule->length_tiers) === 1 ? '' : 's' }}
+                            </span>
+                        @endif
+                    </div>
                     @if ($rule->cores)
                         <div style="font-size:11px;color:var(--text-muted);margin-top:1px;">{{ $rule->cores }} core</div>
                     @endif

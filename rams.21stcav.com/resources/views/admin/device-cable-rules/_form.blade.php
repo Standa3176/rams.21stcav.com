@@ -81,3 +81,49 @@
         </div>
     </div>
 </div>
+
+{{-- 260712-euh: length-tier editor (collapsible; Alpine.js). --}}
+<div class="section-block" style="margin-bottom:1.25rem;">
+    <details {{ ! empty($rule->length_tiers) ? 'open' : '' }}
+             x-data='{ tiers: @json($rule->length_tiers ?? []) }'>
+        <summary style="cursor:pointer;font-weight:600;">
+            Length Tiers (<span x-text="tiers.length"></span>)
+        </summary>
+        <p style="font-size:.825rem;color:var(--text-muted);margin:.75rem 0;">
+            Optional. When set, the inference engine walks tiers ascending on <code>max_m</code> and picks the first tier whose <code>max_m</code> is greater than or equal to the row's <code>approx_length_m</code>. Over-max lengths trigger the escalation warning. Null / empty = use the flat cable_type above.
+        </p>
+        <template x-for="(tier, i) in tiers" :key="i">
+            <div class="form-grid-2" style="border:1px solid var(--border);border-radius:6px;padding:.75rem;margin-bottom:.5rem;">
+                <div class="form-group">
+                    <label class="form-label">max_m *</label>
+                    <input type="number" step="0.1" min="0.1" class="form-control" x-model.number="tier.max_m" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">cable_type *</label>
+                    <input type="text" class="form-control" x-model="tier.cable_type" maxlength="200" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">cores</label>
+                    <input type="text" class="form-control" x-model="tier.cores" maxlength="50">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">to_endpoint</label>
+                    <input type="text" class="form-control" x-model="tier.to_endpoint" maxlength="200">
+                </div>
+                <div class="form-group" style="grid-column:span 2;">
+                    <label class="form-label">notes</label>
+                    <input type="text" class="form-control" x-model="tier.notes" maxlength="500">
+                </div>
+                <div style="grid-column:span 2;text-align:right;">
+                    <button type="button" class="btn btn-danger-outline btn-sm" @click="tiers.splice(i,1)">Remove tier</button>
+                </div>
+            </div>
+        </template>
+        <button type="button" class="btn btn-outline btn-sm"
+                @click="tiers.push({max_m: null, cable_type: '', cores: '', to_endpoint: '', notes: ''})">
+            + Add tier
+        </button>
+        <input type="hidden" name="length_tiers"
+               :value="JSON.stringify(tiers.slice().sort((a,b) => (parseFloat(a.max_m)||0) - (parseFloat(b.max_m)||0)))">
+    </details>
+</div>

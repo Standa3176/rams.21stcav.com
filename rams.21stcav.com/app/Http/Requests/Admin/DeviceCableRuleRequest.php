@@ -18,6 +18,14 @@ use Illuminate\Foundation\Http\FormRequest;
  * config('cables.signal_type_colours') — the drawings + XLSX layers
  * key colour palettes off this enum, so a rogue value would render as
  * uncoloured.
+ *
+ * Quick task 260712-euh — length_tiers editor shim.
+ * The Alpine.js tier editor POSTs `length_tiers` as a JSON-encoded
+ * string (hidden input, sorted ascending on max_m at serialise time).
+ * prepareForValidation() decodes + sorts + merges. Empty / invalid
+ * JSON collapses to null so the model stores null rather than `[]`.
+ * Each tier row is validated element-wise: `max_m > 0`, `cable_type`
+ * required + max 200 chars, `cores` / `to_endpoint` / `notes` optional.
  */
 class DeviceCableRuleRequest extends FormRequest
 {
@@ -39,6 +47,13 @@ class DeviceCableRuleRequest extends FormRequest
             'to_endpoint' => ['required', 'string', 'max:200'],
             'notes'       => ['nullable', 'string', 'max:500'],
             'is_active'   => ['nullable', 'boolean'],
+            // 260712-euh length_tiers
+            'length_tiers'              => ['nullable', 'array'],
+            'length_tiers.*.max_m'      => ['required_with:length_tiers', 'numeric', 'gt:0'],
+            'length_tiers.*.cable_type' => ['required_with:length_tiers', 'string', 'max:200'],
+            'length_tiers.*.cores'      => ['nullable', 'string', 'max:50'],
+            'length_tiers.*.to_endpoint'=> ['nullable', 'string', 'max:200'],
+            'length_tiers.*.notes'      => ['nullable', 'string', 'max:500'],
         ];
     }
 
@@ -54,8 +69,52 @@ class DeviceCableRuleRequest extends FormRequest
             static fn (string $kw): bool => $kw !== ''
         ));
 
+        // 260712-euh: decode + sort length_tiers before validation. Alpine.js
+        // editor posts a hidden JSON string; we decode, coerce to array, and
+        // sort ascending on max_m so persist-time ordering is guaranteed.
+        // Empty / invalid / non-array payloads collapse to null so the model
+        // stores null (not []) — inferCableRun treats null and [] identically
+        // but null is the canonical "no tier logic" flag.
+        $tiers = $this->normaliseLengthTiers($this->input('length_tiers'));
+
         $this->merge([
-            'keywords' => $keywords,
+            'keywords'     => $keywords,
+            'length_tiers' => $tiers,
         ]);
+    }
+
+    /**
+     * Decode the posted `length_tiers` payload (JSON string or array) into a
+     * normalised, ascending-sorted array of tier rows. Returns null when the
+     * payload is empty, missing, or malformed.
+     *
+     * @param  mixed  $raw
+     * @return array<int, array<string, mixed>>|null
+     */
+    private function normaliseLengthTiers(mixed $raw): ?array
+    {
+        if ($raw === null || $raw === '' || $raw === '[]') {
+            return null;
+        }
+
+        // Editor posts JSON string; some tests may post the array directly.
+        $tiers = is_string($raw) ? json_decode($raw, true) : $raw;
+
+        if (! is_array($tiers) || $tiers === []) {
+            return null;
+        }
+
+        // Drop any non-array entries so usort never crashes on mixed input.
+        $tiers = array_values(array_filter($tiers, static fn ($t) => is_array($t)));
+        if ($tiers === []) {
+            return null;
+        }
+
+        // Sort ascending on max_m (numeric compare, null/missing treated as 0).
+        usort($tiers, static fn (array $a, array $b) =>
+            (float) ($a['max_m'] ?? 0) <=> (float) ($b['max_m'] ?? 0)
+        );
+
+        return $tiers;
     }
 }
