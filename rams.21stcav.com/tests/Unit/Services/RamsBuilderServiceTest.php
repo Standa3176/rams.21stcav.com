@@ -11,6 +11,7 @@ use App\Services\RamsBuilderService;
 use App\Services\RamsDataBuilderService;
 use App\Services\RamsDocumentRendererService;
 use App\Services\RiskTemplateResolverService;
+use App\Services\Rams\Tier1RamsDefaultsService;
 use App\Services\RoomOverviewSummaryService;
 use Illuminate\Support\Facades\Log;
 use Mockery;
@@ -71,6 +72,9 @@ class RamsBuilderServiceTest extends TestCase
             Mockery::mock(RamsDocumentRendererService::class),
             Mockery::mock(HazardLibraryService::class),
             $roomOverviewSummary,
+            // 260712-twi Task 1: fallback layer service — real instance, no
+            // mock needed. Pure array-work + config reads.
+            new Tier1RamsDefaultsService(),
         );
     }
 

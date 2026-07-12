@@ -6,6 +6,7 @@ use App\Core\Modules\KnowledgeLibrary\HazardLibraryService;
 use App\Models\RamsDocument;
 use App\Services\ProjectContext\ProjectContextBuilder;
 use App\Services\Rams\RamsComplianceUpgradeService;
+use App\Services\Rams\Tier1RamsDefaultsService;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -50,6 +51,7 @@ class RamsBuilderService
         private readonly RamsDocumentRendererService     $renderer,
         private readonly HazardLibraryService            $hazardLibrary,
         private readonly RoomOverviewSummaryService      $roomOverviewSummary,
+        private readonly Tier1RamsDefaultsService        $tier1Defaults,
     ) {}
 
     // =========================================================================
@@ -252,6 +254,12 @@ class RamsBuilderService
 
         // ── Tier 1 compliance upgrade (PPE matrix, CDM, risk colour key, etc.) ─
         $data = RamsComplianceUpgradeService::upgrade($data);
+
+        // ── Tier 1 AV safety-critical defaults (fallback layer, engineer wins) ─
+        // Quick task 260712-twi: inject baseline hazards / standards / COSHH
+        // when engineer values are missing. Non-destructive by design —
+        // engineer-supplied values ALWAYS win.
+        $data = $this->tier1Defaults->injectDefaultsIntoRamsData($data);
 
         // Persist.
         $record->update([
@@ -696,6 +704,12 @@ class RamsBuilderService
 
         // ── Tier 1 compliance upgrade (PPE matrix, CDM, risk colour key, etc.) ─
         $data = RamsComplianceUpgradeService::upgrade($data);
+
+        // ── Tier 1 AV safety-critical defaults (fallback layer, engineer wins) ─
+        // Quick task 260712-twi: inject baseline hazards / standards / COSHH
+        // when engineer values are missing. Non-destructive by design —
+        // engineer-supplied values ALWAYS win.
+        $data = $this->tier1Defaults->injectDefaultsIntoRamsData($data);
 
         $record->update([
             'project_ref'    => $data['project']['ref']          ?: $record->project_ref,
