@@ -620,6 +620,29 @@ p { margin: 3pt 0; }
     </tr>
 </table>
 
+{{-- ════════════════════════════════════════════════════════════════════════
+     TABLE OF CONTENTS (260712-twi Task 5)
+     ════════════════════════════════════════════════════════════════════════ --}}
+<div class="sec-heading page-break">Table of Contents</div>
+<table class="std-table" style="width:100%; margin-bottom:12pt;">
+    <tbody>
+        <tr><td style="width:82%;">1. Document Control</td><td style="text-align:right;">Section 1</td></tr>
+        <tr><td>2. Company Information</td><td style="text-align:right;">Section 2</td></tr>
+        <tr><td>3. Health &amp; Safety Policy Statement &amp; Standards Applicable</td><td style="text-align:right;">Section 3</td></tr>
+        <tr><td>4. Scope of Works, Site Logistics &amp; Room Overviews</td><td style="text-align:right;">Section 4</td></tr>
+        <tr><td>5. Risk Assessment (Baseline AV Hazards + Site-Specific)</td><td style="text-align:right;">Section 5</td></tr>
+        <tr><td>6. Method Statement (Team, Tools, PPE, Access, Steps, Coordination, IT)</td><td style="text-align:right;">Section 6</td></tr>
+        <tr><td>7. Emergency Procedures (Site Details, Accident, Fire, RIDDOR)</td><td style="text-align:right;">Section 7</td></tr>
+        <tr><td>8. Document Sign-Off</td><td style="text-align:right;">Section 8</td></tr>
+        <tr><td>COSHH Assessment, Environmental Management, Welfare Arrangements</td><td style="text-align:right;">Supplementary</td></tr>
+        <tr><td>Appendix A — Toolbox Talk Record</td><td style="text-align:right;">Appendix</td></tr>
+    </tbody>
+</table>
+<p class="body-para" style="font-size:8pt; color:#555;">
+    Page numbers omitted — the PDF renderer's dynamic pagination is authoritative.
+    Use the running header ("RAMS | REF | CLIENT") + footer page count to navigate.
+</p>
+
 
 {{-- ════════════════════════════════════════════════════════════════════════
      SECTION 1 — DOCUMENT CONTROL
@@ -705,6 +728,31 @@ p { margin: 3pt 0; }
     This document must be read, understood, and complied with by all persons carrying out the works
     described herein. It should be retained on site for the duration of the works.
 </p>
+
+{{-- Standards & Guidance Applicable to This Works (260712-twi Task 5) --}}
+<div class="sec-subheading" style="margin-top:8pt;">Standards &amp; Guidance Applicable to This Works</div>
+@php $stdRefs = (array) ($data['standards_references'] ?? config('rams_tier1.standards_references', [])); @endphp
+@if(! empty($stdRefs))
+<table class="std-table" style="margin-bottom:8pt;">
+    <thead>
+        <tr style="background-color:#1B7A7A; color:#ffffff;">
+            <th style="width:22%; color:#fff;">Reference</th>
+            <th style="width:40%; color:#fff;">Title</th>
+            <th style="color:#fff;">Applies To (on this project)</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach($stdRefs as $std)
+        @php $std = is_array($std) ? $std : []; @endphp
+        <tr>
+            <td><strong>{{ $std['ref'] ?? '' }}</strong></td>
+            <td>{{ $std['title'] ?? '' }}</td>
+            <td>{{ $std['applies_to'] ?? '' }}</td>
+        </tr>
+        @endforeach
+    </tbody>
+</table>
+@endif
 
 {{-- ════════════════════════════════════════════════════════════════════════
      SECTION 4 — SCOPE OF WORKS
@@ -1440,6 +1488,14 @@ p { margin: 3pt 0; }
 {{-- 6.3 PPE Matrix (Tier 1 upgrade) --}}
 @if(! empty($data['ppe_matrix']))
 <div class="sec-subheading">6.3 Personal Protective Equipment (PPE)</div>
+{{-- Hi-vis colour convention paragraph (260712-twi Task 5) --}}
+<p class="body-para" style="font-size:9pt;">
+    <strong>Hi-vis colour convention on this site:</strong>
+    {{ $company }} engineers wear <strong>orange</strong> hi-vis vests (EN ISO 20471 class 2 minimum).
+    If the client site enforces a different colour code (e.g. yellow for visitors, blue for
+    contractors), the site induction MUST clarify and any conflict is resolved by the site rules —
+    engineers to swap out to the site-mandated colour before entering active areas.
+</p>
 <table class="std-table">
     <thead>
         <tr>
@@ -1648,6 +1704,26 @@ p { margin: 3pt 0; }
     @endforeach
 </ul>
 @endif
+
+{{-- 6.11 Coordination with Other Trades (260712-twi Task 5) --}}
+<div class="sec-subheading">6.11 Coordination with Other Trades</div>
+<ul class="blist">
+    <li>Where AV works interface with plant owned by other trades (ceiling grid installer, partition contractor, electrical fit-out, IT/network cabling), the Lead Engineer must confirm the interface point with the trade's on-site supervisor before penetration, fixing or cable pull.</li>
+    <li>Any drilling into ceiling voids requires prior confirmation from the ceiling installer that the grid is fully supported and no live services are on the drill path.</li>
+    <li>Any cable pull through partitions requires prior confirmation from the partition contractor that the wall is not carrying fire-stop that would be breached.</li>
+    <li>Any tie-in to client-owned IT infrastructure requires prior confirmation from the client IT contact (see 6.12) that the port is provisioned and the VLAN is correctly assigned.</li>
+    <li>Interface disputes are escalated to the Project Manager for resolution before works proceed; engineers do not commence contested works.</li>
+</ul>
+
+{{-- 6.12 IT / Network Integration Safety (260712-twi Task 5) --}}
+<div class="sec-subheading">6.12 IT / Network Integration Safety</div>
+<ul class="blist">
+    <li>The client's IT contact must be informed and available before any codec, DSP, control processor, room-scheduler tablet or network switch joins the client LAN.</li>
+    <li>Control system programming (Crestron, Q-SYS, Extron, Vaddio) and DSP configuration are performed OFF the live signal path (bench or staging PC) and only cutover after the client IT contact confirms the target VLAN is live and the switch port is enabled.</li>
+    <li>Firmware updates on client-owned hardware are only performed with written authorisation from the client IT contact and only during agreed maintenance windows.</li>
+    <li>Any credentials (SIP registrar, MQTT broker, control-system admin passwords) are captured in the O&amp;M Manual and handed over to the client IT contact — engineers do not retain client credentials post-handover.</li>
+    <li>Power-cycle and network-fail recovery is verified during commissioning for every codec, DSP and control processor — each device must autonomously return to the last-good configuration after unexpected loss of power or network.</li>
+</ul>
 
 {{-- ════════════════════════════════════════════════════════════════════════
      DECOMMISSIONING PROCEDURE
