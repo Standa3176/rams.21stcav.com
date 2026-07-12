@@ -390,6 +390,12 @@ return [
             'applies_to' => 'All power tools, access equipment, MEWP and lifting equipment used during the works.',
         ],
 
+        [
+            'ref'        => 'BS EN 60825-1:2014+A11:2021',
+            'title'      => 'Safety of laser products — Part 1: Equipment classification and requirements',
+            'applies_to' => 'Every laser-based projector, laser rangefinder, or laser-alignment tool installed or used on this project. Class 1 or 2 devices are permitted in normal installation; Class 3R and above require documented risk assessment, warning signage, and where practicable installation geometry that keeps the primary beam above 2.1m head height in any accessible area.',
+        ],
+
     ],
 
     /*
