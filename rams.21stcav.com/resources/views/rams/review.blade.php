@@ -791,6 +791,71 @@
                           placeholder="e.g. Welfare facilities in Building B, Level 1. First aider: John Smith (07700 000000)"
                 >{{ old('welfare_notes', $prog['welfare_notes'] ?? '') }}</textarea>
             </div>
+
+            {{-- ── Site Emergency Details (260712-twi Task 3) ─────────────── --}}
+            @php $siteEmerg = $rd['site_emergency'] ?? []; @endphp
+            <h3 class="section-heading" style="margin-top:1rem;">Site Emergency Details</h3>
+            <p class="hint" style="font-size:.85rem; color:#a00; margin-bottom:.65rem;">
+                Leaving these blank produces a RED warning banner on the RAMS PDF. Complete at site induction if not known now.
+            </p>
+            <div class="form-group">
+                <label class="form-label" for="site_emergency_nearest_hospital">Nearest A&amp;E Hospital — Name</label>
+                <input type="text" id="site_emergency_nearest_hospital" name="site_emergency_nearest_hospital"
+                       class="form-control" data-optional
+                       value="{{ old('site_emergency_nearest_hospital', $siteEmerg['nearest_hospital'] ?? '') }}"
+                       placeholder="e.g. Royal Berkshire Hospital A&amp;E">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="site_emergency_hospital_address">Nearest A&amp;E — Full Address &amp; Postcode</label>
+                <textarea id="site_emergency_hospital_address" name="site_emergency_hospital_address"
+                          class="form-control" rows="2" data-optional
+                          placeholder="e.g. London Road, Reading, RG1 5AN"
+                >{{ old('site_emergency_hospital_address', $siteEmerg['hospital_address'] ?? '') }}</textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="site_emergency_fire_assembly_point">Fire Assembly Point Location</label>
+                <input type="text" id="site_emergency_fire_assembly_point" name="site_emergency_fire_assembly_point"
+                       class="form-control" data-optional
+                       value="{{ old('site_emergency_fire_assembly_point', $siteEmerg['fire_assembly_point'] ?? '') }}"
+                       placeholder="e.g. Front car park by main gate">
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:.65rem;">
+                <div class="form-group">
+                    <label class="form-label" for="site_emergency_fire_warden_name">Site Fire Warden — Name</label>
+                    <input type="text" id="site_emergency_fire_warden_name" name="site_emergency_fire_warden_name"
+                           class="form-control" data-optional
+                           value="{{ old('site_emergency_fire_warden_name', $siteEmerg['fire_warden_name'] ?? '') }}"
+                           placeholder="e.g. Sarah Johnson">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="site_emergency_fire_warden_contact">Site Fire Warden — Phone</label>
+                    <input type="text" id="site_emergency_fire_warden_contact" name="site_emergency_fire_warden_contact"
+                           class="form-control" data-optional
+                           value="{{ old('site_emergency_fire_warden_contact', $siteEmerg['fire_warden_contact'] ?? '') }}"
+                           placeholder="e.g. 07700 000000">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="site_emergency_first_aider_name">Site First Aider — Name</label>
+                    <input type="text" id="site_emergency_first_aider_name" name="site_emergency_first_aider_name"
+                           class="form-control" data-optional
+                           value="{{ old('site_emergency_first_aider_name', $siteEmerg['first_aider_name'] ?? '') }}"
+                           placeholder="e.g. Mark Williams">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="site_emergency_first_aider_contact">Site First Aider — Phone</label>
+                    <input type="text" id="site_emergency_first_aider_contact" name="site_emergency_first_aider_contact"
+                           class="form-control" data-optional
+                           value="{{ old('site_emergency_first_aider_contact', $siteEmerg['first_aider_contact'] ?? '') }}"
+                           placeholder="e.g. 07700 000000">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="site_emergency_defibrillator_location">Nearest Defibrillator — Location</label>
+                <input type="text" id="site_emergency_defibrillator_location" name="site_emergency_defibrillator_location"
+                       class="form-control" data-optional
+                       value="{{ old('site_emergency_defibrillator_location', $siteEmerg['defibrillator_location'] ?? '') }}"
+                       placeholder="e.g. Reception lobby, mounted next to main entrance">
+            </div>
             </div>{{-- /TAB: WORKS & PERMITS --}}
 
             {{-- ══════════ TAB: SCOPE & EXCLUSIONS ══════════ --}}

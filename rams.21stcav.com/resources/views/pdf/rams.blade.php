@@ -1831,6 +1831,51 @@ p { margin: 3pt 0; }
      ════════════════════════════════════════════════════════════════════════ --}}
 <div class="sec-heading page-break">7. &nbsp;Emergency Procedures</div>
 
+{{-- 7.0 Site-Specific Emergency Details (260712-twi Task 3) --}}
+@php
+    $siteEmerg = (array) ($data['site_emergency'] ?? ($rams->reviewed_data['site_emergency'] ?? []));
+    $hasSiteEmerg = ! empty(array_filter($siteEmerg, fn ($v) => is_string($v) ? trim($v) !== '' : ! empty($v)));
+@endphp
+<div class="sec-subheading">7.0 Site-Specific Emergency Details</div>
+@if($hasSiteEmerg)
+<table class="emerg-table" style="margin-bottom: 10pt;">
+    <tr>
+        <td class="e-lbl">Nearest A&amp;E Hospital</td>
+        <td class="e-val" colspan="3">
+            {{ $siteEmerg['nearest_hospital'] ?: 'TBC' }}
+            @if(! empty($siteEmerg['hospital_address']))
+                <br><span style="font-size:8pt; color:#555;">{{ $siteEmerg['hospital_address'] }}</span>
+            @endif
+        </td>
+    </tr>
+    <tr>
+        <td class="e-lbl">Fire Assembly Point</td>
+        <td class="e-val" colspan="3">{{ $siteEmerg['fire_assembly_point'] ?: 'TBC' }}</td>
+    </tr>
+    <tr>
+        <td class="e-lbl">Fire Warden</td>
+        <td class="e-val">{{ $siteEmerg['fire_warden_name'] ?: 'TBC' }}</td>
+        <td class="e-lbl">Contact</td>
+        <td class="e-val">{{ $siteEmerg['fire_warden_contact'] ?: '—' }}</td>
+    </tr>
+    <tr>
+        <td class="e-lbl">First Aider</td>
+        <td class="e-val">{{ $siteEmerg['first_aider_name'] ?: 'TBC' }}</td>
+        <td class="e-lbl">Contact</td>
+        <td class="e-val">{{ $siteEmerg['first_aider_contact'] ?: '—' }}</td>
+    </tr>
+    <tr>
+        <td class="e-lbl">Nearest Defibrillator</td>
+        <td class="e-val" colspan="3">{{ $siteEmerg['defibrillator_location'] ?: 'TBC — confirm at site induction' }}</td>
+    </tr>
+</table>
+@else
+<div style="border: 2pt solid #c00; background: #ffecec; padding: 8pt; margin: 6pt 0 12pt 0; color: #900; font-weight: 700; text-align: center;">
+    TBC AT SITE INDUCTION — MUST BE COMPLETED BEFORE WORKS COMMENCE.<br>
+    <span style="font-weight: normal; font-size: 8.5pt;">Nearest hospital, fire assembly point, fire warden, first aider, and defibrillator location have not been captured in the review form.</span>
+</div>
+@endif
+
 {{-- 7.1 Emergency Contact Numbers --}}
 <div class="sec-subheading">7.1 Emergency Contact Numbers</div>
 <table class="emerg-table" style="margin-bottom: 10pt;">
@@ -1860,6 +1905,45 @@ p { margin: 3pt 0; }
     <li>Report to the client site manager and comply with site reporting procedures.</li>
     <li>RIDDOR reportable incidents must be reported by the Responsible Person within the required timescales.</li>
 </ul>
+
+{{-- RIDDOR Reporting Matrix (260712-twi Task 3) --}}
+<div class="sec-subheading" style="margin-top: 4pt;">RIDDOR Reporting Matrix</div>
+<table class="std-table" style="margin-bottom: 10pt;">
+    <thead>
+        <tr>
+            <th style="width: 30%;">Incident Type</th>
+            <th style="width: 30%;">Responsible Person</th>
+            <th style="width: 22%;">Timescale</th>
+            <th>Reporting Route</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Death or specified major injury</td>
+            <td>{{ $company }} Ops Manager</td>
+            <td><strong>Immediate</strong></td>
+            <td>HSE Incident Contact Centre — 0345 300 9923</td>
+        </tr>
+        <tr>
+            <td>Over-7-day incapacity (injury)</td>
+            <td>{{ $company }} Ops Manager</td>
+            <td>Within 15 days</td>
+            <td>HSE online RIDDOR form (F2508)</td>
+        </tr>
+        <tr>
+            <td>Dangerous occurrence (near miss)</td>
+            <td>{{ $company }} Ops Manager</td>
+            <td>Within 10 days</td>
+            <td>HSE online RIDDOR form (F2508)</td>
+        </tr>
+        <tr>
+            <td>Occupational disease</td>
+            <td>{{ $company }} Ops Manager</td>
+            <td>Within 10 days of diagnosis</td>
+            <td>HSE online RIDDOR form (F2508A)</td>
+        </tr>
+    </tbody>
+</table>
 
 {{-- 7.3 In the Event of a Fire --}}
 <div class="sec-subheading">7.3 In the Event of a Fire</div>

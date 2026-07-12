@@ -398,6 +398,15 @@ class RamsController extends Controller
             'commissioning_criteria.*.criterion'             => ['nullable', 'string', 'max:500'],
             'commissioning_criteria.*.verification_method'   => ['nullable', 'string', 'max:300'],
             'commissioning_criteria.*.pass_condition'        => ['nullable', 'string', 'max:300'],
+            // Site emergency details (260712-twi Task 3)
+            'site_emergency_nearest_hospital'      => ['nullable', 'string', 'max:255'],
+            'site_emergency_hospital_address'      => ['nullable', 'string', 'max:500'],
+            'site_emergency_fire_assembly_point'   => ['nullable', 'string', 'max:255'],
+            'site_emergency_fire_warden_name'      => ['nullable', 'string', 'max:255'],
+            'site_emergency_fire_warden_contact'   => ['nullable', 'string', 'max:255'],
+            'site_emergency_first_aider_name'      => ['nullable', 'string', 'max:255'],
+            'site_emergency_first_aider_contact'   => ['nullable', 'string', 'max:255'],
+            'site_emergency_defibrillator_location' => ['nullable', 'string', 'max:255'],
         ]);
 
         // Treat an empty-string `project_ref` submission as "not provided" so
@@ -535,6 +544,28 @@ class RamsController extends Controller
             is_array($ccInput) ? $ccInput : [],
             fn ($row) => ! empty($row['system']) || ! empty($row['criterion'])
         ));
+
+        // Site emergency details (260712-twi Task 3) — persist review-only
+        // sub-key. PDF Section 7.0 renders a populated table when any field
+        // has a value, and a red "TBC AT SITE INDUCTION" banner otherwise.
+        $reviewedData['site_emergency'] = [
+            'nearest_hospital'       => $validated['site_emergency_nearest_hospital']      ?? '',
+            'hospital_address'       => $validated['site_emergency_hospital_address']      ?? '',
+            'fire_assembly_point'    => $validated['site_emergency_fire_assembly_point']   ?? '',
+            'fire_warden_name'       => $validated['site_emergency_fire_warden_name']      ?? '',
+            'fire_warden_contact'    => $validated['site_emergency_fire_warden_contact']   ?? '',
+            'first_aider_name'       => $validated['site_emergency_first_aider_name']      ?? '',
+            'first_aider_contact'    => $validated['site_emergency_first_aider_contact']   ?? '',
+            'defibrillator_location' => $validated['site_emergency_defibrillator_location'] ?? '',
+        ];
+
+        // Also mirror site_emergency into generated_data so the PDF template's
+        // primary lookup ($data['site_emergency']) finds the values without
+        // needing to fall back to $rams->reviewed_data. This lets the PDF
+        // render correctly at both immediate save-and-render time (this
+        // controller path) and at post-Build render time (when the pipeline
+        // rebuilds generated_data).
+        $generatedData['site_emergency'] = $reviewedData['site_emergency'];
 
         // ── Apply Tier 1 compliance upgrade before persist + render ────────
         $generatedData = \App\Services\Rams\RamsComplianceUpgradeService::upgrade($generatedData);
