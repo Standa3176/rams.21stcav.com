@@ -160,6 +160,10 @@ Requirements:
 - Use room descriptions where provided to keep steps room-specific.
 - The penultimate step MUST cover Integration, Testing & Commissioning with signal path verification.
 - The final step MUST be Completion & Sign-Off covering removal of access equipment and waste, end-user training, and snagging sign-off.
+- If cable routing crosses live-services zones (containment, tray, existing conduit), the Installation step must call out isolation and 'test-before-touch' verification of any existing power/data circuit encountered.
+- Any control-system programming or DSP configuration step must specify that engineers work OFF the live signal path (staging PC or bench-programmed) before hot-cutover, and that the client's IT contact is informed before any network device joins the LAN.
+- Where new displays, speakers or cabling attach to plant that another trade owns (ceiling grid, partitions, structural steel), the relevant step must reference coordination with that trade before penetration or fixing.
+- The Commissioning step must reference power-cycle and network-fail recovery verification for every codec, DSP or control processor deployed.
 - Each step must have 4 to 8 bullet points.
 - Each bullet point is one plain-English sentence. No markdown, no bold, no symbols.
 - Do not reference any brand, product, or technology not present in the scope data above.{$retry}
