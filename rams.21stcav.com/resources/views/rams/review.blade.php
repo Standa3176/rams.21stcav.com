@@ -856,6 +856,27 @@
                        value="{{ old('site_emergency_defibrillator_location', $siteEmerg['defibrillator_location'] ?? '') }}"
                        placeholder="e.g. Reception lobby, mounted next to main entrance">
             </div>
+            <div class="form-group">
+                <label class="form-label" for="site_emergency_electrical_isolation_switch">Emergency Electrical Isolation Switch — Location</label>
+                <input type="text" id="site_emergency_electrical_isolation_switch" name="site_emergency_electrical_isolation_switch"
+                       class="form-control" data-optional
+                       value="{{ old('site_emergency_electrical_isolation_switch', $siteEmerg['electrical_isolation_switch'] ?? '') }}"
+                       placeholder="e.g. Main distribution board in comms room B1-Rm-04, red mushroom-head E-STOP by riser door">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="site_emergency_fire_extinguisher_class">Nearest Fire Extinguisher — Class</label>
+                @php $feSel = old('site_emergency_fire_extinguisher_class', $siteEmerg['fire_extinguisher_class'] ?? ''); @endphp
+                <select id="site_emergency_fire_extinguisher_class" name="site_emergency_fire_extinguisher_class"
+                        class="form-control" data-optional>
+                    <option value="" @selected($feSel === '')>— Select class —</option>
+                    <option value="Class A (solids: paper, wood, textiles)" @selected($feSel === 'Class A (solids: paper, wood, textiles)')>Class A — Solids (paper, wood, textiles)</option>
+                    <option value="Class B (flammable liquids)" @selected($feSel === 'Class B (flammable liquids)')>Class B — Flammable liquids</option>
+                    <option value="Class C (flammable gases)" @selected($feSel === 'Class C (flammable gases)')>Class C — Flammable gases</option>
+                    <option value="Class D (combustible metals)" @selected($feSel === 'Class D (combustible metals)')>Class D — Combustible metals</option>
+                    <option value="Class F (cooking oils)" @selected($feSel === 'Class F (cooking oils)')>Class F — Cooking oils</option>
+                    <option value="CO2 (electrical equipment)" @selected($feSel === 'CO2 (electrical equipment)')>CO2 — Electrical equipment</option>
+                </select>
+            </div>
             </div>{{-- /TAB: WORKS & PERMITS --}}
 
             {{-- ══════════ TAB: SCOPE & EXCLUSIONS ══════════ --}}

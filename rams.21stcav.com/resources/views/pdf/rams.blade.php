@@ -1982,6 +1982,15 @@ p { margin: 3pt 0; }
         <td class="e-lbl">Nearest Defibrillator</td>
         <td class="e-val" colspan="3">{{ $siteEmerg['defibrillator_location'] ?: 'TBC — confirm at site induction' }}</td>
     </tr>
+    {{-- 260712-w5k Task 3 — 2 new emergency rows --}}
+    <tr>
+        <td class="e-lbl">Electrical Isolation Switch</td>
+        <td class="e-val" colspan="3">{{ $siteEmerg['electrical_isolation_switch'] ?? '' ?: 'TBC — confirm at site induction' }}</td>
+    </tr>
+    <tr>
+        <td class="e-lbl">Fire Extinguisher Class Available</td>
+        <td class="e-val" colspan="3">{{ $siteEmerg['fire_extinguisher_class'] ?? '' ?: 'TBC — confirm at site induction' }}</td>
+    </tr>
 </table>
 @else
 <div style="border: 2pt solid #c00; background: #ffecec; padding: 8pt; margin: 6pt 0 12pt 0; color: #900; font-weight: 700; text-align: center;">

@@ -407,6 +407,9 @@ class RamsController extends Controller
             'site_emergency_first_aider_name'      => ['nullable', 'string', 'max:255'],
             'site_emergency_first_aider_contact'   => ['nullable', 'string', 'max:255'],
             'site_emergency_defibrillator_location' => ['nullable', 'string', 'max:255'],
+            // Site emergency details (260712-w5k Task 3) — 2 new capture fields
+            'site_emergency_electrical_isolation_switch' => ['nullable', 'string', 'max:500'],
+            'site_emergency_fire_extinguisher_class'     => ['nullable', 'string', 'max:255'],
         ]);
 
         // Treat an empty-string `project_ref` submission as "not provided" so
@@ -549,14 +552,17 @@ class RamsController extends Controller
         // sub-key. PDF Section 7.0 renders a populated table when any field
         // has a value, and a red "TBC AT SITE INDUCTION" banner otherwise.
         $reviewedData['site_emergency'] = [
-            'nearest_hospital'       => $validated['site_emergency_nearest_hospital']      ?? '',
-            'hospital_address'       => $validated['site_emergency_hospital_address']      ?? '',
-            'fire_assembly_point'    => $validated['site_emergency_fire_assembly_point']   ?? '',
-            'fire_warden_name'       => $validated['site_emergency_fire_warden_name']      ?? '',
-            'fire_warden_contact'    => $validated['site_emergency_fire_warden_contact']   ?? '',
-            'first_aider_name'       => $validated['site_emergency_first_aider_name']      ?? '',
-            'first_aider_contact'    => $validated['site_emergency_first_aider_contact']   ?? '',
-            'defibrillator_location' => $validated['site_emergency_defibrillator_location'] ?? '',
+            'nearest_hospital'            => $validated['site_emergency_nearest_hospital']            ?? '',
+            'hospital_address'            => $validated['site_emergency_hospital_address']            ?? '',
+            'fire_assembly_point'         => $validated['site_emergency_fire_assembly_point']         ?? '',
+            'fire_warden_name'            => $validated['site_emergency_fire_warden_name']            ?? '',
+            'fire_warden_contact'         => $validated['site_emergency_fire_warden_contact']         ?? '',
+            'first_aider_name'            => $validated['site_emergency_first_aider_name']            ?? '',
+            'first_aider_contact'         => $validated['site_emergency_first_aider_contact']         ?? '',
+            'defibrillator_location'      => $validated['site_emergency_defibrillator_location']      ?? '',
+            // 260712-w5k Task 3 — 2 new capture fields
+            'electrical_isolation_switch' => $validated['site_emergency_electrical_isolation_switch'] ?? '',
+            'fire_extinguisher_class'     => $validated['site_emergency_fire_extinguisher_class']     ?? '',
         ];
 
         // Also mirror site_emergency into generated_data so the PDF template's
