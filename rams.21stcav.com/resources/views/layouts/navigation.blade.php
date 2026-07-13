@@ -461,6 +461,22 @@
                 </svg>
                 Design System
             </a>
+
+            {{-- Quick task 260713-sk1 — throwaway React Flow schematic editor
+                 spike. Only shown while SPIKE_SCHEMATIC_ENABLED=true so the
+                 link vanishes once the spike gets deleted (or if the kill-switch
+                 is flipped in prod). 2-week review deadline: 2026-07-27. --}}
+            @if(config('services.spike_schematic_enabled'))
+                <a href="{{ route('spike.schematic.editor') }}"
+                   class="tnav-admin-item {{ request()->routeIs('spike.schematic.editor') ? 'active' : '' }}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M9 3v6l-4 6a4 4 0 0 0 3.3 6.2h7.4A4 4 0 0 0 19 15l-4-6V3"/>
+                        <line x1="9" y1="3" x2="15" y2="3"/>
+                        <line x1="8" y1="13" x2="16" y2="13"/>
+                    </svg>
+                    🧪 Schematic Spike
+                </a>
+            @endif
         </div>
     </div>
     @endif

@@ -29,6 +29,7 @@ use App\Http\Controllers\QuoteWerksImportController;
 use App\Http\Controllers\RamsController;
 use App\Http\Controllers\RamsReviewController;
 use App\Http\Controllers\SiteSurveyController;
+use App\Http\Controllers\SpikeSchematicController;
 use App\Http\Controllers\SurveyController;
 use App\Http\Controllers\TaskAssignmentController;
 use App\Http\Controllers\TaskPhotoController;
@@ -184,6 +185,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/design', fn () => view('design-gallery'))
         ->name('design.gallery')
         ->middleware('admin');
+
+    // ── /spike/schematic-editor — throwaway React Flow discovery spike ──
+    // Quick task 260713-sk1. Controller enforces feature-flag 404 +
+    // admin 403 gates internally (kept OUT of the admin middleware
+    // group so the flag-off 404 fires cleanly for non-admins too).
+    // 2-week review deadline: 2026-07-27 — commit or delete.
+    Route::get('/spike/schematic-editor', [SpikeSchematicController::class, 'show'])
+        ->name('spike.schematic.editor');
 
     // ── Profile ───────────────────────────────────────────────────────────
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    // ── Schematic editor discovery spike (260713-sk1) ─────────────
+    // Kill-switch for the throwaway React Flow spike at
+    // /spike/schematic-editor. Default off — set SPIKE_SCHEMATIC_ENABLED=true
+    // in live .env after 2026-07-27 review to keep it, or delete the
+    // whole branch. Route 404s + Admin dropdown link hides when false.
+    'spike_schematic_enabled' => env('SPIKE_SCHEMATIC_ENABLED', false),
+
 ];
