@@ -908,6 +908,20 @@ class ProjectPackageReviewController extends Controller
 
     private function authorizePackage(ProjectPackage $package): void
     {
+        // Temp diagnostic — DELETE ME after 403 root-cause found
+        \Log::info('ProjectPackageReviewController::authorizePackage — session state', [
+            'auth_check'    => auth()->check(),
+            'auth_id'       => auth()->id(),
+            'session_id'    => session()->getId(),
+            'session_has_login_key' => collect(session()->all())->keys()->contains(fn ($k) => str_starts_with($k, 'login_')),
+            'cookie_names'  => array_keys(request()->cookies->all()),
+            'session_cookie_name' => config('session.cookie'),
+            'has_session_cookie'  => request()->hasCookie(config('session.cookie')),
+            'request_url'   => request()->fullUrl(),
+            'headers_have_csrf' => request()->hasHeader('X-CSRF-TOKEN'),
+            'user_agent'    => substr((string) request()->header('User-Agent'), 0, 80),
+        ]);
+
         abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
     }
 
