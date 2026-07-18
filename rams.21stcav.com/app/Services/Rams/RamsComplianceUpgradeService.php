@@ -1249,9 +1249,25 @@ class RamsComplianceUpgradeService
         // Fix double spaces / leading/trailing whitespace
         $text = trim(preg_replace('/\s{2,}/', ' ', $text));
 
-        // Apply typo corrections (case-insensitive, preserve original casing where possible)
+        // Apply typo corrections case-insensitively BUT preserve original casing
+        // of the matched word — "Exisiting" → "Existing", "EXISITING" → "EXISTING",
+        // "exisiting" → "existing". Plain str_ireplace flattened everything to the
+        // replacement's lowercase form, losing sentence-start capitalisation.
         foreach ($typoMap as $wrong => $right) {
-            $text = str_ireplace($wrong, $right, $text);
+            $text = preg_replace_callback(
+                '/\b' . preg_quote($wrong, '/') . '\b/i',
+                static function (array $m) use ($right): string {
+                    $matched = $m[0];
+                    if (preg_match('/^[A-Z]+$/', $matched)) {
+                        return strtoupper($right);          // FULL CAPS
+                    }
+                    if (preg_match('/^[A-Z]/', $matched)) {
+                        return ucfirst($right);             // Title / sentence start
+                    }
+                    return $right;                          // lowercase
+                },
+                $text
+            );
         }
 
         // Remove orphan punctuation artifacts

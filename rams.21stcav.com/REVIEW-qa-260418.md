@@ -4,6 +4,27 @@ Reviewed 55 files across controllers, jobs, services, models, migrations, routes
 
 ---
 
+## 🟢 Closure log — 2026-07-14 (quick task 260714)
+
+All 12 LOWs closed. 4 auto-closed by intervening work between 2026-04-18 and 2026-07-14; 4 fixed inline in this pass; 4 declined as trivial/informational-only (see per-item notes below).
+
+- **L-01 — auto-closed.** Stray `count())` file no longer in repo root.
+- **L-02 — auto-closed.** `QuoteParserService-working0904.php` no longer in `app/Services/`.
+- **L-03 — auto-closed.** `retryGeneration` at `WorksheetController.php:239` now precedes `destroy` at `:285`, matching the section divider.
+- **L-04 — auto-closed.** `RamsController::create()` no longer contains an `abort(403, 'You do not own this project.')` — the ownership branch was removed when the workspace went shared.
+- **L-05 — fixed.** Removed 3 dead `abort_unless(auth()->check(), 403)` calls: `ProjectController::show()` :118, `ProjectController::transition()` :297, `RamsController::generateFromProject()` :230. All routes are already inside the `auth` middleware group, so the check could never fail. Replaced each with an inline "(auth is already enforced by the route's `auth` middleware group)" comment.
+- **L-06 — declined.** `site_contact` max is `200`, not `500` — the review body already conceded 200 is fine. Reducing to 150 is a preference, not a correctness fix.
+- **L-07 — declined.** `crc32()` variant selection: the `abs((int) crc32(...))` guard is fine on both 32-bit and 64-bit PHP. The PHP_INT_MIN edge case cited is unreachable from string inputs.
+- **L-08 — fixed.** Moved inline `<style>` block from `resources/views/components/section-card.blade.php:45-54` into `resources/css/app.css` under a section header comment. Each render no longer duplicates the CSS.
+- **L-09 — declined.** Review body itself says "None required; document the behavior." Documented here — canonical-shape enforcement in `SurveyController::normalizeEquipment()` intentionally drops out-of-schema keys.
+- **L-10 — declined.** `t()` audit — spot-check across current `OmManualDocxService` shows callers all pass `string|null`, not arrays. No live bug.
+- **L-11 — fixed.** `RamsComplianceUpgradeService::applyTypoFixes()` — swapped `str_ireplace` for a `preg_replace_callback` that inspects the matched word's casing and applies `strtoupper` (all-caps), `ucfirst` (title/sentence-start), or lowercase to the replacement. "Exisiting" → "Existing", "EXISITING" → "EXISTING", "exisiting" → "existing". Smoke-tested.
+- **L-12 — declined.** Review body itself says "Not critical — consistent visual treatment is acceptable." Consistent grey `sb--grey` for all `draft` statuses across models is deliberate.
+
+**Result:** RAMS QA backlog cleared. No open items from 2026-04-18 code review remain.
+
+---
+
 ## CRITICAL
 
 ### C-01: Two classes named `CableScheduleGeneratorService` in different namespaces — collision and confusion hazard

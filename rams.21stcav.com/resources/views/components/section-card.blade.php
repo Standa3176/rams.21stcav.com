@@ -41,14 +41,3 @@
     @endif
 
 </div>
-
-<style>
-.section-block--flush                { padding: 0; overflow: hidden; }
-.section-card__header--flush         { padding: 1rem 1.5rem; margin-bottom: 0; }
-.section-card__body--flush           { overflow-x: auto; }
-.section-card__footer {
-    padding: .85rem 1.5rem;
-    border-top: 1px solid var(--border);
-    background: #FAFAFA;
-}
-</style>

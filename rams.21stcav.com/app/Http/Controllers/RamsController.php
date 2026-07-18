@@ -227,7 +227,7 @@ class RamsController extends Controller
     public function generateFromProject(Project $project): RedirectResponse
     {
         // Shared workspace: any authenticated user has full access.
-        abort_unless(auth()->check(), 403);
+        // (auth is already enforced by the route's `auth` middleware group.)
 
         $package = $project->latestPackage;
 

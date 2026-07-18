@@ -115,7 +115,7 @@ class ProjectController extends Controller
     public function show(Project $project): View
     {
         // D-15: Projects are shared across all authenticated users.
-        abort_unless(auth()->check(), 403);
+        // (auth is already enforced by the route's `auth` middleware group.)
 
         // Eager-load all related data to prevent N+1 queries on the show page.
         $project->load([
@@ -294,7 +294,7 @@ class ProjectController extends Controller
     public function transition(Request $request, Project $project): RedirectResponse
     {
         // D-19: Any authenticated user can trigger lifecycle transitions.
-        abort_unless(auth()->check(), 403);
+        // (auth is already enforced by the route's `auth` middleware group.)
 
         $validated = $request->validate([
             'to_status' => ['required', 'string'],
