@@ -238,6 +238,15 @@
 
 @section('content')
 
+{{-- AI-chat drawer trigger + panel. Only appears when the RAMS is completed
+     (i.e. has generated_data to edit). Auto-opens when the page is loaded
+     with ?chat=1, which is what the "Edit via AI chat" row-action link uses. --}}
+<x-document-edit-drawer
+    type="rams"
+    :id="$rams->id"
+    label="RAMS"
+    :visible="$rams->status === \App\Models\RamsDocument::STATUS_COMPLETED" />
+
 @php
     use App\Services\Rams\RamsDiffService;
 
