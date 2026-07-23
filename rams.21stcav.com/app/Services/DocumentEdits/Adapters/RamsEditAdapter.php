@@ -60,6 +60,7 @@ class RamsEditAdapter implements DocumentEditAdapterInterface
             'remove_client_responsibility',
             'add_method_statement_note',
             'set_method_statement_notes',
+            'remove_room',
         ];
     }
 
@@ -107,6 +108,10 @@ class RamsEditAdapter implements DocumentEditAdapterInterface
                 'args' => ['text' => 'string — full replacement value for method_statement_notes (overwrites existing).'],
                 'notes' => 'Prefer add_method_statement_note unless the user explicitly asks to replace the whole block.',
             ],
+            'remove_room' => [
+                'args' => ['room' => 'string — name of the room to remove from the RAMS. Case-insensitive, whitespace-tolerant.'],
+                'notes' => 'Use this when the user says "exclude Saffron", "skip Saffron", "don\'t include Saffron", "remove Saffron room", "Saffron will be done later", etc. Removes the room from reviewed_data.room_overviews[] — the source of truth the RAMS regen pipeline reads. Do NOT use add_exclusion for this — add_exclusion just appends free text to the scope-exclusions clause and does not affect which rooms are generated. Idempotent: if the room is not present, this is a no-op success (safe to retry).',
+            ],
         ];
     }
 
@@ -132,6 +137,7 @@ class RamsEditAdapter implements DocumentEditAdapterInterface
             'remove_client_responsibility'=> $this->applyRemoveClientResp($payload, $op),
             'add_method_statement_note'   => $this->applyAddMethodStatementNote($payload, $op),
             'set_method_statement_notes'  => $this->applySetMethodStatementNotes($payload, $op),
+            'remove_room'                 => $this->applyRemoveRoom($payload, $op),
             default => ['ok' => false, 'code' => 'unknown_operation', 'error' => "Unknown RAMS op '{$op['op']}'"],
         };
     }
@@ -263,6 +269,32 @@ class RamsEditAdapter implements DocumentEditAdapterInterface
             (array) ($payload['reviewed_data']['client_responsibilities_expanded'] ?? []),
             fn ($x) => ! (is_array($x) && ($x['item'] ?? null) === $item),
         ));
+        return ['ok' => true, 'payload' => $payload];
+    }
+
+    /**
+     * Filter one room out of reviewed_data.room_overviews[] by case-insensitive
+     * name match. `reviewed_data.room_overviews[]` is the single source of truth
+     * the RAMS regen pipeline reads (RamsBuilderService derives generated_data.rooms,
+     * per-room method statement steps, per-room hazards, and per-room equipment
+     * scope from it). Filtering here excludes the room from all downstream sections.
+     *
+     * Idempotent — removing an unknown room name is a no-op success so chat
+     * retries don't error.
+     */
+    private function applyRemoveRoom(array $payload, array $op): array
+    {
+        $name = mb_strtolower(trim((string) ($op['room'] ?? '')));
+        if ($name === '') {
+            return ['ok' => false, 'code' => 'invalid_op', 'error' => 'remove_room requires a non-empty `room` name'];
+        }
+
+        $payload['reviewed_data']['room_overviews'] = array_values(array_filter(
+            (array) ($payload['reviewed_data']['room_overviews'] ?? []),
+            fn ($r) => ! is_array($r)
+                || mb_strtolower(trim((string) ($r['room'] ?? ''))) !== $name,
+        ));
+
         return ['ok' => true, 'payload' => $payload];
     }
 
