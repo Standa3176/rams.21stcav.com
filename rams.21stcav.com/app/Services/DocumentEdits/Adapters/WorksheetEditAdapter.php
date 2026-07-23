@@ -60,6 +60,25 @@ class WorksheetEditAdapter implements DocumentEditAdapterInterface
             'append_install_step',
             'replace_install_step',
             'update_room_summary',
+            'remove_room',
+        ];
+    }
+
+    /**
+     * Per-op argument schemas surfaced to the AI parser. Partial by design — only
+     * ops where the AI has been observed to reach for the wrong operation get a
+     * schema hint. Other ops rely on op-name + context alone (same historical
+     * pattern used by add_blocker / add_tool / etc.).
+     *
+     * @return array<string, array{args:array<string,string>, notes?:string}>
+     */
+    public function operationSchemas(): array
+    {
+        return [
+            'remove_room' => [
+                'args' => ['room' => 'string — name of the room to remove from the worksheet. Case-insensitive, whitespace-tolerant. Matches on the room "name" field.'],
+                'notes' => 'Use this when the user says "exclude X", "skip X", "don\'t include X", "remove X room", "X will be done later", etc. Removes the room from generated_data.rooms[] so downstream rendering (install steps, tools, blockers scoped to the room) no longer emits it.',
+            ],
         ];
     }
 
@@ -74,12 +93,37 @@ class WorksheetEditAdapter implements DocumentEditAdapterInterface
             'append_install_step'  => $this->applyAppendInstallStep($payload, $op),
             'replace_install_step' => $this->applyReplaceInstallStep($payload, $op),
             'update_room_summary'  => $this->applyUpdateRoomSummary($payload, $op),
+            'remove_room'          => $this->applyRemoveRoom($payload, $op),
             default => [
                 'ok'    => false,
                 'code'  => 'unknown_operation',
                 'error' => "Unknown worksheet operation '{$opName}'",
             ],
         };
+    }
+
+    /**
+     * Filter one room out of generated_data.rooms[] by case-insensitive name
+     * match. Matches on the room "name" field (see indexRoomsByName). All
+     * per-room content (install_steps, tools, category_summary,
+     * room_works_description) is nested under that entry, so the filter
+     * removes the whole scope in one operation. Idempotent — removing an
+     * unknown room name is a no-op success.
+     */
+    private function applyRemoveRoom(array $payload, array $op): array
+    {
+        $name = mb_strtolower(trim((string) ($op['room'] ?? '')));
+        if ($name === '') {
+            return ['ok' => false, 'code' => 'invalid_op', 'error' => 'remove_room requires a non-empty `room` name'];
+        }
+
+        $payload['rooms'] = array_values(array_filter(
+            (array) ($payload['rooms'] ?? []),
+            fn ($r) => ! is_array($r)
+                || mb_strtolower(trim((string) ($r['name'] ?? ''))) !== $name,
+        ));
+
+        return ['ok' => true, 'payload' => $payload];
     }
 
     // ─── Op implementations ──────────────────────────────────────────────────
