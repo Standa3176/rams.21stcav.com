@@ -371,6 +371,71 @@
     display: inline-block;
     transition: transform .15s;
 }
+
+/* ── Quick task 260723-eq1 — equipment soft-delete graveyard ─────────────
+   Deleted rows carry data-deleted="1". They are hidden by default; the
+   header "Show N deleted rows" toggle adds .show-deleted to #s-equipment
+   which unhides them. Buttons swap on the row based on data-deleted so
+   the same td can host both active (× Delete, ⎘ Split) and deleted
+   (↺ Restore, 🗑 Purge) actions without JS-driven markup swaps. */
+#s-equipment tr[data-equip-row][data-deleted="1"] { display: none; }
+#s-equipment.show-deleted tr[data-equip-row][data-deleted="1"] { display: table-row; }
+#s-equipment tr[data-equip-row][data-deleted="1"] {
+    background: #FEF3F2;
+}
+#s-equipment tr[data-equip-row][data-deleted="1"] td { opacity: .55; }
+#s-equipment tr[data-equip-row][data-deleted="1"] textarea.equip-input,
+#s-equipment tr[data-equip-row][data-deleted="1"] input[type="text"],
+#s-equipment tr[data-equip-row][data-deleted="1"] input[type="number"] {
+    text-decoration: line-through;
+}
+/* Button-group cell: show active-mode buttons on live rows and
+   deleted-mode buttons on graveyard rows. Purely CSS-driven so
+   toggling data-deleted on the tr flips visibility instantly. */
+#s-equipment .col-actions .btn-restore,
+#s-equipment .col-actions .btn-purge   { display: none; }
+#s-equipment tr[data-deleted="1"] .col-actions .btn-active-delete,
+#s-equipment tr[data-deleted="1"] .col-actions .btn-split { display: none; }
+#s-equipment tr[data-deleted="1"] .col-actions .btn-restore,
+#s-equipment tr[data-deleted="1"] .col-actions .btn-purge  { display: inline-block; }
+#s-equipment .col-actions {
+    width: 96px;
+    text-align: right;
+    white-space: nowrap;
+}
+#s-equipment .col-actions button {
+    background: none;
+    border: 0;
+    padding: 2px 6px;
+    font-size: .82rem;
+    color: var(--text-muted, #6B7280);
+    cursor: pointer;
+    border-radius: 3px;
+}
+#s-equipment .col-actions button:hover { color: #111; background: rgba(0,0,0,.05); }
+#s-equipment .col-actions .btn-split:hover { color: #0f5460; }
+#s-equipment .col-actions .btn-active-delete:hover,
+#s-equipment .col-actions .btn-purge:hover { color: #b02a37; }
+#s-equipment .col-actions .btn-restore:hover { color: #0f5460; }
+#s-equipment .equipment-deleted-toggle {
+    padding: .5rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    font-size: .78rem;
+    color: var(--text-muted, #6B7280);
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+}
+#s-equipment .equipment-deleted-toggle button {
+    background: none;
+    border: 1px solid var(--border, #d1d5db);
+    padding: .2rem .55rem;
+    border-radius: 4px;
+    font-size: .78rem;
+    color: inherit;
+    cursor: pointer;
+}
+#s-equipment .equipment-deleted-toggle button:hover { background: var(--bg, #f7f7f7); }
 </style>
 @endpush
 
@@ -752,7 +817,12 @@
             }
         }
     @endphp
-    <div class="review-section" id="s-equipment">
+    {{-- Quick task 260723-eq1: soft-delete graveyard + Task 3 multi-select
+         live inside this Alpine component. equipmentSection() is defined
+         at the bottom of the script block below. --}}
+    <div class="review-section" id="s-equipment"
+         x-data="equipmentSection()"
+         :class="{ 'show-deleted': showDeleted }">
         <div class="review-section-header">
             <h2>3. Equipment</h2>
             <span style="font-size:.78rem;color:var(--text-muted);">
@@ -822,15 +892,41 @@
             @php
                 // Legacy shape for the rest of the section — kept as-is so
                 // downstream code sees the same variables it saw before.
+                //
+                // Quick task 260723-eq1: also render the soft-delete
+                // graveyard alongside active rows so PMs can undo mis-clicks
+                // after saving. Deleted rows carry deleted=true and are
+                // hidden by default (CSS rule scoped to #s-equipment); the
+                // "Show N deleted" header toggle unhides them. Their hidden
+                // deleted_at + deleted_by fields round-trip so
+                // parseReviewPayload() preserves the original stamps.
                 $rawEquipment = session()->hasOldInput()
                     ? (old('equipment', []) ?? [])
                     : ($reviewPayload['equipment'] ?? []);
+                $rawEquipmentDeleted = session()->hasOldInput()
+                    ? [] // when old-input is present, deleted rows are ALREADY in $rawEquipment carrying deleted=1
+                    : ($reviewPayload['equipment_deleted'] ?? []);
 
                 $equipmentRows = [];
+                $nextEquipIdx  = 0;
                 foreach ($rawEquipment as $i => $item) {
                     $equipmentRows[] = [
-                        'idx'  => $i,
-                        'item' => $item,
+                        'idx'     => $i,
+                        'item'    => $item,
+                        // old-input path may carry deleted=1 inline for form re-render
+                        'deleted' => ! empty($item['deleted']),
+                    ];
+                    if (is_int($i) && $i >= $nextEquipIdx) {
+                        $nextEquipIdx = $i + 1;
+                    }
+                }
+                foreach ($rawEquipmentDeleted as $j => $item) {
+                    // Offset graveyard indices so hidden equipment[N][*] names
+                    // don't collide with the active list on POST.
+                    $equipmentRows[] = [
+                        'idx'     => $nextEquipIdx + (int) $j,
+                        'item'    => $item,
+                        'deleted' => true,
                     ];
                 }
 
@@ -852,7 +948,26 @@
                     }
                     $equipmentByCategory[$cat][] = $row;
                 }
+
+                $totalDeletedRows = count($rawEquipmentDeleted);
             @endphp
+
+            {{-- Quick task 260723-eq1 — deleted-rows fold toggle. Shows
+                 "N deleted rows" count + Show/Hide button. Server rendered
+                 x-text keeps the number in sync as bulk-actions in Task 3
+                 restore or purge rows on the client. --}}
+            <div class="equipment-deleted-toggle"
+                 x-show="deletedCount() > 0 || {{ $totalDeletedRows }} > 0"
+                 x-cloak>
+                <span>
+                    <strong x-text="deletedCount()">{{ $totalDeletedRows }}</strong>
+                    deleted row(s) hidden from the lists below
+                </span>
+                <button type="button" @click="showDeleted = ! showDeleted"
+                        x-text="showDeleted ? 'Hide deleted' : 'Show deleted'">
+                    Show deleted
+                </button>
+            </div>
 
             @foreach ($categoryOptions as $catKey => $catLabel)
                 @php $catRowCount = count($equipmentByCategory[$catKey] ?? []); @endphp
@@ -936,14 +1051,34 @@
                                 @php
                                     $i    = $row['idx'];
                                     $item = $row['item'];
+                                    $isDeleted        = ! empty($row['deleted']);
                                     $selectedCategory = old("equipment.{$i}.category", $item['category'] ?? $catKey);
+                                    $deletedAtVal     = (string) old("equipment.{$i}.deleted_at", $item['deleted_at'] ?? '');
+                                    $deletedByVal     = (string) old("equipment.{$i}.deleted_by", $item['deleted_by'] ?? '');
                                 @endphp
-                                <tr data-equip-row="1">
+                                {{-- Quick task 260723-eq1 — data-deleted flips CSS-driven
+                                     visibility of the col-actions button group and applies
+                                     the graveyard tint/strikethrough. data-row-id is the
+                                     stable handle Task 3's multi-select toolbar uses. --}}
+                                <tr data-equip-row="1"
+                                    data-deleted="{{ $isDeleted ? '1' : '0' }}"
+                                    data-row-id="{{ $i }}">
                                 <td class="col-qty">
                                     <input type="number"
                                            name="equipment[{{ $i }}][quantity]"
                                            value="{{ old("equipment.{$i}.quantity", $item['quantity'] ?? 1) }}"
                                            min="1" max="999">
+                                    {{-- Hidden soft-delete flag — mutated by softDelete()/restore().
+                                         Always posted so the server sees the explicit state. --}}
+                                    <input type="hidden"
+                                           name="equipment[{{ $i }}][deleted]"
+                                           value="{{ $isDeleted ? '1' : '0' }}">
+                                    @if($isDeleted)
+                                        {{-- Preserve original stamps on round-trip so parseReviewPayload
+                                             keeps the deletion metadata instead of re-stamping with now(). --}}
+                                        <input type="hidden" name="equipment[{{ $i }}][deleted_at]" value="{{ $deletedAtVal }}">
+                                        <input type="hidden" name="equipment[{{ $i }}][deleted_by]" value="{{ $deletedByVal }}">
+                                    @endif
                                 </td>
                                 <td style="width:140px;">
                                     <textarea
@@ -1034,8 +1169,34 @@
                                            maxlength="150"
                                            style="font-size:.82rem;">
                                 </td>
-                                <td class="col-del">
-                                    <button type="button" class="btn-remove" onclick="removeRow(this)" title="Remove">✕</button>
+                                {{-- Quick task 260723-eq1 — button-group cell.
+                                     Same td hosts both active-mode (Split, Delete)
+                                     and deleted-mode (Restore, Purge) buttons. CSS
+                                     rules keyed off tr[data-deleted] hide the wrong
+                                     pair per row state — softDelete()/restore() just
+                                     flip data-deleted and the visibility swap is
+                                     purely CSS. --}}
+                                <td class="col-actions">
+                                    <button type="button" class="btn-split"
+                                            @click="split($el.closest('tr'))"
+                                            title="Split into individual rows (qty=1 each)">
+                                        ⎘
+                                    </button>
+                                    <button type="button" class="btn-active-delete"
+                                            @click="softDelete($el.closest('tr'))"
+                                            title="Move to deleted (can be restored)">
+                                        ×
+                                    </button>
+                                    <button type="button" class="btn-restore"
+                                            @click="restore($el.closest('tr'))"
+                                            title="Restore this row">
+                                        ↺
+                                    </button>
+                                    <button type="button" class="btn-purge"
+                                            @click="purge($el.closest('tr'))"
+                                            title="Permanently delete (cannot be undone)">
+                                        🗑
+                                    </button>
                                 </td>
                                 </tr>
                             @endforeach
@@ -1683,11 +1844,145 @@ function zonePicker(initial, vocab, isFreeTextInitial) {
     };
 }
 
+// ─── Quick task 260723-eq1 — equipment soft-delete / restore / purge / split ─
+// Alpine factory wrapping the #s-equipment section. Row-level buttons (@click)
+// resolve softDelete / restore / purge / split here; CSS visibility keyed off
+// tr[data-deleted] flips button pairs so no per-row Alpine state is needed.
+// Task 3 extends this same object with selectedRowIds + bulk actions.
+function equipmentSection() {
+    return {
+        showDeleted: false,
+
+        // Reactive counter used by the "N deleted rows hidden" header strip.
+        // Walks the whole #s-equipment tree once per Alpine re-render — cheap
+        // even at 100+ rows.
+        deletedCount() {
+            if (!this.$el) return 0;
+            return this.$el.querySelectorAll('tr[data-equip-row][data-deleted="1"]').length;
+        },
+
+        softDelete(row) {
+            if (!row) return;
+            if (!confirm('Move to deleted? You can restore before approving.')) return;
+            this._markDeleted(row, true);
+        },
+
+        restore(row) {
+            if (!row) return;
+            this._markDeleted(row, false);
+        },
+
+        purge(row) {
+            if (!row) return;
+            if (!confirm('Permanently delete this row? This cannot be undone.')) return;
+            const tbody = row.closest('tbody');
+            row.remove();
+            if (tbody && typeof ensureEquipmentEmptyState === 'function') {
+                ensureEquipmentEmptyState(tbody);
+            }
+        },
+
+        split(row) {
+            if (!row) return;
+            const qtyInput = row.querySelector('input[name^="equipment["][name$="[quantity]"]');
+            if (!qtyInput) return;
+            const qty = parseInt(qtyInput.value, 10);
+            if (!qty || qty <= 1) return;
+            // Clone qty-1 times, each time re-indexing the clone so its
+            // equipment[N][*] inputs don't collide with anything else on the
+            // page. Zone / area / part / name copy over via cloneNode(true).
+            let anchor = row;
+            for (let n = 0; n < qty - 1; n++) {
+                const nextIdx = this._nextIndex();
+                const clone   = row.cloneNode(true);
+                this._reindexRow(clone, nextIdx);
+                // Fresh clones must land as active (in case source row was
+                // itself a hidden-deleted clone by mistake).
+                clone.dataset.deleted = '0';
+                const flag = clone.querySelector('input[name$="[deleted]"]');
+                if (flag) flag.value = '0';
+                const qEl = clone.querySelector('input[name$="[quantity]"]');
+                if (qEl) qEl.value = '1';
+                anchor.parentNode.insertBefore(clone, anchor.nextSibling);
+                anchor = clone;
+                // Alpine's mutation observer will initialise x-data trees
+                // (zonePicker) on the inserted node automatically.
+            }
+            qtyInput.value = '1';
+        },
+
+        // ── Internals ────────────────────────────────────────────────────
+        _markDeleted(row, deleted) {
+            row.dataset.deleted = deleted ? '1' : '0';
+            const flag = row.querySelector('input[name$="[deleted]"]');
+            if (flag) flag.value = deleted ? '1' : '0';
+            // Stamp inputs are added lazily on soft-delete so parseReviewPayload
+            // gets a value on the very first POST. Restore leaves them intact —
+            // the server ignores deleted_at/by when deleted=0.
+            if (deleted) {
+                const idxMatch = flag ? flag.name.match(/equipment\[(\d+)\]/) : null;
+                const idx = idxMatch ? idxMatch[1] : (row.dataset.rowId || '0');
+                if (!row.querySelector('input[name$="[deleted_at]"]')) {
+                    const at = document.createElement('input');
+                    at.type  = 'hidden';
+                    at.name  = `equipment[${idx}][deleted_at]`;
+                    at.value = new Date().toISOString();
+                    row.querySelector('td.col-qty').appendChild(at);
+                }
+                if (!row.querySelector('input[name$="[deleted_by]"]')) {
+                    const by = document.createElement('input');
+                    by.type  = 'hidden';
+                    by.name  = `equipment[${idx}][deleted_by]`;
+                    by.value = '{{ auth()->id() ?? 0 }}';
+                    row.querySelector('td.col-qty').appendChild(by);
+                }
+            }
+        },
+
+        _nextIndex() {
+            if (!this.$el) return Date.now();
+            const inputs = this.$el.querySelectorAll('input[name^="equipment["], textarea[name^="equipment["], select[name^="equipment["]');
+            let max = -1;
+            inputs.forEach(el => {
+                const m = el.name.match(/^equipment\[(\d+)\]/);
+                if (m) {
+                    const n = parseInt(m[1], 10);
+                    if (n > max) max = n;
+                }
+            });
+            return max + 1;
+        },
+
+        _reindexRow(row, newIdx) {
+            row.dataset.rowId = String(newIdx);
+            // Plain name="equipment[N][...]" attrs
+            row.querySelectorAll('[name^="equipment["]').forEach(el => {
+                el.name = el.name.replace(/^equipment\[\d+\]/, `equipment[${newIdx}]`);
+            });
+            // Alpine :name bindings (zonePicker's select + input carry
+            // `:name="isFreeText ? '' : 'equipment[N][zone]'"`) — the literal
+            // is baked in by Blade at first render, so rewrite it in the clone.
+            row.querySelectorAll('[\\:name]').forEach(el => {
+                const val = el.getAttribute(':name');
+                if (val) {
+                    el.setAttribute(':name', val.replace(/equipment\[\d+\]/g, `equipment[${newIdx}]`));
+                }
+            });
+        },
+    };
+}
+// Expose to Alpine — it resolves x-data expressions off the global scope.
+window.equipmentSection = equipmentSection;
+
 // ─── Row templates ────────────────────────────────────────────────────────────
 function equipmentRowTemplate(idx, category) {
-    return `<tr data-equip-row="1">
+    // Quick task 260723-eq1 — JS template mirrors the Blade row (data-deleted,
+    // hidden deleted flag, col-actions button group). Kept in sync with the
+    // server-rendered template around review.blade.php line 941.
+    return `<tr data-equip-row="1" data-deleted="0" data-row-id="${idx}">
         <td class="col-qty">
             <input type="number" name="equipment[${idx}][quantity]" value="1" min="1" max="999">
+            <input type="hidden" name="equipment[${idx}][deleted]" value="0">
         </td>
         <td style="width:140px;">
             <textarea name="equipment[${idx}][part_number]" class="equip-input pn" rows="1"
@@ -1735,8 +2030,19 @@ function equipmentRowTemplate(idx, category) {
             <input type="text" name="equipment[${idx}][area]" placeholder="Type or pick a room…"
                    list="__proj_rooms" maxlength="150" style="font-size:.82rem;">
         </td>
-        <td class="col-del">
-            <button type="button" class="btn-remove" onclick="removeRow(this)" title="Remove">✕</button>
+        <td class="col-actions">
+            <button type="button" class="btn-split"
+                    @click="split($el.closest('tr'))"
+                    title="Split into individual rows (qty=1 each)">⎘</button>
+            <button type="button" class="btn-active-delete"
+                    @click="softDelete($el.closest('tr'))"
+                    title="Move to deleted (can be restored)">×</button>
+            <button type="button" class="btn-restore"
+                    @click="restore($el.closest('tr'))"
+                    title="Restore this row">↺</button>
+            <button type="button" class="btn-purge"
+                    @click="purge($el.closest('tr'))"
+                    title="Permanently delete (cannot be undone)">🗑</button>
         </td>
     </tr>`;
 }
