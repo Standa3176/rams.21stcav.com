@@ -340,6 +340,14 @@ class ProjectPackageReviewController extends Controller
         $reviewPayload = $this->reviewDataService->normalise($raw);
         // Carry through room qty settings (not part of the core normalise schema)
         $reviewPayload['room_qtys'] = (array) ($raw['room_qtys'] ?? []);
+
+        // Quick task 260723-eq1: expose the soft-delete graveyard to the review
+        // view. The normaliser stripping in RamsReviewDataService only touches
+        // $reviewPayload['equipment']; equipment_deleted travels as its own
+        // top-level view variable with the same row shape (part_number, name,
+        // area, category, quantity, zone) plus deleted/deleted_at/deleted_by.
+        $reviewPayload['equipment_deleted'] = array_values((array) ($raw['equipment_deleted'] ?? []));
+
         $ppeOptions    = self::PPE_OPTIONS;
 
         return view('project-packages.review', compact('package', 'reviewPayload', 'ppeOptions'));
@@ -948,7 +956,15 @@ class ProjectPackageReviewController extends Controller
         $raw = $request->except(['_token', '_method', '_action']);
 
         // ── Equipment ─────────────────────────────────────────────────────────
-        $equipment = [];
+        // Quick task 260723-eq1: soft-delete graveyard split.
+        // Rows carry an optional `equipment[N][deleted]` marker. Active rows
+        // land in $raw['equipment']; soft-deleted rows land in
+        // $raw['equipment_deleted'] with `deleted:true` + `deleted_at` +
+        // `deleted_by` stamps. Downstream services (OmManualGeneratorService,
+        // BuildRamsDocumentJob, MiniOmBuilderService, ProjectPackageRamsReviewService)
+        // only read $raw['equipment'] so they stay untouched.
+        $active  = [];
+        $deleted = [];
         foreach (array_values($raw['equipment'] ?? []) as $item) {
             if (empty($item['name']) && empty($item['quantity'])) {
                 continue;
@@ -972,9 +988,20 @@ class ProjectPackageReviewController extends Controller
                 $entry['zone'] = $zone;
             }
 
-            $equipment[] = $entry;
+            if (! empty($item['deleted'])) {
+                // Preserve original stamps when the row round-trips (edit-save
+                // of a package that already has deleted rows). New soft-deletes
+                // stamp with now() + current user.
+                $entry['deleted']    = true;
+                $entry['deleted_at'] = (string) ($item['deleted_at'] ?? now()->toIso8601String());
+                $entry['deleted_by'] = (int)    ($item['deleted_by'] ?? auth()->id() ?? 0);
+                $deleted[] = $entry;
+            } else {
+                $active[] = $entry;
+            }
         }
-        $raw['equipment'] = $equipment;
+        $raw['equipment']         = $active;
+        $raw['equipment_deleted'] = $deleted;
 
         // ── Activities ────────────────────────────────────────────────────────
         $activities = [];
