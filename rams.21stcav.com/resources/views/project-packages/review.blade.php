@@ -436,6 +436,56 @@
     cursor: pointer;
 }
 #s-equipment .equipment-deleted-toggle button:hover { background: var(--bg, #f7f7f7); }
+
+/* Quick task 260723-eq1 Task 3 — multi-select bulk toolbar */
+#s-equipment .col-select {
+    width: 32px;
+    text-align: center;
+    padding: 0 .35rem;
+}
+#s-equipment .col-select input[type="checkbox"] {
+    cursor: pointer;
+    margin: 0;
+}
+#s-equipment .bulk-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 8;
+    background: #fffbea;
+    border: 1px solid #f0c36d;
+    border-radius: 6px;
+    margin: .5rem 1.25rem;
+    padding: .5rem .75rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: .82rem;
+    color: #5a4600;
+    box-shadow: 0 1px 3px rgba(0,0,0,.05);
+}
+#s-equipment .bulk-toolbar .bulk-count { font-weight: 600; margin-right: .5rem; }
+#s-equipment .bulk-toolbar button {
+    background: #fff;
+    border: 1px solid #d1b04e;
+    padding: .28rem .65rem;
+    border-radius: 4px;
+    font-size: .8rem;
+    color: #5a4600;
+    cursor: pointer;
+    line-height: 1.2;
+}
+#s-equipment .bulk-toolbar button:hover:not(:disabled) { background: #fdf3d0; }
+#s-equipment .bulk-toolbar button:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+}
+#s-equipment .bulk-toolbar .bulk-purge { color: #b02a37; border-color: #d99a9f; }
+#s-equipment .bulk-toolbar .bulk-clear {
+    margin-left: auto;
+    border: 0;
+    background: transparent;
+    color: #6B7280;
+}
 </style>
 @endpush
 
@@ -969,6 +1019,49 @@
                 </button>
             </div>
 
+            {{-- Quick task 260723-eq1 Task 3 — sticky bulk-action toolbar.
+                 Only appears while selectedRowIds.length > 0. Buttons disable
+                 when the action doesn't apply to the current selection (e.g.
+                 Split disables if no selected row has qty>1). --}}
+            <div class="bulk-toolbar"
+                 x-show="selectedRowIds.length > 0"
+                 x-cloak
+                 x-transition.opacity>
+                <span class="bulk-count">
+                    <span x-text="selectedRowIds.length"></span> selected
+                </span>
+                <button type="button"
+                        @click="bulkAction('delete')"
+                        :disabled="!canBulk('delete')"
+                        title="Move selected active rows to deleted">
+                    × Delete
+                </button>
+                <button type="button"
+                        @click="bulkAction('restore')"
+                        :disabled="!canBulk('restore')"
+                        title="Restore selected deleted rows">
+                    ↺ Restore
+                </button>
+                <button type="button"
+                        class="bulk-purge"
+                        @click="bulkAction('purge')"
+                        :disabled="!canBulk('purge')"
+                        title="Permanently delete selected (already-deleted) rows">
+                    🗑 Purge
+                </button>
+                <button type="button"
+                        @click="bulkAction('split')"
+                        :disabled="!canBulk('split')"
+                        title="Split selected qty>1 rows into individual qty=1 rows">
+                    ⎘ Split
+                </button>
+                <button type="button"
+                        class="bulk-clear"
+                        @click="clearSelection()">
+                    Clear
+                </button>
+            </div>
+
             @foreach ($categoryOptions as $catKey => $catLabel)
                 @php $catRowCount = count($equipmentByCategory[$catKey] ?? []); @endphp
                 {{-- Tier-1 v2b — empty categories collapse behind a <details>
@@ -993,6 +1086,14 @@
                 <table class="repeater-table">
                     <thead>
                         <tr>
+                            {{-- Quick task 260723-eq1 Task 3 — bulk-select column.
+                                 Master checkbox selects all visible rows in THIS
+                                 tbody (respects the showDeleted filter). --}}
+                            <th class="col-select">
+                                <input type="checkbox"
+                                       @change="toggleAllInTbody($event.target, '{{ $catKey }}')"
+                                       title="Select all visible rows in this category">
+                            </th>
                             <th class="col-qty">Qty</th>
                             <th style="width:140px;">Part Number</th>
                             <th>Equipment / Item Description</th>
@@ -1002,7 +1103,7 @@
                                 Zone <span style="opacity:.5;font-weight:400;cursor:help;" title="Free text creates a separate group on the diagram — use the dropdown for consistency.">ⓘ</span>
                             </th>
                             <th class="col-area">Title / Section</th>
-                            <th class="col-del"></th>
+                            <th class="col-actions"></th>
                         </tr>
                     </thead>
                     <tbody id="equipment-tbody-{{ $catKey }}">
@@ -1019,7 +1120,7 @@
                         @endphp
                         @forelse ($rowsByRoom as $roomName => $roomRows)
                             <tr data-room-row="1" style="background:var(--bg);">
-                                <td colspan="7" style="font-weight:600;color:#0f5460;padding:.4rem .75rem;border-bottom:1px solid var(--border);">
+                                <td colspan="8" style="font-weight:600;color:#0f5460;padding:.4rem .75rem;border-bottom:1px solid var(--border);">
                                     <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;">
                                         <span class="eq-area-label">{{ $roomName }}</span>
                                         @if($catKey === 'hardware')
@@ -1063,6 +1164,16 @@
                                 <tr data-equip-row="1"
                                     data-deleted="{{ $isDeleted ? '1' : '0' }}"
                                     data-row-id="{{ $i }}">
+                                <td class="col-select">
+                                    {{-- Quick task 260723-eq1 Task 3 — per-row select checkbox.
+                                         x-model binds into the wrapping equipmentSection component's
+                                         selectedRowIds array; value uses the same stable rowId that
+                                         data-row-id exposes so the toolbar can look the row up later. --}}
+                                    <input type="checkbox"
+                                           class="row-select"
+                                           x-model="selectedRowIds"
+                                           value="{{ $i }}">
+                                </td>
                                 <td class="col-qty">
                                     <input type="number"
                                            name="equipment[{{ $i }}][quantity]"
@@ -1200,10 +1311,10 @@
                                 </td>
                                 </tr>
                             @endforeach
-                            <tr data-room-row="1"><td colspan="7" style="height:6px;border:0;"></td></tr>
+                            <tr data-room-row="1"><td colspan="8" style="height:6px;border:0;"></td></tr>
                         @empty
                             <tr data-empty-row="1">
-                                <td colspan="7" style="color:#888;font-size:.82rem;padding:.75rem 1rem;">
+                                <td colspan="8" style="color:#888;font-size:.82rem;padding:.75rem 1rem;">
                                     No items in this category yet.
                                 </td>
                             </tr>
@@ -1848,10 +1959,18 @@ function zonePicker(initial, vocab, isFreeTextInitial) {
 // Alpine factory wrapping the #s-equipment section. Row-level buttons (@click)
 // resolve softDelete / restore / purge / split here; CSS visibility keyed off
 // tr[data-deleted] flips button pairs so no per-row Alpine state is needed.
-// Task 3 extends this same object with selectedRowIds + bulk actions.
+// Task 3 (multi-select bulk toolbar) reuses the same _doDelete / _doRestore /
+// _doPurge / _doSplit internals — row-level buttons prompt for confirmation,
+// bulk actions prompt once for the whole selection.
 function equipmentSection() {
     return {
         showDeleted: false,
+
+        // ── Multi-select (Task 3) ────────────────────────────────────────
+        // Bound to every row's checkbox via `x-model="selectedRowIds"`.
+        // Values are string row-ids matching tr[data-row-id]. Cleared after
+        // every bulk action so the toolbar collapses back to hidden.
+        selectedRowIds: [],
 
         // Reactive counter used by the "N deleted rows hidden" header strip.
         // Walks the whole #s-equipment tree once per Alpine re-render — cheap
@@ -1861,29 +1980,112 @@ function equipmentSection() {
             return this.$el.querySelectorAll('tr[data-equip-row][data-deleted="1"]').length;
         },
 
+        // ── Row-level actions (buttons inside col-actions) ───────────────
         softDelete(row) {
             if (!row) return;
             if (!confirm('Move to deleted? You can restore before approving.')) return;
-            this._markDeleted(row, true);
+            this._doDelete(row);
         },
 
         restore(row) {
             if (!row) return;
-            this._markDeleted(row, false);
+            this._doRestore(row);
         },
 
         purge(row) {
             if (!row) return;
             if (!confirm('Permanently delete this row? This cannot be undone.')) return;
+            this._doPurge(row);
+        },
+
+        split(row) {
+            if (!row) return;
+            this._doSplit(row);
+        },
+
+        // ── Multi-select toolbar actions (Task 3) ────────────────────────
+        toggleAllInTbody(masterCb, catKey) {
+            const tbody = document.getElementById('equipment-tbody-' + catKey);
+            if (!tbody) return;
+            const rows = Array.from(tbody.querySelectorAll('tr[data-equip-row]'))
+                .filter(r => this.showDeleted || r.dataset.deleted !== '1');
+            const ids = rows.map(r => r.dataset.rowId);
+            if (masterCb.checked) {
+                // Merge unique
+                const set = new Set(this.selectedRowIds.concat(ids));
+                this.selectedRowIds = Array.from(set);
+            } else {
+                const drop = new Set(ids);
+                this.selectedRowIds = this.selectedRowIds.filter(id => !drop.has(id));
+            }
+        },
+
+        clearSelection() {
+            this.selectedRowIds = [];
+            if (!this.$el) return;
+            // Also clear the master + per-row checkboxes visually.
+            this.$el.querySelectorAll('input.row-select, thead input[type="checkbox"]')
+                .forEach(cb => { cb.checked = false; });
+        },
+
+        canBulk(kind) {
+            const rows = this._selectedRows();
+            if (rows.length === 0) return false;
+            if (kind === 'delete')  return rows.some(r => r.dataset.deleted === '0');
+            if (kind === 'restore') return rows.some(r => r.dataset.deleted === '1');
+            if (kind === 'purge')   return rows.some(r => r.dataset.deleted === '1');
+            if (kind === 'split')   return rows.some(r => {
+                const q = r.querySelector('input[name$="[quantity]"]');
+                return q && parseInt(q.value, 10) > 1;
+            });
+            return false;
+        },
+
+        bulkAction(kind) {
+            const rows = this._selectedRows();
+            if (rows.length === 0) return;
+            if (kind === 'delete') {
+                const targets = rows.filter(r => r.dataset.deleted === '0');
+                if (targets.length === 0) return;
+                if (!confirm(`Move ${targets.length} row(s) to deleted? You can restore before approving.`)) return;
+                targets.forEach(r => this._doDelete(r));
+            }
+            else if (kind === 'restore') {
+                rows.filter(r => r.dataset.deleted === '1').forEach(r => this._doRestore(r));
+            }
+            else if (kind === 'purge') {
+                const targets = rows.filter(r => r.dataset.deleted === '1');
+                if (targets.length === 0) return;
+                if (!confirm(`Permanently delete ${targets.length} row(s)? This cannot be undone.`)) return;
+                targets.forEach(r => this._doPurge(r));
+            }
+            else if (kind === 'split') {
+                rows.filter(r => {
+                    const q = r.querySelector('input[name$="[quantity]"]');
+                    return q && parseInt(q.value, 10) > 1;
+                }).forEach(r => this._doSplit(r));
+            }
+            this.clearSelection();
+        },
+
+        // ── Internals ────────────────────────────────────────────────────
+        _selectedRows() {
+            if (!this.$el) return [];
+            return this.selectedRowIds
+                .map(id => this.$el.querySelector(`tr[data-equip-row][data-row-id="${id}"]`))
+                .filter(Boolean);
+        },
+
+        _doDelete(row) { this._markDeleted(row, true); },
+        _doRestore(row) { this._markDeleted(row, false); },
+        _doPurge(row) {
             const tbody = row.closest('tbody');
             row.remove();
             if (tbody && typeof ensureEquipmentEmptyState === 'function') {
                 ensureEquipmentEmptyState(tbody);
             }
         },
-
-        split(row) {
-            if (!row) return;
+        _doSplit(row) {
             const qtyInput = row.querySelector('input[name^="equipment["][name$="[quantity]"]');
             if (!qtyInput) return;
             const qty = parseInt(qtyInput.value, 10);
@@ -1903,6 +2105,8 @@ function equipmentSection() {
                 if (flag) flag.value = '0';
                 const qEl = clone.querySelector('input[name$="[quantity]"]');
                 if (qEl) qEl.value = '1';
+                // Clone should not carry the source row's checked state.
+                clone.querySelectorAll('input.row-select').forEach(cb => { cb.checked = false; });
                 anchor.parentNode.insertBefore(clone, anchor.nextSibling);
                 anchor = clone;
                 // Alpine's mutation observer will initialise x-data trees
@@ -1911,7 +2115,6 @@ function equipmentSection() {
             qtyInput.value = '1';
         },
 
-        // ── Internals ────────────────────────────────────────────────────
         _markDeleted(row, deleted) {
             row.dataset.deleted = deleted ? '1' : '0';
             const flag = row.querySelector('input[name$="[deleted]"]');
@@ -1968,6 +2171,12 @@ function equipmentSection() {
                     el.setAttribute(':name', val.replace(/equipment\[\d+\]/g, `equipment[${newIdx}]`));
                 }
             });
+            // The per-row select checkbox uses `value="${idx}"` — update to
+            // match the row's new data-row-id so future selects toggle the
+            // new id in the shared selectedRowIds array.
+            row.querySelectorAll('input.row-select').forEach(cb => {
+                cb.value = String(newIdx);
+            });
         },
     };
 }
@@ -1977,9 +2186,12 @@ window.equipmentSection = equipmentSection;
 // ─── Row templates ────────────────────────────────────────────────────────────
 function equipmentRowTemplate(idx, category) {
     // Quick task 260723-eq1 — JS template mirrors the Blade row (data-deleted,
-    // hidden deleted flag, col-actions button group). Kept in sync with the
-    // server-rendered template around review.blade.php line 941.
+    // hidden deleted flag, col-select checkbox, col-actions button group).
+    // Kept in sync with the server-rendered template around review.blade.php line 941.
     return `<tr data-equip-row="1" data-deleted="0" data-row-id="${idx}">
+        <td class="col-select">
+            <input type="checkbox" class="row-select" x-model="selectedRowIds" value="${idx}">
+        </td>
         <td class="col-qty">
             <input type="number" name="equipment[${idx}][quantity]" value="1" min="1" max="999">
             <input type="hidden" name="equipment[${idx}][deleted]" value="0">
@@ -2286,7 +2498,7 @@ document.addEventListener('change', function (e) {
         destRoomRow = document.createElement('tr');
         destRoomRow.setAttribute('data-room-row', '1');
         destRoomRow.style.background = 'var(--bg)';
-        destRoomRow.innerHTML = `<td colspan="6" style="font-weight:600;color:#0f5460;padding:.4rem .75rem;border-bottom:1px solid var(--border);">
+        destRoomRow.innerHTML = `<td colspan="8" style="font-weight:600;color:#0f5460;padding:.4rem .75rem;border-bottom:1px solid var(--border);">
             <span class="eq-area-label">General</span>
         </td>`;
         tbody.appendChild(destRoomRow);
@@ -2327,7 +2539,7 @@ function ensureEquipmentEmptyState(tbody) {
     if (!hasRows && !emptyRow) {
         emptyRow = document.createElement('tr');
         emptyRow.setAttribute('data-empty-row', '1');
-        emptyRow.innerHTML = `<td colspan="6" style="color:#888;font-size:.82rem;padding:.75rem 1rem;">
+        emptyRow.innerHTML = `<td colspan="8" style="color:#888;font-size:.82rem;padding:.75rem 1rem;">
             No items in this category yet.
         </td>`;
         tbody.appendChild(emptyRow);
