@@ -25,6 +25,31 @@ use Illuminate\Support\Str;
  */
 class QuoteWerksImportService
 {
+    /**
+     * QW section headers (LineType 32/256) serve two purposes:
+     *   - Rooms (Oregano, Cinnamon, Board Room, Reception)
+     *   - Groupings (Professional Services, Room Booking Panels, Summary, Delivery)
+     *
+     * The fetcher can't tell them apart — it threads all section headers into
+     * `area` on subsequent products and appends all of them to `rooms[]`.
+     * We fix that here in RAMS-specific transformation land where knowledge
+     * of "what is a real room" belongs (not in the SQL fetcher).
+     *
+     * Map format: regex → forced_category (null = clear area but keep the
+     * classifier's category output).
+     *
+     * @var array<string,string|null>
+     */
+    private const NON_ROOM_SECTION_PATTERNS = [
+        '/professional\s+services?/i' => 'services',
+        '/^\s*services?\s*$/i'        => 'services',
+        '/^\s*labour\s*$/i'           => 'services',
+        '/^\s*delivery\s*$/i'         => 'services',
+        '/^\s*consumables?\s*$/i'     => 'consumables',
+        '/^\s*summary\s*$/i'          => null,
+        '/room\s+booking\s+panels?/i' => null,
+    ];
+
     public function __construct(
         private readonly QuoteImportService          $importService,
         private readonly EquipmentCategoryClassifier $categoryClassifier,
@@ -94,6 +119,32 @@ class QuoteWerksImportService
             $unitPrice   = (float) ($item['unit_price'] ?? 0);
             $description = (string) ($item['description'] ?? '');
             $partNumber  = (string) ($item['part_number'] ?? '');
+            $area        = (string) ($item['area'] ?? '');
+            $location    = (string) ($item['location'] ?? ($area !== '' ? $area : ''));
+
+            // Canonical 7-value vocabulary via the shared classifier so
+            // the review UI dropdown + on-save reclassification never
+            // disagree. Pre-260725-qw3 this returned fabricated values
+            // (`display`, `audio`, `cable`, …) that were silently
+            // reverted to `hardware` on save.
+            $category = $this->categoryClassifier->classify([
+                'name'        => $description,
+                'description' => $description,
+                'part_number' => $partNumber,
+            ]);
+
+            // 260725-qw3 — re-route rows whose `area` is actually a QW
+            // grouping header ("Professional Services", "Room Booking
+            // Panels", "Delivery", "Summary") rather than a physical room.
+            // Clear the area (Blade renders empty as the "General" bucket
+            // the PM can reassign via multi-select bulk tools) and, if the
+            // pattern implies a category, force that category over the
+            // classifier's output.
+            [$area, $location, $category] = $this->applySectionHeaderReroute(
+                $area,
+                $location,
+                $category,
+            );
 
             return [
                 'quantity'    => $qty,
@@ -102,18 +153,9 @@ class QuoteWerksImportService
                 'part_no'     => $partNumber,
                 'name'        => $description,
                 'description' => $description,
-                'area'        => (string) ($item['area'] ?? ''),
-                'location'    => (string) ($item['location'] ?? ($item['area'] ?? '')),
-                // Canonical 7-value vocabulary via the shared classifier so
-                // the review UI dropdown + on-save reclassification never
-                // disagree. Pre-260725-qw3 this returned fabricated values
-                // (`display`, `audio`, `cable`, …) that were silently
-                // reverted to `hardware` on save.
-                'category'    => $this->categoryClassifier->classify([
-                    'name'        => $description,
-                    'description' => $description,
-                    'part_number' => $partNumber,
-                ]),
+                'area'        => $area,
+                'location'    => $location,
+                'category'    => $category,
                 'unit_price'  => $unitPrice,
                 'total_price' => $unitPrice * $qty,
                 'manufacturer' => $item['manufacturer'] ?? null,
@@ -132,7 +174,14 @@ class QuoteWerksImportService
         // render loop for room_overviews[]). Rooms without a populated memo get
         // an empty overview string so the review UI still renders a card the PM
         // can fill in manually. Added 2026-07-25 (260725-qw2).
-        $rooms         = array_values($parsedShape['rooms'] ?? []);
+        //
+        // 260725-qw3 — filter out non-room section headers (Professional
+        // Services / Room Booking Panels / Summary / Delivery / etc.) so
+        // they don't leak into rooms[] as fake physical spaces.
+        $rooms = array_values(array_filter(
+            (array) ($parsedShape['rooms'] ?? []),
+            fn (string $name): bool => ! $this->isNonRoomSectionHeader($name),
+        ));
         $roomDescs     = (array) ($parsedShape['room_descriptions'] ?? []);
         $roomOverviews = array_map(
             static fn (string $name): array => [
@@ -181,4 +230,57 @@ class QuoteWerksImportService
         ];
     }
 
+    // ══════════════════════════════════════════════════════════════════════════
+    // Private helpers
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Re-route rows whose `area` matches a QW grouping header (not a real
+     * room). Clears `area` (empty renders as "General" in the review UI —
+     * PM can reassign via multi-select bulk tools), clears `location` when
+     * it was defaulted from the same area value, and optionally overrides
+     * the classifier's category when the pattern implies one.
+     *
+     * Returns a 3-tuple: [area, location, category].
+     *
+     * @return array{0:string,1:string,2:string}
+     */
+    private function applySectionHeaderReroute(string $area, string $location, string $category): array
+    {
+        foreach (self::NON_ROOM_SECTION_PATTERNS as $pattern => $forcedCategory) {
+            if ($area !== '' && preg_match($pattern, $area) === 1) {
+                // Wipe area — Blade renders empty as the "General" bucket.
+                // Wipe location too if it was defaulted from area (avoids
+                // "Professional Services" leaking to the location column
+                // just because location fell back to area on ingest).
+                $locationWasDefaultedFromArea = ($location === $area);
+
+                return [
+                    '',
+                    $locationWasDefaultedFromArea ? '' : $location,
+                    $forcedCategory ?? $category,
+                ];
+            }
+        }
+
+        return [$area, $location, $category];
+    }
+
+    /**
+     * Check whether a QW section-header name is a grouping (not a real room).
+     */
+    private function isNonRoomSectionHeader(string $name): bool
+    {
+        if ($name === '') {
+            return true; // empty names are never real rooms
+        }
+
+        foreach (array_keys(self::NON_ROOM_SECTION_PATTERNS) as $pattern) {
+            if (preg_match($pattern, $name) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

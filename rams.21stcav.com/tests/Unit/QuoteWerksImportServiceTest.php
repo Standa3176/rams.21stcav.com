@@ -368,6 +368,188 @@ class QuoteWerksImportServiceTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Non-room section-header re-routing (260725-qw3)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** @test */
+    public function build_extracted_data_filters_non_room_section_headers_from_rooms(): void
+    {
+        $service = $this->makeService();
+
+        $parsed = $this->sampleParsedShape();
+        $parsed['rooms'] = ['Oregano', 'Professional Services', 'Summary', 'Room Booking Panels', 'Cinnamon'];
+
+        $result = $service->buildExtractedData($parsed);
+
+        // Only real physical rooms should remain — the QW category headers
+        // (Professional Services / Summary / Room Booking Panels) are stripped.
+        $this->assertSame(['Oregano', 'Cinnamon'], $result['rooms']);
+        $this->assertSame(2, $result['meta']['room_count']);
+    }
+
+    /** @test */
+    public function build_extracted_data_room_overviews_exclude_non_room_headers(): void
+    {
+        $service = $this->makeService();
+
+        $parsed = $this->sampleParsedShape();
+        $parsed['rooms'] = ['Oregano', 'Professional Services', 'Cinnamon'];
+        $parsed['room_descriptions'] = [
+            'Oregano'  => 'Oregano is the small room.',
+            'Cinnamon' => 'Cinnamon is the medium room.',
+        ];
+
+        $result = $service->buildExtractedData($parsed);
+
+        $this->assertSame(
+            [
+                ['room' => 'Oregano',  'overview' => 'Oregano is the small room.'],
+                ['room' => 'Cinnamon', 'overview' => 'Cinnamon is the medium room.'],
+            ],
+            $result['room_overviews'],
+        );
+    }
+
+    /** @test */
+    public function professional_services_area_is_cleared_and_category_forced_to_services(): void
+    {
+        $service = $this->makeService();
+
+        $parsed = $this->sampleParsedShape();
+        $parsed['equipment'] = [
+            [
+                'description'  => 'Crestron programming day rate',
+                'part_number'  => 'PROGRAMMING1',
+                'area'         => 'Professional Services',
+                'location'     => 'Professional Services',
+                'qty'          => 2,
+                'unit_price'   => 950.00,
+                'manufacturer' => null,
+            ],
+        ];
+
+        $result = $service->buildExtractedData($parsed);
+
+        $row = $result['equipment'][0];
+        $this->assertSame('',         $row['area']);
+        $this->assertSame('',         $row['location'], 'Location was defaulted from area — should also clear');
+        $this->assertSame('services', $row['category'], 'Pattern forces services category');
+    }
+
+    /** @test */
+    public function room_booking_panels_area_is_cleared_but_category_preserved_from_classifier(): void
+    {
+        $service = $this->makeService();
+
+        $parsed = $this->sampleParsedShape();
+        $parsed['equipment'] = [
+            [
+                'description'  => 'Crestron TSS-1070-B-S touch panel',
+                'part_number'  => 'TSS-1070',
+                'area'         => 'Room Booking Panels',
+                'location'     => 'Room Booking Panels',
+                'qty'          => 3,
+                'unit_price'   => 850.00,
+                'manufacturer' => 'Crestron',
+            ],
+        ];
+
+        $result = $service->buildExtractedData($parsed);
+
+        $row = $result['equipment'][0];
+        $this->assertSame('',         $row['area']);
+        // Pattern-forced category is null → classifier output stands.
+        // "TSS-1070" doesn't hit any specific keyword bucket → hardware default.
+        $this->assertSame('hardware', $row['category']);
+    }
+
+    /** @test */
+    public function case_insensitive_section_header_reroute(): void
+    {
+        $service = $this->makeService();
+
+        foreach (['PROFESSIONAL SERVICES', 'professional services', 'Professional Services'] as $variant) {
+            $parsed = $this->sampleParsedShape();
+            $parsed['equipment'] = [[
+                'description'  => 'Some service item',
+                'part_number'  => 'X',
+                'area'         => $variant,
+                'location'     => $variant,
+                'qty'          => 1,
+                'unit_price'   => 100.00,
+                'manufacturer' => null,
+            ]];
+
+            $result = $service->buildExtractedData($parsed);
+
+            $this->assertSame('',         $result['equipment'][0]['area'],     "Failed on variant: {$variant}");
+            $this->assertSame('services', $result['equipment'][0]['category'], "Failed on variant: {$variant}");
+        }
+    }
+
+    /** @test */
+    public function delivery_area_is_cleared_and_category_forced_to_services(): void
+    {
+        $service = $this->makeService();
+
+        $parsed = $this->sampleParsedShape();
+        $parsed['equipment'] = [[
+            'description'  => 'Consignment delivery to site',
+            'part_number'  => 'DELIVERY',
+            'area'         => 'Delivery',
+            'location'     => 'Delivery',
+            'qty'          => 1,
+            'unit_price'   => 65.00,
+            'manufacturer' => null,
+        ]];
+
+        $result = $service->buildExtractedData($parsed);
+
+        $this->assertSame('',         $result['equipment'][0]['area']);
+        $this->assertSame('services', $result['equipment'][0]['category']);
+    }
+
+    /** @test */
+    public function real_rooms_pass_through_unchanged(): void
+    {
+        $service = $this->makeService();
+
+        $parsed = $this->sampleParsedShape();
+        // sampleParsedShape uses Boardroom + Conference Room — those are
+        // real rooms, not grouping headers, so the reroute must NOT touch them.
+
+        $result = $service->buildExtractedData($parsed);
+
+        $this->assertSame('Boardroom',       $result['equipment'][0]['area']);
+        $this->assertSame('Conference Room', $result['equipment'][2]['area']);
+        $this->assertSame(['Boardroom', 'Conference Room'], $result['rooms']);
+    }
+
+    /** @test */
+    public function summary_area_is_cleared_but_category_preserved(): void
+    {
+        $service = $this->makeService();
+
+        $parsed = $this->sampleParsedShape();
+        $parsed['equipment'] = [[
+            'description'  => 'Total: subtotal marker row',
+            'part_number'  => '',
+            'area'         => 'Summary',
+            'location'     => 'Summary',
+            'qty'          => 1,
+            'unit_price'   => 0.00,
+            'manufacturer' => null,
+        ]];
+
+        $result = $service->buildExtractedData($parsed);
+
+        // Summary pattern forces null category, so classifier output stands.
+        // Description doesn't match anything specific → hardware default.
+        $this->assertSame('',         $result['equipment'][0]['area']);
+        $this->assertSame('hardware', $result['equipment'][0]['category']);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // importFromParsedShape orchestration
     // ─────────────────────────────────────────────────────────────────────────
 
