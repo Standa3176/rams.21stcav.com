@@ -8,6 +8,7 @@ use App\Core\Modules\QuoteImport\QuoteImportService;
 use App\Core\Modules\QuoteImport\QuoteWerksImportService;
 use App\Models\ProjectPackage;
 use App\Models\User;
+use App\Services\Imports\EquipmentCategoryClassifier;
 use Tests\TestCase;
 
 /**
@@ -78,6 +79,18 @@ class QuoteWerksImportServiceTest extends TestCase
         return $mock;
     }
 
+    /**
+     * Build a QuoteWerksImportService with the real shared EquipmentCategoryClassifier
+     * (no reason to mock — it's a pure keyword-decision service).
+     */
+    private function makeService(?ProjectPackage $returns = null): QuoteWerksImportService
+    {
+        return new QuoteWerksImportService(
+            $this->makeImportServiceMock($returns),
+            new EquipmentCategoryClassifier(),
+        );
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // buildExtractedData shape
     // ─────────────────────────────────────────────────────────────────────────
@@ -85,7 +98,7 @@ class QuoteWerksImportServiceTest extends TestCase
     /** @test */
     public function build_extracted_data_sets_meta_source_to_quotewerks_sql(): void
     {
-        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+        $service = $this->makeService();
 
         $result = $service->buildExtractedData($this->sampleParsedShape());
 
@@ -96,7 +109,7 @@ class QuoteWerksImportServiceTest extends TestCase
     /** @test */
     public function build_extracted_data_sets_confidence_to_095(): void
     {
-        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+        $service = $this->makeService();
 
         $result = $service->buildExtractedData($this->sampleParsedShape());
 
@@ -107,7 +120,7 @@ class QuoteWerksImportServiceTest extends TestCase
     /** @test */
     public function build_extracted_data_preserves_rooms_from_parsed_shape(): void
     {
-        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+        $service = $this->makeService();
 
         $result = $service->buildExtractedData($this->sampleParsedShape());
 
@@ -118,7 +131,7 @@ class QuoteWerksImportServiceTest extends TestCase
     /** @test */
     public function build_extracted_data_equipment_rows_have_all_required_keys(): void
     {
-        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+        $service = $this->makeService();
 
         $result = $service->buildExtractedData($this->sampleParsedShape());
 
@@ -143,7 +156,7 @@ class QuoteWerksImportServiceTest extends TestCase
     /** @test */
     public function build_extracted_data_equipment_list_and_line_items_are_same_data(): void
     {
-        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+        $service = $this->makeService();
 
         $result = $service->buildExtractedData($this->sampleParsedShape());
 
@@ -154,7 +167,7 @@ class QuoteWerksImportServiceTest extends TestCase
     /** @test */
     public function build_extracted_data_computes_total_price_from_qty_and_unit_price(): void
     {
-        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+        $service = $this->makeService();
 
         $result = $service->buildExtractedData($this->sampleParsedShape());
 
@@ -165,22 +178,69 @@ class QuoteWerksImportServiceTest extends TestCase
     }
 
     /** @test */
-    public function build_extracted_data_classifies_display_and_projector(): void
+    public function build_extracted_data_classifies_via_canonical_vocabulary(): void
     {
-        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+        // 260725-qw3 — the QW classifier now uses the shared canonical
+        // 7-value vocabulary. "Sony BRAVIA 40\" Display" doesn't match a
+        // specific keyword bucket (cables/consumables/services/etc) so it
+        // falls to the `hardware` default. "NEC Projector" likewise falls
+        // to `hardware`. Pre-qw3 this returned 'display' — a fabricated
+        // value that was silently reverted to 'hardware' on save anyway.
+        $service = $this->makeService();
 
         $result = $service->buildExtractedData($this->sampleParsedShape());
 
-        $this->assertSame('display', $result['equipment'][0]['category']);
-        // "NEC Projector" — projector isn't in the display pattern but is
-        // not caught by anything specific either → falls to 'other'.
-        $this->assertContains($result['equipment'][2]['category'], ['other', 'display']);
+        $this->assertSame('hardware', $result['equipment'][0]['category']);
+        $this->assertSame('hardware', $result['equipment'][2]['category']);
+    }
+
+    /** @test */
+    public function build_extracted_data_classifies_services_row_via_shared_classifier(): void
+    {
+        // Rows with services keywords ("installation", "labour", "commission")
+        // now correctly bucket as 'services' via the shared classifier.
+        $service = $this->makeService();
+
+        $parsed = $this->sampleParsedShape();
+        $parsed['equipment'][] = [
+            'description'  => 'Installation labour - 2 engineers x 1 day',
+            'part_number'  => 'INSTALL2',
+            'area'         => '',
+            'location'     => '',
+            'qty'          => 1,
+            'unit_price'   => 800.00,
+            'manufacturer' => null,
+        ];
+        $parsed['equipment'][] = [
+            'description'  => 'Sony BRAVIA 3-year warranty extension',
+            'part_number'  => 'PSP.FW75BZ35L.PO2',
+            'area'         => '',
+            'location'     => '',
+            'qty'          => 1,
+            'unit_price'   => 300.00,
+            'manufacturer' => 'Sony',
+        ];
+        $parsed['equipment'][] = [
+            'description'  => 'Kramer Cat6 patch cable 5m',
+            'part_number'  => 'C-UNIKAT-5',
+            'area'         => '',
+            'location'     => '',
+            'qty'          => 10,
+            'unit_price'   => 12.50,
+            'manufacturer' => 'Kramer',
+        ];
+
+        $result = $service->buildExtractedData($parsed);
+
+        $this->assertSame('services',          $result['equipment'][3]['category']);
+        $this->assertSame('service_contracts', $result['equipment'][4]['category']);
+        $this->assertSame('cables',            $result['equipment'][5]['category']);
     }
 
     /** @test */
     public function build_extracted_data_project_name_truncates_scope_narrative_to_80_chars(): void
     {
-        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+        $service = $this->makeService();
 
         $parsed = array_merge($this->sampleParsedShape(), [
             'scope_narrative' => str_repeat('X', 200),
@@ -194,7 +254,7 @@ class QuoteWerksImportServiceTest extends TestCase
     /** @test */
     public function build_extracted_data_project_name_falls_back_to_ref_when_scope_empty(): void
     {
-        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+        $service = $this->makeService();
 
         $parsed = array_merge($this->sampleParsedShape(), [
             'scope_narrative' => '',
@@ -208,7 +268,7 @@ class QuoteWerksImportServiceTest extends TestCase
     /** @test */
     public function build_extracted_data_carries_prepared_by_and_site_name(): void
     {
-        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+        $service = $this->makeService();
 
         $result = $service->buildExtractedData($this->sampleParsedShape());
 
@@ -219,7 +279,7 @@ class QuoteWerksImportServiceTest extends TestCase
     /** @test */
     public function build_extracted_data_handles_missing_equipment_key(): void
     {
-        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+        $service = $this->makeService();
 
         $result = $service->buildExtractedData([
             'ref'    => '21CQ99999',
@@ -238,7 +298,7 @@ class QuoteWerksImportServiceTest extends TestCase
     /** @test */
     public function build_extracted_data_zips_room_descriptions_into_room_overviews(): void
     {
-        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+        $service = $this->makeService();
 
         $parsed = $this->sampleParsedShape();
         $parsed['rooms']             = ['Oregano', 'Cinnamon', 'Saffron'];
@@ -263,7 +323,7 @@ class QuoteWerksImportServiceTest extends TestCase
     /** @test */
     public function build_extracted_data_room_overviews_empty_when_no_rooms(): void
     {
-        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+        $service = $this->makeService();
 
         $parsed = $this->sampleParsedShape();
         $parsed['rooms']             = [];
@@ -277,7 +337,7 @@ class QuoteWerksImportServiceTest extends TestCase
     /** @test */
     public function build_extracted_data_surfaces_introduction_and_closing_notes(): void
     {
-        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+        $service = $this->makeService();
 
         $parsed = $this->sampleParsedShape();
         $parsed['intro_notes']   = '21st Century AV are pleased to provide a detailed quote.';
@@ -298,7 +358,7 @@ class QuoteWerksImportServiceTest extends TestCase
     /** @test */
     public function build_extracted_data_intro_and_closing_notes_null_when_absent(): void
     {
-        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+        $service = $this->makeService();
 
         // sampleParsedShape has no intro/closing keys → null on output
         $result = $service->buildExtractedData($this->sampleParsedShape());
@@ -315,7 +375,7 @@ class QuoteWerksImportServiceTest extends TestCase
     public function import_from_parsed_shape_returns_project_package(): void
     {
         $expected = $this->createMock(ProjectPackage::class);
-        $service  = new QuoteWerksImportService($this->makeImportServiceMock($expected));
+        $service  = $this->makeService($expected);
 
         $result = $service->importFromParsedShape(
             $this->createMock(User::class),
@@ -338,7 +398,7 @@ class QuoteWerksImportServiceTest extends TestCase
                 return $this->createMock(ProjectPackage::class);
             });
 
-        $service = new QuoteWerksImportService($importService);
+        $service = new QuoteWerksImportService($importService, new EquipmentCategoryClassifier());
         $service->importFromParsedShape($this->createMock(User::class), $this->sampleParsedShape());
 
         $this->assertNotNull($capturedData);

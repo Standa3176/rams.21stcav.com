@@ -4,6 +4,7 @@ namespace App\Core\Modules\QuoteImport;
 
 use App\Models\ProjectPackage;
 use App\Models\User;
+use App\Services\Imports\EquipmentCategoryClassifier;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -25,7 +26,8 @@ use Illuminate\Support\Str;
 class QuoteWerksImportService
 {
     public function __construct(
-        private readonly QuoteImportService $importService,
+        private readonly QuoteImportService          $importService,
+        private readonly EquipmentCategoryClassifier $categoryClassifier,
     ) {}
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -88,20 +90,30 @@ class QuoteWerksImportService
     public function buildExtractedData(array $parsedShape): array
     {
         $equipment = array_map(function (array $item) {
-            $qty        = (int) ($item['qty'] ?? 1);
-            $unitPrice  = (float) ($item['unit_price'] ?? 0);
+            $qty         = (int) ($item['qty'] ?? 1);
+            $unitPrice   = (float) ($item['unit_price'] ?? 0);
             $description = (string) ($item['description'] ?? '');
+            $partNumber  = (string) ($item['part_number'] ?? '');
 
             return [
                 'quantity'    => $qty,
                 'qty'         => $qty,
-                'part_number' => (string) ($item['part_number'] ?? ''),
-                'part_no'     => (string) ($item['part_number'] ?? ''),
+                'part_number' => $partNumber,
+                'part_no'     => $partNumber,
                 'name'        => $description,
                 'description' => $description,
                 'area'        => (string) ($item['area'] ?? ''),
                 'location'    => (string) ($item['location'] ?? ($item['area'] ?? '')),
-                'category'    => $this->classifyDescription($description),
+                // Canonical 7-value vocabulary via the shared classifier so
+                // the review UI dropdown + on-save reclassification never
+                // disagree. Pre-260725-qw3 this returned fabricated values
+                // (`display`, `audio`, `cable`, …) that were silently
+                // reverted to `hardware` on save.
+                'category'    => $this->categoryClassifier->classify([
+                    'name'        => $description,
+                    'description' => $description,
+                    'part_number' => $partNumber,
+                ]),
                 'unit_price'  => $unitPrice,
                 'total_price' => $unitPrice * $qty,
                 'manufacturer' => $item['manufacturer'] ?? null,
@@ -169,48 +181,4 @@ class QuoteWerksImportService
         ];
     }
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // Private helpers
-    // ══════════════════════════════════════════════════════════════════════════
-
-    /**
-     * Classify an equipment description into a category.
-     *
-     * Mirrors the classification logic from the PDF pipeline to ensure
-     * consistent categorisation regardless of import source.
-     */
-    private function classifyDescription(string $description): string
-    {
-        $desc = strtolower($description);
-
-        if (preg_match('/display|screen|monitor|tv|panel/i', $desc)) {
-            return 'display';
-        }
-        if (preg_match('/speaker|amplifier|amp|audio|microphone|mic|dsp/i', $desc)) {
-            return 'audio';
-        }
-        if (preg_match('/camera|ptz|webcam/i', $desc)) {
-            return 'camera';
-        }
-        if (preg_match('/cable|hdmi|cat[56]|patch|fibre|fiber|connector/i', $desc)) {
-            return 'cable';
-        }
-        if (preg_match('/mount|bracket|plate|trolley|stand|floor\s*stand/i', $desc)) {
-            return 'mounting';
-        }
-        if (preg_match('/switch|matrix|extender|transmitter|receiver|hdbt/i', $desc)) {
-            return 'signal_distribution';
-        }
-        if (preg_match('/control|touch\s*panel|keypad|button|crestron|extron|amx/i', $desc)) {
-            return 'control';
-        }
-        if (preg_match('/rack|credenza|furniture/i', $desc)) {
-            return 'furniture';
-        }
-        if (preg_match('/install|labour|labor|commission|program/i', $desc)) {
-            return 'service';
-        }
-
-        return 'other';
-    }
 }
