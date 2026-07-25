@@ -4,27 +4,28 @@ namespace App\Core\Modules\QuoteImport;
 
 use App\Models\ProjectPackage;
 use App\Models\User;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
- * QuoteWerksImportService — orchestrates DB fetch → extracted_data → importFromData().
+ * QuoteWerksImportService — orchestrates parsed-shape → extracted_data →
+ * importFromData() for QuoteWerks direct-import (260723-qw1).
  *
- * Produces an extracted_data array structurally identical to the PDF import path,
- * with meta.source set to exactly 'quotewerks_sql' (this is the ProjectDataService
- * tier-2 confidence trigger — do NOT change this string).
+ * The upstream SQL is owned by App\Services\Imports\Quote\QuoteWerksDbFetcher
+ * (Task 2). This service is a pure transformation + orchestration layer that
+ * consumes the SCC-shape parsed array and produces RAMS's canonical
+ * extracted_data payload before delegating persistence to QuoteImportService.
  *
- * All SQL queries are delegated to QuoteWerksRepository. This service handles
- * data transformation and orchestration only.
+ * meta.source is set to exactly 'quotewerks_sql' — this is the ProjectDataService
+ * tier-2 confidence trigger. DO NOT change this string.
  *
- * @see QuoteWerksRepository  For raw SQL queries and column mapping
- * @see QuoteImportService     For the downstream importFromData() entry point
+ * @see App\Services\Imports\Quote\QuoteWerksDbFetcher  Upstream fetcher
+ * @see QuoteImportService                              Downstream persister
  */
 class QuoteWerksImportService
 {
     public function __construct(
-        private readonly QuoteWerksRepository $repository,
-        private readonly QuoteImportService   $importService,
+        private readonly QuoteImportService $importService,
     ) {}
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -32,53 +33,37 @@ class QuoteWerksImportService
     // ══════════════════════════════════════════════════════════════════════════
 
     /**
-     * Import a quote by its QuoteWerks reference number.
+     * Import a quote from a fetcher parsed-shape array.
      *
-     * Synchronous — no queue dispatch. Returns immediately with the created package.
+     * Called by QuoteWerksImportController after the fetcher has returned a
+     * live header + items. Delegates persistence to QuoteImportService which
+     * handles project auto-match/create + ProjectPackage row creation.
      *
-     * @throws ModelNotFoundException If the reference is not found in QuoteWerks.
+     * @param  User   $user         Authenticated user performing the import.
+     * @param  array  $parsedShape  Output of QuoteWerksDbFetcher::mapToParsedShape.
+     * @return ProjectPackage       The persisted package.
      */
-    public function importByReference(User $user, string $reference): ProjectPackage
+    public function importFromParsedShape(User $user, array $parsedShape): ProjectPackage
     {
-        $header = $this->repository->findByReference($reference);
+        $extractedData = $this->buildExtractedData($parsedShape);
 
-        if ($header === null) {
-            throw (new ModelNotFoundException())
-                ->setModel('QuoteWerks Document', $reference);
-        }
-
-        $items = $this->repository->getItemsByDocNo($reference);
-
-        $extractedData = $this->buildExtractedData($header, $items);
-
-        Log::info('QuoteWerksImportService: imported by reference', [
-            'reference'  => $reference,
+        Log::info('QuoteWerksImportService: imported from parsed shape', [
+            'reference'  => $parsedShape['ref'] ?? '',
             'user_id'    => $user->id,
-            'item_count' => count($items),
+            'item_count' => count($parsedShape['equipment'] ?? []),
+            'room_count' => count($parsedShape['rooms'] ?? []),
         ]);
 
-        $subject = $header['subject'] ?? '';
-
         return $this->importService->importFromData($user, [
-            'client_name'       => $header['client_name']  ?? '',
-            'site_address'      => $header['site_address'] ?? '',
-            'ref'               => $header['doc_no']       ?? '',
-            'name'              => $subject ?: (($header['doc_no'] ?? '') . ' — ' . ($header['client_name'] ?? '')),
-            'works_description' => $subject,
+            'client_name'       => $extractedData['client_name'],
+            'site_address'      => $extractedData['site_address'],
+            'ref'               => $extractedData['quote_ref'],
+            'name'              => $extractedData['project_name'],
+            'works_description' => $extractedData['works_description'],
             'equipment_list'    => $extractedData['equipment_list'],
             'cable_list'        => [],
             'extracted_data'    => $extractedData,
         ]);
-    }
-
-    /**
-     * Search QuoteWerks headers by client name (for the lookup UI).
-     *
-     * @return array[] Array of header summaries (max 20 results).
-     */
-    public function searchByClient(string $clientName, ?string $dateFrom = null): array
-    {
-        return $this->repository->searchByClient($clientName, $dateFrom);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -86,69 +71,76 @@ class QuoteWerksImportService
     // ══════════════════════════════════════════════════════════════════════════
 
     /**
-     * Build the canonical extracted_data array from QuoteWerks header + items.
+     * Build the canonical extracted_data array from a fetcher parsed-shape.
      *
-     * The output shape matches what QuoteImportService::importFromData() expects,
-     * and is structurally identical to the PDF extraction pipeline output.
+     * The output shape matches what QuoteImportService::importFromData()
+     * expects and is structurally identical to the PDF extraction pipeline
+     * output. Downstream ProjectPackageReviewController reads these keys
+     * directly to hydrate the review UI.
      *
-     * @param  array   $header  Mapped header from QuoteWerksRepository::findByReference()
-     * @param  array[] $items   Mapped items from QuoteWerksRepository::getItemsByDocNo()
-     * @return array   Canonical extracted_data array
+     * Input (from QuoteWerksDbFetcher::mapToParsedShape):
+     *   client, site, site_name, ref, prepared_by, scope_narrative,
+     *   contact_name, contact_phone, contact_email, equipment[], rooms[]
+     *
+     * @param  array  $parsedShape  Fetcher output.
+     * @return array                Canonical extracted_data array.
      */
-    public function buildExtractedData(array $header, array $items): array
+    public function buildExtractedData(array $parsedShape): array
     {
-        // ── Filter to product lines only ──
-        $productItems = array_filter($items, function (array $item) {
-            $type = strtoupper($item['item_type'] ?? '');
-            return in_array($type, ['P', 'G'], true); // Product or Group header
-        });
+        $equipment = array_map(function (array $item) {
+            $qty        = (int) ($item['qty'] ?? 1);
+            $unitPrice  = (float) ($item['unit_price'] ?? 0);
+            $description = (string) ($item['description'] ?? '');
 
-        // ── Build equipment rows ──
-        $equipment = [];
-        foreach ($productItems as $item) {
-            $equipment[] = [
-                'quantity'    => $item['quantity'],
-                'qty'         => $item['quantity'],
-                'part_number' => $item['part_number'],
-                'part_no'     => $item['part_number'],
-                'name'        => $item['description'],
-                'description' => $item['description'],
-                'area'        => $item['group_name'],
-                'location'    => $item['group_name'],
-                'category'    => $this->classifyDescription($item['description']),
-                'unit_price'  => $item['unit_price']  ?? 0.0,
-                'total_price' => $item['total_price'] ?? 0.0,
+            return [
+                'quantity'    => $qty,
+                'qty'         => $qty,
+                'part_number' => (string) ($item['part_number'] ?? ''),
+                'part_no'     => (string) ($item['part_number'] ?? ''),
+                'name'        => $description,
+                'description' => $description,
+                'area'        => (string) ($item['area'] ?? ''),
+                'location'    => (string) ($item['location'] ?? ($item['area'] ?? '')),
+                'category'    => $this->classifyDescription($description),
+                'unit_price'  => $unitPrice,
+                'total_price' => $unitPrice * $qty,
+                'manufacturer' => $item['manufacturer'] ?? null,
                 'data_source' => 'quotewerks',
                 'confidence'  => 0.95,
             ];
-        }
+        }, $parsedShape['equipment'] ?? []);
 
-        // ── Build rooms from unique group names ──
-        $rooms = array_values(array_unique(array_filter(
-            array_column($items, 'group_name')
-        )));
+        $scopeNarrative = (string) ($parsedShape['scope_narrative'] ?? '');
+        $projectName    = $scopeNarrative !== ''
+            ? Str::limit($scopeNarrative, 80, '')
+            : (string) ($parsedShape['ref'] ?? '');
 
         return [
-            'qw_number'         => $header['doc_no']       ?? '',
-            'quote_ref'         => $header['doc_no']       ?? '',
-            'client_name'       => $header['client_name']  ?? '',
-            'site_address'      => $header['site_address'] ?? '',
-            'project_name'      => ($header['subject'] ?? '') ?: ($header['doc_no'] ?? ''),
-            'works_description' => $header['subject']      ?? '',
-            'doc_date'          => $header['doc_date']     ?? null,
-            'total_price'       => $header['total_price']  ?? 0.0,
+            'qw_number'         => (string) ($parsedShape['ref'] ?? ''),
+            'quote_ref'         => (string) ($parsedShape['ref'] ?? ''),
+            'client_name'       => (string) ($parsedShape['client'] ?? ''),
+            'site_name'         => (string) ($parsedShape['site_name'] ?? ''),
+            'site_address'      => (string) ($parsedShape['site'] ?? ''),
+            'project_name'      => $projectName,
+            'works_description' => $scopeNarrative,
+            'prepared_by'       => (string) ($parsedShape['prepared_by'] ?? ''),
+            // Fetcher's mapToParsedShape doesn't currently surface a project-level
+            // total (SCC gets it from Subtotal on the header row separately).
+            // Add in a follow-up if the Review page needs it.
+            'total_price'       => 0.0,
             'equipment'         => $equipment,
             'equipment_list'    => $equipment,
             'line_items'        => $equipment,
             'cable_hints'       => [],
-            'rooms'             => $rooms,
+            'rooms'             => array_values($parsedShape['rooms'] ?? []),
             'meta'              => [
+                // Tier-2 confidence trigger — do NOT change this string.
                 'source'            => 'quotewerks_sql',
                 'confidence'        => 0.95,
                 'parser_confidence' => 0.95,
                 'data_source'       => 'quotewerks',
                 'item_count'        => count($equipment),
-                'room_count'        => count($rooms),
+                'room_count'        => count($parsedShape['rooms'] ?? []),
             ],
         ];
     }

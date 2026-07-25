@@ -3,25 +3,31 @@
 namespace App\Http\Controllers;
 
 use App\Core\Modules\QuoteImport\QuoteWerksImportService;
+use App\Exceptions\QuoteWerksUnreachableException;
 use App\Http\Requests\QuoteWerksLookupRequest;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
+use App\Models\ProjectPackage;
+use App\Services\Imports\Quote\QuoteWerksDbFetcher;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\View\View;
 
 /**
- * QuoteWerksImportController — handles HTTP requests for SQL-based quote import.
+ * QuoteWerksImportController — direct-import from QuoteWerks SQL Server
+ * over the office WireGuard tunnel (260723-qw1).
  *
  * Two entry points:
- *   POST /quote-import/quotewerks/lookup — import by reference number (direct → review)
- *   POST /quote-import/quotewerks/search — search by client name (→ results displayed in UI)
+ *   POST /quote-import/quotewerks/lookup — import by reference number →
+ *     dup-check → ODBC fetch → RAMS review UI.
+ *   POST /quote-import/quotewerks/search — search by client name →
+ *     re-renders create page with results table.
  *
- * Both paths land at the same review page as the PDF import path.
- * Connection failures are shown as inline flash errors; the user is not sent to an error page.
+ * Both paths use standard RAMS server-flash + Blade redirect conventions
+ * (NOT SCC's Alpine SPA + JSON responses). Dup-check surfaces as a warning
+ * flash with a "Continue anyway" link (?force=1), not a modal.
  *
- * SECURITY: QuoteWerks credentials never appear in responses, logs visible to users, or views.
- * Raw SQL Server error messages are logged server-side and replaced with safe user messages.
+ * Connection failures (WireGuard down, ODBC DSN misconfigured, MSSQL
+ * unreachable) render as user-safe flash errors — the raw PDOException is
+ * logged server-side and never surfaces in the response.
  */
 class QuoteWerksImportController extends Controller
 {
@@ -36,43 +42,102 @@ class QuoteWerksImportController extends Controller
     /**
      * Import a quote by reference number and redirect to review.
      *
-     * @throws \Throwable  On unexpected failure (logged; user sees generic error).
+     * Flow:
+     *   1. Validate + normalize reference.
+     *   2. Dup-check ProjectPackage.extracted_data.quote_ref (skipped on ?force=1).
+     *   3. ODBC fetch header + items via QuoteWerksDbFetcher.
+     *   4. Guard: header null → "not found"; DocType != QUOTE → wrong-type error.
+     *   5. Delegate to importFromParsedShape → redirect to review page.
      */
-    public function lookup(QuoteWerksLookupRequest $request): RedirectResponse
+    public function lookup(QuoteWerksLookupRequest $request, QuoteWerksDbFetcher $fetcher): RedirectResponse
     {
-        $reference = strtoupper(trim($request->validated('qw_reference', '')));
+        $reference = strtoupper(trim((string) $request->input('reference', '')));
 
-        if (empty($reference)) {
-            return back()->withErrors(['qw_reference' => 'Please enter a quote reference number.'])->withInput();
+        if ($reference === '') {
+            return back()
+                ->withErrors(['reference' => 'Please enter a quote reference number.'])
+                ->withInput();
         }
 
+        // ── Dup check ──────────────────────────────────────────────────────
+        if (! $request->boolean('force')) {
+            $existing = $this->findPriorImport($reference);
+            if ($existing !== null) {
+                $projectName = $existing->project?->name ?? 'unlinked project';
+                $importedAt  = $existing->created_at?->format('j M Y H:i') ?? 'unknown date';
+
+                return back()
+                    ->withInput()
+                    ->with(
+                        'warning',
+                        sprintf(
+                            'Quote %s was imported on %s as "%s". Import anyway?',
+                            $reference,
+                            $importedAt,
+                            $projectName
+                        )
+                    )
+                    ->with('qw_force_url', route('quotewerks.lookup') . '?force=1&reference=' . urlencode($reference))
+                    ->with('qw_last_reference', $reference);
+            }
+        }
+
+        // ── Fetch ──────────────────────────────────────────────────────────
         try {
-            $package = $this->qwImportService->importByReference(
-                user:      $request->user(),
-                reference: $reference,
-            );
+            $result = $fetcher->fetch($reference);
+        } catch (QuoteWerksUnreachableException $e) {
+            Log::error('QuoteWerksImportController: fetcher unreachable', [
+                'reference' => $reference,
+                'user_id'   => $request->user()->id,
+                'error'     => $e->getMessage(),
+                'previous'  => $e->getPrevious()?->getMessage(),
+            ]);
 
-            return redirect()->route('quote-import.review', $package)
-                ->with('success', "Quote {$reference} imported from QuoteWerks. Please review and confirm.");
-
-        } catch (ModelNotFoundException) {
             return back()
-                ->withErrors(['qw_reference' => "Quote reference '{$reference}' was not found in QuoteWerks."])
+                ->with('error', 'Cannot reach QuoteWerks right now — please upload the quote PDF instead.')
                 ->withInput();
+        }
 
+        if ($result['header'] === null) {
+            return back()
+                ->withErrors(['reference' => "Quote {$reference} was not found in QuoteWerks."])
+                ->withInput();
+        }
+
+        // ── DocType guard ─────────────────────────────────────────────────
+        $docType = (string) ($result['header']['DocType'] ?? '');
+        if (strcasecmp($docType, 'QUOTE') !== 0) {
+            return back()
+                ->withErrors([
+                    'reference' => sprintf(
+                        'Document %s is not a Quote (it is a %s).',
+                        $reference,
+                        $docType !== '' ? $docType : 'unknown document type'
+                    ),
+                ])
+                ->withInput();
+        }
+
+        // ── Map + persist ─────────────────────────────────────────────────
+        $parsed = $fetcher->mapToParsedShape($result['header'], $result['items']);
+
+        try {
+            $package = $this->qwImportService->importFromParsedShape($request->user(), $parsed);
         } catch (\Throwable $e) {
-            Log::error('QuoteWerksImportController: lookup failed', [
+            Log::error('QuoteWerksImportController: importFromParsedShape failed', [
                 'reference' => $reference,
                 'user_id'   => $request->user()->id,
                 'error'     => $e->getMessage(),
             ]);
 
-            $userMessage = $this->connectionErrorMessage($e);
-
             return back()
-                ->with('error', $userMessage)
+                ->with('error', 'Failed to save the imported quote. Please try again or upload the PDF instead.')
                 ->withInput();
         }
+
+        return redirect()
+            ->route('quote-import.review', $package)
+            ->with('success', "Quote {$reference} imported from QuoteWerks. Please review and confirm.");
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -81,68 +146,64 @@ class QuoteWerksImportController extends Controller
 
     /**
      * Search QuoteWerks by client name; return results for display in the UI.
-     * Results are flashed to session and the create page is re-rendered with them.
-     *
-     * @param  QuoteWerksLookupRequest  $request
-     * @return RedirectResponse
+     * Results are flashed to session and the create page is re-rendered.
      */
-    public function search(QuoteWerksLookupRequest $request): RedirectResponse
+    public function search(Request $request, QuoteWerksDbFetcher $fetcher): RedirectResponse
     {
-        $clientName = trim($request->validated('client_name', ''));
+        $clientName = trim((string) $request->input('client', ''));
+        $dateFrom   = $request->input('date_from');
 
         if (strlen($clientName) < 2) {
-            return back()->withErrors(['client_name' => 'Enter at least 2 characters to search.'])->withInput();
+            return back()
+                ->withErrors(['client' => 'Enter at least 2 characters to search.'])
+                ->withInput();
         }
 
         try {
-            $results = $this->qwImportService->searchByClient(
-                clientName: $clientName,
-                dateFrom:   $request->validated('date_from'),
-            );
-
-            return back()
-                ->withInput()
-                ->with('qw_search_results', $results)
-                ->with('qw_search_query', $clientName);
-
-        } catch (\Throwable $e) {
-            Log::error('QuoteWerksImportController: search failed', [
+            $rows = $fetcher->searchByClient($clientName, $dateFrom ?: null);
+        } catch (QuoteWerksUnreachableException $e) {
+            Log::error('QuoteWerksImportController: search unreachable', [
                 'client_name' => $clientName,
                 'user_id'     => $request->user()->id,
                 'error'       => $e->getMessage(),
+                'previous'    => $e->getPrevious()?->getMessage(),
             ]);
 
             return back()
-                ->with('error', $this->connectionErrorMessage($e))
+                ->with('error', 'Cannot reach QuoteWerks right now — please upload the quote PDF instead.')
                 ->withInput();
         }
+
+        // Map fetcher rows to the view-friendly shape the Blade template already
+        // renders (doc_no, client_name, doc_date, subject).
+        $results = array_map(static fn (array $row): array => [
+            'doc_no'      => (string) ($row['DocNo'] ?? ''),
+            'client_name' => (string) ($row['SoldToCompany'] ?? ''),
+            'doc_date'    => $row['DocDate'] ?? null,
+            'subject'     => (string) ($row['CustomMemo01'] ?? ''),
+        ], $rows);
+
+        return back()
+            ->withInput()
+            ->with('qw_search_results', $results)
+            ->with('qw_search_query', $clientName);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════════
+    // Helpers
+    // ══════════════════════════════════════════════════════════════════════════
 
     /**
-     * Map an exception to a safe user-visible message.
-     * Raw SQL Server error details are never shown to the user.
-     *
-     * @param  \Throwable  $e
-     * @return string
+     * Find the most recent successful ProjectPackage for a given QuoteWerks
+     * reference. Uses JSON_EXTRACT so we don't have to add a dedicated column.
      */
-    private function connectionErrorMessage(\Throwable $e): string
+    private function findPriorImport(string $reference): ?ProjectPackage
     {
-        $msg = strtolower($e->getMessage());
-
-        if (str_contains($msg, 'could not find driver') || str_contains($msg, 'pdo_sqlsrv')) {
-            return 'QuoteWerks is not configured on this server. Contact your administrator.';
-        }
-
-        if (str_contains($msg, 'timeout') || str_contains($msg, 'timed out') || str_contains($msg, 'unreachable')) {
-            return 'Could not connect to QuoteWerks. Check your VPN connection. You can upload a PDF instead.';
-        }
-
-        if (str_contains($msg, 'login') || str_contains($msg, 'password') || str_contains($msg, 'authentication')) {
-            return 'QuoteWerks authentication failed. Contact your administrator.';
-        }
-
-        return 'Could not connect to QuoteWerks. Check VPN connection. You can upload a PDF instead.';
+        return ProjectPackage::whereRaw(
+                "JSON_UNQUOTE(JSON_EXTRACT(extracted_data, '$.quote_ref')) = ?",
+                [$reference]
+            )
+            ->latest('created_at')
+            ->first();
     }
 }

@@ -7,52 +7,55 @@ use Illuminate\Support\Facades\DB;
 use PDOException;
 
 /**
- * QuoteWerksPing — verifies MS SQL Server connectivity for QuoteWerks import.
+ * QuoteWerksPing — verifies ODBC connectivity to the QuoteWerks SQL Server.
  *
  * Usage: php artisan quotewerks:ping
  *
  * Exit codes:
  *   0 = connection successful
- *   1 = connection failed (driver missing, auth error, host unreachable, timeout)
+ *   1 = connection failed (extension missing, DSN misconfigured, unreachable)
  *
- * This command MUST be run on the production server before any SQL import code is
- * deployed. If the output says "could not find driver", follow the ODBC 17 install
- * instructions in .env.example — this is a missing PHP extension, not a config error.
+ * Post-deploy smoke test — run this on the VPS after every deploy that
+ * touches config/database.php or the QUOTEWERKS_ODBC_* env vars. If output
+ * says "could not find driver", the pdo_odbc extension isn't loaded in the
+ * web PHP — check `php -m | grep odbc`. The DSN itself lives at /etc/odbc.ini
+ * on the VPS; the app never edits it.
  */
 class QuoteWerksPing extends Command
 {
     protected $signature   = 'quotewerks:ping';
-    protected $description = 'Verify connectivity to the QuoteWerks SQL Server database';
+    protected $description = 'Verify connectivity to the QuoteWerks SQL Server database (ODBC)';
 
     public function handle(): int
     {
-        $this->info('Checking QuoteWerks SQL Server connection...');
+        $this->info('Checking QuoteWerks ODBC connection...');
 
         // ── Check PHP extension first ──
-        if (! extension_loaded('pdo_sqlsrv')) {
-            $this->error('FAILED: pdo_sqlsrv extension is not loaded.');
-            $this->line('  Run: php -m | grep sqlsrv');
-            $this->line('  Install: follow instructions in .env.example under QW_DB_* section.');
+        if (! extension_loaded('pdo_odbc')) {
+            $this->error('FAILED: pdo_odbc extension is not loaded.');
+            $this->line('  Run: php -m | grep odbc');
+            $this->line('  On the VPS this is bundled with the base PHP install — reinstall the php-odbc');
+            $this->line('  package (or php-pdo-odbc, depending on distro) if it went missing.');
             return self::FAILURE;
         }
 
-        $this->line('  pdo_sqlsrv extension: OK');
+        $this->line('  pdo_odbc extension: OK');
 
         // ── Attempt connection ──
         try {
-            $pdo     = DB::connection('quotewerks')->getPdo();
-            $version = $pdo->query('SELECT @@VERSION')->fetchColumn();
+            $pdo    = DB::connection('quotewerks')->getPdo();
+            $docNo  = $pdo->query('SELECT TOP 1 DocNo FROM DocumentHeaders')->fetchColumn();
             $this->info('QuoteWerks connection OK.');
-            $this->line('  SQL Server version: ' . trim(explode("\n", $version)[0]));
+            $this->line('  Sample DocNo: ' . ($docNo !== false ? (string) $docNo : '(empty table)'));
             return self::SUCCESS;
         } catch (PDOException $e) {
             $this->error('FAILED: ' . $e->getMessage());
             $this->line('');
             $this->line('Common causes:');
-            $this->line('  - VPN not connected (host unreachable)');
-            $this->line('  - Wrong QW_DB_HOST or QW_DB_PORT in .env');
-            $this->line('  - Wrong QW_DB_USERNAME / QW_DB_PASSWORD');
-            $this->line('  - TLS: try QW_DB_TRUST_CERT=true and QW_DB_ENCRYPT=yes');
+            $this->line('  - WireGuard tunnel to office SQL Server is down');
+            $this->line('  - /etc/odbc.ini DSN [QUOTEWERKS_PROD] missing or malformed');
+            $this->line('  - QUOTEWERKS_ODBC_DSN / USER / PASS in .env misconfigured');
+            $this->line('  - CSF TCP_OUT does not allow 1433');
             return self::FAILURE;
         } catch (\Throwable $e) {
             $this->error('FAILED (unexpected): ' . $e->getMessage());

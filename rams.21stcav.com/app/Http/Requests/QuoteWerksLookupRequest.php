@@ -8,7 +8,8 @@ use Illuminate\Foundation\Http\FormRequest;
  * QuoteWerksLookupRequest — validates QuoteWerks reference or client search inputs.
  *
  * Used by QuoteWerksImportController::lookup() and ::search().
- * Reference format: 21CQ followed by 2–15 digits, optional revision suffix (e.g. 21CQ12345-01).
+ * Reference format is validated loosely — the QW instance emits 21CQ###### natively
+ * but revision suffixes vary (21CQ29531-05-OPS is a valid live example).
  */
 class QuoteWerksLookupRequest extends FormRequest
 {
@@ -20,16 +21,18 @@ class QuoteWerksLookupRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'qw_reference' => ['sometimes', 'string', 'max:50', 'regex:/^21CQ[0-9]{2,15}(-[A-Z0-9]{1,10})*$/i'],
-            'client_name'  => ['sometimes', 'string', 'min:2', 'max:100'],
-            'date_from'    => ['sometimes', 'nullable', 'date'],
+            'reference' => ['sometimes', 'string', 'max:64'],
+            'client'    => ['sometimes', 'string', 'min:2', 'max:100'],
+            'date_from' => ['sometimes', 'nullable', 'date'],
+            'force'     => ['sometimes', 'boolean'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'qw_reference.regex' => 'Quote reference must start with 21CQ followed by digits (e.g. 21CQ12345 or 21CQ12345-01).',
+            'reference.max' => 'Quote reference is too long (max 64 characters).',
+            'client.min'    => 'Enter at least 2 characters to search.',
         ];
     }
 }

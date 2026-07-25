@@ -6,22 +6,16 @@ namespace Tests\Unit;
 
 use App\Core\Modules\QuoteImport\QuoteImportService;
 use App\Core\Modules\QuoteImport\QuoteWerksImportService;
-use App\Core\Modules\QuoteImport\QuoteWerksRepository;
 use App\Models\ProjectPackage;
 use App\Models\User;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Tests\TestCase;
 
 /**
- * Unit tests for QuoteWerksImportService.
+ * Unit tests for QuoteWerksImportService (260723-qw1 rewrite).
  *
- * Verifies: NotFoundException on missing quote, ProjectPackage return on success,
- * extracted_data structural contract (meta.source, confidence, rooms dedup,
- * equipment row shape), and correct data passed to importFromData().
- *
- * All dependencies are mocked — no DB, no SQL Server required.
- *
- * @see QWSQL-02, QWSQL-03, QWSQL-04
+ * Verifies the parsed-shape → extracted_data transformation and the
+ * importFromParsedShape orchestration. All dependencies are mocked —
+ * no DB, no SQL Server required.
  */
 class QuoteWerksImportServiceTest extends TestCase
 {
@@ -29,67 +23,51 @@ class QuoteWerksImportServiceTest extends TestCase
     // Shared fixtures
     // ─────────────────────────────────────────────────────────────────────────
 
-    private function makeSampleHeader(): array
+    private function sampleParsedShape(): array
     {
         return [
-            'doc_no'       => 'QW-2024-001',
-            'client_name'  => 'ACME Ltd',
-            'site_address' => '1 High Street, London',
-            'doc_date'     => '2024-01-15',
-            'sales_person' => 'Jane Smith',
-            'notes'        => 'Board room upgrade project',
+            'client'          => 'ACME Ltd',
+            'site'            => '1 High Street, London, EC1V 9AA',
+            'site_name'       => 'ACME Head Office',
+            'ref'             => '21CQ14213',
+            'prepared_by'     => 'J Smith',
+            'scope_narrative' => 'Board room upgrade project scope narrative that describes the works',
+            'contact_name'    => null,
+            'contact_phone'   => null,
+            'contact_email'   => null,
+            'equipment'       => [
+                [
+                    'description'  => 'Sony BRAVIA 40" Display',
+                    'part_number'  => 'SONY-BZ40H',
+                    'area'         => 'Boardroom',
+                    'location'     => 'North Wall',
+                    'qty'          => 2,
+                    'unit_price'   => 500.00,
+                    'manufacturer' => 'Sony',
+                ],
+                [
+                    'description'  => 'Sony BRAVIA 40" Display',
+                    'part_number'  => 'SONY-BZ40H',
+                    'area'         => 'Boardroom',
+                    'location'     => 'South Wall',
+                    'qty'          => 1,
+                    'unit_price'   => 500.00,
+                    'manufacturer' => 'Sony',
+                ],
+                [
+                    'description'  => 'NEC Projector',
+                    'part_number'  => 'NEC-PA522U',
+                    'area'         => 'Conference Room',
+                    'location'     => 'Ceiling',
+                    'qty'          => 1,
+                    'unit_price'   => 1200.00,
+                    'manufacturer' => 'NEC',
+                ],
+            ],
+            'rooms'           => ['Boardroom', 'Conference Room'],
         ];
     }
 
-    private function makeSampleItems(): array
-    {
-        return [
-            [
-                'item_type'   => 'P',
-                'quantity'    => 2,
-                'part_number' => 'SONY-BZ40H',
-                'description' => 'Sony BRAVIA 40" Display',
-                'group_name'  => 'Boardroom',
-                'sort_order'  => 10,
-            ],
-            [
-                'item_type'   => 'P',
-                'quantity'    => 1,
-                'part_number' => 'SONY-BZ40H',
-                'description' => 'Sony BRAVIA 40" Display',
-                'group_name'  => 'Boardroom',  // Duplicate group — should dedup
-                'sort_order'  => 20,
-            ],
-            [
-                'item_type'   => 'P',
-                'quantity'    => 1,
-                'part_number' => 'NEC-PA522U',
-                'description' => 'NEC Projector',
-                'group_name'  => 'Conference Room',
-                'sort_order'  => 30,
-            ],
-            [
-                'item_type'   => 'P',
-                'quantity'    => 1,
-                'part_number' => 'CABLE-001',
-                'description' => 'HDMI Cable 5m',
-                'group_name'  => '',  // Empty group — should be filtered out of rooms
-                'sort_order'  => 40,
-            ],
-        ];
-    }
-
-    /**
-     * Create a mock QuoteWerksRepository.
-     */
-    private function makeRepoMock(): QuoteWerksRepository
-    {
-        return $this->createMock(QuoteWerksRepository::class);
-    }
-
-    /**
-     * Create a mock QuoteImportService that returns the given package from importFromData().
-     */
     private function makeImportServiceMock(?ProjectPackage $returns = null): QuoteImportService
     {
         $mock    = $this->createMock(QuoteImportService::class);
@@ -101,200 +79,191 @@ class QuoteWerksImportServiceTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Test 1 — importByReference() throws ModelNotFoundException when not found
+    // buildExtractedData shape
     // ─────────────────────────────────────────────────────────────────────────
 
-    /**
-     * When the repository cannot find the header row, importByReference() must
-     * throw ModelNotFoundException so callers can handle 404 gracefully.
-     */
-    public function test_importByReference_throws_when_header_not_found(): void
+    /** @test */
+    public function build_extracted_data_sets_meta_source_to_quotewerks_sql(): void
     {
-        $repo = $this->makeRepoMock();
-        $repo->method('findByReference')->willReturn(null);
+        $service = new QuoteWerksImportService($this->makeImportServiceMock());
 
-        $service = new QuoteWerksImportService($repo, $this->makeImportServiceMock());
-
-        $this->expectException(ModelNotFoundException::class);
-
-        $user = $this->createMock(User::class);
-        $service->importByReference($user, 'MISSING-999');
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Test 2 — importByReference() returns ProjectPackage on success
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * When the repository returns a valid header + items, importByReference()
-     * must pass the data through and return the ProjectPackage from importFromData().
-     */
-    public function test_importByReference_returns_project_package(): void
-    {
-        $expectedPackage = $this->createMock(ProjectPackage::class);
-
-        $repo = $this->makeRepoMock();
-        $repo->method('findByReference')->willReturn($this->makeSampleHeader());
-        $repo->method('getItemsByDocNo')->willReturn($this->makeSampleItems());
-
-        $importService = $this->createMock(QuoteImportService::class);
-        $importService->method('importFromData')->willReturn($expectedPackage);
-
-        $service = new QuoteWerksImportService($repo, $importService);
-
-        $user   = $this->createMock(User::class);
-        $result = $service->importByReference($user, 'QW-2024-001');
-
-        $this->assertSame($expectedPackage, $result);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Test 3 — buildExtractedData() sets meta.source to exactly 'quotewerks_sql'
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * meta.source MUST equal the literal string 'quotewerks_sql'.
-     * ProjectDataService uses an exact equality check on this value.
-     */
-    public function test_buildExtractedData_sets_meta_source_to_quotewerks_sql(): void
-    {
-        $service = new QuoteWerksImportService(
-            $this->makeRepoMock(),
-            $this->makeImportServiceMock()
-        );
-
-        $result = $service->buildExtractedData($this->makeSampleHeader(), $this->makeSampleItems());
+        $result = $service->buildExtractedData($this->sampleParsedShape());
 
         $this->assertArrayHasKey('meta', $result);
         $this->assertSame('quotewerks_sql', $result['meta']['source']);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Test 4 — buildExtractedData() sets confidence to 0.95
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Both meta.confidence and meta.parser_confidence must equal 0.95 (float).
-     */
-    public function test_buildExtractedData_sets_confidence_to_095(): void
+    /** @test */
+    public function build_extracted_data_sets_confidence_to_095(): void
     {
-        $service = new QuoteWerksImportService(
-            $this->makeRepoMock(),
-            $this->makeImportServiceMock()
-        );
+        $service = new QuoteWerksImportService($this->makeImportServiceMock());
 
-        $result = $service->buildExtractedData($this->makeSampleHeader(), $this->makeSampleItems());
+        $result = $service->buildExtractedData($this->sampleParsedShape());
 
         $this->assertSame(0.95, $result['meta']['confidence']);
         $this->assertSame(0.95, $result['meta']['parser_confidence']);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Test 5 — buildExtractedData() builds rooms from unique non-empty group names
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * rooms must be deduplicated and empty strings must be filtered out.
-     */
-    public function test_buildExtractedData_builds_rooms_from_unique_non_empty_group_names(): void
+    /** @test */
+    public function build_extracted_data_preserves_rooms_from_parsed_shape(): void
     {
-        $service = new QuoteWerksImportService(
-            $this->makeRepoMock(),
-            $this->makeImportServiceMock()
-        );
+        $service = new QuoteWerksImportService($this->makeImportServiceMock());
 
-        $result = $service->buildExtractedData($this->makeSampleHeader(), $this->makeSampleItems());
+        $result = $service->buildExtractedData($this->sampleParsedShape());
 
-        $this->assertArrayHasKey('rooms', $result);
-        // Should have 2 unique non-empty groups (Boardroom, Conference Room)
-        $this->assertCount(2, $result['rooms']);
-        $this->assertContains('Boardroom',       $result['rooms']);
-        $this->assertContains('Conference Room', $result['rooms']);
-        // Empty string must NOT be in rooms
-        $this->assertNotContains('', $result['rooms']);
+        $this->assertSame(['Boardroom', 'Conference Room'], $result['rooms']);
+        $this->assertSame(2, $result['meta']['room_count']);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Test 6 — buildExtractedData() builds equipment rows with all required keys
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Every equipment row must carry: quantity, qty, part_number, part_no,
-     * name, description, area, location, category.
-     */
-    public function test_buildExtractedData_equipment_rows_have_all_required_keys(): void
+    /** @test */
+    public function build_extracted_data_equipment_rows_have_all_required_keys(): void
     {
-        $service = new QuoteWerksImportService(
-            $this->makeRepoMock(),
-            $this->makeImportServiceMock()
-        );
+        $service = new QuoteWerksImportService($this->makeImportServiceMock());
 
-        $result = $service->buildExtractedData($this->makeSampleHeader(), $this->makeSampleItems());
+        $result = $service->buildExtractedData($this->sampleParsedShape());
 
         $this->assertNotEmpty($result['equipment']);
 
         foreach ($result['equipment'] as $row) {
-            $this->assertArrayHasKey('quantity',    $row, 'Missing key: quantity');
-            $this->assertArrayHasKey('qty',         $row, 'Missing key: qty');
-            $this->assertArrayHasKey('part_number', $row, 'Missing key: part_number');
-            $this->assertArrayHasKey('part_no',     $row, 'Missing key: part_no');
-            $this->assertArrayHasKey('name',        $row, 'Missing key: name');
-            $this->assertArrayHasKey('description', $row, 'Missing key: description');
-            $this->assertArrayHasKey('area',        $row, 'Missing key: area');
-            $this->assertArrayHasKey('location',    $row, 'Missing key: location');
-            $this->assertArrayHasKey('category',    $row, 'Missing key: category');
+            $this->assertArrayHasKey('quantity',    $row);
+            $this->assertArrayHasKey('qty',         $row);
+            $this->assertArrayHasKey('part_number', $row);
+            $this->assertArrayHasKey('part_no',     $row);
+            $this->assertArrayHasKey('name',        $row);
+            $this->assertArrayHasKey('description', $row);
+            $this->assertArrayHasKey('area',        $row);
+            $this->assertArrayHasKey('location',    $row);
+            $this->assertArrayHasKey('category',    $row);
+            $this->assertArrayHasKey('unit_price',  $row);
+            $this->assertArrayHasKey('total_price', $row);
+            $this->assertArrayHasKey('data_source', $row);
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Test 7 — buildExtractedData() sets equipment, equipment_list, line_items to same array
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * equipment, equipment_list, and line_items must all reference the same data.
-     */
-    public function test_buildExtractedData_equipment_list_and_line_items_are_same(): void
+    /** @test */
+    public function build_extracted_data_equipment_list_and_line_items_are_same_data(): void
     {
-        $service = new QuoteWerksImportService(
-            $this->makeRepoMock(),
-            $this->makeImportServiceMock()
-        );
+        $service = new QuoteWerksImportService($this->makeImportServiceMock());
 
-        $result = $service->buildExtractedData($this->makeSampleHeader(), $this->makeSampleItems());
+        $result = $service->buildExtractedData($this->sampleParsedShape());
 
         $this->assertSame($result['equipment'],      $result['equipment_list']);
         $this->assertSame($result['equipment_list'], $result['line_items']);
     }
 
+    /** @test */
+    public function build_extracted_data_computes_total_price_from_qty_and_unit_price(): void
+    {
+        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+
+        $result = $service->buildExtractedData($this->sampleParsedShape());
+
+        // First row: qty 2 × 500 = 1000
+        $this->assertSame(1000.0, $result['equipment'][0]['total_price']);
+        // Third row: qty 1 × 1200 = 1200
+        $this->assertSame(1200.0, $result['equipment'][2]['total_price']);
+    }
+
+    /** @test */
+    public function build_extracted_data_classifies_display_and_projector(): void
+    {
+        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+
+        $result = $service->buildExtractedData($this->sampleParsedShape());
+
+        $this->assertSame('display', $result['equipment'][0]['category']);
+        // "NEC Projector" — projector isn't in the display pattern but is
+        // not caught by anything specific either → falls to 'other'.
+        $this->assertContains($result['equipment'][2]['category'], ['other', 'display']);
+    }
+
+    /** @test */
+    public function build_extracted_data_project_name_truncates_scope_narrative_to_80_chars(): void
+    {
+        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+
+        $parsed = array_merge($this->sampleParsedShape(), [
+            'scope_narrative' => str_repeat('X', 200),
+        ]);
+
+        $result = $service->buildExtractedData($parsed);
+
+        $this->assertLessThanOrEqual(80, strlen($result['project_name']));
+    }
+
+    /** @test */
+    public function build_extracted_data_project_name_falls_back_to_ref_when_scope_empty(): void
+    {
+        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+
+        $parsed = array_merge($this->sampleParsedShape(), [
+            'scope_narrative' => '',
+        ]);
+
+        $result = $service->buildExtractedData($parsed);
+
+        $this->assertSame('21CQ14213', $result['project_name']);
+    }
+
+    /** @test */
+    public function build_extracted_data_carries_prepared_by_and_site_name(): void
+    {
+        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+
+        $result = $service->buildExtractedData($this->sampleParsedShape());
+
+        $this->assertSame('J Smith',           $result['prepared_by']);
+        $this->assertSame('ACME Head Office',  $result['site_name']);
+    }
+
+    /** @test */
+    public function build_extracted_data_handles_missing_equipment_key(): void
+    {
+        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+
+        $result = $service->buildExtractedData([
+            'ref'    => '21CQ99999',
+            'client' => 'Sparse Client',
+            // No equipment key at all
+        ]);
+
+        $this->assertSame([], $result['equipment']);
+        $this->assertSame(0, $result['meta']['item_count']);
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
-    // Test 8 — importByReference() passes correct keys to importFromData()
+    // importFromParsedShape orchestration
     // ─────────────────────────────────────────────────────────────────────────
 
-    /**
-     * The $data array passed to QuoteImportService::importFromData() must include:
-     * client_name, site_address, ref, name, works_description, equipment_list,
-     * cable_list, extracted_data.
-     */
-    public function test_importByReference_passes_correct_keys_to_importFromData(): void
+    /** @test */
+    public function import_from_parsed_shape_returns_project_package(): void
+    {
+        $expected = $this->createMock(ProjectPackage::class);
+        $service  = new QuoteWerksImportService($this->makeImportServiceMock($expected));
+
+        $result = $service->importFromParsedShape(
+            $this->createMock(User::class),
+            $this->sampleParsedShape()
+        );
+
+        $this->assertSame($expected, $result);
+    }
+
+    /** @test */
+    public function import_from_parsed_shape_passes_correct_keys_to_import_from_data(): void
     {
         $capturedData = null;
-
-        $repo = $this->makeRepoMock();
-        $repo->method('findByReference')->willReturn($this->makeSampleHeader());
-        $repo->method('getItemsByDocNo')->willReturn($this->makeSampleItems());
 
         $importService = $this->createMock(QuoteImportService::class);
         $importService->expects($this->once())
             ->method('importFromData')
             ->willReturnCallback(function (User $user, array $data) use (&$capturedData) {
                 $capturedData = $data;
-
                 return $this->createMock(ProjectPackage::class);
             });
 
-        $service = new QuoteWerksImportService($repo, $importService);
-        $user    = $this->createMock(User::class);
-        $service->importByReference($user, 'QW-2024-001');
+        $service = new QuoteWerksImportService($importService);
+        $service->importFromParsedShape($this->createMock(User::class), $this->sampleParsedShape());
 
         $this->assertNotNull($capturedData);
         $this->assertArrayHasKey('client_name',      $capturedData);
@@ -305,5 +274,10 @@ class QuoteWerksImportServiceTest extends TestCase
         $this->assertArrayHasKey('equipment_list',   $capturedData);
         $this->assertArrayHasKey('cable_list',       $capturedData);
         $this->assertArrayHasKey('extracted_data',   $capturedData);
+
+        $this->assertSame('ACME Ltd',                             $capturedData['client_name']);
+        $this->assertSame('1 High Street, London, EC1V 9AA',      $capturedData['site_address']);
+        $this->assertSame('21CQ14213',                            $capturedData['ref']);
+        $this->assertSame([],                                     $capturedData['cable_list']);
     }
 }
