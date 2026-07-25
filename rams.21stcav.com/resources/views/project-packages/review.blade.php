@@ -2080,11 +2080,30 @@ function equipmentSection() {
         },
 
         // ── Internals ────────────────────────────────────────────────────
+        //
+        // 260725-fx3: query the DOM checkboxes directly instead of round-
+        // tripping through the Alpine `selectedRowIds` array. x-model on
+        // multi-value checkboxes has a subtle race where the array can drift
+        // out of sync with the actual .checked state (esp. after graveyard
+        // rows flip to display:none). DOM is the source of truth for what
+        // the user actually ticked; the array is a reactive display value.
+        //
+        // Side effect: keeps the "N selected" count in the toolbar honest
+        // by refreshing selectedRowIds from the DOM whenever this fires.
         _selectedRows() {
             if (!this.$el) return [];
-            return this.selectedRowIds
-                .map(id => this.$el.querySelector(`tr[data-equip-row][data-row-id="${id}"]`))
+            const rows = Array.from(this.$el.querySelectorAll('input.row-select:checked'))
+                .map(cb => cb.closest('tr[data-equip-row]'))
                 .filter(Boolean);
+            // Reconcile selectedRowIds from the DOM in case Alpine drift
+            // has left them out of sync. Alpine reactivity picks this up
+            // and the toolbar count updates.
+            const domIds = rows.map(r => r.dataset.rowId).filter(id => id != null);
+            if (domIds.length !== this.selectedRowIds.length ||
+                domIds.some((id, i) => String(id) !== String(this.selectedRowIds[i]))) {
+                this.selectedRowIds = domIds;
+            }
+            return rows;
         },
 
         _doDelete(row) { this._markDeleted(row, true); },
