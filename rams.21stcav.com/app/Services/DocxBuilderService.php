@@ -129,6 +129,9 @@ class DocxBuilderService
         $this->buildPermitAndIsolation($phpWord, $data);
         $this->buildFixingsControl($phpWord, $data);
         $this->buildSupervisionAndQA($phpWord, $data);
+        // ── 260725-rd1 — §6.11 + §6.12 (parity with hand-crafted Tilda RAMs) ─
+        $this->buildCoordinationWithOtherTrades($phpWord, $data);
+        $this->buildITNetworkIntegrationSafety($phpWord, $data);
         // ── D11 — Compliance / environment / welfare block ───────────────
         $this->buildPermitsAndAuthorisations($phpWord, $data);
         $this->buildCdmSection($phpWord, $data);
@@ -474,6 +477,54 @@ class DocxBuilderService
             $bodyFont,
             $paraStyle,
         );
+
+        // ── 260725-rd1 — Standards & Guidance table (parity with reference) ──
+        // Reads $data['standards_references'] (populated by
+        // Tier1RamsDefaultsService from config('rams_tier1.standards_references')
+        // when reviewed_data supplies none). Config shape uses `ref`, `title`,
+        // `applies_to` — this reader tolerates the alt `reference`/`code` +
+        // `name` keys as well, in case a future review workflow writes them
+        // that way. See config/rams_tier1.php.
+        $standards = array_values(array_filter(
+            (array) ($data['standards_references'] ?? []),
+            static fn ($s): bool => is_array($s) && ! empty($s),
+        ));
+
+        if (! empty($standards)) {
+            $section->addTextBreak(1);
+            $section->addText(
+                'Standards & Guidance Applicable to This Works',
+                $this->font(10, bold: true, colour: self::TEAL),
+                ['spaceBefore' => 80, 'spaceAfter' => 60],
+            );
+
+            $stdsTable = $section->addTable($this->tableStyle());
+            // Column widths sum = W_PORT (9866)
+            $wRef      = 2200;
+            $wTitle    = 4200;
+            $wApplies  = 9866 - $wRef - $wTitle; // 3466
+
+            $this->tealHeader(
+                $stdsTable,
+                ['Reference', 'Title', 'Applies To (on this project)'],
+                [$wRef, $wTitle, $wApplies],
+            );
+
+            $stdFont = $this->font(9);
+            foreach ($standards as $si => $std) {
+                $bg   = ($si % 2 === 0) ? ['bgColor' => self::WHITE] : ['bgColor' => self::ROW_ALT];
+                $ref  = trim((string) ($std['ref'] ?? ($std['reference'] ?? ($std['code'] ?? ''))));
+                $ttl  = trim((string) ($std['title'] ?? ($std['name'] ?? '')));
+                $app  = trim((string) ($std['applies_to'] ?? ($std['scope'] ?? '')));
+                if ($ref === '' && $ttl === '' && $app === '') {
+                    continue;
+                }
+                $row = $stdsTable->addRow(0);
+                $row->addCell($wRef,     $bg)->addText($this->t($ref), $this->font(9, bold: true));
+                $row->addCell($wTitle,   $bg)->addText($this->t($ttl), $stdFont);
+                $row->addCell($wApplies, $bg)->addText($this->t($app), $stdFont);
+            }
+        }
     }
 
     // =========================================================================
@@ -703,6 +754,50 @@ class DocxBuilderService
                 $dr->addCell($wQty,  ['bgColor' => self::WHITE])->addText('', $bf);
                 $dr->addCell($wNote, ['bgColor' => self::WHITE])->addText('', $bf);
             }
+        }
+
+        // ── 260725-rd1 — Explicit Exclusions block ────────────────────────────
+        // Reads reviewed_data['exclusions'] (populated by the add_exclusion op
+        // from 260723-rr1, or by RamsDisplayPatchService's default seed).
+        // Mirrors the H2 sub-heading + bulleted-list template used for
+        // Works Activities above.
+        $section->addTextBreak(1);
+        $exclusions = [];
+        if ($record !== null && is_array($record->reviewed_data['exclusions'] ?? null)) {
+            $exclusions = array_values(array_filter(
+                array_map(static fn ($x): string => is_string($x) ? trim($x) : '', $record->reviewed_data['exclusions']),
+                static fn (string $x): bool => $x !== '',
+            ));
+        }
+        // Also honour a generated_data['exclusions'] override if the caller
+        // passes one — keeps unit fixtures deterministic without needing a
+        // real RamsDocument record for reviewed_data lookups.
+        if (empty($exclusions) && is_array($data['exclusions'] ?? null)) {
+            $exclusions = array_values(array_filter(
+                array_map(static fn ($x): string => is_string($x) ? trim($x) : '', $data['exclusions']),
+                static fn (string $x): bool => $x !== '',
+            ));
+        }
+
+        $section->addText(
+            'Exclusions',
+            $this->font(10, bold: true, colour: self::TEAL),
+            ['spaceBefore' => 80, 'spaceAfter' => 60],
+        );
+        if (! empty($exclusions)) {
+            foreach ($exclusions as $exclusion) {
+                $section->addText(
+                    '•  ' . $this->t($exclusion),
+                    $this->font(9),
+                    ['spaceBefore' => 40, 'spaceAfter' => 40],
+                );
+            }
+        } else {
+            $section->addText(
+                'No exclusions declared for this project.',
+                $this->font(9),
+                ['spaceBefore' => 40, 'spaceAfter' => 40],
+            );
         }
     }
 
@@ -1656,6 +1751,106 @@ class DocxBuilderService
         foreach ($resp as $item) {
             $section->addText('•  ' . $this->t((string) $item), $vf, ['spaceBefore' => 40, 'spaceAfter' => 40]);
         }
+    }
+
+    /**
+     * §6.11 Coordination with Other Trades — 260725-rd1.
+     *
+     * Content copied verbatim from the hand-crafted reference
+     * (21CQ29531-05-OPS Tilda RAMs Rev1.1.docx). Always renders — this is
+     * a boilerplate coordination policy applicable to every install.
+     * Pattern matches §6.7/§6.8: sectionHeading + prose paragraph +
+     * bulleted list of key coordination touch-points.
+     */
+    private function buildCoordinationWithOtherTrades(PhpWord $phpWord, array $data): void
+    {
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, '6.11 Coordination with Other Trades');
+
+        $bodyFont  = $this->font(9);
+        $paraStyle = ['spaceBefore' => 60, 'spaceAfter' => 80, 'alignment' => Jc::BOTH];
+
+        $section->addText(
+            'Where AV works interface with plant owned by other trades (ceiling grid installer, '
+            . 'partition contractor, electrical fit-out, IT / network cabling), the Lead Engineer '
+            . 'must confirm the interface point with the trade\'s on-site supervisor before penetration, '
+            . 'fixing or cable pull. Interface disputes are escalated to the Project Manager for '
+            . 'resolution before works proceed; engineers do not commence contested works.',
+            $bodyFont,
+            $paraStyle,
+        );
+
+        $bullets = [
+            'Ceiling grid / structure — any drilling into ceiling voids requires prior confirmation '
+                . 'from the ceiling installer that the grid is fully supported and no live services are on the drill path.',
+            'Partition walls — any cable pull through partitions requires prior confirmation from the '
+                . 'partition contractor that the wall is not carrying fire-stop that would be breached.',
+            'Electrical contractor — coordinate mains isolation and lock-off with the electrical '
+                . 'fit-out lead before any rack power or fixed-cable termination works.',
+            'Principal Contractor — obtain permits-to-work (ceiling access, hot works, roof access, '
+                . 'confined-space entry) from the Principal Contractor before commencing the relevant activity.',
+            'Client IT contractor — any tie-in to client-owned IT infrastructure requires prior '
+                . 'confirmation from the client IT contact (see §6.12) that the port is provisioned '
+                . 'and the VLAN is correctly assigned.',
+        ];
+        foreach ($bullets as $b) {
+            $section->addText('•  ' . $this->t($b), $bodyFont, ['spaceBefore' => 40, 'spaceAfter' => 40]);
+        }
+    }
+
+    /**
+     * §6.12 IT / Network Integration Safety — 260725-rd1.
+     *
+     * Content copied verbatim from the hand-crafted reference
+     * (21CQ29531-05-OPS Tilda RAMs Rev1.1.docx). Always renders — network
+     * integration principles apply to every codec, DSP, control processor
+     * or room-scheduler tablet deployment.
+     */
+    private function buildITNetworkIntegrationSafety(PhpWord $phpWord, array $data): void
+    {
+        $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
+        $this->attachFooter($section);
+        $this->sectionHeading($section, '6.12 IT / Network Integration Safety');
+
+        $bodyFont  = $this->font(9);
+        $paraStyle = ['spaceBefore' => 60, 'spaceAfter' => 80, 'alignment' => Jc::BOTH];
+
+        $section->addText(
+            'The client\'s IT contact must be informed and available before any codec, DSP, control '
+            . 'processor, room-scheduler tablet or network switch joins the client LAN. Control system '
+            . 'programming (Crestron, Q-SYS, Extron, Vaddio) and DSP configuration are performed OFF '
+            . 'the live signal path (bench or staging PC) and only cutover after the client IT contact '
+            . 'confirms the target VLAN is live and the switch port is enabled.',
+            $bodyFont,
+            $paraStyle,
+        );
+
+        $bullets = [
+            'Verify existing network before patching — confirm switch port, VLAN and PoE budget with '
+                . 'the client IT contact before any device connects.',
+            'Label all cables at both ends — comms-room patch panels and room-end faceplates must be '
+                . 'labelled to the agreed naming convention before commissioning.',
+            'Confirm firewall rules with client IT — any codec / control-processor egress requirement '
+                . '(SIP registrar, MQTT broker, vendor cloud) is verified before hot-cutover.',
+            'Test-before-connect on shared switches — bench-test all devices on a staging PC or '
+                . 'isolated VLAN before joining the client LAN; do NOT plug an untested device into a live production port.',
+            'Protect against unintended broadcast / PoE damage — verify device power draw is within '
+                . 'the switch PoE budget and that no DHCP server / STP root election disturbs the client LAN.',
+            'Coordinate cutover with client IT — firmware updates on client-owned hardware only with '
+                . 'written authorisation and during agreed maintenance windows. Credentials handed over via the O&M Manual.',
+        ];
+        foreach ($bullets as $b) {
+            $section->addText('•  ' . $this->t($b), $bodyFont, ['spaceBefore' => 40, 'spaceAfter' => 40]);
+        }
+
+        $section->addText(
+            'Power-cycle and network-fail recovery is verified during commissioning for every codec, '
+            . 'DSP and control processor — each device must autonomously return to the last-good '
+            . 'configuration after unexpected loss of power or network.',
+            $bodyFont,
+            $paraStyle,
+        );
     }
 
     /**
