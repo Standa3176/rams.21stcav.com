@@ -139,6 +139,14 @@ class QuoteWerksDbFetcher
         // where the operator hasn't set it (majority of QuoteWerks quotes).
         $scopeNarrative = trim((string) ($header['CustomMemo01'] ?? ''));
 
+        // Introduction / closing notes are quote-wide flavour text. Verified
+        // 2026-07-25 against 21CQ29531-05-OPS: IntroductionNotes = "21st
+        // Century AV are pleased to provide…", ClosingNotes = "Please contact
+        // me if I can be of further assistance." Downstream RAMS mapper
+        // surfaces on extracted_data (nullable) for later template use.
+        $introNotes   = trim((string) ($header['IntroductionNotes'] ?? ''));
+        $closingNotes = trim((string) ($header['ClosingNotes'] ?? ''));
+
         // Walk items in fetch order (already ORDER BY ID) and thread a
         // "current section" through the loop. LineType=32 (top-level section
         // header) and LineType=256 (subsection header) with a non-empty
@@ -151,6 +159,12 @@ class QuoteWerksDbFetcher
         // aggressively before storing.
         $equipment = [];
         $roomNames = [];
+        // Per-room narrative from LineType 32/256 rows' CustomMemo01 column
+        // (verified 2026-07-25 against 21CQ29531-05-OPS — Oregano/Cinnamon/
+        // Saffron each carry the narrative paragraph on their section header
+        // row). Keyed by room name (raw section-header text) — downstream
+        // mapper zips this into extracted_data.room_overviews[*].overview.
+        $roomDescriptions = [];
         $currentRoom = null;
         foreach ($items as $item) {
             // Default missing LineType to 1 (product) — real fetcher SQL
@@ -163,6 +177,14 @@ class QuoteWerksDbFetcher
                     $currentRoom = $descriptionRaw;
                     if (! in_array($currentRoom, $roomNames, true)) {
                         $roomNames[] = $currentRoom;
+                    }
+                    // Capture room narrative iff CustomMemo01 is populated.
+                    // Whitespace-collapsed (Oregano's memo contains soft
+                    // wrapping). Last-write-wins on duplicate section
+                    // headers (not observed in practice).
+                    $roomMemo = trim((string) preg_replace('/\s+/', ' ', (string) ($item['CustomMemo01'] ?? '')));
+                    if ($roomMemo !== '') {
+                        $roomDescriptions[$currentRoom] = $roomMemo;
                     }
                 }
                 continue;
@@ -186,25 +208,31 @@ class QuoteWerksDbFetcher
         $rooms = array_values($roomNames);
 
         return [
-            'client'          => $client !== '' ? $client : null,
-            'site'            => $site !== '' ? $site : null,
-            'site_name'       => $siteName !== '' ? $siteName : null,
-            'ref'             => (string) ($header['DocNo'] ?? ''),
-            'prepared_by'     => $preparedBy !== '' ? $preparedBy : null,
+            'client'            => $client !== '' ? $client : null,
+            'site'              => $site !== '' ? $site : null,
+            'site_name'         => $siteName !== '' ? $siteName : null,
+            'ref'               => (string) ($header['DocNo'] ?? ''),
+            'prepared_by'       => $preparedBy !== '' ? $preparedBy : null,
             // Null when empty so downstream mapper can distinguish "no scope
             // text set" from "empty string set explicitly".
-            'scope_narrative' => $scopeNarrative !== '' ? $scopeNarrative : null,
+            'scope_narrative'   => $scopeNarrative !== '' ? $scopeNarrative : null,
+            'intro_notes'       => $introNotes   !== '' ? $introNotes   : null,
+            'closing_notes'     => $closingNotes !== '' ? $closingNotes : null,
             // QuoteWerks DocumentHeaders does NOT carry structured site contact
             // fields (would require a second SELECT against a Contacts table —
             // deferred out-of-scope). Empty for MVP; downstream handles null
             // contact tuples cleanly.
-            'contact_name'    => null,
-            'contact_phone'   => null,
-            'contact_email'   => null,
-            'equipment'       => $equipment,
+            'contact_name'      => null,
+            'contact_phone'     => null,
+            'contact_email'     => null,
+            'equipment'         => $equipment,
             // Rooms[] carries operator-set section headings (LineType 32 + 256
             // Descriptions). Empty when the quote has no section headers.
-            'rooms'           => $rooms,
+            'rooms'             => $rooms,
+            // Room name → narrative paragraph (from section-header row's
+            // CustomMemo01). Sparse — only rooms whose header row has a
+            // populated memo. Downstream mapper zips into room_overviews[].
+            'room_descriptions' => $roomDescriptions,
         ];
     }
 
@@ -273,7 +301,8 @@ class QuoteWerksDbFetcher
     {
         $sql = 'SELECT TOP 1 ID, DocNo, DocType, DocDate, RevisionMasterDocNo, Superceeded, '
             . 'SoldToCompany, ShipToCompany, ShipToContact, ShipToAddress1, ShipToAddress2, '
-            . 'ShipToCity, ShipToPostalCode, Subtotal, GrandTotal, PreparedBy, CustomMemo01 '
+            . 'ShipToCity, ShipToPostalCode, Subtotal, GrandTotal, PreparedBy, CustomMemo01, '
+            . 'IntroductionNotes, ClosingNotes '
             . 'FROM DocumentHeaders '
             . 'WHERE (DocNo = ? OR RevisionMasterDocNo = ?) AND Superceeded = 0 '
             . 'ORDER BY DocDate DESC';
@@ -326,7 +355,7 @@ class QuoteWerksDbFetcher
     private function fetchItems(int $docID): array
     {
         $sql = 'SELECT ID, LineType, QtyBase, ManufacturerPartNumber, Notes, Description, '
-            . 'CustomText01, CustomText02, UnitPrice, Manufacturer '
+            . 'CustomText01, CustomText02, CustomMemo01, UnitPrice, Manufacturer '
             . 'FROM DocumentItems '
             . 'WHERE DocID = ? AND LineType IN (1, 32, 256) '
             . 'ORDER BY ID';

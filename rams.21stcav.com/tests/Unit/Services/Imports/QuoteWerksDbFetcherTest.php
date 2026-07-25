@@ -256,6 +256,166 @@ class QuoteWerksDbFetcherTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Per-room descriptions from LineType 32/256 CustomMemo01 (260725-qw2)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** @test */
+    public function section_header_custommemo01_populates_room_descriptions(): void
+    {
+        $fetcher = new QuoteWerksDbFetcher();
+
+        $items = [
+            $this->sectionHeader('Oregano', 'Oregano is now using the Crestron small room system with Jabra PanaCast 50.'),
+            $this->product('FW-75BZ35L', 'Sony 75" display'),
+        ];
+
+        $result = $fetcher->mapToParsedShape($this->sampleHeader(), $items);
+
+        $this->assertArrayHasKey('room_descriptions', $result);
+        $this->assertSame(
+            'Oregano is now using the Crestron small room system with Jabra PanaCast 50.',
+            $result['room_descriptions']['Oregano']
+        );
+    }
+
+    /** @test */
+    public function multiple_section_headers_each_land_under_their_own_key(): void
+    {
+        $fetcher = new QuoteWerksDbFetcher();
+
+        $items = [
+            $this->sectionHeader('Oregano', 'Oregano uses the Crestron small room system.'),
+            $this->product('P1', 'Display'),
+            $this->sectionHeader('Cinnamon', 'Cinnamon uses the Crestron Flex integrator kit with 1Beyond cameras.'),
+            $this->product('P2', 'Display'),
+            $this->sectionHeader('Saffron', 'Saffron mirrors Cinnamon.'),
+            $this->product('P3', 'Display'),
+        ];
+
+        $result = $fetcher->mapToParsedShape($this->sampleHeader(), $items);
+
+        $this->assertSame(['Oregano', 'Cinnamon', 'Saffron'], $result['rooms']);
+        $this->assertSame(
+            [
+                'Oregano'  => 'Oregano uses the Crestron small room system.',
+                'Cinnamon' => 'Cinnamon uses the Crestron Flex integrator kit with 1Beyond cameras.',
+                'Saffron'  => 'Saffron mirrors Cinnamon.',
+            ],
+            $result['room_descriptions']
+        );
+    }
+
+    /** @test */
+    public function empty_custommemo01_leaves_no_room_description_entry(): void
+    {
+        $fetcher = new QuoteWerksDbFetcher();
+
+        $items = [
+            $this->sectionHeader('Oregano', ''),
+            $this->product('P1', 'Display'),
+            $this->sectionHeader('Cinnamon', '   '),   // whitespace-only also treated as empty
+            $this->product('P2', 'Display'),
+        ];
+
+        $result = $fetcher->mapToParsedShape($this->sampleHeader(), $items);
+
+        $this->assertSame(['Oregano', 'Cinnamon'], $result['rooms']);
+        $this->assertSame([], $result['room_descriptions']);
+    }
+
+    /** @test */
+    public function room_description_whitespace_is_collapsed(): void
+    {
+        $fetcher = new QuoteWerksDbFetcher();
+
+        $items = [
+            $this->sectionHeader('Oregano', "Oregano   uses\nthe Crestron\t\tsmall room\r\nsystem."),
+            $this->product('P1', 'Display'),
+        ];
+
+        $result = $fetcher->mapToParsedShape($this->sampleHeader(), $items);
+
+        $this->assertSame(
+            'Oregano uses the Crestron small room system.',
+            $result['room_descriptions']['Oregano']
+        );
+    }
+
+    /** @test */
+    public function windows_1252_room_description_normalises_to_utf8(): void
+    {
+        $fetcher = new QuoteWerksDbFetcher();
+
+        // NOTE: mapToParsedShape does not itself convert encodings — that's
+        // normalizeUtf8Row's job at fetch time. Passing pre-UTF-8 text with a
+        // curly quote proves the whitespace-collapse doesn't mangle multibyte.
+        $items = [
+            $this->sectionHeader('Oregano', "Oregano’s system uses “smart” controls."),
+            $this->product('P1', 'Display'),
+        ];
+
+        $result = $fetcher->mapToParsedShape($this->sampleHeader(), $items);
+
+        $this->assertSame(
+            "Oregano’s system uses “smart” controls.",
+            $result['room_descriptions']['Oregano']
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Header intro / closing notes (260725-qw2)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** @test */
+    public function introduction_and_closing_notes_pulled_from_header(): void
+    {
+        $fetcher = new QuoteWerksDbFetcher();
+
+        $header = $this->sampleHeader([
+            'IntroductionNotes' => '21st Century AV are pleased to provide a detailed quote.',
+            'ClosingNotes'      => 'Please contact me if I can be of further assistance.',
+        ]);
+
+        $result = $fetcher->mapToParsedShape($header, []);
+
+        $this->assertSame(
+            '21st Century AV are pleased to provide a detailed quote.',
+            $result['intro_notes']
+        );
+        $this->assertSame(
+            'Please contact me if I can be of further assistance.',
+            $result['closing_notes']
+        );
+    }
+
+    /** @test */
+    public function missing_intro_and_closing_notes_are_null(): void
+    {
+        $fetcher = new QuoteWerksDbFetcher();
+
+        $result = $fetcher->mapToParsedShape($this->sampleHeader(), []);
+
+        $this->assertNull($result['intro_notes']);
+        $this->assertNull($result['closing_notes']);
+    }
+
+    /** @test */
+    public function whitespace_only_intro_and_closing_become_null(): void
+    {
+        $fetcher = new QuoteWerksDbFetcher();
+
+        $header = $this->sampleHeader([
+            'IntroductionNotes' => '   ',
+            'ClosingNotes'      => "\n\t",
+        ]);
+
+        $result = $fetcher->mapToParsedShape($header, []);
+
+        $this->assertNull($result['intro_notes']);
+        $this->assertNull($result['closing_notes']);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Fixtures
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -283,6 +443,9 @@ class QuoteWerksDbFetcherTest extends TestCase
             'GrandTotal'          => 0,
             'PreparedBy'          => 'J Smith',
             'CustomMemo01'        => '',
+            // 260725-qw2 — quote-wide flavour text, default empty.
+            'IntroductionNotes'   => '',
+            'ClosingNotes'        => '',
         ], $overrides);
     }
 
@@ -308,7 +471,7 @@ class QuoteWerksDbFetcherTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    private function sectionHeader(string $text): array
+    private function sectionHeader(string $text, string $memo = ''): array
     {
         return [
             'ID'                     => random_int(1, 9999),
@@ -319,6 +482,9 @@ class QuoteWerksDbFetcherTest extends TestCase
             'Description'            => $text,
             'CustomText01'           => '',
             'CustomText02'           => '',
+            // 260725-qw2 — per-room narrative source. Empty by default so
+            // pre-existing tests that call sectionHeader($text) are unaffected.
+            'CustomMemo01'           => $memo,
             'UnitPrice'              => 0,
             'Manufacturer'           => '',
         ];
@@ -327,7 +493,7 @@ class QuoteWerksDbFetcherTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    private function subsectionHeader(string $text): array
+    private function subsectionHeader(string $text, string $memo = ''): array
     {
         return [
             'ID'                     => random_int(1, 9999),
@@ -338,6 +504,7 @@ class QuoteWerksDbFetcherTest extends TestCase
             'Description'            => $text,
             'CustomText01'           => '',
             'CustomText02'           => '',
+            'CustomMemo01'           => $memo,   // 260725-qw2 — see sectionHeader().
             'UnitPrice'              => 0,
             'Manufacturer'           => '',
         ];
