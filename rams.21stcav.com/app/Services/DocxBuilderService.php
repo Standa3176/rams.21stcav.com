@@ -41,15 +41,23 @@ class DocxBuilderService
     ) {}
 
     // ─── Brand colours ────────────────────────────────────────────────────────
-    private const TEAL        = '007B8A';
-    private const DARK_GREY   = '333333';
-    private const MID_GREY    = '666666';
-    private const ROW_ALT     = 'F0FBFC';
-    private const WHITE       = 'FFFFFF';
-    private const RISK_GREEN  = 'D4EDDA';
-    private const RISK_AMBER  = 'FFF3CD';
-    private const RISK_ORANGE = 'FFD0A0';
-    private const RISK_RED    = 'FFDEDE';
+    // 260725-rd1 — palette shift from teal → brand blue to match the hand-crafted
+    // "21CQ29531-05-OPS Tilda RAMs Rev1.1.docx" reference. The `TEAL` constant
+    // name is preserved to avoid a ~30-site mass rename (cosmetic follow-up);
+    // its VALUE is now brand blue `2E74B5`. New BRAND_BLUE_* constants are
+    // available for callers that want to be explicit about the palette shift.
+    private const TEAL             = '2E74B5';   // (was 007B8A — now brand blue; kept for compat)
+    private const BRAND_BLUE       = '2E74B5';   // H1/H2 headings + accents
+    private const BRAND_BLUE_DARK  = '1F4D78';   // H3 sub-headings
+    private const BRAND_BLUE_TINT  = 'DEEBF7';   // Alt-row shading (very light blue)
+    private const DARK_GREY        = '333333';
+    private const MID_GREY         = '666666';
+    private const ROW_ALT          = 'DEEBF7';   // was F0FBFC (light teal) — 260725-rd1
+    private const WHITE            = 'FFFFFF';
+    private const RISK_GREEN       = 'D4EDDA';
+    private const RISK_AMBER       = 'FFF3CD';
+    private const RISK_ORANGE      = 'FFD0A0';
+    private const RISK_RED         = 'FFDEDE';
 
     // ─── Page geometry (twips: 1 cm ≈ 567 twips) ─────────────────────────────
     // Portrait A4 (11906 wide) minus 2 × 1.8 cm margins (1020 each) = 9866
@@ -92,7 +100,11 @@ class DocxBuilderService
         $formData = $record->form_data ?? [];
 
         $phpWord = new PhpWord();
-        $phpWord->setDefaultFontName('Arial');
+        // 260725-rd1 — body font shifted Arial → Poppins to match the
+        // hand-crafted Tilda RAMs Rev1.1 reference. Word substitutes at
+        // open time if Poppins is not installed on the target machine;
+        // no font file is bundled.
+        $phpWord->setDefaultFontName('Poppins');
         $phpWord->setDefaultFontSize(10);
 
         // Build all sections in order — match PDF rams.blade.php section
@@ -2015,7 +2027,8 @@ class DocxBuilderService
         string $colour = self::DARK_GREY,
     ): array {
         return array_filter([
-            'name'   => 'Arial',
+            // 260725-rd1 — Poppins to match hand-crafted RAMs reference.
+            'name'   => 'Poppins',
             'size'   => $size,
             'bold'   => $bold   ?: null,
             'italic' => $italic ?: null,
