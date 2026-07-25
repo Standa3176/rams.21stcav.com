@@ -167,25 +167,57 @@ class EquipmentCategoryClassifier
         }
 
         // ── services ──────────────────────────────────────────────────
+        //
+        // Two-pass matching. Rationale: bare substring matching against the
+        // full description was catching product marketing copy ("supports
+        // single or dual video displays" → 'support' → services; "confirmed
+        // during the site survey" → 'survey' → services). Fixed 260725-fx2.
+        //
+        // Pass (a): known QW/21CAV services SKU tokens on the PART NUMBER
+        // field only. These are canonical entries in the 21CAV product
+        // catalogue and never appear in genuine hardware SKUs. Substring
+        // match is safe here — SKUs are short + specific.
+        $partOnly = strtolower(trim((string) ($item['part_number'] ?? '')));
         foreach ([
-            'install',
+            'install',            // INSTALL2 (21CAV engineering labour)
+            'programming',        // PROGRAMMING1
+            'projectmanagement',  // PROJECTMANAGEMENT
+            'projmanoff',         // PROJMANOFFHALF
+            'handover',           // HANDOVER
+            'rackbuild',          // RACKBUILDON
+            'delivery',           // DELIVERY (21CAV / Midwich SKU)
+            'ssv',                // SSVOTHER (site survey)
+            'guidevelopment',     // GUIDEVELOPMENT
+            'configuration',      // CONFIGURATION
+            'commissioning',      // Crestron IV-PROSERVICE-1B etc when descr uses this
+            'proservice',         // IV-PROSERVICE-1B
+        ] as $pn) {
+            if ($pn !== '' && str_contains($partOnly, $pn)) {
+                return 'services';
+            }
+        }
+
+        // Special-case: RAMS as an exact / word-boundary part_number match
+        // (avoids matching product SKUs that happen to contain "rams" as
+        // a substring — e.g. a hypothetical "GRAMS-42").
+        if (preg_match('/\brams\b/i', $partOnly)) {
+            return 'services';
+        }
+
+        // Pass (b): word-boundary matches on the full text for unambiguous
+        // multi-word service phrases + long-form single words. Word-bounded
+        // to prevent "supports" / "installer" / "management console" etc.
+        foreach ([
             'installation',
-            'commission',
-            'configuration',
-            'programming',
+            'commissioning',
             'labour',
-            'support',
-            'survey',
-            'management',
-            'training',
             'professional service',
             'onsite service',
             'on-site service',
             'handover',
-            'delivery',
             'rack build',
         ] as $kw) {
-            if (str_contains($text, $kw)) {
+            if (preg_match('/\b' . preg_quote($kw, '/') . '\b/i', $text)) {
                 return 'services';
             }
         }

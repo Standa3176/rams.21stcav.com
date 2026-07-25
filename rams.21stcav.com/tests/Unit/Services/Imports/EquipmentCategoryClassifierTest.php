@@ -140,22 +140,132 @@ class EquipmentCategoryClassifierTest extends TestCase
     /** @test */
     public function services_keywords_classify_as_services(): void
     {
+        // Word-boundary matches in description text
         $this->assertSame(
             'services',
             $this->classifier->classify(['name' => 'Installation labour — 2 engineers']),
         );
         $this->assertSame(
             'services',
-            $this->classifier->classify(['description' => 'PROGRAMMING1 - Crestron programming day rate']),
+            $this->classifier->classify(['name' => 'HANDOVER - client walkthrough']),
+        );
+        // QW SKU-token matches on part_number (canonical 21CAV catalogue)
+        $this->assertSame(
+            'services',
+            $this->classifier->classify([
+                'part_number' => 'PROGRAMMING1',
+                'name'        => 'Crestron programming day rate',
+            ]),
         );
         $this->assertSame(
             'services',
-            $this->classifier->classify(['name' => 'HANDOVER - client training session']),
+            $this->classifier->classify([
+                'part_number' => 'DELIVERY',
+                'name'        => 'Charge to site',
+            ]),
         );
         $this->assertSame(
             'services',
-            $this->classifier->classify(['name' => 'DELIVERY charge to site']),
+            $this->classifier->classify([
+                'part_number' => 'INSTALL2',
+                'name'        => '21st Engineering AV Team In-Hours',
+            ]),
         );
+        $this->assertSame(
+            'services',
+            $this->classifier->classify([
+                'part_number' => 'PROJECTMANAGEMENT',
+                'name'        => 'Project Management On Site',
+            ]),
+        );
+        $this->assertSame(
+            'services',
+            $this->classifier->classify([
+                'part_number' => 'SSVOTHER',
+                'name'        => 'Site Survey OTHER (incl Parking/Travel)',
+            ]),
+        );
+        $this->assertSame(
+            'services',
+            $this->classifier->classify([
+                'part_number' => 'RAMS',
+                'name'        => 'RAMS - Detailed Risk & Method Statement',
+            ]),
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 260725-fx2 — regression: hardware descriptions must not false-trigger
+    //                          on 'support' / 'survey' / 'install' substrings
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** @test */
+    public function crestron_uc_kit_supports_wording_stays_hardware(): void
+    {
+        // Real Tilda-quote description — "supports single or dual video
+        // displays" was matching the bare 'support' keyword and being
+        // classified as services. Fixed by moving to word-boundary +
+        // dropping 'support' from the description keyword list.
+        $this->assertSame('hardware', $this->classifier->classify([
+            'part_number' => 'UC-CX100-T',
+            'name'        => 'Crestron Flex Advanced Video Conference System Integrator Kit',
+            'description' => 'The Crestron Flex integrator kit provides a customisable video conference solution for use with Microsoft Teams® Rooms software. It supports single or dual video displays and features a UC presentation transmitter, a tabletop touch screen and a UC bracket assembly.',
+        ]));
+    }
+
+    /** @test */
+    public function chief_display_mount_site_survey_note_stays_hardware(): void
+    {
+        // Real Tilda-quote XSM1U row — the "*NOTE, a different mounting
+        // solution may be required depending on the design of the wall
+        // furniture. To be confirmed during the site survey." trailing
+        // text was matching the bare 'survey' keyword and being classified
+        // as services. Fixed by dropping 'survey' from description matcher
+        // (only matched via SSVOTHER-style part_number now).
+        $this->assertSame('hardware', $this->classifier->classify([
+            'part_number' => 'XSM1U',
+            'name'        => 'Chief X-Large Fusion Micro-Adjustable Fixed Wall Display Mount',
+            'description' => '*NOTE, a different mounting solution may be required depending on the design of the wall furniture. To be confirmed during the site survey.',
+        ]));
+    }
+
+    /** @test */
+    public function product_names_containing_installer_stay_hardware(): void
+    {
+        // Bare 'install' would match "installer" / "installed" / "installation"
+        // via str_contains. Word-boundary + dropped-from-description means only
+        // 'installation' (full word) triggers, and only when it appears standalone.
+        $this->assertSame('hardware', $this->classifier->classify([
+            'part_number' => 'FOO-123',
+            'name'        => 'DIN-rail mounted installer-friendly bracket',
+        ]));
+        $this->assertSame('hardware', $this->classifier->classify([
+            'part_number' => 'FOO-456',
+            'name'        => 'Rack shelf — pre-installed vented panel',
+        ]));
+    }
+
+    /** @test */
+    public function product_names_containing_management_stay_hardware(): void
+    {
+        // The words "management console" / "cable management" appear in
+        // many hardware descriptions. Previously matched 'management' →
+        // services. Now excluded from description matcher.
+        $this->assertSame('hardware', $this->classifier->classify([
+            'part_number' => 'FOO-789',
+            'name'        => 'Extron network management console',
+        ]));
+    }
+
+    /** @test */
+    public function product_names_containing_training_stay_hardware(): void
+    {
+        // Similar to management — many hardware descriptions mention
+        // training capabilities, training rooms, etc.
+        $this->assertSame('hardware', $this->classifier->classify([
+            'part_number' => 'FOO-101',
+            'name'        => 'Interactive display for training rooms',
+        ]));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
