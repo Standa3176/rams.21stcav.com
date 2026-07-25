@@ -93,18 +93,28 @@
     .qi-dropzone svg { display: inline-block; margin-bottom: 8px; color: var(--teal-700); }
 </style>
 
-<div x-data="{ importTab: 'pdf' }" style="max-width:680px;">
+{{--
+    Default tab is QuoteWerks Lookup (260725-qw4) — direct-DB import is the
+    canonical path now that qw1..qw3 landed. PDF upload stays as a fallback
+    for the rare cases where QuoteWerks is unreachable (WireGuard down) or
+    the quote lives outside QW.
+
+    Fallback preselect: if the previous request wrote a `quote_pdf`
+    validation error to the session, land on the PDF tab so the user sees
+    their error inline. Otherwise land on QW.
+--}}
+<div x-data="{ importTab: '{{ $errors->has('quote_pdf') ? 'pdf' : 'quotewerks' }}' }" style="max-width:680px;">
 
     <div class="qi-tabs" role="tablist">
-        <button type="button" @click="importTab='pdf'"
-                class="qi-tab" :class="{ 'is-active': importTab==='pdf' }"
-                role="tab" :aria-selected="importTab==='pdf'">
-            Upload PDF
-        </button>
         <button type="button" @click="importTab='quotewerks'"
                 class="qi-tab" :class="{ 'is-active': importTab==='quotewerks' }"
                 role="tab" :aria-selected="importTab==='quotewerks'">
             QuoteWerks Lookup
+        </button>
+        <button type="button" @click="importTab='pdf'"
+                class="qi-tab" :class="{ 'is-active': importTab==='pdf' }"
+                role="tab" :aria-selected="importTab==='pdf'">
+            Upload PDF
         </button>
     </div>
 
