@@ -2358,10 +2358,17 @@ function equipAutoGrow(el) {
     el.style.height = (el.scrollHeight + 2) + 'px';
 }
 
-// ─── AI line cleanup — normalises part numbers + shortens descriptions ───────
+// ─── AI line cleanup — shortens descriptions only (260725-fx1) ───────────────
+// Part numbers are NEVER modified — the earlier version rewrote them too,
+// which PMs reported as unwanted mutation of the canonical QW SKUs.
+// Large quotes are batched server-side (40 rows per AI call) so a 200+ row
+// quote doesn't blow the model's response-token budget.
 async function cleanupEquipmentLines(btn) {
     if (!btn) return;
-    if (!(await window.appConfirm('Run AI to tidy every line item? This rewrites part numbers (e.g. all-caps + dashes) and shortens product descriptions across the whole equipment list. Unsaved edits will be overwritten by the saved (server-side) data, so save first if you have uncommitted changes.', { title:'Tidy line items?', confirmLabel:'Tidy' }))) return;
+    if (!(await window.appConfirm(
+        'Shorten AI descriptions across every line item? This rewrites verbose sales-quote text into short engineer-friendly descriptions (e.g. "Samsung 55″ QM55C display"). Part numbers are NOT modified. Unsaved edits will be overwritten by the saved (server-side) data, so save first if you have uncommitted changes.',
+        { title:'Tidy line descriptions?', confirmLabel:'Tidy' }
+    ))) return;
     const original = btn.textContent;
     btn.disabled    = true;
     btn.textContent = 'Tidying…';
@@ -2379,15 +2386,19 @@ async function cleanupEquipmentLines(btn) {
             return;
         }
         const data = await resp.json();
-        // Patch each row in place — find inputs by name="equipment[ID][...]".
+        // Patch each row's NAME in place (part_number intentionally skipped).
         for (const row of (data.rows ?? [])) {
-            const partEl = document.querySelector('textarea[name="equipment[' + row.id + '][part_number]"]');
             const nameEl = document.querySelector('textarea[name="equipment[' + row.id + '][name]"]');
-            if (partEl) { partEl.value = row.part_number; equipAutoGrow(partEl); }
-            if (nameEl) { nameEl.value = row.name;        equipAutoGrow(nameEl); }
+            if (nameEl) { nameEl.value = row.name; equipAutoGrow(nameEl); }
         }
-        btn.textContent = '✓ Tidied ' + (data.updated ?? 0) + ' lines';
-        setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 2000);
+        // Batch feedback — if some batches failed, mention it so the PM
+        // knows to try again for the unchanged rows.
+        let label = '✓ Tidied ' + (data.updated ?? 0) + ' lines';
+        if ((data.batches_failed ?? 0) > 0) {
+            label += ' (' + data.batches_failed + '/' + data.batches_total + ' batches failed — retry to catch the rest)';
+        }
+        btn.textContent = label;
+        setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 4000);
     } catch (e) {
         alert('Network error during cleanup. Please try again.');
         btn.textContent = original;

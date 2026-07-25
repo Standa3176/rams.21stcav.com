@@ -633,11 +633,23 @@ class ProjectPackageReviewController extends Controller
      * POST /project-packages/{package}/cleanup-lines
      *
      * AJAX — runs every equipment line through EquipmentLineCleanupPrompt
-     * to normalise part numbers and rewrite descriptions into the short,
-     * document-ready form ("Sony 50inch Bravia display"). Persists the
-     * cleaned values back to ProjectPackage->extracted_data and returns
-     * the updated rows so the caller can patch the form in place.
+     * to shorten verbose sales-quote descriptions into engineer-friendly
+     * form ("Samsung 55″ QM55C display"). Persists the cleaned NAMES back
+     * to ProjectPackage->extracted_data and returns the updated rows so
+     * the caller can patch the form in place.
+     *
+     * SCOPE (260725-fx1): descriptions ONLY. Part numbers are NEVER
+     * modified. Earlier versions of this action also rewrote part numbers
+     * but PMs reported unwanted mutation of the canonical QW SKUs.
+     *
+     * Large quotes are batched (BATCH_SIZE rows per AI call) so a single
+     * 200+ row quote doesn't blow the model's response-token budget.
+     * Per-batch failures are logged and skipped; the rest of the batches
+     * still land, so a partial success returns 200 with the rows that
+     * did clean up (JS patches what it can).
      */
+    private const CLEANUP_BATCH_SIZE = 40;
+
     public function cleanupLines(ProjectPackage $package): JsonResponse
     {
         $this->authorizePackage($package);
@@ -649,63 +661,80 @@ class ProjectPackageReviewController extends Controller
             return response()->json(['error' => 'No equipment lines to clean up.'], 422);
         }
 
-        // Build the prompt input — index becomes the round-trip id.
-        $input = [];
-        foreach ($equipment as $i => $item) {
-            $input[] = [
-                'id'          => $i,
-                'quantity'    => $item['quantity']    ?? 1,
-                'part_number' => $item['part_number'] ?? '',
-                'name'        => $item['name']        ?? '',
-                'category'    => $item['category']    ?? 'hardware',
-            ];
-        }
+        // Chunk by BATCH_SIZE, preserving the original numeric keys so we
+        // can pair AI responses back to their source rows by id.
+        $batches       = array_chunk($equipment, self::CLEANUP_BATCH_SIZE, true);
+        $batchTotal    = count($batches);
+        $batchesFailed = 0;
+        $byId          = [];
 
-        try {
-            $result = app(\App\Core\AI\AIManager::class)->run(
-                new \App\Core\AI\Prompts\EquipmentLineCleanupPrompt(),
-                ['items' => $input],
-                config('ai.default', 'claude'),
-            );
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('cleanupLines: AI call failed', [
-                'package_id' => $package->id,
-                'error'      => $e->getMessage(),
-            ]);
-            return response()->json(['error' => 'AI cleanup failed. Please try again.'], 500);
-        }
-
-        $cleaned = (array) ($result['items'] ?? []);
-        if (empty($cleaned)) {
-            return response()->json(['error' => 'AI returned no items.'], 500);
-        }
-
-        // Index by id so we can pair regardless of returned order.
-        $byId = [];
-        foreach ($cleaned as $row) {
-            if (! is_array($row) || ! isset($row['id'])) {
-                continue;
+        foreach ($batches as $batchIndex => $batch) {
+            $input = [];
+            foreach ($batch as $i => $item) {
+                $input[] = [
+                    'id'          => $i,
+                    'quantity'    => $item['quantity']    ?? 1,
+                    'part_number' => $item['part_number'] ?? '',
+                    'name'        => $item['name']        ?? '',
+                    'category'    => $item['category']    ?? 'hardware',
+                ];
             }
-            $byId[(int) $row['id']] = $row;
+
+            try {
+                $result = app(\App\Core\AI\AIManager::class)->run(
+                    new \App\Core\AI\Prompts\EquipmentLineCleanupPrompt(),
+                    ['items' => $input],
+                    config('ai.default', 'claude'),
+                );
+            } catch (\Throwable $e) {
+                $batchesFailed++;
+                \Illuminate\Support\Facades\Log::error('cleanupLines: AI batch failed', [
+                    'package_id'  => $package->id,
+                    'batch_index' => $batchIndex,
+                    'batch_size'  => count($batch),
+                    'error'       => $e->getMessage(),
+                ]);
+                continue;   // keep processing subsequent batches
+            }
+
+            $cleaned = (array) ($result['items'] ?? []);
+            foreach ($cleaned as $row) {
+                if (! is_array($row) || ! isset($row['id'])) {
+                    continue;
+                }
+                $byId[(int) $row['id']] = $row;
+            }
         }
 
+        // Every batch failed — surface the whole-request error the JS
+        // frontend knows how to render.
+        if ($batchesFailed === $batchTotal) {
+            return response()->json([
+                'error' => 'AI cleanup failed. Please try again.',
+            ], 500);
+        }
+
+        // Apply cleaned NAMES only. Part numbers, categories, quantities,
+        // areas — all left untouched.
         $changedRows = [];
         foreach ($equipment as $i => $item) {
             $row = $byId[$i] ?? null;
             if ($row === null) {
                 continue;
             }
-            $newPart = trim((string) ($row['part_number'] ?? ''));
-            $newName = trim((string) ($row['name']        ?? ''));
-            if ($newPart !== '' || $newName !== '') {
-                $equipment[$i]['part_number'] = $newPart;
-                $equipment[$i]['name']        = $newName;
-                $changedRows[] = [
-                    'id'          => $i,
-                    'part_number' => $newPart,
-                    'name'        => $newName,
-                ];
+            $newName = trim((string) ($row['name'] ?? ''));
+            if ($newName === '') {
+                continue;
             }
+            $oldName = trim((string) ($item['name'] ?? ''));
+            if ($newName === $oldName) {
+                continue;
+            }
+            $equipment[$i]['name'] = $newName;
+            $changedRows[] = [
+                'id'   => $i,
+                'name' => $newName,
+            ];
         }
 
         $extracted['equipment'] = $equipment;
@@ -715,8 +744,10 @@ class ProjectPackageReviewController extends Controller
         ]);
 
         return response()->json([
-            'updated' => count($changedRows),
-            'rows'    => $changedRows,
+            'updated'        => count($changedRows),
+            'rows'           => $changedRows,
+            'batches_total'  => $batchTotal,
+            'batches_failed' => $batchesFailed,
         ]);
     }
 
