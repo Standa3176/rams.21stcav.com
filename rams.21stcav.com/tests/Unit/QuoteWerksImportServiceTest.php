@@ -232,6 +232,82 @@ class QuoteWerksImportServiceTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Room overviews + intro/closing notes (260725-qw2)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** @test */
+    public function build_extracted_data_zips_room_descriptions_into_room_overviews(): void
+    {
+        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+
+        $parsed = $this->sampleParsedShape();
+        $parsed['rooms']             = ['Oregano', 'Cinnamon', 'Saffron'];
+        $parsed['room_descriptions'] = [
+            'Oregano'  => 'Oregano uses the Crestron small room system.',
+            'Cinnamon' => 'Cinnamon uses the Crestron Flex integrator kit.',
+            // Saffron intentionally omitted — should render as empty overview
+        ];
+
+        $result = $service->buildExtractedData($parsed);
+
+        $this->assertSame(
+            [
+                ['room' => 'Oregano',  'overview' => 'Oregano uses the Crestron small room system.'],
+                ['room' => 'Cinnamon', 'overview' => 'Cinnamon uses the Crestron Flex integrator kit.'],
+                ['room' => 'Saffron',  'overview' => ''],
+            ],
+            $result['room_overviews']
+        );
+    }
+
+    /** @test */
+    public function build_extracted_data_room_overviews_empty_when_no_rooms(): void
+    {
+        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+
+        $parsed = $this->sampleParsedShape();
+        $parsed['rooms']             = [];
+        $parsed['room_descriptions'] = [];
+
+        $result = $service->buildExtractedData($parsed);
+
+        $this->assertSame([], $result['room_overviews']);
+    }
+
+    /** @test */
+    public function build_extracted_data_surfaces_introduction_and_closing_notes(): void
+    {
+        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+
+        $parsed = $this->sampleParsedShape();
+        $parsed['intro_notes']   = '21st Century AV are pleased to provide a detailed quote.';
+        $parsed['closing_notes'] = 'Please contact me if I can be of further assistance.';
+
+        $result = $service->buildExtractedData($parsed);
+
+        $this->assertSame(
+            '21st Century AV are pleased to provide a detailed quote.',
+            $result['introduction_notes']
+        );
+        $this->assertSame(
+            'Please contact me if I can be of further assistance.',
+            $result['closing_notes']
+        );
+    }
+
+    /** @test */
+    public function build_extracted_data_intro_and_closing_notes_null_when_absent(): void
+    {
+        $service = new QuoteWerksImportService($this->makeImportServiceMock());
+
+        // sampleParsedShape has no intro/closing keys → null on output
+        $result = $service->buildExtractedData($this->sampleParsedShape());
+
+        $this->assertNull($result['introduction_notes']);
+        $this->assertNull($result['closing_notes']);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // importFromParsedShape orchestration
     // ─────────────────────────────────────────────────────────────────────────
 

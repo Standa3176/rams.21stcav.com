@@ -115,32 +115,56 @@ class QuoteWerksImportService
             ? Str::limit($scopeNarrative, 80, '')
             : (string) ($parsedShape['ref'] ?? '');
 
+        // Zip room names with their per-room CustomMemo01 narratives into the
+        // shape the RAMS review page consumes (see ProjectPackageReviewController
+        // render loop for room_overviews[]). Rooms without a populated memo get
+        // an empty overview string so the review UI still renders a card the PM
+        // can fill in manually. Added 2026-07-25 (260725-qw2).
+        $rooms         = array_values($parsedShape['rooms'] ?? []);
+        $roomDescs     = (array) ($parsedShape['room_descriptions'] ?? []);
+        $roomOverviews = array_map(
+            static fn (string $name): array => [
+                'room'     => $name,
+                'overview' => (string) ($roomDescs[$name] ?? ''),
+            ],
+            $rooms,
+        );
+
         return [
-            'qw_number'         => (string) ($parsedShape['ref'] ?? ''),
-            'quote_ref'         => (string) ($parsedShape['ref'] ?? ''),
-            'client_name'       => (string) ($parsedShape['client'] ?? ''),
-            'site_name'         => (string) ($parsedShape['site_name'] ?? ''),
-            'site_address'      => (string) ($parsedShape['site'] ?? ''),
-            'project_name'      => $projectName,
-            'works_description' => $scopeNarrative,
-            'prepared_by'       => (string) ($parsedShape['prepared_by'] ?? ''),
+            'qw_number'          => (string) ($parsedShape['ref'] ?? ''),
+            'quote_ref'          => (string) ($parsedShape['ref'] ?? ''),
+            'client_name'        => (string) ($parsedShape['client'] ?? ''),
+            'site_name'          => (string) ($parsedShape['site_name'] ?? ''),
+            'site_address'       => (string) ($parsedShape['site'] ?? ''),
+            'project_name'       => $projectName,
+            'works_description'  => $scopeNarrative,
+            'prepared_by'        => (string) ($parsedShape['prepared_by'] ?? ''),
+            // Quote-wide flavour text from DocumentHeaders. Nullable — most
+            // quotes populate them, some don't. Downstream RAMS templates
+            // (project brief / cover letter) can use for section-1 flavour
+            // when present. Kept nullable to preserve "unset" semantics.
+            'introduction_notes' => $parsedShape['intro_notes']   ?? null,
+            'closing_notes'      => $parsedShape['closing_notes'] ?? null,
             // Fetcher's mapToParsedShape doesn't currently surface a project-level
             // total (SCC gets it from Subtotal on the header row separately).
             // Add in a follow-up if the Review page needs it.
-            'total_price'       => 0.0,
-            'equipment'         => $equipment,
-            'equipment_list'    => $equipment,
-            'line_items'        => $equipment,
-            'cable_hints'       => [],
-            'rooms'             => array_values($parsedShape['rooms'] ?? []),
-            'meta'              => [
+            'total_price'        => 0.0,
+            'equipment'          => $equipment,
+            'equipment_list'     => $equipment,
+            'line_items'         => $equipment,
+            'cable_hints'        => [],
+            'rooms'              => $rooms,
+            // Zipped {room, overview} shape the review page renders — see the
+            // narrative-textarea loop in resources/views/project-packages/review.blade.php.
+            'room_overviews'     => $roomOverviews,
+            'meta'               => [
                 // Tier-2 confidence trigger — do NOT change this string.
                 'source'            => 'quotewerks_sql',
                 'confidence'        => 0.95,
                 'parser_confidence' => 0.95,
                 'data_source'       => 'quotewerks',
                 'item_count'        => count($equipment),
-                'room_count'        => count($parsedShape['rooms'] ?? []),
+                'room_count'        => count($rooms),
             ],
         ];
     }
