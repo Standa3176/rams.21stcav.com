@@ -13,7 +13,24 @@
     <div class="alert alert-error">{{ session('error') }}</div>
 @endif
 @if (session('warning'))
-    <div class="alert alert-warning">{{ session('warning') }}</div>
+    <div class="alert alert-warning">
+        {{ session('warning') }}
+        @if (session('qw_force_url'))
+            <a href="{{ session('qw_force_url') }}"
+               onclick="event.preventDefault(); document.getElementById('qwForceForm').submit();"
+               style="margin-left:.5rem; font-weight:600; text-decoration:underline;">
+                Continue anyway →
+            </a>
+            {{-- Hidden POST form so the "force import" submission is CSRF-safe
+                 and travels via the same route as the initial lookup (matches
+                 route middleware throttle + form-request validation). --}}
+            <form method="POST" action="{{ route('quotewerks.lookup') }}" id="qwForceForm" style="display:none;">
+                @csrf
+                <input type="hidden" name="reference" value="{{ session('qw_last_reference') }}">
+                <input type="hidden" name="force" value="1">
+            </form>
+        @endif
+    </div>
 @endif
 
 {{-- ── Dual-tab: Upload PDF | QuoteWerks Lookup (audit UI-04 2026-07-08).
@@ -266,38 +283,51 @@
                     <label class="form-label" for="qw_reference">QuoteWerks Reference <span class="req">*</span></label>
                     <div style="display:flex; gap:.75rem; align-items:flex-start;">
                         <input type="text" name="reference" id="qw_reference" class="form-control"
-                               placeholder="e.g. 21CQ12345" value="{{ old('reference') }}"
+                               placeholder="e.g. 21CQ14213 or 21CQ29531-05-OPS"
+                               value="{{ old('reference', session('qw_last_reference')) }}"
                                style="max-width:300px;">
                         <button type="submit" class="btn btn-teal">Import</button>
                     </div>
                     @error('reference')
                         <div class="invalid-feedback" style="display:block; margin-top:.25rem;">{{ $message }}</div>
                     @enderror
-                    <p class="form-help">Enter the QuoteWerks document number to import directly from the database.</p>
+                    <p class="form-help">
+                        Live revision only — matches on DocNo OR RevisionMasterDocNo where Superceeded = 0.
+                        <br>
+                        <span style="color:var(--text-faint); font-size:.8rem;">
+                            QuoteWerks is only available on the live VPS via the office tunnel.
+                        </span>
+                    </p>
                 </div>
             </form>
 
             {{-- Search by client --}}
             <hr style="margin:1.5rem 0; border-color:var(--border);">
             <h2 class="section-heading" style="font-size:.9rem; margin:0 0 1rem;">Search by Client</h2>
-            <form method="GET" action="{{ route('quotewerks.search') }}" id="qwSearchForm">
+            <form method="POST" action="{{ route('quotewerks.search') }}" id="qwSearchForm">
+                @csrf
                 <div style="display:flex; gap:.75rem; flex-wrap:wrap; align-items:flex-end;">
                     <div class="form-group" style="flex:1; min-width:200px; margin:0;">
                         <label class="form-label" for="qw_client">Client Name</label>
                         <input type="text" name="client" id="qw_client" class="form-control"
-                               placeholder="Search client name..." value="{{ request('client') }}">
+                               placeholder="Search client name..."
+                               value="{{ old('client', session('qw_search_query')) }}">
                     </div>
                     <div class="form-group" style="min-width:160px; margin:0;">
                         <label class="form-label" for="qw_date_from">From Date</label>
                         <input type="date" name="date_from" id="qw_date_from" class="form-control"
-                               value="{{ request('date_from') }}">
+                               value="{{ old('date_from') }}">
                     </div>
                     <button type="submit" class="btn btn-outline" style="margin-bottom:0;">Search</button>
                 </div>
+                @error('client')
+                    <div class="invalid-feedback" style="display:block; margin-top:.5rem;">{{ $message }}</div>
+                @enderror
             </form>
 
-            {{-- Search results --}}
-            @if(isset($searchResults) && count($searchResults) > 0)
+            {{-- Search results (flashed from QuoteWerksImportController::search) --}}
+            @php($searchResults = session('qw_search_results'))
+            @if(is_array($searchResults) && count($searchResults) > 0)
                 <table class="data-table" style="margin-top:1rem; font-size:.84rem;">
                     <thead>
                         <tr>
@@ -326,7 +356,7 @@
                         @endforeach
                     </tbody>
                 </table>
-            @elseif(isset($searchResults))
+            @elseif(is_array($searchResults))
                 <p style="color:var(--text-muted); font-size:.875rem; margin-top:1rem;">No quotes found matching your search.</p>
             @endif
         </div>
