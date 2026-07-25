@@ -1033,7 +1033,7 @@
                 <button type="button"
                         @click="bulkAction('delete')"
                         :disabled="!canBulk('delete')"
-                        title="Move selected active rows to deleted">
+                        title="Move all selected rows to deleted (can be restored)">
                     × Delete
                 </button>
                 <button type="button"
@@ -1295,7 +1295,7 @@
                                     </button>
                                     <button type="button" class="btn-active-delete"
                                             @click="softDelete($el.closest('tr'))"
-                                            title="Move to deleted (can be restored)">
+                                            title="Delete this row (use the toolbar Delete for multi-select — tick checkboxes then use the yellow bar at the top)">
                                         ×
                                     </button>
                                     <button type="button" class="btn-restore"
@@ -1981,21 +1981,32 @@ function equipmentSection() {
         },
 
         // ── Row-level actions (buttons inside col-actions) ───────────────
+        //
+        // Each of these auto-deselects the row from the multi-select toolbar
+        // so the "N selected" count + canBulk() state stays consistent with
+        // what's visible. Without this, clicking the row-level × on a row
+        // that was ALSO ticked for bulk-delete left the checkbox marked
+        // while the row was hidden — Alpine's x-model would re-sync against
+        // a display:none checkbox and unpredictably drop it from the array,
+        // greying out the bulk Delete button (260725-fx1).
         softDelete(row) {
             if (!row) return;
             if (!confirm('Move to deleted? You can restore before approving.')) return;
             this._doDelete(row);
+            this._deselectRow(row);
         },
 
         restore(row) {
             if (!row) return;
             this._doRestore(row);
+            this._deselectRow(row);
         },
 
         purge(row) {
             if (!row) return;
             if (!confirm('Permanently delete this row? This cannot be undone.')) return;
             this._doPurge(row);
+            this._deselectRow(row);
         },
 
         split(row) {
@@ -2084,6 +2095,22 @@ function equipmentSection() {
             if (tbody && typeof ensureEquipmentEmptyState === 'function') {
                 ensureEquipmentEmptyState(tbody);
             }
+        },
+
+        // 260725-fx1 — remove a row's ID from selectedRowIds and uncheck its
+        // checkbox. Called by row-level action handlers so bulk-toolbar state
+        // stays consistent with what's visible. Filters all coerced forms of
+        // the ID (string vs number vs whatever Alpine picked) to be robust
+        // against future Alpine drift.
+        _deselectRow(row) {
+            if (!row) return;
+            const id = row.dataset.rowId;
+            if (id == null) return;
+            this.selectedRowIds = this.selectedRowIds.filter(rid =>
+                String(rid) !== String(id)
+            );
+            const cb = row.querySelector('input.row-select');
+            if (cb) cb.checked = false;
         },
         _doSplit(row) {
             const qtyInput = row.querySelector('input[name^="equipment["][name$="[quantity]"]');
