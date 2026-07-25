@@ -54,6 +54,14 @@ class MethodStatementPrompt extends BasePrompt
 
     public function systemMessage(): string
     {
+        // 260725-rd1 — 3 new rules for parity with the hand-crafted Tilda
+        // reference (21CQ29531-05-OPS Rev1.1):
+        //   1. Per-room granularity   — every step names the specific room(s)
+        //   2. Kit-specific detail    — use specific make + model from the
+        //                                equipment list, not generic terms
+        //   3. Risk-ID cross-refs     — end each phase with
+        //                                "Associated Risks: RA01, RA02, ..."
+        //                                using the RA-IDs supplied in context
         return implode(' ', [
             'You are writing a professional UK RAMS Method Statement for an AV installation contractor.',
             'Rules:',
@@ -62,6 +70,9 @@ class MethodStatementPrompt extends BasePrompt
             '- Do NOT invent equipment or site details.',
             '- Do NOT include tables or markdown.',
             '- Output plain text only.',
+            '- Per-room granularity: every step that touches a physical space MUST name the specific room(s) it applies to (e.g. "within Boardroom"). Do not write generic "in all rooms" instructions when a room list is provided.',
+            '- Kit-specific detail: when a step references a piece of kit, name the specific make + model from the supplied equipment list (e.g. "Sennheiser TeamConnect Ceiling Mic", not "the microphone"). Only reference kit that appears in the supplied list.',
+            '- Risk-ID cross-references: each phase MUST end with a final line in the exact form "Associated Risks: RA01, RA02, RA03" (2-digit zero-padded IDs from the risk list supplied in context). Only reference RA-IDs that appear in the supplied risk list; do not invent RA-IDs. The line appears once per phase, as the last step in the phase\'s steps array.',
             '- ' . self::userDataNote(),
         ]);
     }
@@ -122,6 +133,35 @@ class MethodStatementPrompt extends BasePrompt
         $retainTagged = array_map(fn (string $s): string => $this->wrapUserData($s), $retainItems);
         $newTagged    = array_map(fn (string $s): string => $this->wrapUserData($s), $newItems);
 
+        // 260725-rd1 — Risk list with stable RA-IDs so the AI can cross-reference.
+        // The docx renderer assigns RA{NN} deterministically by hazard array
+        // index (see DocxBuilderService::buildRiskAssessment) — we surface the
+        // same numbering scheme in the prompt so the AI outputs
+        // "Associated Risks: RA01, RA02, ..." lines that resolve when the docx
+        // is rendered.
+        $riskItems = array_values(array_filter(
+            array_map(
+                static function ($h): string {
+                    if (! is_array($h)) {
+                        return is_string($h) ? trim($h) : '';
+                    }
+
+                    return trim((string) ($h['hazard'] ?? ($h['name'] ?? '')));
+                },
+                (array) ($ctx['hazards'] ?? []),
+            ),
+            static fn (string $s): bool => $s !== '',
+        ));
+        $riskListLine = '';
+        if (! empty($riskItems)) {
+            $lines = [];
+            foreach ($riskItems as $i => $name) {
+                $id = 'RA' . str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT);
+                $lines[] = $id . ': ' . $this->wrapUserData($name);
+            }
+            $riskListLine = "\nRisk register (use these RA-IDs verbatim when cross-referencing):\n" . implode("\n", $lines);
+        }
+
         // Build optional supplementary lines — omitted when empty.
         $equipmentLine        = $equipment        ? "\nKey equipment: {$equipment}"             : '';
         $hazardsLine          = $hazards          ? "\nPrimary hazards: {$hazards}"             : '';
@@ -141,7 +181,7 @@ Write a project-specific method statement for the following UK AV installation.
 Project details:
 Site: {$site}
 Scope: {$scope}
-Activities: {$activities}{$equipmentLine}{$decommLine}{$retainLine}{$newItemsLine}{$hazardsLine}{$roomsLine}{$roomSummaryLine}{$worksOverviewLine}{$roomDescriptionsLine}
+Activities: {$activities}{$equipmentLine}{$decommLine}{$retainLine}{$newItemsLine}{$hazardsLine}{$roomsLine}{$roomSummaryLine}{$worksOverviewLine}{$roomDescriptionsLine}{$riskListLine}
 
 Return ONLY the following JSON structure:
 {
@@ -157,6 +197,8 @@ Requirements:
 - Include a Decommissioning step only if decommission items are listed above. Title it "Step N — Decommissioning & Handback". Reference only the listed decommission items by name.
 - Include a Retained Equipment Check step only if retained items are listed. Reference only the listed retained items.
 - Include one or more Installation steps referencing the new install items by name. Do not invent any equipment not listed above.
+- Per-room granularity: every step that touches a physical space must name the specific room(s) it applies to using the room names from "Affected areas" / "Room descriptions" above. Do not write generic "in all rooms" instructions when a specific room list is available.
+- Kit-specific detail: when a step references a piece of kit, name the specific make + model from the "Key equipment" / "New install items" list above (e.g. "the Sennheiser TeamConnect Ceiling Mic Medium Housing unit", not "the microphone"). Only reference kit that appears in the supplied list; do not invent equipment.
 - Use room descriptions where provided to keep steps room-specific.
 - The penultimate step MUST cover Integration, Testing & Commissioning with signal path verification.
 - The final step MUST be Completion & Sign-Off covering removal of access equipment and waste, end-user training, and snagging sign-off.
@@ -164,7 +206,7 @@ Requirements:
 - Any control-system programming or DSP configuration step must specify that engineers work OFF the live signal path (staging PC or bench-programmed) before hot-cutover, and that the client's IT contact is informed before any network device joins the LAN.
 - Where new displays, speakers or cabling attach to plant that another trade owns (ceiling grid, partitions, structural steel), the relevant step must reference coordination with that trade before penetration or fixing.
 - The Commissioning step must reference power-cycle and network-fail recovery verification for every codec, DSP or control processor deployed.
-- Each step must have 4 to 8 bullet points.
+- Each phase must have 4 to 8 bullet points PLUS a final "Associated Risks: RA01, RA02, ..." line as the LAST bullet in the steps array. Only reference RA-IDs from the "Risk register" list above. If no risk register is supplied, omit the Associated Risks line.
 - Each bullet point is one plain-English sentence. No markdown, no bold, no symbols.
 - Do not reference any brand, product, or technology not present in the scope data above.{$retry}
 PROMPT;

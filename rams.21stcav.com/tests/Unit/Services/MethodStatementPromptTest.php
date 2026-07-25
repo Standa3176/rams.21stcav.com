@@ -118,4 +118,120 @@ class MethodStatementPromptTest extends TestCase
         $this->assertStringContainsString('Two-sentence project overview.', $built);
         $this->assertStringNotContainsString('Room descriptions:', $built);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 260725-rd1 — Per-room granularity, kit-specific detail, RA-ID cross-refs
+    // ═══════════════════════════════════════════════════════════════════════
+
+    public function test_system_message_enforces_per_room_granularity(): void
+    {
+        $prompt = new MethodStatementPrompt();
+        $system = $prompt->systemMessage();
+
+        $this->assertStringContainsString('Per-room granularity', $system,
+            '260725-rd1: systemMessage missing per-room granularity rule.');
+        $this->assertStringContainsString('name the specific room', $system,
+            '260725-rd1: systemMessage does not instruct the AI to name specific rooms.');
+    }
+
+    public function test_system_message_enforces_kit_specific_make_and_model(): void
+    {
+        $prompt = new MethodStatementPrompt();
+        $system = $prompt->systemMessage();
+
+        $this->assertStringContainsString('Kit-specific detail', $system,
+            '260725-rd1: systemMessage missing kit-specific detail rule.');
+        $this->assertStringContainsString('specific make + model', $system,
+            '260725-rd1: systemMessage does not instruct the AI to use specific make + model.');
+    }
+
+    public function test_system_message_enforces_associated_risks_cross_reference(): void
+    {
+        $prompt = new MethodStatementPrompt();
+        $system = $prompt->systemMessage();
+
+        $this->assertStringContainsString('Associated Risks:', $system,
+            '260725-rd1: systemMessage missing "Associated Risks:" cross-reference rule.');
+        $this->assertStringContainsString('RA01', $system,
+            '260725-rd1: systemMessage does not show the RA{NN} ID format.');
+        $this->assertStringContainsString('Risk-ID cross-references', $system,
+            '260725-rd1: systemMessage missing risk-ID cross-references rule heading.');
+    }
+
+    public function test_build_emits_risk_register_with_ra_ids_when_hazards_supplied(): void
+    {
+        $prompt = new MethodStatementPrompt();
+        $prompt = $prompt->withContext([
+            'site_address' => 'Test Site',
+            'scope_summary' => 'AV install.',
+            'activities'   => [],
+            'hazards'      => [
+                ['hazard' => 'Working at height'],
+                ['hazard' => 'Manual handling'],
+                ['hazard' => 'Electrical isolation'],
+            ],
+        ]);
+
+        $built = $prompt->build();
+
+        $this->assertStringContainsString('Risk register', $built,
+            '260725-rd1: prompt missing "Risk register" context block.');
+        // The hazard name is sentinel-wrapped (Audit M-04) so the RA-ID prefix
+        // and the hazard name are separated by the wrap tags. Assert both
+        // pieces appear on the same numbered line (RA-ID immediately followed
+        // by the sentinel-wrapped name).
+        $this->assertMatchesRegularExpression(
+            '/RA01: .*Working at height/',
+            $built,
+            '260725-rd1: RA01 not emitted for first hazard.',
+        );
+        $this->assertMatchesRegularExpression(
+            '/RA02: .*Manual handling/',
+            $built,
+            '260725-rd1: RA02 not emitted for second hazard.',
+        );
+        $this->assertMatchesRegularExpression(
+            '/RA03: .*Electrical isolation/',
+            $built,
+            '260725-rd1: RA03 not emitted for third hazard.',
+        );
+    }
+
+    public function test_build_omits_risk_register_when_hazards_empty(): void
+    {
+        $prompt = new MethodStatementPrompt();
+        $prompt = $prompt->withContext([
+            'site_address'  => 'Test Site',
+            'scope_summary' => 'AV install.',
+            'activities'    => [],
+            'hazards'       => [],
+        ]);
+
+        $built = $prompt->build();
+
+        // The block-header phrase (with the trailing "(use these RA-IDs...)")
+        // must not appear when no hazards were supplied. The bare "Risk
+        // register" phrase does appear in the requirements section as a
+        // reference; that reference is not context leakage.
+        $this->assertStringNotContainsString(
+            'Risk register (use these RA-IDs verbatim when cross-referencing):',
+            $built,
+            '260725-rd1: Risk register context block emitted even though hazards[] is empty.',
+        );
+        // And no RA{NN}: prefix lines should appear.
+        $this->assertDoesNotMatchRegularExpression(
+            '/RA\d{2}:\s/',
+            $built,
+            '260725-rd1: RA-ID entries emitted even though hazards[] is empty.',
+        );
+    }
+
+    public function test_build_body_instructs_each_phase_to_end_with_associated_risks_line(): void
+    {
+        $prompt = new MethodStatementPrompt();
+        $built  = $prompt->build();
+
+        $this->assertStringContainsString('final "Associated Risks:', $built,
+            '260725-rd1: prompt body missing the "final Associated Risks" per-phase requirement.');
+    }
 }

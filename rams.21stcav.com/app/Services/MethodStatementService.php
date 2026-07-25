@@ -49,6 +49,11 @@ class MethodStatementService
             'rooms'                   => $this->buildRoomList($parsedQuote),
             'equipment_summary'       => $equipmentSummary,
             'hazard_summary'          => $hazardSummary,
+            // 260725-rd1 — full hazard array (not just the summary string) is
+            // passed so MethodStatementPrompt can enumerate RA-IDs and let the
+            // AI cross-reference risks per phase. The prompt maps
+            // hazard[i] → RA{NN} matching DocxBuilderService::buildRiskAssessment.
+            'hazards'                 => $hazards,
             'room_overview_summaries' => $roomSummary,
             'works_overview'          => trim((string) ($parsedQuote['works_overview'] ?? '')),
             'room_descriptions'       => $this->buildRoomDescriptions($parsedQuote),
