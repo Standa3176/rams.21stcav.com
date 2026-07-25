@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ProjectPackage;
 use App\Services\EquipmentClassifierService;
+use App\Services\Imports\EquipmentCategoryClassifier;
 use App\Services\RamsReviewDataService;
 use App\Services\RamsReviewValidatorService;
 use App\Services\RiskTemplateResolverService;
@@ -38,11 +39,12 @@ class ProjectPackageReviewController extends Controller
     ];
 
     public function __construct(
-        private readonly RamsReviewDataService      $reviewDataService,
-        private readonly RamsReviewValidatorService $reviewValidator,
-        private readonly EquipmentClassifierService $equipmentClassifier,
+        private readonly RamsReviewDataService       $reviewDataService,
+        private readonly RamsReviewValidatorService  $reviewValidator,
+        private readonly EquipmentClassifierService  $equipmentClassifier,
         private readonly RiskTemplateResolverService $riskResolver,
         private readonly RoomOverviewSummaryService  $roomSummaryService,
+        private readonly EquipmentCategoryClassifier $categoryClassifier,
     ) {}
 
     public function show(ProjectPackage $package): View
@@ -1173,43 +1175,17 @@ class ProjectPackageReviewController extends Controller
         return $raw;
     }
 
+    /**
+     * Normalise an equipment row's category into one of the 7 canonical values
+     * the review UI dropdown offers. Delegates to the shared
+     * EquipmentCategoryClassifier so QW import + on-save reclassification use
+     * the same vocabulary (fixes the pre-260725-qw3 mismatch where
+     * `service_contracts` + `customer_supplied` picks were silently reverted to
+     * `hardware` because they weren't in the local allowlist).
+     */
     private function normaliseEquipmentCategory(array $item): string
     {
-        $allowed = ['hardware', 'cables', 'consumables', 'services', 'option'];
-        $rawCat = strtolower(trim((string) ($item['category'] ?? '')));
-        if (in_array($rawCat, $allowed, true)) {
-            return $rawCat;
-        }
-
-        $text = strtolower(trim(
-            (string) ($item['name'] ?? '') . ' ' . (string) ($item['part_number'] ?? '')
-        ));
-
-        foreach (['optional', 'option'] as $kw) {
-            if (str_contains($text, $kw)) {
-                return 'option';
-            }
-        }
-
-        foreach (['consumable', 'fixing', 'fastener', 'rawlplug', 'anchor', 'screw', 'bolt', 'tape', 'label', 'cleat', 'tie', 'strap'] as $kw) {
-            if (str_contains($text, $kw)) {
-                return 'consumables';
-            }
-        }
-
-        foreach (['cable', 'cat6', 'cat6a', 'cat5', 'hdmi', 'sdi', 'utp', 'ftp', 'stp', 'patch', 'lead', 'usb', 'fibre', 'fiber', 'rg6', 'rg59'] as $kw) {
-            if (str_contains($text, $kw)) {
-                return 'cables';
-            }
-        }
-
-        foreach (['install', 'installation', 'commission', 'configuration', 'programming', 'labour', 'support', 'survey', 'management', 'training', 'professional service', 'onsite service', 'on-site service'] as $kw) {
-            if (str_contains($text, $kw)) {
-                return 'services';
-            }
-        }
-
-        return 'hardware';
+        return $this->categoryClassifier->classify($item);
     }
 
     /**
