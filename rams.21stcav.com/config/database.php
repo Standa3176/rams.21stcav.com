@@ -115,22 +115,21 @@ return [
 
         // ── QuoteWerks SQL Server (read-only, named connection) ───────────────
         // Never set as default. No Eloquent models bound to this connection.
-        // Requires: Microsoft ODBC Driver 17 + pdo_sqlsrv PECL extension on the server.
-        // Verify driver: php -m | grep sqlsrv
-        // Run health check: php artisan quotewerks:ping
+        // Uses generic ODBC via a system DSN registered on the VPS at /etc/odbc.ini
+        // (see WireGuard tunnel setup — 260723-qw1). Requires pdo_odbc (built into
+        // most PHP distros; confirm with `extension_loaded('pdo_odbc')`).
+        //
+        // Lazy resolution — DB::extend('odbc', ...) in AppServiceProvider only
+        // fires on first DB::connection('quotewerks') call. Local dev with blank
+        // env vars is unaffected; connection only works on the live VPS.
+        //
+        // Verify: php artisan quotewerks:ping
         'quotewerks' => [
-            'driver'                   => 'sqlsrv',
-            'host'                     => env('QW_DB_HOST', 'localhost'),
-            'port'                     => env('QW_DB_PORT', '1433'),
-            'database'                 => env('QW_DB_DATABASE', 'QuoteWerks'),
-            'username'                 => env('QW_DB_USERNAME'),
-            'password'                 => env('QW_DB_PASSWORD'),
-            'charset'                  => 'utf8',
-            'prefix'                   => '',
-            'prefix_indexes'           => true,
-            'encrypt'                  => env('QW_DB_ENCRYPT', 'yes'),
-            'trust_server_certificate' => env('QW_DB_TRUST_CERT', 'true'),
-            'login_timeout'            => (int) env('QW_DB_TIMEOUT', 5),
+            'driver'   => 'odbc',
+            'dsn'      => env('QUOTEWERKS_ODBC_DSN'),
+            'username' => env('QUOTEWERKS_ODBC_USER'),
+            'password' => env('QUOTEWERKS_ODBC_PASS'),
+            'options'  => [],
         ],
 
     ],

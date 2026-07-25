@@ -25,6 +25,7 @@ use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Queue\Events\Looping;
 use Illuminate\Queue\Events\WorkerStopping;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
@@ -64,6 +65,28 @@ class AppServiceProvider extends ServiceProvider
         // Harden file replacement on Windows to avoid intermittent
         // Blade compile failures: rename(...): Access is denied (code 5).
         $this->app->singleton('files', fn () => new WindowsSafeFilesystem);
+
+        // ── ODBC driver resolver (260723-qw1) ─────────────────────────────────
+        // Laravel 12 has no built-in `odbc` driver. Register a minimal resolver
+        // that wraps PDO in Illuminate\Database\Connection. LAZY — only fires
+        // when DB::connection('quotewerks') is first used, so blank env vars
+        // never break boot/migrate/tinker. Ported from service.21stcav.com.
+        //
+        // No try/catch — QuoteWerksDbFetcher::fetch() catches PDOException
+        // at the call site and re-throws as QuoteWerksUnreachableException.
+        // Wrapping in the resolver would swallow the diagnostic.
+        DB::extend('odbc', function (array $config, string $name): \Illuminate\Database\Connection {
+            $dsn      = (string) ($config['dsn'] ?? '');
+            $username = $config['username'] ?? null;
+            $password = $config['password'] ?? null;
+            $options  = $config['options'] ?? [];
+
+            $pdo = new \PDO($dsn, $username, $password, $options);
+
+            // Connection ctor: ($pdo, $database, $tablePrefix, $config). ODBC
+            // has no per-connection database (DSN abstracts it); prefix unused.
+            return new \Illuminate\Database\Connection($pdo, '', '', $config);
+        });
     }
 
     /**
