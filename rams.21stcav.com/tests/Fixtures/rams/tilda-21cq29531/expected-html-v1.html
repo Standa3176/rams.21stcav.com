@@ -1,0 +1,1509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RAMS &mdash; Tilda — Reading HQ Boardroom Refresh</title>
+<style>
+/* ── Base ─────────────────────────────────────────────────────────────────── */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; }
+body {
+    font-family: Arial, "DejaVu Sans", sans-serif;
+    font-size: 10pt;
+    color: #1A1A2E;
+    line-height: 1.4;
+    margin: 0;
+    padding: 0;
+}
+/* Body margin space for the running header/footer is set by Browsershot's
+   PDF margins (see PdfService::buildRams), not via CSS @page — Chromium's
+   running header/footer is supplied as a separate HTML doc to Puppeteer. */
+@page { size: A4 portrait; }
+.page-wrap { margin: 0 18mm; }
+
+/* ── Cover ───────────────────────────────────────────────────────────────── */
+.cover-company-name {
+    font-size: 22pt;
+    font-weight: 700;
+    color: #1B7A7A;
+    text-align: center;
+    margin-bottom: 4pt;
+    letter-spacing: 1pt;
+}
+.cover-tagline {
+    font-size: 11pt;
+    font-style: italic;
+    color: #C07000;
+    text-align: center;
+    margin-bottom: 20pt;
+}
+.cover-doc-title {
+    font-size: 16pt;
+    font-weight: 700;
+    color: #1A1A2E;
+    text-align: center;
+    margin-bottom: 24pt;
+    line-height: 1.3;
+}
+.cover-accent-bar {
+    height: 6pt;
+    background: linear-gradient(to right, #1B7A7A, #C07000);
+    margin-bottom: 20pt;
+    border-radius: 1pt;
+}
+
+/* ── Cover info tables ───────────────────────────────────────────────────── */
+.cover-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    margin-bottom: 12pt;
+    border: 0.75pt solid #BBBBBB;
+}
+.cover-table td {
+    padding: 6pt 8pt;
+    vertical-align: middle;
+    font-size: 9pt;
+    border: 0.5pt solid #CCCCCC;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+.cover-table .lbl {
+    font-weight: 700;
+    color: #1B7A7A;
+    background-color: #F4FBFB;
+}
+.cover-table .val {
+    color: #1A1A2E;
+    background-color: #FFFFFF;
+}
+
+/* ── Section headings (teal background bar) ──────────────────────────────── */
+.sec-heading {
+    background-color: #1B7A7A;
+    color: #FFFFFF;
+    font-size: 10pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 5pt 8pt;
+    margin: 14pt 0 8pt;
+    page-break-after: avoid;
+    letter-spacing: 0.5pt;
+}
+.sec-subheading {
+    font-size: 9.5pt;
+    font-weight: 700;
+    color: #1B7A7A;
+    margin: 10pt 0 5pt;
+    page-break-after: avoid;
+    border-bottom: 0.5pt solid #1B7A7A;
+    padding-bottom: 2pt;
+}
+
+/* ── Standard tables ─────────────────────────────────────────────────────── */
+table { border-collapse: collapse; width: 100%; }
+.std-table { margin-bottom: 10pt; font-size: 9pt; }
+.std-table td, .std-table th {
+    border: 0.5pt solid #CCCCCC;
+    padding: 4pt 6pt;
+    vertical-align: top;
+}
+.std-table th {
+    background-color: #1B7A7A;
+    color: #FFFFFF;
+    font-weight: 700;
+    font-size: 9pt;
+    text-align: center;
+}
+.std-table .lbl {
+    background-color: #1B7A7A;
+    color: #FFFFFF;
+    font-weight: 700;
+    width: 26%;
+}
+.std-table tr:nth-child(even) td { background-color: #F4FBFB; }
+
+/* ── Equipment scope table ───────────────────────────────────────────────── */
+.equip-table { margin-bottom: 10pt; font-size: 8.5pt; }
+.equip-table td, .equip-table th {
+    border: 0.5pt solid #CCCCCC;
+    padding: 3pt 5pt;
+    vertical-align: top;
+}
+.equip-table th {
+    background-color: #1B7A7A;
+    color: #FFFFFF;
+    font-weight: 700;
+    text-align: center;
+}
+.equip-table .group-header td {
+    background-color: #2C2C3E;
+    color: #FFFFFF;
+    font-weight: 700;
+    font-size: 8.5pt;
+    padding: 3pt 6pt;
+}
+.equip-table tr:nth-child(even) td { background-color: #F4FBFB; }
+
+/* ── Risk matrix ─────────────────────────────────────────────────────────── */
+.risk-matrix { margin-bottom: 8pt; font-size: 7.5pt; border-collapse: collapse; }
+.risk-matrix td, .risk-matrix th {
+    border: 0.5pt solid #CCCCCC;
+    padding: 3pt 4pt;
+    text-align: center;
+    vertical-align: middle;
+    width: 14%;
+}
+.risk-matrix .row-hdr {
+    background-color: #1B7A7A;
+    color: #fff;
+    font-weight: 700;
+    text-align: left;
+    width: 24%;
+}
+.risk-matrix .col-hdr {
+    background-color: #1B7A7A;
+    color: #fff;
+    font-weight: 700;
+}
+.rm-low    { background-color: #D4EDDA; }
+.rm-med    { background-color: #FFF3CD; }
+.rm-high   { background-color: #F8D7DA; }
+
+/* ── Risk key legend ─────────────────────────────────────────────────────── */
+.risk-key-row { border-collapse: collapse; margin-bottom: 10pt; width: 100%; }
+.risk-key-row td {
+    border: 0.5pt solid #CCCCCC;
+    padding: 4pt 8pt;
+    font-size: 8.5pt;
+    vertical-align: middle;
+}
+.rk-band {
+    font-weight: 700;
+    text-align: center;
+    width: 14%;
+    white-space: nowrap;
+}
+
+/* ── Hazard register ─────────────────────────────────────────────────────── */
+.haz-table { margin-bottom: 12pt; font-size: 8.5pt; }
+.haz-table th {
+    background-color: #1B7A7A;
+    color: #fff;
+    font-weight: 700;
+    padding: 4pt 5pt;
+    text-align: center;
+    border: 0.5pt solid #145E5E;
+}
+.haz-table td {
+    border: 0.5pt solid #CCCCCC;
+    padding: 4pt 5pt;
+    vertical-align: top;
+}
+.haz-table tr:nth-child(even) td { background-color: #F4FBFB; }
+.haz-table tr { page-break-inside: avoid; }
+.haz-table thead { display: table-header-group; }
+.score-cell {
+    text-align: center;
+    font-weight: 700;
+    font-size: 7.5pt;
+    padding: 3pt 4pt;
+    white-space: nowrap;
+}
+
+/* ── Lists ───────────────────────────────────────────────────────────────── */
+p { margin: 3pt 0; }
+.blist {
+    list-style: disc outside;
+    padding-left: 10mm;
+    margin: 3pt 0 6pt;
+}
+.blist li { margin-bottom: 3pt; line-height: 1.5; font-size: 9pt; }
+
+/* ── Method statement step headers ──────────────────────────────────────── */
+.ms-step-header {
+    background-color: #1B7A7A;
+    color: #FFFFFF;
+    font-weight: 700;
+    font-size: 9pt;
+    padding: 4pt 8pt;
+    margin: 10pt 0 4pt;
+    page-break-after: avoid;
+}
+
+/* ── Emergency contacts table ────────────────────────────────────────────── */
+.emerg-table { border-collapse: collapse; width: 100%; margin-bottom: 8pt; font-size: 9pt; }
+.emerg-table td {
+    border: 0.5pt solid #CCCCCC;
+    padding: 4pt 6pt;
+    vertical-align: middle;
+}
+.emerg-table .e-lbl {
+    font-weight: 700;
+    background-color: #F4FBFB;
+    width: 22%;
+}
+.emerg-table .e-val { width: 28%; }
+
+/* ── Sign-off table ──────────────────────────────────────────────────────── */
+.signoff-table { margin-bottom: 10pt; font-size: 9pt; }
+.signoff-table td, .signoff-table th {
+    border: 0.5pt solid #CCCCCC;
+    padding: 4pt 8pt;
+    vertical-align: top;
+}
+.signoff-table th {
+    background-color: #1B7A7A;
+    color: #FFFFFF;
+    font-weight: 700;
+    text-align: center;
+    width: 33%;
+}
+.signoff-table .row-lbl {
+    background-color: #F4FBFB;
+    font-weight: 700;
+    width: 15%;
+}
+.signoff-table .sig-row td { height: 32pt; }
+
+/* ── Utility ─────────────────────────────────────────────────────────────── */
+.body-para { font-size: 9pt; color: #1A1A2E; margin-bottom: 8pt; text-align: justify; line-height: 1.5; }
+.note-text { font-style: italic; color: #666; margin-bottom: 8pt; font-size: 9pt; }
+.page-break { page-break-before: always; }
+.kv-block { margin-bottom: 8pt; font-size: 9pt; }
+.kv-block p { margin-bottom: 3pt; }
+.kv-block strong { color: #1A1A2E; }
+.cover-footer-bar {
+    margin-top: 32pt;
+    border-top: 0.75pt solid #CCCCCC;
+    padding-top: 5pt;
+    font-size: 8pt;
+    color: #555;
+    text-align: center;
+}
+</style>
+</head>
+<body>
+
+
+
+
+<div class="page-wrap">
+
+
+
+<div class="cover-company-name">21ST CENTURY AV LTD</div>
+<div class="cover-tagline">Your Audio Visual Partner</div>
+<div class="cover-doc-title">RISK ASSESSMENT &amp;<br>METHOD STATEMENT</div>
+<div class="cover-accent-bar"></div>
+
+
+<table class="cover-table">
+    <colgroup>
+        <col style="width:26%;">
+        <col style="width:74%;">
+    </colgroup>
+    <tr>
+        <td class="lbl">CLIENT:</td>
+        <td class="val">Tilda Foods Ltd</td>
+    </tr>
+    <tr>
+        <td class="lbl">SITE:</td>
+        <td class="val">Coronation Road, Rainham, Essex, RM13 8SA</td>
+    </tr>
+    <tr>
+        <td class="lbl">PROJECT REFERENCE:</td>
+        <td class="val">21CQ29531</td>
+    </tr>
+    <tr>
+        <td class="lbl">ROOMS:</td>
+        <td class="val">
+                            Main Boardroom<br>AV Rack<br>                    </td>
+    </tr>
+    <tr>
+        <td class="lbl">DATE:</td>
+        <td class="val">25/07/2026</td>
+    </tr>
+
+    <tr>
+        <td class="lbl">START DATE:</td>
+        <td class="val">
+            17/08/2026
+             &nbsp; 08:00        </td>
+    </tr>
+    <tr>
+        <td class="lbl">END DATE:</td>
+        <td class="val">
+            21/08/2026
+             &nbsp; 17:30        </td>
+    </tr>
+        <tr>
+        <td class="lbl">WORKING HOURS:</td>
+        <td class="val">Monday to Friday, 08:00 to 17:30</td>
+    </tr>
+    </table>
+
+
+<table class="cover-table">
+    <colgroup>
+        <col style="width:26%;">
+        <col style="width:30%;">
+        <col style="width:18%;">
+        <col style="width:26%;">
+    </colgroup>
+    <tr>
+        <td class="lbl">PREPARED BY:</td>
+        <td class="val">Simon Pittaway</td>
+        <td class="lbl">REVISION:</td>
+        <td class="val" style="white-space:nowrap;">Rev 1.0</td>
+    </tr>
+    <tr>
+        <td class="lbl">TELEPHONE:</td>
+        <td class="val">01189 977770</td>
+        <td class="lbl">STATUS:</td>
+        <td class="val" style="white-space:nowrap;">For Issue</td>
+    </tr>
+    <tr>
+        <td class="lbl">CLIENT CONTACT:</td>
+        <td class="val" colspan="3">Wesley Jones<br>wesley.jones@tildafoods.co.uk</td>
+    </tr>
+</table>
+
+
+<table class="cover-table">
+    <colgroup>
+        <col style="width:26%;">
+        <col style="width:74%;">
+    </colgroup>
+    <tr>
+        <td class="lbl">PROJECT MANAGER:</td>
+        <td class="val">Simon Pittaway</td>
+    </tr>
+    <tr>
+        <td class="lbl">LEAD ENGINEER:</td>
+        <td class="val">Simon Pittaway</td>
+    </tr>
+    <tr>
+        <td class="lbl">ENGINEERS:</td>
+        <td class="val">James Clarke, Peter Adams</td>
+    </tr>
+    <tr>
+        <td class="lbl">PROGRAMMER:</td>
+        <td class="val">Ed Warfield</td>
+    </tr>
+    <tr>
+        <td class="lbl">VEHICLE REGS:</td>
+        <td class="val">AB12 CDE - Ford Transit, EF34 GHI - VW Crafter</td>
+    </tr>
+</table>
+
+
+<div class="sec-heading page-break">Table of Contents</div>
+<table class="std-table" style="width:100%; margin-bottom:12pt;">
+    <tbody>
+        <tr><td style="width:82%;">1. Document Control</td><td style="text-align:right;">Section 1</td></tr>
+        <tr><td>2. Company Information</td><td style="text-align:right;">Section 2</td></tr>
+        <tr><td>3. Health &amp; Safety Policy Statement &amp; Standards Applicable</td><td style="text-align:right;">Section 3</td></tr>
+        <tr><td>4. Scope of Works, Site Logistics &amp; Room Overviews</td><td style="text-align:right;">Section 4</td></tr>
+        <tr><td>5. Risk Assessment (Baseline AV Hazards + Site-Specific)</td><td style="text-align:right;">Section 5</td></tr>
+        <tr><td>6. Method Statement (Team, Tools, PPE, Access, Steps, Coordination, IT)</td><td style="text-align:right;">Section 6</td></tr>
+        <tr><td>7. Emergency Procedures (Site Details, Accident, Fire, RIDDOR)</td><td style="text-align:right;">Section 7</td></tr>
+        <tr><td>8. Document Sign-Off</td><td style="text-align:right;">Section 8</td></tr>
+        <tr><td>COSHH Assessment, Environmental Management, Welfare Arrangements</td><td style="text-align:right;">Supplementary</td></tr>
+        <tr><td>Appendix A — Toolbox Talk Record</td><td style="text-align:right;">Appendix</td></tr>
+    </tbody>
+</table>
+<p class="body-para" style="font-size:8pt; color:#555;">
+    Page numbers omitted — the PDF renderer's dynamic pagination is authoritative.
+    Use the running header ("RAMS | REF | CLIENT") + footer page count to navigate.
+</p>
+
+
+
+<div class="sec-heading page-break">1. &nbsp;Document Control</div>
+<table class="std-table">
+    <thead>
+        <tr>
+            <th style="width:10%;">Rev</th>
+            <th style="width:16%;">Date</th>
+            <th style="width:22%;">Author</th>
+            <th>Description</th>
+            <th style="width:14%;">Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Rev 1.0</td>
+            <td>25/07/2026</td>
+            <td>Simon Pittaway</td>
+            <td>Initial Issue</td>
+            <td>For Issue</td>
+        </tr>
+        <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>
+    </tbody>
+</table>
+
+
+<div class="sec-heading">2. &nbsp;Company Information</div>
+<table class="std-table">
+    <tbody>
+        <tr>
+            <td class="lbl">Company:</td>
+            <td>21st Century AV Ltd</td>
+            <td class="lbl">Project Reference:</td>
+            <td>21CQ29531</td>
+        </tr>
+        <tr>
+            <td class="lbl">Address:</td>
+            <td>Thames Court, 2 Richfield Avenue, Reading, Berkshire</td>
+            <td class="lbl">Telephone:</td>
+            <td>01189 977770</td>
+        </tr>
+        <tr>
+            <td class="lbl">Website:</td>
+            <td>www.21stcenturyav.com</td>
+            <td class="lbl">Email:</td>
+            <td>info@21stcenturyav.com</td>
+        </tr>
+        <tr>
+            <td class="lbl">Prepared by:</td>
+            <td>Simon Pittaway</td>
+            <td class="lbl">Direct:</td>
+            <td>01189 977770</td>
+        </tr>
+    </tbody>
+</table>
+
+
+<div class="sec-heading">3. &nbsp;Health &amp; Safety Policy Statement</div>
+
+<p class="body-para">
+    21st Century AV Ltd is committed to ensuring the health, safety and welfare of all its employees,
+    subcontractors, clients and members of the public who may be affected by our activities. We comply
+    fully with the Health and Safety at Work etc. Act 1974 and all relevant statutory provisions,
+    including the Management of Health and Safety at Work Regulations 1999, the Provision and Use of
+    Work Equipment Regulations 1998 (PUWER), the Manual Handling Operations Regulations 1992, and the
+    Electricity at Work Regulations 1989.
+</p>
+<p class="body-para">
+    All engineers operating on behalf of 21st Century AV Ltd are briefed on site-specific risks prior to
+    commencement of works and are required to adhere to this Risk Assessment and Method Statement at all
+    times. Engineers will not commence work until they are satisfied that it is safe to do so. Any near
+    misses, accidents, or unsafe conditions must be reported to the site manager and to the 21st Century
+    AV operations team immediately.
+</p>
+<p class="body-para">
+    This document must be read, understood, and complied with by all persons carrying out the works
+    described herein. It should be retained on site for the duration of the works.
+</p>
+
+
+<div class="sec-subheading" style="margin-top:8pt;">Standards &amp; Guidance Applicable to This Works</div>
+<table class="std-table" style="margin-bottom:8pt;">
+    <thead>
+        <tr style="background-color:#1B7A7A; color:#ffffff;">
+            <th style="width:22%; color:#fff;">Reference</th>
+            <th style="width:40%; color:#fff;">Title</th>
+            <th style="color:#fff;">Applies To (on this project)</th>
+        </tr>
+    </thead>
+    <tbody>
+                        <tr>
+            <td><strong>BS 7671:2018+A2:2022</strong></td>
+            <td>Requirements for Electrical Installations (IET Wiring Regulations, 18th Edition)</td>
+            <td>Every fixed-cable termination, mains connection and rack power distribution installed on this project.</td>
+        </tr>
+                        <tr>
+            <td><strong>BS 6701:2016+A1:2020</strong></td>
+            <td>Telecommunications equipment and telecommunications cabling — Specification for installation, operation and maintenance</td>
+            <td>Structured cabling, comms-room installations and any patch-panel or RJ45 termination works.</td>
+        </tr>
+                        <tr>
+            <td><strong>BS EN 60849</strong></td>
+            <td>Sound systems for emergency purposes</td>
+            <td>Voice alarm, evacuation announcement and life-safety audio installation works where in scope.</td>
+        </tr>
+                        <tr>
+            <td><strong>BS 8492</strong></td>
+            <td>Public address (PA) systems — Code of practice</td>
+            <td>Public address and general paging systems installed within the works scope.</td>
+        </tr>
+                        <tr>
+            <td><strong>CDM 2015</strong></td>
+            <td>Construction (Design and Management) Regulations 2015</td>
+            <td>Duty holder roles (Client, Principal Designer, Principal Contractor, 21CAV as sub-contractor) and pre-construction information for this project.</td>
+        </tr>
+                        <tr>
+            <td><strong>HSG 47</strong></td>
+            <td>Avoiding danger from underground services</td>
+            <td>Any external drilling, floor-box installation or below-ground penetration on site.</td>
+        </tr>
+                        <tr>
+            <td><strong>HSG 273</strong></td>
+            <td>The safe use of vehicles on construction sites</td>
+            <td>Site vehicles used to deliver AV equipment; loading, unloading and reversing operations.</td>
+        </tr>
+                        <tr>
+            <td><strong>AVIXA F502.01</strong></td>
+            <td>AV Systems Performance Verification</td>
+            <td>Post-install commissioning verification methodology and system sign-off criteria applied on this project.</td>
+        </tr>
+                        <tr>
+            <td><strong>PUWER 1998</strong></td>
+            <td>Provision and Use of Work Equipment Regulations 1998</td>
+            <td>All power tools, access equipment, MEWP and lifting equipment used during the works.</td>
+        </tr>
+                        <tr>
+            <td><strong>BS EN 60825-1:2014+A11:2021</strong></td>
+            <td>Safety of laser products — Part 1: Equipment classification and requirements</td>
+            <td>Every laser-based projector, laser rangefinder, or laser-alignment tool installed or used on this project. Class 1 or 2 devices are permitted in normal installation; Class 3R and above require documented risk assessment, warning signage, and where practicable installation geometry that keeps the primary beam above 2.1m head height in any accessible area.</td>
+        </tr>
+            </tbody>
+</table>
+
+
+<div class="sec-heading page-break">4. &nbsp;Scope of Works</div>
+
+<div class="kv-block">
+    <p><strong>Client:</strong> Tilda Foods Ltd</p>
+    <p><strong>Site:</strong> Coronation Road, Rainham, Essex, RM13 8SA</p>
+    <p><strong>Rooms:</strong> Main Boardroom, AV Rack</p>
+    <p><strong>Working Hours:</strong> Monday to Friday, 08:00 to 17:30</p>
+        <p><strong>Waste Removal:</strong> 21st Century AV Ltd — 21st Century AV to remove all packaging and legacy equipment.</p>
+    </div>
+
+
+
+
+
+
+
+                                <p class="body-para" style="margin-bottom: 2pt;"><strong>Main Boardroom:</strong></p>
+            <ul class="blist" style="margin-top: 0; margin-bottom: 8pt;">
+                                    <li>Decommission legacy 65&quot; LCD.</li>
+                                    <li>Install dual Samsung QM86R displays (front + rear wall).</li>
+                                    <li>Install 2× Shure MXA710 ceiling microphones.</li>
+                                    <li>Table-mounted Crestron TSW-1070.</li>
+                                    <li>Commission with Biamp DSP and Crestron control.</li>
+                            </ul>
+
+
+                                                <p class="body-para" style="margin-bottom: 2pt;"><strong>AV Rack:</strong></p>
+            <ul class="blist" style="margin-top: 0; margin-bottom: 8pt;">
+                                    <li>Decommission legacy matrix switcher.</li>
+                                    <li>Install Biamp TesiraFORTÉ VT4.</li>
+                                    <li>Install 4× Crestron NVX-352.</li>
+                                    <li>Install Crestron CP4-R control processor.</li>
+                                    <li>Terminate and label structured cabling.</li>
+                            </ul>
+
+
+
+
+<table class="equip-table">
+    <thead>
+        <tr>
+            <th style="width:20%; text-align:left; padding-left:6pt;">Activity</th>
+            <th style="text-align:left; padding-left:6pt;">Item</th>
+            <th style="width:20%; text-align:left; padding-left:6pt;">Room / Area</th>
+            <th style="width:8%;">Qty</th>
+            <th style="width:14%; text-align:left; padding-left:6pt;">Notes</th>
+        </tr>
+    </thead>
+    <tbody>
+
+                <tr class="group-header">
+            <td colspan="5">DECOMMISSION &amp; HANDBACK</td>
+        </tr>
+                <tr>
+            <td>DECOMMISSION &amp; HANDBACK</td>
+            <td>Legacy 65&quot; LCD display (2018 vintage)</td>
+            <td>Main Boardroom</td>
+            <td style="text-align:center;">1</td>
+            <td>Decommission to client store.</td>
+        </tr>
+                <tr>
+            <td>DECOMMISSION &amp; HANDBACK</td>
+            <td>Existing analogue matrix switcher</td>
+            <td>AV Rack</td>
+            <td style="text-align:center;">1</td>
+            <td>Return to client store for spares.</td>
+        </tr>
+
+                <tr class="group-header">
+            <td colspan="5">EXISTING &mdash; RETAINED</td>
+        </tr>
+                <tr>
+            <td>EXISTING &mdash; RETAINED</td>
+            <td>Ceiling speakers (Bose FreeSpace)</td>
+            <td>Main Boardroom</td>
+            <td style="text-align:center;">6</td>
+            <td>Retained; retest and rebalance during commissioning.</td>
+        </tr>
+
+                <tr class="group-header">
+            <td colspan="5">NEW INSTALLATION</td>
+        </tr>
+                <tr>
+            <td>NEW INSTALLATION</td>
+            <td>Samsung QM86R 4K UHD display</td>
+            <td>Main Boardroom</td>
+            <td style="text-align:center;">2</td>
+            <td>Front + rear wall.</td>
+        </tr>
+                <tr>
+            <td>NEW INSTALLATION</td>
+            <td>Biamp TesiraFORTÉ AVB VT4</td>
+            <td>AV Rack</td>
+            <td style="text-align:center;">1</td>
+            <td>DSP for room audio.</td>
+        </tr>
+                <tr>
+            <td>NEW INSTALLATION</td>
+            <td>Crestron NVX-352 encoder/decoder pair</td>
+            <td>AV Rack</td>
+            <td style="text-align:center;">4</td>
+            <td>AV-over-IP distribution.</td>
+        </tr>
+                <tr>
+            <td>NEW INSTALLATION</td>
+            <td>Shure MXA710 ceiling array microphone</td>
+            <td>Main Boardroom</td>
+            <td style="text-align:center;">2</td>
+            <td>Ceiling-mounted.</td>
+        </tr>
+                <tr>
+            <td>NEW INSTALLATION</td>
+            <td>Crestron TSW-1070 touch panel</td>
+            <td>Main Boardroom</td>
+            <td style="text-align:center;">1</td>
+            <td>Table-mounted.</td>
+        </tr>
+
+        </tbody>
+</table>
+
+
+<div class="sec-heading">Scope Traceability</div>
+<table class="std-table" style="margin-bottom: 8pt;">
+    <thead>
+        <tr>
+            <th style="width:26%;">Quote Ref / Item Description</th>
+            <th style="width:28%;">RAMS Activity</th>
+            <th style="width:18%;">Room / Area</th>
+            <th>Notes</th>
+        </tr>
+    </thead>
+    <tbody>
+            <tr>
+        <td>QW-1023 — Samsung QM86R</td>
+        <td>First fix + mount + commission</td>
+        <td>Main Boardroom</td>
+        <td>Dual-wall install.</td>
+    </tr>
+            <tr>
+        <td>QW-1045 — Biamp TesiraFORTÉ</td>
+        <td>Rack install + DSP config</td>
+        <td>AV Rack</td>
+        <td></td>
+    </tr>
+        </tbody>
+</table>
+
+
+<div class="sec-heading">Exclusions</div>
+<ul class="blist">
+        <li>No structural works or core drilling.</li>
+            <li>No containment beyond surface trunking.</li>
+            <li>No decorative making-good after cable routes.</li>
+            <li>No IT network provision — client to provide active drops.</li>
+            <li>No decommissioning of unrelated legacy equipment beyond items listed in scope.</li>
+    </ul>
+
+
+<div class="sec-heading page-break">5. &nbsp;Risk Assessment</div>
+
+<p class="body-para">
+    The risk scoring matrix below is used throughout this assessment. Likelihood (L) &times; Severity (S) = Risk Score (R).
+</p>
+
+
+<table class="risk-matrix" style="margin-bottom: 6pt;">
+    <tr>
+        <td class="col-hdr" style="text-align:left; padding-left:4pt;"></td>
+        <td class="col-hdr">Severity 1<br><small>Minor</small></td>
+        <td class="col-hdr">Severity 2<br><small>Moderate</small></td>
+        <td class="col-hdr">Severity 3<br><small>Serious</small></td>
+        <td class="col-hdr">Severity 4<br><small>Major</small></td>
+        <td class="col-hdr">Severity 5<br><small>Fatal</small></td>
+    </tr>
+        <tr>
+        <td class="row-hdr">Likelihood 1<br><small>Unlikely</small></td>
+                        <td style="background-color: #D4EDDA; font-weight:700;">1</td>
+                        <td style="background-color: #D4EDDA; font-weight:700;">2</td>
+                        <td style="background-color: #D4EDDA; font-weight:700;">3</td>
+                        <td style="background-color: #D4EDDA; font-weight:700;">4</td>
+                        <td style="background-color: #FFF3CD; font-weight:700;">5</td>
+            </tr>
+        <tr>
+        <td class="row-hdr">Likelihood 2<br><small>Possible</small></td>
+                        <td style="background-color: #D4EDDA; font-weight:700;">2</td>
+                        <td style="background-color: #D4EDDA; font-weight:700;">4</td>
+                        <td style="background-color: #FFF3CD; font-weight:700;">6</td>
+                        <td style="background-color: #FFF3CD; font-weight:700;">8</td>
+                        <td style="background-color: #F8D7DA; font-weight:700;">10</td>
+            </tr>
+        <tr>
+        <td class="row-hdr">Likelihood 3<br><small>Likely</small></td>
+                        <td style="background-color: #D4EDDA; font-weight:700;">3</td>
+                        <td style="background-color: #FFF3CD; font-weight:700;">6</td>
+                        <td style="background-color: #FFF3CD; font-weight:700;">9</td>
+                        <td style="background-color: #F8D7DA; font-weight:700;">12</td>
+                        <td style="background-color: #F8D7DA; font-weight:700;">15</td>
+            </tr>
+        <tr>
+        <td class="row-hdr">Likelihood 4<br><small>Probable</small></td>
+                        <td style="background-color: #D4EDDA; font-weight:700;">4</td>
+                        <td style="background-color: #FFF3CD; font-weight:700;">8</td>
+                        <td style="background-color: #F8D7DA; font-weight:700;">12</td>
+                        <td style="background-color: #F8D7DA; font-weight:700;">16</td>
+                        <td style="background-color: #F8D7DA; font-weight:700;">20</td>
+            </tr>
+        <tr>
+        <td class="row-hdr">Likelihood 5<br><small>Almost Certain</small></td>
+                        <td style="background-color: #FFF3CD; font-weight:700;">5</td>
+                        <td style="background-color: #F8D7DA; font-weight:700;">10</td>
+                        <td style="background-color: #F8D7DA; font-weight:700;">15</td>
+                        <td style="background-color: #F8D7DA; font-weight:700;">20</td>
+                        <td style="background-color: #F8D7DA; font-weight:700;">25</td>
+            </tr>
+    </table>
+
+
+<table class="risk-key-row" style="margin-bottom: 10pt;">
+    <tr>
+        <td class="rk-band" style="background-color:#D4EDDA;">1&ndash;4<br><strong>LOW</strong></td>
+        <td style="font-size:8.5pt;">Acceptable. Monitor and maintain controls.</td>
+        <td class="rk-band" style="background-color:#FFF3CD;">5&ndash;9<br><strong>MEDIUM</strong></td>
+        <td style="font-size:8.5pt;">Action required to reduce risk.</td>
+        <td class="rk-band" style="background-color:#F8D7DA;">10+<br><strong>HIGH</strong></td>
+        <td style="font-size:8.5pt;">Stop work. Implement immediate controls.</td>
+    </tr>
+</table>
+
+
+<table class="haz-table">
+    <thead>
+        <tr>
+            <th style="width:5%;">Ref</th>
+            <th style="width:19%;">Hazard</th>
+            <th style="width:14%;">Persons at Risk</th>
+            <th style="width:9%;">Initial Risk<br>L&times;S=R</th>
+            <th style="width:30%;">Control Measures</th>
+            <th style="width:9%;">Residual Risk<br>L&times;S=R</th>
+        </tr>
+    </thead>
+    <tbody>
+                    <tr>
+            <td class="score-cell">RA01</td>
+            <td><strong>Working at height for display installation (up to 3m)</strong></td>
+            <td>
+                <ul class="blist" style="padding-left:6mm;">
+                                                        <li>Engineers</li>
+                                                                            <li>Site staff below</li>
+                                                    </ul>
+            </td>
+            <td class="score-cell" style="background-color:#F8D7DA;">
+                3&times;4=12<br>
+                <span style="font-size:7pt;">HIGH</span>
+            </td>
+            <td>
+                <ul class="blist" style="padding-left:6mm;">
+                                                        <li>Class 1 stepladders EN131 rated only; 3-point contact maintained.</li>
+                                                                            <li>Podium steps used above 2m; two-person team for bracket lifts.</li>
+                                                                            <li>Working area cordoned; no personnel permitted below drop zone.</li>
+                                                    </ul>
+            </td>
+            <td class="score-cell" style="background-color:#D4EDDA;">
+                1&times;3=3<br>
+                <span style="font-size:7pt;">LOW</span>
+            </td>
+        </tr>
+                    <tr>
+            <td class="score-cell">RA02</td>
+            <td><strong>Manual handling of large-format displays (55 kg)</strong></td>
+            <td>
+                <ul class="blist" style="padding-left:6mm;">
+                                                        <li>Engineers</li>
+                                                    </ul>
+            </td>
+            <td class="score-cell" style="background-color:#F8D7DA;">
+                4&times;3=12<br>
+                <span style="font-size:7pt;">HIGH</span>
+            </td>
+            <td>
+                <ul class="blist" style="padding-left:6mm;">
+                                                        <li>Team lift (2 engineers minimum) for any item over 20 kg.</li>
+                                                                            <li>Screen trolley used from vehicle to install location.</li>
+                                                                            <li>Correct lifting technique briefed at toolbox talk.</li>
+                                                    </ul>
+            </td>
+            <td class="score-cell" style="background-color:#D4EDDA;">
+                2&times;2=4<br>
+                <span style="font-size:7pt;">LOW</span>
+            </td>
+        </tr>
+                    <tr>
+            <td class="score-cell">RA03</td>
+            <td><strong>Electrical connection to mains supply</strong></td>
+            <td>
+                <ul class="blist" style="padding-left:6mm;">
+                                                        <li>Engineers</li>
+                                                                            <li>Client staff</li>
+                                                    </ul>
+            </td>
+            <td class="score-cell" style="background-color:#F8D7DA;">
+                3&times;5=15<br>
+                <span style="font-size:7pt;">HIGH</span>
+            </td>
+            <td>
+                <ul class="blist" style="padding-left:6mm;">
+                                                        <li>All engineers 18th Edition qualified.</li>
+                                                                            <li>Isolation permit obtained before rack power-on.</li>
+                                                                            <li>Test-before-touch on every circuit prior to termination.</li>
+                                                    </ul>
+            </td>
+            <td class="score-cell" style="background-color:#D4EDDA;">
+                1&times;3=3<br>
+                <span style="font-size:7pt;">LOW</span>
+            </td>
+        </tr>
+        </tbody>
+</table>
+
+
+<div class="sec-heading page-break">6. &nbsp;Method Statement</div>
+
+
+<div class="sec-subheading">6.1 Team Requirements &amp; Competencies</div>
+<table class="std-table">
+    <thead>
+        <tr>
+            <th style="width:34%;">Role</th>
+            <th style="width:8%;">Qty</th>
+            <th>Requirements</th>
+        </tr>
+    </thead>
+    <tbody>
+                                    <tr>
+            <td>Project Manager — Simon Pittaway</td>
+            <td style="text-align:center;">1</td>
+            <td>SMSTS or equivalent. CSCS Card. First Aid at Work certificate. Responsible for site management and client liaison.</td>
+        </tr>
+                        <tr>
+            <td>Lead Engineer — Simon Pittaway</td>
+            <td style="text-align:center;">1</td>
+            <td>Qualified AV installation engineer. CSCS/ECS Card required. Competent with display installation, structured cabling, and AV commissioning. IPAF/PASMA required if working at height.</td>
+        </tr>
+                        <tr>
+            <td>Engineer — James Clarke, Peter Adams</td>
+            <td style="text-align:center;">2</td>
+            <td>Qualified AV installation engineer. CSCS/ECS Card required. Experienced in structured AV cabling and equipment installation.</td>
+        </tr>
+                        <tr>
+            <td>Programmer — Ed Warfield</td>
+            <td style="text-align:center;">1</td>
+            <td>AV programmer competent in control system configuration and DSP programming. CSCS Card.</td>
+        </tr>
+                </tbody>
+</table>
+
+
+<div class="sec-subheading" style="margin-top:8pt;">Site Vehicles &amp; Registrations</div>
+<table class="std-table">
+    <thead>
+        <tr>
+            <th style="width:34%;">Vehicle Registration</th>
+            <th>Notes</th>
+        </tr>
+    </thead>
+    <tbody>
+                                <tr>
+                <td>AB12 CDE</td>
+                <td>Ford Transit</td>
+            </tr>
+                                <tr>
+                <td>EF34 GHI</td>
+                <td>VW Crafter</td>
+            </tr>
+            </tbody>
+</table>
+
+
+<div class="sec-subheading">6.2 Tools &amp; Equipment</div>
+<ul class="blist">
+    <li>Insulated hand tools (screwdrivers, pliers, wire strippers)</li>
+    <li>Cordless drill 18V with masonry + wood bits</li>
+    <li>Class 1 stepladder EN131 rated</li>
+    <li>Podium steps</li>
+    <li>Multimeter and cable tester</li>
+    <li>HDMI test equipment / signal generator</li>
+    <li>Label maker and cable labels</li>
+    <li>PPE: safety footwear, dust masks FFP2, safety glasses</li>
+    <li>Screen trolley for display transport</li>
+    <li>Laptop for DSP configuration and device testing</li>
+    <li>Dust sheets and cable ramps</li>
+</ul>
+
+
+
+
+
+
+<div class="sec-subheading">6.3 Pre-Installation Requirements (Client Responsibilities)</div>
+<ul class="blist">
+        <li>Mains power outlets live at each equipment location.</li>
+        <li>Network drops (Cat6) active and PoE-enabled where applicable.</li>
+        <li>Boardroom booked out and empty on installation days.</li>
+        <li>Client IT contact available for VLAN cutover.</li>
+        <li>Site contact available throughout the working day.</li>
+    </ul>
+
+
+
+
+<div class="sec-subheading">6.4 Method of Works &mdash; Step by Step</div>
+                    <div class="ms-step-header">Step 1 &nbsp;&nbsp;&nbsp; Site Set-Up and Delivery</div>
+        <ul class="blist">
+                                            <li>Sign in at reception; complete site induction with facilities team.</li>
+                                                            <li>Position vehicles per client&#039;s delivery-zone plan; deploy dust sheets.</li>
+                                                            <li>Establish welfare and rest area; agree comms channel with site contact.</li>
+                                    </ul>
+                <p style="font-size:7.5pt; color:#666; font-style:italic; margin:2pt 0 8pt 0;">See RA02 (manual handling)</p>
+                            <div class="ms-step-header">Step 2 &nbsp;&nbsp;&nbsp; First Fix — Cable Pulls and Bracket Installation</div>
+        <ul class="blist">
+                                            <li>Confirm cable routes with site facilities; obtain ceiling-void permit if needed.</li>
+                                                            <li>Pull power and structured cabling to each device location.</li>
+                                                            <li>Install VESA brackets to walls (verify wall construction; use reinforcement plate if plasterboard).</li>
+                                    </ul>
+                <p style="font-size:7.5pt; color:#666; font-style:italic; margin:2pt 0 8pt 0;">See RA01 (working at height), RA02</p>
+                            <div class="ms-step-header">Step 3 &nbsp;&nbsp;&nbsp; Second Fix — Display and Rack Installation</div>
+        <ul class="blist">
+                                            <li>Mount displays to brackets (2-engineer lift).</li>
+                                                            <li>Terminate structured cabling; label per site cable-schedule.</li>
+                                                            <li>Install AV rack; power-on with electrical isolation permit.</li>
+                                    </ul>
+                <p style="font-size:7.5pt; color:#666; font-style:italic; margin:2pt 0 8pt 0;">See RA01, RA02, RA03 (electrical)</p>
+                            <div class="ms-step-header">Step 4 &nbsp;&nbsp;&nbsp; Commissioning and Handover</div>
+        <ul class="blist">
+                                            <li>Configure Biamp DSP; upload Crestron control code.</li>
+                                                            <li>Verify every commissioning-criteria row (see §Commissioning Criteria).</li>
+                                                            <li>Walk client contact through system operation; sign off Section 8.</li>
+                                    </ul>
+                <p style="font-size:7.5pt; color:#666; font-style:italic; margin:2pt 0 8pt 0;">See RA03</p>
+
+
+<div class="sec-subheading">6.5 Material Handling</div>
+<p class="body-para">No significant heavy or bulky items identified. Standard manual handling precautions apply.</p>
+
+
+
+
+
+
+
+
+<div class="sec-subheading">6.11 Coordination with Other Trades</div>
+<ul class="blist">
+    <li>Where AV works interface with plant owned by other trades (ceiling grid installer, partition contractor, electrical fit-out, IT/network cabling), the Lead Engineer must confirm the interface point with the trade's on-site supervisor before penetration, fixing or cable pull.</li>
+    <li>Any drilling into ceiling voids requires prior confirmation from the ceiling installer that the grid is fully supported and no live services are on the drill path.</li>
+    <li>Any cable pull through partitions requires prior confirmation from the partition contractor that the wall is not carrying fire-stop that would be breached.</li>
+    <li>Any tie-in to client-owned IT infrastructure requires prior confirmation from the client IT contact (see 6.12) that the port is provisioned and the VLAN is correctly assigned.</li>
+    <li>Interface disputes are escalated to the Project Manager for resolution before works proceed; engineers do not commence contested works.</li>
+</ul>
+
+
+<div class="sec-subheading">6.12 IT / Network Integration Safety</div>
+<ul class="blist">
+    <li>The client's IT contact must be informed and available before any codec, DSP, control processor, room-scheduler tablet or network switch joins the client LAN.</li>
+    <li>Control system programming (Crestron, Q-SYS, Extron, Vaddio) and DSP configuration are performed OFF the live signal path (bench or staging PC) and only cutover after the client IT contact confirms the target VLAN is live and the switch port is enabled.</li>
+    <li>Firmware updates on client-owned hardware are only performed with written authorisation from the client IT contact and only during agreed maintenance windows.</li>
+    <li>Any credentials (SIP registrar, MQTT broker, control-system admin passwords) are captured in the O&amp;M Manual and handed over to the client IT contact — engineers do not retain client credentials post-handover.</li>
+    <li>Power-cycle and network-fail recovery is verified during commissioning for every codec, DSP and control processor — each device must autonomously return to the last-good configuration after unexpected loss of power or network.</li>
+</ul>
+
+
+<div class="sec-heading">Decommissioning Procedure</div>
+<div class="kv-block">
+        <p><strong>Labelling Procedure:</strong> All decommissioned items labelled with 21CAV asset tag showing removal date + engineer initials.</p>      <p><strong>Storage Location:</strong> Client-provided store cupboard, ground floor.</p>     <p><strong>Disposal Method:</strong> Client retention (no disposal by 21CAV).</p>    <p><strong>Client Sign-Off Required:</strong> Yes — client must sign before removal of any equipment</p>
+</div>
+<ol style="margin: 0 0 8pt 18pt; font-size:9.5pt; line-height:1.5;">
+        <li>Power down and confirm de-energised.</li>
+            <li>Photograph in-situ before removal for asset register.</li>
+            <li>Disconnect and label cables at both ends.</li>
+            <li>Transport to client store; obtain client signature.</li>
+    </ol>
+
+
+<div class="sec-heading">Permits &amp; Authorisations</div>
+<table class="std-table" style="margin-bottom: 8pt;">
+    <thead>
+        <tr>
+            <th style="width:30%;">Permit Type</th>
+            <th>Notes / Requirements</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+        <td><strong>Electrical Isolation Permit</strong></td>
+        <td>Required before rack power-on.</td>
+    </tr>
+        <tr>
+        <td><strong>Permit to Work — Ceiling Voids</strong></td>
+        <td>Required for ceiling-void cable pulls.</td>
+    </tr>
+        </tbody>
+</table>
+<p class="note-text">All permits must be obtained and displayed on site before relevant works commence. Engineers must not start permit-controlled activities without a valid, signed permit.</p>
+
+
+<div class="sec-heading">CDM 2015 Duty Holders</div>
+<table class="std-table" style="margin-bottom: 8pt;">
+    <thead>
+        <tr>
+            <th style="width:22%;">Role</th>
+            <th style="width:26%;">Organisation</th>
+            <th style="width:26%;">Name</th>
+            <th>Contact</th>
+        </tr>
+    </thead>
+    <tbody>
+                <tr>
+        <td><strong>Client</strong></td>
+        <td>Tilda Foods Ltd</td>
+        <td>Wesley Jones</td>
+        <td>07700 900011</td>
+    </tr>
+            <tr>
+        <td><strong>Principal Designer</strong></td>
+        <td>21st Century AV Ltd</td>
+        <td>Simon Pittaway</td>
+        <td>01189 977770</td>
+    </tr>
+            <tr>
+        <td><strong>Principal Contractor</strong></td>
+        <td>21st Century AV Ltd</td>
+        <td>Simon Pittaway</td>
+        <td>01189 977770</td>
+    </tr>
+            <tr>
+        <td><strong>Sub-contractor</strong></td>
+        <td>21st Century AV Ltd</td>
+        <td>Simon Pittaway</td>
+        <td>01189 977770</td>
+    </tr>
+        </tbody>
+</table>
+
+
+<div class="sec-heading">COSHH Assessment</div>
+<p class="body-para">
+    AV installation works on this project involve the use of the following substances or
+    processes that may present a health hazard under the Control of Substances Hazardous
+    to Health Regulations 2002 (COSHH):
+</p>
+
+<p class="body-para"><strong>Standard AV Install COSHH Inventory:</strong></p>
+<table class="std-table" style="margin-bottom: 8pt;">
+    <thead>
+        <tr style="background-color:#1B7A7A; color:#ffffff;">
+            <th style="width:22%; color:#fff;">Product / Substance</th>
+            <th style="width:22%; color:#fff;">Typical Use</th>
+            <th style="width:18%; color:#fff;">GHS Hazard Codes</th>
+            <th style="color:#fff;">Control Measures</th>
+        </tr>
+    </thead>
+    <tbody>
+                        <tr>
+            <td><strong>Isopropyl Alcohol (IPA) — cleaning solvent</strong></td>
+            <td>Screen and lens cleaning; contact-terminal cleaning before soldering.</td>
+            <td style="font-size:8pt; font-family: Consolas, monospace;">H225, H319, H336</td>
+            <td>
+                <ul class="blist" style="margin:0; padding-left:14pt;">
+                                            <li>Use in well-ventilated area only; do not use inside sealed rack cabinet with power on.</li>
+                                            <li>Nitrile gloves and safety glasses; avoid skin contact and inhalation.</li>
+                                            <li>Store in original labelled container; keep away from ignition sources.</li>
+                                    </ul>
+            </td>
+        </tr>
+                        <tr>
+            <td><strong>Tin/Lead (Sn/Pb) Solder — 60/40 or 63/37</strong></td>
+            <td>Cable termination on legacy speaker circuits and control wiring.</td>
+            <td style="font-size:8pt; font-family: Consolas, monospace;">H360, H373</td>
+            <td>
+                <ul class="blist" style="margin:0; padding-left:14pt;">
+                                            <li>Wash hands after handling; do not eat, drink or smoke in soldering area.</li>
+                                            <li>Fume-extraction fan or open window during soldering; solder in short bursts.</li>
+                                            <li>Not to be used by anyone pregnant or planning pregnancy — substitute lead-free.</li>
+                                    </ul>
+            </td>
+        </tr>
+                        <tr>
+            <td><strong>Rosin (Colophony) Flux — solder flux</strong></td>
+            <td>Applied to solder joints to promote wetting and remove oxides.</td>
+            <td style="font-size:8pt; font-family: Consolas, monospace;">H317</td>
+            <td>
+                <ul class="blist" style="margin:0; padding-left:14pt;">
+                                            <li>Local exhaust ventilation or activated-carbon fume filter during any soldering.</li>
+                                            <li>Nitrile gloves; wash forearms if flux splash occurs.</li>
+                                            <li>Stop use if respiratory sensitisation symptoms develop; report to Ops Manager.</li>
+                                    </ul>
+            </td>
+        </tr>
+                        <tr>
+            <td><strong>Expanding Foam — cable-penetration fire-stop</strong></td>
+            <td>Sealing cable penetrations through walls, floors and fire compartments.</td>
+            <td style="font-size:8pt; font-family: Consolas, monospace;">H319, H332, H334, H351</td>
+            <td>
+                <ul class="blist" style="margin:0; padding-left:14pt;">
+                                            <li>FFP3 mask, nitrile gloves and safety glasses mandatory during application.</li>
+                                            <li>Do NOT use inside comms rooms with active clients present; schedule out-of-hours.</li>
+                                            <li>Discard uncured cans as hazardous waste — do not puncture, do not incinerate.</li>
+                                    </ul>
+            </td>
+        </tr>
+                        <tr>
+            <td><strong>Contact Cleaner (aerosol) — electrical contact cleaner</strong></td>
+            <td>Cleaning connectors, potentiometers and switch contacts on retained equipment.</td>
+            <td style="font-size:8pt; font-family: Consolas, monospace;">H222, H336</td>
+            <td>
+                <ul class="blist" style="margin:0; padding-left:14pt;">
+                                            <li>Do NOT use on live equipment — isolate first; some formulations are flammable.</li>
+                                            <li>Use in well-ventilated area; short bursts only; do not empty full can in one session.</li>
+                                            <li>Store aerosols below 50°C; do not leave in direct sun in vehicle.</li>
+                                    </ul>
+            </td>
+        </tr>
+                        <tr>
+            <td><strong>Cable Pulling Lubricant</strong></td>
+            <td>Cable pulls through conduit or containment where friction risks jacket damage.</td>
+            <td style="font-size:8pt; font-family: Consolas, monospace;">H319</td>
+            <td>
+                <ul class="blist" style="margin:0; padding-left:14pt;">
+                                            <li>Nitrile gloves and safety glasses; avoid eye contact.</li>
+                                            <li>Wipe up spills immediately — leaves slip hazard on hard floors.</li>
+                                            <li>Confirm compatibility with cable jacket material (LSZH vs PVC) before application.</li>
+                                    </ul>
+            </td>
+        </tr>
+                        <tr>
+            <td><strong>Silicone Thermal Compound — heatsink paste</strong></td>
+            <td>Applied between codec or amp CPU and heatsink during on-site repair only.</td>
+            <td style="font-size:8pt; font-family: Consolas, monospace;">H319, H315</td>
+            <td>
+                <ul class="blist" style="margin:0; padding-left:14pt;">
+                                            <li>Nitrile gloves; avoid skin and eye contact.</li>
+                                            <li>Wash hands after use — silicone residue contaminates screen and finger-swipe surfaces.</li>
+                                            <li>Store in tool cabinet; small quantities only carried on site.</li>
+                                    </ul>
+            </td>
+        </tr>
+            </tbody>
+</table>
+<p class="body-para" style="font-size:8pt; color:#555;">
+    GHS/CLP hazard codes: H2xx = physical, H3xx = health, H4xx = environmental.
+    Refer to the manufacturer Safety Data Sheet (SDS) for each product on site.
+    SDS binder kept in Vehicle 1 tool cabinet and available at request from Site Supervisor.
+</p>
+<p class="body-para">
+    Engineers must report any unexpected COSHH hazard (e.g. discovery of asbestos-containing
+    materials, chemical spills) to the Project Manager and cease work in the affected area
+    immediately. No work to recommence until the hazard is assessed and controlled.
+</p>
+
+
+<div class="sec-heading">Environmental Management</div>
+
+<div class="sec-subheading">Waste Disposal</div>
+<p class="body-para">
+    All waste generated during the works — including packaging materials, cable off-cuts,
+    redundant equipment, and general site waste — will be managed in accordance with the
+    Environmental Protection Act 1990 and the Waste (England and Wales) Regulations 2011.
+</p>
+<p class="body-para"><strong>Waste removal responsibility:</strong> 21st Century AV Ltd — 21st Century AV to remove all packaging and legacy equipment.</p>
+<ul class="blist">
+    <li>No waste to be disposed of via client's trade waste unless agreed in writing.</li>
+    <li>Hazardous waste (e.g. batteries, lamps, WEEE) to be disposed of via registered carriers only.</li>
+    <li>Site to be left clean and tidy at the end of each working day.</li>
+</ul>
+
+<div class="sec-subheading">Noise, Dust &amp; Vibration</div>
+<ul class="blist">
+    <li>Noisy operations (drilling, chasing) to be carried out during agreed working hours only and with prior notification to the site/client representative.</li>
+    <li>Dust suppression measures (dust sheets, vacuuming, wet methods) to be used where practical.</li>
+    <li>Hand-arm vibration exposure to be minimised; use of powered tools to comply with the Control of Vibration at Work Regulations 2005. Engineers to use anti-vibration PPE where required.</li>
+    <li>Any spill of materials on site (cable lubricants, adhesives) to be contained and cleaned immediately.</li>
+</ul>
+
+
+<div class="sec-heading">Welfare Arrangements</div>
+<ul class="blist">
+    <li><strong>Toilets:</strong> Engineers will use welfare facilities provided or indicated by the site/client representative.</li>
+    <li><strong>Washing facilities:</strong> Adequate washing facilities with hot and cold water to be made available on site.</li>
+    <li><strong>Rest area:</strong> Engineers will use designated rest areas as directed by the site manager. No eating or drinking in work areas.</li>
+    <li><strong>First Aid:</strong> At least one engineer on site will hold a current First Aid at Work or Emergency First Aid at Work certificate. First aid kit carried at all times. Nearest hospital A&amp;E to be identified at site induction.</li>
+    <li><strong>Drinking water:</strong> Engineers to carry their own supply; confirm availability of potable water with site contact.</li>
+</ul>
+<p class="body-para"><strong>Site-specific welfare notes:</strong> Client welfare block available; toilets and kitchen accessible.</p>
+
+
+<div class="sec-heading page-break">7. &nbsp;Emergency Procedures</div>
+
+
+<div class="sec-subheading">7.0 Site-Specific Emergency Details</div>
+<table class="emerg-table" style="margin-bottom: 10pt;">
+    <tr>
+        <td class="e-lbl">Nearest A&amp;E Hospital</td>
+        <td class="e-val" colspan="3">
+            Queen&#039;s Hospital, Romford
+                            <br><span style="font-size:8pt; color:#555;">Rom Valley Way, Romford RM7 0AG</span>
+                    </td>
+    </tr>
+    <tr>
+        <td class="e-lbl">Fire Assembly Point</td>
+        <td class="e-val" colspan="3">North car park</td>
+    </tr>
+    <tr>
+        <td class="e-lbl">Fire Warden</td>
+        <td class="e-val">Michael Facilities</td>
+        <td class="e-lbl">Contact</td>
+        <td class="e-val">07700 900022</td>
+    </tr>
+    <tr>
+        <td class="e-lbl">First Aider</td>
+        <td class="e-val">Sarah Reception</td>
+        <td class="e-lbl">Contact</td>
+        <td class="e-val">07700 900033</td>
+    </tr>
+    <tr>
+        <td class="e-lbl">Nearest Defibrillator</td>
+        <td class="e-val" colspan="3">Main reception, ground floor</td>
+    </tr>
+
+    <tr>
+        <td class="e-lbl">Electrical Isolation Switch</td>
+        <td class="e-val" colspan="3">Sub-panel B, plant room</td>
+    </tr>
+    <tr>
+        <td class="e-lbl">Fire Extinguisher Class Available</td>
+        <td class="e-val" colspan="3">Class A + Class C (CO2) in AV rack</td>
+    </tr>
+</table>
+
+
+<div class="sec-subheading">7.1 Emergency Contact Numbers</div>
+<table class="emerg-table" style="margin-bottom: 10pt;">
+    <tr>
+        <td class="e-lbl">Emergency Services</td>
+        <td class="e-val"><strong>999</strong></td>
+        <td class="e-lbl">Non-Emergency Police</td>
+        <td class="e-val"><strong>101</strong></td>
+    </tr>
+    <tr>
+        <td class="e-lbl">Site Contact</td>
+
+        <td class="e-val">Wesley Jones<br>wesley.jones@tildafoods.co.uk</td>
+        <td class="e-lbl">21CAV Operations</td>
+        <td class="e-val">01189 977770</td>
+    </tr>
+</table>
+
+
+<div class="sec-subheading">7.2 In the Event of an Accident or Injury</div>
+<ul class="blist">
+    <li>Stop all work immediately.</li>
+    <li>Call 999 if the injury is life-threatening or the person is unconscious.</li>
+    <li>Administer first aid if qualified to do so; do not move a person with a suspected spinal injury.</li>
+    <li>Contact the 21st Century AV operations team immediately: 01189 977770.</li>
+    <li>Preserve the scene for investigation. Record all details: time, nature of incident, persons involved, witnesses.</li>
+    <li>Complete a 21st Century AV incident report form and submit to operations within 24 hours.</li>
+    <li>Report to the client site manager and comply with site reporting procedures.</li>
+    <li>RIDDOR reportable incidents must be reported by the Responsible Person within the required timescales.</li>
+</ul>
+
+
+<div class="sec-subheading" style="margin-top: 4pt;">RIDDOR Reporting Matrix</div>
+<table class="std-table" style="margin-bottom: 10pt;">
+    <thead>
+        <tr>
+            <th style="width: 30%;">Incident Type</th>
+            <th style="width: 30%;">Responsible Person</th>
+            <th style="width: 22%;">Timescale</th>
+            <th>Reporting Route</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Death or specified major injury</td>
+            <td>21st Century AV Ltd Ops Manager</td>
+            <td><strong>Immediate</strong></td>
+            <td>HSE Incident Contact Centre — 0345 300 9923</td>
+        </tr>
+        <tr>
+            <td>Over-7-day incapacity (injury)</td>
+            <td>21st Century AV Ltd Ops Manager</td>
+            <td>Within 15 days</td>
+            <td>HSE online RIDDOR form (F2508)</td>
+        </tr>
+        <tr>
+            <td>Dangerous occurrence (near miss)</td>
+            <td>21st Century AV Ltd Ops Manager</td>
+            <td>Within 10 days</td>
+            <td>HSE online RIDDOR form (F2508)</td>
+        </tr>
+        <tr>
+            <td>Occupational disease</td>
+            <td>21st Century AV Ltd Ops Manager</td>
+            <td>Within 10 days of diagnosis</td>
+            <td>HSE online RIDDOR form (F2508A)</td>
+        </tr>
+    </tbody>
+</table>
+
+
+<div class="sec-subheading">7.3 In the Event of a Fire</div>
+<ul class="blist">
+    <li>Raise the alarm immediately using the nearest fire alarm call point.</li>
+    <li>Evacuate the building by the nearest fire exit. Do not use lifts.</li>
+    <li>Proceed to the designated assembly point as directed by the site fire warden.</li>
+    <li>Do not re-enter the building until instructed to do so by the fire warden or emergency services.</li>
+    <li>Inform the site manager that 21CAV engineers are on-site and present at the assembly point.</li>
+</ul>
+
+
+<div class="sec-heading page-break">Commissioning Criteria</div>
+<p class="body-para">The following criteria must be verified and signed off before the installation is considered complete and handed over to the client.</p>
+<table class="std-table" style="margin-bottom: 8pt;">
+    <thead>
+        <tr style="background-color:#1B7A7A; color:#ffffff;">
+            <th style="width:18%; color:#fff;">System</th>
+            <th style="color:#fff;">Criterion</th>
+            <th style="width:22%; color:#fff;">Verification Method</th>
+            <th style="width:20%; color:#fff;">Pass Condition</th>
+            <th style="width:60pt; color:#fff; text-align:center;">Result</th>
+        </tr>
+    </thead>
+    <tbody>
+            <tr>
+        <td><strong>Displays</strong></td>
+        <td>Dual displays show 3840x2160@60Hz test pattern</td>
+        <td>HDMI signal generator</td>
+        <td>Both displays lock and display test pattern without artefacts</td>
+        <td style="text-align:center; font-size:8.5pt;">Pass &#9744;&nbsp; Fail &#9744;</td>
+    </tr>
+            <tr>
+        <td><strong>Audio</strong></td>
+        <td>MXA710 ceiling mics pick up speech at 4m radius</td>
+        <td>Voice test from table centre</td>
+        <td>AEC + AGC delivers intelligible speech to far-end</td>
+        <td style="text-align:center; font-size:8.5pt;">Pass &#9744;&nbsp; Fail &#9744;</td>
+    </tr>
+            <tr>
+        <td><strong>Control</strong></td>
+        <td>Crestron TSW-1070 initiates call and controls volume</td>
+        <td>Manual walk-through of every button</td>
+        <td>All buttons respond within 500ms; no page-load errors</td>
+        <td style="text-align:center; font-size:8.5pt;">Pass &#9744;&nbsp; Fail &#9744;</td>
+    </tr>
+        </tbody>
+</table>
+
+
+<div class="sec-heading page-break">8. &nbsp;Document Sign-Off</div>
+
+<p class="body-para">
+    This Risk Assessment and Method Statement has been prepared by 21st Century AV Ltd for the project detailed herein.
+    It must be read, understood and agreed to by all personnel carrying out the works. By signing below, the parties
+    confirm that the works will be carried out in accordance with this document.
+</p>
+
+<table class="signoff-table">
+    <thead>
+        <tr>
+            <th style="width:15%; background-color:#F4FBFB; color:#1A1A2E;">&nbsp;</th>
+            <th>21st Century AV Ltd</th>
+            <th>Client Acceptance</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td class="row-lbl">Name</td>
+            <td>Simon Pittaway</td>
+            <td style="color:#999; font-style:italic;">________________</td>
+        </tr>
+        <tr>
+            <td class="row-lbl">Position</td>
+            <td>Project Manager</td>
+            <td style="color:#999; font-style:italic;">________________</td>
+        </tr>
+        <tr>
+            <td class="row-lbl">Date</td>
+            <td>25/07/2026</td>
+            <td style="color:#999; font-style:italic;">____/____/________</td>
+        </tr>
+        <tr class="sig-row">
+            <td class="row-lbl">Signature</td>
+            <td style="height:40pt;">&nbsp;</td>
+            <td style="height:40pt; color:#999; font-style:italic;">________________</td>
+        </tr>
+    </tbody>
+</table>
+
+<div style="margin-top: 14pt; border-top: 0.5pt solid #CCCCCC; padding-top: 5pt; font-size: 8pt; color: #555; text-align: center;">
+    21st Century AV Ltd &nbsp;|&nbsp; Thames Court, 2 Richfield Avenue, Reading, Berkshire &nbsp;|&nbsp; 01189 977770 &nbsp;|&nbsp; info@21stcenturyav.com
+</div>
+
+
+<div class="sec-heading page-break">Appendix A &mdash; Toolbox Talk Record</div>
+<p class="body-para">
+    Prior to commencement of works, the lead engineer or Project Manager must conduct a
+    toolbox talk covering the key risks, controls, and procedures in this RAMS document.
+    All attending personnel must sign below to confirm attendance and understanding.
+</p>
+<p class="body-para" style="margin-bottom:8pt;">
+    <strong>Date of toolbox talk:</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    <strong>Conducted by:</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    <strong>Location:</strong>
+</p>
+<table class="signoff-table">
+    <thead>
+        <tr>
+            <th style="width:30%;">Name</th>
+            <th style="width:25%;">Company</th>
+            <th style="width:20%;">Date</th>
+            <th>Signature</th>
+        </tr>
+    </thead>
+    <tbody>
+            <tr class="sig-row">
+            <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+        </tr>
+            <tr class="sig-row">
+            <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+        </tr>
+            <tr class="sig-row">
+            <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+        </tr>
+            <tr class="sig-row">
+            <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+        </tr>
+            <tr class="sig-row">
+            <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+        </tr>
+        </tbody>
+</table>
+
+</div>
+</body>
+</html>

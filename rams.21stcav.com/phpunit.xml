@@ -12,6 +12,17 @@
             <directory>tests/Feature</directory>
         </testsuite>
     </testsuites>
+    <!--
+        Snapshot tests (phase 260726-rf3 Plan 03) are noisy and slow. They
+        render a full RAMS blade and diff it against a golden HTML file.
+        Excluded from the default `phpunit` run so the fast suite stays
+        quick. Run them explicitly with `phpunit ==group snapshot`.
+    -->
+    <groups>
+        <exclude>
+            <group>snapshot</group>
+        </exclude>
+    </groups>
     <source>
         <include>
             <directory>app</directory>

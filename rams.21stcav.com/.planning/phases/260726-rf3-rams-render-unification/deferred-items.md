@@ -40,3 +40,36 @@ default in the DTO).
 **Fix suggestion:** In `EmergencySectionDto::fromArray`, default every field
 to `''` (already done) and change the blade guards to `$siteEmerg['fire_warden_contact'] ?? ''`
 in both `rams.blade.php` and `rams-v2.blade.php`.
+
+---
+
+## Composer material_handling shape mismatch
+
+**Discovered:** Plan 03 executor, 2026-07-26, building the Tilda fixture.
+
+**Where:** `app/Support/Rams/SectionComposers/MethodStatementComposer.php:134`
+reads `$rd['material_handling']` through `$stringList()`, which explodes on
+arrays (`Array to string conversion`).
+
+**Symptom:** Prod records store `reviewed_data.material_handling` as an
+OBJECT: `{ "large_items": [{"item":"...", "weight_kg":55, ...}], "handling_notes": "..." }`.
+The legacy `pdf.rams` blade reads that object shape at line 428:
+`$mhItems = is_array($matHandling['large_items'] ?? null) ? $matHandling['large_items'] : [];`.
+
+`MethodStatementComposer` treats the same key as a **string list** and
+casts each `large_items` entry through `(string) $item` — throws under
+PHP 8.4 error-mode.
+
+**Not fixed in Plan 03:** Composer contract belongs to Plan 02 / Plan 05.
+The Tilda fixture omits `material_handling` for now so composer runs
+cleanly. Plan 05 should either:
+
+1. Extend `MethodStatementSectionDto` with a structured `materialHandlingItems`
+   field (array of `{item, weight_kg, handling_method}` maps) alongside the
+   existing bullet-list `materialHandling`, and update the composer to read
+   both shapes, or
+2. Move material_handling out of `MethodStatementSectionDto` into its own
+   `MaterialHandlingSectionDto`.
+
+Once resolved, restore the material_handling block in the Tilda fixture and
+re-capture snapshot goldens.

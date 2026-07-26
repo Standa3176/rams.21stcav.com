@@ -1,0 +1,246 @@
+{
+    "_notes": "Fixture 6 of phase 260726-rf3 — Tilda 21CQ29531 canonical reference document. Hand-crafted by Plan 03 executor 2026-07-26 because the real record (project 88, RAMS id 92) was not accessible from the dev environment (empty local DB). Modelled on the composite of: the four Plan 02 composer fixtures (fresh-build / prior-rams-carry / decommission-heavy / missing-survey), the user-facing hints in Plan 02 SUMMARY (client_contact_name === 'Wesley Jones'), and the reference-document invariants Plan 05 asserts (scope across 3 buckets, hazards populated, method statement phases, site emergency populated, room overviews). Snapshot test uses this fixture as the authoritative HTML-level regression guard for both the pdf.rams (legacy) and pdf.rams-v2 (unified) render paths. If a real Tilda RAMS record becomes available later, this fixture should be regenerated from it and the snapshot golden files re-captured via `php artisan rams:regenerate-snapshots tilda-21cq29531`.",
+    "project": {
+        "name": "Tilda — Reading HQ Boardroom Refresh",
+        "client_name": "Tilda Foods Ltd",
+        "site_address": "Coronation Road, Rainham, Essex, RM13 8SA",
+        "ref": "21CQ29531"
+    },
+    "rams": {
+        "project_ref": "21CQ29531",
+        "project_name": "Tilda — Reading HQ Boardroom Refresh",
+        "client_name": "Tilda Foods Ltd",
+        "site_address": "Coronation Road, Rainham, Essex, RM13 8SA",
+        "status": "completed",
+        "generated_data": {
+            "project": {
+                "name": "Tilda — Reading HQ Boardroom Refresh",
+                "client": "Tilda Foods Ltd",
+                "site_address": "Coronation Road, Rainham, Essex, RM13 8SA",
+                "ref": "21CQ29531",
+                "doc_author": "Simon Pittaway",
+                "project_manager": "Simon Pittaway",
+                "project_manager_phone": "01189 977770",
+                "lead_engineer": "Simon Pittaway",
+                "additional_engineers": "James Clarke, Peter Adams",
+                "programmer": "Ed Warfield",
+                "revision": "Rev 1.0",
+                "document_status": "For Issue",
+                "planned_start_date": "2026-08-17",
+                "planned_end_date": "2026-08-21",
+                "planned_start_time": "08:00",
+                "planned_end_time": "17:30",
+                "working_hours": "Monday to Friday, 08:00 to 17:30",
+                "client_contact_name": "Wesley Jones",
+                "client_contact_email": "wesley.jones@tildafoods.co.uk",
+                "client_contact_phone": "07700 900011",
+                "site_vehicles": "AB12 CDE - Ford Transit\nEF34 GHI - VW Crafter"
+            },
+            "hazards": [
+                {
+                    "hazard": "Working at height for display installation (up to 3m)",
+                    "persons_at_risk": ["Engineers", "Site staff below"],
+                    "pre_likelihood": 3,
+                    "pre_severity": 4,
+                    "controls": [
+                        "Class 1 stepladders EN131 rated only; 3-point contact maintained.",
+                        "Podium steps used above 2m; two-person team for bracket lifts.",
+                        "Working area cordoned; no personnel permitted below drop zone."
+                    ],
+                    "post_likelihood": 1,
+                    "post_severity": 3
+                },
+                {
+                    "hazard": "Manual handling of large-format displays (55 kg)",
+                    "persons_at_risk": ["Engineers"],
+                    "pre_likelihood": 4,
+                    "pre_severity": 3,
+                    "controls": [
+                        "Team lift (2 engineers minimum) for any item over 20 kg.",
+                        "Screen trolley used from vehicle to install location.",
+                        "Correct lifting technique briefed at toolbox talk."
+                    ],
+                    "post_likelihood": 2,
+                    "post_severity": 2
+                },
+                {
+                    "hazard": "Electrical connection to mains supply",
+                    "persons_at_risk": ["Engineers", "Client staff"],
+                    "pre_likelihood": 3,
+                    "pre_severity": 5,
+                    "controls": [
+                        "All engineers 18th Edition qualified.",
+                        "Isolation permit obtained before rack power-on.",
+                        "Test-before-touch on every circuit prior to termination."
+                    ],
+                    "post_likelihood": 1,
+                    "post_severity": 3
+                }
+            ],
+            "team": [
+                {"role": "Project Manager", "name": "Simon Pittaway"},
+                {"role": "Lead Engineer", "name": "Simon Pittaway"},
+                {"role": "Engineer", "name": "James Clarke"},
+                {"role": "Engineer", "name": "Peter Adams"},
+                {"role": "Programmer", "name": "Ed Warfield"}
+            ],
+            "method_statement": {
+                "phases": [
+                    {
+                        "title": "Site Set-Up and Delivery",
+                        "steps": [
+                            "Sign in at reception; complete site induction with facilities team.",
+                            "Position vehicles per client's delivery-zone plan; deploy dust sheets.",
+                            "Establish welfare and rest area; agree comms channel with site contact."
+                        ],
+                        "associated_risks_label": "See RA02 (manual handling)"
+                    },
+                    {
+                        "title": "First Fix — Cable Pulls and Bracket Installation",
+                        "steps": [
+                            "Confirm cable routes with site facilities; obtain ceiling-void permit if needed.",
+                            "Pull power and structured cabling to each device location.",
+                            "Install VESA brackets to walls (verify wall construction; use reinforcement plate if plasterboard)."
+                        ],
+                        "associated_risks_label": "See RA01 (working at height), RA02"
+                    },
+                    {
+                        "title": "Second Fix — Display and Rack Installation",
+                        "steps": [
+                            "Mount displays to brackets (2-engineer lift).",
+                            "Terminate structured cabling; label per site cable-schedule.",
+                            "Install AV rack; power-on with electrical isolation permit."
+                        ],
+                        "associated_risks_label": "See RA01, RA02, RA03 (electrical)"
+                    },
+                    {
+                        "title": "Commissioning and Handover",
+                        "steps": [
+                            "Configure Biamp DSP; upload Crestron control code.",
+                            "Verify every commissioning-criteria row (see §Commissioning Criteria).",
+                            "Walk client contact through system operation; sign off Section 8."
+                        ],
+                        "associated_risks_label": "See RA03"
+                    }
+                ]
+            },
+            "tools_and_equipment": [
+                "Insulated hand tools (screwdrivers, pliers, wire strippers)",
+                "Cordless drill 18V with masonry + wood bits",
+                "Class 1 stepladder EN131 rated",
+                "Podium steps",
+                "Multimeter and cable tester",
+                "HDMI test equipment / signal generator",
+                "Label maker and cable labels",
+                "PPE: safety footwear, dust masks FFP2, safety glasses",
+                "Screen trolley for display transport",
+                "Laptop for DSP configuration and device testing",
+                "Dust sheets and cable ramps"
+            ],
+            "client_responsibilities": [
+                "Mains power outlets live at each equipment location.",
+                "Network drops (Cat6) active and PoE-enabled where applicable.",
+                "Boardroom booked out and empty on installation days.",
+                "Client IT contact available for VLAN cutover.",
+                "Site contact available throughout the working day."
+            ],
+            "scope_items": {
+                "decommission": [
+                    {"item_name": "Legacy 65\" LCD display (2018 vintage)", "room": "Main Boardroom", "qty": 1, "notes": "Decommission to client store."},
+                    {"item_name": "Existing analogue matrix switcher", "room": "AV Rack", "qty": 1, "notes": "Return to client store for spares."}
+                ],
+                "retained": [
+                    {"item_name": "Ceiling speakers (Bose FreeSpace)", "room": "Main Boardroom", "qty": 6, "notes": "Retained; retest and rebalance during commissioning."}
+                ],
+                "new_install": [
+                    {"item_name": "Samsung QM86R 4K UHD display", "room": "Main Boardroom", "qty": 2, "notes": "Front + rear wall."},
+                    {"item_name": "Biamp TesiraFORTÉ AVB VT4", "room": "AV Rack", "qty": 1, "notes": "DSP for room audio."},
+                    {"item_name": "Crestron NVX-352 encoder/decoder pair", "room": "AV Rack", "qty": 4, "notes": "AV-over-IP distribution."},
+                    {"item_name": "Shure MXA710 ceiling array microphone", "room": "Main Boardroom", "qty": 2, "notes": "Ceiling-mounted."},
+                    {"item_name": "Crestron TSW-1070 touch panel", "room": "Main Boardroom", "qty": 1, "notes": "Table-mounted."}
+                ]
+            },
+            "scope_of_works": "Refresh of the Reading HQ main boardroom AV. Decommission legacy displays and matrix switcher; install dual 4K displays, Biamp DSP, Shure ceiling microphones, and Crestron NVX / control system. Retain existing ceiling speakers.",
+            "quote": {}
+        },
+        "reviewed_data": {
+            "programme": {
+                "planned_start_date": "2026-08-17",
+                "planned_end_date": "2026-08-21",
+                "planned_start_time": "08:00",
+                "planned_end_time": "17:30",
+                "welfare_notes": "Client welfare block available; toilets and kitchen accessible.",
+                "waste_removal_party": "21cav",
+                "waste_removal_notes": "21st Century AV to remove all packaging and legacy equipment.",
+                "site_vehicles": ["AB12 CDE - Ford Transit", "EF34 GHI - VW Crafter"]
+            },
+            "room_overviews": [
+                {
+                    "room": "Main Boardroom",
+                    "overview": "16-seat executive boardroom. Dual-wall displays, ceiling microphones, table-mounted control.",
+                    "works_summary": "- Decommission legacy 65\" LCD.\n- Install dual Samsung QM86R displays (front + rear wall).\n- Install 2× Shure MXA710 ceiling microphones.\n- Table-mounted Crestron TSW-1070.\n- Commission with Biamp DSP and Crestron control."
+                },
+                {
+                    "room": "AV Rack",
+                    "overview": "AV rack room adjacent to boardroom. New DSP + NVX distribution + Crestron control processor.",
+                    "works_summary": "- Decommission legacy matrix switcher.\n- Install Biamp TesiraFORTÉ VT4.\n- Install 4× Crestron NVX-352.\n- Install Crestron CP4-R control processor.\n- Terminate and label structured cabling."
+                }
+            ],
+            "site_emergency": {
+                "nearest_hospital": "Queen's Hospital, Romford",
+                "hospital_address": "Rom Valley Way, Romford RM7 0AG",
+                "fire_assembly_point": "North car park",
+                "fire_warden_name": "Michael Facilities",
+                "fire_warden_contact": "07700 900022",
+                "first_aider_name": "Sarah Reception",
+                "first_aider_contact": "07700 900033",
+                "defibrillator_location": "Main reception, ground floor",
+                "electrical_isolation_switch": "Sub-panel B, plant room",
+                "fire_extinguisher_class": "Class A + Class C (CO2) in AV rack"
+            },
+            "exclusions": [
+                "No structural works or core drilling.",
+                "No containment beyond surface trunking.",
+                "No decorative making-good after cable routes.",
+                "No IT network provision — client to provide active drops.",
+                "No decommissioning of unrelated legacy equipment beyond items listed in scope."
+            ],
+            "decommissioning": {
+                "enabled": true,
+                "labelling_procedure": "All decommissioned items labelled with 21CAV asset tag showing removal date + engineer initials.",
+                "storage_location": "Client-provided store cupboard, ground floor.",
+                "disposal_method": "Client retention (no disposal by 21CAV).",
+                "client_sign_off_required": true,
+                "steps": [
+                    "Power down and confirm de-energised.",
+                    "Photograph in-situ before removal for asset register.",
+                    "Disconnect and label cables at both ends.",
+                    "Transport to client store; obtain client signature."
+                ]
+            },
+            "cdm": [
+                {"role": "Client", "organisation": "Tilda Foods Ltd", "name": "Wesley Jones", "contact": "07700 900011"},
+                {"role": "Principal Designer", "organisation": "21st Century AV Ltd", "name": "Simon Pittaway", "contact": "01189 977770"},
+                {"role": "Principal Contractor", "organisation": "21st Century AV Ltd", "name": "Simon Pittaway", "contact": "01189 977770"},
+                {"role": "Sub-contractor", "organisation": "21st Century AV Ltd", "name": "Simon Pittaway", "contact": "01189 977770"}
+            ],
+            "commissioning_criteria": [
+                {"system": "Displays", "criterion": "Dual displays show 3840x2160@60Hz test pattern", "verification_method": "HDMI signal generator", "pass_condition": "Both displays lock and display test pattern without artefacts"},
+                {"system": "Audio", "criterion": "MXA710 ceiling mics pick up speech at 4m radius", "verification_method": "Voice test from table centre", "pass_condition": "AEC + AGC delivers intelligible speech to far-end"},
+                {"system": "Control", "criterion": "Crestron TSW-1070 initiates call and controls volume", "verification_method": "Manual walk-through of every button", "pass_condition": "All buttons respond within 500ms; no page-load errors"}
+            ],
+            "scope_traceability": [
+                {"quote_item": "QW-1023 — Samsung QM86R", "rams_activity": "First fix + mount + commission", "room": "Main Boardroom", "notes": "Dual-wall install."},
+                {"quote_item": "QW-1045 — Biamp TesiraFORTÉ", "rams_activity": "Rack install + DSP config", "room": "AV Rack", "notes": ""}
+            ],
+            "permits_required": [
+                {"type": "Electrical Isolation Permit", "notes": "Required before rack power-on.", "required": true},
+                {"type": "Permit to Work — Ceiling Voids", "notes": "Required for ceiling-void cable pulls.", "required": true}
+            ]
+        },
+        "form_data": {
+            "working_hours": "Monday to Friday, 08:00 to 17:30",
+            "site_contact": "Wesley Jones — Facilities Manager"
+        }
+    }
+}
