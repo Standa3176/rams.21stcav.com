@@ -84,13 +84,27 @@ class Worksheet extends Model
     protected function casts(): array
     {
         return [
-            'generated_data'             => 'array',
-            'pre_install_confirmations'  => 'array',
-            'completion_email_sent_at'   => 'datetime',
-            'failed_email_sent_at'       => 'datetime',
-            'access_token_expires_at'    => 'datetime',
+            'generated_data'                => 'array',
+            'pre_install_confirmations'     => 'array',
+            'completion_email_sent_at'      => 'datetime',
+            'failed_email_sent_at'          => 'datetime',
+            // Quick task 260726-fx4 Task 3 — cast to Carbon for diffForHumans()
+            // in the show view "Office notified {ago}" pill.
+            'signed_notification_sent_at'   => 'datetime',
+            'access_token_expires_at'       => 'datetime',
         ];
     }
+
+    // ── Mass-assignment safety (quick task 260726-fx4 Task 3) ────────────────
+    //
+    // signed_notification_sent_at is deliberately NOT added to $fillable.
+    // Per the 260709 audit pattern for auth-tokened flags, mail-loop timestamps
+    // must only be written via forceFill() by the controller AFTER Mail::send
+    // returns cleanly. A `$worksheet->update(['signed_notification_sent_at'
+    // => ...])` payload could otherwise be triggered from the public sign-off
+    // form and silently mark a worksheet as "notified" when no mail was
+    // actually sent. Direct property write + save() is the only permitted
+    // path (PublicWorksheetController::sign line ~370).
 
     // ── Relationships ─────────────────────────────────────────────────────────
 

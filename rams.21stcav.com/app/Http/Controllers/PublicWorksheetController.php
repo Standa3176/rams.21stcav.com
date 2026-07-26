@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\WorksheetSignedMail;
 use App\Models\Device;
 use App\Models\DeviceLabelPhoto;
 use App\Models\SiteSurveyPhoto;
 use App\Models\Worksheet;
 use App\Services\DeviceLabelPhotoService;
+use App\Services\NotificationRecipientResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
@@ -338,7 +342,7 @@ class PublicWorksheetController extends Controller
         // (matches CommissioningSignoff convention).
         $b64 = preg_replace('/^data:image\/[a-z]+;base64,/i', '', $data['signature_image']);
 
-        $worksheet->signoffs()->create([
+        $signoff = $worksheet->signoffs()->create([
             'client_name'          => $data['client_name'],
             'signature_png_base64' => $b64,
             'signed_with_comments' => $withComments,
@@ -347,6 +351,37 @@ class PublicWorksheetController extends Controller
             'ip_address'           => $request->ip(),
             'user_agent'           => substr((string) $request->userAgent(), 0, 500),
         ]);
+
+        // ── Office notification (quick task 260726-fx4 Task 3) ──────────────
+        // Mirrors SurveyService::submitPublic — resolve project owner via
+        // NotificationRecipientResolver, send WorksheetSignedMail inline,
+        // then forceFill signed_notification_sent_at only on successful send.
+        // A mailer failure logs a warning and leaves the timestamp null so
+        // the show-view can display "Office not notified" and a future
+        // retry (admin re-trigger) can fire the mail again.
+        if ($worksheet->project_id) {
+            try {
+                $resolver  = app(NotificationRecipientResolver::class);
+                $recipient = $resolver->resolveProjectRecipient($worksheet->project);
+                if ($recipient?->email) {
+                    Mail::to($recipient->email)->send(new WorksheetSignedMail($worksheet, $signoff));
+
+                    // forceFill() bypasses $fillable — signed_notification_sent_at
+                    // is intentionally guarded on the model (see Worksheet.php
+                    // Mass-assignment safety block) so a form payload can't
+                    // spoof "notification sent". Only writers on this exact
+                    // code path may stamp it.
+                    $worksheet->forceFill([
+                        'signed_notification_sent_at' => now(),
+                    ])->save();
+                }
+            } catch (\Throwable $e) {
+                Log::warning('PublicWorksheetController: failed to send worksheet signed email', [
+                    'worksheet_id' => $worksheet->id,
+                    'error'        => $e->getMessage(),
+                ]);
+            }
+        }
 
         return redirect()
             ->route('public-worksheet.show', ['token' => $token])

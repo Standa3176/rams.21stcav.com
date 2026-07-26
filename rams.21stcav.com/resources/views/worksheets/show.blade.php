@@ -228,6 +228,19 @@
                 @if($sig->signed_with_comments)
                     · signed with comments
                 @endif
+                {{-- Quick task 260726-fx4 Task 3 — office notification pill.
+                     Green when the WorksheetSignedMail actually left the
+                     mailer without throwing; amber when null (mail failure
+                     or no project owner resolved). --}}
+                @if($worksheet->signed_notification_sent_at)
+                    <span style="display:inline-block;background:#D1FAE5;color:#065F46;padding:1px 8px;border-radius:12px;font-size:11px;font-weight:600;margin-left:.5rem;">
+                        Office notified {{ $worksheet->signed_notification_sent_at->diffForHumans() }}
+                    </span>
+                @else
+                    <span style="display:inline-block;background:#FEE9CC;color:#7C2D12;padding:1px 8px;border-radius:12px;font-size:11px;font-weight:600;margin-left:.5rem;" title="No office notification email was sent — either the project has no owner or the mailer failed">
+                        Office not notified
+                    </span>
+                @endif
             </x-slot>
         @endif
 
