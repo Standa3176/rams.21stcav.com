@@ -81,7 +81,42 @@ class DocxBuilderService
     // PUBLIC ENTRY POINT
     // =========================================================================
 
+    /**
+     * Build the RAMS DOCX and return the absolute path to the written file.
+     *
+     * Renderer routing (phase 260726-rf3 Plan 04):
+     *  - `RAMS_UNIFIED_COMPOSER=true`  → new pipeline: dispatches to
+     *    {@see DocxBuilderServiceV2::build}, which consumes the typed
+     *    `RamsDocumentDTO` produced by `RamsDocumentComposer` + the shared
+     *    `RamsTheme`. Same public shape ⇒ upstream callers
+     *    (RamsDocumentRendererService, BuildRamsDocumentJob, etc.) require
+     *    zero changes.
+     *  - `RAMS_UNIFIED_COMPOSER=false` (default) → legacy path unchanged.
+     *    Delegates to {@see self::buildLegacy} which is the pre-Plan-04
+     *    body verbatim.
+     *
+     * The kill switch is checked at every render (no build-time constant,
+     * no container binding to invalidate). Toggling `.env` + `config:cache`
+     * flips the pipeline for every subsequent render immediately.
+     * Rollback path: `RAMS_UNIFIED_COMPOSER=false` → identical DOCX output.
+     */
     public function build(array $data, RamsDocument $record): string
+    {
+        if (config('rams.unified_composer')) {
+            return app(DocxBuilderServiceV2::class)->build($data, $record);
+        }
+
+        return $this->buildLegacy($data, $record);
+    }
+
+    /**
+     * Legacy build path — the original, un-refactored code body extracted
+     * verbatim so the Plan 04 kill switch can dispatch without recursion.
+     * Do not add new features here; extend {@see DocxBuilderServiceV2}
+     * instead. Plan 05 will merge V2's implementation back into this class
+     * and delete `buildLegacy` + `DocxBuilderServiceV2` together.
+     */
+    public function buildLegacy(array $data, RamsDocument $record): string
     {
         // Ensure PHPWord escapes &, <, > in text content (off by default).
         Settings::setOutputEscapingEnabled(true);
