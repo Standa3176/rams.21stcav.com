@@ -241,7 +241,9 @@ class RamsDisplayPatchService
                     : ($pkg->equipment_list ?? []));
 
             if (is_array($rawEquip) && count($rawEquip) > 0) {
-                $mapped = [];
+                $newInstall   = [];
+                $decommission = [];
+                $retained     = [];
                 foreach ($rawEquip as $e) {
                     if (! is_array($e)) {
                         continue;
@@ -254,14 +256,61 @@ class RamsDisplayPatchService
                     $iType   = $e['item_type'] ?? '';
                     $cat     = strtolower((string) ($e['category'] ?? ''));
 
-                    if ($isHardware($nameStr, $iType, $cat)) {
-                        $mapped[] = ['item_name' => $nameStr, 'qty' => $qty, 'room' => $room, 'notes' => $notes];
+                    if (! $isHardware($nameStr, $iType, $cat)) {
+                        continue;
+                    }
+
+                    // 260726-rf2: extract parenthesised room suffix — QW quotes
+                    // often end scheduling-panel lines with "(Vanilla)" / "(Poppy)"
+                    // etc. where the parens name the room the panel belongs to.
+                    // Only run when room is empty (don't override an explicit area).
+                    $roomStr = trim((string) $room);
+                    if ($roomStr === '' && preg_match('/\s*\(([^()]{2,60})\)\s*$/', $nameStr, $m)) {
+                        $extractedRoom = trim($m[1]);
+                        // Sanity guard: room-ish names only. Reject if it looks like
+                        // a spec suffix (contains digits+units, colons, or product tokens).
+                        if (! preg_match('/\d|:|kg|mm|hz|watt|w\b|v\b|amp|version|rev\b/i', $extractedRoom)) {
+                            $roomStr = strtoupper($extractedRoom);
+                            $nameStr = trim(preg_replace('/\s*\([^()]{2,60}\)\s*$/', '', $nameStr));
+                        }
+                    }
+
+                    // 260726-rf2: segregate decommission + retained items from
+                    // the "NEW INSTALLATION" bucket. Pre-fix every "Existing X —
+                    // deinstall and return to client" row landed under NEW which
+                    // was factually wrong on the RAMS document.
+                    $nameLower  = strtolower($nameStr);
+                    $notesLower = strtolower(trim((string) $notes));
+                    $haystack   = $nameLower . ' ' . $notesLower;
+
+                    $mapped = ['item_name' => $nameStr, 'qty' => $qty, 'room' => $roomStr, 'notes' => $notes];
+
+                    // "to be retained" wins over "deinstall" — retain-for-reuse
+                    // is an explicit signal that overrides the "Existing " prefix
+                    // shared by both classes.
+                    if (str_contains($haystack, 'retained') || str_contains($haystack, 'to be retained')) {
+                        $retained[] = $mapped;
+                    } elseif (
+                        str_starts_with($nameLower, 'existing ')
+                        || str_contains($haystack, 'deinstall')
+                        || str_contains($haystack, 'de-install')
+                        || str_contains($haystack, 'return to client')
+                        || str_contains($haystack, 'removal')
+                    ) {
+                        $decommission[] = $mapped;
+                    } else {
+                        $newInstall[] = $mapped;
                     }
                 }
-                if (count($mapped) > 0) {
-                    $gd['scope_items']['new_install']  = $mapped;
-                    $gd['scope_items']['decommission'] = $gd['scope_items']['decommission'] ?? [];
-                    $gd['scope_items']['retained']     = $gd['scope_items']['retained']     ?? [];
+                $totalMapped = count($newInstall) + count($decommission) + count($retained);
+                if ($totalMapped > 0) {
+                    $gd['scope_items']['new_install']  = $newInstall;
+                    $gd['scope_items']['decommission'] = ! empty($decommission)
+                        ? $decommission
+                        : ($gd['scope_items']['decommission'] ?? []);
+                    $gd['scope_items']['retained']     = ! empty($retained)
+                        ? $retained
+                        : ($gd['scope_items']['retained']     ?? []);
                 }
             } elseif (empty($gd['scope_items']['new_install'])) {
                 $gd['scope_items']['decommission'] = $gd['scope_items']['decommission'] ?? [];
