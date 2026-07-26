@@ -141,10 +141,40 @@ class RamsDisplayPatchService
             $p['client_contact_phone'] = $sl['contact_phone'] ?? '';
         }
 
+        // 260726-fx5: reverse-mirror to the form's `site_contact` field so the
+        // RAMS review form pre-fills instead of forcing PMs to retype the
+        // client contact on every new RAMS. Blank pre-fix because the resolved
+        // value landed in `client_contact_name` but the form reads `site_contact`.
+        if (empty($p['site_contact'])) {
+            $p['site_contact'] = $p['client_contact_name'] ?? '';
+        }
+
         // 5. Planned dates and times from reviewed_data['programme'].
         foreach (['planned_start_date', 'planned_end_date', 'planned_start_time', 'planned_end_time'] as $f) {
             if (empty($p[$f])) {
                 $p[$f] = $prog[$f] ?? '';
+            }
+        }
+
+        // 260726-fx5: programme → project mirror for the form's Site Vehicles
+        // field. Programme stores an array; the form field is a textarea, so
+        // join with newlines. Falls through to '' when neither has data.
+        if (empty($p['site_vehicles'])) {
+            $vehicles = $prog['site_vehicles'] ?? '';
+            $p['site_vehicles'] = is_array($vehicles)
+                ? implode("\n", array_filter(array_map('trim', $vehicles)))
+                : (string) $vehicles;
+        }
+
+        // 260726-fx5: auto-derive subtitle from client + first line of site
+        // address when the PM hasn't set one. Skips derivation if both pieces
+        // are missing (avoids a naked " | AV Installation" subtitle).
+        if (empty($p['subtitle'])) {
+            $siteFirstLine = trim((string) strtok((string) ($p['site_address'] ?? ''), "\r\n"));
+            $client        = trim((string) ($p['client'] ?? ''));
+            $parts         = array_values(array_filter([$siteFirstLine, $client, 'AV Installation']));
+            if (count($parts) > 1) {
+                $p['subtitle'] = implode(' | ', $parts);
             }
         }
 
@@ -310,6 +340,30 @@ class RamsDisplayPatchService
         $rd['client_responsibilities_expanded'] = $rd['client_responsibilities_expanded'] ?? [];
         $rd['decommissioning']                  = $rd['decommissioning']                  ?? [];
         $rd['commissioning_criteria']           = $rd['commissioning_criteria']           ?? [];
+
+        // 260726-fx5: prior-RAMS auto-carry. Site emergency (nearest hospital,
+        // fire wardens, first aiders, defibrillator, isolation switch, etc.)
+        // and CDM duty-holder rows are per-project constants that PMs currently
+        // retype every RAMS revision. Seed empty blocks from the most recent
+        // completed RAMS on the same project so revisions only need edits, not
+        // re-entry. Non-destructive — only fills blanks; transient (no save).
+        if ($rams->project_id && (empty($rd['site_emergency']) || empty($rd['cdm']))) {
+            $prior = RamsDocument::query()
+                ->where('project_id', $rams->project_id)
+                ->where('id', '!=', $rams->id)
+                ->where('status', RamsDocument::STATUS_COMPLETED)
+                ->orderByDesc('generated_at')
+                ->first();
+            if ($prior) {
+                $priorRd = $prior->reviewed_data ?? [];
+                if (empty($rd['site_emergency']) && ! empty($priorRd['site_emergency'])) {
+                    $rd['site_emergency'] = $priorRd['site_emergency'];
+                }
+                if (empty($rd['cdm']) && ! empty($priorRd['cdm'])) {
+                    $rd['cdm'] = $priorRd['cdm'];
+                }
+            }
+        }
 
         $rams->reviewed_data = $rd; // transient
     }
