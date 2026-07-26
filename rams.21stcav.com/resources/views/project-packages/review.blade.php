@@ -321,11 +321,32 @@
 #s-equipment .repeater-table textarea { padding: .28rem .45rem; font-size: .82rem; }
 #s-equipment .repeater-table textarea.equip-input { line-height: 1.3; }
 /* Small-caps category dropdown so its lower visual weight matches the
-   row-scanning task better than the full-size text version. */
+   row-scanning task better than the full-size text version.
+   260726-fx5: added visible border + chevron background so PMs recognise
+   it as a picker. Pre-fix the muted-text-only styling read as static text. */
 #s-equipment .repeater-table select[data-equip-category] {
     font-size: .76rem;
     color: var(--text-muted);
     letter-spacing: -.005em;
+    border: 1px solid rgba(0, 0, 0, .14);
+    background-color: #fafafa;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%23666' d='M0 0l5 6 5-6z'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right .4rem center;
+    padding-right: 1.2rem;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    cursor: pointer;
+    width: 100%;
+}
+#s-equipment .repeater-table select[data-equip-category]:hover {
+    border-color: rgba(0, 0, 0, .28);
+}
+#s-equipment .repeater-table select[data-equip-category]:focus {
+    outline: 2px solid rgba(46, 116, 181, .35);
+    outline-offset: 1px;
+    border-color: #2E74B5;
 }
 /* Category-header (per group "Hardware" strip + Add button). Currently
    1rem/1.25rem padding; tightened so the room-name sub-rows read as
@@ -920,6 +941,9 @@
                 <p class="form-error" style="padding:.75rem 1.25rem;">{{ $message }}</p>
             @enderror
             @php
+                // 260726-fx5: `unknown` added as escape hatch so rows the classifier
+                // can't confidently bucket don't silently become "Hardware" and mis-feed
+                // RAMS. PMs resolve Unknown rows at site-survey time — does NOT block approve.
                 $categoryOptions = [
                     'hardware'          => 'Hardware',
                     'cables'            => 'Cables',
@@ -928,6 +952,7 @@
                     'service_contracts' => 'Service Contracts',
                     'customer_supplied' => 'Customer Supplied',
                     'option'            => 'Option (Optional Items)',
+                    'unknown'           => 'Unknown (set later)',
                 ];
 
                 // ── Tier-1 Screen 03 v2 — area picker source list ───────────
@@ -2276,6 +2301,7 @@ function equipmentRowTemplate(idx, category) {
                 <option value="service_contracts" ${category === 'service_contracts' ? 'selected' : ''}>Service Contracts</option>
                 <option value="customer_supplied" ${category === 'customer_supplied' ? 'selected' : ''}>Customer Supplied</option>
                 <option value="option" ${category === 'option' ? 'selected' : ''}>Option (Optional Items)</option>
+                <option value="unknown" ${category === 'unknown' ? 'selected' : ''}>Unknown (set later)</option>
             </select>
         </td>
         <td style="width:160px;">

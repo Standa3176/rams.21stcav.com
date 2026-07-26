@@ -8,11 +8,11 @@ namespace App\Services\Imports;
  * EquipmentCategoryClassifier — canonical vocabulary bucketing for equipment
  * rows regardless of import source (QuoteWerks SQL, PDF parse, manual entry).
  *
- * The 7 canonical values match what the review UI dropdown offers
- * (resources/views/project-packages/review.blade.php ~line 2211-2217):
+ * The 8 canonical values match what the review UI dropdown offers
+ * (resources/views/project-packages/review.blade.php ~line 923-931):
  *
  *   hardware, cables, consumables, services, service_contracts,
- *   customer_supplied, option
+ *   customer_supplied, option, unknown
  *
  * Both the QW importer (QuoteWerksImportService::buildExtractedData) and
  * the on-save allowlist (ProjectPackageReviewController::normaliseEquipmentCategory)
@@ -21,6 +21,11 @@ namespace App\Services\Imports;
  * `service`, `other`) were silently defaulted to `hardware` on save because
  * they weren't in the allowlist — that flattened every QW-imported package
  * into a single "Hardware" bucket. Fixed 260725-qw3.
+ *
+ * `unknown` (added 260726-fx5) is a deliberate escape hatch — used when the
+ * classifier can't confidently bucket a row and doesn't want to silently
+ * mislabel it as `hardware`. Category=`unknown` MUST NOT block RAMS approve;
+ * PMs resolve at site-survey time.
  *
  * NOT to be confused with App\Services\EquipmentClassifierService, which
  * produces RAMS activity keys (`display_installation`, `ceiling_works`, etc.)
@@ -32,7 +37,7 @@ namespace App\Services\Imports;
  */
 class EquipmentCategoryClassifier
 {
-    /** The 7 canonical category values. */
+    /** The 8 canonical category values. */
     public const CATEGORIES = [
         'hardware',
         'cables',
@@ -41,6 +46,7 @@ class EquipmentCategoryClassifier
         'service_contracts',
         'customer_supplied',
         'option',
+        'unknown',
     ];
 
     /**

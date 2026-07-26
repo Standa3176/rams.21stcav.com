@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Services\Imports\EquipmentCategoryClassifier;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -50,7 +52,11 @@ class RamsReviewValidatorService
             'equipment.*.part_number'        => ['nullable', 'string', 'max:100'],
             'equipment.*.name'               => ['required', 'string', 'min:1', 'max:1000'],
             'equipment.*.area'               => ['nullable', 'string', 'max:150'],
-            'equipment.*.category'           => ['nullable', 'string', 'in:hardware,cables,consumables,services,option'],
+            // Category enum is sourced from EquipmentCategoryClassifier::CATEGORIES so this
+            // validator can never fall behind the classifier / dropdown again. Bug 260726-fx5:
+            // pre-fix accepted only 5 values (missing service_contracts + customer_supplied +
+            // unknown), which blocked approve on any QW package with a warranty / care pack.
+            'equipment.*.category'           => ['nullable', 'string', Rule::in(EquipmentCategoryClassifier::CATEGORIES)],
 
             'activities'                     => ['required', 'array', 'min:1'],
             'activities.*.key'               => ['required', 'string', 'max:100'],
