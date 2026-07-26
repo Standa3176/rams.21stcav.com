@@ -190,13 +190,22 @@ INSTALLED EQUIPMENT (by room)
 INSTRUCTIONS
 ------------
 1. Return ONLY valid JSON — no markdown fences, no preamble.
-2. For every equipment item provide: description, key specs, installation notes,
-   operational guide, maintenance schedule, troubleshooting, and manufacturer contacts.
-3. Where a room `description` field is provided in the equipment data, use it to ground the
-   system description and operating procedure for that room — this is the reviewed AV solution
-   narrative for that space.
+2. For every equipment item provide FOUR fields and only these four:
+   installation (physical mounting, electrical, network),
+   operation (day-to-day user actions),
+   maintenance (schedule + tasks combined into a single narrative),
+   warnings (safety limits, isolation requirements, known issues).
+   Do NOT emit troubleshooting, key_specifications, support_contacts,
+   daily/weekly/monthly/annual ops arrays, or installation_notes — those
+   fields were removed in 260726-fx4 Task 7 because they forced the model
+   to hallucinate specifics it didn't have (invented support phone
+   numbers, generic "wipe with microfiber cloth quarterly" filler).
+3. Where a room `description` field is provided in the equipment data, use
+   it to ground the system description and operating procedure for that
+   room — this is the reviewed AV solution narrative for that space.
 4. Include a system overview and general maintenance schedule.
-5. All content must be professional, accurate, and appropriate for UK commercial AV.
+5. All content must be professional, accurate, and appropriate for UK
+   commercial AV.
 
 REQUIRED JSON SCHEMA
 --------------------
@@ -222,12 +231,10 @@ REQUIRED JSON SCHEMA
           "quantity": 1,
           "category": "string",
           "description": "string",
-          "key_specifications": ["string"],
-          "installation_notes": "string",
-          "operation_guide": "string",
-          "maintenance_schedule": "string",
-          "troubleshooting": [{"symptom": "string", "solution": "string"}],
-          "manufacturer_contact": "string"
+          "installation": "string",
+          "operation": "string",
+          "maintenance": "string",
+          "warnings": "string"
         }
       ]
     }
@@ -237,10 +244,7 @@ REQUIRED JSON SCHEMA
     "weekly": ["string"],
     "monthly": ["string"],
     "annual": ["string"]
-  },
-  "support_contacts": [
-    {"role": "string", "name": "string", "phone": "string", "email": "string"}
-  ]
+  }
 }{$retrySuffix}
 PROMPT;
     }
