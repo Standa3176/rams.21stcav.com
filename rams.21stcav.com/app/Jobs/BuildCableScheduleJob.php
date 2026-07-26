@@ -22,8 +22,12 @@ use Illuminate\Support\Facades\Log;
  *
  * No AI calls — cable type inference is deterministic keyword matching.
  *
- * NOTE: cable_schedules table does NOT have an error_message column.
- * Error context is logged only — never written to the model.
+ * Quick task 260726-fx4 — the "no error_message column" comment that used
+ * to live here was stale (Phase 09 migration
+ * 2026_04_19_add_email_sent_columns_for_phase_09 added
+ * `cable_schedules.error_message VARCHAR(1000) NULL`). The catch block now
+ * writes $exception->getMessage() into the column so the failed-schedule UI
+ * can surface the cause instead of showing a bare "Failed" pill.
  */
 class BuildCableScheduleJob implements ShouldQueue
 {
@@ -158,11 +162,14 @@ class BuildCableScheduleJob implements ShouldQueue
                 'line'              => $e->getLine(),
             ]);
 
-            // Guarantee status leaves "generating"
-            // NOTE: no error_message column on cable_schedules — log only
+            // Guarantee status leaves "generating". Also stamp
+            // error_message so the UI can surface the cause (260726-fx4).
+            // Truncate to 990 chars — schema is VARCHAR(1000), leaving 10
+            // chars of safety headroom for multi-byte UTF-8 sequences.
             try {
                 $schedule->update([
-                    'status' => CableSchedule::STATUS_FAILED,
+                    'status'        => CableSchedule::STATUS_FAILED,
+                    'error_message' => mb_substr((string) $e->getMessage(), 0, 990),
                 ]);
             } catch (\Throwable $dbErr) {
                 Log::critical('BuildCableScheduleJob: could not set failed status', [
@@ -266,9 +273,13 @@ class BuildCableScheduleJob implements ShouldQueue
         ]);
 
         try {
+            // 260726-fx4 — also stamp error_message here so the UI banner
+            // surfaces the cause after retry-exhaustion, not just on the
+            // per-attempt catch inside handle().
             CableSchedule::find($this->cableScheduleId)
                 ?->update([
-                    'status' => CableSchedule::STATUS_FAILED,
+                    'status'        => CableSchedule::STATUS_FAILED,
+                    'error_message' => mb_substr((string) $e->getMessage(), 0, 990),
                 ]);
         } catch (\Throwable $dbErr) {
             Log::critical('BuildCableScheduleJob::failed: could not set failed status', [

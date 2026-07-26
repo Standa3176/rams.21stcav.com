@@ -167,6 +167,24 @@
                             <span style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:500;background:var(--success-light);color:var(--success);border:1px solid color-mix(in oklab, var(--success) 30%, transparent);">
                                 <span style="width:5px;height:5px;border-radius:50%;background:currentColor;"></span>Final
                             </span>
+                        @elseif ($s->status === \App\Models\CableSchedule::STATUS_FAILED)
+                            {{-- 260726-fx4 — Failed pill + inline "See why" so the
+                                 PM can diagnose without opening the row. --}}
+                            <div style="display:flex;flex-direction:column;gap:.35rem;">
+                                <span style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:500;background:#fef2f2;color:#991b1b;border:1px solid #fecaca;">
+                                    <span style="width:5px;height:5px;border-radius:50%;background:currentColor;"></span>Failed
+                                </span>
+                                @if (! empty($s->error_message))
+                                    <details style="max-width:220px;">
+                                        <summary style="cursor:pointer;font-size:11px;color:#7f1d1d;font-weight:600;">See why</summary>
+                                        <div style="margin-top:.35rem;padding:.35rem .5rem;background:#fef2f2;border:1px solid #fecaca;border-radius:4px;font-size:11px;white-space:pre-wrap;word-break:break-word;color:#7f1d1d;">{{ \Illuminate\Support\Str::limit($s->error_message, 220) }}</div>
+                                    </details>
+                                @endif
+                            </div>
+                        @elseif ($s->status === \App\Models\CableSchedule::STATUS_GENERATING)
+                            <span style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:500;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">
+                                <span style="width:5px;height:5px;border-radius:50%;background:currentColor;"></span>Generating
+                            </span>
                         @else
                             <span style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:500;background:var(--surface-soft);color:var(--text-muted);border:1px solid var(--border);">
                                 <span style="width:5px;height:5px;border-radius:50%;background:currentColor;"></span>Draft

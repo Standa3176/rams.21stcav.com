@@ -58,6 +58,25 @@
     <div class="alert alert-success">{{ session('success') }}</div>
 @endif
 
+{{-- Failure banner (quick task 260726-fx4) — mirrors the RAMS index
+     "See why" pattern for a failed generation. Details lives inside a
+     collapsible <details> element so the message is one-click away
+     without dominating the page. --}}
+@if ($schedule->status === \App\Models\CableSchedule::STATUS_FAILED)
+    <div class="alert alert-error" style="margin-bottom:1.25rem;">
+        <div style="display:flex;align-items:flex-start;gap:.5rem;flex-direction:column;">
+            <strong>Generation failed.</strong>
+            <span style="font-size:.875rem;">Click Regenerate to try again.</span>
+            @if (! empty($schedule->error_message))
+                <details style="margin-top:.25rem;">
+                    <summary style="cursor:pointer;font-size:.8125rem;color:#7f1d1d;font-weight:600;">See why</summary>
+                    <pre style="margin:.5rem 0 0;padding:.5rem .75rem;background:#fef2f2;border:1px solid #fecaca;border-radius:4px;font-size:.75rem;white-space:pre-wrap;word-break:break-word;color:#7f1d1d;">{{ $schedule->error_message }}</pre>
+                </details>
+            @endif
+        </div>
+    </div>
+@endif
+
 @if ($errors->any())
     <div class="alert alert-danger">
         <strong>Please fix the following:</strong>
