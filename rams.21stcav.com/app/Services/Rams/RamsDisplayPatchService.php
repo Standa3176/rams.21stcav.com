@@ -347,12 +347,17 @@ class RamsDisplayPatchService
         // retype every RAMS revision. Seed empty blocks from the most recent
         // completed RAMS on the same project so revisions only need edits, not
         // re-entry. Non-destructive — only fills blanks; transient (no save).
+        //
+        // Order by `updated_at` — `generated_at` lives inside the JSON
+        // generated_data column, not as a DB column, so it can't be an ORDER BY
+        // target. A completed RAMS's updated_at is the write that flipped it to
+        // status=completed, which is a fair completion-time proxy.
         if ($rams->project_id && (empty($rd['site_emergency']) || empty($rd['cdm']))) {
             $prior = RamsDocument::query()
                 ->where('project_id', $rams->project_id)
                 ->where('id', '!=', $rams->id)
                 ->where('status', RamsDocument::STATUS_COMPLETED)
-                ->orderByDesc('generated_at')
+                ->orderByDesc('updated_at')
                 ->first();
             if ($prior) {
                 $priorRd = $prior->reviewed_data ?? [];
