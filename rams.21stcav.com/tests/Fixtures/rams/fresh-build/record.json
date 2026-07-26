@@ -1,0 +1,29 @@
+{
+    "_notes": "Fixture 1 of 5 for phase 260726-rf3 Plan 02 composer tests. Fresh-build scenario: no prior RAMS on the project, minimal reviewed_data. Every non-cover section should emit an isEmpty()==true DTO. Populated by tests/Feature/Rams/Composer/RamsDocumentComposerTest.php.",
+    "project": {
+        "name": "Fresh Build Ltd — Bedford HQ",
+        "client_name": "Fresh Build Ltd",
+        "site_address": "1 Fresh Street, Bedford, MK40 1AA",
+        "ref": "FRESH-001"
+    },
+    "rams": {
+        "project_ref": "FRESH-001",
+        "project_name": "Fresh Build Ltd — Bedford HQ",
+        "client_name": "Fresh Build Ltd",
+        "site_address": "1 Fresh Street, Bedford, MK40 1AA",
+        "status": "awaiting_review",
+        "generated_data": {
+            "project": {
+                "name": "Fresh Build Ltd — Bedford HQ",
+                "client": "Fresh Build Ltd",
+                "site_address": "1 Fresh Street, Bedford, MK40 1AA",
+                "ref": "FRESH-001",
+                "doc_author": "Alex Bloggs",
+                "revision": "Rev 1.0",
+                "document_status": "For Issue"
+            }
+        },
+        "reviewed_data": {},
+        "form_data": {}
+    }
+}

@@ -1,0 +1,55 @@
+{
+    "_notes": "Fixture 3 of 5. decommission-heavy: ~60% of scope_items are 'Existing X — deinstall' rows. Pre-partitioned in generated_data.scope_items (patch service normally does the routing; here we skip needing a real ProjectPackage by pre-shaping the data). Composer test asserts the ScopeSectionDto surfaces decommission + retained arrays populated, and RA hazards still render.",
+    "project": {
+        "name": "Legacy Systems Refresh — Old Site",
+        "client_name": "Legacy Systems Ltd",
+        "site_address": "99 Old Road, Manchester, M1 1AA",
+        "ref": "LEGACY-003"
+    },
+    "rams": {
+        "project_ref": "LEGACY-003",
+        "project_name": "Legacy Systems Refresh — Old Site",
+        "client_name": "Legacy Systems Ltd",
+        "site_address": "99 Old Road, Manchester, M1 1AA",
+        "status": "awaiting_review",
+        "generated_data": {
+            "project": {
+                "name": "Legacy Systems Refresh — Old Site",
+                "client": "Legacy Systems Ltd",
+                "site_address": "99 Old Road, Manchester, M1 1AA",
+                "ref": "LEGACY-003",
+                "doc_author": "Alex Bloggs",
+                "revision": "Rev 2.0",
+                "document_status": "For Issue"
+            },
+            "scope_items": {
+                "new_install": [
+                    {"item_name": "Poly Studio X50", "qty": "2", "room": "Board Room", "notes": ""},
+                    {"item_name": "Shure MXA920 Ceiling Mic", "qty": "1", "room": "Board Room", "notes": ""}
+                ],
+                "decommission": [
+                    {"item_name": "Existing Cisco SX80 codec", "qty": "1", "room": "Board Room", "notes": "deinstall and return to client"},
+                    {"item_name": "Existing NEC projector", "qty": "1", "room": "Board Room", "notes": "deinstall"},
+                    {"item_name": "Existing Extron switcher", "qty": "1", "room": "Board Room", "notes": "de-install"}
+                ],
+                "retained": [
+                    {"item_name": "Existing Samsung 65\" display", "qty": "1", "room": "Board Room", "notes": "to be retained"}
+                ]
+            }
+        },
+        "reviewed_data": {
+            "hazards": [
+                {
+                    "hazard": "Manual Handling of Existing Equipment",
+                    "persons_at_risk": ["21CAV Engineers"],
+                    "pre_likelihood": 4,
+                    "pre_severity": 3,
+                    "controls": ["Two-person lift for any item over 20kg."],
+                    "post_likelihood": 2,
+                    "post_severity": 2
+                }
+            ]
+        },
+        "form_data": {}
+    }
+}

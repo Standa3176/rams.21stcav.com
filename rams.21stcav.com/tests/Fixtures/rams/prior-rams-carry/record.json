@@ -1,0 +1,48 @@
+{
+    "_notes": "Fixture 2 of 5. prior-rams-carry: a prior completed RAMS on the same project has site_emergency + cdm populated, which RamsDisplayPatchService::patch() should auto-carry into this new RAMS's reviewed_data. The composer test asserts the emergency DTO surfaces the carried values.",
+    "project": {
+        "name": "Carrier Corp — Reading Studio",
+        "client_name": "Carrier Corp Ltd",
+        "site_address": "12 Prior Way, Reading, RG1 1AA",
+        "ref": "CARRY-002"
+    },
+    "prior_rams": {
+        "reviewed_data": {
+            "site_emergency": {
+                "nearest_hospital": "Royal Berkshire Hospital, Reading",
+                "hospital_address": "London Road, Reading RG1 5AN",
+                "fire_assembly_point": "Car park south corner",
+                "fire_warden_name": "Sarah Client",
+                "fire_warden_contact": "07700 900000",
+                "first_aider_name": "James Client",
+                "first_aider_contact": "07700 900001",
+                "defibrillator_location": "Reception desk",
+                "electrical_isolation_switch": "Riser cupboard, ground floor"
+            },
+            "cdm": [
+                {"role": "Client", "name": "Carrier Corp"},
+                {"role": "Principal Designer", "name": "21st Century AV Ltd"}
+            ]
+        }
+    },
+    "rams": {
+        "project_ref": "CARRY-002",
+        "project_name": "Carrier Corp — Reading Studio",
+        "client_name": "Carrier Corp Ltd",
+        "site_address": "12 Prior Way, Reading, RG1 1AA",
+        "status": "awaiting_review",
+        "generated_data": {
+            "project": {
+                "name": "Carrier Corp — Reading Studio",
+                "client": "Carrier Corp Ltd",
+                "site_address": "12 Prior Way, Reading, RG1 1AA",
+                "ref": "CARRY-002",
+                "doc_author": "Alex Bloggs",
+                "revision": "Rev 1.0",
+                "document_status": "For Issue"
+            }
+        },
+        "reviewed_data": {},
+        "form_data": {}
+    }
+}

@@ -1,0 +1,29 @@
+{
+    "_notes": "Fixture 4 of 5. missing-survey: no site_conditions, no engineer_feedback, no programme, no site_logistics. Represents a manually-created RAMS with no survey attached. Emergency section should default to empty; welfare falls back to static tier1 defaults; scope shows what came from the quote only.",
+    "project": {
+        "name": "No Survey Ltd — Coventry Office",
+        "client_name": "No Survey Ltd",
+        "site_address": "5 Coventry Way, Coventry, CV1 1AA",
+        "ref": "NOSURV-004"
+    },
+    "rams": {
+        "project_ref": "NOSURV-004",
+        "project_name": "No Survey Ltd — Coventry Office",
+        "client_name": "No Survey Ltd",
+        "site_address": "5 Coventry Way, Coventry, CV1 1AA",
+        "status": "awaiting_review",
+        "generated_data": {
+            "project": {
+                "name": "No Survey Ltd — Coventry Office",
+                "client": "No Survey Ltd",
+                "site_address": "5 Coventry Way, Coventry, CV1 1AA",
+                "ref": "NOSURV-004",
+                "doc_author": "Alex Bloggs",
+                "revision": "Rev 0.1",
+                "document_status": "Draft"
+            }
+        },
+        "reviewed_data": {},
+        "form_data": {"working_hours": "Mon–Fri 09:00–17:30"}
+    }
+}

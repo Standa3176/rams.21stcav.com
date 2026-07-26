@@ -1,0 +1,48 @@
+{
+    "_notes": "Fixture 5 of 5. empty-scope: reviewed but no equipment lines. scope_items keys exist but arrays are empty. Composer must produce a valid DTO with ScopeSectionDto::isEmpty()==true, but risk assessment + cover + emergency populated from tier1 defaults / reviewed_data.",
+    "project": {
+        "name": "Empty Scope Corp — Small Refresh",
+        "client_name": "Empty Scope Corp",
+        "site_address": "22 Empty Lane, Leeds, LS1 1AA",
+        "ref": "EMPTY-005"
+    },
+    "rams": {
+        "project_ref": "EMPTY-005",
+        "project_name": "Empty Scope Corp — Small Refresh",
+        "client_name": "Empty Scope Corp",
+        "site_address": "22 Empty Lane, Leeds, LS1 1AA",
+        "status": "awaiting_review",
+        "generated_data": {
+            "project": {
+                "name": "Empty Scope Corp — Small Refresh",
+                "client": "Empty Scope Corp",
+                "site_address": "22 Empty Lane, Leeds, LS1 1AA",
+                "ref": "EMPTY-005",
+                "doc_author": "Alex Bloggs",
+                "revision": "Rev 1.0",
+                "document_status": "For Issue",
+                "client_contact_name": "Wesley Empty",
+                "client_contact_email": "wesley@empty.co.uk"
+            },
+            "scope_items": {
+                "new_install": [],
+                "decommission": [],
+                "retained": []
+            }
+        },
+        "reviewed_data": {
+            "programme": {
+                "planned_start_date": "2026-08-10",
+                "planned_end_date": "2026-08-12"
+            },
+            "site_emergency": {
+                "nearest_hospital": "Leeds General Infirmary",
+                "fire_assembly_point": "West car park",
+                "fire_warden_name": "Site Manager",
+                "first_aider_name": "TBC",
+                "defibrillator_location": "Reception"
+            }
+        },
+        "form_data": {}
+    }
+}
