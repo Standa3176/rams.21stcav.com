@@ -81,9 +81,14 @@ class MethodStatementPrompt extends BasePrompt
 
     public function maxTokens(): int
     {
-        // Up to 9 steps × up to 8 bullets × ~30 words ≈ 2 160 words ≈ ~2 880 tokens.
-        // 3 500 provides generous headroom for complex projects.
-        return 3500;
+        // 260726-rf2: bumped 3500 → 8000. The pre-fix cap truncated on any
+        // project with 100+ equipment items + per-room granularity + kit-specific
+        // detail + RA-ID cross-references from 260725-rd1 Task 3 (Tilda 21CQ29531
+        // record_id 92 blew past 3500 → static fallback fired → generic template
+        // shipped in the RAMS). 8000 gives headroom for ~15 rooms × 9 phases with
+        // kit-specific detail while staying well inside Claude Sonnet's 8192-token
+        // per-response ceiling.
+        return 8000;
     }
 
     public function temperature(): float
