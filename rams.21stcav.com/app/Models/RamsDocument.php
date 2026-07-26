@@ -223,15 +223,11 @@ class RamsDocument extends Model
             return false;
         }
 
-        $this->loadMissing('project.latestPackage');
+        // Quick task 260726-fx4 — check BOTH latest package and latest survey.
+        $this->loadMissing(['project.latestPackage', 'project.latestSurvey']);
 
         $project = $this->project;
         if ($project === null) {
-            return false;
-        }
-
-        $package = $project->latestPackage;
-        if ($package === null) {
             return false;
         }
 
@@ -245,7 +241,23 @@ class RamsDocument extends Model
             return false;
         }
 
-        return \Illuminate\Support\Carbon::parse($generatedAt)->lt($package->updated_at);
+        $generatedAtC = \Illuminate\Support\Carbon::parse($generatedAt);
+
+        $package = $project->latestPackage;
+        if ($package !== null && $generatedAtC->lt($package->updated_at)) {
+            return true;
+        }
+
+        // Survey check — only fires once submitted_at is set. An in-progress
+        // survey being edited by the engineer must NOT flip the RAMS banner.
+        $survey = $project->latestSurvey;
+        if ($survey !== null
+            && $survey->submitted_at !== null
+            && $generatedAtC->lt($survey->submitted_at)) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -258,10 +270,23 @@ class RamsDocument extends Model
             return null;
         }
 
-        $updatedAt = $this->project?->latestPackage?->updated_at;
+        // Quick task 260726-fx4 — surface the most-recent of the two sources.
+        $packageAt = $this->project?->latestPackage?->updated_at;
+        $surveyAt  = $this->project?->latestSurvey?->submitted_at;
 
-        return $updatedAt instanceof \Illuminate\Support\Carbon
-            ? $updatedAt
-            : ($updatedAt ? \Illuminate\Support\Carbon::parse($updatedAt) : null);
+        $candidates = array_filter([
+            $packageAt instanceof \Illuminate\Support\Carbon
+                ? $packageAt
+                : ($packageAt ? \Illuminate\Support\Carbon::parse($packageAt) : null),
+            $surveyAt instanceof \Illuminate\Support\Carbon
+                ? $surveyAt
+                : ($surveyAt  ? \Illuminate\Support\Carbon::parse($surveyAt)  : null),
+        ]);
+
+        if (empty($candidates)) {
+            return null;
+        }
+
+        return collect($candidates)->max();
     }
 }

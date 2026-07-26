@@ -185,6 +185,20 @@ class Project extends Model
         return $this->hasMany(SiteSurvey::class);
     }
 
+    /**
+     * Mirrors {@see self::latestPackage()} — the most-recent survey for this
+     * project, ordered by id via latestOfMany() so a supersede doesn't hand
+     * back an older row. Used by the isStale() accessors on RamsDocument /
+     * OmManual / Worksheet / CableSchedule to detect "survey moved on since
+     * this doc was generated" without loading the full collection.
+     *
+     * Introduced by quick task 260726-fx4 (audit action items).
+     */
+    public function latestSurvey(): HasOne
+    {
+        return $this->hasOne(SiteSurvey::class)->latestOfMany();
+    }
+
     public function cableSchedules(): HasMany
     {
         return $this->hasMany(CableSchedule::class);

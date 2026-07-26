@@ -276,15 +276,13 @@ class Worksheet extends Model
             return false;
         }
 
-        $this->loadMissing('project.latestPackage');
+        // Quick task 260726-fx4 — eager-load BOTH the latest package and the
+        // latest survey so isStale() can compare against whichever moved on
+        // more recently. Preserves the original package-based check.
+        $this->loadMissing(['project.latestPackage', 'project.latestSurvey']);
 
         $project = $this->project;
         if ($project === null) {
-            return false;
-        }
-
-        $package = $project->latestPackage;
-        if ($package === null) {
             return false;
         }
 
@@ -298,7 +296,26 @@ class Worksheet extends Model
             return false;
         }
 
-        return Carbon::parse($generatedAt)->lt($package->updated_at);
+        $generatedAtC = Carbon::parse($generatedAt);
+
+        // Package check — original behaviour preserved.
+        $package = $project->latestPackage;
+        if ($package !== null && $generatedAtC->lt($package->updated_at)) {
+            return true;
+        }
+
+        // Survey check — new in 260726-fx4. Only trigger when the survey has
+        // actually been submitted (submitted_at non-null); an in-progress
+        // survey being edited by the engineer must NOT flip every downstream
+        // doc to "stale" on every keystroke.
+        $survey = $project->latestSurvey;
+        if ($survey !== null
+            && $survey->submitted_at !== null
+            && $generatedAtC->lt($survey->submitted_at)) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -312,9 +329,22 @@ class Worksheet extends Model
             return null;
         }
 
-        $updatedAt = $this->project?->latestPackage?->updated_at;
+        // Quick task 260726-fx4 — pick whichever source moved most recently
+        // so the banner copy ("Project data was updated {diffForHumans}")
+        // reflects the newest change, not just the package edit timestamp.
+        $packageAt = $this->project?->latestPackage?->updated_at;
+        $surveyAt  = $this->project?->latestSurvey?->submitted_at;
 
-        return $updatedAt instanceof Carbon ? $updatedAt : ($updatedAt ? Carbon::parse($updatedAt) : null);
+        $candidates = array_filter([
+            $packageAt instanceof Carbon ? $packageAt : ($packageAt ? Carbon::parse($packageAt) : null),
+            $surveyAt  instanceof Carbon ? $surveyAt  : ($surveyAt  ? Carbon::parse($surveyAt)  : null),
+        ]);
+
+        if (empty($candidates)) {
+            return null;
+        }
+
+        return collect($candidates)->max();
     }
 
     // ── Engineer activity accessor (quick task 260602-rcd) ────────────────────

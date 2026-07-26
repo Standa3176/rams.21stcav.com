@@ -3,6 +3,7 @@
 namespace App\Core\Modules\Survey;
 
 use App\Core\Modules\Projects\ProjectService;
+use App\Events\SurveySubmitted;
 use App\Jobs\GenerateSurveyQuestionsJob;
 use App\Mail\SurveySubmittedMail;
 use App\Models\Project;
@@ -598,6 +599,23 @@ class SurveyService
                     'error'     => $e->getMessage(),
                 ]);
             }
+        }
+
+        // ── SurveySubmitted event (quick task 260726-fx4) ──────────────────
+        // Fired AFTER mail so a mailer failure doesn't suppress the event.
+        // The event itself does not auto-regenerate any downstream docs —
+        // isStale() on RamsDocument / OmManual / Worksheet / CableSchedule
+        // reads $survey->submitted_at directly. The event exists as a
+        // subscription hook for future listeners (activity log digests,
+        // slack notifications, drawings regen) without those needing to
+        // patch this service.
+        try {
+            event(new SurveySubmitted($result));
+        } catch (\Throwable $e) {
+            Log::warning('SurveyService: SurveySubmitted event dispatch failed', [
+                'survey_id' => $result->id,
+                'error'     => $e->getMessage(),
+            ]);
         }
 
         return $result;
