@@ -21,6 +21,7 @@ use App\Services\PdfOcrExtractorService;
 use App\Services\PdfTextExtractorService;
 use App\Services\WorkerMonitorService;
 use App\Support\Filesystem\WindowsSafeFilesystem;
+use App\Support\Rams\RamsTheme;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Queue\Events\Looping;
 use Illuminate\Queue\Events\WorkerStopping;
@@ -52,6 +53,17 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(ProjectDataService::class);
+
+        // ── RAMS shared design tokens (phase 260726-rf3) ──────────────────────
+        // Single-source-of-truth theme for both RAMS renderers (DOCX +
+        // PDF). Both renderers resolve the same singleton so a design
+        // change edits one config file and reflows both outputs. See
+        // config/rams_theme.php + App\Support\Rams\RamsTheme.
+        $this->app->singleton(RamsTheme::class, function ($app) {
+            return RamsTheme::fromConfig(
+                (array) $app['config']->get('rams_theme', [])
+            );
+        });
 
         // SchematicD2SourceBuilder takes an `array $config` that Laravel's
         // auto-resolver can't fill. Inject the drawings config explicitly
