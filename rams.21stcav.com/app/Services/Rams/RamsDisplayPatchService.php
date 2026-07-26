@@ -363,6 +363,13 @@ class RamsDisplayPatchService
         }
 
         $gd['project']        = $p;
+
+        // 260726-rf3 plan-02: mark that this service has run so
+        // RamsDocumentComposer can emit a WARNING when it composes a
+        // record whose generated_data lacks this key (order-of-operations
+        // bug detector — see App\Support\Rams\RamsDocumentComposer).
+        $gd['_display_patched_at'] = now()->toIso8601String();
+
         $rams->generated_data = $gd; // transient
 
         // 6. Pre-fill reviewed_data sub-keys with defaults when not yet saved.
