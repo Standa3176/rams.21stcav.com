@@ -177,12 +177,23 @@ class RamsBuilderService
             ));
         }
 
+        // 260726-fx4 Task 5 — feed engineer_feedback (mounting heights, wall
+        // construction, brackets, cable routes, access notes) into the
+        // MethodStatementPrompt via a per-room site_conditions map.
+        // Empty / null / default (false) fields are stripped so the AI
+        // model sees only meaningful data. Missing survey = no key added,
+        // and the prompt omits the block gracefully.
+        $parsedQuote['site_conditions'] = \App\Services\SiteConditionsBuilder::fromSurvey(
+            $this->latestSurveyForRecord($record)
+        );
+
         Log::info('RamsBuilderService::buildFromReview: inputs prepared', [
-            'record_id'       => $record->id,
-            'activities'      => $classified['activities'],
-            'hazard_count'    => count($risk['hazards']),
-            'equipment_count' => count($parsedQuote['equipment']),
-            'context_rooms'   => count($projectContext['rooms'] ?? []),
+            'record_id'            => $record->id,
+            'activities'           => $classified['activities'],
+            'hazard_count'         => count($risk['hazards']),
+            'equipment_count'      => count($parsedQuote['equipment']),
+            'context_rooms'        => count($projectContext['rooms'] ?? []),
+            'site_conditions_rooms'=> count($parsedQuote['site_conditions']),
         ]);
 
         // AI call — method statement only.
@@ -674,6 +685,12 @@ class RamsBuilderService
         // Build ProjectContext — passed forward to RamsDataBuilderService for all data shaping.
         $projectContext = $this->buildProjectContext($record);
 
+        // 260726-fx4 Task 5 — engineer-feedback grounding also applies to the
+        // buildFromQuote() path (regenerate + manual form-based rebuilds).
+        $parsed['site_conditions'] = \App\Services\SiteConditionsBuilder::fromSurvey(
+            $this->latestSurveyForRecord($record)
+        );
+
         $methodStatement = $this->methodStatementGen->generate(
             $parsed,
             $classified,
@@ -742,6 +759,30 @@ class RamsBuilderService
      * @param  RamsDocument  $record
      * @return array  { project_id: int, rooms: array[] }
      */
+    /**
+     * Fetch the latest SiteSurvey associated with a RamsDocument.
+     *
+     * Mirrors the priority used by buildProjectContext (completed first, then
+     * fallback to newest) so both consumers see the same survey. Returns null
+     * when the record has no project or no survey.
+     *
+     * Quick task 260726-fx4 Task 5 — used by SiteConditionsBuilder callers.
+     */
+    private function latestSurveyForRecord(RamsDocument $record): ?\App\Models\SiteSurvey
+    {
+        $project = $record->project;
+        if ($project === null) {
+            return null;
+        }
+
+        $survey = $project->siteSurveys()
+            ->where('status', 'completed')
+            ->latest()
+            ->first();
+
+        return $survey ?? $project->siteSurveys()->latest()->first();
+    }
+
     private function buildProjectContext(RamsDocument $record): array
     {
         $fallback = [

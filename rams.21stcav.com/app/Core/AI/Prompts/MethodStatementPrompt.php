@@ -73,6 +73,8 @@ class MethodStatementPrompt extends BasePrompt
             '- Per-room granularity: every step that touches a physical space MUST name the specific room(s) it applies to (e.g. "within Boardroom"). Do not write generic "in all rooms" instructions when a room list is provided.',
             '- Kit-specific detail: when a step references a piece of kit, name the specific make + model from the supplied equipment list (e.g. "Sennheiser TeamConnect Ceiling Mic", not "the microphone"). Only reference kit that appears in the supplied list.',
             '- Risk-ID cross-references: each phase MUST end with a final line in the exact form "Associated Risks: RA01, RA02, RA03" (2-digit zero-padded IDs from the risk list supplied in context). Only reference RA-IDs that appear in the supplied risk list; do not invent RA-IDs. The line appears once per phase, as the last step in the phase\'s steps array.',
+            // 260726-fx4 Task 5 — engineer-feedback grounding.
+            '- When site_conditions is provided for a room, cite the relevant conditions in the method step for that room (e.g. wall_construction → "in the plasterboard partition wall"; brackets_required → name the specific bracket model; mounting_heights → quote the millimetre value from finished floor level; cable_routes → follow the engineer-noted route). Do NOT invent conditions that aren\'t in the data.',
             '- ' . self::userDataNote(),
         ]);
     }
@@ -133,6 +135,19 @@ class MethodStatementPrompt extends BasePrompt
         $retainTagged = array_map(fn (string $s): string => $this->wrapUserData($s), $retainItems);
         $newTagged    = array_map(fn (string $s): string => $this->wrapUserData($s), $newItems);
 
+        // 260726-fx4 Task 5 — engineer-feedback site conditions block. Only
+        // included when at least one room has non-empty conditions so we
+        // don't waste tokens on an empty JSON scaffold. The whole payload is
+        // wrapped as user data (sentinel-tagged) because SiteConditionsBuilder
+        // reads from operator-typed survey fields; injection guard applies.
+        $siteConditions = (array) ($ctx['site_conditions'] ?? []);
+        $siteConditionsLine = '';
+        if (! empty($siteConditions)) {
+            $rawJson       = json_encode($siteConditions, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            $wrappedJson   = $this->wrapUserData((string) $rawJson);
+            $siteConditionsLine = "\nSite conditions (from engineer site survey — cite these verbatim per room, do NOT invent):\n" . $wrappedJson;
+        }
+
         // 260725-rd1 — Risk list with stable RA-IDs so the AI can cross-reference.
         // The docx renderer assigns RA{NN} deterministically by hazard array
         // index (see DocxBuilderService::buildRiskAssessment) — we surface the
@@ -181,7 +196,7 @@ Write a project-specific method statement for the following UK AV installation.
 Project details:
 Site: {$site}
 Scope: {$scope}
-Activities: {$activities}{$equipmentLine}{$decommLine}{$retainLine}{$newItemsLine}{$hazardsLine}{$roomsLine}{$roomSummaryLine}{$worksOverviewLine}{$roomDescriptionsLine}{$riskListLine}
+Activities: {$activities}{$equipmentLine}{$decommLine}{$retainLine}{$newItemsLine}{$hazardsLine}{$roomsLine}{$roomSummaryLine}{$worksOverviewLine}{$roomDescriptionsLine}{$siteConditionsLine}{$riskListLine}
 
 Return ONLY the following JSON structure:
 {

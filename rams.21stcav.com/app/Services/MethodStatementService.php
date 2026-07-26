@@ -42,6 +42,14 @@ class MethodStatementService
         $hazardSummary    = $this->buildHazardSummary($hazards);
         $roomSummary      = $this->buildRoomOverviewSummary($parsedQuote);
 
+        // 260726-fx4 Task 5 — engineer_feedback (mounting heights, wall
+        // construction, brackets, cable routes) reaches the prompt via
+        // $parsedQuote['site_conditions']. Callers (RamsBuilderService) build
+        // this from the linked SiteSurvey via SiteConditionsBuilder before
+        // invoking generate(). Empty / missing = harmless (prompt omits the
+        // block entirely and the AI writes generic steps as before).
+        $siteConditions = (array) ($parsedQuote['site_conditions'] ?? []);
+
         $context = [
             'site_address'            => $parsedQuote['site']      ?? 'the site',
             'scope_summary'           => $this->buildScope($parsedQuote, $classified),
@@ -61,6 +69,8 @@ class MethodStatementService
             'decommission_items'      => array_column($parsedQuote['scope_items']['decommission'] ?? [], 'item_name'),
             'retained_items'          => array_column($parsedQuote['scope_items']['retained']     ?? [], 'item_name'),
             'new_install_items'       => array_column($parsedQuote['scope_items']['new_install']  ?? [], 'item_name'),
+            // 260726-fx4 Task 5 — engineer-feedback site conditions per room.
+            'site_conditions'         => $siteConditions,
         ];
 
         $prompt = (new MethodStatementPrompt())->withContext($context);

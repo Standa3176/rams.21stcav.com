@@ -267,15 +267,27 @@ class MethodStatementGeneratorService
         ));
         sort($rooms);
 
+        // 260726-fx4 Task 5 — site_conditions must participate in the cache
+        // key. Without this, a project whose engineer survey moved on (new
+        // mounting heights, wall construction, brackets) would keep serving
+        // the pre-survey cached method statement forever. Sort keys so a
+        // benign array-order change doesn't invalidate the cache.
+        $siteConditions = (array) ($parsedQuote['site_conditions'] ?? []);
+        ksort($siteConditions);
+        $siteConditionsHash = ! empty($siteConditions)
+            ? substr(hash('sha256', (string) json_encode($siteConditions)), 0, 16)
+            : '';
+
         return [
-            'prompt_version'   => 'v2-20260330',
-            'project_summary'   => $this->resolveProjectSummary($parsedQuote, $classified),
-            'activities'        => $activities,
-            'equipment_summary' => (string) ($classified['summary'] ?? ''),
-            'hazards'           => $hazardLabels,
-            'equipment_top'     => $equipmentTop,
-            'rooms'             => $rooms,
+            'prompt_version'          => 'v3-20260726',
+            'project_summary'         => $this->resolveProjectSummary($parsedQuote, $classified),
+            'activities'              => $activities,
+            'equipment_summary'       => (string) ($classified['summary'] ?? ''),
+            'hazards'                 => $hazardLabels,
+            'equipment_top'           => $equipmentTop,
+            'rooms'                   => $rooms,
             'room_overview_summaries' => $this->buildRoomOverviewSummary($parsedQuote),
+            'site_conditions_hash'    => $siteConditionsHash,
         ];
     }
 
