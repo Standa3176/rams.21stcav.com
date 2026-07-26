@@ -823,10 +823,25 @@
                                       placeholder="e.g. Works in this space include the supply and installation of a new 86&quot; interactive display and fully integrated video conferencing system…">{{ old("room_overviews.{$ri}.overview", $ro['overview']) }}</textarea>
                         </td>
                         <td>
+                            @php
+                                // Quick task 260726-fx4 Task 4 — badge fires when
+                                // the last summarizer run fell back (AI outage /
+                                // empty response) AND the field is empty. Empty
+                                // field with no marker just means "not generated
+                                // yet" — silence is the honest UX there.
+                                $wsValue      = old("room_overviews.{$ri}.works_summary", $ro['works_summary']);
+                                $wsFallback   = (bool) ($ro['_summary_fallback'] ?? false);
+                                $wsShowBadge  = $wsFallback && trim((string) $wsValue) === '' && trim((string) ($ro['overview'] ?? '')) !== '';
+                            @endphp
                             <textarea name="room_overviews[{{ $ri }}][works_summary]"
                                       rows="7"
                                       class="av-works-summary-textarea"
-                                      placeholder="Room Type: Small Meeting Room (4–6 Persons)&#10;Display: 65&quot; Samsung Interactive (Wall Mounted)&#10;VC System: ClickShare Bar PRO (Under Display)&#10;Connectivity: Wireless + USB-C&#10;Power: 2x Socket&#10;Data: 2x Cat6">{{ old("room_overviews.{$ri}.works_summary", $ro['works_summary']) }}</textarea>
+                                      placeholder="Room Type: Small Meeting Room (4–6 Persons)&#10;Display: 65&quot; Samsung Interactive (Wall Mounted)&#10;VC System: ClickShare Bar PRO (Under Display)&#10;Connectivity: Wireless + USB-C&#10;Power: 2x Socket&#10;Data: 2x Cat6">{{ $wsValue }}</textarea>
+                            @if ($wsShowBadge)
+                                <div style="margin-top:.35rem;padding:.35rem .5rem;background:#FEE9CC;border:1px solid #FDBA74;border-radius:4px;font-size:.72rem;color:#7C2D12;font-weight:600;">
+                                    ⚠ AI unavailable — click Generate to retry
+                                </div>
+                            @endif
                             <button type="button"
                                     class="btn btn-outline btn-sm"
                                     onclick="generateRoomSummary(this)"

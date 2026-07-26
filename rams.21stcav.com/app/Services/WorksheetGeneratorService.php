@@ -139,20 +139,46 @@ class WorksheetGeneratorService
                     foreach ((array) $results as $r) {
                         if (! is_array($r)) continue;
                         $rname = strtolower(trim((string) ($r['room'] ?? '')));
-                        // Phase 22.1 Plan 07: RoomOverviewSummaryService now
-                        // writes `works_summary` (not `summary`) into each
-                        // returned row. See RoomOverviewSummaryService docblock.
-                        $bull  = trim((string) ($r['works_summary'] ?? ''));
-                        if ($rname === '' || $bull === '') continue;
+                        if ($rname === '') continue;
+
+                        // Quick task 260726-fx4 Task 4 — differentiate "AI
+                        // unavailable" from "AI ran and returned real content"
+                        // via the _summary_fallback marker. Fallback rows are
+                        // logged at info level so operators can spot AI
+                        // outages, but we DO NOT persist empty strings back
+                        // to the package (that would overwrite prior valid
+                        // bullets on the next regen).
+                        $isFallback = (bool) ($r['_summary_fallback'] ?? false);
+                        $bull       = trim((string) ($r['works_summary'] ?? ''));
+
+                        if ($isFallback) {
+                            \Illuminate\Support\Facades\Log::info(
+                                'WorksheetGenerator: room summary fell back — AI unavailable or returned empty',
+                                ['room' => $rname]
+                            );
+                            // Persist the fallback marker (but not the empty
+                            // works_summary) so the review UI can surface a
+                            // "⚠ AI unavailable — click Generate to retry" badge.
+                            if (isset($roomOverviewIdx[$rname])) {
+                                $store = $package->{$sourceKey} ?? [];
+                                $store['room_overviews'][$roomOverviewIdx[$rname]]['_summary_fallback'] = true;
+                                $package->{$sourceKey} = $store;
+                            }
+                            continue;
+                        }
+
+                        if ($bull === '') continue;
                         if (! str_starts_with($bull, '- ') && ! str_contains($bull, "\n- ")) continue;
                         $roomBullets[$rname] = $bull;
                         // Persist back to whichever store the room data
                         // originally lived in (reviewed or extracted) so
                         // future worksheets + RAMS + O&M read the same
-                        // canonical bullets.
+                        // canonical bullets. Also clear any prior fallback
+                        // marker now that we have real content.
                         if (isset($roomOverviewIdx[$rname])) {
                             $store = $package->{$sourceKey} ?? [];
-                            $store['room_overviews'][$roomOverviewIdx[$rname]]['works_summary'] = $bull;
+                            $store['room_overviews'][$roomOverviewIdx[$rname]]['works_summary']     = $bull;
+                            $store['room_overviews'][$roomOverviewIdx[$rname]]['_summary_fallback'] = false;
                             $package->{$sourceKey} = $store;
                         }
                     }

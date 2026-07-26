@@ -45,6 +45,9 @@ class RoomOverviewSummaryService
         ));
 
         if (empty($roomsForAi)) {
+            // No overviews to summarise — return unchanged rows with empty
+            // works_summary. NOT a fallback situation (AI wasn't even asked),
+            // so we don't set the _summary_fallback flag here.
             return array_map(function ($r) {
                 $r['works_summary'] = '';
                 return $r;
@@ -68,13 +71,14 @@ class RoomOverviewSummaryService
 
             return array_map(function ($r) use ($summaries) {
                 $room     = (string) ($r['room'] ?? '');
-                $overview = (string) ($r['overview'] ?? '');
-                if ($room !== '' && isset($summaries[$room])) {
-                    $r['works_summary'] = $summaries[$room]['summary'] !== ''
-                        ? $summaries[$room]['summary']
-                        : $this->fallbackSummary($overview);
+                if ($room !== '' && isset($summaries[$room]) && $summaries[$room]['summary'] !== '') {
+                    // AI ran and returned real content — clear any fallback marker.
+                    $r['works_summary']     = $summaries[$room]['summary'];
+                    $r['_summary_fallback'] = false;
                 } else {
-                    $r['works_summary'] = $this->fallbackSummary($overview);
+                    // AI ran but returned empty for this row → treat as fallback.
+                    $r['works_summary']     = $this->fallbackSummary((string) ($r['overview'] ?? ''));
+                    $r['_summary_fallback'] = true;
                 }
                 return $r;
             }, $roomOverviews);
@@ -84,29 +88,35 @@ class RoomOverviewSummaryService
             ]);
         }
 
+        // AI unavailable — mark every row as _summary_fallback so downstream
+        // renderers can badge "AI unavailable — click Generate to retry"
+        // instead of silently rendering a plausible-looking "Works: ..." line.
         return array_map(function ($r) {
-            $r['works_summary'] = $this->fallbackSummary((string) ($r['overview'] ?? ''));
+            $r['works_summary']     = $this->fallbackSummary((string) ($r['overview'] ?? ''));
+            $r['_summary_fallback'] = true;
             return $r;
         }, $roomOverviews);
     }
 
+    /**
+     * Fallback works_summary when the AI is unavailable or returned empty.
+     *
+     * Quick task 260726-fx4 Task 4 — returns an EMPTY STRING instead of the
+     * old "Works: <first sentence>" pseudo-summary. That prefix looked like
+     * AI-generated bullet content to reviewers but was actually just the
+     * PM's own phrased overview cut short — it masqueraded as real content
+     * and hid the fact that the AI never ran.
+     *
+     * The method is retained (not deleted) so callers keep working and future
+     * heuristics can be added without changing signatures. Combine with the
+     * `_summary_fallback` marker on each row to differentiate "AI didn't run"
+     * from "AI ran and returned empty" downstream.
+     *
+     * @param  string $overview  PM-authored phrased overview (unused in current shape)
+     * @return string            Always an empty string in the 260726-fx4 shape.
+     */
     private function fallbackSummary(string $overview): string
     {
-        $text = trim($overview);
-        if ($text === '') {
-            return '';
-        }
-
-        // Build a minimal structured block from keywords we can detect without AI.
-        $lines = [];
-
-        // Try to derive a room type hint from the room name (passed via context elsewhere;
-        // here we just use the first sentence of the overview as a fallback label).
-        $firstSentence = preg_split('/(?<=[.!?])\s+/', $text)[0] ?? $text;
-        $lines[] = 'Works: ' . (mb_strlen($firstSentence) > 120
-            ? mb_substr($firstSentence, 0, 120) . '…'
-            : trim($firstSentence));
-
-        return implode("\n", $lines);
+        return '';
     }
 }
