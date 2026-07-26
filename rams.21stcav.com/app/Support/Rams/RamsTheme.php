@@ -141,6 +141,46 @@ final readonly class RamsTheme
     }
 
     /**
+     * Emit a `<style>:root { --palette-key: #HEX; ... }</style>` block for
+     * inclusion in the PDF blade `<head>` so every hex colour in the
+     * template resolves via `var(--...)` from a single source of truth.
+     *
+     * Consumed by `resources/views/pdf/rams-v2.blade.php` (phase 260726-rf3
+     * Plan 03) — the legacy `pdf.rams` blade keeps its inline hex constants
+     * until Plan 03's kill switch is flipped globally in Plan 05.
+     *
+     * Also exposes font + size tokens so the blade can bind
+     * `body { font-family: var(--font-body), var(--font-fallback); }` etc.
+     *
+     * Returns the raw `<style>...</style>` markup (already-escaped, safe to
+     * emit via `{!! ... !!}`) so the blade does not need to compose the
+     * declaration list itself.
+     */
+    public function paletteCss(): string
+    {
+        $lines = [':root {'];
+
+        foreach ($this->palette as $key => $hex) {
+            $var = '--palette-' . str_replace('_', '-', $key);
+            $lines[] = "    {$var}: #{$hex};";
+        }
+
+        foreach ($this->fonts as $key => $family) {
+            $var = '--font-' . str_replace('_', '-', $key);
+            $lines[] = "    {$var}: {$family};";
+        }
+
+        foreach ($this->sizes as $key => $pt) {
+            $var = '--size-' . str_replace('_', '-', $key);
+            $lines[] = "    {$var}: {$pt}pt;";
+        }
+
+        $lines[] = '}';
+
+        return '<style>' . implode("\n", $lines) . '</style>';
+    }
+
+    /**
      * Introspection — expose the whole token tree for snapshot tests.
      *
      * @return array{palette: array<string, string>, fonts: array<string, string>, sizes: array<string, int>, spacing: array<string, int>, section_order: array<int, string>}

@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\OmManual;
 use App\Models\RamsDocument;
+use App\Support\Rams\RamsDocumentComposer;
+use App\Support\Rams\RamsTheme;
 use Illuminate\Support\Str;
 
 /**
@@ -32,6 +34,17 @@ class PdfService
 
     /**
      * Render a RAMS document to PDF and return its absolute path.
+     *
+     * Renderer routing (phase 260726-rf3 Plan 03):
+     *  - `RAMS_UNIFIED_COMPOSER=true` → new pipeline: RamsDocumentComposer
+     *    builds a typed RamsDocumentDTO; the DTO + RamsTheme are handed to
+     *    `resources/views/pdf/rams-v2.blade.php`.
+     *  - `RAMS_UNIFIED_COMPOSER=false` (default) → legacy path unchanged:
+     *    raw `$rams` + `$data` handed to `resources/views/pdf/rams.blade.php`.
+     *
+     * The kill switch is checked at every render — no build-time constant, no
+     * container binding to invalidate. Toggling `.env` + `config:cache` flips
+     * the pipeline for every subsequent render immediately.
      */
     public function buildRams(RamsDocument $rams): string
     {
@@ -41,17 +54,31 @@ class PdfService
         $ref    = $rams->project_ref  ?? ($rams->reviewed_data['project']['ref']    ?? '');
         $client = $rams->client_name  ?? ($rams->reviewed_data['project']['client'] ?? '');
 
-        return $this->renderer->fromBlade('pdf.rams', [
-            'rams' => $rams,
-            'data' => $rams->generated_data ?? [],
-        ], $path, [
+        $pdfOptions = [
             'headerHtml'   => $this->headerHtml('RAMS', $ref, $client),
             'footerHtml'   => $this->footerHtml(),
             'marginTop'    => 22,
             'marginBottom' => 18,
             'marginLeft'   => 0,
             'marginRight'  => 0,
-        ]);
+        ];
+
+        if (config('rams.unified_composer')) {
+            $dto   = app(RamsDocumentComposer::class)->compose($rams);
+            $theme = app(RamsTheme::class);
+
+            return $this->renderer->fromBlade('pdf.rams-v2', [
+                'rams'  => $rams,
+                'data'  => $rams->generated_data ?? [],
+                'dto'   => $dto,
+                'theme' => $theme,
+            ], $path, $pdfOptions);
+        }
+
+        return $this->renderer->fromBlade('pdf.rams', [
+            'rams' => $rams,
+            'data' => $rams->generated_data ?? [],
+        ], $path, $pdfOptions);
     }
 
     /**

@@ -23,6 +23,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Unified Composer Kill Switch (phase 260726-rf3 Plan 03/04)
+    |--------------------------------------------------------------------------
+    |
+    | Feature flag that routes RAMS PDF (Plan 03) and DOCX (Plan 04) renders
+    | through the unified pipeline: RamsDocumentComposer builds a typed
+    | RamsDocumentDTO, and the renderers read exclusively from the DTO +
+    | RamsTheme (config/rams_theme.php).
+    |
+    | Default `false` — production keeps the legacy `pdf.rams` blade + the
+    | current DocxBuilderService code path unchanged until Plan 05 flips the
+    | switch on globally after a 1-week soak.
+    |
+    | Rollback: set RAMS_UNIFIED_COMPOSER=false in .env, run
+    | `php artisan config:cache`. Every subsequent render immediately reverts
+    | to pre-phase code paths — no code change / redeploy required.
+    |
+    */
+    'unified_composer' => env('RAMS_UNIFIED_COMPOSER', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Notifications (Phase 09)
     |--------------------------------------------------------------------------
     |
