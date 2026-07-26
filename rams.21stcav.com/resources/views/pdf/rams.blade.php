@@ -362,7 +362,13 @@ p { margin: 3pt 0; }
     $clientContactName  = $project['client_contact_name']  ?? '';
     $clientContactEmail = $project['client_contact_email'] ?? '';
     $clientContactPhone = $project['client_contact_phone'] ?? '';
-    $clientContact      = trim($clientContactName . ($clientContactEmail ? ' | ' . $clientContactEmail : ''));
+    // 260726-rf2: cover renders name + email on separate lines instead of
+    // "Name | email". Values are pre-escaped here because the rendering site
+    // uses {!! !!} to allow the <br> — never pass a raw user value through.
+    $clientContact      = trim(
+        e($clientContactName)
+        . ($clientContactEmail !== '' ? '<br>' . e($clientContactEmail) : '')
+    );
     $revision      = $project['revision']        ?? 'Rev 1.0';
     $docStatus     = $project['document_status'] ?? 'For Issue';
     $workingHours  = ($project['working_hours'] ?? '') ?: ($formData['working_hours'] ?? 'Monday–Friday, 09:00–17:30');
@@ -578,7 +584,7 @@ p { margin: 3pt 0; }
     </tr>
     <tr>
         <td class="lbl">CLIENT CONTACT:</td>
-        <td class="val" colspan="3">{{ $clientContact ?: 'TBC at site induction' }}</td>
+        <td class="val" colspan="3">{!! $clientContact !== '' ? $clientContact : 'TBC at site induction' !!}</td>
     </tr>
 </table>
 
@@ -2010,7 +2016,8 @@ p { margin: 3pt 0; }
     </tr>
     <tr>
         <td class="e-lbl">Site Contact</td>
-        <td class="e-val">{{ $clientContact ?: ($siteContact ?: 'TBC at site induction') }}</td>
+        {{-- 260726-rf2: $clientContact is pre-escaped and may contain <br>. --}}
+        <td class="e-val">{!! $clientContact !== '' ? $clientContact : e($siteContact !== '' ? $siteContact : 'TBC at site induction') !!}</td>
         <td class="e-lbl">{{ $compShort }} Operations</td>
         <td class="e-val">{{ $phone }}</td>
     </tr>
