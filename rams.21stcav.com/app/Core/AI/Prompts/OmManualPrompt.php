@@ -56,6 +56,14 @@ class OmManualPrompt extends BasePrompt
             'content'    => 'You are a senior AV systems engineer writing O&M manuals '
                           . 'for UK commercial installations. '
                           . 'Respond ONLY with valid JSON — no markdown, no commentary. '
+                          // 260726-fx4 Task 6 — engineer-feedback grounding.
+                          . 'When site_conditions is provided for a room, cite the relevant '
+                          . 'conditions in the per-equipment installation notes (mounting_heights '
+                          . 'quoted verbatim in mm FFL — e.g. "Display mounted at 1900mm from '
+                          . 'finished floor level"; wall_construction + brackets_required drive '
+                          . 'the maintenance-access notes; access_notes drives ceiling-void / '
+                          . 'floor-box procedures). Do NOT invent conditions that aren\'t in the '
+                          . 'data. '
                           . self::userDataNote(),
             default      => parent::systemMessage(),
         };
@@ -151,6 +159,19 @@ PROMPT;
             ? "\nPROJECT SCOPE\n-------------\n{$scopeOfWorks}\n"
             : '';
 
+        // 260726-fx4 Task 6 — engineer-feedback site conditions per room,
+        // sentinel-wrapped as user data. Omit the block entirely when empty
+        // so we don't waste tokens on empty scaffolding.
+        $siteConditions      = (array) ($context['site_conditions'] ?? []);
+        $siteConditionsBlock = '';
+        if (! empty($siteConditions)) {
+            $rawJson             = json_encode($siteConditions, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            $wrappedJson         = $this->wrapUserData((string) $rawJson);
+            $siteConditionsBlock = "\nSITE CONDITIONS (per room, from engineer site survey — cite verbatim, do NOT invent)\n"
+                                 . "---------------------------------------------------------------------------------\n"
+                                 . "{$wrappedJson}\n";
+        }
+
         return <<<PROMPT
 You are generating a complete O&M (Operations & Maintenance) Manual for a UK AV installation.
 
@@ -161,7 +182,7 @@ Project Ref:  {$ref}
 Client:       {$client}
 Site Address: {$site}
 Notes:        {$notes}
-{$scopeBlock}
+{$scopeBlock}{$siteConditionsBlock}
 INSTALLED EQUIPMENT (by room)
 -----------------------------
 {$rooms}

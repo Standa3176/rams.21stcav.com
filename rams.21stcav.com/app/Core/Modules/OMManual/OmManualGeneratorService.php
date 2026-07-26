@@ -397,6 +397,21 @@ class OmManualGeneratorService
         $prompt  = OmManualPrompt::forContent();
         $context = $this->buildContentContext($manual);
 
+        // 260726-fx4 Task 6 — engineer_feedback grounding for the O&M prompt.
+        // Same pattern + helper as MethodStatementService (RAMS). Focus fields
+        // for O&M: mounting_heights drives per-equipment installation notes;
+        // wall_construction + brackets_required drive maintenance-access
+        // notes; access_notes drives ceiling-void / floor-box procedures.
+        // Empty / missing = harmless (prompt omits the block).
+        if ($manual->project !== null) {
+            $latestSurvey = $manual->project->siteSurveys()
+                ->where('status', 'completed')
+                ->latest()
+                ->first()
+                ?? $manual->project->siteSurveys()->latest()->first();
+            $context['site_conditions'] = \App\Services\SiteConditionsBuilder::fromSurvey($latestSurvey);
+        }
+
         // Draft mode (set by OmManualController::generateFromProject when
         // `?draft=1` is passed) — seeds [TBC] placeholders for the three
         // validator gates that block early-stage projects: handover_date,
