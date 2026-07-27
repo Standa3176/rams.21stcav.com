@@ -934,12 +934,27 @@
             <section class="om-section" id="s-revision">
                 <h2>Revision history <span class="om-badge {{ $sRev['class'] }}">{{ count($revisions) }} {{ Str::plural('entry', count($revisions)) }}</span></h2>
                 <p class="desc">Chronological log of who changed what. Renders on the revision-history page of the PDF.</p>
-                <div x-data="{ items: {{ json_encode(array_map(fn($r) => [
-                            'date'    => (string) ($r['date']    ?? ''),
-                            'rev'     => (string) ($r['rev']     ?? ''),
-                            'author'  => (string) ($r['author']  ?? ''),
-                            'changes' => (string) ($r['changes'] ?? ''),
-                        ], $revisions)) }} }">
+                <div x-data="{ items: {{ json_encode(array_map(function ($r) {
+                            // 260727-om6 — convert stored date to YYYY-MM-DD
+                            // for the type="date" input. Unparseable strings
+                            // (legacy "TBC", "n/a") come through empty; user
+                            // picks a real date via the calendar.
+                            $rawDate = (string) ($r['date'] ?? '');
+                            $isoDate = '';
+                            if ($rawDate !== '') {
+                                try {
+                                    $isoDate = \Illuminate\Support\Carbon::parse($rawDate)->format('Y-m-d');
+                                } catch (\Throwable $e) {
+                                    $isoDate = '';
+                                }
+                            }
+                            return [
+                                'date'    => $isoDate,
+                                'rev'     => (string) ($r['rev']     ?? ''),
+                                'author'  => (string) ($r['author']  ?? ''),
+                                'changes' => (string) ($r['changes'] ?? ''),
+                            ];
+                        }, $revisions)) }} }">
                     <table class="om-row-tbl">
                         <thead>
                             <tr>
@@ -953,7 +968,11 @@
                         <tbody>
                             <template x-for="(item, idx) in items" :key="idx">
                                 <tr>
-                                    <td><input type="text" data-optional :name="`revision_history[${idx}][date]`" x-model="item.date" placeholder="15 Aug 2026" /></td>
+                                    {{-- 260727-om6 — native date picker. Alpine's x-model
+                                         handles YYYY-MM-DD round-trip cleanly since the field
+                                         is a plain string in extracted_data (validator only
+                                         checks non-blank; no format assertion). --}}
+                                    <td><input type="date" data-optional :name="`revision_history[${idx}][date]`" x-model="item.date" /></td>
                                     <td><input type="text" data-optional :name="`revision_history[${idx}][rev]`" x-model="item.rev" placeholder="1.0" /></td>
                                     <td><input type="text" data-optional :name="`revision_history[${idx}][author]`" x-model="item.author" placeholder="Sonny Tanda" /></td>
                                     <td><input type="text" data-optional :name="`revision_history[${idx}][changes]`" x-model="item.changes" placeholder="Initial release" /></td>
@@ -1216,21 +1235,58 @@
             <section class="om-section" id="s-handover">
                 <h2><span class="num">§12</span>Training &amp; handover <span class="om-badge {{ $sHo['class'] }}">{{ $sHo['label'] }}</span></h2>
                 <p class="desc">Handover date, attendees, and the user-competency statement rendered on section 12 of the PDF.</p>
+                @php
+                    // 260727-om6 — normalise the stored value into YYYY-MM-DD
+                    // so type="date" (native browser calendar) can consume it.
+                    // Stored formats seen in the wild: "15 Aug 2026" (from
+                    // buildContextFromProjectData::format('d M Y')), "2026-08-15",
+                    // "[TBC] — handover date to be scheduled" (draft-mode seed).
+                    // Carbon::parse handles the first two; the [TBC] seed and
+                    // any other free-text stays as-is in the fallback input.
+                    $hoDateIso   = '';
+                    $hoDateRaw   = trim((string) old('handover_date', $hoDate));
+                    $hoIsTbcSeed = str_starts_with($hoDateRaw, '[TBC]');
+                    if ($hoDateRaw !== '' && ! $hoIsTbcSeed) {
+                        try {
+                            $hoDateIso = \Illuminate\Support\Carbon::parse($hoDateRaw)->format('Y-m-d');
+                        } catch (\Throwable $e) {
+                            // Unparseable free text (e.g. "TBC", "next Fri") —
+                            // fall through with hoDateIso empty; the fallback
+                            // free-text input renders the raw value untouched.
+                            $hoDateIso = '';
+                        }
+                    }
+                @endphp
                 <div class="om-composite-grid">
                     <div class="form-group" @if ($omHandoverMissing ?? false) style="padding: .75rem; border-left: 3px solid var(--danger); background: var(--danger-light); border-radius: var(--radius-sm);" @endif>
                         <label class="form-label" for="ho_date">
-                            Handover date (or [TBC])
+                            Handover date
                             @if ($omHandoverMissing ?? false)
                                 <span style="color: var(--danger); font-weight: 700; font-size: .75rem; margin-left: .5rem;">⚠ REQUIRED</span>
                             @endif
                         </label>
-                        <input id="ho_date" name="handover_date" type="text"
-                               class="form-control @if ($omHandoverMissing ?? false) is-invalid @endif"
-                               value="{{ old('handover_date', $hoDate) }}"
-                               placeholder="e.g. 15 Aug 2026" />
+                        {{-- 260727-om6 — native date picker. When we have a
+                             parseable value, render the calendar input with
+                             the ISO string. When the stored value is a [TBC]
+                             draft seed or unparseable free text, render the
+                             legacy text input so the seed round-trips cleanly. --}}
+                        @if ($hoIsTbcSeed || ($hoDateRaw !== '' && $hoDateIso === ''))
+                            <input id="ho_date" name="handover_date" type="text"
+                                   class="form-control @if ($omHandoverMissing ?? false) is-invalid @endif"
+                                   value="{{ $hoDateRaw }}"
+                                   placeholder="e.g. 15 Aug 2026" />
+                            <p class="form-help" style="margin-top: .35rem;">
+                                Clear this field to switch to the calendar date picker.
+                            </p>
+                        @else
+                            <input id="ho_date" name="handover_date" type="date"
+                                   class="form-control @if ($omHandoverMissing ?? false) is-invalid @endif"
+                                   value="{{ $hoDateIso }}"
+                                   style="max-width: 220px;" />
+                        @endif
                         @if ($omHandoverMissing ?? false)
                             <p class="invalid-feedback" style="margin-top: .35rem;">
-                                O&amp;M generation is blocked until a handover date is set. Enter a date like <code>15 Aug 2026</code>,
+                                O&amp;M generation is blocked until a handover date is set. Pick a date from the calendar
                                 or use <strong>Generate Draft</strong> on the project page to seed a <code>[TBC]</code> placeholder.
                             </p>
                         @endif
