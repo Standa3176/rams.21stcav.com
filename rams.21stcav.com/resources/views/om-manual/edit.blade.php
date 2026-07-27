@@ -864,7 +864,10 @@
 
         <form method="POST" action="{{ route('om-manuals.update', $manual) }}" id="om-manual-edit-form">
             @csrf
-            @method('PATCH')
+            {{-- 260727-om4: was @method('PATCH') but the route is registered as
+                 PUT (see routes/web.php ~460 — Route::put('om-manuals/{omManual}',
+                 ..., 'update')). PATCH → 405 Method Not Allowed on save. --}}
+            @method('PUT')
 
             {{-- ═══ FRONT MATTER ═══════════════════════════════════════════ --}}
 
