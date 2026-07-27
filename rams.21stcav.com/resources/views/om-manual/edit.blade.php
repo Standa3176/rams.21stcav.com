@@ -758,6 +758,101 @@
             <div class="alert alert-error" style="margin-bottom: 1rem;">{{ session('error') }}</div>
         @endif
 
+        @php
+            // 260727-om3 — validation-error banner + inline field highlights.
+            // When status=failed AND error_message carries the OmManualValidationException
+            // prefix, parse the semicolon-delimited missing-fields list so the
+            // banner can render it as a checklist AND the downstream sections
+            // can highlight themselves (handover_date, drawings, per-room narrative).
+            $omValidationErrors = [];
+            $omHandoverMissing  = false;
+            $omDrawingsMissing  = false;
+            $omMissingNarrativeRooms = []; // room-index integers with missing narrative
+
+            if ($manual->status === \App\Models\OmManual::STATUS_FAILED
+                && ! empty($manual->error_message)
+                && str_contains($manual->error_message, 'required fields missing:')) {
+
+                $tail = trim(explode('required fields missing:', $manual->error_message, 2)[1] ?? '');
+                $tail = rtrim($tail, '. ');
+                $omValidationErrors = array_values(array_filter(array_map(
+                    fn ($s) => trim($s),
+                    explode(';', $tail),
+                )));
+
+                foreach ($omValidationErrors as $err) {
+                    $lower = strtolower($err);
+                    if (str_contains($lower, 'handover date')) {
+                        $omHandoverMissing = true;
+                    }
+                    if (str_contains($lower, 'drawing') && str_contains($lower, 'appendix a')) {
+                        $omDrawingsMissing = true;
+                    }
+                    if (preg_match('/^narrative for (.+)$/i', $err, $m)) {
+                        $roomLabel = trim($m[1]);
+                        foreach ($rooms as $idx => $r) {
+                            if (strcasecmp(trim((string) ($r['name'] ?? '')), $roomLabel) === 0) {
+                                $omMissingNarrativeRooms[] = $idx;
+                            }
+                        }
+                    }
+                }
+            }
+        @endphp
+
+        @if (! empty($omValidationErrors))
+            {{-- Anchor target for the "Edit & Fix" button on the project page. --}}
+            <div id="om-validation-errors"
+                 class="alert-banner alert-banner--error"
+                 role="alert"
+                 style="margin-bottom: 1.25rem; scroll-margin-top: calc(var(--header-height) + 1rem);">
+                <div class="alert-banner__icon" aria-hidden="true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="8"  x2="12" y2="12"/>
+                        <line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                </div>
+                <div class="alert-banner__body">
+                    <div style="font-weight: 700; font-size: .95rem; margin-bottom: .5rem;">
+                        Fix these {{ count($omValidationErrors) }} {{ \Illuminate\Support\Str::plural('issue', count($omValidationErrors)) }} before regenerating:
+                    </div>
+                    <ul style="margin: 0 0 .75rem 1.25rem; padding: 0; font-size: .875rem; line-height: 1.5;">
+                        @foreach ($omValidationErrors as $err)
+                            <li style="margin: .2rem 0;">
+                                @php
+                                    $lower  = strtolower($err);
+                                    $anchor = null;
+                                    if (str_contains($lower, 'handover date')) {
+                                        $anchor = '#s-handover';
+                                    } elseif (str_contains($lower, 'drawing') && str_contains($lower, 'appendix a')) {
+                                        $anchor = '#s-drawings';
+                                    } elseif (preg_match('/^narrative for (.+)$/i', $err, $mm)) {
+                                        foreach ($rooms as $ri => $rr) {
+                                            if (strcasecmp(trim((string) ($rr['name'] ?? '')), trim($mm[1])) === 0) {
+                                                $anchor = '#s-room-' . $ri;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                @endphp
+                                @if ($anchor)
+                                    <a href="{{ $anchor }}" style="color: inherit; text-decoration: underline;">{{ $err }}</a>
+                                    <span style="color: var(--text-muted); font-size: .75rem;">— jump to section ↓</span>
+                                @else
+                                    {{ $err }}
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                    <div style="font-size: .8125rem; color: #7f1d1d;">
+                        Alternatively, use <strong>Generate Draft</strong> on the project page — draft mode seeds
+                        [TBC] placeholders so you can preview the document before all engineering data is finalised.
+                    </div>
+                </div>
+            </div>
+        @endif
+
         <div class="om-meta-strip">
             <div><strong>Status</strong><span class="badge {{ $manual->statusBadgeClass() }}">{{ $manual->statusLabel() }}</span></div>
             <div><strong>Client</strong>{{ $manual->client_name ?? '—' }}</div>
@@ -981,9 +1076,25 @@
             </section>
 
             {{-- ═══ SECTION 4 · Drawings register (opens elsewhere) ════════ --}}
-            <section class="om-section" id="s-drawings">
-                <h2><span class="num">§4</span>Drawings register <span class="om-badge ext">Edits elsewhere</span></h2>
+            <section class="om-section" id="s-drawings"
+                     @if ($omDrawingsMissing ?? false) style="border: 2px solid var(--danger); background: var(--danger-light); scroll-margin-top: calc(var(--header-height) + 1rem);" @endif>
+                <h2>
+                    <span class="num">§4</span>Drawings register
+                    @if ($omDrawingsMissing ?? false)
+                        <span class="om-badge" style="background: var(--danger); color: #fff; font-weight: 700;">⚠ AT LEAST ONE DRAWING REQUIRED</span>
+                    @else
+                        <span class="om-badge ext">Edits elsewhere</span>
+                    @endif
+                </h2>
+                @if ($omDrawingsMissing ?? false)
+                    <p class="desc" style="color: #7f1d1d; font-weight: 500;">
+                        O&amp;M generation is blocked until at least one drawing is attached to the project.
+                        Add a schematic, floor plan, or rack elevation on the drawings page below, then return
+                        here and click Regenerate.
+                    </p>
+                @else
                 <p class="desc">Every drawing linked to the project appears in the register + is embedded into Appendix A. Add or remove drawings on the drawings page.</p>
+                @endif
                 @if ($manual->project_id)
                     <div class="om-info-card">
                         <div class="kind">📐</div>
@@ -1103,9 +1214,23 @@
                 <h2><span class="num">§12</span>Training &amp; handover <span class="om-badge {{ $sHo['class'] }}">{{ $sHo['label'] }}</span></h2>
                 <p class="desc">Handover date, attendees, and the user-competency statement rendered on section 12 of the PDF.</p>
                 <div class="om-composite-grid">
-                    <div class="form-group">
-                        <label class="form-label" for="ho_date">Handover date (or [TBC])</label>
-                        <input id="ho_date" name="handover_date" type="text" class="form-control" value="{{ old('handover_date', $hoDate) }}" placeholder="e.g. 15 Aug 2026" />
+                    <div class="form-group" @if ($omHandoverMissing ?? false) style="padding: .75rem; border-left: 3px solid var(--danger); background: var(--danger-light); border-radius: var(--radius-sm);" @endif>
+                        <label class="form-label" for="ho_date">
+                            Handover date (or [TBC])
+                            @if ($omHandoverMissing ?? false)
+                                <span style="color: var(--danger); font-weight: 700; font-size: .75rem; margin-left: .5rem;">⚠ REQUIRED</span>
+                            @endif
+                        </label>
+                        <input id="ho_date" name="handover_date" type="text"
+                               class="form-control @if ($omHandoverMissing ?? false) is-invalid @endif"
+                               value="{{ old('handover_date', $hoDate) }}"
+                               placeholder="e.g. 15 Aug 2026" />
+                        @if ($omHandoverMissing ?? false)
+                            <p class="invalid-feedback" style="margin-top: .35rem;">
+                                O&amp;M generation is blocked until a handover date is set. Enter a date like <code>15 Aug 2026</code>,
+                                or use <strong>Generate Draft</strong> on the project page to seed a <code>[TBC]</code> placeholder.
+                            </p>
+                        @endif
                     </div>
                 </div>
                 <div class="form-group" style="margin-top: .75rem;">
@@ -1189,11 +1314,17 @@
                     $rIsTbc      = str_contains($rnarr, '[TBC]');
                     $rEquipment  = is_array($room['equipment'] ?? null) ? array_values($room['equipment']) : [];
                 @endphp
-                <section class="om-room" id="s-room-{{ $i }}">
+                @php
+                    $roomNarrativeMissing = in_array($i, $omMissingNarrativeRooms ?? [], true);
+                @endphp
+                <section class="om-room" id="s-room-{{ $i }}"
+                         @if ($roomNarrativeMissing) style="border: 2px solid var(--danger); background: var(--danger-light); scroll-margin-top: calc(var(--header-height) + 1rem);" @endif>
                     <div class="om-room-h">
                         <div class="om-room-num">{{ $i + 1 }}</div>
                         <h3 class="om-room-title">{{ $rname !== '' ? $rname : 'Room ' . ($i + 1) }}</h3>
-                        @if ($rIsTbc)<span class="om-badge tbc">[TBC] narrative</span>
+                        @if ($roomNarrativeMissing)
+                            <span class="om-badge" style="background: var(--danger); color: #fff; font-weight: 700;">⚠ NARRATIVE REQUIRED</span>
+                        @elseif ($rIsTbc)<span class="om-badge tbc">[TBC] narrative</span>
                         @elseif ($rnarr !== '')<span class="om-badge ai">AI drafted</span>@endif
                     </div>
                     <div class="om-room-fields">

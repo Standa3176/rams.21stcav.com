@@ -1486,9 +1486,18 @@
                                                     @endif
                                                 </span>
                                             @elseif ($manual->status === \App\Models\OmManual::STATUS_FAILED)
-                                                {{-- PRIMARY: Retry — failed rows have nothing else to act on.
-                                                     Batch 11 UX-04 — expose the failure reason inline via a
-                                                     collapsible so the operator doesn't have to hover-hunt. --}}
+                                                {{-- 260727-om3 — failed O&M rows now lead with "Edit & Fix"
+                                                     when the failure is a validation error (missing fields).
+                                                     Blind retries just re-fail; the PM needs to open the edit
+                                                     page, fill the gaps, then regenerate. Legacy Retry button
+                                                     kept as a secondary action for transient AI/queue failures
+                                                     that aren't data-related. --}}
+                                                @php
+                                                    // Detect validation-style failure by presence of the
+                                                    // OmManualValidationException prefix in the stored message.
+                                                    $isValidationFail = ! empty($manual->error_message)
+                                                        && str_contains($manual->error_message, 'required fields missing');
+                                                @endphp
                                                 <span class="inline-flex items-center text-sm text-red-700 font-medium">⚠ Failed</span>
                                                 @if (! empty($manual->error_message))
                                                     <details class="inline-block m-0" style="vertical-align:middle;font-size:12px;">
@@ -1498,10 +1507,19 @@
                                                         </div>
                                                     </details>
                                                 @endif
+                                                @if ($isValidationFail)
+                                                    {{-- Primary CTA — jumps to edit page with an anchor so the
+                                                         missing-fields banner scrolls into view immediately. --}}
+                                                    <a href="{{ route('om-manuals.edit', $manual) }}#om-validation-errors"
+                                                       class="btn btn-primary btn-sm"
+                                                       title="Open the O&M edit page and fill in the missing fields">
+                                                        🔧 Edit &amp; Fix
+                                                    </a>
+                                                @endif
                                                 @if (! empty($manual->extracted_data))
                                                     <form method="POST" action="{{ route('om-manuals.retry-generation', $manual) }}" class="m-0 inline-block">
                                                         @csrf
-                                                        <button type="submit" class="btn btn-primary btn-sm">↻ Retry</button>
+                                                        <button type="submit" class="btn {{ $isValidationFail ? 'btn-outline' : 'btn-primary' }} btn-sm">↻ Retry</button>
                                                     </form>
                                                 @endif
                                             @elseif ($manual->isGenerated())
