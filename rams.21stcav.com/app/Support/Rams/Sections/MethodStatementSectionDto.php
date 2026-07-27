@@ -19,14 +19,20 @@ namespace App\Support\Rams\Sections;
  * steps                   — the ordered execution steps.
  *                           Each: [ 'title' => 'Cable Pull', 'bullets' => [...],
  *                                   'associated_risks' => ['RA01', 'RA04'] ]
- * material_handling       — §6.7 bullets
+ * material_handling       — §6.7 bullets (legacy string-list shape).
+ * material_handling_items — §6.7 structured heavy-items list (new object
+ *                           shape used by prod records). Each row:
+ *                           [ 'item' => 'Samsung QM86R display', 'weight_kg' => 55.0,
+ *                             'handling_method' => '2-person team lift' ]
  * permits                 — §6.8 permit-to-work bullets
  * fixings_controls        — §6.9 bullets
  * supervision             — §6.10 bullets
  * coordination            — Cross-trade coordination bullets
  * it_safety               — IT/network safety bullets
  *
- * Populated by RamsDocumentComposer (Plan 02).
+ * Populated by RamsDocumentComposer (Plan 02); the composer detects the
+ * shape of reviewed_data.material_handling (string list vs object with
+ * large_items[] + handling_notes) and routes into the appropriate field.
  */
 final readonly class MethodStatementSectionDto
 {
@@ -39,6 +45,7 @@ final readonly class MethodStatementSectionDto
      * @param  array<int, string>                      $clientResponsibilities
      * @param  array<int, array<string, mixed>>        $steps
      * @param  array<int, string>                      $materialHandling
+     * @param  array<int, array{item: string, weight_kg: float|null, handling_method: string|null}> $materialHandlingItems
      * @param  array<int, string>                      $permits
      * @param  array<int, string>                      $fixingsControls
      * @param  array<int, string>                      $supervision
@@ -54,6 +61,7 @@ final readonly class MethodStatementSectionDto
         public array $clientResponsibilities = [],
         public array $steps                  = [],
         public array $materialHandling       = [],
+        public array $materialHandlingItems  = [],
         public array $permits                = [],
         public array $fixingsControls        = [],
         public array $supervision            = [],
@@ -90,6 +98,27 @@ final readonly class MethodStatementSectionDto
             ];
         }
 
+        $materialHandlingItems = [];
+        foreach ((array) ($data['material_handling_items'] ?? []) as $row) {
+            $row = (array) $row;
+            $item = trim((string) ($row['item'] ?? ''));
+            if ($item === '') {
+                continue;
+            }
+            // weight_kg — nullable float; accept numeric string / int / float / null.
+            $wRaw = $row['weight_kg'] ?? null;
+            $weight = null;
+            if ($wRaw !== null && $wRaw !== '') {
+                $weight = is_numeric($wRaw) ? (float) $wRaw : null;
+            }
+            $method = $row['handling_method'] ?? null;
+            $materialHandlingItems[] = [
+                'item'            => $item,
+                'weight_kg'       => $weight,
+                'handling_method' => ($method === null || $method === '') ? null : (string) $method,
+            ];
+        }
+
         return new self(
             team:                   $team,
             tools:                  $stringList($data['tools']                   ?? []),
@@ -99,6 +128,7 @@ final readonly class MethodStatementSectionDto
             clientResponsibilities: $stringList($data['client_responsibilities'] ?? []),
             steps:                  $steps,
             materialHandling:       $stringList($data['material_handling']       ?? []),
+            materialHandlingItems:  $materialHandlingItems,
             permits:                $stringList($data['permits']                 ?? []),
             fixingsControls:        $stringList($data['fixings_controls']        ?? []),
             supervision:            $stringList($data['supervision']             ?? []),
@@ -117,6 +147,7 @@ final readonly class MethodStatementSectionDto
             && $this->clientResponsibilities === []
             && $this->steps === []
             && $this->materialHandling === []
+            && $this->materialHandlingItems === []
             && $this->permits === []
             && $this->fixingsControls === []
             && $this->supervision === []

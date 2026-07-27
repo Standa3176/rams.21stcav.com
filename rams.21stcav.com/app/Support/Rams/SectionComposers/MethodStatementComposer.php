@@ -17,7 +17,10 @@ use App\Support\Rams\Sections\MethodStatementSectionDto;
  *   - reviewed_data.method_statement_access_equipment[]
  *   - reviewed_data.method_statement_access_requirements[]
  *   - reviewed_data.client_responsibilities_expanded[]
- *   - reviewed_data.material_handling[]
+ *   - reviewed_data.material_handling — dual-shape:
+ *       LEGACY bullet-list: [ 'two-person lift for displays', ... ]
+ *       PROD object       : { large_items[]:{item,weight_kg,handling_method},
+ *                             handling_notes: string }
  *   - reviewed_data.permits_required[]
  *   - reviewed_data.method_statement_fixings[]
  *   - reviewed_data.method_statement_supervision[]
@@ -123,6 +126,44 @@ final class MethodStatementComposer
             $permits[] = $type !== '' && $notes !== '' ? "{$type} — {$notes}" : ($type ?: $notes);
         }
 
+        // ── §6.7 Material handling — dual-shape support (Plan 05a) ────────
+        // Prod records store `material_handling` as an OBJECT:
+        //   { large_items: [{item, weight_kg, handling_method}, ...],
+        //     handling_notes: "..." }
+        // Legacy fixtures store it as a bullet-list array of strings.
+        //
+        // Detection: an OBJECT shape has an associative `large_items` or
+        // `handling_notes` key at the top level. Anything else (numerically
+        // indexed array, string, empty) is the legacy bullet list.
+        $rawMh = $rd['material_handling'] ?? [];
+        $isMhObjectShape = is_array($rawMh)
+            && (
+                array_key_exists('large_items',     $rawMh)
+                || array_key_exists('handling_notes', $rawMh)
+            );
+
+        if ($isMhObjectShape) {
+            $mhBullets = $stringList($rawMh['handling_notes'] ?? '');
+            $mhItems   = [];
+            foreach ((array) ($rawMh['large_items'] ?? []) as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+                $item = trim((string) ($row['item'] ?? ''));
+                if ($item === '') {
+                    continue;
+                }
+                $mhItems[] = [
+                    'item'            => $item,
+                    'weight_kg'       => $row['weight_kg']       ?? null,
+                    'handling_method' => $row['handling_method'] ?? null,
+                ];
+            }
+        } else {
+            $mhBullets = $stringList($rawMh);
+            $mhItems   = [];
+        }
+
         return MethodStatementSectionDto::fromArray([
             'team'                    => $team,
             'tools'                   => $stringList($rd['method_statement_tools']              ?? []),
@@ -131,7 +172,8 @@ final class MethodStatementComposer
             'access_requirements'     => $stringList($rd['method_statement_access_requirements'] ?? []),
             'client_responsibilities' => $stringList($rd['client_responsibilities_expanded']    ?? []),
             'steps'                   => $steps,
-            'material_handling'       => $stringList($rd['material_handling']                    ?? []),
+            'material_handling'       => $mhBullets,
+            'material_handling_items' => $mhItems,
             'permits'                 => $permits,
             'fixings_controls'        => $stringList($rd['method_statement_fixings']             ?? []),
             'supervision'             => $stringList($rd['method_statement_supervision']         ?? []),

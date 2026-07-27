@@ -236,7 +236,14 @@
             "permits_required": [
                 {"type": "Electrical Isolation Permit", "notes": "Required before rack power-on.", "required": true},
                 {"type": "Permit to Work — Ceiling Voids", "notes": "Required for ceiling-void cable pulls.", "required": true}
-            ]
+            ],
+            "material_handling": {
+                "large_items": [
+                    {"item": "Samsung QM86R 4K display (86\")", "weight_kg": 55, "handling_method": "2-person team lift; screen trolley from vehicle to install."},
+                    {"item": "Populated 21U AV rack",           "weight_kg": 120, "handling_method": "Mechanical trolley + 2-person team; strap during transit."}
+                ],
+                "handling_notes": "Correct lifting technique briefed at toolbox talk. All items over 20 kg team-lifted."
+            }
         },
         "form_data": {
             "working_hours": "Monday to Friday, 08:00 to 17:30",

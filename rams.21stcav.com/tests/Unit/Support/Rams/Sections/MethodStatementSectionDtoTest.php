@@ -29,6 +29,7 @@ class MethodStatementSectionDtoTest extends TestCase
         $this->assertSame(1, $dto->team[0]['qty']);
         $this->assertSame(['Safety glasses', 'Steel toe boots'], $dto->ppe['General']);
         $this->assertSame(['RA01', 'RA04'], $dto->steps[0]['associated_risks']);
+        $this->assertSame([], $dto->materialHandlingItems);
     }
 
     public function test_from_array_normalises_team_qty_to_int_and_steps_shape(): void
@@ -89,5 +90,34 @@ class MethodStatementSectionDtoTest extends TestCase
     {
         $this->assertFalse(MethodStatementSectionDto::fromArray(['tools' => ['drill']])->isEmpty());
         $this->assertFalse(MethodStatementSectionDto::fromArray(['steps' => [['title' => 's']]])->isEmpty());
+        $this->assertFalse(MethodStatementSectionDto::fromArray([
+            'material_handling_items' => [['item' => 'Samsung QM86R', 'weight_kg' => 55]],
+        ])->isEmpty());
+    }
+
+    /**
+     * Plan 05a — normalise structured material_handling rows.
+     * Accepts numeric weight_kg (int / float / numeric-string) and coerces
+     * to a nullable float. Blank / missing weight becomes null. Blank items
+     * are dropped.
+     */
+    public function test_from_array_normalises_material_handling_items(): void
+    {
+        $dto = MethodStatementSectionDto::fromArray([
+            'material_handling_items' => [
+                ['item' => 'Samsung QM86R display', 'weight_kg' => 55.5, 'handling_method' => '2-person team lift'],
+                ['item' => 'AV rack (populated)',   'weight_kg' => '120', 'handling_method' => 'Mechanical trolley'],
+                ['item' => 'Cable drum',            'weight_kg' => null,  'handling_method' => null],
+                ['item' => ''],                                                                       // dropped
+            ],
+        ]);
+
+        $this->assertCount(3, $dto->materialHandlingItems);
+        $this->assertSame('Samsung QM86R display', $dto->materialHandlingItems[0]['item']);
+        $this->assertSame(55.5,                    $dto->materialHandlingItems[0]['weight_kg']);
+        $this->assertSame('2-person team lift',    $dto->materialHandlingItems[0]['handling_method']);
+        $this->assertSame(120.0,                   $dto->materialHandlingItems[1]['weight_kg']);
+        $this->assertNull($dto->materialHandlingItems[2]['weight_kg']);
+        $this->assertNull($dto->materialHandlingItems[2]['handling_method']);
     }
 }
