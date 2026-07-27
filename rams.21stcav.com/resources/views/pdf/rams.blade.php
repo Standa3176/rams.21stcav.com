@@ -1962,40 +1962,40 @@ p { margin: 3pt 0; }
     <tr>
         <td class="e-lbl">Nearest A&amp;E Hospital</td>
         <td class="e-val" colspan="3">
-            {{ $siteEmerg['nearest_hospital'] ?: 'TBC' }}
-            @if(! empty($siteEmerg['hospital_address']))
-                <br><span style="font-size:8pt; color:#555;">{{ $siteEmerg['hospital_address'] }}</span>
+            {{ ($siteEmerg['nearest_hospital'] ?? '') ?: 'TBC' }}
+            @if(! empty($siteEmerg['hospital_address'] ?? ''))
+                <br><span style="font-size:8pt; color:#555;">{{ $siteEmerg['hospital_address'] ?? '' }}</span>
             @endif
         </td>
     </tr>
     <tr>
         <td class="e-lbl">Fire Assembly Point</td>
-        <td class="e-val" colspan="3">{{ $siteEmerg['fire_assembly_point'] ?: 'TBC' }}</td>
+        <td class="e-val" colspan="3">{{ ($siteEmerg['fire_assembly_point'] ?? '') ?: 'TBC' }}</td>
     </tr>
     <tr>
         <td class="e-lbl">Fire Warden</td>
-        <td class="e-val">{{ $siteEmerg['fire_warden_name'] ?: 'TBC' }}</td>
+        <td class="e-val">{{ ($siteEmerg['fire_warden_name'] ?? '') ?: 'TBC' }}</td>
         <td class="e-lbl">Contact</td>
-        <td class="e-val">{{ $siteEmerg['fire_warden_contact'] ?: '—' }}</td>
+        <td class="e-val">{{ ($siteEmerg['fire_warden_contact'] ?? '') ?: '—' }}</td>
     </tr>
     <tr>
         <td class="e-lbl">First Aider</td>
-        <td class="e-val">{{ $siteEmerg['first_aider_name'] ?: 'TBC' }}</td>
+        <td class="e-val">{{ ($siteEmerg['first_aider_name'] ?? '') ?: 'TBC' }}</td>
         <td class="e-lbl">Contact</td>
-        <td class="e-val">{{ $siteEmerg['first_aider_contact'] ?: '—' }}</td>
+        <td class="e-val">{{ ($siteEmerg['first_aider_contact'] ?? '') ?: '—' }}</td>
     </tr>
     <tr>
         <td class="e-lbl">Nearest Defibrillator</td>
-        <td class="e-val" colspan="3">{{ $siteEmerg['defibrillator_location'] ?: 'TBC — confirm at site induction' }}</td>
+        <td class="e-val" colspan="3">{{ ($siteEmerg['defibrillator_location'] ?? '') ?: 'TBC — confirm at site induction' }}</td>
     </tr>
     {{-- 260712-w5k Task 3 — 2 new emergency rows --}}
     <tr>
         <td class="e-lbl">Electrical Isolation Switch</td>
-        <td class="e-val" colspan="3">{{ $siteEmerg['electrical_isolation_switch'] ?? '' ?: 'TBC — confirm at site induction' }}</td>
+        <td class="e-val" colspan="3">{{ ($siteEmerg['electrical_isolation_switch'] ?? '') ?: 'TBC — confirm at site induction' }}</td>
     </tr>
     <tr>
         <td class="e-lbl">Fire Extinguisher Class Available</td>
-        <td class="e-val" colspan="3">{{ $siteEmerg['fire_extinguisher_class'] ?? '' ?: 'TBC — confirm at site induction' }}</td>
+        <td class="e-val" colspan="3">{{ ($siteEmerg['fire_extinguisher_class'] ?? '') ?: 'TBC — confirm at site induction' }}</td>
     </tr>
 </table>
 @else

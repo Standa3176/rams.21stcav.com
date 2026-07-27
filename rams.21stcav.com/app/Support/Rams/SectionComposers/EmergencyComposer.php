@@ -46,16 +46,19 @@ final class EmergencyComposer
         };
 
         return EmergencySectionDto::fromArray([
-            'nearest_hospital'    => (string) ($siteEmerg['nearest_hospital']    ?? ''),
-            'fire_assembly_point' => (string) ($siteEmerg['fire_assembly_point'] ?? ''),
-            'fire_warden'         => (string) ($siteEmerg['fire_warden_name']    ?? ($siteEmerg['fire_warden'] ?? '')),
-            'first_aider'         => (string) ($siteEmerg['first_aider_name']    ?? ($siteEmerg['first_aider'] ?? '')),
-            'defibrillator'       => (string) ($siteEmerg['defibrillator_location'] ?? ($siteEmerg['defibrillator'] ?? '')),
-            'isolation_switch'    => (string) ($siteEmerg['electrical_isolation_switch'] ?? ($siteEmerg['isolation_switch'] ?? '')),
-            'emergency_contacts'  => (array) ($rd['emergency_contacts']  ?? []),
-            'accident_procedure'  => $stringList($rd['accident_procedure'] ?? []),
-            'fire_procedure'      => $stringList($rd['fire_procedure']     ?? []),
-            'riddor_matrix'       => (array) ($rd['riddor_matrix']         ?? []),
+            'nearest_hospital'            => (string) ($siteEmerg['nearest_hospital']    ?? ''),
+            'fire_assembly_point'         => (string) ($siteEmerg['fire_assembly_point'] ?? ''),
+            'fire_warden'                 => (string) ($siteEmerg['fire_warden_name']    ?? ($siteEmerg['fire_warden'] ?? '')),
+            'fire_warden_contact'         => (string) ($siteEmerg['fire_warden_contact'] ?? ''),
+            'first_aider'                 => (string) ($siteEmerg['first_aider_name']    ?? ($siteEmerg['first_aider'] ?? '')),
+            'first_aider_contact'         => (string) ($siteEmerg['first_aider_contact'] ?? ''),
+            'defibrillator'               => (string) ($siteEmerg['defibrillator_location'] ?? ($siteEmerg['defibrillator'] ?? '')),
+            'electrical_isolation_switch' => (string) ($siteEmerg['electrical_isolation_switch'] ?? ($siteEmerg['isolation_switch'] ?? '')),
+            'fire_extinguisher_class'     => (string) ($siteEmerg['fire_extinguisher_class'] ?? ''),
+            'emergency_contacts'          => (array) ($rd['emergency_contacts']  ?? []),
+            'accident_procedure'          => $stringList($rd['accident_procedure'] ?? []),
+            'fire_procedure'              => $stringList($rd['fire_procedure']     ?? []),
+            'riddor_matrix'               => (array) ($rd['riddor_matrix']         ?? []),
         ]);
     }
 }
