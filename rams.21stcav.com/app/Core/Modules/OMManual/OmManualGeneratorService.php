@@ -921,10 +921,29 @@ class OmManualGeneratorService
             ?? $source['hardware_list']
             ?? []);
 
+        // 260727-om5 — capture room names that came from source['rooms']
+        // BEFORE the equipment loop. These are "real" rooms explicitly
+        // declared in the package; keep them even if the labour filter empties
+        // their equipment list. Auto-created buckets (rooms that only appear
+        // via the equipment area tag) get dropped when they end up empty.
+        $sourceRoomNames = array_keys($roomsByName);
+
         foreach ($equipmentSource as $eq) {
             if (! is_array($eq)) {
                 continue;
             }
+
+            // 260727-om5 — filter labour / service / consumable line items
+            // out of the O&M room list. Uses the shared exclude vocab from
+            // config/worksheet_taxonomy.php so worksheet + O&M agree on
+            // what "not hardware" means. Prevents 21CAV service SKUs
+            // (SSVOTHER, INSTALL2, HANDOVER, PROJMANOFFHALF, DELIVERY,
+            // FIRST FIX, RAMS, O&M, Travel1) + consumables + drawings
+            // services from polluting the auto-created 'General' bucket.
+            if ($this->isServiceOrLabourItem($eq)) {
+                continue;
+            }
+
             $roomName = trim((string) ($eq['area'] ?? $eq['location'] ?? $eq['room'] ?? ''));
             if ($roomName === '') {
                 $roomName = 'General';
@@ -939,6 +958,20 @@ class OmManualGeneratorService
                 'equipment'   => [],
             ];
             $roomsByName[$roomName]['equipment'][] = $this->mapContextEquipmentItem($eq);
+        }
+
+        // 260727-om5 — drop auto-created rooms that ended up with zero
+        // equipment items after filtering. Preserves explicitly-declared
+        // source rooms (they may legitimately have no equipment tagged yet
+        // — PMs still need to see + edit them). Only removes buckets that
+        // exist SOLELY because untagged items were routed there.
+        foreach ($roomsByName as $rn => $rd) {
+            if (in_array($rn, $sourceRoomNames, true)) {
+                continue; // real room — keep even if empty
+            }
+            if (empty($rd['equipment'])) {
+                unset($roomsByName[$rn]);
+            }
         }
 
         // Fallback to resolved rooms if package mapping unavailable.
@@ -972,6 +1005,70 @@ class OmManualGeneratorService
 
         ksort($roomsByName, SORT_NATURAL | SORT_FLAG_CASE);
         return array_values($roomsByName);
+    }
+
+    /**
+     * True when the equipment row is a labour / service / consumable line
+     * that should NOT appear in the O&M room list.
+     *
+     * Two-stage check:
+     *   1. Part-number match against known 21CAV internal service SKUs
+     *      (SSVOTHER, INSTALL2, PROJMANOFFHALF, HANDOVER, DELIVERY,
+     *      FIRST FIX, RAMS, O&M, Travel1, ELEVATION, GUIDEVELOPMENT,
+     *      COMMISSIONING, PROSERVICE, RACKBUILDON) — case-insensitive
+     *      substring match on trimmed part_no. These are catalogue entries
+     *      21CAV uses for billing services + are not physical hardware.
+     *   2. Description keyword match against
+     *      config('worksheet_taxonomy.exclude_keywords') — shared with
+     *      WorksheetClassifier so both documents agree on what "not
+     *      hardware" means. Word-boundary check to avoid matching
+     *      "installation-ready" as "installation".
+     *
+     * Added 260727-om5. Trent Park House O&M (project 89) had 12 service
+     * lines cluttering an auto-created "General" room.
+     */
+    private function isServiceOrLabourItem(array $eq): bool
+    {
+        // Stage 1 — 21CAV internal service SKUs.
+        $partNo = strtoupper(trim((string) ($eq['part_no'] ?? $eq['part_number'] ?? '')));
+        if ($partNo !== '') {
+            static $serviceSkus = [
+                'SSVOTHER', 'INSTALL', 'PROJMANOFF', 'PROJMANON', 'HANDOVER',
+                'DELIVERY', 'FIRSTFIX', 'FIRST FIX', 'RAMS', 'O&M', 'OMMANUAL',
+                'TRAVEL', 'ELEVATION', 'GUIDEVELOPMENT', 'COMMISSIONING',
+                'PROSERVICE', 'RACKBUILD', 'CONSUMABLE', 'CARRIAGE',
+                'CONFIGURATION', 'TRAINING', 'LABOUR',
+            ];
+            foreach ($serviceSkus as $sku) {
+                if (str_contains($partNo, $sku)) {
+                    return true;
+                }
+            }
+        }
+
+        // Stage 2 — shared vocab with WorksheetClassifier.
+        $haystack = strtolower(trim(implode(' ', [
+            (string) ($eq['name']        ?? ''),
+            (string) ($eq['description'] ?? ''),
+        ])));
+        if ($haystack === '') {
+            return false;
+        }
+
+        $excludeKeywords = (array) config('worksheet_taxonomy.exclude_keywords', []);
+        foreach ($excludeKeywords as $kw) {
+            $kwLower = strtolower(trim($kw));
+            if ($kwLower === '') {
+                continue;
+            }
+            // Word-boundary match — "installation" must match "installation",
+            // not "installation-ready-panel".
+            if (preg_match('/\b' . preg_quote($kwLower, '/') . '\b/', $haystack)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function mapContextEquipmentItem(array $eq): array
