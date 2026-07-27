@@ -373,6 +373,111 @@ class OmManualGeneratorService
         ];
     }
 
+    // ── Pass 2 pre-flight: shared draft-seeding + validation ─────────────────
+
+    /**
+     * Seed [TBC] placeholders for draft mode and validate the canonical
+     * generator context against the NO-TBC policy.
+     *
+     * Extracted from {@see self::generateContent} in 260727-om1 so
+     * OmManualController::generateFromProject can pre-flight the same check
+     * synchronously and surface missing-field errors to the user IMMEDIATELY
+     * (via `back()->withErrors()` on the project page) instead of leaving
+     * them to discover the failure after the queue job explodes.
+     *
+     * Contract:
+     *   • Final mode (`$isDraft=false`) — no seeding; validator enforces
+     *     every required field strictly.
+     *   • Draft mode (`$isDraft=true`) — seeds `handover_date`, `drawings`,
+     *     and per-room `narrative` with `[TBC] — …` strings so the manual
+     *     can still generate as a preview. Strict gates (project_name,
+     *     client_name, rooms count, per-room equipment) still enforce.
+     *
+     * Returns the seeded context. Callers that don't need the seeded copy
+     * (pre-flight from the controller) can discard the return value —
+     * the throw-on-invalid is the load-bearing side-effect.
+     *
+     * @throws \App\Exceptions\OmManualValidationException
+     */
+    public function prepareContextForGeneration(array $context, bool $isDraft): array
+    {
+        if ($isDraft) {
+            if (trim((string) ($context['handover_date'] ?? '')) === '') {
+                $context['handover_date'] = '[TBC] — handover date to be scheduled';
+            }
+            $drawings = is_array($context['drawings'] ?? null) ? $context['drawings'] : [];
+            if (empty($drawings)) {
+                // Full canonical drawing shape — the PDF blade iterates
+                // $drawings and accesses every key without ?? defaults
+                // (resources/views/pdf/om-manual.blade.php:858-865). A
+                // sparse placeholder ({name, type} only) crashed PDF
+                // generation with "Undefined array key reference_number"
+                // even after the validator passed. Keys mirror the live
+                // appendices->drawing mapping at om-manual.blade.php:268.
+                $context['drawings'] = [
+                    [
+                        'reference_number' => '[TBC]',
+                        'title'            => 'Engineering drawings to follow',
+                        'revision'         => '',
+                        'date'             => '',
+                        'file_path'        => '',
+                        // Legacy keys for any consumer still reading them.
+                        'name'             => '[TBC] — engineering drawings to follow',
+                        'type'             => 'placeholder',
+                    ],
+                ];
+            }
+            // Per-room narrative + equipment seed — covers rooms that don't
+            // yet have a reviewed phrased overview OR a reviewed equipment
+            // list (both common on projects still in quote_imported /
+            // survey_pending). 260727-om1 added the equipment seed so
+            // draft-mode preview generation works before the PM has run the
+            // quote-import review pass.
+            if (is_array($context['rooms'] ?? null)) {
+                $context['rooms'] = array_map(static function (array $room): array {
+                    $name = trim((string) ($room['name'] ?? 'this room'));
+
+                    if (trim((string) ($room['narrative'] ?? '')) === '') {
+                        $tbc = '[TBC] — narrative for ' . $name . ' to be added';
+                        $room['narrative']   = $tbc;
+                        // Mirror to description for legacy template back-compat
+                        // (some O&M sections still read $room['description']).
+                        if (trim((string) ($room['description'] ?? '')) === '') {
+                            $room['description'] = $tbc;
+                        }
+                    }
+
+                    // Equipment placeholder — the validator rejects zero-
+                    // equipment rooms; draft mode surfaces the gap in the
+                    // rendered document instead so PMs preview + fix later.
+                    $equipment = is_array($room['equipment'] ?? null) ? $room['equipment'] : [];
+                    if (empty($equipment)) {
+                        $room['equipment'] = [
+                            [
+                                'name'         => '[TBC] — equipment to be finalised',
+                                'manufacturer' => '',
+                                'model'        => '',
+                                'quantity'     => 1,
+                                'category'     => 'placeholder',
+                            ],
+                        ];
+                    }
+
+                    return $room;
+                }, $context['rooms']);
+            }
+        }
+
+        // Tier 1 NO-TBC POLICY — fail fast on missing required fields so weak
+        // documents never reach the AI / DOCX / PDF render stages. In draft
+        // mode the gates above receive [TBC] seeds; the validator accepts
+        // them as non-blank, so the document generates with placeholders
+        // visible to the reader.
+        $this->validator->validateOmData($context);
+
+        return $context;
+    }
+
     // ── Pass 2: Full content generation ──────────────────────────────────────
 
     /**
@@ -412,72 +517,13 @@ class OmManualGeneratorService
             $context['site_conditions'] = \App\Services\SiteConditionsBuilder::fromSurvey($latestSurvey);
         }
 
-        // Draft mode (set by OmManualController::generateFromProject when
-        // `?draft=1` is passed) — seeds [TBC] placeholders for the three
-        // validator gates that block early-stage projects: handover_date,
-        // drawings, and per-room narrative. Other gates (project_name,
-        // client_name, rooms, equipment) still enforce strictly — those
-        // are inherent to any useful document at any stage, draft or final.
-        //
-        // The flag is read from $manual->extracted_data['_draft_mode']
-        // (persisted at create time) so the Retry path preserves it
-        // without a new column on om_manuals.
+        // 260727-om1: draft-seeding + validation moved into a shared public
+        // method so OmManualController can pre-flight the same check BEFORE
+        // dispatching this job. Prevents the "queued → later fails silently"
+        // UX where the user sees a success toast then discovers the manual
+        // failed hours later.
         $isDraft = (bool) ($manual->extracted_data['_draft_mode'] ?? false);
-        if ($isDraft) {
-            if (trim((string) ($context['handover_date'] ?? '')) === '') {
-                $context['handover_date'] = '[TBC] — handover date to be scheduled';
-            }
-            $drawings = is_array($context['drawings'] ?? null) ? $context['drawings'] : [];
-            if (empty($drawings)) {
-                // Full canonical drawing shape — the PDF blade iterates
-                // $drawings and accesses every key without ?? defaults
-                // (resources/views/pdf/om-manual.blade.php:858-865). A
-                // sparse placeholder ({name, type} only) crashed PDF
-                // generation with "Undefined array key reference_number"
-                // even after the validator passed. Keys mirror the live
-                // appendices->drawing mapping at om-manual.blade.php:268.
-                $context['drawings'] = [
-                    [
-                        'reference_number' => '[TBC]',
-                        'title'            => 'Engineering drawings to follow',
-                        'revision'         => '',
-                        'date'             => '',
-                        'file_path'        => '',
-                        // Legacy keys for any consumer still reading them.
-                        'name'             => '[TBC] — engineering drawings to follow',
-                        'type'             => 'placeholder',
-                    ],
-                ];
-            }
-            // Per-room narrative seed — covers rooms that don't yet have a
-            // reviewed phrased overview (typically project areas added late
-            // in the quote that the PM hasn't filled in yet). Common case
-            // observed on Tilda 21CQ29531-05-OPS / OmManual #10: ROOM
-            // BOOKING PANELS came through the AI extractor with empty
-            // narrative because the per-room overview wasn't authored.
-            if (is_array($context['rooms'] ?? null)) {
-                $context['rooms'] = array_map(static function (array $room): array {
-                    if (trim((string) ($room['narrative'] ?? '')) === '') {
-                        $name = trim((string) ($room['name'] ?? 'this room'));
-                        $tbc  = '[TBC] — narrative for ' . $name . ' to be added';
-                        $room['narrative']   = $tbc;
-                        // Mirror to description for legacy template back-compat
-                        // (some O&M sections still read $room['description']).
-                        if (trim((string) ($room['description'] ?? '')) === '') {
-                            $room['description'] = $tbc;
-                        }
-                    }
-                    return $room;
-                }, $context['rooms']);
-            }
-        }
-
-        // Tier 1 NO-TBC POLICY — fail fast on missing required fields so weak
-        // documents never reach the AI / DOCX / PDF render stages. In draft
-        // mode the gates above receive [TBC] seeds; the validator accepts
-        // them as non-blank, so the document generates with placeholders
-        // visible to the reader.
-        $this->validator->validateOmData($context);
+        $context = $this->prepareContextForGeneration($context, $isDraft);
 
         $generated = AIManager::run($prompt, $context, $provider);
 

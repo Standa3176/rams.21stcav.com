@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Core\Modules\OMManual\OmManualGeneratorService;
 use App\Exceptions\AIGenerationException;
+use App\Exceptions\OmManualValidationException;
 use App\Jobs\BuildOmManualJob;
 use App\Models\Device;
 use App\Models\OmManual;
@@ -175,6 +176,34 @@ class OmManualController extends Controller
             return back()->with('error', 'Could not read project data: ' . $e->getMessage());
         }
 
+        // 260727-om1 — pre-flight the NO-TBC validator synchronously so
+        // missing-field errors surface on the project page IMMEDIATELY (via
+        // withErrors) instead of the user seeing a "generation queued"
+        // success toast and later discovering the job failed silently.
+        // Delegates to the same seed-and-validate path the queue job uses,
+        // so the validation contract stays in ONE place.
+        try {
+            $this->generator->prepareContextForGeneration($context, $isDraft);
+        } catch (OmManualValidationException $e) {
+            Log::info('OmManualController: generation blocked by pre-flight validator', [
+                'project_id' => $project->id,
+                'draft_mode' => $isDraft,
+                'missing'    => $e->getMissingFields(),
+            ]);
+
+            $errors = [];
+            foreach ($e->getMissingFields() as $i => $field) {
+                $errors["om_missing.{$i}"] = $field;
+            }
+
+            return back()
+                ->withInput()
+                ->withErrors($errors, 'om_generate')
+                ->with('error', 'O&M generation blocked — please fix the missing fields below and try again. '
+                    . ($isDraft ? '' : 'For a preview with placeholders, use Generate Draft instead.'))
+                ->with('om_missing_fields', $e->getMissingFields());
+        }
+
         // Persist the draft flag inside extracted_data so it survives Retry
         // re-dispatches (no new column needed, picked up by the generator).
         $context['_draft_mode'] = $isDraft;
@@ -239,6 +268,32 @@ class OmManualController extends Controller
 
         if (empty($omManual->extracted_data)) {
             return back()->with('error', 'Cannot retry — extracted data is missing. Please create a new O&M manual.');
+        }
+
+        // 260727-om1 — same pre-flight guard as generateFromProject. The record
+        // may have been created before the underlying project data was ready
+        // (missing handover date, drawings, room narratives), and a retry
+        // shouldn't blindly queue another failing run — surface the missing
+        // fields immediately.
+        try {
+            $isDraft = (bool) ($omManual->extracted_data['_draft_mode'] ?? false);
+            $this->generator->prepareContextForGeneration($omManual->extracted_data, $isDraft);
+        } catch (OmManualValidationException $e) {
+            Log::info('OmManualController: retry blocked by pre-flight validator', [
+                'om_manual_id' => $omManual->id,
+                'draft_mode'   => $isDraft ?? false,
+                'missing'      => $e->getMissingFields(),
+            ]);
+
+            $errors = [];
+            foreach ($e->getMissingFields() as $i => $field) {
+                $errors["om_missing.{$i}"] = $field;
+            }
+
+            return back()
+                ->withErrors($errors, 'om_generate')
+                ->with('error', 'Retry blocked — required fields are still missing. Fix these and click Retry again.')
+                ->with('om_missing_fields', $e->getMissingFields());
         }
 
         $omManual->update([

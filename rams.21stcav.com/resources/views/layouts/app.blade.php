@@ -1829,6 +1829,63 @@
     {{-- ── MAIN CONTENT ────────────────────────────────────────────────── --}}
     <main class="app-content">
         <div class="page-wrap">
+
+            {{-- 260727-om1 — global flash-message + error-bag rendering.
+                 Previously every page had to render `session('error')` /
+                 `session('success')` / `$errors` on its own; most pages
+                 (including projects/show) rendered nothing, so redirects
+                 with .withErrors() were silently invisible. This block
+                 handles all three uniformly.
+
+                 Named error bags (e.g. `withErrors($list, 'om_generate')`)
+                 surface as a "one issue per row" list under a heading. The
+                 `om_missing_fields` session key is rendered as an actionable
+                 checklist for the specific O&M-generation blocker. --}}
+            @if (session('success'))
+                <div class="alert-banner alert-banner--success" role="status" aria-live="polite">
+                    <div class="alert-banner__icon" aria-hidden="true">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    </div>
+                    <div class="alert-banner__body">{{ session('success') }}</div>
+                </div>
+            @endif
+
+            @if (session('error'))
+                <div class="alert-banner alert-banner--error" role="alert" aria-live="assertive">
+                    <div class="alert-banner__icon" aria-hidden="true">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    </div>
+                    <div class="alert-banner__body">
+                        <div><strong>{{ session('error') }}</strong></div>
+                        @if (session('om_missing_fields'))
+                            <ul style="margin: .5rem 0 0 1.25rem; padding: 0; font-size: .8125rem;">
+                                @foreach (session('om_missing_fields') as $field)
+                                    <li style="margin: .15rem 0;">{{ $field }}</li>
+                                @endforeach
+                            </ul>
+                        @endif
+                    </div>
+                </div>
+            @endif
+
+            {{-- Default error bag — form-request validation failures from
+                 Laravel's FormRequest / validate() surface here. --}}
+            @if ($errors->any() && ! $errors->hasBag('om_generate'))
+                <div class="alert-banner alert-banner--error" role="alert" aria-live="assertive">
+                    <div class="alert-banner__icon" aria-hidden="true">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    </div>
+                    <div class="alert-banner__body">
+                        <div><strong>Please fix the highlighted errors before continuing.</strong></div>
+                        <ul style="margin: .5rem 0 0 1.25rem; padding: 0; font-size: .8125rem;">
+                            @foreach ($errors->all() as $err)
+                                <li style="margin: .15rem 0;">{{ $err }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                </div>
+            @endif
+
             @hasSection('content')
                 @yield('content')
             @else
