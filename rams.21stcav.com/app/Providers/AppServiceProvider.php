@@ -17,6 +17,7 @@ use App\Policies\ProjectDrawingPolicy;
 use App\Policies\ProjectPolicy;
 use App\Policies\RamsDocumentPolicy;
 use App\Policies\WorksheetPolicy;
+use App\Repositories\ProductTaxonomyRepository;
 use App\Services\PdfOcrExtractorService;
 use App\Services\PdfTextExtractorService;
 use App\Services\WorkerMonitorService;
@@ -53,6 +54,14 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(ProjectDataService::class);
+
+        // ── Worksheet product taxonomy (phase 260727-wt1 Plan 01) ─────────────
+        // Single instance per request so WorksheetClassifier (Plan 02) and
+        // LearnedTaxonomyWriter (Plan 04) share the same object. No state
+        // beyond Eloquent's own query cache, so the singleton is purely a
+        // consistency + micro-perf choice — swap for bind() if a future
+        // per-request stateful decorator ever gets layered on.
+        $this->app->singleton(ProductTaxonomyRepository::class);
 
         // ── RAMS shared design tokens (phase 260726-rf3) ──────────────────────
         // Single-source-of-truth theme for both RAMS renderers (DOCX +
