@@ -115,6 +115,12 @@ class DocxBuilderService
      * Do not add new features here; extend {@see DocxBuilderServiceV2}
      * instead. Plan 05 will merge V2's implementation back into this class
      * and delete `buildLegacy` + `DocxBuilderServiceV2` together.
+     *
+     * Phase 260726-rf3 Plan 04 Commit 2 — the body of this method is now a
+     * three-step orchestration (patch + bootstrap + save) around two public
+     * seams: {@see self::buildCoverSection} and {@see self::buildRestOfDocument}.
+     * V2 reuses `buildRestOfDocument` verbatim so the "rest" of the document
+     * stays byte-identical to legacy while V2 renders the cover from the DTO.
      */
     public function buildLegacy(array $data, RamsDocument $record): string
     {
@@ -132,8 +138,6 @@ class DocxBuilderService
         $this->patchService->patch($record);
         $data = $record->generated_data ?? $data;
 
-        $formData = $record->form_data ?? [];
-
         $phpWord = new PhpWord();
         // 260725-rd1 — body font shifted Arial → Poppins to match the
         // hand-crafted Tilda RAMs Rev1.1 reference. Word substitutes at
@@ -142,41 +146,13 @@ class DocxBuilderService
         $phpWord->setDefaultFontName('Poppins');
         $phpWord->setDefaultFontSize(10);
 
-        // Build all sections in order — match PDF rams.blade.php section
-        // order (sec-heading hits):
-        //   Cover → Doc Control → Company Info → H&S Policy →
-        //   Scope of Works → Engineer Findings → Risk Assessment →
-        //   Method Statement (6.1-6.6) → §6.7 Material Handling →
-        //   §6.8 Permit & Isolation → §6.9 Fixings → §6.10 Supervision/QA →
-        //   Permits & Authorisations → CDM Duty Holders → COSHH →
-        //   Environmental Management → Welfare Arrangements →
-        //   Emergency Procedures → Sign-Off → Appendix A Toolbox Talk
-        $this->buildCoverPage($phpWord, $data, $formData, $record);
-        $this->buildDocumentControl($phpWord, $data, $record);
-        $this->buildCompanyInformation($phpWord, $data);
-        $this->buildHealthSafetyPolicy($phpWord, $data);
-        $this->buildScopeOfWorks($phpWord, $data, $formData, $record);
-        $this->buildEngineerFindingsByRoom($phpWord, $data);
-        $this->buildRiskAssessment($phpWord, $data);
-        $this->buildMethodStatement($phpWord, $data);
-        // ── D10 — §6.7-6.10 added inline after Method of Works ───────────
-        $this->buildMaterialHandling($phpWord, $data);
-        $this->buildPermitAndIsolation($phpWord, $data);
-        $this->buildFixingsControl($phpWord, $data);
-        $this->buildSupervisionAndQA($phpWord, $data);
-        // ── 260725-rd1 — §6.11 + §6.12 (parity with hand-crafted Tilda RAMs) ─
-        $this->buildCoordinationWithOtherTrades($phpWord, $data);
-        $this->buildITNetworkIntegrationSafety($phpWord, $data);
-        // ── D11 — Compliance / environment / welfare block ───────────────
-        $this->buildPermitsAndAuthorisations($phpWord, $data);
-        $this->buildCdmSection($phpWord, $data);
-        $this->buildCoshhAssessment($phpWord, $data);
-        $this->buildEnvironmentalManagement($phpWord, $data);
-        $this->buildWelfareArrangements($phpWord, $data);
-        $this->buildEmergencyProcedures($phpWord, $data, $formData);
-        $this->buildDocumentSignOff($phpWord, $data);
-        // ── D12 — Appendix A Toolbox Talk Record at the end ──────────────
-        $this->buildAppendixA($phpWord, $data);
+        // ── Cover section — portrait, with running footer.
+        $section = $phpWord->addSection($this->portraitStyle());
+        $this->attachFooter($section);
+        $this->buildCoverSection($phpWord, $section, $data, $record);
+
+        // ── Everything after the cover (doc control → appendix A).
+        $this->buildRestOfDocument($phpWord, $section, $data, $record);
 
         // Write file to the unified documents disk (H-07).
         // Re-audit M-09 fix — Ymd_His_u so concurrent retries within the
@@ -193,15 +169,20 @@ class DocxBuilderService
         return $filePath;
     }
 
-    // =========================================================================
-    // COVER PAGE — Portrait, two info tables
-    // =========================================================================
-
-    private function buildCoverPage(PhpWord $phpWord, array $data, array $formData, ?RamsDocument $record = null): void
+    /**
+     * Public seam for the cover-page tables.
+     *
+     * Accepts an already-created portrait section (caller sets orientation +
+     * attaches the running footer) so V2 can render the cover from the DTO
+     * while still handing the same section object to `buildRestOfDocument`
+     * for parity with the legacy path.
+     *
+     * Behaviour-preserving move of the former private `buildCoverPage()`
+     * body — every colour, size and row order matches the pre-refactor
+     * output byte-for-byte when the flag is off.
+     */
+    public function buildCoverSection(PhpWord $phpWord, Section $section, array $data, RamsDocument $record): void
     {
-        $section = $phpWord->addSection($this->portraitStyle());
-        $this->attachFooter($section);
-
         $project = $data['project'] ?? [];
 
         // ── Rooms resolution chain (D3 — match PDF rams.blade.php:324-345) ────
@@ -314,6 +295,63 @@ class DocxBuilderService
             $row->addCell($colW, $whiteCell)->addText($this->t($value), $valueFont);
         }
     }
+
+    /**
+     * Public seam for every section AFTER the cover — doc control through
+     * Appendix A. Extracted from the former `buildLegacy()` body verbatim
+     * so V2's `build()` can delegate the "rest" of the document to the
+     * legacy renderer while it takes the cover on the DTO path.
+     *
+     * `$section` is the cover section passed through for signature parity
+     * with `buildCoverSection`; each inner builder adds its own new section
+     * onto `$phpWord` and does not mutate the cover section.
+     */
+    public function buildRestOfDocument(PhpWord $phpWord, Section $section, array $data, RamsDocument $record): void
+    {
+        // `form_data` was materialised in `buildLegacy` before the refactor;
+        // derive it here so V2 doesn't have to thread it through the seam.
+        $formData = $record->form_data ?? [];
+
+        // Build all sections in order — match PDF rams.blade.php section
+        // order (sec-heading hits):
+        //   Doc Control → Company Info → H&S Policy →
+        //   Scope of Works → Engineer Findings → Risk Assessment →
+        //   Method Statement (6.1-6.6) → §6.7 Material Handling →
+        //   §6.8 Permit & Isolation → §6.9 Fixings → §6.10 Supervision/QA →
+        //   Permits & Authorisations → CDM Duty Holders → COSHH →
+        //   Environmental Management → Welfare Arrangements →
+        //   Emergency Procedures → Sign-Off → Appendix A Toolbox Talk
+        $this->buildDocumentControl($phpWord, $data, $record);
+        $this->buildCompanyInformation($phpWord, $data);
+        $this->buildHealthSafetyPolicy($phpWord, $data);
+        $this->buildScopeOfWorks($phpWord, $data, $formData, $record);
+        $this->buildEngineerFindingsByRoom($phpWord, $data);
+        $this->buildRiskAssessment($phpWord, $data);
+        $this->buildMethodStatement($phpWord, $data);
+        // ── D10 — §6.7-6.10 added inline after Method of Works ───────────
+        $this->buildMaterialHandling($phpWord, $data);
+        $this->buildPermitAndIsolation($phpWord, $data);
+        $this->buildFixingsControl($phpWord, $data);
+        $this->buildSupervisionAndQA($phpWord, $data);
+        // ── 260725-rd1 — §6.11 + §6.12 (parity with hand-crafted Tilda RAMs) ─
+        $this->buildCoordinationWithOtherTrades($phpWord, $data);
+        $this->buildITNetworkIntegrationSafety($phpWord, $data);
+        // ── D11 — Compliance / environment / welfare block ───────────────
+        $this->buildPermitsAndAuthorisations($phpWord, $data);
+        $this->buildCdmSection($phpWord, $data);
+        $this->buildCoshhAssessment($phpWord, $data);
+        $this->buildEnvironmentalManagement($phpWord, $data);
+        $this->buildWelfareArrangements($phpWord, $data);
+        $this->buildEmergencyProcedures($phpWord, $data, $formData);
+        $this->buildDocumentSignOff($phpWord, $data);
+        // ── D12 — Appendix A Toolbox Talk Record at the end ──────────────
+        $this->buildAppendixA($phpWord, $data);
+    }
+
+    // =========================================================================
+    // COVER PAGE — Portrait, two info tables
+    // (rendering moved to `buildCoverSection` — public seam for V2)
+    // =========================================================================
 
     /**
      * Resolve the rooms list for cover + scope-of-works rendering.
