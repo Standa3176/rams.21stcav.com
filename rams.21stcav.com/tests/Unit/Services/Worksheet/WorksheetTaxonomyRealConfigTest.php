@@ -151,6 +151,31 @@ class WorksheetTaxonomyRealConfigTest extends TestCase
                 'Crestron 1 Beyond p12 PTZ Camera, 12x Optical Zoom, Moon Gray',
                 'video_conferencing',
             ],
+
+            // ── 260727-fx7 Clore Learning Space (worksheet 15) — 5 items ─────
+            // that dropped as Unclassified before this fix. Descriptions
+            // pulled verbatim from worksheet_15_20260727_143614_700248.docx
+            // QA warnings section.
+            'clevertouch_75_commerical_display' => [
+                '75" Commerical Display, 4K, 4GB Ram 32GB ROM - Android 11, CleverLive, Clevershare, 16/7 New',
+                'display',
+            ],
+            'aver_dl10_tracking_camera' => [
+                'Aver DL10',
+                'video_conferencing',
+            ],
+            'aver_dl10_wall_mount' => [
+                'AVer DL10 Wall Mount',
+                'mount_accessory',
+            ],
+            'blustream_wmf72_presentation_switch' => [
+                'Wireless Multi-Format Presentation Switch',
+                'control',
+            ],
+            'netgear_prosafe_switch_no_brand_prefix' => [
+                'ProSAFE 8 Port Gigabit PoE Smart Switch with 2 SFP Ports',
+                'network',
+            ],
         ];
     }
 

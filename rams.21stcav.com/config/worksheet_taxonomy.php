@@ -79,16 +79,36 @@ return [
     // Each rule: {manufacturer: [...], keywords: [...], category: '...'}
     'manufacturer_rules' => [
         // ── Displays (flat panel / projector OEMs) ───────────────────────────
-        ['manufacturer' => ['samsung', 'lg', 'sony', 'philips', 'nec', 'sharp', 'panasonic', 'hisense', 'iiyama', 'benq', 'viewsonic'],
-         'keywords'     => ['display', 'screen', 'monitor', 'tv', 'uhd', '4k', 'oled', 'qled', 'qm', 'qn', 'qb', 'uh', 'um', 'android display'],
+        // 260727-fx7: added 'clevertouch' + 'newline' + 'promethean' + 'smart'
+        // (interactive/education displays); catches Clore Learning Space's
+        // Clevertouch 75" (was previously dropped as Unclassified).
+        ['manufacturer' => ['samsung', 'lg', 'sony', 'philips', 'nec', 'sharp', 'panasonic', 'hisense', 'iiyama', 'benq', 'viewsonic', 'clevertouch', 'newline', 'promethean', 'smart'],
+         'keywords'     => ['display', 'screen', 'monitor', 'tv', 'uhd', '4k', 'oled', 'qled', 'qm', 'qn', 'qb', 'uh', 'um', 'android display', 'commercial display', 'commerical display', 'clevershare', 'cleverlive', 'interactive display'],
          'category'     => 'display'],
         ['manufacturer' => ['epson', 'benq', 'optoma', 'barco', 'christie', 'panasonic'],
          'keywords'     => ['projector', 'beamer', 'lcos', 'dlp'],
          'category'     => 'display'],
 
+        // ── Mounts (inherit via mount_inherit_keywords below) ────────────────
+        // 260727-fx7: hoisted to fire BEFORE the VC / audio / control rules so
+        // "AVer DL10 Wall Mount" / "Crestron Multisurface Mount Kit" / etc.
+        // resolve to mount_inherit (correct — accessory whose category
+        // inherits from nearby items). Requires a mount keyword AS WELL AS
+        // manufacturer match, so pure cameras (AVer PTZ, Crestron 1 Beyond)
+        // fall through to their category rules cleanly.
+        //
+        // 260727-fx6: added 'multisurface mount' + 'mount kit' + 'flush mount'
+        // for Crestron glass-wall mount hardware.
+        // 260727-fx7: added 'aver' + 'btech' + b-tech SKUs (BT9910, BT8210).
+        ['manufacturer' => ['chief', 'unicol', 'vogels', 'vogel\'s', 'peerless', 'b-tech', 'btech', 'crestron', 'aver'],
+         'keywords'     => ['mount', 'bracket', 'stand', 'wall mount', 'pole', 'cart', 'trolley', 'floor stand', 'multisurface mount', 'mount kit', 'flush mount', 'ceiling mount', 'bt9910', 'bt8210', 'bt7863'],
+         'category'     => 'mount_inherit'],
+
         // ── Video Conferencing ───────────────────────────────────────────────
+        // 260727-fx7: added AVer DL-series keywords ('dl10','dl30','distance learning',
+        // 'cam520') so Clore Learning Space's AVer PTZ cameras stop dropping.
         ['manufacturer' => ['cisco', 'poly', 'polycom', 'logitech', 'yealink', 'neat', 'huddly', 'aver'],
-         'keywords'     => ['codec', 'room kit', 'rally', 'studio', 'bar', 'meetup', 'mx ', 'webex', 'x30', 'x50', 'x70', 'x90', 'tv mount for video'],
+         'keywords'     => ['codec', 'room kit', 'rally', 'studio', 'bar', 'meetup', 'mx ', 'webex', 'x30', 'x50', 'x70', 'x90', 'tv mount for video', 'dl10', 'dl30', 'dl20', 'distance learning', 'cam520', 'cam530', 'cam540', 'cam550', 'ptz', 'tracking'],
          'category'     => 'video_conferencing'],
 
         // ── Audio: Microphones ───────────────────────────────────────────────
@@ -116,18 +136,6 @@ return [
         ['manufacturer' => ['cisco'],
          'keywords'     => ['catalyst', 'nexus', 'meraki', 'switch', 'router', 'firewall'],
          'category'     => 'network'],
-
-        // ── Mounts (inherit via mount_inherit_keywords below) ────────────────
-        // 260727-fx6: added 'multisurface mount' + 'mount kit' + 'flush mount'
-        // to catch the Crestron multisurface mount kit that pairs with the
-        // 10.1" scheduling panels (used on glass-wall installs).
-        // Must fire BEFORE the Crestron rules below so a "Mount Kit for
-        // Scheduling Panel" hits mount_inherit (correct — it's an accessory
-        // whose category should resolve from the panel it mounts) rather than
-        // the scheduling-keyword branch of the Crestron control rule.
-        ['manufacturer' => ['chief', 'unicol', 'vogels', 'vogel\'s', 'peerless', 'b-tech', 'crestron'],
-         'keywords'     => ['mount', 'bracket', 'stand', 'wall mount', 'pole', 'cart', 'trolley', 'floor stand', 'multisurface mount', 'mount kit', 'flush mount', 'ceiling mount'],
-         'category'     => 'mount_inherit'],
 
         // ── Crestron audio (260727-fx6) ──────────────────────────────────────
         // Must fire BEFORE the Crestron control rule below — first-match-wins
@@ -165,18 +173,33 @@ return [
         ['manufacturer' => ['surgex', 'tripp lite', 'tripplite', 'furman'],
          'keywords'     => ['surge protector', 'power conditioner', 'sequencing', 'pdu', 'power sequencer', 'sequencing surge'],
          'category'     => 'rack'],
+
+        // ── Blustream / HDBaseT signal distribution (260727-fx7) ─────────────
+        // Blustream WMF wireless presentation switches + WMF USB-C/HDMI
+        // dongles + UEX3C USB extender kits all belong in control
+        // (source-selection + routing infrastructure). Pre-fix Blustream
+        // had no manufacturer rule and was dropped from Clore Learning
+        // Space's kit list.
+        ['manufacturer' => ['blustream', 'kramer', 'atlona', 'lightware', 'extron'],
+         'keywords'     => ['wmf', 'presentation switch', 'multi-format presentation', 'wireless dongle', 'usb-c dongle', 'hdmi dongle', 'hdbaset', 'usb extender', 'extender kit', 'presentation kit', 'byod dongle'],
+         'category'     => 'control'],
     ],
 
     // ─── Tier 3: Description keyword rules ───────────────────────────────────
     // Last-resort keyword inference when no manufacturer matches.
     // Evaluated in the order listed; first hit wins.
+    // 260727-fx7 tier-3 additions target descriptions that reach the
+    // classifier WITHOUT a manufacturer prefix (QW import sometimes truncates
+    // the leading brand token, e.g. "ProSAFE ..." instead of "Netgear ProSAFE
+    // ..."). Also covers 'wireless multi-format presentation' where the fx6
+    // 'wireless presentation' keyword doesn't match as a contiguous substring.
     'keyword_rules' => [
-        'display'            => ['videowall', 'video wall', 'projector', 'projection screen', 'led wall', 'flat panel', 'interactive display', 'android display', 'commercial display', 'flat screen', 'display trolley', 'display cart', 'display stand'],
-        'video_conferencing' => ['codec', 'conference camera', 'vc camera', 'ptz camera', 'huddle cam', 'scheduler panel', 'room navigator', 'camera switching', 'tracking camera', '1 beyond', 'panacast', 'automate vx', '4k ptz', 'iv,camera', 'iv-camera', 'ptz,track'],
-        'audio'              => ['loudspeaker', 'pendant speaker', 'ceiling speaker', 'amplifier', 'dsp', 'soundbar', 'subwoofer', 'audio mixer', 'microphone', 'headphone', 'headset', 'hearing loop', 'induction loop', 'neck loop', 'auri', 'slxd', 'qlxd', 'ulxd', 'axt', 'mxw', 'mxa'],
-        'control'            => ['control processor', 'touch panel', 'touch screen', 'button panel', 'keypad', 'partition sensor', 'occupancy sensor', 'relay module', 'dimmer', 'lighting control', 'room scheduling', 'booking panel', 'scheduling touch', 'airmedia', 'wireless presentation'],
+        'display'            => ['videowall', 'video wall', 'projector', 'projection screen', 'led wall', 'flat panel', 'interactive display', 'android display', 'commercial display', 'commerical display', 'flat screen', 'display trolley', 'display cart', 'display stand', 'clevershare', 'cleverlive'],
+        'video_conferencing' => ['codec', 'conference camera', 'vc camera', 'ptz camera', 'huddle cam', 'scheduler panel', 'room navigator', 'camera switching', 'tracking camera', '1 beyond', 'panacast', 'automate vx', '4k ptz', 'iv,camera', 'iv-camera', 'ptz,track', 'dl10', 'dl30', 'dl20', 'cam520', 'cam530', 'cam540', 'distance learning', 'presenter tracking'],
+        'audio'              => ['loudspeaker', 'pendant speaker', 'ceiling speaker', 'amplifier', 'dsp', 'soundbar', 'subwoofer', 'audio mixer', 'microphone', 'headphone', 'headset', 'hearing loop', 'induction loop', 'neck loop', 'auri', 'slxd', 'qlxd', 'ulxd', 'axt', 'mxw', 'mxa', 'parlé', 'beamtracking'],
+        'control'            => ['control processor', 'touch panel', 'touch screen', 'button panel', 'keypad', 'partition sensor', 'occupancy sensor', 'relay module', 'dimmer', 'lighting control', 'room scheduling', 'booking panel', 'scheduling touch', 'airmedia', 'wireless presentation', 'presentation switch', 'multi-format presentation', 'wireless multi-format', 'wmf', 'hdbaset', 'usb extender', 'extender kit', 'hdmi extender', 'usb-c dongle', 'hdmi dongle', 'byod'],
         'rack'               => ['server rack', 'equipment rack', 'patch panel', 'power distribution', 'cable tray', 'cable management', 'rack shelf', 'blanking panel', 'floor plate', 'ceiling plate', 'floor to ceiling mount', 'goal post', 'span unit', 'truss', 'surge protector', 'power conditioner', 'sequencing surge'],
-        'network'            => ['managed switch', 'poe switch', 'wireless access point', 'wifi ap', 'network switch', 'router', 'firewall appliance'],
+        'network'            => ['managed switch', 'poe switch', 'wireless access point', 'wifi ap', 'network switch', 'router', 'firewall appliance', 'prosafe', 'gigabit switch', 'sfp port', 'smart switch'],
     ],
 
     // ─── Tier 4: Context rules ───────────────────────────────────────────────
