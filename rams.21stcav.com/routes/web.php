@@ -473,6 +473,12 @@ Route::middleware('auth')->group(function () {
     Route::get('om-manuals/{omManual}/devices/csv-template', [OmManualController::class, 'downloadAssetTemplate'])->name('om-manuals.devices.csv-template');
     Route::post('om-manuals/{omManual}/devices/import-csv', [OmManualController::class, 'importAssetsCsv'])->name('om-manuals.devices.import-csv');
     Route::post('om-manuals/{omManual}/generate', [OmManualController::class, 'generate'])->name('om-manuals.generate');
+    // 260727-om7 — refresh extracted_data from linked project + per-room delete.
+    Route::post('om-manuals/{omManual}/refresh-from-source', [OmManualController::class, 'refreshFromSource'])
+        ->name('om-manuals.refresh-from-source');
+    Route::delete('om-manuals/{omManual}/rooms/{index}', [OmManualController::class, 'deleteRoom'])
+        ->name('om-manuals.delete-room')
+        ->whereNumber('index');
     Route::post('om-manuals/{omManual}/retry-generation', [OmManualController::class, 'retryGeneration'])
         ->name('om-manuals.retry-generation')
         ->middleware('throttle:10,1'); // Re-audit S-01 — AI-cost DoS cap.

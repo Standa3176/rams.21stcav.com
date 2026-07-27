@@ -307,6 +307,84 @@ class OmManualController extends Controller
         return back()->with('success', 'O&M generation re-queued.');
     }
 
+    /**
+     * 260727-om7 — refresh extracted_data from the linked project's current
+     * canonical data. Re-runs buildContextFromProjectData so filters shipped
+     * AFTER this manual was originally created (e.g. 260727-om5 labour-item
+     * filter) take effect on the edit page.
+     *
+     * Preserves the draft-mode flag. Overwrites everything else — user-edited
+     * fields on the OmManual will be lost, which is the point: the button
+     * exists to reset to source-of-truth after a config change.
+     */
+    public function refreshFromSource(OmManual $omManual): RedirectResponse
+    {
+        $this->authorize('update', $omManual);
+
+        if ($omManual->project === null) {
+            return back()->with('error', 'Refresh unavailable — this O&M is not linked to a project.');
+        }
+
+        try {
+            $fresh = $this->generator->buildContextFromProjectData($omManual->project);
+        } catch (\Throwable $e) {
+            Log::error('OmManualController: refreshFromSource failed', [
+                'om_manual_id' => $omManual->id,
+                'error'        => $e->getMessage(),
+            ]);
+            return back()->with('error', 'Could not read project data: ' . $e->getMessage());
+        }
+
+        // Preserve the draft-mode flag so retry semantics don't change.
+        $isDraft = (bool) ($omManual->extracted_data['_draft_mode'] ?? false);
+        $fresh['_draft_mode'] = $isDraft;
+
+        $omManual->update([
+            'extracted_data' => $fresh,
+        ]);
+
+        Log::info('OmManualController: extracted_data refreshed from project', [
+            'om_manual_id' => $omManual->id,
+            'draft_mode'   => $isDraft,
+            'room_count'   => count($fresh['rooms'] ?? []),
+        ]);
+
+        return back()->with('success', 'Refreshed from project data. Re-review the fields + save your edits before regenerating.');
+    }
+
+    /**
+     * 260727-om7 — remove a room from extracted_data by array index.
+     * Curate manually when the auto-created "General" bucket (or any other
+     * room) shouldn't appear in the final O&M.
+     */
+    public function deleteRoom(OmManual $omManual, int $index): RedirectResponse
+    {
+        $this->authorize('update', $omManual);
+
+        $data  = is_array($omManual->extracted_data) ? $omManual->extracted_data : [];
+        $rooms = is_array($data['rooms'] ?? null) ? array_values($data['rooms']) : [];
+
+        if (! isset($rooms[$index])) {
+            return back()->with('error', 'Room not found — refresh the page and try again.');
+        }
+
+        $removed = trim((string) ($rooms[$index]['name'] ?? "Room #{$index}"));
+        array_splice($rooms, $index, 1);
+        $data['rooms'] = array_values($rooms);
+
+        $omManual->update([
+            'extracted_data' => $data,
+        ]);
+
+        Log::info('OmManualController: room removed from O&M', [
+            'om_manual_id' => $omManual->id,
+            'index'        => $index,
+            'name'         => $removed,
+        ]);
+
+        return back()->with('success', "Removed room \"{$removed}\". Save + regenerate when ready.");
+    }
+
     // ── edit (review Pass 1) ──────────────────────────────────────────────────
 
     public function edit(OmManual $omManual): View

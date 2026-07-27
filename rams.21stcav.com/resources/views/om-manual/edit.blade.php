@@ -743,6 +743,20 @@
         <div style="display: flex; gap: .5rem; margin-bottom: 1rem; flex-wrap: wrap;">
             @if ($manual->project_id)
                 <a href="{{ route('om-manuals.edit-devices', $manual) }}" class="btn btn-outline btn-sm">📋 Asset data</a>
+                {{-- 260727-om7 — resync extracted_data from linked project.
+                     Useful after a config change (e.g. labour-item filter shipped
+                     AFTER this manual was created). Confirms destructive intent
+                     because it overwrites user edits. --}}
+                <form method="POST"
+                      action="{{ route('om-manuals.refresh-from-source', $manual) }}"
+                      class="m-0 inline-block"
+                      data-confirm="Refresh this O&M from the linked project's current data? Any unsaved edits on the fields below will be OVERWRITTEN — save them first if you want to keep them."
+                      data-confirm-label="Refresh from project">
+                    @csrf
+                    <button type="submit" class="btn btn-outline btn-sm" title="Rebuild extracted_data from the project's current source-of-truth">
+                        🔄 Refresh from project
+                    </button>
+                </form>
             @endif
             <a href="{{ route('documents.revisions.view', ['type' => 'om', 'id' => $manual->id]) }}" class="btn btn-outline btn-sm">↻ History</a>
             <x-document-edit-drawer
@@ -1378,13 +1392,31 @@
                 @endphp
                 <section class="om-room" id="s-room-{{ $i }}"
                          @if ($roomNarrativeMissing) style="border: 2px solid var(--danger); background: var(--danger-light); scroll-margin-top: calc(var(--header-height) + 1rem);" @endif>
-                    <div class="om-room-h">
+                    <div class="om-room-h" style="display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;">
                         <div class="om-room-num">{{ $i + 1 }}</div>
-                        <h3 class="om-room-title">{{ $rname !== '' ? $rname : 'Room ' . ($i + 1) }}</h3>
+                        <h3 class="om-room-title" style="flex: 1; min-width: 0;">{{ $rname !== '' ? $rname : 'Room ' . ($i + 1) }}</h3>
                         @if ($roomNarrativeMissing)
                             <span class="om-badge" style="background: var(--danger); color: #fff; font-weight: 700;">⚠ NARRATIVE REQUIRED</span>
                         @elseif ($rIsTbc)<span class="om-badge tbc">[TBC] narrative</span>
                         @elseif ($rnarr !== '')<span class="om-badge ai">AI drafted</span>@endif
+                        {{-- 260727-om7 — per-room delete. Submits outside the main
+                             om-manual-edit-form so a mid-edit accidental click
+                             doesn't dispatch unsaved changes. Data-confirm hook
+                             uses the app-confirm modal wired in the layout. --}}
+                        <form method="POST"
+                              action="{{ route('om-manuals.delete-room', ['omManual' => $manual, 'index' => $i]) }}"
+                              class="m-0"
+                              data-confirm="Remove the &quot;{{ $rname !== '' ? $rname : 'Room ' . ($i + 1) }}&quot; room from this O&M? Any unsaved edits above will be lost — save first if you want to keep them."
+                              data-confirm-label="Remove room">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit"
+                                    class="btn btn-outline btn-sm"
+                                    style="border-color: var(--danger); color: var(--danger);"
+                                    title="Remove this room from the O&M">
+                                🗑 Delete room
+                            </button>
+                        </form>
                     </div>
                     <div class="om-room-fields">
                         <div class="form-group">
