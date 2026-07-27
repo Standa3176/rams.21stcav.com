@@ -117,19 +117,53 @@ return [
          'keywords'     => ['catalyst', 'nexus', 'meraki', 'switch', 'router', 'firewall'],
          'category'     => 'network'],
 
-        // ── Control & Automation ─────────────────────────────────────────────
-        ['manufacturer' => ['crestron', 'extron', 'amx', 'kramer', 'atlona', 'lightware'],
-         'keywords'     => ['control', 'touch panel', 'nvx', 'dm-', 'processor', 'scaler', 'matrix', 'dtp', 'sensor', 'occupancy', 'partition'],
-         'category'     => 'control'],
-
         // ── Mounts (inherit via mount_inherit_keywords below) ────────────────
-        ['manufacturer' => ['chief', 'unicol', 'vogels', 'vogel\'s', 'peerless', 'b-tech'],
-         'keywords'     => ['mount', 'bracket', 'stand', 'wall mount', 'pole', 'cart', 'trolley', 'floor stand'],
+        // 260727-fx6: added 'multisurface mount' + 'mount kit' + 'flush mount'
+        // to catch the Crestron multisurface mount kit that pairs with the
+        // 10.1" scheduling panels (used on glass-wall installs).
+        // Must fire BEFORE the Crestron rules below so a "Mount Kit for
+        // Scheduling Panel" hits mount_inherit (correct — it's an accessory
+        // whose category should resolve from the panel it mounts) rather than
+        // the scheduling-keyword branch of the Crestron control rule.
+        ['manufacturer' => ['chief', 'unicol', 'vogels', 'vogel\'s', 'peerless', 'b-tech', 'crestron'],
+         'keywords'     => ['mount', 'bracket', 'stand', 'wall mount', 'pole', 'cart', 'trolley', 'floor stand', 'multisurface mount', 'mount kit', 'flush mount', 'ceiling mount'],
          'category'     => 'mount_inherit'],
+
+        // ── Crestron audio (260727-fx6) ──────────────────────────────────────
+        // Must fire BEFORE the Crestron control rule below — first-match-wins
+        // in tier 2. Catches Saros speakers + X-Series amplifiers which pre-fix
+        // only survived via tier 3 keyword fallback (drift-flag warning).
+        ['manufacturer' => ['crestron'],
+         'keywords'     => ['saros', 'in-ceiling speaker', 'x-series amplifier', 'x-series amp'],
+         'category'     => 'audio'],
+
+        // ── Crestron VC (260727-fx6) ─────────────────────────────────────────
+        // Must fire BEFORE the Crestron control rule below. Catches 1 Beyond
+        // PTZ cameras, Automate VX camera-switching processor + AutoMeasure
+        // Cubes calibration accessory, and Crestron SR tracking cameras
+        // (IV-CAMERA-4K-PTZ SKU pattern).
+        ['manufacturer' => ['crestron'],
+         'keywords'     => ['1 beyond', '1beyond', 'automate vx', 'automeasure', 'ptz camera', '4k ptz', 'tracking camera', 'p20', 'p12', 'iv-camera', 'iv,camera', 'ptz,track'],
+         'category'     => 'video_conferencing'],
+
+        // ── Control & Automation ─────────────────────────────────────────────
+        // 260727-fx6: extended Crestron keywords to catch scheduling touch
+        // screens (TSW/TSS-1070 series), AirMedia wireless-BYOD receivers +
+        // endpoints (AM-3100-WF / AM-TX3-100), and generic room-booking panels.
+        ['manufacturer' => ['crestron', 'extron', 'amx', 'kramer', 'atlona', 'lightware'],
+         'keywords'     => ['control', 'touch panel', 'touch screen', 'nvx', 'dm-', 'processor', 'scaler', 'matrix', 'dtp', 'sensor', 'occupancy', 'partition', 'scheduling', 'room scheduling', 'booking panel', 'tsw-', 'tss-', 'tsw1070', 'tss1070', 'airmedia', 'air media', 'am-3100', 'am-tx3', 'wireless presentation', 'byod'],
+         'category'     => 'control'],
 
         // ── Rack & Infrastructure ────────────────────────────────────────────
         ['manufacturer' => ['middle atlantic', 'rackmount', 'pentair', 'penn elcom', 'apc', 'cyberpower'],
          'keywords'     => ['rack', 'patch panel', 'pdu', 'ups', 'shelf', 'keystone', 'cable management', 'blanking'],
+         'category'     => 'rack'],
+
+        // ── Power conditioning / surge protection (260727-fx6) ───────────────
+        // SurgeX + TrippLite power conditioners belong in rack infrastructure.
+        // Pre-fix these had no manufacturer rule at all and were dropped.
+        ['manufacturer' => ['surgex', 'tripp lite', 'tripplite', 'furman'],
+         'keywords'     => ['surge protector', 'power conditioner', 'sequencing', 'pdu', 'power sequencer', 'sequencing surge'],
          'category'     => 'rack'],
     ],
 
@@ -138,10 +172,10 @@ return [
     // Evaluated in the order listed; first hit wins.
     'keyword_rules' => [
         'display'            => ['videowall', 'video wall', 'projector', 'projection screen', 'led wall', 'flat panel', 'interactive display', 'android display', 'commercial display', 'flat screen', 'display trolley', 'display cart', 'display stand'],
-        'video_conferencing' => ['codec', 'conference camera', 'vc camera', 'ptz camera', 'huddle cam', 'scheduler panel', 'room navigator'],
+        'video_conferencing' => ['codec', 'conference camera', 'vc camera', 'ptz camera', 'huddle cam', 'scheduler panel', 'room navigator', 'camera switching', 'tracking camera', '1 beyond', 'panacast', 'automate vx', '4k ptz', 'iv,camera', 'iv-camera', 'ptz,track'],
         'audio'              => ['loudspeaker', 'pendant speaker', 'ceiling speaker', 'amplifier', 'dsp', 'soundbar', 'subwoofer', 'audio mixer', 'microphone', 'headphone', 'headset', 'hearing loop', 'induction loop', 'neck loop', 'auri', 'slxd', 'qlxd', 'ulxd', 'axt', 'mxw', 'mxa'],
-        'control'            => ['control processor', 'touch panel', 'button panel', 'keypad', 'partition sensor', 'occupancy sensor', 'relay module', 'dimmer', 'lighting control'],
-        'rack'               => ['server rack', 'equipment rack', 'patch panel', 'power distribution', 'cable tray', 'cable management', 'rack shelf', 'blanking panel', 'floor plate', 'ceiling plate', 'floor to ceiling mount', 'goal post', 'span unit', 'truss'],
+        'control'            => ['control processor', 'touch panel', 'touch screen', 'button panel', 'keypad', 'partition sensor', 'occupancy sensor', 'relay module', 'dimmer', 'lighting control', 'room scheduling', 'booking panel', 'scheduling touch', 'airmedia', 'wireless presentation'],
+        'rack'               => ['server rack', 'equipment rack', 'patch panel', 'power distribution', 'cable tray', 'cable management', 'rack shelf', 'blanking panel', 'floor plate', 'ceiling plate', 'floor to ceiling mount', 'goal post', 'span unit', 'truss', 'surge protector', 'power conditioner', 'sequencing surge'],
         'network'            => ['managed switch', 'poe switch', 'wireless access point', 'wifi ap', 'network switch', 'router', 'firewall appliance'],
     ],
 
