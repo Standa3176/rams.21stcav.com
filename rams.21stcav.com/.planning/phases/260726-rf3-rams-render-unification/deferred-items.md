@@ -73,3 +73,82 @@ cleanly. Plan 05 should either:
 
 Once resolved, restore the material_handling block in the Tilda fixture and
 re-capture snapshot goldens.
+
+**RESOLVED** — Plan 05a Commit B (`a743af5`, 2026-07-26) landed shape
+detection in `MethodStatementComposer`. Object vs string-list detected via
+`is_array($rawMh) && (array_key_exists('large_items', $rawMh) || array_key_exists('handling_notes', $rawMh))`.
+
+---
+
+## Plan 05b Part 1 deferrals — DOCX DTO adoption gaps
+
+**Discovered:** Plan 05b Part 1 executor, 2026-07-29, when the exclusions
+port to DOCX succeeded cleanly but the 3 other candidate sections
+(Standards & Guidance, Emergency Procedures, Welfare) failed the
+"same content, different code path" invariant.
+
+### DOCX Standards & Guidance table
+
+**Where:** `DocxBuilderService::buildRestOfDocument` renders the Standards
+table only when `$data['standards_references']` is populated. Populated by
+`Tier1RamsDefaultsService` at **build time**, not render time — so a
+render-only refactor sees the field as empty and skips the table.
+
+**Symptom:** Naive port from `$dto->standardsTable->rows[]` (which falls
+back to config) added ~14KB of legitimate but NEW content to Tilda's DOCX,
+because config-based rendering fires even when the source RamsDocument
+never got the standards seeded.
+
+**Fix path:** Either (a) run `Tier1RamsDefaultsService` at render time on
+V2's path when the DTO field is empty, or (b) reproduce V1's presence-gate
+in V2 so the section only renders when populated. Option (b) is safer —
+V1 gate is the source of truth.
+
+### DOCX Emergency Procedures
+
+**Where:** `DocxBuilderService::buildRestOfDocument` renders only the
+static contact / accident / fire prose. No `site_emergency` table is
+rendered in V1 output despite the DTO carrying the 9 keys (per Plan 05a).
+
+**Symptom:** DTO port would ADD a new site_emergency section to DOCX
+output that doesn't exist today.
+
+**Fix path:** Add the section to V1 first (mirroring the PDF blade's
+§7.0 Site-Specific Emergency Details), then port V2 to the DTO. That's
+a genuine feature addition, not a refactor — belongs in a fresh quick
+task, not a plan-05 close.
+
+### DOCX + PDF Welfare Arrangements
+
+**Where:** V1 renders fixed welfare prose keyed off
+`programme.welfare_notes` (single free-text field). `WelfareSectionDto`
+models 5 separate descriptors (toilets / washing / rest_area / first_aid
+/ drinking_water) with generic fallback text.
+
+**Symptom:** Shape mismatch — V1 renders "programme notes"; DTO has "5
+descriptors". Neither is wrong; they're modelling the same concept
+differently.
+
+**Fix path:** Reconcile the shape — pick one (probably the DTO's 5-key
+model as more useful for downstream O&M/handover docs), migrate
+`programme.welfare_notes` into the 5-key shape via a data-migration
+command, then port both renderers. Non-trivial semantic change.
+
+---
+
+## Real Tilda fixture from live VPS
+
+**Not blocking phase close but limits parity confidence.**
+
+Current `tests/Fixtures/rams/tilda-21cq29531/record.json` is hand-crafted
+per Plan 03 (executor had no VPS DB access). Snapshot tests prove
+byte-parity on THIS fixture but don't cover the shape variance a real
+project brings.
+
+**Fix path:** On a machine with VPS DB access:
+```bash
+php artisan tinker --execute="echo App\Models\RamsDocument::find(92)?->toJson();"
+```
+Save output to `tests/Fixtures/rams/tilda-21cq29531/record.json`, then
+`php artisan rams:regenerate-snapshots tilda-21cq29531` to re-capture
+goldens. Commit both.
