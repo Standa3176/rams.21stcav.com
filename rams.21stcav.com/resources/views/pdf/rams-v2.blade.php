@@ -13,11 +13,17 @@
     - $data  (array = $rams->generated_data)     — legacy path, ditto.
 
     Plan 03 scope: cover / doc-control / company-info consume $dto cleanly.
+    Plan 05b Part 1 scope (this pass): extends DTO adoption to §3b Standards
+    & Guidance table, Exclusions block, and §7.0 Site-Specific Emergency
+    Details. `hospital_address` stays as a raw reviewed_data read (not on
+    EmergencySectionDto — DTO shape change deferred to Part 2).
     All colour + font tokens flow from $theme via CSS custom properties
-    injected in <head> by $theme->paletteCss(). Remaining sections still
-    read from $rams / $data pending the Plan 05 parity sweep — DO NOT
-    remove those reads until each section's composer has been extended to
-    match the compliance-upgrade output surface.
+    injected in <head> by $theme->paletteCss(). Remaining sections
+    (site_logistics, ppe_matrix, cdm_duty_holders, welfare, method_statement
+    sub-sections, coshh, environmental) still read from $rams / $data
+    pending the Plan 05b Part 2 parity sweep — DO NOT remove those reads
+    until each section's composer has been extended to match the
+    compliance-upgrade output surface.
 
     Layout / structure is intentionally byte-parallel to
     resources/views/pdf/rams.blade.php so the two paths render the same
@@ -320,9 +326,16 @@ p { margin: 3pt 0; }
     // Cover / doc-control / company-info sections consume $dto exclusively.
     // The composer replicates every resolution chain the legacy blade used
     // to inline (see App\Support\Rams\SectionComposers\CoverComposer.php).
-    $cover        = $dto->cover;
-    $docControl   = $dto->docControl->revisions;
-    $companyInfo  = $dto->companyInfo;
+    $cover            = $dto->cover;
+    $docControl       = $dto->docControl->revisions;
+    $companyInfo      = $dto->companyInfo;
+    // Plan 05b DTO adoption — extend the compliance-upgrade surface consumed
+    // from $dto (previously read from raw $data / $rams->reviewed_data). The
+    // three sections below are the safe wins (no shape mismatch, no new
+    // content vs the legacy blade). See PHASE.md 260726-rf3 Plan 05b.
+    $exclusionsDto    = $dto->exclusions;    // → Exclusions block
+    $standardsDto     = $dto->standardsTable; // → Standards & Guidance table
+    $emergencyDto     = $dto->emergency;      // → §7.0 Site-Specific Emergency Details
 
     // ── Legacy raw reads (deferred to Plan 05 parity sweep) ──────────────
     // Compliance-upgrade fields ($data['ppe_matrix'], site_logistics, etc.)
@@ -481,12 +494,15 @@ p { margin: 3pt 0; }
     // New sections from reviewed_data
     $scopeTraceability  = $rams->reviewed_data['scope_traceability']              ?? [];
     $clientRespExp      = $rams->reviewed_data['client_responsibilities_expanded'] ?? [];
-    $exclusionsList     = $rams->reviewed_data['exclusions']                       ?? [];
+    // Plan 05b — Exclusions now sourced from $emergencyDto's sibling composer.
+    // ExclusionsComposer already reads reviewed_data.exclusions with a
+    // generated_data fallback + empty-string filter, so the render block
+    // below stays identical (it iterates $exclusionsList as before).
+    $exclusionsList     = $exclusionsDto->items;
     $decommData         = $rams->reviewed_data['decommissioning']                  ?? [];
     $commCriteria       = $rams->reviewed_data['commissioning_criteria']           ?? [];
 
     $scopeTraceability  = is_array($scopeTraceability)  ? $scopeTraceability  : [];
-    $exclusionsList     = is_array($exclusionsList)      ? $exclusionsList     : [];
     $commCriteria       = is_array($commCriteria)        ? $commCriteria       : [];
 
     // Scope items
@@ -800,9 +816,9 @@ p { margin: 3pt 0; }
 </p>
 
 {{-- Standards & Guidance Applicable to This Works (260712-twi Task 5) --}}
+{{-- ─── Standards & Guidance from $dto->standardsTable (Plan 05b) ─────── --}}
 <div class="sec-subheading" style="margin-top:8pt;">Standards &amp; Guidance Applicable to This Works</div>
-@php $stdRefs = (array) ($data['standards_references'] ?? config('rams_tier1.standards_references', [])); @endphp
-@if(! empty($stdRefs))
+@if(! $standardsDto->isEmpty())
 <table class="std-table" style="margin-bottom:8pt;">
     <thead>
         <tr style="background-color:#1B7A7A; color:#ffffff;">
@@ -812,12 +828,11 @@ p { margin: 3pt 0; }
         </tr>
     </thead>
     <tbody>
-        @foreach($stdRefs as $std)
-        @php $std = is_array($std) ? $std : []; @endphp
+        @foreach($standardsDto->rows as $std)
         <tr>
-            <td><strong>{{ $std['ref'] ?? '' }}</strong></td>
-            <td>{{ $std['title'] ?? '' }}</td>
-            <td>{{ $std['applies_to'] ?? '' }}</td>
+            <td><strong>{{ $std['ref'] }}</strong></td>
+            <td>{{ $std['title'] }}</td>
+            <td>{{ $std['applies_to'] }}</td>
         </tr>
         @endforeach
     </tbody>
@@ -1293,13 +1308,12 @@ p { margin: 3pt 0; }
 {{-- ════════════════════════════════════════════════════════════════════════
      EXCLUSIONS
      ════════════════════════════════════════════════════════════════════════ --}}
+{{-- ─── Exclusions from $dto->exclusions (Plan 05b) ────────────────────── --}}
 <div class="sec-heading">Exclusions</div>
-@if(! empty($exclusionsList))
+@if(! $exclusionsDto->isEmpty())
 <ul class="blist">
-@foreach($exclusionsList as $exItem)
-    @if(trim((string)$exItem) !== '')
+@foreach($exclusionsDto->items as $exItem)
     <li>{{ $exItem }}</li>
-    @endif
 @endforeach
 </ul>
 @else
@@ -2016,9 +2030,31 @@ p { margin: 3pt 0; }
 <div class="sec-heading page-break">7. &nbsp;Emergency Procedures</div>
 
 {{-- 7.0 Site-Specific Emergency Details (260712-twi Task 3) --}}
+{{-- ─── §7.0 Emergency details from $dto->emergency (Plan 05b) ─────────── --}}
+{{-- `hospital_address` is not on EmergencySectionDto (it is a display-only
+     subtitle for `nearest_hospital`), so it stays as a raw reviewed_data
+     read — DTO shape change is out of scope for Plan 05b. --}}
 @php
-    $siteEmerg = (array) ($data['site_emergency'] ?? ($rams->reviewed_data['site_emergency'] ?? []));
-    $hasSiteEmerg = ! empty(array_filter($siteEmerg, fn ($v) => is_string($v) ? trim($v) !== '' : ! empty($v)));
+    $hospitalAddress = (string) (
+        $rams->reviewed_data['site_emergency']['hospital_address']
+        ?? $data['site_emergency']['hospital_address']
+        ?? ''
+    );
+    // Exact-parity replacement for the legacy `array_filter … trim()` guard
+    // over the 10 site_emergency map keys: renders the table when ANY of
+    // the 9 DTO-backed fields or hospital_address has non-whitespace content.
+    $hasSiteEmerg = ! empty(array_filter([
+        $emergencyDto->nearestHospital,
+        $emergencyDto->fireAssemblyPoint,
+        $emergencyDto->fireWarden,
+        $emergencyDto->fireWardenContact,
+        $emergencyDto->firstAider,
+        $emergencyDto->firstAiderContact,
+        $emergencyDto->defibrillator,
+        $emergencyDto->isolationSwitch,
+        $emergencyDto->fireExtinguisherClass,
+        $hospitalAddress,
+    ], fn ($v) => trim((string) $v) !== ''));
 @endphp
 <div class="sec-subheading">7.0 Site-Specific Emergency Details</div>
 @if($hasSiteEmerg)
@@ -2026,40 +2062,40 @@ p { margin: 3pt 0; }
     <tr>
         <td class="e-lbl">Nearest A&amp;E Hospital</td>
         <td class="e-val" colspan="3">
-            {{ ($siteEmerg['nearest_hospital'] ?? '') ?: 'TBC' }}
-            @if(! empty($siteEmerg['hospital_address'] ?? ''))
-                <br><span style="font-size:8pt; color:#555;">{{ $siteEmerg['hospital_address'] ?? '' }}</span>
+            {{ $emergencyDto->nearestHospital ?: 'TBC' }}
+            @if($hospitalAddress !== '')
+                <br><span style="font-size:8pt; color:#555;">{{ $hospitalAddress }}</span>
             @endif
         </td>
     </tr>
     <tr>
         <td class="e-lbl">Fire Assembly Point</td>
-        <td class="e-val" colspan="3">{{ ($siteEmerg['fire_assembly_point'] ?? '') ?: 'TBC' }}</td>
+        <td class="e-val" colspan="3">{{ $emergencyDto->fireAssemblyPoint ?: 'TBC' }}</td>
     </tr>
     <tr>
         <td class="e-lbl">Fire Warden</td>
-        <td class="e-val">{{ ($siteEmerg['fire_warden_name'] ?? '') ?: 'TBC' }}</td>
+        <td class="e-val">{{ $emergencyDto->fireWarden ?: 'TBC' }}</td>
         <td class="e-lbl">Contact</td>
-        <td class="e-val">{{ ($siteEmerg['fire_warden_contact'] ?? '') ?: '—' }}</td>
+        <td class="e-val">{{ $emergencyDto->fireWardenContact ?: '—' }}</td>
     </tr>
     <tr>
         <td class="e-lbl">First Aider</td>
-        <td class="e-val">{{ ($siteEmerg['first_aider_name'] ?? '') ?: 'TBC' }}</td>
+        <td class="e-val">{{ $emergencyDto->firstAider ?: 'TBC' }}</td>
         <td class="e-lbl">Contact</td>
-        <td class="e-val">{{ ($siteEmerg['first_aider_contact'] ?? '') ?: '—' }}</td>
+        <td class="e-val">{{ $emergencyDto->firstAiderContact ?: '—' }}</td>
     </tr>
     <tr>
         <td class="e-lbl">Nearest Defibrillator</td>
-        <td class="e-val" colspan="3">{{ ($siteEmerg['defibrillator_location'] ?? '') ?: 'TBC — confirm at site induction' }}</td>
+        <td class="e-val" colspan="3">{{ $emergencyDto->defibrillator ?: 'TBC — confirm at site induction' }}</td>
     </tr>
     {{-- 260712-w5k Task 3 — 2 new emergency rows --}}
     <tr>
         <td class="e-lbl">Electrical Isolation Switch</td>
-        <td class="e-val" colspan="3">{{ ($siteEmerg['electrical_isolation_switch'] ?? '') ?: 'TBC — confirm at site induction' }}</td>
+        <td class="e-val" colspan="3">{{ $emergencyDto->isolationSwitch ?: 'TBC — confirm at site induction' }}</td>
     </tr>
     <tr>
         <td class="e-lbl">Fire Extinguisher Class Available</td>
-        <td class="e-val" colspan="3">{{ ($siteEmerg['fire_extinguisher_class'] ?? '') ?: 'TBC — confirm at site induction' }}</td>
+        <td class="e-val" colspan="3">{{ $emergencyDto->fireExtinguisherClass ?: 'TBC — confirm at site induction' }}</td>
     </tr>
 </table>
 @else
