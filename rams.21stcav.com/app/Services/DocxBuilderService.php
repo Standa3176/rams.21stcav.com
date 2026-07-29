@@ -305,8 +305,19 @@ class DocxBuilderService
      * `$section` is the cover section passed through for signature parity
      * with `buildCoverSection`; each inner builder adds its own new section
      * onto `$phpWord` and does not mutate the cover section.
+     *
+     * Plan 05b: `$overrides` lets V2 substitute a DTO-driven renderer for
+     * an individual section without touching the legacy path. Recognised
+     * keys (all `?callable`):
+     *   - 'exclusions' → invoked instead of the internal Exclusions block
+     *                    inside `buildScopeOfWorks`. Receives the already-opened
+     *                    Scope section: `fn(Section $s): void`.
+     * Unknown keys are ignored. When `$overrides` is null (legacy call path),
+     * behaviour is byte-for-byte identical to pre-Plan-05b.
+     *
+     * @param  array<string, callable>|null  $overrides
      */
-    public function buildRestOfDocument(PhpWord $phpWord, Section $section, array $data, RamsDocument $record): void
+    public function buildRestOfDocument(PhpWord $phpWord, Section $section, array $data, RamsDocument $record, ?array $overrides = null): void
     {
         // `form_data` was materialised in `buildLegacy` before the refactor;
         // derive it here so V2 doesn't have to thread it through the seam.
@@ -324,7 +335,7 @@ class DocxBuilderService
         $this->buildDocumentControl($phpWord, $data, $record);
         $this->buildCompanyInformation($phpWord, $data);
         $this->buildHealthSafetyPolicy($phpWord, $data);
-        $this->buildScopeOfWorks($phpWord, $data, $formData, $record);
+        $this->buildScopeOfWorks($phpWord, $data, $formData, $record, $overrides['exclusions'] ?? null);
         $this->buildEngineerFindingsByRoom($phpWord, $data);
         $this->buildRiskAssessment($phpWord, $data);
         $this->buildMethodStatement($phpWord, $data);
@@ -604,7 +615,14 @@ class DocxBuilderService
     // SECTION 4 — Scope of Works
     // =========================================================================
 
-    private function buildScopeOfWorks(PhpWord $phpWord, array $data, array $formData, ?RamsDocument $record = null): void
+    /**
+     * @param  callable(Section):void|null  $exclusionsOverride  Plan 05b V2 hook:
+     *   when supplied, invoked in place of the internal Exclusions block so
+     *   V2 can render it from `$dto->exclusions` instead of scanning
+     *   `reviewed_data['exclusions']` + `$data['exclusions']` directly.
+     *   Legacy callers pass null and get byte-identical output.
+     */
+    private function buildScopeOfWorks(PhpWord $phpWord, array $data, array $formData, ?RamsDocument $record = null, ?callable $exclusionsOverride = null): void
     {
         $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
         $this->attachFooter($section);
@@ -827,6 +845,17 @@ class DocxBuilderService
                 $dr->addCell($wQty,  ['bgColor' => self::WHITE])->addText('', $bf);
                 $dr->addCell($wNote, ['bgColor' => self::WHITE])->addText('', $bf);
             }
+        }
+
+        // ── Plan 05b — V2 override hook ───────────────────────────────────────
+        // When DocxBuilderServiceV2 supplies a DTO-driven renderer, hand it
+        // the already-open section and skip the legacy exclusions block below
+        // so the DOCX renders the same content sourced from `$dto->exclusions`
+        // instead of scanning `reviewed_data['exclusions']` + `$data['exclusions']`.
+        if ($exclusionsOverride !== null) {
+            $section->addTextBreak(1);
+            $exclusionsOverride($section);
+            return;
         }
 
         // ── 260725-rd1 — Explicit Exclusions block ────────────────────────────

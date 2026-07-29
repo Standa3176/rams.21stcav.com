@@ -7,6 +7,7 @@ use App\Services\Rams\RamsDisplayPatchService;
 use App\Support\Rams\RamsDocumentComposer;
 use App\Support\Rams\RamsTheme;
 use App\Support\Rams\Sections\CoverSectionDto;
+use App\Support\Rams\Sections\ExclusionsSectionDto;
 use PhpOffice\PhpWord\Element\Section;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
@@ -23,7 +24,7 @@ use PhpOffice\PhpWord\SimpleType\Jc;
  * any code change — mirrors the {@see \App\Services\PdfService::buildRams}
  * pattern that Plan 03 established for the PDF renderer.
  *
- * ─── Plan 04 Commit 2 (this class) ──────────────────────────────────────
+ * ─── Plan 04 Commit 2 (baseline) ─────────────────────────────────────────
  *
  * Cover renders from `RamsDocumentDTO->cover` via {@see self::buildCoverFromDto}
  * — the first parity win the phase buys us:
@@ -32,16 +33,32 @@ use PhpOffice\PhpWord\SimpleType\Jc;
  *     instead of the legacy `"\n"` string concatenation, so Word actually
  *     line-breaks the value instead of collapsing to a single line.
  *
- * The rest of the document (doc control → appendix A) is delegated to the
- * legacy {@see DocxBuilderService::buildRestOfDocument} seam so the byte-for-byte
- * output on those sections stays identical to pre-refactor.
+ * ─── Plan 05b Part 1 (this commit) ──────────────────────────────────────
  *
- * Section-porting plan for later commits (mirroring Plan 03's partial
- * adoption in `rams-v2.blade.php`):
- *  - DTO-consuming (this commit): cover.
- *  - Legacy raw reads (this commit + until Plan 05): every other section.
- *  - Full DTO adoption for the compliance-upgrade surface is reserved for
- *    Plan 05 parity sweep — see .planning/phases/260726-rf3.../deferred-items.md.
+ * Extends DTO adoption to one more section via the `$overrides` callback
+ * seam Plan 05b added to {@see DocxBuilderService::buildRestOfDocument}:
+ *
+ *   • Exclusions block → {@see self::buildExclusionsFromDto}
+ *
+ * Deferred to Plan 05b Part 2 (all three trip the "same content, different
+ * code path" rule):
+ *
+ *   • Standards & Guidance table — DOCX V1 silently skips rendering when
+ *     `$data['standards_references']` is empty (Tier1RamsDefaultsService
+ *     only seeds this at RAMS-build time, not at render time). The DTO
+ *     falls back to `config('rams_tier1.standards_references')` and so a
+ *     naive DTO port renders ~14 KB of extra XML for legacy fixtures.
+ *     Part 2 either seeds standards at render time (parity across
+ *     pipelines) or reproduces the V1 gate explicitly.
+ *   • Emergency Procedures — DOCX V1 renders static prose for the
+ *     contact/accident/fire blocks and does NOT render a site_emergency
+ *     table at all (unlike the PDF blade). A DTO port would ADD content.
+ *   • Welfare Arrangements — DOCX V1 renders static prose from
+ *     `$data['programme']['welfare_notes']`; WelfareSectionDto models 5
+ *     free-text descriptors with unrelated defaults — shape mismatch.
+ *
+ * The rest of the document (doc control → appendix A, minus the ported
+ * exclusions sub-block) still delegates to the legacy seam.
  *
  * @see \App\Services\PdfService::buildRams              Kill-switch pattern (Plan 03).
  * @see \App\Support\Rams\RamsDocumentComposer           Post-patch composer.
@@ -123,10 +140,18 @@ class DocxBuilderServiceV2
         // ── Cover from DTO (parity win: line-break for CLIENT CONTACT) ────────
         $this->buildCoverFromDto($section, $dto->cover, $this->theme);
 
-        // ── Everything after the cover — delegated to legacy seam so V2
-        //    stays byte-identical to pre-refactor on the "rest" until the
-        //    remaining sections are ported in a future phase.
-        $this->legacy->buildRestOfDocument($phpWord, $section, $data, $record);
+        // ── Everything after the cover — delegated to legacy seam, with
+        //    Plan 05b DTO overrides for the sub-blocks V2 now owns.
+        //    Legacy path (flag OFF) still passes null → byte-identical output.
+        $this->legacy->buildRestOfDocument(
+            $phpWord,
+            $section,
+            $data,
+            $record,
+            [
+                'exclusions' => fn (Section $s) => $this->buildExclusionsFromDto($s, $dto->exclusions),
+            ],
+        );
 
         // Filename shape mirrors DocxBuilderService::buildLegacy() so upstream
         // readers resolve either pipeline's output identically. Ymd_His_u
@@ -293,6 +318,52 @@ class DocxBuilderServiceV2
             $row = $table3->addRow(420);
             $row->addCell($colW, $tealCell) ->addText($label,                       $labelFont);
             $row->addCell($colW, $whiteCell)->addText($this->sanitise((string) $value), $valueFont);
+        }
+    }
+
+    /**
+     * Render the "Exclusions" bulleted block from `$dto->exclusions`, into
+     * the already-open Scope of Works section handed to us by the legacy
+     * `buildScopeOfWorks` override hook. The caller emits the leading
+     * `addTextBreak(1)` before invoking this method so we match the exact
+     * whitespace shape of the legacy block.
+     *
+     * Structural parity with the block at
+     * {@see DocxBuilderService::buildScopeOfWorks} lines 893-912:
+     *  - TEAL "Exclusions" sub-heading with spaceBefore=80, spaceAfter=60.
+     *  - "•  " prefix per bullet using the theme body font at 9pt.
+     *  - "No exclusions declared for this project." fallback line when
+     *    the DTO items list is empty.
+     */
+    private function buildExclusionsFromDto(Section $section, ExclusionsSectionDto $dto): void
+    {
+        $body = $this->theme->font('body');
+        $teal = $this->theme->palette('brand_blue');
+
+        $bulletFont = ['name' => $body, 'size' => 9];
+        $bulletPara = ['spaceBefore' => 40, 'spaceAfter' => 40];
+
+        $section->addText(
+            'Exclusions',
+            ['name' => $body, 'size' => 10, 'bold' => true, 'color' => $teal],
+            ['spaceBefore' => 80, 'spaceAfter' => 60],
+        );
+
+        if ($dto->isEmpty()) {
+            $section->addText(
+                'No exclusions declared for this project.',
+                $bulletFont,
+                $bulletPara,
+            );
+            return;
+        }
+
+        foreach ($dto->items as $item) {
+            $section->addText(
+                '•  ' . $this->sanitise($item),
+                $bulletFont,
+                $bulletPara,
+            );
         }
     }
 
