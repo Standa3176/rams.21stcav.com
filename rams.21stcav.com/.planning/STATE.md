@@ -28,7 +28,13 @@ Active work: none in-flight on the drawings milestone — it has been dormant si
 Reconciliation: 2026-08-09 — STATE synced to disk truth. Earlier STATE claimed "PAUSED at Phase 23 sub-plan 1", but Phase 23 shipped 7/7 plans on 2026-05-15 (commit 23-07). ROADMAP checkboxes for Phases 22 + 23 corrected to [x] in the same pass.
 Outstanding: 27 human-UAT items across 5 VERIFICATION.md files (Phases 17, 18, 20, 22, 22.1) remain `human_needed` — automated must-haves all passed; manual browser/prod sign-off pending. Run `/gsd-verify-work <phase>` to clear.
 Status: Session save 2026-07-10 — every P0/P1/P2 finding from both audits closed; deferred RAMS QA backlog also closed
-Last activity: 2026-07-10 -- 40+ commits across a single working session: Jetbuilt palette + top-nav rebuild, security batches WR-01/3/4/5, a11y batch 6, dashboard UX batch 7, Batch 11 async feedback + stale-banner + running-indicator + ready-for-signoff, Batch 12 x-link-hero extraction, then a full 4-agent re-audit that surfaced 28 findings all shipped in 4 batches, plus 3 lingering RAMS QA MEDIUMs (M-04/M-09/M-11).
+Last activity: 2026-08-09 — Completed quick task 260809-so1: Survey offline-first photo capture (shared engineer-capture partial).
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Status | Directory |
+|---|-------------|------|--------|--------|-----------|
+| 260809-so1 | Survey offline-first photo capture via shared engineer-capture partial (seed of shared package; Worksheet untouched) | 2026-08-09 | 50d6699 | Verified | [260809-so1-survey-offline-photo-capture](./quick/260809-so1-survey-offline-photo-capture/) |
 
 ## Session 2026-07-09 to 2026-07-10 — Jetbuilt redesign + full re-audit closure
 
