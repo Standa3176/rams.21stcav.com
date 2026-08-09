@@ -42,8 +42,9 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
 ### Phases
 
 - [x] **Phase 21: Device Port Catalog + Stencil Cache** — `device_ports` + `device_stencils` tables; hand-curated top-50 device seed pack; auto-generic placeholder for uncatalogued parts; cross-project caching via `firstOrCreate` on part_number; manufacturer logo glyphs for top 20 brands. Foundation for all other phases. ✅ COMPLETE 2026-05-10 (3/3 plans, ~43 min total exec time).
-- [ ] **Phase 22: Cable Schedule with Port-Level FKs** — `source_port_id` + `dest_port_id` columns on `cable_schedule_items`; cascading dropdown UI (room → device → port); connector-compatibility validation; auto-derive from quote `cable_list` "X to Y" naming where unambiguous; one-shot backfill command. Depends on Phase 21. Estimate: 2–3 weeks.
-- [ ] **Phase 23: XTEN-AV-Style Renderer** — custom device-card stencils with port rails; port-to-port cable routing; signal-type colour coding (audio/video/control/network/USB); cable ID labels; sub-room zones (RACK / CEILING / etc) auto-derived + engineer-overridable; multi-page paginator (system + audio + video + control sub-sheets); standardised title block; sheet border. Depends on Phase 21+22. Estimate: 2–4 weeks (faster via draw.io vs ~4–5 weeks native). **7 plans, 4 waves** (planned 2026-05-13).
+- [x] **Phase 22: Cable Schedule with Port-Level FKs** ✅ COMPLETE 2026-05-12 (3/3 plans) — `source_port_id` + `dest_port_id` columns on `cable_schedule_items`; cascading dropdown UI (room → device → port); connector-compatibility validation; auto-derive from quote `cable_list` "X to Y" naming where unambiguous; one-shot backfill command. Depends on Phase 21. Estimate: 2–3 weeks.
+- [x] **Phase 22.1: RAMS Scope/Room-Data Consolidation** ✅ COMPLETE 2026-05-13 (7/7 plans) — inserted phase; eliminates field-duplication across the 3-stage RAMS pipeline (`form_data` → `reviewed_data` → `generated_data`). Backward-compatible `generated_data` shape; backfill migration; dead-path removal. Survey↔RAMS sync + `Project.works_description` propagation deferred to Phase 22.2. See detail section below.
+- [x] **Phase 23: XTEN-AV-Style Renderer** ✅ COMPLETE 2026-05-15 (7/7 plans, 4 waves) — custom device-card stencils with port rails; port-to-port cable routing; signal-type colour coding (audio/video/control/network/USB); cable ID labels; sub-room zones (RACK / CEILING / etc) auto-derived + engineer-overridable; multi-page paginator (system + audio + video + control sub-sheets); standardised title block; sheet border. Depends on Phase 21+22. Estimate: 2–4 weeks (faster via draw.io vs ~4–5 weeks native). **7 plans, 4 waves** (planned 2026-05-13).
 - [ ] **Phase 24: Stencil Curation UI + Quote-Import Auto-Stub** — quote-import auto-stub flow seeds `device_stencils` + category-default `device_ports` for every new part_number seen in `line_items`; admin route + edit screen for upgrading auto-generic stencils to engineer-curated ones; drag-port handles, label inputs, manufacturer-logo upload; "promote" action flips `device_stencils.source` from auto-generated → engineer-curated; cross-project propagation automatic via cache lookup. Closes the Phase 21 Tier 1 gap (audit 2026-05-15: 5/96 = 5% coverage). Depends on Phase 21 + Phase 22. Estimate: 2–3 weeks.
 - [ ] **Phase 25: AI Assist + Replacement Wiring** — Claude vision over manufacturer datasheet PDFs → port JSON → engineer review/approve flow (covers long-tail devices); chat-edit operations on rendered drawings (`move_device_to_zone`, `add_cable_between_ports`, etc.) bounded by canonical-data validity; bound PDF (v1.3 Phase 20) + O&M Manual auto-embed (v1.3 Phase 17) swap from D2 output to engineering-grade output for projects with sufficient catalog coverage. Depends on Phase 21+22+23. Estimate: 2–3 weeks.
 
@@ -63,7 +64,8 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
 - Native-build alternative (rejected — kept for diff): memory note `v2_engineering_grade_drawings_plan.md`
 - Spike seed data: `resources/data/draw-io-stencils/21cav-mtr-spike.json` (5 hand-coded MTR stencils — promoted to seed for Phase 21)
 
-### Phase 21 Detail (planned 2026-05-10)
+### Phase 21: Device Port Catalog + Stencil Cache
+<sub>✅ COMPLETE 2026-05-10 (3/3 plans) · planned 2026-05-10</sub>
 
 **Goal:** Lay the device_ports + device_stencils tables, the firstOrCreate cross-project cache, the auto-generic Tier 1 placeholder generator, the hand-curated top-50 seed pack, the top-20 manufacturer logos, and the generalised draw.io builder reading from the new tables. Foundation for Phases 22-25.
 
@@ -121,6 +123,21 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
   - `app/Models/RamsDocument.php` (form_data / extracted_data / reviewed_data / generated_data shape contracts)
   - `app/Core/AI/Prompts/MethodStatementPrompt.php` (the only AI prompt in scope)
   - CLAUDE.md (project constraints: AI is ONLY allowed for formatting and method statement structuring - never for inventing scope)
+
+### Phase 23: XTEN-AV-Style Renderer
+<sub>✅ COMPLETE 2026-05-15 (7/7 plans, 4 waves)</sub>
+
+**Goal**: Custom device-card stencils with port rails; port-to-port cable routing reading Phase 22's `source_port_id`/`dest_port_id` FKs; signal-type colour coding (audio/video/control/network/USB); cable ID labels; sub-room zones (RACK / CEILING / etc) auto-derived + engineer-overridable; multi-page paginator (system + audio + video + control sub-sheets); standardised title block; sheet border. Built via draw.io/mxGraph rather than native SVG.
+
+**Depends on**: Phase 21 (device_ports + DeviceStencilCacheService) + Phase 22 (cable_schedule_items port FKs)
+
+**Plans:** 7 plans, 4 waves (planned 2026-05-13, shipped 2026-05-15)
+
+- [x] 23-01 through 23-07 — device-card stencils + port rails, zone derivation + engineer override, signal-type colour system, port-to-port router, multi-page paginator, review zone dropdown UX, final verification + D-01..D-10 / DRAW-42..49 closure. See `.planning/phases/23-xten-av-style-renderer/` SUMMARY files.
+
+**Requirements**: DRAW-42..49
+
+**Verification**: `23-VERIFICATION.md` — D-01..D-10 + DRAW-42..49 disposition/closure log (2026-05-15). D-10 colour UAT scaffolded.
 
 ### Phase 24: Stencil Curation UI + Quote-Import Auto-Stub
 **Goal**: Close the Phase 21 Tier 1 coverage gap (audit 2026-05-15 found only 5 of 96 seeded stencils carry full port data — the 91 stubs in `_v1.3-promoted.json` + `_top-50-gap.json` have manufacturer/model/mxgraph but zero `device_ports` rows, so AI port-pair proposals can't run on real projects). This phase ships two complementary mechanisms: (1) a quote-import auto-stub flow that calls `DeviceStencilCacheService::firstOrCreate` for every new part_number seen in `line_items` during `ExtractQuoteJob`, seeding category-derived port templates (Display → 1× HDMI in + 1× HDMI out; Bracket → no ports; Switch → N× RJ45; etc.) and flagging `source = auto-generated` + `needs_review = true`; and (2) an admin stencil curation UI at `/admin/stencils` with a list view filterable by source + needs_review, a per-stencil edit screen with drag-port handles, label inputs, manufacturer-logo upload, and a "promote" action flipping `device_stencils.source` to `engineer-curated`. Cross-project propagation happens automatically via Phase 21's `firstOrCreate` cache lookup — once a stencil is promoted, every project using that part_number sees the new ports on next render. Tier 1 fill itself is engineer labour (per-stencil datasheet review) — this phase ships the tools that make the labour tractable; the AI-assisted port extraction layer remains Phase 25 scope. Strictly additive: legacy projects using uncatalogued part_numbers continue to render via the auto-generic Tier 1 placeholder from Phase 21.
