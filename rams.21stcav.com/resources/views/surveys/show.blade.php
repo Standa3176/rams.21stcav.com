@@ -2128,36 +2128,53 @@ function surveyWizard() {
         },
 
         // ── Photo upload ──────────────────────────────────────────────────────
+        // quick-260809-so1 — offline-first capture via the shared engineer
+        // offline-capture partial (window.convertToJpegBlobSafe + OfflineQueue).
+        // Re-encode HEIC->JPEG first, then attempt the upload; on OFFLINE or a
+        // failed POST the photo is persisted to IndexedDB and auto-retried on
+        // reconnect instead of being silently dropped.
+        // NOTE: a photo drained in the BACKGROUND from a prior offline session
+        // won't appear in Alpine `photos` until the page reloads — acceptable,
+        // and it matches the Worksheet's reload model.
         async uploadPhoto(roomId, input) {
             const file = input.files[0];
             if (!file) return;
             const category = input.dataset.category || '';
-            const formData = new FormData();
-            formData.append('photo',    file);
-            formData.append('category', category);
-            try {
-                const resp = await fetch(
-                    '/survey/' + this.token + '/rooms/' + roomId + '/photos',
-                    {
+            const endpoint = '/survey/' + this.token + '/rooms/' + roomId + '/photos';
+            const csrf     = document.querySelector('meta[name="csrf-token"]').content;
+            const blob = await window.convertToJpegBlobSafe(file);
+            const originalName = (file.name || 'survey-photo.jpg').replace(/\.[^.]+$/, '') + '.jpg';
+
+            if (navigator.onLine) {
+                try {
+                    const formData = new FormData();
+                    formData.append('photo',    blob, originalName);
+                    formData.append('category', category);
+                    const resp = await fetch(endpoint, {
                         method:  'POST',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                        },
-                        body: formData,
-                    }
-                );
-                const res = await resp.json();
-                if (res.id && this.currentRoom) {
-                    // Push into canonical photos array with full shape so the
-                    // caption editor can mutate it without a page reload.
-                    this.rooms[this.currentRoomIdx].photos.push({
-                        id:        res.id,
-                        type:      res.category ?? category,
-                        caption:   res.caption ?? '',
-                        file_path: res.url ?? '',
+                        headers: { 'X-CSRF-TOKEN': csrf },
+                        body:    formData,
                     });
+                    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                    const res = await resp.json();
+                    if (res.id && this.currentRoom) {
+                        // Push into canonical photos array with full shape so the
+                        // caption editor can mutate it without a page reload.
+                        this.rooms[this.currentRoomIdx].photos.push({
+                            id:        res.id,
+                            type:      res.category ?? category,
+                            caption:   res.caption ?? '',
+                            file_path: res.url ?? '',
+                        });
+                    }
+                } catch (_) {
+                    // Online attempt failed — persist for auto-retry, don't lose it.
+                    try { await window.OfflineQueue.enqueue({ token: this.token, endpoint, blob, originalName, fields: { category } }); } catch (_) {}
                 }
-            } catch (_) {}
+            } else {
+                // Offline — save on device; the queue auto-uploads on reconnect.
+                try { await window.OfflineQueue.enqueue({ token: this.token, endpoint, blob, originalName, fields: { category } }); } catch (_) {}
+            }
             input.value = '';
         },
 
@@ -2243,6 +2260,10 @@ function surveyWizard() {
     };
 }
 </script>
+
+{{-- quick-260809-so1 — shared offline-first photo capture (queue + HEIC re-encode).
+     Defines window.OfflineQueue / convertToJpegBlobSafe used by uploadPhoto(). --}}
+@include('partials._engineer-offline-capture')
 
 </body>
 </html>
