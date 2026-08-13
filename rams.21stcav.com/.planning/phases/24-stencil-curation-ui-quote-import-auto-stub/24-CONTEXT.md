@@ -159,6 +159,30 @@ DRAW-50 specifies `/admin/device-stencils`; the Phase 24 goal text says `/admin/
 
 Route names: `admin.device-stencils.index` / `.edit` / `.update` / `.promote` / `.preview`. Sits inside the existing `Route::middleware('admin')->group()` block in `routes/web.php` (~line 251).
 
+### Decisions added after research (2026-08-13)
+
+`24-RESEARCH.md` surfaced two gaps this CONTEXT.md had left open. Both were put to the user and are now LOCKED.
+
+**D-15 — Logo upload adds a `logo_path` column + file storage**
+
+The migration adds a nullable `logo_path` to `device_stencils` alongside the existing `logo_svg` (longText). Research confirmed `logo_svg` is inline-SVG-text-only with no file-path column, so DRAW-52's stated "PNG/SVG" scope could not be delivered as-is.
+
+This follows the convention Phase 21 D-06 already established — manufacturer logos live as files at `public/img/manufacturers/{slug}.svg`, resolved at render time by `ManufacturerLogoResolver` rather than at seed time. Per-stencil uploads join that convention.
+
+Rejected: SVG-only (knowingly under-delivers DRAW-52); PNG-as-base64-data-URI inside `logo_svg` (bloats a text column with binary, and would require carving an exception into `SvgSanitizerService`, which strips `data:` schemes deliberately as an XSS defence — see the WR-04 audit finding in its docblock).
+
+D-12 still holds in full: every uploaded SVG routes through `SvgSanitizerService`. PNG uploads use Laravel's `'file', 'image', 'max:<KB>'` validation rules, mirroring `app/Http/Controllers/SiteSurveyController.php:456`.
+
+**D-16 — The preview endpoint returns RENDERED SVG**
+
+The debounced preview endpoint performs the XML→SVG render server-side and returns SVG, which the browser swaps into the preview pane. This matches D-02's literal contract and keeps the edit screen free of any draw.io runtime.
+
+Rejected: returning mxGraph XML to a read-only client-side draw.io embed. That would have been lighter server-side and could reuse the existing spike-route embed pattern, and it arguably honours D-02's intent (draw.io renders the genuine XML — not a re-implementation). It was declined in favour of the literal contract and a dumber client. The research flagged this as an explicit decision not to be deferred to the executor; it is now settled here.
+
+**Open item left to the planner:** research question 3 in `24-RESEARCH.md` asks whether the preview needs the full `DrawIoBuilderService` or only `AutoGenericStencilGenerator`. The researcher's reading — that D-02's "real builder" clause refers to whichever generator produced the *original* XML, not necessarily the one rendering the *preview* — is sound. The planner should settle it explicitly and record the choice.
+
+**Correction to this document from research:** the `<code_context>` section below cites `review.blade.php`'s `equipmentSection()` as the Alpine precedent for the port table. Research found it a poor fit — it is DOM-toggle-based, not reactive JS state, and the live preview needs reactivity. Use `resources/views/components/survey/repeater-equipment.blade.php` (`x-for` / `x-model` over a reactive array) as the precedent instead.
+
 </decisions>
 
 <canonical_refs>
