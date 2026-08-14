@@ -304,6 +304,14 @@ Route::middleware('auth')->group(function () {
         Route::post('/admin/device-stencils/{deviceStencil}/preview', [DeviceStencilController::class, 'preview'])
             ->name('admin.device-stencils.preview');
 
+        // Plan 24-05 (DRAW-51): port-table edit screen + batched Save.
+        // `edit` is also a suffix segment after {deviceStencil}, same
+        // no-collision reasoning as `preview` above.
+        Route::get('/admin/device-stencils/{deviceStencil}/edit', [DeviceStencilController::class, 'edit'])
+            ->name('admin.device-stencils.edit');
+        Route::put('/admin/device-stencils/{deviceStencil}', [DeviceStencilController::class, 'update'])
+            ->name('admin.device-stencils.update');
+
         // ── Device Cable Rules — Tier 3-D data-driven cable inference ────────
         // Full CRUD on the priority-ordered rule set consumed by
         // CableScheduleGeneratorService::inferCableRun(). show route omitted
