@@ -195,7 +195,11 @@ The risk is concrete. The five hand-curated spike stencils — ClickShare Bar Pr
 
 The exact treatment — hard block vs confirm-to-proceed, and whether the original `mxgraph_xml` is snapshotted into `device_stencil_audits` for restore — is an implementation choice for the 24-05 amendment, but the audit table already carries a before/after snapshot per D-03, so preserving the prior XML there is close to free.
 
-**Status:** Plan 24-05 has NOT yet been amended for this. It must be updated before Wave 4 runs. Waves 1-3 are unaffected.
+**Status:** ✅ AMENDED 2026-08-14, before Wave 4 ran. `24-05-PLAN.md` Task 1 now blocks the save server-side unless `confirm_regenerate` is present, and writes the prior `mxgraph_xml` into `device_stencil_audits.before_snapshot` so the artwork stays recoverable; Task 2 adds the warning banner and the explicit confirm step. Three guard tests (5, 6, 7) were added, including one asserting the ordinary `auto-generated` path keeps its zero-friction single-click save.
+
+**Resolved treatment:** confirm-to-proceed, not a hard block — because the audit snapshot makes the prior artwork recoverable, so the destruction is reversible rather than permanent.
+
+**Known and intended consequence:** any edit writes an audit row, which makes that stencil permanently ineligible for `stencils:reapply-templates` (D-08 skips anything with audit rows). Once an engineer has touched a stencil, automated re-templating must never reach it again.
 
 </decisions>
 
