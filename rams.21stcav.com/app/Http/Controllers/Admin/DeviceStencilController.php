@@ -137,21 +137,36 @@ class DeviceStencilController extends Controller
      * An unconfirmed save against an `engineer-curated` stencil persists
      * NOTHING and bounces back with a warning flash instead.
      *
+     * UAT Gap 2 (24-11): the guard ALSO requires the stencil to currently
+     * have at least one saved `device_ports` row. UAT found 91 of the 96
+     * `engineer-curated` stencils in the real catalogue are bare zero-port
+     * stubs sharing that `source` value with no artwork to protect — firing
+     * the guard on all 96 contradicted D-17's own "zero added friction for
+     * the ordinary stub-curation path" requirement. Known, intended
+     * consequence: the FIRST time an engineer adds ports to one of those 91
+     * stubs, the guard does not fire (single-click save, no confirm
+     * needed) — but editing that same stencil AGAIN once ports exist now
+     * fires the guard on that second edit, exactly as it would for
+     * genuinely hand-curated artwork, because at that point there IS saved
+     * content worth protecting.
+     *
      * When the guard passes (source is not engineer-curated, OR the
-     * engineer explicitly confirmed via `confirm_regenerate`), the prior
-     * mxgraph_xml + ports are captured BEFORE mutation and written into a
-     * device_stencil_audits row (D-03) — every successful save is audited,
-     * not just the curated-artwork-replacement case, so the prior state is
-     * always recoverable. Known and intended consequence (D-08): any audit
-     * row makes this stencil permanently ineligible for
+     * stencil has no existing ports, OR the engineer explicitly confirmed
+     * via `confirm_regenerate`), the prior mxgraph_xml + ports are captured
+     * BEFORE mutation and written into a device_stencil_audits row (D-03)
+     * — every successful save is audited, not just the
+     * curated-artwork-replacement case, so the prior state is always
+     * recoverable. Known and intended consequence (D-08): any audit row
+     * makes this stencil permanently ineligible for
      * `stencils:reapply-templates` — once a human has touched a stencil's
      * ports, automated re-templating must never reach it again.
      *
      * @see .planning/phases/24-stencil-curation-ui-quote-import-auto-stub/24-CONTEXT.md (D-17)
+     * @see .planning/phases/24-stencil-curation-ui-quote-import-auto-stub/24-UAT.md (Gap 2)
      */
     public function update(UpdateDeviceStencilPortsRequest $request, DeviceStencil $deviceStencil, AutoGenericStencilGenerator $generator): RedirectResponse
     {
-        if ($deviceStencil->source === DeviceStencil::SOURCE_ENGINEER_CURATED && ! $request->boolean('confirm_regenerate')) {
+        if ($deviceStencil->source === DeviceStencil::SOURCE_ENGINEER_CURATED && $deviceStencil->ports()->exists() && ! $request->boolean('confirm_regenerate')) {
             return redirect()
                 ->route('admin.device-stencils.edit', $deviceStencil)
                 ->withInput()
