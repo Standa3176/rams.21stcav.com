@@ -1,0 +1,273 @@
+@extends('layouts.app')
+
+@section('title', 'Edit Stencil')
+
+@push('styles')
+<style>
+/*
+ * Device Stencil edit — Phase 24 Plan 05 (DRAW-51). Two-column layout is
+ * genuinely new markup — no existing admin screen has this shape (UI-SPEC
+ * Component Inventory point 3). Port-table card + preview card both inherit
+ * the shared .card 20px 22px padding (app.blade.php:490) unmodified.
+ */
+
+.stc-edit-grid {
+    display: grid;
+    grid-template-columns: 60% 40%;
+    gap: 20px;
+    align-items: start;
+}
+.stc-edit-preview {
+    position: sticky;
+    top: 84px; /* clears the fixed .app-header + sticky .edit-action-bar */
+}
+
+/* UI-SPEC Component Inventory point 3 — stack to single column under 900px. */
+@media (max-width: 900px) {
+    .stc-edit-grid {
+        grid-template-columns: 1fr;
+    }
+    .stc-edit-preview {
+        position: static;
+    }
+}
+
+.stc-guard-banner {
+    margin-bottom: 16px;
+}
+
+.stc-preview-state {
+    font-size: var(--fs-small);
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+.stc-preview-frame {
+    border: 1px solid var(--ink-200);
+    border-radius: var(--radius-sm);
+    background: var(--surface-soft);
+    padding: 12px;
+    min-height: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.stc-preview-frame svg { max-width: 100%; height: auto; }
+.stc-preview-frame[data-loading="true"] { opacity: .5; }
+
+.stc-footer-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 16px;
+}
+</style>
+@endpush
+
+@push('scripts')
+<script>
+/*
+ * Root Alpine component for the stencil edit screen (Phase 24 Plan 05,
+ * D-01/D-02). ports[] is the single source of truth (D-01 — NOT
+ * drag-on-canvas). $watch fires the 600ms-debounced, AbortController-
+ * cancelled preview POST against admin.device-stencils.preview (D-16 —
+ * returns rendered SVG, not mxGraph XML) every time the array changes.
+ * 600ms is copied verbatim from resources/views/surveys/show.blade.php's
+ * debouncedAutosave() — deliberately NOT the 200ms ⌘K-search value, because
+ * this triggers a real network round-trip through the server-side builder
+ * (D-02: "the preview must not be able to lie").
+ */
+function stencilPortEditor(initialPorts, previewUrl) {
+    return {
+        ports: initialPorts || [],
+        previewSvg: null,
+        previewState: 'idle', // idle | loading | clean | error
+        _previewAbort: null,
+        _debounceTimer: null,
+
+        init() {
+            this.$watch('ports', () => this.debouncedPreview(), { deep: true });
+            this.runPreview();
+        },
+
+        addPort() {
+            this.ports.push({
+                label: '',
+                side: 'left',
+                connector_type: '',
+                signal_type: '',
+                direction: 'io',
+                sort_order: this.ports.length + 1,
+                port_id: '',
+                x_pct: null,
+                y_pct: null,
+            });
+        },
+
+        removePort(idx) {
+            this.ports.splice(idx, 1);
+        },
+
+        debouncedPreview() {
+            if (this._debounceTimer) clearTimeout(this._debounceTimer);
+            this._debounceTimer = setTimeout(() => {
+                this.runPreview();
+            }, 600);
+        },
+
+        async runPreview() {
+            // Cancel a superseded in-flight request so a late response can
+            // never clobber a newer one.
+            if (this._previewAbort) {
+                this._previewAbort.abort();
+            }
+            const controller = new AbortController();
+            this._previewAbort = controller;
+            this.previewState = 'loading';
+
+            try {
+                const resp = await fetch(previewUrl, {
+                    method: 'POST',
+                    signal: controller.signal,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        'Accept': 'image/svg+xml',
+                    },
+                    body: JSON.stringify({ ports: this.ports }),
+                });
+                if (!resp.ok) {
+                    throw new Error('Preview request failed with status ' + resp.status);
+                }
+                this.previewSvg = await resp.text();
+                this.previewState = 'clean';
+            } catch (err) {
+                if (err && err.name === 'AbortError') {
+                    // Superseded request, not a real failure — swallow silently.
+                    return;
+                }
+                // Never blank the pane on failure — keep the last good
+                // render visible beneath the error banner (UI-SPEC Copy
+                // Contract: "Preview failed to render — showing the last
+                // successful preview.").
+                this.previewState = 'error';
+            }
+        },
+
+        rowTintClass(port) {
+            const blocking = !port.label || !port.connector_type || !port.signal_type || !port.direction;
+            if (blocking) return 'stc-port-row--danger';
+
+            const warning = port.signal_type === 'unclassified' || (!port.x_pct && !port.y_pct);
+            if (warning) return 'stc-port-row--warning';
+
+            return '';
+        },
+    };
+}
+</script>
+@endpush
+
+@section('content')
+<x-edit-action-bar :cancel-url="route('admin.device-stencils.index')">
+    <x-slot name="title">
+        {{ trim(($stencil->manufacturer ?? '') . ' ' . ($stencil->model ?? '')) ?: 'Stencil #'.$stencil->id }}
+    </x-slot>
+</x-edit-action-bar>
+
+@if (session('success'))
+    <div class="alert alert-success">{{ session('success') }}</div>
+@endif
+@if (session('warning'))
+    <div class="alert alert-warning">{{ session('warning') }}</div>
+@endif
+@if ($errors->any())
+    <div class="alert alert-error">
+        <ul style="margin:0;padding-left:1.1rem;">
+            @foreach ($errors->all() as $err)
+                <li>{{ $err }}</li>
+            @endforeach
+        </ul>
+    </div>
+@endif
+
+@php
+    $isCurated = $stencil->source === \App\Models\DeviceStencil::SOURCE_ENGINEER_CURATED;
+@endphp
+
+<div class="stc-edit-grid"
+     x-data="stencilPortEditor(@json($stencil->ports->toArray()), '{{ route('admin.device-stencils.preview', $stencil) }}')">
+
+    {{-- ── Left column (~60%) — port table, source of truth (D-01) ────────── --}}
+    <div>
+        {{-- ⚠ D-17 GUARD — UI half. Persistent warning banner for an
+             engineer-curated stencil; no banner at all for every other
+             source value (the ordinary stub-curation path stays a
+             zero-friction single-click save). --}}
+        @if ($isCurated)
+            <div class="alert alert-warning stc-guard-banner">
+                This stencil has engineer-curated artwork. Saving will replace it with a generated shape. The previous version is kept in the audit trail.
+            </div>
+        @endif
+
+        <form method="POST"
+              action="{{ route('admin.device-stencils.update', $stencil) }}"
+              id="stencil-ports-form"
+              x-ref="form"
+              @submit="if ({{ $isCurated ? 'true' : 'false' }} && $refs.confirmField.value !== '1') { $event.preventDefault(); }">
+            @csrf
+            @method('PUT')
+            <input type="hidden" name="confirm_regenerate" x-ref="confirmField" value="">
+
+            @include('admin.device-stencils._port-table')
+
+            <div class="stc-footer-actions">
+                @if ($isCurated)
+                    {{-- Explicit confirm step, set imperatively on the hidden
+                         field BEFORE submit — never via a reactive :value
+                         binding, so there is no timing race between Alpine's
+                         DOM patch and the browser's form serialisation. An
+                         accidental Enter-key submit hits the @submit guard
+                         above and is blocked because confirmField.value is
+                         still empty. --}}
+                    <button type="submit" class="btn btn-teal"
+                            @click.prevent="
+                                if (window.confirm('This stencil is engineer-curated. Saving will replace its existing artwork with a generated shape. Continue?')) {
+                                    $refs.confirmField.value = '1';
+                                    $refs.form.submit();
+                                }
+                            ">
+                        Save Ports
+                    </button>
+                @else
+                    <button type="submit" class="btn btn-teal">Save Ports</button>
+                @endif
+                <a href="{{ route('admin.device-stencils.index') }}" class="btn btn-outline btn-sm">Cancel</a>
+            </div>
+
+            {{-- Promote to Engineer-Curated / Discard & Regenerate ship in
+                 Plan 24-07 — same footer row, same controller class. --}}
+        </form>
+    </div>
+
+    {{-- ── Right column (~40%), sticky — live server-rendered preview (D-02/D-16) ── --}}
+    <div class="card stc-edit-preview">
+        <div class="section-heading">Live Preview</div>
+
+        <div class="stc-preview-state">
+            <span x-show="previewState === 'loading'" style="opacity:.5;">Rendering…</span>
+            <span x-show="previewState === 'clean'">Up to date</span>
+            <span x-show="previewState === 'idle'">&nbsp;</span>
+        </div>
+
+        <div x-show="previewState === 'error'" class="alert alert-error" style="margin-bottom:12px;">
+            Preview failed to render — showing the last successful preview.
+        </div>
+
+        <div class="stc-preview-frame" :data-loading="previewState === 'loading'">
+            <div x-show="previewSvg" x-html="previewSvg"></div>
+            <span x-show="!previewSvg" class="stc-muted">No preview yet.</span>
+        </div>
+    </div>
+
+</div>
+@endsection
