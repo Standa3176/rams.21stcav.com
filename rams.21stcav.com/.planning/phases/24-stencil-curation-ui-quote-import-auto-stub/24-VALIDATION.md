@@ -2,7 +2,7 @@
 phase: 24
 slug: stencil-curation-ui-quote-import-auto-stub
 status: draft
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-08-13
 ---
@@ -54,7 +54,7 @@ Task IDs resolve during planning; this map binds each requirement and success cr
 | Criterion 3 | Full admin flow: browse → edit ports → upload logo → promote | V4 + V5 | — | feature | `php artisan test --filter=DeviceStencilCurationFlowTest` | ❌ W0 | ⬜ pending |
 | Criterion 4 | Render project A with stub → promote → re-render → new ports surface | — | — | integration | `php artisan test --filter=StencilPromotionPropagationTest` | ❌ W0 | ⬜ pending |
 | Criterion 5 | Top-10 bounded Tier 1 fill | — | — | **manual-only** (see below) | `php artisan stencils:coverage-report` (evidence only) | ❌ W0 | ⬜ pending |
-| Criterion 6 | Tier 2 no-regression: uncatalogued devices still render the bare 21 D-04 placeholder (no `<connections>`); D-07 NULL-FK cable fallback unchanged | Untrusted strings → mxGraph text nodes | New interpolated text (port labels, connector glyphs) routes through the existing `AutoGenericStencilGenerator::xml()` escaper — **do not add a second escaping path** | feature (regression) | `php artisan test --filter=AutoGenericStencilGeneratorTest` | check `tests/Feature/Drawings/` first — extend, don't duplicate | ⬜ pending |
+| Criterion 6 | Tier 2 no-regression: uncatalogued devices still render the bare 21 D-04 placeholder (no `<connections>`); D-07 NULL-FK cable fallback unchanged | Untrusted strings → mxGraph text nodes | New interpolated text (port labels, connector glyphs) routes through the existing `AutoGenericStencilGenerator::xml()` escaper — **do not add a second escaping path**; provisional rail styling uses the real mxGraph `<dashed>`/`<strokealpha>` state-element grammar, never invented `stroke-dasharray`/`opacity` attributes (plan-checker correction, 2026-08-13) | feature (regression) | `php artisan test --filter=AutoGenericStencilGeneratorTest` | check `tests/Feature/Drawings/` first — extend, don't duplicate | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -85,12 +85,12 @@ Task IDs resolve during planning; this map binds each requirement and success cr
 
 ## Validation Sign-Off
 
-- [ ] All tasks have an `<automated>` verify command or a declared Wave 0 dependency
-- [ ] Sampling continuity: no 3 consecutive tasks without an automated verify
-- [ ] Wave 0 covers all ❌ MISSING references above
-- [ ] No watch-mode flags in any command
-- [ ] Feedback latency < 20s at task granularity
-- [ ] D-10 backfill migration verified PHP-based, not raw SQL JSON (SQLite/MySQL divergence)
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have an `<automated>` verify command or a declared Wave 0 dependency
+- [x] Sampling continuity: no 3 consecutive tasks without an automated verify
+- [x] Wave 0 covers all ❌ MISSING references above
+- [x] No watch-mode flags in any command
+- [x] Feedback latency < 20s at task granularity
+- [x] D-10 backfill migration verified PHP-based, not raw SQL JSON (SQLite/MySQL divergence)
+- [x] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending
