@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
-status: Session save 2026-08-14 — Phase 24 Plan 03 (Wave 2, admin device-stencils list view, DRAW-50) landed; Wave 3 (Plan 24-04) unblocked
-stopped_at: Phase 24 Plan 02 LANDED (Wave 2 of 7, QuoteImportStencilStubber wired into all 3 quote-import call sites) — Wave 3 (Plan 24-03, admin list view) unblocked and ready to execute.
-last_updated: "2026-08-14T11:41:28.476Z"
-last_activity: "2026-08-14 — Completed Phase 24 Plan 03: DeviceStencilController::index() + admin/device-stencils/index.blade.php list view + nav entry (DRAW-50)."
+status: Session save 2026-08-14 — Phase 24 Plan 08 (Wave 2, stencils:reapply-templates D-08 + stencils:coverage-report CLI tooling) landed; Wave 3 (Plans 24-04..24-07, 24-09) remains
+stopped_at: Phase 24 Plan 08 LANDED (Wave 2 of 7, D-08 dry-run/--commit re-template escape hatch + live-DB coverage-report ranking) — Wave 3 (Plan 24-04, curation UI edit/save) unblocked and ready to execute.
+last_updated: "2026-08-14T11:51:02.000Z"
+last_activity: "2026-08-14 — Completed Phase 24 Plan 08: stencils:reapply-templates (D-08 safety conjunction, dry-run default) + stencils:coverage-report (live-DB Tier 1/2 ranking, Phase 21 D-15 independence), 12 feature tests."
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 36
-  completed_plans: 30
-  percent: 78
+  completed_plans: 31
+  percent: 86
 ---
 
 ## Project Reference
@@ -23,13 +23,13 @@ See: .planning/PROJECT.md (updated 2026-04-30)
 
 ## Current Position
 
-Milestone: v2.0 (Engineering-Grade AV Drawings) — IN PROGRESS. Phases 17, 18, 20, 21, 22, 22.1, 23 all COMPLETE on disk; Phase 24 IN PROGRESS (Plan 03/9 landed, Wave 2 of 7); Phase 25 remains unplanned. (Phase 999.1 = deferred backlog.)
-Active work: Phase 24 (Stencil Curation UI + Quote-Import Auto-Stub) — Plan 24-03 (Wave 2, admin device-stencils list view, DRAW-50) shipped 2026-08-14. Wave 3 (Plans 24-04..24-09) remains.
+Milestone: v2.0 (Engineering-Grade AV Drawings) — IN PROGRESS. Phases 17, 18, 20, 21, 22, 22.1, 23 all COMPLETE on disk; Phase 24 IN PROGRESS (Plans 01/02/03/08 of 9 landed, Wave 2 of 7); Phase 25 remains unplanned. (Phase 999.1 = deferred backlog.)
+Active work: Phase 24 (Stencil Curation UI + Quote-Import Auto-Stub) — Plan 24-03 (admin device-stencils list view, DRAW-50) and Plan 24-08 (stencils:reapply-templates D-08 + stencils:coverage-report CLI tooling, ran parallel to 24-02/24-03) both shipped 2026-08-14. Wave 3 (Plans 24-04..24-07, 24-09) remains.
 Reconciliation: 2026-08-09 — STATE synced to disk truth. Earlier STATE claimed "PAUSED at Phase 23 sub-plan 1", but Phase 23 shipped 7/7 plans on 2026-05-15 (commit 23-07). ROADMAP checkboxes for Phases 22 + 23 corrected to [x] in the same pass.
 Outstanding: 27 human-UAT items across 5 VERIFICATION.md files (Phases 17, 18, 20, 22, 22.1) remain `human_needed` — automated must-haves all passed; manual browser/prod sign-off pending. Run `/gsd-verify-work <phase>` to clear.
-Status: Session save 2026-08-14 — Phase 24 Plan 03 (Wave 2, admin device-stencils list view, DRAW-50) landed; Wave 3 (Plan 24-04) unblocked
-Last activity: 2026-08-14 — Completed Phase 24 Plan 03: DeviceStencilController::index() + admin/device-stencils/index.blade.php list view + nav entry (DRAW-50).
-Deploy pending: Plan 24-01's 7 code files (migration + model + 2 config/service + 3 services) STILL PENDING live deploy, PLUS Plan 24-02's 4 files (stubber service + 3 import call sites), PLUS Plan 24-03's 4 files (DeviceStencilController + index.blade.php + routes/web.php + navigation.blade.php) — `php artisan migrate` MUST run on live BEFORE Plan 24-02's or 24-03's code is deployed (both depend on 24-01's `needs_review`/`logo_path` schema). See 24-01-SUMMARY.md, 24-02-SUMMARY.md, and 24-03-SUMMARY.md "Files to upload to live" sections.
+Status: Session save 2026-08-14 — Phase 24 Plan 08 (Wave 2, stencils:reapply-templates D-08 + stencils:coverage-report CLI tooling) landed; Wave 3 (Plan 24-04) unblocked
+Last activity: 2026-08-14 — Completed Phase 24 Plan 08: stencils:reapply-templates (D-08) + stencils:coverage-report artisan commands, 12 feature tests.
+Deploy pending: Plan 24-01's 7 code files (migration + model + 2 config/service + 3 services) STILL PENDING live deploy, PLUS Plan 24-02's 4 files (stubber service + 3 import call sites), PLUS Plan 24-03's 4 files (DeviceStencilController + index.blade.php + routes/web.php + navigation.blade.php), PLUS Plan 24-08's 2 files (StencilsReapplyTemplatesCommand + StencilsCoverageReportCommand — CLI-only, no schema of their own but `stencils:reapply-templates` hard-fails without 24-01's `device_stencil_audits` table) — `php artisan migrate` MUST run on live BEFORE Plan 24-02's, 24-03's, or 24-08's code is used (all three depend on 24-01's `needs_review`/`logo_path`/`device_stencil_audits` schema). See 24-01-SUMMARY.md, 24-02-SUMMARY.md, 24-03-SUMMARY.md, and 24-08-SUMMARY.md "Files to upload to live" sections.
 
 ### Quick Tasks Completed
 
