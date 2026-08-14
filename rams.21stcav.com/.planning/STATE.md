@@ -36,6 +36,7 @@ Deploy pending: Plan 24-01's 7 code files (migration + model + 2 config/service 
 | # | Description | Date | Commit | Status | Directory |
 |---|-------------|------|--------|--------|-----------|
 | 260809-so1 | Survey offline-first photo capture via shared engineer-capture partial (seed of shared package; Worksheet untouched) | 2026-08-09 | 50d6699 | Verified | [260809-so1-survey-offline-photo-capture](./quick/260809-so1-survey-offline-photo-capture/) |
+| 260814-o8o | Quote-import review SKU column always rendered "—" for QuoteWerks imports — view read `sku` (vision-path-only key) with no fallback; fixed to `part_number ?? part_no ?? sku`, matching the house pattern elsewhere. Blade-only, no data-layer change. | 2026-08-14 | dacf6ce, ca42688 | Verified | [20260814-quote-import-sku-column](./quick/20260814-quote-import-sku-column/) |
 
 ## Session 2026-07-09 to 2026-07-10 — Jetbuilt redesign + full re-audit closure
 
