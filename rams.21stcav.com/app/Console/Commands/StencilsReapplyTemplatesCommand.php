@@ -25,17 +25,20 @@ use Illuminate\Support\Facades\Log;
  * type or fixes a wrong keyword, already-stubbed devices don't pick it up
  * automatically. This command is that opt-in re-application.
  *
- * D-11: the 92 pre-existing zero-port `metadata.needs_phase_24_curation`
- * stubs from before Phase 24 are all `source = auto-generated` with zero
- * `device_stencil_audits` rows, so they already qualify under this command's
- * eligibility rule — no separate one-shot backfill command is needed.
+ * D-11 (corrected by Plan 24-10 — the original premise was wrong): the 91
+ * pre-existing zero-port `metadata.needs_phase_24_curation` stubs from
+ * before Phase 24 are `source = engineer-curated` (Phase 21 D-05 seeding),
+ * NOT `auto-generated`. What the Plan 24-01 migration correctly backfilled
+ * for them is `needs_review = true`. That is the real, queryable signal —
+ * `source` never was.
  *
  * SAFETY (D-08, the heart of this command): eligibility is
- * `source = auto-generated` AND `whereDoesntHave('audits')`. ANY audit row
- * (promote / edit / discard-regenerate — Plan 24-01/24-07) permanently
- * removes a stencil from this command's reach, regardless of its current
- * `source` value. This guarantees the command can never touch anything an
- * engineer has edited or promoted.
+ * `needs_review = true` AND `whereDoesntHave('audits')`. Since `source` no
+ * longer participates in the eligibility query at all, `whereDoesntHave('audits')`
+ * is now the SOLE protection against this command touching engineer-owned
+ * work — any stencil that has ever been promoted, edited, or
+ * discard-regenerated (all three write an audit row per D-03) remains
+ * permanently excluded regardless of its `source` or `needs_review` values.
  *
  * Dry-run by DEFAULT — mirrors PackagesReclassifyEquipmentCommand
  * (260725-qw3) and BackfillCablePortFksCommand (Phase 22). `--commit` opts
@@ -68,17 +71,17 @@ class StencilsReapplyTemplatesCommand extends Command
         $this->info($commit ? '── COMMIT MODE — changes will be persisted ──' : '── DRY-RUN MODE (default) — no writes ──');
         $this->newLine();
 
-        // D-08 eligibility: still source=auto-generated AND zero audit rows.
-        // See class docblock — this conjunction is the entire safety
-        // guarantee of this command.
+        // D-08 eligibility (corrected by Plan 24-10): needs_review=true AND
+        // zero audit rows. See class docblock — this conjunction is the
+        // entire safety guarantee of this command.
         $eligible = DeviceStencil::query()
-            ->where('source', DeviceStencil::SOURCE_AUTO_GENERATED)
+            ->where('needs_review', true)
             ->whereDoesntHave('audits')
             ->withCount('ports')
             ->get();
 
         if ($eligible->isEmpty()) {
-            $this->info('No eligible stencils (source=auto-generated with zero device_stencil_audits rows). Nothing to do.');
+            $this->info('No eligible stencils (needs_review=true with zero device_stencil_audits rows). Nothing to do.');
 
             return self::SUCCESS;
         }
@@ -114,6 +117,7 @@ class StencilsReapplyTemplatesCommand extends Command
             $reportRows[] = [
                 $stencil->id,
                 $stencil->part_number,
+                $stencil->source,
                 $oldPortCount,
                 $newPortCount,
             ];
@@ -156,7 +160,7 @@ class StencilsReapplyTemplatesCommand extends Command
         }
 
         $this->table(
-            ['Stencil', 'Part Number', 'Old Ports', 'New Ports'],
+            ['Stencil', 'Part Number', 'Source', 'Old Ports', 'New Ports'],
             $reportRows,
         );
 
