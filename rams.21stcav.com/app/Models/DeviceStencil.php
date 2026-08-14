@@ -46,6 +46,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $default_height
  * @property string $source SOURCE_* constant value
  * @property ?array $metadata reserved for Phase 24 curation extras
+ * @property bool $needs_review Phase 24 D-10 — indexed review-queue flag
+ * @property ?string $logo_path Phase 24 D-15 — uploaded logo file path (sibling to logo_svg)
  */
 class DeviceStencil extends Model
 {
@@ -70,12 +72,15 @@ class DeviceStencil extends Model
         'default_height',
         'source',
         'metadata',
+        'needs_review',
+        'logo_path',
     ];
 
     protected $casts = [
         'metadata'       => 'array',
         'default_width'  => 'integer',
         'default_height' => 'integer',
+        'needs_review'   => 'boolean',
     ];
 
     // ── Relationships ────────────────────────────────────────────────────────
@@ -87,6 +92,16 @@ class DeviceStencil extends Model
     public function ports(): HasMany
     {
         return $this->hasMany(DevicePort::class)->orderBy('sort_order');
+    }
+
+    /**
+     * Phase 24 D-03/D-08 — curation audit trail. `stencils:reapply-templates`
+     * uses `whereDoesntHave('audits')` to scope re-templating eligibility: a
+     * stencil with ANY audit row (promoted or hand-edited) is never touched.
+     */
+    public function audits(): HasMany
+    {
+        return $this->hasMany(DeviceStencilAudit::class);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

@@ -91,6 +91,14 @@ class DeviceStencilCacheService
                 'default_width'  => $payload['default_width'],
                 'default_height' => $payload['default_height'],
                 'source'         => DeviceStencil::SOURCE_AUTO_GENERATED,
+                // Phase 24 D-10 — single write-through for the review-queue
+                // flag. Covers BOTH this phase's import-time stubbing
+                // (QuoteImportStencilStubber, Plan 24-02) and the pre-existing
+                // Phase 21 lazy-create path (Project::devicesWithStencils(),
+                // left untouched) uniformly — no auto-generated stub, no
+                // matter which caller first references an uncatalogued
+                // part_number, silently skips the review queue.
+                'needs_review'   => true,
             ]
         );
     }
