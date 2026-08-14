@@ -157,7 +157,7 @@
                     <tbody>
                     @foreach ($lineItems as $item)
                         <tr>
-                            <td style="color:#888; white-space:nowrap;">{{ $item['sku'] ?? '' ?: '—' }}</td>
+                            <td style="color:#888; white-space:nowrap;">{{ $item['part_number'] ?? $item['part_no'] ?? $item['sku'] ?? '' ?: '—' }}</td>
                             <td>{{ $item['description'] ?? '' }}</td>
                             <td style="text-align:right;">{{ $item['qty'] ?? 1 }}</td>
                             <td style="text-align:right;">
