@@ -18,6 +18,16 @@ use Tests\TestCase;
  * mxgraph_xml regeneration in the same request (Pitfall 2 parity), and the
  * D-17 guard (tests 5, 6, 7).
  *
+ * Plan 24-11 (UAT Gap 2, DRAW-51): the D-17 guard's `source ===
+ * engineer-curated` predicate alone fired on 91 of 96 real catalogue
+ * stencils that are bare zero-port stubs, contradicting D-17's own
+ * zero-friction requirement for the ordinary stub-curation path. Test 8
+ * proves the corrected guard requires BOTH `source === engineer-curated`
+ * AND the stencil's `ports()->exists()` — not source alone — to demand
+ * `confirm_regenerate`. Test 6's fixture was also corrected to genuinely
+ * carry a prior port, so it still proves the guard-then-bypass path
+ * engages for real, not by coincidence.
+ *
  * Task 2 locks the edit.blade.php / _port-table.blade.php pair at the
  * feature-test level this PHPUnit-only phase allows: Alpine `ports`
  * pre-population, the 600ms (not 200ms) debounce constant, a non-empty
@@ -184,6 +194,10 @@ class DeviceStencilEditTest extends TestCase
     {
         $originalXml = '<shape name="21cav.curated-original" h="140" w="220" aspect="variable" strokewidth="inherit"><background/><foreground/></shape>';
 
+        // Post-24-11: this fixture (engineer-curated WITH an existing port)
+        // represents one of the 5 genuinely artwork-bearing stencils, not
+        // "any engineer-curated stencil" generically — see Test 8 for the
+        // zero-port stub shape that the other 91 actually have.
         $stencil = $this->makeStencil([
             'source'      => DeviceStencil::SOURCE_ENGINEER_CURATED,
             'mxgraph_xml' => $originalXml,
@@ -229,6 +243,23 @@ class DeviceStencilEditTest extends TestCase
             'mxgraph_xml' => $originalXml,
         ]);
 
+        // Post-24-11: the guard's second clause requires the stencil to
+        // ALREADY have a saved port — without this, the guard would never
+        // engage under the new predicate and this test would pass for the
+        // wrong reason (guard never firing, not guard-fired-then-bypassed).
+        DevicePort::insert([
+            'device_stencil_id' => $stencil->id,
+            'label'             => 'Prior Real Port',
+            'side'              => 'left',
+            'connector_type'    => 'hdmi',
+            'signal_type'       => 'video',
+            'direction'         => 'in',
+            'sort_order'        => 1,
+            'port_id'           => 'prior-real-port',
+            'created_at'        => now(),
+            'updated_at'        => now(),
+        ]);
+
         $response = $this->actingAs($this->admin)
             ->put(route('admin.device-stencils.update', $stencil), [
                 'ports'              => $this->twoValidPorts(),
@@ -269,6 +300,38 @@ class DeviceStencilEditTest extends TestCase
 
         $stencil->refresh();
         $this->assertSame(2, $stencil->ports()->count());
+    }
+
+    // ── Test 8 (UAT Gap 2 regression) — the REAL bug: engineer-curated zero-port stub must save without confirm ──
+
+    public function test_update_against_engineer_curated_zero_port_stub_saves_without_confirm_regenerate(): void
+    {
+        // This is the literal shape of 91 of the 96 real catalogue
+        // stencils: source=engineer-curated but NO existing device_ports
+        // row, because makeStencil() inserts none by default. Under the
+        // OLD guard (source===engineer-curated alone) this exact request
+        // would have been blocked and assertSessionHas('warning') would
+        // have fired instead — that is Gap 2.
+        $stencil = $this->makeStencil([
+            'source'       => DeviceStencil::SOURCE_ENGINEER_CURATED,
+            'needs_review' => true,
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->put(route('admin.device-stencils.update', $stencil), [
+                'ports' => $this->twoValidPorts(),
+                // no confirm_regenerate — zero-port engineer-curated stubs
+                // have no artwork to protect, so this must be single-click.
+            ]);
+
+        $response->assertRedirect(route('admin.device-stencils.edit', $stencil));
+        $response->assertSessionHas('success');
+        $response->assertSessionMissing('warning');
+
+        $stencil->refresh();
+
+        $this->assertSame(2, $stencil->ports()->count());
+        $this->assertStringNotContainsString('21cav.test', $stencil->mxgraph_xml);
     }
 
     // ── Task 2: edit screen renders port table + preview pane ──
