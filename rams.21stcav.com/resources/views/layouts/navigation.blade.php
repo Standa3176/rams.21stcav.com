@@ -407,6 +407,16 @@
                 </svg>
                 Cable Rules
             </a>
+            <a href="{{ route('admin.device-stencils.index') }}"
+               class="tnav-admin-item {{ request()->routeIs('admin.device-stencils.*') ? 'active' : '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="5" y="5" width="14" height="14" rx="2"/>
+                    <line x1="1" y1="9" x2="5" y2="9"/><line x1="1" y1="15" x2="5" y2="15"/>
+                    <line x1="19" y1="9" x2="23" y2="9"/><line x1="19" y1="15" x2="23" y2="15"/>
+                    <circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/>
+                </svg>
+                Stencils
+            </a>
 
             <div class="tnav-admin-sep"></div>
 

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AIUsageController;
 use App\Http\Controllers\Admin\DeviceCableRuleController;
 use App\Http\Controllers\Admin\DeviceController;
+use App\Http\Controllers\Admin\DeviceStencilController;
 use App\Http\Controllers\Admin\SolutionTypeController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\CableScheduleController;
@@ -286,6 +287,15 @@ Route::middleware('auth')->group(function () {
             ->name('admin.devices.edit');
         Route::put('/admin/devices/{device}', [DeviceController::class, 'update'])
             ->name('admin.devices.update');
+
+        // ── Device Stencils — Phase 24 curation queue (DRAW-50) ──────────────
+        // List-only surface shipped by Plan 24-03 (Wave 2). D-14: explicit
+        // named routes only, no bare Route::resource, no create/store/destroy
+        // — stencils are only ever created by firstOrCreate (import/seed
+        // time), never by hand here. .edit/.update/.promote/.preview land in
+        // later waves (24-04+), on this same controller class.
+        Route::get('/admin/device-stencils', [DeviceStencilController::class, 'index'])
+            ->name('admin.device-stencils.index');
 
         // ── Device Cable Rules — Tier 3-D data-driven cable inference ────────
         // Full CRUD on the priority-ordered rule set consumed by
