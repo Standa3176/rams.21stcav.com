@@ -292,10 +292,17 @@ Route::middleware('auth')->group(function () {
         // List-only surface shipped by Plan 24-03 (Wave 2). D-14: explicit
         // named routes only, no bare Route::resource, no create/store/destroy
         // — stencils are only ever created by firstOrCreate (import/seed
-        // time), never by hand here. .edit/.update/.promote/.preview land in
-        // later waves (24-04+), on this same controller class.
+        // time), never by hand here. .edit/.update/.promote land in later
+        // waves (24-05+), on this same controller class.
         Route::get('/admin/device-stencils', [DeviceStencilController::class, 'index'])
             ->name('admin.device-stencils.index');
+
+        // Plan 24-04 (DRAW-51, D-16): server-rendered ports preview. `preview`
+        // is a SUFFIX segment after the {deviceStencil} capture, not a
+        // sibling literal route, so there is no literal-vs-wildcard collision
+        // risk with a future .edit route the way device-cable-rules had.
+        Route::post('/admin/device-stencils/{deviceStencil}/preview', [DeviceStencilController::class, 'preview'])
+            ->name('admin.device-stencils.preview');
 
         // ── Device Cable Rules — Tier 3-D data-driven cable inference ────────
         // Full CRUD on the priority-ordered rule set consumed by
