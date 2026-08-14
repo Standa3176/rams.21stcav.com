@@ -183,6 +183,20 @@ Rejected: returning mxGraph XML to a read-only client-side draw.io embed. That w
 
 **Correction to this document from research:** the `<code_context>` section below cites `review.blade.php`'s `equipmentSection()` as the Alpine precedent for the port table. Research found it a poor fit — it is DOM-toggle-based, not reactive JS state, and the live preview needs reactivity. Use `resources/views/components/survey/repeater-equipment.blade.php` (`x-for` / `x-model` over a reactive array) as the precedent instead.
 
+### Decision added at execution time (2026-08-14)
+
+**D-17 — Editing an engineer-curated stencil must not silently destroy hand-built artwork**
+
+During planning, the planner settled that editing ports on an already-curated stencil regenerates its visual through the template generator, on the reasoning that preview/production parity outranks preserving hand-built art. That trade-off was surfaced to the user and **overruled**: a guard is required.
+
+The risk is concrete. The five hand-curated spike stencils — ClickShare Bar Pro, Neat Bar Pro, Netgear GS312TP, Samsung QM65C-T, Sennheiser TCC2 (`resources/data/device-stencils-seed/*.json`) — are the only stencils in the catalogue with genuine hand-built mxGraph artwork. They are also the most likely to be opened and edited, being the best-covered devices. Under the planner's original behaviour, an engineer adjusting one port label would silently replace that artwork with a generated template shape.
+
+**Required before Plan 24-05 executes:** when a save would regenerate `mxgraph_xml` for a stencil whose `source` is already `engineer-curated`, the UI must warn the engineer that the existing artwork will be replaced and require explicit confirmation. Parity is preserved (the regenerated shape still matches production), but the destruction becomes a deliberate act rather than a side effect.
+
+The exact treatment — hard block vs confirm-to-proceed, and whether the original `mxgraph_xml` is snapshotted into `device_stencil_audits` for restore — is an implementation choice for the 24-05 amendment, but the audit table already carries a before/after snapshot per D-03, so preserving the prior XML there is close to free.
+
+**Status:** Plan 24-05 has NOT yet been amended for this. It must be updated before Wave 4 runs. Waves 1-3 are unaffected.
+
 </decisions>
 
 <canonical_refs>
