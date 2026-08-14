@@ -4,16 +4,19 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpdateDeviceStencilPortsRequest;
+use App\Http\Requests\Admin\UploadDeviceStencilLogoRequest;
 use App\Models\DeviceStencil;
 use App\Models\DeviceStencilAudit;
 use App\Models\DevicePort;
 use App\Services\Drawings\AutoGenericStencilGenerator;
 use App\Services\Drawings\StencilXmlToSvgRenderer;
+use App\Services\Drawings\SvgSanitizerService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 /**
@@ -22,6 +25,9 @@ use Illuminate\View\View;
  * Phase 24 Plan 05 (DRAW-51) — port-table edit screen + batched Save, with
  * the D-17 curated-artwork guard (confirm-to-proceed against an
  * `engineer-curated` stencil, audited before/after via device_stencil_audits).
+ * Phase 24 Plan 06 (DRAW-52, D-12/D-15) — per-stencil manufacturer logo
+ * upload (PNG or SVG). Every SVG is routed through SvgSanitizerService
+ * before it ever touches disk.
  *
  * Wave 2's list-only surface: filterable/searchable index of every stencil,
  * so the queue populated by Wave 1's schema + Wave 2's QuoteImportStencilStubber
@@ -221,6 +227,67 @@ class DeviceStencilController extends Controller
         return redirect()
             ->route('admin.device-stencils.edit', $deviceStencil)
             ->with('success', 'Ports saved.');
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // uploadLogo (Plan 24-06, DRAW-52, D-12/D-15)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Per-stencil manufacturer logo upload — PNG or SVG (D-15: stored as a
+     * FILE at logo_path, the legacy inline logo_svg text column stays
+     * untouched by this action).
+     *
+     * ⚠ D-12 GUARD — every SVG upload is mandatorily routed through
+     * SvgSanitizerService::sanitize() BEFORE it is written to disk. If the
+     * sanitizer can't parse the input (returns '') the upload is rejected
+     * as a validation error — never persisted, never a 500. Raster formats
+     * (png/jpg/jpeg) carry no script-execution surface and are stored as-is
+     * once `mimes:` content-sniffing + `max:2048` (T-24-15/T-24-16) have
+     * already passed in UploadDeviceStencilLogoRequest.
+     *
+     * @see \App\Services\Drawings\SvgSanitizerService
+     * @see .planning/phases/24-stencil-curation-ui-quote-import-auto-stub/24-CONTEXT.md (D-12, D-15)
+     */
+    public function uploadLogo(
+        UploadDeviceStencilLogoRequest $request,
+        DeviceStencil $deviceStencil,
+        SvgSanitizerService $svgSanitizer,
+    ): RedirectResponse {
+        $file = $request->file('logo');
+        $extension = strtolower((string) $file->getClientOriginalExtension());
+
+        if ($extension === 'svg') {
+            $rawSvg = (string) file_get_contents($file->getRealPath());
+            $sanitizedSvg = $svgSanitizer->sanitize($rawSvg);
+
+            if ($sanitizedSvg === '') {
+                return redirect()
+                    ->route('admin.device-stencils.edit', $deviceStencil)
+                    ->withErrors(['logo' => 'The uploaded SVG could not be parsed.']);
+            }
+
+            Storage::disk('public')->put("device-stencils/{$deviceStencil->id}/logo.svg", $sanitizedSvg);
+        } else {
+            // png / jpg / jpeg — no sanitization needed (raster formats
+            // carry no script-execution surface). Fixed filename per
+            // stencil (not a UUID, unlike DeviceLabelPhotoService) — each
+            // stencil has at most one current logo, so an overwrite on
+            // re-upload is the correct behaviour.
+            Storage::disk('public')->putFileAs("device-stencils/{$deviceStencil->id}", $file, "logo.{$extension}");
+        }
+
+        $deviceStencil->update(['logo_path' => "/storage/device-stencils/{$deviceStencil->id}/logo.{$extension}"]);
+
+        Log::info('Admin: device stencil logo uploaded', [
+            'stencil_id' => $deviceStencil->id,
+            'admin_id'   => auth()->id(),
+            'format'     => $extension,
+        ]);
+
+        return redirect()
+            ->route('admin.device-stencils.edit', $deviceStencil)
+            ->with('success', 'Logo uploaded.');
     }
 
     // ─────────────────────────────────────────────────────────────────────────

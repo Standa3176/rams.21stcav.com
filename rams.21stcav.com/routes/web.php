@@ -312,6 +312,12 @@ Route::middleware('auth')->group(function () {
         Route::put('/admin/device-stencils/{deviceStencil}', [DeviceStencilController::class, 'update'])
             ->name('admin.device-stencils.update');
 
+        // Plan 24-06 (DRAW-52, D-12/D-15): per-stencil manufacturer logo
+        // upload (PNG or SVG). `logo` is also a suffix segment after
+        // {deviceStencil}, same no-collision reasoning as `preview`/`edit`.
+        Route::post('/admin/device-stencils/{deviceStencil}/logo', [DeviceStencilController::class, 'uploadLogo'])
+            ->name('admin.device-stencils.upload-logo');
+
         // ── Device Cable Rules — Tier 3-D data-driven cable inference ────────
         // Full CRUD on the priority-ordered rule set consumed by
         // CableScheduleGeneratorService::inferCableRun(). show route omitted
