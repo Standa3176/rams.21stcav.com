@@ -267,6 +267,43 @@ function stencilPortEditor(initialPorts, previewUrl) {
             <div x-show="previewSvg" x-html="previewSvg"></div>
             <span x-show="!previewSvg" class="stc-muted">No preview yet.</span>
         </div>
+
+        {{-- ── Manufacturer Logo (Plan 24-06, DRAW-52, D-12/D-15) ────────────
+             Sits below the preview pane, same right column — does not
+             restructure the two-column grid Plan 24-05 built. --}}
+        <div class="stc-logo-widget" style="margin-top:20px;padding-top:20px;border-top:1px solid var(--ink-200);">
+            <div class="section-heading">Manufacturer Logo</div>
+
+            @if ($stencil->logo_path)
+                <img src="{{ asset($stencil->logo_path) }}" alt="" style="width:64px;height:64px;object-fit:contain;display:block;margin-bottom:10px;">
+            @else
+                @php
+                    $fallbackAssetPath = app(\App\Services\Drawings\ManufacturerLogoResolver::class)->resolveAssetPath($stencil->manufacturer);
+                @endphp
+                @if ($fallbackAssetPath)
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;opacity:.6;">
+                        <img src="{{ asset($fallbackAssetPath) }}" alt="" style="width:48px;height:48px;object-fit:contain;">
+                        <span class="stc-muted" style="font-size:var(--fs-small);">Using the built-in {{ $stencil->manufacturer }} wordmark until a custom logo is uploaded.</span>
+                    </div>
+                @endif
+            @endif
+
+            <form method="POST"
+                  action="{{ route('admin.device-stencils.upload-logo', $stencil) }}"
+                  enctype="multipart/form-data">
+                @csrf
+                <input type="file" name="logo" accept=".svg,.png,.jpg,.jpeg">
+                <button type="submit" class="btn btn-outline btn-sm">Upload</button>
+            </form>
+
+            <p class="stc-muted" style="font-size:var(--fs-small);margin-top:6px;">
+                PNG or SVG, up to 2MB. SVG uploads are automatically sanitised (scripts and embedded event handlers are stripped).
+            </p>
+
+            @if ($errors->has('logo'))
+                <div class="alert alert-error" style="margin-top:8px;">{{ $errors->first('logo') }}</div>
+            @endif
+        </div>
     </div>
 
 </div>
