@@ -75,12 +75,44 @@ diagnosis: See **Gap 2**.
 
 ### 7. List view renders, filters, and searches
 expected: Filter chips by source / needs_review / manufacturer; part_number search; both empty states.
-result: pending
-notes: Blocked behind the Gap 1 / Gap 2 decisions — filter semantics may change.
+result: pass
+notes: Verified in-browser 2026-08-14. 96 results paginated 15/page; Search (part number), Source, Needs review and Manufacturer filters all present; Manufacturer dropdown populated from real data (23 entries); "Needs review" badges render on the stubs; columns Part Number / Manufacturer-Model / Source / Ports / Logo / Updated / Edit.
 
 ### 8. Edit screen — port table + live preview
 expected: Reactive port rows; 600ms-debounced server-rendered SVG preview; failure keeps last good render.
-result: pending
+result: **issue → FIXED** (`ac9501c`)
+severity: **critical**
+reported: |
+  On any stencil WITH ports, the entire Alpine component was dead. 15 console errors,
+  root cause `SyntaxError: Unexpected token ';' at new AsyncFunction` — the x-data
+  expression failed to PARSE, so every downstream binding (ports, previewState,
+  previewSvg, promotionBlockingReasons) threw ReferenceError. Rendered result: no port
+  table, no live preview, no promote-button state. A static shell.
+diagnosis: |
+  `edit.blade.php:275` used `x-data="stencilPortEditor(@json($stencil->ports->toArray()), …)"`.
+  `@json` emits raw double quotes, which terminate the double-quoted HTML attribute the
+  moment the stencil has any ports — malformed HTML, unparseable Alpine expression.
+  It looked fine on zero-port stencils only because `@json([])` renders `[]`, which
+  contains no quotes. **Every one of the 12 PHPUnit tests passed throughout**, because
+  feature tests assert server-rendered HTML and never execute JavaScript.
+fix: Replaced with `Js::from()`, which escapes for exactly this context. Re-verified in
+  browser: port table renders, live preview shows all 7 ports (HDMI IN, USB-C 1, USB-C 2,
+  PWR, HDMI OUT, LAN, AUDIO), "Up to date" state indicator, Promote correctly enabled.
+
+### 8b. D-17 banner suppressed on artwork-less stubs
+expected: Per Gap 2's fix, a zero-port engineer-curated stub shows NO warning banner.
+result: **issue → FIXED** (`ac9501c`)
+severity: major
+reported: |
+  Plan 24-11 narrowed the SERVER-side guard in DeviceStencilController::update() to add
+  `ports()->exists()`, but the Blade banner still keyed off `$isCurated` (source only),
+  so the "this will replace your artwork" warning still rendered on all 91 stubs. Gap 2
+  was only half closed — the server stopped blocking, but the friction remained visible.
+  The comment directly above the banner even claimed "the ordinary stub-curation path
+  stays a zero-friction single-click save".
+fix: `$isCurated` now also requires `$stencil->ports->isNotEmpty()`, matching the server
+  condition exactly. Verified both directions in-browser: zero-port stub → no banner;
+  ClickShare Bar Pro (7 ports) → banner correctly still fires.
 
 ### 9. Logo upload sanitises SVG
 expected: Malicious SVG stripped by `SvgSanitizerService`; PNG stored; `logo_path` set.
