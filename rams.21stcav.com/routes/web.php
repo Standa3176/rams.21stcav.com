@@ -318,6 +318,14 @@ Route::middleware('auth')->group(function () {
         Route::post('/admin/device-stencils/{deviceStencil}/logo', [DeviceStencilController::class, 'uploadLogo'])
             ->name('admin.device-stencils.upload-logo');
 
+        // Plan 24-07 (DRAW-53, D-03/D-04): promote / discard-and-regenerate.
+        // Both are suffix segments after {deviceStencil}, same no-collision
+        // reasoning as `preview`/`edit`/`logo` above.
+        Route::post('/admin/device-stencils/{deviceStencil}/promote', [DeviceStencilController::class, 'promote'])
+            ->name('admin.device-stencils.promote');
+        Route::post('/admin/device-stencils/{deviceStencil}/discard', [DeviceStencilController::class, 'discard'])
+            ->name('admin.device-stencils.discard');
+
         // ── Device Cable Rules — Tier 3-D data-driven cable inference ────────
         // Full CRUD on the priority-ordered rule set consumed by
         // CableScheduleGeneratorService::inferCableRun(). show route omitted

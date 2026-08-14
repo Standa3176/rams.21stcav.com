@@ -3,8 +3,10 @@
 namespace Tests\Feature\Drawings;
 
 use App\Models\DeviceStencil;
+use App\Models\DeviceStencilAudit;
 use App\Models\DevicePort;
 use App\Models\User;
+use App\Services\Drawings\DeviceStencilCacheService;
 use App\Services\Drawings\StencilPromotionValidator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -18,10 +20,10 @@ use Tests\TestCase;
  * Task 1 locks StencilPromotionValidator::evaluate() — 5 behaviour tests
  * using the EXACT UI-SPEC Copywriting Contract copy, byte-for-byte.
  *
- * Task 2 (added in a follow-up commit) locks promote()/discard() — the
- * server-side re-validation bypass test (T-24-17), the successful-promote
- * audit trail, criterion 4's cross-project propagation via the existing
- * DeviceStencilCacheService lookup, and discard's unconditional success.
+ * Task 2 locks promote()/discard() — the server-side re-validation bypass
+ * test (T-24-17), the successful-promote audit trail, criterion 4's
+ * cross-project propagation via the existing DeviceStencilCacheService
+ * lookup, and discard's unconditional success.
  *
  * @see app/Services/Drawings/StencilPromotionValidator.php
  * @see app/Http/Controllers/Admin/DeviceStencilController.php
@@ -152,5 +154,119 @@ class DeviceStencilPromotionTest extends TestCase
 
         $this->assertSame([], $result['blocking']);
         $this->assertSame([], $result['warnings']);
+    }
+
+    private function fullyValidTwoPorts(): array
+    {
+        return [
+            ['label' => 'HDMI In', 'side' => 'left', 'connector_type' => 'hdmi', 'signal_type' => 'video', 'direction' => 'in', 'sort_order' => 1, 'port_id' => 'hdmi-1'],
+            ['label' => 'LAN', 'side' => 'right', 'connector_type' => 'rj45', 'signal_type' => 'network', 'direction' => 'io', 'sort_order' => 2, 'port_id' => 'lan-1'],
+        ];
+    }
+
+    // ── Task 2: T-24-17 — direct POST to promote on a zero-port stencil is refused ──
+
+    public function test_promote_route_refuses_a_zero_port_stencil_via_direct_post(): void
+    {
+        $stencil = $this->makeStencil();
+
+        $response = $this->actingAs($this->admin)
+            ->post(route('admin.device-stencils.promote', $stencil));
+
+        $response->assertRedirect(route('admin.device-stencils.edit', $stencil));
+        $response->assertSessionHasErrors(['promote']);
+
+        $stencil->refresh();
+
+        $this->assertSame(DeviceStencil::SOURCE_AUTO_GENERATED, $stencil->source);
+        $this->assertTrue((bool) $stencil->needs_review);
+        $this->assertSame(0, DeviceStencilAudit::where('device_stencil_id', $stencil->id)->count());
+    }
+
+    // ── Task 2: successful promote flips source, clears needs_review, audits ──
+
+    public function test_promote_flips_source_clears_needs_review_and_writes_audit_row(): void
+    {
+        $stencil = $this->makeStencil();
+        foreach ($this->fullyValidTwoPorts() as $port) {
+            $this->insertPort($stencil, $port);
+        }
+
+        $response = $this->actingAs($this->admin)
+            ->post(route('admin.device-stencils.promote', $stencil));
+
+        $response->assertRedirect(route('admin.device-stencils.index'));
+        $response->assertSessionHas('success');
+
+        $stencil->refresh();
+
+        $this->assertSame(DeviceStencil::SOURCE_ENGINEER_CURATED, $stencil->source);
+        $this->assertFalse((bool) $stencil->needs_review);
+
+        $this->assertSame(1, DeviceStencilAudit::where('device_stencil_id', $stencil->id)->count());
+        $audit = DeviceStencilAudit::where('device_stencil_id', $stencil->id)->first();
+        $this->assertSame(DeviceStencilAudit::ACTION_PROMOTE, $audit->action);
+        $this->assertSame($this->admin->id, $audit->user_id);
+        $this->assertNotEmpty($audit->before_snapshot);
+        $this->assertNotEmpty($audit->after_snapshot);
+        $this->assertSame(DeviceStencil::SOURCE_AUTO_GENERATED, $audit->before_snapshot['source']);
+        $this->assertSame(DeviceStencil::SOURCE_ENGINEER_CURATED, $audit->after_snapshot['source']);
+    }
+
+    // ── Task 2: criterion 4 — promotion propagates cross-project via the existing cache lookup ──
+
+    public function test_promote_propagates_to_every_project_via_the_existing_cache_lookup(): void
+    {
+        $partNumber = 'PN-'.fake()->unique()->numerify('#####');
+        $stencil = $this->makeStencil(['part_number' => DeviceStencil::normalisePartNumber($partNumber)]);
+        foreach ($this->fullyValidTwoPorts() as $port) {
+            $this->insertPort($stencil, $port);
+        }
+
+        $cache = app(DeviceStencilCacheService::class);
+
+        // "Project A" resolving the SAME part_number BEFORE promotion — the
+        // stub, zero-friction lookup Phase 21 D-03 already provides.
+        $before = $cache->resolveForPartNumber($partNumber);
+        $this->assertSame($stencil->id, $before->id);
+        $this->assertSame(DeviceStencil::SOURCE_AUTO_GENERATED, $before->source);
+
+        $this->actingAs($this->admin)->post(route('admin.device-stencils.promote', $stencil));
+
+        // Same cache lookup, same part_number, AFTER promotion — zero extra
+        // code, the SAME resolveForPartNumber call now returns the
+        // engineer-curated row with its full port set.
+        $after = $cache->resolveForPartNumber($partNumber);
+        $this->assertSame($stencil->id, $after->id);
+        $this->assertSame(DeviceStencil::SOURCE_ENGINEER_CURATED, $after->source);
+        $this->assertSame(2, $after->ports()->count());
+    }
+
+    // ── Task 2: discard always succeeds, even when the current ports already fail the hard gate ──
+
+    public function test_discard_regenerates_even_when_current_ports_fail_the_promote_hard_gate(): void
+    {
+        $stencil = $this->makeStencil(['display_name' => 'Generic Display']);
+        // Deliberately invalid — blank signal_type, would hard-block Promote.
+        $this->insertPort($stencil, ['port_id' => 'bad-1', 'signal_type' => '', 'label' => '']);
+
+        $originalXml = $stencil->mxgraph_xml;
+
+        $response = $this->actingAs($this->admin)
+            ->post(route('admin.device-stencils.discard', $stencil));
+
+        $response->assertRedirect(route('admin.device-stencils.edit', $stencil));
+        $response->assertSessionHas('success');
+
+        $stencil->refresh();
+
+        $this->assertNotSame($originalXml, $stencil->mxgraph_xml);
+        $this->assertSame(1, DeviceStencilAudit::where('device_stencil_id', $stencil->id)->count());
+        $audit = DeviceStencilAudit::where('device_stencil_id', $stencil->id)->first();
+        $this->assertSame(DeviceStencilAudit::ACTION_DISCARD_REGENERATE, $audit->action);
+        $this->assertSame($originalXml, $audit->before_snapshot['mxgraph_xml']);
+
+        // Discard does NOT flip source/needs_review — it is a reset, not a promotion.
+        $this->assertSame(DeviceStencil::SOURCE_AUTO_GENERATED, $stencil->source);
     }
 }

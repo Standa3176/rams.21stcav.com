@@ -60,6 +60,26 @@
     align-items: center;
     margin-top: 16px;
 }
+
+/*
+ * Phase 24 Plan 07 (DRAW-53) — D-04 promote-readiness reason lines. Hard
+ * block = --danger token, "Blocked: " prefix baked into the copy itself
+ * (UI-SPEC Copywriting Contract). Soft warn = --warning token, non-blocking.
+ */
+.stc-promote-reasons {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.stc-promote-reason--blocking {
+    font-size: var(--fs-small);
+    color: var(--danger);
+}
+.stc-promote-reason--warning {
+    font-size: var(--fs-small);
+    color: var(--warning);
+}
 </style>
 @endpush
 
@@ -162,6 +182,56 @@ function stencilPortEditor(initialPorts, previewUrl) {
 
             return '';
         },
+
+        /*
+         * Phase 24 Plan 07 (DRAW-53) — client-side mirror of
+         * StencilPromotionValidator's D-04 hard-block rules, driving the
+         * Promote button's disabled state and the reason lines above it.
+         * UX ONLY — this array is never trusted server-side. promote()
+         * re-runs the full check unconditionally on every request (T-24-17);
+         * this method exists purely so the button reflects live edits
+         * without a round-trip, and so a hostile client tampering with this
+         * JS gains nothing (the server re-check is the only real boundary).
+         */
+        promotionBlockingReasons() {
+            const reasons = [];
+
+            if (this.ports.length === 0) {
+                reasons.push('Blocked: this stencil has zero ports.');
+
+                return reasons;
+            }
+
+            const fieldLabels = {
+                label: 'label',
+                connector_type: 'connector type',
+                signal_type: 'signal type',
+                direction: 'direction',
+            };
+
+            Object.keys(fieldLabels).forEach((field) => {
+                const missing = this.ports.filter((p) => !p[field]).length;
+                if (missing > 0) {
+                    reasons.push(missing === 1
+                        ? `Blocked: 1 port is missing a ${fieldLabels[field]}.`
+                        : `Blocked: ${missing} ports are missing a ${fieldLabels[field]}.`);
+                }
+            });
+
+            const seen = {};
+            const duplicateIds = [];
+            this.ports.forEach((p) => {
+                const id = p.port_id;
+                if (!id) return;
+                if (seen[id] && duplicateIds.indexOf(id) === -1) {
+                    duplicateIds.push(id);
+                }
+                seen[id] = true;
+            });
+            duplicateIds.forEach((id) => reasons.push(`Blocked: duplicate port ID "${id}".`));
+
+            return reasons;
+        },
     };
 }
 </script>
@@ -241,12 +311,41 @@ function stencilPortEditor(initialPorts, previewUrl) {
                 @else
                     <button type="submit" class="btn btn-teal">Save Ports</button>
                 @endif
-                <a href="{{ route('admin.device-stencils.index') }}" class="btn btn-outline btn-sm">Cancel</a>
             </div>
-
-            {{-- Promote to Engineer-Curated / Discard & Regenerate ship in
-                 Plan 24-07 — same footer row, same controller class. --}}
         </form>
+
+        {{-- ── Promote / Discard & Regenerate (Plan 24-07, DRAW-53, D-04) ──
+             Separate <form> elements from the ports-Save form above (native
+             HTML forbids nesting <form> elements) — both POST to their own
+             admin.device-stencils.{promote,discard} routes. Visually still
+             reads as "the same footer row" per 24-05's placeholder comment,
+             because .stc-footer-actions is a flex row and each <form> here
+             is just another flex item containing one button. --}}
+        <div class="stc-promote-reasons" x-show="promotionBlockingReasons().length > 0">
+            <template x-for="reason in promotionBlockingReasons()" :key="reason">
+                <div class="stc-promote-reason--blocking" x-text="reason"></div>
+            </template>
+        </div>
+
+        <div class="stc-footer-actions">
+            <form method="POST" action="{{ route('admin.device-stencils.promote', $stencil) }}">
+                @csrf
+                <button type="submit" class="btn btn-primary" :disabled="promotionBlockingReasons().length > 0">
+                    Promote to Engineer-Curated
+                </button>
+            </form>
+
+            <form method="POST"
+                  action="{{ route('admin.device-stencils.discard', $stencil) }}"
+                  data-confirm="Discard all edits and regenerate this stencil from its category template?"
+                  data-confirm-label="Discard &amp; Regenerate"
+                  data-confirm-danger="1">
+                @csrf
+                <button type="submit" class="btn btn-danger-outline">Discard &amp; Regenerate</button>
+            </form>
+
+            <a href="{{ route('admin.device-stencils.index') }}" class="btn btn-outline btn-sm">Cancel</a>
+        </div>
     </div>
 
     {{-- ── Right column (~40%), sticky — live server-rendered preview (D-02/D-16) ── --}}

@@ -9,6 +9,8 @@ use App\Models\DeviceStencil;
 use App\Models\DeviceStencilAudit;
 use App\Models\DevicePort;
 use App\Services\Drawings\AutoGenericStencilGenerator;
+use App\Services\Drawings\CategoryPortTemplateResolver;
+use App\Services\Drawings\StencilPromotionValidator;
 use App\Services\Drawings\StencilXmlToSvgRenderer;
 use App\Services\Drawings\SvgSanitizerService;
 use Illuminate\Http\RedirectResponse;
@@ -28,6 +30,10 @@ use Illuminate\View\View;
  * Phase 24 Plan 06 (DRAW-52, D-12/D-15) — per-stencil manufacturer logo
  * upload (PNG or SVG). Every SVG is routed through SvgSanitizerService
  * before it ever touches disk.
+ * Phase 24 Plan 07 (DRAW-53, D-03/D-04) — promote()/discard() actions. The
+ * D-04 two-tier hard-block/soft-warn gate (StencilPromotionValidator) is
+ * re-run server-side on every promote() request regardless of client state
+ * (T-24-17). Both actions write a device_stencil_audits row (D-03).
  *
  * Wave 2's list-only surface: filterable/searchable index of every stencil,
  * so the queue populated by Wave 1's schema + Wave 2's QuoteImportStencilStubber
@@ -288,6 +294,153 @@ class DeviceStencilController extends Controller
         return redirect()
             ->route('admin.device-stencils.edit', $deviceStencil)
             ->with('success', 'Logo uploaded.');
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // promote / discard (Plan 24-07, DRAW-53, D-03/D-04)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * "Promote to Engineer-Curated" (DRAW-53). Flips source, clears
+     * needs_review, and writes a device_stencil_audits row (D-03) — this is
+     * the moment a stub's coverage becomes real AND starts propagating to
+     * every project referencing the same part_number, for free, via
+     * DeviceStencilCacheService::resolveForPartNumber's existing firstOrCreate
+     * cache lookup (21 D-03) — no per-project migration, no extra code here.
+     *
+     * ⚠ T-24-17 GUARD — the FULL D-04 hard-block check is re-run here,
+     * unconditionally, on every request. A disabled client-side Promote
+     * button (edit.blade.php) is UX only; a hostile client POSTing directly
+     * to this route against a zero-port (or otherwise structurally invalid)
+     * stencil is refused exactly the same way the UI already prevented.
+     *
+     * @see \App\Services\Drawings\StencilPromotionValidator
+     * @see .planning/phases/24-stencil-curation-ui-quote-import-auto-stub/24-CONTEXT.md (D-04)
+     */
+    public function promote(DeviceStencil $deviceStencil, StencilPromotionValidator $validator): RedirectResponse
+    {
+        $deviceStencil->load('ports');
+
+        $result = $validator->evaluate($deviceStencil);
+
+        if ($result['blocking'] !== []) {
+            return redirect()
+                ->route('admin.device-stencils.edit', $deviceStencil)
+                ->withErrors(['promote' => $result['blocking']])
+                ->with('error', 'This stencil cannot be promoted yet — see the blocking reasons below.');
+        }
+
+        DB::transaction(function () use ($deviceStencil) {
+            $beforeSnapshot = [
+                'source'       => $deviceStencil->source,
+                'needs_review' => $deviceStencil->needs_review,
+                'ports'        => $deviceStencil->ports->toArray(),
+            ];
+
+            $deviceStencil->update([
+                'source'       => DeviceStencil::SOURCE_ENGINEER_CURATED,
+                'needs_review' => false,
+            ]);
+
+            DeviceStencilAudit::create([
+                'device_stencil_id' => $deviceStencil->id,
+                'user_id'           => auth()->id(),
+                'action'            => DeviceStencilAudit::ACTION_PROMOTE,
+                'before_snapshot'   => $beforeSnapshot,
+                'after_snapshot'    => [
+                    'source'       => DeviceStencil::SOURCE_ENGINEER_CURATED,
+                    'needs_review' => false,
+                    'ports'        => $deviceStencil->ports->toArray(),
+                ],
+            ]);
+        });
+
+        Log::info('Admin: device stencil promoted', [
+            'stencil_id' => $deviceStencil->id,
+            'admin_id'   => auth()->id(),
+        ]);
+
+        $displayLabel = trim(($deviceStencil->manufacturer ?? '').' '.($deviceStencil->model ?? ''))
+            ?: ($deviceStencil->display_name ?: 'Stencil #'.$deviceStencil->id);
+
+        return redirect()
+            ->route('admin.device-stencils.index')
+            ->with('success', "{$displayLabel} promoted to Engineer-Curated. It now renders with full ports on every project using part number {$deviceStencil->part_number}.");
+    }
+
+    /**
+     * "Discard & Regenerate" — always succeeds, regardless of the current
+     * port set (it never runs StencilPromotionValidator; that gate is
+     * Promote-only). Re-resolves the category template from the stencil's
+     * own name/part_number, the SAME call shape stencils:reapply-templates
+     * (Plan 24-08) uses, wholesale-replaces device_ports, regenerates
+     * mxgraph_xml exactly like update() does (Plan 24-05), and writes a
+     * device_stencil_audits row (D-03) capturing the prior state — an
+     * explicit reset-to-known-good action, not a promotion, so `source` and
+     * `needs_review` are left untouched.
+     *
+     * @see \App\Services\Drawings\CategoryPortTemplateResolver
+     * @see \App\Console\Commands\StencilsReapplyTemplatesCommand — identical resolve()/build() call shape
+     */
+    public function discard(
+        DeviceStencil $deviceStencil,
+        CategoryPortTemplateResolver $resolver,
+        AutoGenericStencilGenerator $generator,
+    ): RedirectResponse {
+        DB::transaction(function () use ($deviceStencil, $resolver, $generator) {
+            $beforeSnapshot = [
+                'mxgraph_xml' => $deviceStencil->mxgraph_xml,
+                'ports'       => $deviceStencil->ports()->get()->toArray(),
+            ];
+
+            $portTemplate = $resolver->resolve(
+                (string) ($deviceStencil->display_name ?? ''),
+                (string) $deviceStencil->part_number,
+            ) ?? [];
+
+            $deviceStencil->ports()->delete();
+
+            if ($portTemplate !== []) {
+                DevicePort::insert(array_map(
+                    static fn (array $row): array => array_merge($row, [
+                        'device_stencil_id' => $deviceStencil->id,
+                        'created_at'        => now(),
+                        'updated_at'        => now(),
+                    ]),
+                    $portTemplate
+                ));
+            }
+
+            $payload = $generator->build([
+                'manufacturer' => $deviceStencil->manufacturer,
+                'model'        => $deviceStencil->model,
+                'name'         => $deviceStencil->display_name,
+                'part_number'  => $deviceStencil->part_number,
+                'ports'        => $portTemplate,
+            ]);
+
+            $deviceStencil->update(['mxgraph_xml' => $payload['mxgraph_xml']]);
+
+            DeviceStencilAudit::create([
+                'device_stencil_id' => $deviceStencil->id,
+                'user_id'           => auth()->id(),
+                'action'            => DeviceStencilAudit::ACTION_DISCARD_REGENERATE,
+                'before_snapshot'   => $beforeSnapshot,
+                'after_snapshot'    => [
+                    'mxgraph_xml' => $payload['mxgraph_xml'],
+                    'ports'       => $portTemplate,
+                ],
+            ]);
+        });
+
+        Log::info('Admin: device stencil discarded and regenerated', [
+            'stencil_id' => $deviceStencil->id,
+            'admin_id'   => auth()->id(),
+        ]);
+
+        return redirect()
+            ->route('admin.device-stencils.edit', $deviceStencil)
+            ->with('success', 'Stencil discarded and regenerated from its category template.');
     }
 
     // ─────────────────────────────────────────────────────────────────────────
