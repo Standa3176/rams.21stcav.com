@@ -1,5 +1,6 @@
 ---
-status: diagnosed
+status: partial
+gaps_closed: 2026-08-14 (plans 24-10, 24-11, 24-12)
 phase: 24-stencil-curation-ui-quote-import-auto-stub
 source: [24-01-SUMMARY.md, 24-02-SUMMARY.md, 24-03-SUMMARY.md, 24-04-SUMMARY.md, 24-05-SUMMARY.md, 24-06-SUMMARY.md, 24-07-SUMMARY.md, 24-08-SUMMARY.md]
 started: 2026-08-14
@@ -99,10 +100,27 @@ notes: **Cannot be verified locally or by any automated check.** Requires openin
 
 ---
 
-## Gaps
+## Gap closure — both CLOSED 2026-08-14
+
+Plans **24-10** (Gap 1), **24-11** (Gap 2) and **24-12** (CONTEXT.md correction) were planned, plan-checker-verified with no blockers, and executed.
+
+**Gap 1 — CLOSED.** `StencilsReapplyTemplatesCommand` eligibility changed from `source = auto-generated` to `needs_review = true`; `whereDoesntHave('audits')` left byte-for-byte intact as the now-sole safety boundary (verified at `StencilsReapplyTemplatesCommand.php:78`). Dry-run against the real seeded catalogue went from *"No eligible stencils. Nothing to do."* to *"Scanning 91 eligible stencil(s)… 52 stencil(s) affected"*. Tests 4 and 5 above now pass.
+
+**Gap 2 — CLOSED.** The D-17 guard now requires `ports()->exists()` alongside `source === SOURCE_ENGINEER_CURATED` (verified at `DeviceStencilController.php:169`). Guard trigger count on the 96 seeded stencils: **96/96 → 5/96** — exactly the five genuinely hand-built stencils. Test 6 above now passes.
+
+**Regression coverage added.** Both plans added tests built on the *realistic* catalogue shape (`engineer-curated`, zero-port stubs) rather than the disproven `auto-generated` fixture, and both were confirmed to fail against the pre-fix code. The plan-checker also corrected `DeviceStencilEditTest` Test 6, whose zero-port fixture would otherwise have passed for the wrong reason under the new predicate — i.e. it would have stopped testing the guard at all.
+
+**Known consequence of Gap 2's fix (intended):** a stub's FIRST port-add is frictionless; once it has ports, later edits are guarded like real artwork.
+
+**Accepted edge case (documented, not fixed):** `UpdateDeviceStencilPortsRequest` permits a zero-port save, so an admin could reduce a curated stencil to zero ports and the guard would not re-fire on the next edit. Self-inflicted and fully audit-logged.
+
+---
+
+## Gaps (original diagnosis, retained for the record)
 
 ### Gap 1 — CONTEXT D-11's premise is false; the 91 stubs are unreachable by the fill mechanism
 severity: major
+status: **CLOSED by plan 24-10**
 requirement: criterion 5 (top-10 Tier 1 fill), DRAW-50 filter semantics
 
 **Claimed (CONTEXT.md D-11):** *"They are all `source = auto-generated` with no audit rows, so they already qualify under D-08's re-apply rule. Do not build a second one-shot backfill command."*
@@ -124,6 +142,7 @@ requirement: criterion 5 (top-10 Tier 1 fill), DRAW-50 filter semantics
 
 ### Gap 2 — the D-17 guard fires on 96 of 96 stencils, including 91 with no artwork
 severity: major
+status: **CLOSED by plan 24-11**
 requirement: D-17 (as amended), phase main workflow
 
 The guard's trigger (`source === engineer-curated`) was chosen as a proxy for "has hand-built artwork". In the real catalogue it is not: only 5 stencils (ClickShare Bar Pro, Neat Bar Pro, Netgear GS312TP, Samsung QM65C-T, Sennheiser TCC2) have genuine artwork; the other 91 carry the same `source` but are bare stubs.
