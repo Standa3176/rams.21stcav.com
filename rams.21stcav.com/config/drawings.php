@@ -107,6 +107,49 @@ return [
         'network'         => 'AV-205',
     ],
 
+    // ── Phase 24 device-type -> port-template vocabulary (D-06/D-07) ──────
+    // Version-controlled so criterion 2's determinism guarantee ("the same
+    // import always produces the same stub shape") is enforced by git, never
+    // by trusting a mutable DB row. NEW device-type vocabulary — deliberately
+    // distinct from BOTH EquipmentCategoryClassifier's 7 commercial categories
+    // (hardware/cables/consumables/services/service_contracts/
+    // customer_supplied/option) and Device::ROLE_* (source/destination/
+    // processor, too coarse for ports). Read by CategoryPortTemplateResolver
+    // only — never a DB table (D-06).
+    //
+    // Each template is an ORDERED list of port-row shapes using the exact
+    // DevicePort fillable keys (label/side/connector_type/signal_type/
+    // direction/sort_order) so CategoryPortTemplateResolver's output can be
+    // bulk-inserted unmodified (port_id/x_pct/y_pct are populated by the
+    // resolver itself, not here).
+    'port_templates' => [
+        'display' => [
+            ['label' => 'HDMI In', 'side' => 'left', 'connector_type' => 'hdmi', 'signal_type' => 'video', 'direction' => 'in', 'sort_order' => 1],
+        ],
+        'switch' => [
+            ['label' => 'RJ45 1', 'side' => 'left', 'connector_type' => 'rj45', 'signal_type' => 'network', 'direction' => 'io', 'sort_order' => 1],
+            ['label' => 'RJ45 2', 'side' => 'left', 'connector_type' => 'rj45', 'signal_type' => 'network', 'direction' => 'io', 'sort_order' => 2],
+            ['label' => 'RJ45 3', 'side' => 'left', 'connector_type' => 'rj45', 'signal_type' => 'network', 'direction' => 'io', 'sort_order' => 3],
+            ['label' => 'RJ45 4', 'side' => 'left', 'connector_type' => 'rj45', 'signal_type' => 'network', 'direction' => 'io', 'sort_order' => 4],
+        ],
+        // Zero-port device types — mounting hardware has no signal ports.
+        'bracket' => [],
+        'mount' => [],
+    ],
+
+    // D-07 — explicit multi-keyword conflict resolution, evaluated BEFORE
+    // single-keyword lookup. Each entry's `keywords` must ALL be present in
+    // the haystack for `winner` to apply (e.g. "Samsung 65in Display Bracket"
+    // matches both `display` and `bracket` — this list deterministically
+    // resolves it to `bracket`, never a guess). `cable` beats everything and
+    // is handled as a standalone short-circuit in
+    // CategoryPortTemplateResolver::resolve() ahead of this list, not as a
+    // pair rule here.
+    'port_template_precedence' => [
+        ['keywords' => ['bracket', 'display'], 'winner' => 'bracket'],
+        ['keywords' => ['mount', 'screen'], 'winner' => 'mount'],
+    ],
+
     // ── Phase 23 layout dimensions ────────────────────────────────────────
     // Page bounds for each emitted <diagram>. Matches the current builder's
     // implicit 1600x1000 landscape. Sheet border (DRAW-49) insets 20 px.
