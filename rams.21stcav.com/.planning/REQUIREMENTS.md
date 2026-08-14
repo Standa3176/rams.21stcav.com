@@ -60,7 +60,7 @@ The visual deliverable. Custom device-card stencils with port rails, port-to-por
 Engineer/PM-facing UI to upgrade auto-generic stencils to proper ones. Drag handles for ports, label inputs, manufacturer-logo upload, save back to `device_stencils.mxgraph_xml`. Once curated, every project using that part_number gets the upgraded version automatically.
 
 - [x] **DRAW-50**: Admin route `/admin/device-stencils` — list view with filter by source (auto-generated / curated / ai-extracted) and search by part_number
-- [ ] **DRAW-51**: Stencil edit screen — open the auto-generic placeholder in an editor, drag connectors onto the rails, label them, save (Plan 24-01 shipped the mxgraph_xml/constraint regeneration contract this screen depends on — not yet checked complete; the editor UI itself ships across Plans 24-04/24-05)
+- [x] **DRAW-51**: Stencil edit screen — open the auto-generic placeholder in an editor, drag connectors onto the rails, label them, save (Plan 24-01 shipped the mxgraph_xml/constraint regeneration contract this screen depends on — not yet checked complete; the editor UI itself ships across Plans 24-04/24-05)
 - [ ] **DRAW-52**: Manufacturer logo upload (PNG/SVG) per stencil — stored alongside the stencil's `mxgraph_xml`
 - [ ] **DRAW-53**: "Promote to curated" action flips `source` enum from `auto-generated` → `engineer-curated`. Cross-project propagation is automatic via the cache lookup
 

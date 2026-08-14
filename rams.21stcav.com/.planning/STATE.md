@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
-status: Session save 2026-08-14 — Phase 24 Plan 04 (Wave 3, StencilXmlToSvgRenderer + admin.device-stencils.preview endpoint, D-16/DRAW-51 partial) landed; Wave 3 continues with Plans 24-05..24-07, 24-09
-stopped_at: Phase 24 Plan 04 LANDED (Wave 3 of 7, server-rendered stencil preview pipeline — settles Research Open Questions 1 and 3) — Plan 24-05 (curation UI edit/save) unblocked but HAS A PENDING AMENDMENT before it may run (per this session's execution brief; do not start 24-05 without checking it first).
-last_updated: "2026-08-14T13:05:00.000Z"
-last_activity: "2026-08-14 — Completed Phase 24 Plan 04: StencilXmlToSvgRenderer (bounded mxGraph-grammar state-machine to SVG, dashed/strokealpha carried through from Plan 24-01's hand-corrected grammar) + DeviceStencilController::preview() + admin.device-stencils.preview route, 13 feature tests."
+status: Session save 2026-08-14 — Phase 24 Plan 05 (Wave 4, stencil edit screen — port table + 600ms live preview + batched Save with device_ports/mxgraph_xml parity + D-17 curated-artwork guard) landed; DRAW-51 now COMPLETE. Wave 4/5/6 continue with Plans 24-06, 24-07, 24-09
+stopped_at: Phase 24 Plan 05 LANDED (Wave 4 of 7, stencil edit screen) — DRAW-51 closed (was split across 24-01/24-04/24-05). Plan 24-06 (logo upload, D-12/D-15) is next up, depends on 24-05.
+last_updated: "2026-08-14T14:10:00.000Z"
+last_activity: "2026-08-14 — Completed Phase 24 Plan 05: UpdateDeviceStencilPortsRequest + DeviceStencilController::edit()/update() (batched port-table Save, device_ports/mxgraph_xml parity in one transaction) + edit.blade.php/_port-table.blade.php (Alpine reactive port table, 600ms debounced AbortController-cancelled live preview) + the D-17 curated-artwork confirm-to-proceed guard (server + UI halves, audited via device_stencil_audits). 11 feature tests. DRAW-51 marked complete in REQUIREMENTS.md."
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 36
-  completed_plans: 32
-  percent: 89
+  completed_plans: 33
+  percent: 92
 ---
 
 ## Project Reference
@@ -23,13 +23,13 @@ See: .planning/PROJECT.md (updated 2026-04-30)
 
 ## Current Position
 
-Milestone: v2.0 (Engineering-Grade AV Drawings) — IN PROGRESS. Phases 17, 18, 20, 21, 22, 22.1, 23 all COMPLETE on disk; Phase 24 IN PROGRESS (Plans 01/02/03/04/08 of 9 landed, Wave 3 of 7); Phase 25 remains unplanned. (Phase 999.1 = deferred backlog.)
-Active work: Phase 24 (Stencil Curation UI + Quote-Import Auto-Stub) — Plan 24-04 (server-rendered stencil preview pipeline: StencilXmlToSvgRenderer + admin.device-stencils.preview, D-16/DRAW-51 partial) shipped 2026-08-14. Wave 3 continues with Plans 24-05..24-07, 24-09. Plan 24-05 has a PENDING AMENDMENT flagged this session — do not execute it without checking that first.
+Milestone: v2.0 (Engineering-Grade AV Drawings) — IN PROGRESS. Phases 17, 18, 20, 21, 22, 22.1, 23 all COMPLETE on disk; Phase 24 IN PROGRESS (Plans 01/02/03/04/05/08 of 9 landed, Wave 4 of 7); Phase 25 remains unplanned. (Phase 999.1 = deferred backlog.)
+Active work: Phase 24 (Stencil Curation UI + Quote-Import Auto-Stub) — Plan 24-05 (stencil edit screen: port table + 600ms live preview + batched Save with device_ports/mxgraph_xml parity, gated by the D-17 curated-artwork confirm-to-proceed guard) shipped 2026-08-14. DRAW-51 (split across 24-01/24-04/24-05) is now COMPLETE. Next up: Plan 24-06 (logo upload, D-12/D-15), depends on 24-05.
 Reconciliation: 2026-08-09 — STATE synced to disk truth. Earlier STATE claimed "PAUSED at Phase 23 sub-plan 1", but Phase 23 shipped 7/7 plans on 2026-05-15 (commit 23-07). ROADMAP checkboxes for Phases 22 + 23 corrected to [x] in the same pass.
 Outstanding: 27 human-UAT items across 5 VERIFICATION.md files (Phases 17, 18, 20, 22, 22.1) remain `human_needed` — automated must-haves all passed; manual browser/prod sign-off pending. Run `/gsd-verify-work <phase>` to clear.
-Status: Session save 2026-08-14 — Phase 24 Plan 04 (Wave 3, server-rendered stencil preview pipeline) landed; Plan 24-05 unblocked but gated on its pending amendment
-Last activity: 2026-08-14 — Completed Phase 24 Plan 04: StencilXmlToSvgRenderer (bounded mxGraph-grammar state-machine to SVG) + DeviceStencilController::preview() + admin.device-stencils.preview route, 13 feature tests.
-Deploy pending: Plan 24-01's 7 code files (migration + model + 2 config/service + 3 services) STILL PENDING live deploy, PLUS Plan 24-02's 4 files (stubber service + 3 import call sites), PLUS Plan 24-03's 4 files (DeviceStencilController + index.blade.php + routes/web.php + navigation.blade.php), PLUS Plan 24-04's 3 files (StencilXmlToSvgRenderer + DeviceStencilController::preview() + routes/web.php — no schema dependency of its own, safe to deploy independently of 24-01's migration since preview() only reads pre-existing DeviceStencil columns), PLUS Plan 24-08's 2 files (StencilsReapplyTemplatesCommand + StencilsCoverageReportCommand — CLI-only, no schema of their own but `stencils:reapply-templates` hard-fails without 24-01's `device_stencil_audits` table) — `php artisan migrate` MUST run on live BEFORE Plan 24-02's, 24-03's, or 24-08's code is used (all three depend on 24-01's `needs_review`/`logo_path`/`device_stencil_audits` schema). See 24-01-SUMMARY.md, 24-02-SUMMARY.md, 24-03-SUMMARY.md, 24-04-SUMMARY.md, and 24-08-SUMMARY.md "Files to upload to live" sections.
+Status: Session save 2026-08-14 — Phase 24 Plan 05 (Wave 4, stencil edit screen) landed; DRAW-51 closed. Plan 24-06 (logo upload) next.
+Last activity: 2026-08-14 — Completed Phase 24 Plan 05: UpdateDeviceStencilPortsRequest + DeviceStencilController::edit()/update() (batched port-table Save with device_ports/mxgraph_xml parity in one transaction) + edit.blade.php/_port-table.blade.php (Alpine reactive port table, 600ms debounced AbortController-cancelled live preview) + the D-17 curated-artwork confirm-to-proceed guard (server + UI halves, audited via device_stencil_audits). 11 feature tests.
+Deploy pending: Plan 24-01's 7 code files (migration + model + 2 config/service + 3 services) STILL PENDING live deploy, PLUS Plan 24-02's 4 files (stubber service + 3 import call sites), PLUS Plan 24-03's 4 files (DeviceStencilController + index.blade.php + routes/web.php + navigation.blade.php), PLUS Plan 24-04's 3 files (StencilXmlToSvgRenderer + DeviceStencilController::preview() + routes/web.php — no schema dependency of its own, safe to deploy independently of 24-01's migration since preview() only reads pre-existing DeviceStencil columns), PLUS Plan 24-05's 5 files (UpdateDeviceStencilPortsRequest + DeviceStencilController::edit()/update() + routes/web.php + edit.blade.php + _port-table.blade.php — update() DOES depend on 24-01's migration, since it writes device_stencil_audits rows and reads SOURCE_ENGINEER_CURATED), PLUS Plan 24-08's 2 files (StencilsReapplyTemplatesCommand + StencilsCoverageReportCommand — CLI-only, no schema of their own but `stencils:reapply-templates` hard-fails without 24-01's `device_stencil_audits` table) — `php artisan migrate` MUST run on live BEFORE Plan 24-02's, 24-03's, 24-05's, or 24-08's code is used (all four depend on 24-01's `needs_review`/`logo_path`/`device_stencil_audits` schema). See 24-01-SUMMARY.md, 24-02-SUMMARY.md, 24-03-SUMMARY.md, 24-04-SUMMARY.md, 24-05-SUMMARY.md, and 24-08-SUMMARY.md "Files to upload to live" sections.
 
 ### Quick Tasks Completed
 
