@@ -13,15 +13,20 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Tests for `stencils:reapply-templates` (Phase 24 Plan 08, D-08).
+ * Tests for `stencils:reapply-templates` (Phase 24 Plan 08, D-08; eligibility
+ * predicate corrected by Plan 24-10).
  *
  * Covers: dry-run safety (no writes), --commit persistence, the D-08
- * eligibility conjunction (source=auto-generated AND zero audit rows),
+ * eligibility conjunction (needs_review=true AND zero audit rows),
  * idempotence on repeated --commit runs, and the D-11 zero-port-stub
- * templating case.
+ * templating case. The realistic-catalogue tests below exist specifically
+ * because the original fixtures all used source=auto-generated, which
+ * cannot reproduce the UAT Gap 1 bug found against the real,
+ * engineer-curated-shaped catalogue.
  *
  * @see app/Console/Commands/StencilsReapplyTemplatesCommand.php
  * @see .planning/phases/24-stencil-curation-ui-quote-import-auto-stub/24-08-PLAN.md
+ * @see .planning/phases/24-stencil-curation-ui-quote-import-auto-stub/24-10-PLAN.md
  */
 class StencilsReapplyTemplatesCommandTest extends TestCase
 {
@@ -60,6 +65,40 @@ class StencilsReapplyTemplatesCommandTest extends TestCase
             'default_width'  => $payload['default_width'],
             'default_height' => $payload['default_height'],
             'source'         => DeviceStencil::SOURCE_AUTO_GENERATED,
+            'needs_review'   => true,
+        ]);
+    }
+
+    /**
+     * Build a zero-port engineer-curated stencil with needs_review=true —
+     * the LITERAL empirical shape UAT Gap 1 found: 96 engineer-curated
+     * stencils in the real catalogue, 91 of them zero-port with
+     * metadata.needs_phase_24_curation=true and needs_review=true (D-05
+     * seeding + Plan 24-01 migration backfill). Mirrors makeStaleSwitchStub()
+     * except source and metadata.
+     */
+    private function makeRealisticEngineerCuratedStub(string $partNumber = 'SW-REAL91', string $displayName = 'Netgear GS308EP PoE Switch'): DeviceStencil
+    {
+        $normalised = DeviceStencil::normalisePartNumber($partNumber);
+
+        $payload = $this->generator()->build([
+            'manufacturer' => 'Netgear',
+            'model'        => 'GS308EP',
+            'name'         => $displayName,
+            'part_number'  => $partNumber,
+            'ports'        => [], // zero-port stub — pre-Phase-24 curation state
+        ]);
+
+        return DeviceStencil::create([
+            'part_number'    => $normalised,
+            'manufacturer'   => 'Netgear',
+            'model'          => 'GS308EP',
+            'display_name'   => $displayName,
+            'mxgraph_xml'    => $payload['mxgraph_xml'],
+            'default_width'  => $payload['default_width'],
+            'default_height' => $payload['default_height'],
+            'source'         => DeviceStencil::SOURCE_ENGINEER_CURATED,
+            'metadata'       => ['needs_phase_24_curation' => true],
             'needs_review'   => true,
         ]);
     }
@@ -121,6 +160,9 @@ class StencilsReapplyTemplatesCommandTest extends TestCase
 
     public function test_engineer_curated_stencil_is_never_touched(): void
     {
+        // Represents the 5 genuinely hand-curated stencils (needs_review=false)
+        // — NOT the 91 real zero-port stubs, which are also source=engineer-curated
+        // but needs_review=true (see makeRealisticEngineerCuratedStub() below).
         $payload = $this->generator()->build([
             'manufacturer' => 'Netgear',
             'model'        => 'GS312TP',
@@ -212,6 +254,63 @@ class StencilsReapplyTemplatesCommandTest extends TestCase
         $stencil->refresh();
         $this->assertSame(1, $stencil->ports()->count());
         $this->assertSame('hdmi', $stencil->ports()->first()->connector_type);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Realistic catalogue regression (UAT Gap 1)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public function test_realistic_engineer_curated_stub_with_needs_review_gets_templated_in_commit_pass(): void
+    {
+        // This is the test that would have caught Gap 1 — the old test
+        // suite's fixtures all used source=auto-generated, which is why they
+        // passed against code that couldn't reach the real, engineer-curated
+        // shaped data. If Task 1's fix were reverted (predicate back to
+        // source=auto-generated), this fixture's source=engineer-curated
+        // would exclude it entirely and the assertions below would fail.
+        $stencil = $this->makeRealisticEngineerCuratedStub();
+
+        $this->artisan('stencils:reapply-templates', ['--commit' => true])
+            ->expectsOutputToContain('COMMIT MODE')
+            ->assertSuccessful();
+
+        $stencil->refresh();
+        $this->assertSame(4, $stencil->ports()->count());
+        $this->assertSame('rj45', $stencil->ports()->first()->connector_type);
+        $this->assertNotSame('', $stencil->mxgraph_xml);
+
+        // This command never mutates source or needs_review — it only fills
+        // content. Promotion / review-clearing stays the admin UI's job.
+        $this->assertSame(DeviceStencil::SOURCE_ENGINEER_CURATED, $stencil->source);
+        $this->assertTrue($stencil->needs_review);
+    }
+
+    public function test_engineer_curated_stub_with_needs_review_and_audit_row_is_never_touched(): void
+    {
+        // The regression test required by the widened-surface threat: with
+        // `source` dropped from the eligibility query, whereDoesntHave('audits')
+        // alone must protect an engineer-curated + needs_review=true stencil
+        // that an engineer has actually touched. If that clause were ever
+        // removed, this test fails.
+        $stencil = $this->makeRealisticEngineerCuratedStub('SW-REAL91-AUDITED');
+        $originalXml = $stencil->mxgraph_xml;
+
+        $user = User::factory()->create();
+        DeviceStencilAudit::create([
+            'device_stencil_id' => $stencil->id,
+            'user_id'           => $user->id,
+            'action'            => DeviceStencilAudit::ACTION_EDIT,
+            'before_snapshot'   => null,
+            'after_snapshot'    => null,
+        ]);
+
+        $this->artisan('stencils:reapply-templates', ['--commit' => true])
+            ->expectsOutputToContain('No eligible stencils')
+            ->assertSuccessful();
+
+        $stencil->refresh();
+        $this->assertSame($originalXml, $stencil->mxgraph_xml);
+        $this->assertSame(0, $stencil->ports()->count());
     }
 
     // ─────────────────────────────────────────────────────────────────────────
