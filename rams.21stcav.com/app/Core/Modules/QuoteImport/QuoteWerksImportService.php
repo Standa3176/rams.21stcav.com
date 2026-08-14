@@ -5,6 +5,7 @@ namespace App\Core\Modules\QuoteImport;
 use App\Models\ProjectPackage;
 use App\Models\User;
 use App\Services\Imports\EquipmentCategoryClassifier;
+use App\Services\QuoteImport\QuoteImportStencilStubber;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -163,6 +164,25 @@ class QuoteWerksImportService
                 'confidence'  => 0.95,
             ];
         }, $parsedShape['equipment'] ?? []);
+
+        // Phase 24 D-09 — best-effort device_stencils/device_ports auto-stub.
+        // $equipment already carries part_number, canonical `category`
+        // (via the shared classifier above), and manufacturer. Wrapped in
+        // try/catch — a stubbing failure must NOT fail the QuoteWerks import,
+        // which is the DEFAULT import route since 260725-qw4.
+        try {
+            $stubResult = app(QuoteImportStencilStubber::class)->stubFromEquipmentLines($equipment);
+
+            Log::info('QuoteWerksImportService: device stencils stubbed', [
+                'reference'     => $parsedShape['ref'] ?? '',
+                'stubs_created' => $stubResult['created'],
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('QuoteWerksImportService: device stencil stubbing failed (best-effort, import still succeeds)', [
+                'reference' => $parsedShape['ref'] ?? '',
+                'error'     => $e->getMessage(),
+            ]);
+        }
 
         $scopeNarrative = (string) ($parsedShape['scope_narrative'] ?? '');
         $projectName    = $scopeNarrative !== ''

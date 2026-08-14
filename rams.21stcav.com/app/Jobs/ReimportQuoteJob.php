@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Core\Modules\QuoteImport\QuoteImportService;
 use App\Models\ProjectPackage;
 use App\Models\User;
+use App\Services\QuoteImport\QuoteImportStencilStubber;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -82,12 +83,33 @@ class ReimportQuoteJob implements ShouldQueue
             'provider'        => $this->provider,
         ]);
 
-        $service->completePendingReimport(
+        $package = $service->completePendingReimport(
             pending:          $this->pending,
             user:             $this->user,
             previousRevision: $this->previousRevision,
             provider:         $this->provider,
         );
+
+        // Phase 24 D-09 — best-effort device_stencils/device_ports auto-stub.
+        // MUST run strictly AFTER completePendingReimport() returns, never
+        // inside it — the entire method body (including its final
+        // `return $pending->fresh();`) is wrapped in one DB::transaction
+        // closure (QuoteImportService::completePendingReimport). Wrapped in
+        // try/catch — a stubbing failure must NOT fail the re-import.
+        try {
+            $stubResult = app(QuoteImportStencilStubber::class)
+                ->stubFromEquipmentLines($package->equipment_list ?? []);
+
+            Log::info('ReimportQuoteJob: device stencils stubbed', [
+                'package_id'    => $this->pending->id,
+                'stubs_created' => $stubResult['created'],
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('ReimportQuoteJob: device stencil stubbing failed (best-effort, re-import still succeeds)', [
+                'package_id' => $this->pending->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
 
         Log::info('ReimportQuoteJob: completed', [
             'package_id' => $this->pending->id,

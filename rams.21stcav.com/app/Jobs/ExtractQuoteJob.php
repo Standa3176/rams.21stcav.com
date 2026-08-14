@@ -13,6 +13,7 @@ use App\Services\EquipmentLineParserService;
 use App\Services\EquipmentNormalizerService;
 use App\Services\PdfTextExtractorService;
 use App\Services\ProjectQuoteVersionService;
+use App\Services\QuoteImport\QuoteImportStencilStubber;
 use App\Services\QuoteLineExtractorService;
 use App\Services\QuoteParserService;
 use Illuminate\Bus\Queueable;
@@ -172,6 +173,8 @@ class ExtractQuoteJob implements ShouldQueue
             }
         });
 
+        $this->stubDeviceStencils($extracted);
+
         $this->generateContentPack($extracted);
 
         Log::info('ExtractQuoteJob: extraction complete', [
@@ -179,6 +182,30 @@ class ExtractQuoteJob implements ShouldQueue
             'user_id'    => $this->user->id,
             'confidence' => $extracted['meta']['parser_confidence'] ?? null,
         ]);
+    }
+
+    /**
+     * Best-effort device_stencils/device_ports auto-stubbing (Phase 24 D-09).
+     * Called AFTER the DB::transaction above closes — never inside it — so a
+     * stubber failure can never roll back the persisted extraction. Wrapped
+     * in try/catch — a stubbing failure must NOT fail quote extraction.
+     */
+    private function stubDeviceStencils(array $extracted): void
+    {
+        try {
+            $result = app(QuoteImportStencilStubber::class)
+                ->stubFromEquipmentLines($extracted['equipment_list'] ?? []);
+
+            Log::info('ExtractQuoteJob: device stencils stubbed', [
+                'package_id'    => $this->package->id,
+                'stubs_created' => $result['created'],
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('ExtractQuoteJob: device stencil stubbing failed (best-effort, extraction still succeeds)', [
+                'package_id' => $this->package->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
