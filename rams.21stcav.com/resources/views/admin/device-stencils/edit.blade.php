@@ -261,11 +261,27 @@ function stencilPortEditor(initialPorts, previewUrl) {
 @endif
 
 @php
-    $isCurated = $stencil->source === \App\Models\DeviceStencil::SOURCE_ENGINEER_CURATED;
+    // D-17 guard trigger — MUST stay identical to the server-side condition in
+    // DeviceStencilController::update(). A stencil with zero ports has no
+    // hand-built artwork to protect, so the guard must not engage: 91 of the 96
+    // seeded stencils are engineer-curated zero-port stubs, and firing on those
+    // is exactly the friction UAT Gap 2 identified. `ports` is eager-loaded by
+    // edit(), so isNotEmpty() costs no extra query.
+    $isCurated = $stencil->source === \App\Models\DeviceStencil::SOURCE_ENGINEER_CURATED
+        && $stencil->ports->isNotEmpty();
 @endphp
 
 <div class="stc-edit-grid"
-     x-data="stencilPortEditor(@json($stencil->ports->toArray()), '{{ route('admin.device-stencils.preview', $stencil) }}')">
+     {{-- Use Js::from(), NOT @json(). @json() emits raw double quotes, which
+          terminate this double-quoted HTML attribute early the moment the
+          stencil has any ports — producing malformed HTML, an unparseable
+          Alpine expression ("SyntaxError: Unexpected token ';'"), and a dead
+          component (no port table, no live preview, no promote state). It
+          looked fine only because a zero-port stencil renders @json([]) as
+          "[]", which contains no quotes. Js::from() escapes for exactly this
+          context. Found in browser UAT 2026-08-14; PHPUnit never caught it
+          because feature tests assert server HTML and never execute JS. --}}
+     x-data="stencilPortEditor({{ \Illuminate\Support\Js::from($stencil->ports->toArray()) }}, '{{ route('admin.device-stencils.preview', $stencil) }}')">
 
     {{-- ── Left column (~60%) — port table, source of truth (D-01) ────────── --}}
     <div>
