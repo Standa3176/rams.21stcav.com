@@ -501,6 +501,20 @@
     cursor: not-allowed;
 }
 #s-equipment .bulk-toolbar .bulk-purge { color: #b02a37; border-color: #d99a9f; }
+/* Quick task 260815-sup Task 4 — bulk category select + Apply */
+#s-equipment .bulk-toolbar .bulk-category-apply {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+}
+#s-equipment .bulk-toolbar .bulk-category-apply select {
+    border: 1px solid #d1b04e;
+    border-radius: 4px;
+    padding: .26rem .4rem;
+    font-size: .8rem;
+    color: #5a4600;
+    background: #fff;
+}
 #s-equipment .bulk-toolbar .bulk-clear {
     margin-left: auto;
     border: 0;
@@ -945,14 +959,19 @@
                 // can't confidently bucket don't silently become "Hardware" and mis-feed
                 // RAMS. PMs resolve Unknown rows at site-survey time — does NOT block approve.
                 $categoryOptions = [
-                    'hardware'          => 'Hardware',
-                    'cables'            => 'Cables',
-                    'consumables'       => 'Consumables',
-                    'services'          => 'Services / Professional',
-                    'service_contracts' => 'Service Contracts',
-                    'customer_supplied' => 'Customer Supplied',
-                    'option'            => 'Option (Optional Items)',
-                    'unknown'           => 'Unknown (set later)',
+                    'hardware'              => 'Hardware',
+                    // 260815-sup — client-owned kit 21CAV supplies but does
+                    // not install (e.g. a client's own camera/lighting rig).
+                    // Manual-selection only; feeds O&M but is excluded from
+                    // RAMS/drawings/surveys — see EquipmentCategoryClassifier.
+                    'hardware_supply_only' => 'Hardware — supply only (no install)',
+                    'cables'                => 'Cables',
+                    'consumables'           => 'Consumables',
+                    'services'              => 'Services / Professional',
+                    'service_contracts'     => 'Service Contracts',
+                    'customer_supplied'     => 'Customer Supplied',
+                    'option'                => 'Option (Optional Items)',
+                    'unknown'               => 'Unknown (set later)',
                 ];
 
                 // ── Tier-1 Screen 03 v2 — area picker source list ───────────
@@ -1021,13 +1040,16 @@
                 }
 
                 $equipmentByCategory = [
-                    'hardware'          => [],
-                    'cables'            => [],
-                    'consumables'       => [],
-                    'services'          => [],
-                    'service_contracts' => [],
-                    'customer_supplied' => [],
-                    'option'            => [],
+                    'hardware'              => [],
+                    // 260815-sup — own bucket so supply-only rows get their
+                    // own section instead of silently landing in Hardware.
+                    'hardware_supply_only'  => [],
+                    'cables'                => [],
+                    'consumables'           => [],
+                    'services'              => [],
+                    'service_contracts'     => [],
+                    'customer_supplied'     => [],
+                    'option'                => [],
                 ];
 
                 foreach ($equipmentRows as $row) {
@@ -1095,6 +1117,25 @@
                         title="Split selected qty>1 rows into individual qty=1 rows">
                     ⎘ Split
                 </button>
+                {{-- Quick task 260815-sup Task 4 — bulk category change. Sets
+                     the chosen category on every selected row's dropdown by
+                     dispatching a native 'change' event, which reuses the
+                     existing "move row when category changes" listener
+                     (moves the row into the right tbody section for free). --}}
+                <span class="bulk-category-apply">
+                    <select x-model="bulkCategoryValue" title="Category to apply to selected rows">
+                        <option value="">Set category…</option>
+                        @foreach ($categoryOptions as $value => $label)
+                            <option value="{{ $value }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    <button type="button"
+                            @click="bulkSetCategory()"
+                            :disabled="!canBulk('category')"
+                            title="Set the chosen category on every selected row">
+                        Apply
+                    </button>
+                </span>
                 <button type="button"
                         class="bulk-clear"
                         @click="clearSelection()">
@@ -2012,6 +2053,11 @@ function equipmentSection() {
         // every bulk action so the toolbar collapses back to hidden.
         selectedRowIds: [],
 
+        // 260815-sup Task 4 — category chosen in the bulk toolbar's "Set
+        // category…" dropdown, applied to every selected row by
+        // bulkSetCategory() below.
+        bulkCategoryValue: '',
+
         // Reactive counter used by the "N deleted rows hidden" header strip.
         // Walks the whole #s-equipment tree once per Alpine re-render — cheap
         // even at 100+ rows.
@@ -2111,7 +2157,30 @@ function equipmentSection() {
                 const q = r.querySelector('input[name$="[quantity]"]');
                 return q && parseInt(q.value, 10) > 1;
             });
+            // 260815-sup Task 4 — Apply is only enabled once a category has
+            // actually been chosen in the dropdown (selection non-empty is
+            // already guaranteed by the this.selectedRowIds.length check above).
+            if (kind === 'category') return this.bulkCategoryValue !== '';
             return false;
+        },
+
+        // 260815-sup Task 4 — set bulkCategoryValue on every selected row's
+        // category <select>, then dispatch a native 'change' event so the
+        // existing "move row when category changes" listener (below) relocates
+        // each row into the right tbody section — no separate DOM-move logic
+        // needed here. Mirrors bulkAction()'s end-of-action clearSelection().
+        bulkSetCategory() {
+            if (!this.bulkCategoryValue) return;
+            const rows = this._selectedRows();
+            if (rows.length === 0) return;
+            rows.forEach(r => {
+                const select = r.querySelector('select[data-equip-category]');
+                if (!select) return;
+                select.value = this.bulkCategoryValue;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            this.bulkCategoryValue = '';
+            this.clearSelection();
         },
 
         bulkAction(kind) {
@@ -2316,6 +2385,7 @@ function equipmentRowTemplate(idx, category) {
         <td style="width:150px;">
             <select name="equipment[${idx}][category]" data-equip-category>
                 <option value="hardware" ${category === 'hardware' ? 'selected' : ''}>Hardware</option>
+                <option value="hardware_supply_only" ${category === 'hardware_supply_only' ? 'selected' : ''}>Hardware — supply only (no install)</option>
                 <option value="cables" ${category === 'cables' ? 'selected' : ''}>Cables</option>
                 <option value="consumables" ${category === 'consumables' ? 'selected' : ''}>Consumables</option>
                 <option value="services" ${category === 'services' ? 'selected' : ''}>Services / Professional</option>
