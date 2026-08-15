@@ -2016,8 +2016,8 @@ function equipmentSection() {
         // Walks the whole #s-equipment tree once per Alpine re-render — cheap
         // even at 100+ rows.
         deletedCount() {
-            if (!this.$el) return 0;
-            return this.$el.querySelectorAll('tr[data-equip-row][data-deleted="1"]').length;
+            if (!this.$root) return 0;
+            return this.$root.querySelectorAll('tr[data-equip-row][data-deleted="1"]').length;
         },
 
         // ── Row-level actions (buttons inside col-actions) ───────────────
@@ -2087,13 +2087,21 @@ function equipmentSection() {
 
         clearSelection() {
             this.selectedRowIds = [];
-            if (!this.$el) return;
+            if (!this.$root) return;
             // Also clear the master + per-row checkboxes visually.
-            this.$el.querySelectorAll('input.row-select, thead input[type="checkbox"]')
+            this.$root.querySelectorAll('input.row-select, thead input[type="checkbox"]')
                 .forEach(cb => { cb.checked = false; });
         },
 
         canBulk(kind) {
+            // 260815-ohw — read the reactive mirror FIRST so Alpine registers a
+            // dependency for this binding. `_selectedRows()` is a pure DOM query
+            // with no reactive state, so without this touch the `:disabled`
+            // bindings never re-evaluate and every bulk button stays greyed even
+            // when rows are genuinely selected. (Before this task the dependency
+            // existed only as a side effect of the destructive reconcile that
+            // used to live inside `_selectedRows()`.)
+            if (this.selectedRowIds.length === 0) return false;
             const rows = this._selectedRows();
             if (rows.length === 0) return false;
             if (kind === 'delete')  return rows.some(r => r.dataset.deleted === '0');
@@ -2153,8 +2161,8 @@ function equipmentSection() {
         // (toggleAllInTbody, clearSelection, _deselectRow), so no reconcile
         // is needed here.
         _selectedRows() {
-            if (!this.$el) return [];
-            return Array.from(this.$el.querySelectorAll('input.row-select:checked'))
+            if (!this.$root) return [];
+            return Array.from(this.$root.querySelectorAll('input.row-select:checked'))
                 .map(cb => cb.closest('tr[data-equip-row]'))
                 .filter(Boolean);
         },
@@ -2242,8 +2250,8 @@ function equipmentSection() {
         },
 
         _nextIndex() {
-            if (!this.$el) return Date.now();
-            const inputs = this.$el.querySelectorAll('input[name^="equipment["], textarea[name^="equipment["], select[name^="equipment["]');
+            if (!this.$root) return Date.now();
+            const inputs = this.$root.querySelectorAll('input[name^="equipment["], textarea[name^="equipment["], select[name^="equipment["]');
             let max = -1;
             inputs.forEach(el => {
                 const m = el.name.match(/^equipment\[(\d+)\]/);

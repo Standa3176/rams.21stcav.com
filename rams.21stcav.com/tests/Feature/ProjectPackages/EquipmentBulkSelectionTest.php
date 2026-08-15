@@ -122,9 +122,25 @@ class EquipmentBulkSelectionTest extends TestCase
         );
 
         $this->assertStringContainsString(
-            'return Array.from(this.$el.querySelectorAll',
+            'return Array.from(this.$root.querySelectorAll',
             $body,
-            '_selectedRows() must still read the checked checkboxes from the DOM.',
+            '_selectedRows() must still read the checked checkboxes from the DOM, '
+                . 'scoped to $root NOT $el. Alpine binds $el to the element being '
+                . 'evaluated, so when canBulk() is reached from the :disabled '
+                . 'binding on a toolbar BUTTON, $el is that button — the query '
+                . 'then searches inside the button, finds nothing, and every bulk '
+                . 'action stays greyed. $root is always the component root. '
+                . '(260815-ohw — verified in-browser; this exact bug survived the '
+                . 'first fix attempt because canBulk() returns true when called '
+                . 'manually from the root proxy but false from the binding.)',
+        );
+
+        $this->assertStringNotContainsString(
+            'this.$el',
+            $this->reviewBladeSource(),
+            'equipmentSection() must not use this.$el anywhere — every helper is '
+                . 'reachable from a reactive binding where $el is the bound element '
+                . 'rather than the component root. Use this.$root throughout.',
         );
     }
 
