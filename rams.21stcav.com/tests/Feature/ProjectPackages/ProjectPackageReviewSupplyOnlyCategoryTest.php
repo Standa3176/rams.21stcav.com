@@ -93,6 +93,57 @@ class ProjectPackageReviewSupplyOnlyCategoryTest extends TestCase
     }
 
     // ═════════════════════════════════════════════════════════════════════════
+    // Task 3 — review-screen save round trip must not revert the new value
+    // (the exact bug 260725-qw3 fixed for service_contracts/customer_supplied)
+    // ═════════════════════════════════════════════════════════════════════════
+
+    public function test_hardware_supply_only_survives_the_review_save_round_trip(): void
+    {
+        $user    = User::factory()->create();
+        $project = Project::factory()->create(['user_id' => $user->id]);
+        $package = ProjectPackage::create([
+            'project_id'     => $project->id,
+            'user_id'        => $user->id,
+            'extracted_data' => [
+                'equipment' => [
+                    ['part_number' => 'SUP-ONLY-1', 'name' => 'Client-owned camera', 'category' => 'hardware', 'area' => 'Boardroom', 'quantity' => 1],
+                ],
+            ],
+            'status' => ProjectPackage::STATUS_EXTRACTED,
+        ]);
+
+        $this->actingAs($user)->post(route('project-packages.review.update', $package), [
+            'equipment' => [
+                [
+                    'part_number' => 'SUP-ONLY-1',
+                    'name'        => 'Client-owned camera',
+                    'category'    => 'hardware_supply_only',
+                    'area'        => 'Boardroom',
+                    'quantity'    => 1,
+                    'deleted'     => '0',
+                ],
+            ],
+            'project' => [
+                'project_name' => 'P',
+                'quote_ref'    => '',
+                'client_name'  => '',
+                'site_name'    => '',
+                'site_address' => '',
+                'prepared_by'  => '',
+                'overview'     => '',
+            ],
+        ])->assertRedirect();
+
+        $package->refresh();
+
+        $this->assertSame(
+            'hardware_supply_only',
+            $package->extracted_data['equipment'][0]['category'],
+            'hardware_supply_only must survive the save round trip, not be silently reverted to hardware.',
+        );
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
     // Inclusion — O&M manual (the "important" half of the exclusion proof)
     // ═════════════════════════════════════════════════════════════════════════
 
