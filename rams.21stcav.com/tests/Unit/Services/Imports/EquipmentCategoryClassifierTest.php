@@ -8,9 +8,9 @@ use App\Services\Imports\EquipmentCategoryClassifier;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Unit tests for EquipmentCategoryClassifier (260725-qw3).
+ * Unit tests for EquipmentCategoryClassifier (260725-qw3, extended 260815-sup).
  *
- * Verifies the 7-canonical-value vocabulary, the priority-ordered decision
+ * Verifies the 9-canonical-value vocabulary, the priority-ordered decision
  * tree (specific → broad), and the explicit-category short-circuit behaviour.
  */
 class EquipmentCategoryClassifierTest extends TestCase
@@ -50,7 +50,7 @@ class EquipmentCategoryClassifierTest extends TestCase
     }
 
     /** @test */
-    public function each_of_the_seven_canonical_values_is_returned_verbatim(): void
+    public function each_of_the_nine_canonical_values_is_returned_verbatim(): void
     {
         foreach (EquipmentCategoryClassifier::CATEGORIES as $canonical) {
             $this->assertSame(
@@ -58,6 +58,39 @@ class EquipmentCategoryClassifierTest extends TestCase
                 $this->classifier->classify(['category' => $canonical, 'name' => 'anything']),
             );
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Category: hardware_supply_only (260815-sup — manual-selection only)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** @test */
+    public function hardware_supply_only_survives_the_save_round_trip(): void
+    {
+        $this->assertSame(
+            'hardware_supply_only',
+            $this->classifier->classify(['category' => 'hardware_supply_only', 'name' => 'Client-owned PTZ camera rig']),
+        );
+    }
+
+    /** @test */
+    public function hardware_supply_only_is_in_the_canonical_categories(): void
+    {
+        $this->assertContains('hardware_supply_only', EquipmentCategoryClassifier::CATEGORIES);
+    }
+
+    /** @test */
+    public function no_keyword_maps_to_hardware_supply_only_a_realistic_camera_lens_lighting_line_stays_hardware(): void
+    {
+        // Realistic "Digital Production Studio" style line (see 260815-sup
+        // PLAN.md Why) — must classify as plain hardware via the keyword
+        // tree. hardware_supply_only is manual-selection only; nothing in a
+        // description reliably signals "supplied but not installed".
+        $this->assertSame('hardware', $this->classifier->classify([
+            'part_number' => 'SONY-FX6',
+            'name'        => 'Sony FX6 Full-Frame Cinema Camera with 24-105mm f/4 G Lens and LED Lighting Kit',
+            'description' => 'Client-owned production camera, lens and lighting package for the studio.',
+        ]));
     }
 
     /** @test */

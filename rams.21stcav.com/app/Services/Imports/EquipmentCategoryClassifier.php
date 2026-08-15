@@ -8,11 +8,11 @@ namespace App\Services\Imports;
  * EquipmentCategoryClassifier — canonical vocabulary bucketing for equipment
  * rows regardless of import source (QuoteWerks SQL, PDF parse, manual entry).
  *
- * The 8 canonical values match what the review UI dropdown offers
- * (resources/views/project-packages/review.blade.php ~line 923-931):
+ * The 9 canonical values match what the review UI dropdown offers
+ * (resources/views/project-packages/review.blade.php ~line 947-956):
  *
- *   hardware, cables, consumables, services, service_contracts,
- *   customer_supplied, option, unknown
+ *   hardware, hardware_supply_only, cables, consumables, services,
+ *   service_contracts, customer_supplied, option, unknown
  *
  * Both the QW importer (QuoteWerksImportService::buildExtractedData) and
  * the on-save allowlist (ProjectPackageReviewController::normaliseEquipmentCategory)
@@ -27,6 +27,17 @@ namespace App\Services\Imports;
  * mislabel it as `hardware`. Category=`unknown` MUST NOT block RAMS approve;
  * PMs resolve at site-survey time.
  *
+ * `hardware_supply_only` (added 260815-sup) is a deliberate MANUAL-SELECTION-
+ * ONLY category — client-owned kit 21CAV supplies but does not install
+ * (e.g. a client's own camera/lighting rig on a quote). It is included in
+ * O&M/asset-register output (see EquipmentCategoryClassifier::isOmIncludedCategory())
+ * but excluded from RAMS, drawings, stencil coverage and site surveys —
+ * every one of those consumers already filters to an exact `=== 'hardware'`
+ * match, so the new value is excluded from them by construction. No keyword
+ * rule maps to it: nothing in a quote description reliably signals
+ * "supplied but not installed" — that's a commercial call the PM makes via
+ * the dropdown.
+ *
  * NOT to be confused with App\Services\EquipmentClassifierService, which
  * produces RAMS activity keys (`display_installation`, `ceiling_works`, etc.)
  * for method-statement + risk-assessment generation. Different purpose,
@@ -37,9 +48,10 @@ namespace App\Services\Imports;
  */
 class EquipmentCategoryClassifier
 {
-    /** The 8 canonical category values. */
+    /** The 9 canonical category values. */
     public const CATEGORIES = [
         'hardware',
+        'hardware_supply_only',
         'cables',
         'consumables',
         'services',
@@ -50,12 +62,37 @@ class EquipmentCategoryClassifier
     ];
 
     /**
-     * Classify a single equipment row into one of the 7 canonical categories.
+     * Category values that should feed O&M manual / asset register output.
+     * `hardware` (installed kit) and `hardware_supply_only` (client-owned
+     * kit 21CAV supplies but does not install) both belong in handover
+     * documentation — see isOmIncludedCategory(). Added 260815-sup.
+     */
+    public const OM_INCLUDED_CATEGORIES = [
+        'hardware',
+        'hardware_supply_only',
+    ];
+
+    /**
+     * Whether a (non-empty) category value should feed O&M manual / asset
+     * register output. Shared by OmManualGeneratorService and
+     * MiniOmBuilderService so a future category change only needs one edit
+     * instead of three copies of a literal-pair check. Callers that also
+     * treat an empty/unset category as hardware (legacy rows) must check
+     * that separately — this helper only tests canonical, non-empty values.
+     */
+    public static function isOmIncludedCategory(string $category): bool
+    {
+        return in_array(strtolower(trim($category)), self::OM_INCLUDED_CATEGORIES, true);
+    }
+
+    /**
+     * Classify a single equipment row into one of the 9 canonical categories.
      *
      * If the incoming row already carries a canonical `category`, return it
      * verbatim (respects manual dropdown selections on save). Otherwise fall
      * to a priority-ordered keyword decision tree (specific matches first,
-     * broader last, `hardware` default).
+     * broader last, `hardware` default). `hardware_supply_only` is never
+     * reached via the keyword tree — it is manual-selection only.
      *
      * Accepted keys on $item (any/all optional): `category`, `name`,
      * `description`, `part_number`.
