@@ -2055,13 +2055,27 @@ function equipmentSection() {
         },
 
         // ── Multi-select toolbar actions (Task 3) ────────────────────────
+        //
+        // 260815-ohw Task 1 — must drive the DOM checkboxes, mirroring what
+        // clearSelection() already does below. Previously this only mutated
+        // the selectedRowIds array and relied on Alpine's x-model to flush
+        // .checked onto the DOM on a later microtask. Because the toolbar's
+        // :disabled="!canBulk(...)" binding reacts to this same write and
+        // calls _selectedRows() (a DOM query) before that flush happens, the
+        // reconcile there saw zero checked boxes and wiped the selection
+        // right back out. Setting .checked here directly closes that gap.
         toggleAllInTbody(masterCb, catKey) {
             const tbody = document.getElementById('equipment-tbody-' + catKey);
             if (!tbody) return;
             const rows = Array.from(tbody.querySelectorAll('tr[data-equip-row]'))
                 .filter(r => this.showDeleted || r.dataset.deleted !== '1');
             const ids = rows.map(r => r.dataset.rowId);
-            if (masterCb.checked) {
+            const checked = masterCb.checked;
+            rows.forEach(r => {
+                const cb = r.querySelector('input.row-select');
+                if (cb) cb.checked = checked;
+            });
+            if (checked) {
                 // Merge unique
                 const set = new Set(this.selectedRowIds.concat(ids));
                 this.selectedRowIds = Array.from(set);
@@ -2128,22 +2142,21 @@ function equipmentSection() {
         // rows flip to display:none). DOM is the source of truth for what
         // the user actually ticked; the array is a reactive display value.
         //
-        // Side effect: keeps the "N selected" count in the toolbar honest
-        // by refreshing selectedRowIds from the DOM whenever this fires.
+        // 260815-ohw Task 2 — this is now a PURE read. It must never write
+        // to this.selectedRowIds: canBulk() calls this from inside a
+        // reactive :disabled binding, and a write here re-triggers Alpine's
+        // reactivity mid-read. That reconcile used to run before
+        // toggleAllInTbody's own x-model flush had landed on the DOM, saw
+        // zero checked boxes, and stomped selectedRowIds back to [] —
+        // destroying the very selection canBulk() was asked about. Task 1
+        // now keeps the DOM and the array in sync at the point of mutation
+        // (toggleAllInTbody, clearSelection, _deselectRow), so no reconcile
+        // is needed here.
         _selectedRows() {
             if (!this.$el) return [];
-            const rows = Array.from(this.$el.querySelectorAll('input.row-select:checked'))
+            return Array.from(this.$el.querySelectorAll('input.row-select:checked'))
                 .map(cb => cb.closest('tr[data-equip-row]'))
                 .filter(Boolean);
-            // Reconcile selectedRowIds from the DOM in case Alpine drift
-            // has left them out of sync. Alpine reactivity picks this up
-            // and the toolbar count updates.
-            const domIds = rows.map(r => r.dataset.rowId).filter(id => id != null);
-            if (domIds.length !== this.selectedRowIds.length ||
-                domIds.some((id, i) => String(id) !== String(this.selectedRowIds[i]))) {
-                this.selectedRowIds = domIds;
-            }
-            return rows;
         },
 
         _doDelete(row) { this._markDeleted(row, true); },
