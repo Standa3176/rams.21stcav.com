@@ -18,6 +18,7 @@ use App\Services\EquipmentNormaliserService;
 use App\Services\EquipmentNormalizerService;
 use App\Services\ManufacturerSupportResolverService;
 use App\Services\OmManualValidationService;
+use App\Services\Imports\EquipmentCategoryClassifier;
 use App\Services\PdfTextExtractorService;
 use App\Services\QuoteLineExtractorService;
 use Illuminate\Support\Facades\DB;
@@ -841,8 +842,10 @@ class OmManualGeneratorService
                 return true;
             }
             $category = strtolower((string) ($item['category'] ?? ''));
-            // Only hardware should feed O&M lists. If no category is set, keep the item.
-            return $category === '' || $category === 'hardware';
+            // Only hardware — and supply-only hardware (client-owned kit
+            // 21CAV supplies but does not install, 260815-sup) — should feed
+            // O&M lists. If no category is set, keep the item.
+            return $category === '' || EquipmentCategoryClassifier::isOmIncludedCategory($category);
         }));
 
         // Map standardised {quantity, name} items to the room-equipment shape

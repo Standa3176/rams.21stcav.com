@@ -9,6 +9,7 @@ use App\Models\SiteSurveyPhoto;
 use App\Models\SiteSurveyRoom;
 use App\Models\Worksheet;
 use App\Models\WorksheetPhoto;
+use App\Services\Imports\EquipmentCategoryClassifier;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -385,14 +386,17 @@ class MiniOmBuilderService
         // The QuoteParser populates equipment_list with shape:
         //   ['quantity' => N, 'part_number' => '…', 'name' => '…',
         //    'area' => 'Room Name', 'category' => 'hardware|services|consumables']
-        // Mini O&M only lists physical assets, so non-hardware lines (services
-        // like RAMS/INSTALL2/HANDOVER, consumables like DELIVERY/CABLES, etc.)
-        // are filtered out here. Engineers and clients shouldn't see "RAMS" or
-        // "PROGRAMMING1" listed as installed equipment.
+        // Mini O&M lists physical assets — hardware AND hardware_supply_only
+        // (client-owned kit 21CAV supplies but does not install, 260815-sup) —
+        // so non-included lines (services like RAMS/INSTALL2/HANDOVER,
+        // consumables like DELIVERY/CABLES, etc.) are filtered out here via
+        // EquipmentCategoryClassifier::isOmIncludedCategory(). Engineers and
+        // clients shouldn't see "RAMS" or "PROGRAMMING1" listed as installed
+        // equipment.
         foreach ($package->equipment_list as $line) {
             if (! is_array($line)) continue;
             $category = strtolower(trim((string) ($line['category'] ?? 'hardware')));
-            if ($category !== 'hardware') continue;
+            if (! EquipmentCategoryClassifier::isOmIncludedCategory($category)) continue;
             $lineRoom = strtolower(trim((string) ($line['area'] ?? '')));
             if ($lineRoom !== $needle) continue;
 
@@ -591,9 +595,11 @@ class MiniOmBuilderService
             );
         });
 
-        // -- Quoted: every HARDWARE line NOT yet confirmed --
-        // Same shape contract as quotedAssetsForRoom() — filter to category=hardware
-        // and read the QuoteParser-emitted keys (area/name/quantity/part_number).
+        // -- Quoted: every HARDWARE (+ hardware_supply_only, 260815-sup) line
+        //    NOT yet confirmed --
+        // Same shape contract as quotedAssetsForRoom() — filter via
+        // EquipmentCategoryClassifier::isOmIncludedCategory() and read the
+        // QuoteParser-emitted keys (area/name/quantity/part_number).
         // Services and consumables (RAMS/INSTALL2/HANDOVER/DELIVERY/CABLES/etc) are
         // excluded because they aren't physical installed equipment.
         $alsoInstalled = [];
@@ -601,7 +607,7 @@ class MiniOmBuilderService
             foreach ($package->equipment_list as $line) {
                 if (! is_array($line)) continue;
                 $category = strtolower(trim((string) ($line['category'] ?? 'hardware')));
-                if ($category !== 'hardware') continue;
+                if (! EquipmentCategoryClassifier::isOmIncludedCategory($category)) continue;
                 $alsoInstalled[] = [
                     'room'         => (string) ($line['area'] ?? ''),
                     'manufacturer' => '',  // not in equipment_list shape
