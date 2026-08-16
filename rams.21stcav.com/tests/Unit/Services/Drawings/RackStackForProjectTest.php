@@ -7,7 +7,9 @@ use App\Models\Project;
 use App\Models\ProjectPackage;
 use App\Models\User;
 use App\Services\Drawings\DrawingDataResolverService;
+use App\Services\Imports\EquipmentCategoryClassifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use ReflectionMethod;
 use Tests\TestCase;
 
 /**
@@ -209,5 +211,78 @@ class RackStackForProjectTest extends TestCase
         $this->assertNull($result['palette'][1]['u_height']);
         $this->assertIsBool($result['palette'][1]['is_rack_mounted']);
         $this->assertFalse($result['palette'][1]['is_rack_mounted']);
+    }
+
+    /**
+     * Quick task 260816-uzh — table-drives one row per canonical category
+     * (App\Services\Imports\EquipmentCategoryClassifier::CATEGORIES) through
+     * the private filterHardware() method (invoked via reflection, mirroring
+     * how the bug was originally proven) and asserts exactly which survive.
+     *
+     * Table-driven so the next category added to the vocabulary forces an
+     * explicit decision here rather than silently defaulting to "renders as
+     * a device node" — EXCLUDED_CATEGORIES is inclusive-by-default.
+     *
+     * `customer_supplied` documents CURRENT (surviving) behaviour only. This
+     * is a deliberately open product question, not a locked contract: unlike
+     * a warranty, client-supplied kit may legitimately be part of the system
+     * topology (the client provides the display, 21CAV wires it into the
+     * rack). The user has not made that call yet — see 260816-uzh
+     * SUMMARY.md. If/when they do, this row's expectation should change
+     * along with the production filter, not before.
+     */
+    public function test_filter_hardware_survives_or_excludes_by_canonical_category(): void
+    {
+        $rows = [
+            'hardware' => ['category' => 'hardware', 'name' => 'Samsung 65in Display'],
+            'hardware_supply_only' => ['category' => 'hardware_supply_only', 'name' => 'Client Owned Camera Rig'],
+            'cables' => ['category' => 'cables', 'name' => 'HDMI 2.0 Lead 5m'],
+            'consumables' => ['category' => 'consumables', 'name' => 'Velcro Roll'],
+            'services' => ['category' => 'services', 'name' => 'Programming Day Rate'],
+            // The bug this quick task fixes.
+            'service_contracts' => ['category' => 'service_contracts', 'name' => '3 Year Extended Warranty'],
+            // Pending product decision — see docblock above. Documents reality.
+            'customer_supplied' => ['category' => 'customer_supplied', 'name' => 'Client Supplied Laptop'],
+            'option' => ['category' => 'option', 'name' => 'Optional Extra Speaker'],
+            'unknown' => ['category' => 'unknown', 'name' => 'Unclassified Line Item'],
+        ];
+
+        // Guard: fail loudly (not silently) if the canonical vocabulary grows
+        // without this table being updated to make an explicit call on it.
+        $this->assertSame(
+            EquipmentCategoryClassifier::CATEGORIES,
+            array_keys($rows),
+            'canonical category vocabulary changed — update this table to make an explicit survives/excluded call on the new category',
+        );
+
+        $expectedSurvives = [
+            'hardware' => true,
+            'hardware_supply_only' => false,
+            'cables' => false,
+            'consumables' => false,
+            'services' => false,
+            'service_contracts' => false,
+            'customer_supplied' => true,
+            'option' => false,
+            'unknown' => true,
+        ];
+
+        $service = app(DrawingDataResolverService::class);
+        $reflection = new ReflectionMethod(DrawingDataResolverService::class, 'filterHardware');
+        $reflection->setAccessible(true);
+
+        /** @var array<int, array<string, mixed>> $result */
+        $result = $reflection->invoke($service, array_values($rows));
+        $survivingCategories = array_column($result, 'category');
+
+        foreach ($expectedSurvives as $category => $shouldSurvive) {
+            $this->assertSame(
+                $shouldSurvive,
+                in_array($category, $survivingCategories, true),
+                $shouldSurvive
+                    ? "{$category} row must survive filterHardware() — it is a real device"
+                    : "{$category} row must NOT survive filterHardware() — it is not a physical device",
+            );
+        }
     }
 }
