@@ -37,11 +37,24 @@ class DrawingDataResolverService
     //     storage accessories carry no signal, so showing them as device
     //     nodes is misleading.
     // Cables/consumables/services are line-item-type items in every list.
+    //
+    // This list is INCLUSIVE BY DEFAULT — any category NOT listed here still
+    // renders as a device node. Any future category that should stay out of
+    // drawings must be added here explicitly.
+    //
+    // 'hardware_supply_only' added per the 260815-sup decision (locked
+    // 2026-08-15, quick task 260815-sup): supply-only kit appears in O&M
+    // only — explicitly not RAMS, not drawings, not surveys. Every other
+    // surface filters exclusively (`!== 'hardware'`) so a new category value
+    // is excluded there by construction; this allowlist-shaped filter was
+    // missed by the 260815-sup audit because it greps for `=== 'hardware'`
+    // and this file uses `in_array(...)` instead (quick task 260816-rdz).
     private const EXCLUDED_CATEGORIES = [
         'cables',
         'consumables',
         'services',
         'option',
+        'hardware_supply_only',
     ];
 
     // Keyword fallback. Matches against name OR description (lowercased).
