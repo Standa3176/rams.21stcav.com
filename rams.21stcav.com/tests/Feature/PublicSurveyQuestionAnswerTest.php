@@ -46,8 +46,14 @@ class PublicSurveyQuestionAnswerTest extends TestCase
             'user_id'      => $user->id,
             'project_name' => 'Test Project',
             'status'       => 'draft',
-            'access_token' => $this->token,
         ]);
+        // Re-audit S-03 — access_token was dropped from $fillable, so
+        // SiteSurvey::create() no longer accepts it. Set it via forceFill()
+        // so the test can drive a known token through the public route.
+        // The boot::creating hook has already set a random UUID; this
+        // overrides it.
+        $this->survey->forceFill(['access_token' => $this->token])->save();
+        $this->assertNotNull($this->survey->access_token);
 
         $this->room = $this->survey->rooms()->create([
             'room_name'  => 'Board Room',
@@ -138,8 +144,11 @@ class PublicSurveyQuestionAnswerTest extends TestCase
             'user_id'      => $user->id,
             'project_name' => 'Other Project',
             'status'       => 'draft',
-            'access_token' => $otherToken,
         ]);
+        // Re-audit S-03 — access_token was dropped from $fillable; force it
+        // through so this second survey's token is known and controllable.
+        $otherSurvey->forceFill(['access_token' => $otherToken])->save();
+        $this->assertNotNull($otherSurvey->access_token);
 
         $otherRoom = $otherSurvey->rooms()->create([
             'room_name'  => 'Other Room',
