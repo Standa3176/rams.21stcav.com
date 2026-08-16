@@ -56,13 +56,20 @@ class EndToEndTest extends TestCase
         $user      = User::factory()->create();
         $project   = Project::factory()->create(['user_id' => $user->id]);
         $worksheet = Worksheet::factory()->create(['project_id' => $project->id]);
-        $survey    = SiteSurvey::create([
+
+        // Quick task 260816-t5c: `access_token` is guarded on SiteSurvey
+        // (Re-audit S-03) — mass-assigning it is a silent no-op since
+        // boot()'s creating hook overwrites it with a fresh UUID. This test
+        // DOES read $survey->access_token later (route generation below), so
+        // force-fill after create() to keep the intent explicit even though
+        // the value would be auto-generated either way.
+        $survey = SiteSurvey::create([
             'user_id'      => $user->id,
             'project_id'   => $project->id,
             'project_name' => 'E2E Project',
             'status'       => 'draft',
-            'access_token' => (string) Str::uuid(),
         ]);
+        $survey->forceFill(['access_token' => (string) Str::uuid()])->save();
 
         // ── 1. Admin uploads 3 files ──────────────────────────────────────
         $pdf  = $this->fakeUpload('plan.pdf', "%PDF-1.4\nbody\n%%EOF\n", 'application/pdf');

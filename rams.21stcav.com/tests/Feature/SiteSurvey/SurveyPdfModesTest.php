@@ -9,7 +9,6 @@ use App\Models\SiteSurveyRoomQuestion;
 use App\Models\SurveyVariation;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -40,6 +39,11 @@ class SurveyPdfModesTest extends TestCase
     {
         $user = User::factory()->create();
 
+        // Quick task 260816-t5c: `access_token` is guarded on SiteSurvey
+        // (Re-audit S-03) — SiteSurvey::boot()'s creating hook auto-generates
+        // a UUID regardless of anything passed here, so the mass-assign
+        // attempt was a silent no-op. This test never reads access_token
+        // back, so the key is simply dropped rather than force-filled.
         $survey = SiteSurvey::create([
             'user_id'             => $user->id,
             'project_name'        => 'Tilda Office Refit',
@@ -48,7 +52,6 @@ class SurveyPdfModesTest extends TestCase
             'site_address'        => '12 Spice Way, London',
             'surveyor_name'       => 'J. Engineer',
             'status'              => 'draft',
-            'access_token'        => (string) Str::uuid(),
             'office_review_notes' => 'Review summary for the client visit.',
         ]);
 

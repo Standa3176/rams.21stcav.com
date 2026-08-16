@@ -6,7 +6,6 @@ use App\Models\SiteSurvey;
 use App\Models\User;
 use App\Services\DocumentEdits\Adapters\SurveyEditAdapter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class SurveyEditAdapterTest extends TestCase
@@ -16,11 +15,15 @@ class SurveyEditAdapterTest extends TestCase
     private function makeSurveyWithRoom(): array
     {
         $u = User::factory()->create();
+        // Quick task 260816-t5c: `access_token` is guarded on SiteSurvey (Re-audit
+        // S-03) — SiteSurvey::boot()'s creating hook auto-generates a UUID
+        // regardless of anything passed here, so the mass-assign attempt was a
+        // silent no-op. This test never reads access_token back, so the key is
+        // simply dropped rather than force-filled.
         $survey = SiteSurvey::create([
             'user_id'      => $u->id,
             'project_name' => 'Survey Test',
             'status'       => 'draft',
-            'access_token' => (string) Str::uuid(),
         ]);
         $room = $survey->rooms()->create([
             'room_name'  => 'Boardroom',

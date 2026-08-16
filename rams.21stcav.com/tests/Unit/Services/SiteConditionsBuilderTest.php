@@ -7,7 +7,6 @@ use App\Models\SiteSurveyRoom;
 use App\Models\User;
 use App\Services\SiteConditionsBuilder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -28,11 +27,16 @@ class SiteConditionsBuilderTest extends TestCase
     private function makeSurvey(): SiteSurvey
     {
         $user = User::factory()->create();
+
+        // Quick task 260816-t5c: `access_token` is guarded on SiteSurvey
+        // (Re-audit S-03) — boot()'s creating hook auto-generates a UUID
+        // regardless of anything passed here, so the mass-assign attempt was
+        // a silent no-op. This test never reads access_token back, so the
+        // key is simply dropped rather than force-filled.
         return SiteSurvey::create([
             'user_id'      => $user->id,
             'project_name' => 'Site Conditions Test',
             'status'       => 'draft',
-            'access_token' => (string) Str::uuid(),
         ]);
     }
 

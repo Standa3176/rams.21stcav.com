@@ -81,11 +81,15 @@ class SurveyRoomQuestionModelTest extends TestCase
     {
         // We need a parent room to satisfy the foreign key.
         // SiteSurveyRoom requires a SiteSurvey parent.
+        // Quick task 260816-t5c: `access_token` is guarded on SiteSurvey
+        // (Re-audit S-03) — boot()'s creating hook auto-generates a UUID
+        // regardless of anything passed here, so the mass-assign attempt was
+        // a silent no-op. This test never reads access_token back, so the
+        // key is simply dropped rather than force-filled.
         $survey = \App\Models\SiteSurvey::create([
             'user_id'       => \App\Models\User::factory()->create()->id,
             'project_name'  => 'Test Project',
             'status'        => 'draft',
-            'access_token'  => (string) \Illuminate\Support\Str::uuid(),
         ]);
 
         $room = $survey->rooms()->create([

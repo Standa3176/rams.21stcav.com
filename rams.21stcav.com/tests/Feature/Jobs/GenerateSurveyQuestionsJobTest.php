@@ -168,12 +168,16 @@ class GenerateSurveyQuestionsJobTest extends TestCase
             'reviewed_data' => [],
         ]);
 
+        // Quick task 260816-t5c: `access_token` is guarded on SiteSurvey
+        // (Re-audit S-03) — boot()'s creating hook auto-generates a UUID
+        // regardless of anything passed here, so the mass-assign attempt was
+        // a silent no-op. This test never reads access_token back, so the
+        // key is simply dropped rather than force-filled.
         $survey = SiteSurvey::create([
             'user_id'      => $user->id,
             'project_id'   => $project->id,
             'project_name' => $project->name,
             'status'       => 'draft',
-            'access_token' => (string) \Illuminate\Support\Str::uuid(),
         ]);
 
         $room = $survey->rooms()->create([
@@ -231,12 +235,13 @@ class GenerateSurveyQuestionsJobTest extends TestCase
             'reviewed_data'  => [],
         ]);
 
+        // Quick task 260816-t5c: same guarded-field note as above — key
+        // dropped, boot() auto-generates the token, test never reads it.
         $survey = SiteSurvey::create([
             'user_id'      => $user->id,
             'project_id'   => $project->id,
             'project_name' => $project->name,
             'status'       => 'draft',
-            'access_token' => (string) \Illuminate\Support\Str::uuid(),
         ]);
 
         $room = $survey->rooms()->create([

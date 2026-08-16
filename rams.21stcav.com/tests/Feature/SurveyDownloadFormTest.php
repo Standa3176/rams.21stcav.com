@@ -52,6 +52,15 @@ class SurveyDownloadFormTest extends TestCase
             'revision'          => 1,
         ]);
 
+        // Quick task 260816-t5c: `access_token` is guarded on SiteSurvey
+        // (Re-audit S-03) — mass-assigning it is a silent no-op since
+        // boot()'s creating hook overwrites it with a fresh UUID. Every
+        // caller reads ->access_token back (route generation below), so
+        // force-fill after create() to keep the intent explicit even though
+        // the value would be auto-generated either way. `$overrides` may
+        // itself target guarded fields (e.g. expired-token test passing
+        // `expires_at`), which stays fillable — only access_token needs the
+        // split.
         $survey = SiteSurvey::create(array_merge([
             'user_id'       => $user->id,
             'project_id'    => $project->id,
@@ -61,8 +70,8 @@ class SurveyDownloadFormTest extends TestCase
             'site_address'  => '1 Example Way, London',
             'surveyor_name' => 'J. Smith',
             'status'        => 'draft',
-            'access_token'  => (string) Str::uuid(),
         ], $overrides));
+        $survey->forceFill(['access_token' => (string) Str::uuid()])->save();
 
         $room = SiteSurveyRoom::create([
             'site_survey_id'    => $survey->id,

@@ -14,7 +14,6 @@ use App\Models\Worksheet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -116,12 +115,16 @@ class StaleDocsAfterSurveySubmitTest extends TestCase
         $ctx = $this->makeProjectWithFreshDocs();
 
         // Engineer is editing the survey but hasn't submitted yet.
+        // Quick task 260816-t5c: `access_token` is guarded on SiteSurvey
+        // (Re-audit S-03) — boot()'s creating hook auto-generates a UUID
+        // regardless of anything passed here, so the mass-assign attempt was
+        // a silent no-op. This test never reads access_token back, so the
+        // key is simply dropped rather than force-filled.
         SiteSurvey::create([
             'user_id'      => $ctx['user']->id,
             'project_id'   => $ctx['project']->id,
             'project_name' => $ctx['project']->name,
             'status'       => 'draft',
-            'access_token' => (string) Str::uuid(),
             'submitted_at' => null,
         ]);
 
@@ -177,12 +180,13 @@ class StaleDocsAfterSurveySubmitTest extends TestCase
 
         $user    = User::factory()->create();
         $project = Project::factory()->create(['user_id' => $user->id]);
+        // Quick task 260816-t5c: same guarded-field note as above — key
+        // dropped, boot() auto-generates the token, test never reads it.
         $survey  = SiteSurvey::create([
             'user_id'      => $user->id,
             'project_id'   => $project->id,
             'project_name' => $project->name,
             'status'       => 'draft',
-            'access_token' => (string) Str::uuid(),
         ]);
 
         app(\App\Core\Modules\Survey\SurveyService::class)->submitPublic($survey, []);
@@ -197,12 +201,13 @@ class StaleDocsAfterSurveySubmitTest extends TestCase
 
     private function submitSurveyForProject(Project $project, User $user): SiteSurvey
     {
+        // Quick task 260816-t5c: same guarded-field note as above — key
+        // dropped, boot() auto-generates the token, test never reads it.
         $survey = SiteSurvey::create([
             'user_id'      => $user->id,
             'project_id'   => $project->id,
             'project_name' => $project->name,
             'status'       => 'draft',
-            'access_token' => (string) Str::uuid(),
         ]);
 
         return app(\App\Core\Modules\Survey\SurveyService::class)->submitPublic($survey, []);

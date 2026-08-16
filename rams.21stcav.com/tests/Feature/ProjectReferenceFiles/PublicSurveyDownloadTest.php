@@ -153,13 +153,22 @@ class PublicSurveyDownloadTest extends TestCase
 
     private function makeSurvey(User $user, Project $project): SiteSurvey
     {
-        return SiteSurvey::create([
+        // Quick task 260816-t5c: `access_token` is guarded on SiteSurvey
+        // (Re-audit S-03) — mass-assigning it is a silent no-op since
+        // boot()'s creating hook overwrites it with a fresh UUID. Every
+        // caller of this helper reads ->access_token back for route
+        // generation, so force-fill after create() to keep the intent
+        // explicit even though the value would be auto-generated either way.
+        $survey = SiteSurvey::create([
             'user_id'      => $user->id,
             'project_id'   => $project->id,
             'project_name' => 'Test Project',
             'status'       => 'draft',
-            'access_token' => (string) Str::uuid(),
         ]);
+
+        $survey->forceFill(['access_token' => (string) Str::uuid()])->save();
+
+        return $survey;
     }
 
     private function seedFile(Project $project, User $user, string $name, string $clientMime, ?string $bytes = null): ProjectReferenceFile

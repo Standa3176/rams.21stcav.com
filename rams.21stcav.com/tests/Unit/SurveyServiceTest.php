@@ -60,13 +60,17 @@ class SurveyServiceTest extends TestCase
      */
     public function test_create_without_supersede_flag_throws_when_active_survey_exists(): void
     {
-        // Arrange: create an existing active survey for the project
+        // Arrange: create an existing active survey for the project.
+        // Quick task 260816-t5c: `access_token` is guarded on SiteSurvey
+        // (Re-audit S-03) — boot()'s creating hook auto-generates a UUID
+        // regardless of anything passed here, so the mass-assign attempt was
+        // a silent no-op. This test never reads access_token back, so the
+        // key is simply dropped rather than force-filled.
         SiteSurvey::create([
             'user_id'      => $this->user->id,
             'project_id'   => $this->project->id,
             'project_name' => $this->project->name,
             'status'       => 'draft',
-            'access_token' => (string) \Illuminate\Support\Str::uuid(),
         ]);
 
         $this->expectException(\RuntimeException::class);
@@ -96,13 +100,14 @@ class SurveyServiceTest extends TestCase
      */
     public function test_create_with_supersede_flag_sets_superseded_at_on_prior_survey(): void
     {
-        // Arrange: create an existing active survey for the project
+        // Arrange: create an existing active survey for the project.
+        // Quick task 260816-t5c: same guarded-field note as above — key
+        // dropped, boot() auto-generates the token, test never reads it.
         $existing = SiteSurvey::create([
             'user_id'      => $this->user->id,
             'project_id'   => $this->project->id,
             'project_name' => $this->project->name,
             'status'       => 'draft',
-            'access_token' => (string) \Illuminate\Support\Str::uuid(),
         ]);
 
         // Act: create a new survey WITH supersede=true
