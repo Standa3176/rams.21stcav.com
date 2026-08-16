@@ -33,8 +33,9 @@ use Tests\TestCase;
  *   - Curated stencil's mxgraph_xml is base64-embedded via shape=stencil(...)
  *   - DrawIoSpikeBuilderService still exists as a thin shim delegating to
  *     DrawIoBuilderService (Phase 21 D-08)
- *   - DrawIoSpikeController constructor still has 2 parameters per D-08 +
- *     Warning 2 (DrawingService dependency MUST NOT be dropped)
+ *   - DrawIoSpikeController constructor still injects DrawIoBuilderService +
+ *     DrawingService per D-08 + Warning 2 (type-based check, not arity —
+ *     see quick task 260816-t5c)
  *
  * @see app/Services/Drawings/DrawIoBuilderService.php
  * @see app/Services/Drawings/DrawIoSpikeBuilderService.php
@@ -190,18 +191,25 @@ class DrawIoBuilderServiceTest extends TestCase
     }
 
     /**
-     * D-08 + Warning 2 enforcement — the spike controller's two-parameter
-     * constructor MUST be preserved. Dropping `DrawingService $drawings`
-     * silently breaks saveXml + exportSvg.
+     * D-08 + Warning 2 enforcement — the spike controller's constructor MUST
+     * keep injecting BOTH DrawIoBuilderService and DrawingService. Dropping
+     * `DrawingService $drawings` silently breaks saveXml + exportSvg.
+     *
+     * Quick task 260816-t5c: this used to assert the constructor had exactly
+     * 2 parameters. Security batch `9a6837c` (WR-03/4/5) legitimately added a
+     * third dependency (`SvgSanitizerService`, for exportSvg's SVG sanitiser),
+     * which broke the arity count even though D-08's actual rule — that
+     * DrawingService survives — was never violated. An arity check is a bad
+     * proxy for that rule anyway: a 2-parameter constructor could still be
+     * broken. Assert the required types are present instead, regardless of
+     * how many other dependencies the constructor grows.
      */
-    public function test_d08_spike_controller_constructor_has_two_parameters(): void
+    public function test_d08_spike_controller_still_injects_drawing_service(): void
     {
         $rc = new ReflectionClass(DrawIoSpikeController::class);
         $ctor = $rc->getConstructor();
 
         $this->assertNotNull($ctor, 'DrawIoSpikeController must have an explicit constructor');
-        $this->assertSame(2, $ctor->getNumberOfParameters(),
-            'D-08 + Warning 2: DrawIoSpikeController constructor MUST keep BOTH parameters (builder + DrawingService)');
 
         $params = $ctor->getParameters();
         $types = array_map(

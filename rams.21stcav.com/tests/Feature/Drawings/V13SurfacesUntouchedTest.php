@@ -15,7 +15,9 @@ use Tests\TestCase;
  * Phase 23 Plan 07 — invariant guard against accidental modification of:
  *   - 5 v1.3 surfaces (Phase 21 D-10 + Phase 22 D-10)
  *   - DrawIoSpikeBuilderService shim (Phase 21 D-08)
- *   - DrawIoSpikeController constructor (Phase 21 D-08)
+ *   - DrawIoSpikeController constructor still injects DrawIoBuilderService +
+ *     DrawingService (Phase 21 D-08; type-based check, not arity — see
+ *     quick task 260816-t5c)
  *   - CableScheduleItem empty $with property (Phase 22 D-10)
  *   - config/cables.php signal_type_colours single source of truth (Phase 22)
  *
@@ -104,17 +106,33 @@ class V13SurfacesUntouchedTest extends TestCase
         $this->assertSame([], $reflection->getValue($instance));
     }
 
-    public function test_draw_io_spike_controller_constructor_has_two_parameters(): void
+    /**
+     * Phase 21 D-08 — DrawIoBuilderService + DrawingService must both stay
+     * injected into the spike controller.
+     *
+     * Quick task 260816-t5c: this used to assert the constructor had exactly
+     * 2 parameters (checked positionally). Security batch `9a6837c`
+     * (WR-03/4/5) legitimately added a third dependency
+     * (`SvgSanitizerService`, for exportSvg's SVG sanitiser), which broke
+     * both the count and the position-2 assumption even though D-08's actual
+     * rule — that DrawIoBuilderService and DrawingService both survive — was
+     * never violated. Assert by type membership instead of count/position.
+     */
+    public function test_draw_io_spike_controller_still_injects_builder_and_drawing_service(): void
     {
-        // Phase 21 D-08 — DrawIoBuilderService + DrawingService, in that order
         $reflection = new ReflectionClass(DrawIoSpikeController::class);
         $constructor = $reflection->getConstructor();
         $this->assertNotNull($constructor);
 
-        $params = $constructor->getParameters();
-        $this->assertCount(2, $params, 'DrawIoSpikeController constructor must have exactly 2 params');
-        $this->assertSame(DrawIoBuilderService::class, $params[0]->getType()->getName());
-        $this->assertSame(DrawingService::class, $params[1]->getType()->getName());
+        $types = array_map(
+            fn ($p) => $p->getType()?->getName(),
+            $constructor->getParameters()
+        );
+
+        $this->assertContains(DrawIoBuilderService::class, $types,
+            'Constructor must inject DrawIoBuilderService (the new canonical builder)');
+        $this->assertContains(DrawingService::class, $types,
+            'Constructor must STILL inject DrawingService (used by saveXml / exportSvg)');
     }
 
     public function test_draw_io_spike_builder_service_shim_still_delegates(): void
