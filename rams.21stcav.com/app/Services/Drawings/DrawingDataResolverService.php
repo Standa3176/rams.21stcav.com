@@ -49,10 +49,23 @@ class DrawingDataResolverService
     // is excluded there by construction; this allowlist-shaped filter was
     // missed by the 260815-sup audit because it greps for `=== 'hardware'`
     // and this file uses `in_array(...)` instead (quick task 260816-rdz).
+    //
+    // 'service_contracts' added per quick task 260816-uzh (2026-08-16):
+    // a support/warranty contract is not a physical device and has no
+    // signal connections, so it must never render as a device node —
+    // 'services' was already excluded but 'service_contracts' (a distinct,
+    // adjacent category in the canonical vocabulary — see
+    // App\Services\Imports\EquipmentCategoryClassifier::CATEGORIES) was
+    // missed when the vocabulary grew. 'customer_supplied' also currently
+    // survives into schematics but is left untouched here — unlike a
+    // warranty, client-supplied kit may legitimately be part of the system
+    // topology, and that is a product decision the user has not made yet
+    // (see 260816-uzh SUMMARY.md open question).
     private const EXCLUDED_CATEGORIES = [
         'cables',
         'consumables',
         'services',
+        'service_contracts',
         'option',
         'hardware_supply_only',
     ];
