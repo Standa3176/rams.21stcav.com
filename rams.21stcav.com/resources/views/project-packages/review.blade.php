@@ -1168,13 +1168,12 @@
                     <thead>
                         <tr>
                             {{-- Quick task 260723-eq1 Task 3 — bulk-select column.
-                                 Master checkbox selects all visible rows in THIS
-                                 tbody (respects the showDeleted filter). --}}
-                            <th class="col-select">
-                                <input type="checkbox"
-                                       @change="toggleAllInTbody($event.target, '{{ $catKey }}')"
-                                       title="Select all visible rows in this category">
-                            </th>
+                                 260816-prs — the category-wide master checkbox was
+                                 removed (63-row blast radius across every room in
+                                 the quote). Select-all now lives per room on the
+                                 room header row below via toggleAllInRoom(). This
+                                 <th> is kept empty so column alignment holds. --}}
+                            <th class="col-select"></th>
                             <th class="col-qty">Qty</th>
                             <th style="width:140px;">Part Number</th>
                             <th>Equipment / Item Description</th>
@@ -1200,8 +1199,20 @@
                             ksort($rowsByRoom, SORT_NATURAL | SORT_FLAG_CASE);
                         @endphp
                         @forelse ($rowsByRoom as $roomName => $roomRows)
-                            <tr data-room-row="1" style="background:var(--bg);">
-                                <td colspan="8" style="font-weight:600;color:#0f5460;padding:.4rem .75rem;border-bottom:1px solid var(--border);">
+                            {{-- 260816-prs Task 1 — data-room tags this header row so
+                                 toggleAllInRoom() can scope by attribute instead of
+                                 fragile sibling-walking (which breaks the moment a
+                                 row moves category or the graveyard filter hides it). --}}
+                            <tr data-room-row="1" data-room="{{ $roomName }}" style="background:var(--bg);">
+                                {{-- 260816-prs Task 3 — per-room select-all, aligned
+                                     under the col-select column. Rendered for every
+                                     category, not just hardware. --}}
+                                <td class="col-select">
+                                    <input type="checkbox"
+                                           @change="toggleAllInRoom($event.target, '{{ $catKey }}', '{{ addslashes($roomName) }}')"
+                                           title="Select all visible rows in {{ $roomName }}">
+                                </td>
+                                <td colspan="7" style="font-weight:600;color:#0f5460;padding:.4rem .75rem;border-bottom:1px solid var(--border);">
                                     <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;">
                                         <span class="eq-area-label">{{ $roomName }}</span>
                                         @if($catKey === 'hardware')
@@ -1241,10 +1252,13 @@
                                 {{-- Quick task 260723-eq1 — data-deleted flips CSS-driven
                                      visibility of the col-actions button group and applies
                                      the graveyard tint/strikethrough. data-row-id is the
-                                     stable handle Task 3's multi-select toolbar uses. --}}
+                                     stable handle Task 3's multi-select toolbar uses.
+                                     260816-prs Task 1 — data-room scopes toggleAllInRoom()
+                                     to this row's room, matching the header's data-room. --}}
                                 <tr data-equip-row="1"
                                     data-deleted="{{ $isDeleted ? '1' : '0' }}"
-                                    data-row-id="{{ $i }}">
+                                    data-row-id="{{ $i }}"
+                                    data-room="{{ $roomName }}">
                                 <td class="col-select">
                                     {{-- Quick task 260723-eq1 Task 3 — per-row select checkbox.
                                          x-model binds into the wrapping equipmentSection component's
@@ -2102,6 +2116,15 @@ function equipmentSection() {
 
         // ── Multi-select toolbar actions (Task 3) ────────────────────────
         //
+        // 260816-prs Task 4 — replaces the old category-wide master
+        // checkbox handler. That handler selected every row in the WHOLE
+        // category (63 hardware rows across every room on a real quote) —
+        // never what the user wants, and it made bulkSetCategory()
+        // (260815-sup) able to recategorise an entire project in one
+        // click. This scopes the query to
+        // `tr[data-equip-row][data-room="..."]` inside the category's
+        // tbody instead of the whole tbody.
+        //
         // 260815-ohw Task 1 — must drive the DOM checkboxes, mirroring what
         // clearSelection() already does below. Previously this only mutated
         // the selectedRowIds array and relied on Alpine's x-model to flush
@@ -2110,10 +2133,10 @@ function equipmentSection() {
         // calls _selectedRows() (a DOM query) before that flush happens, the
         // reconcile there saw zero checked boxes and wiped the selection
         // right back out. Setting .checked here directly closes that gap.
-        toggleAllInTbody(masterCb, catKey) {
+        toggleAllInRoom(masterCb, catKey, roomName) {
             const tbody = document.getElementById('equipment-tbody-' + catKey);
             if (!tbody) return;
-            const rows = Array.from(tbody.querySelectorAll('tr[data-equip-row]'))
+            const rows = Array.from(tbody.querySelectorAll('tr[data-equip-row][data-room="' + CSS.escape(roomName) + '"]'))
                 .filter(r => this.showDeleted || r.dataset.deleted !== '1');
             const ids = rows.map(r => r.dataset.rowId);
             const checked = masterCb.checked;
@@ -2122,10 +2145,11 @@ function equipmentSection() {
                 if (cb) cb.checked = checked;
             });
             if (checked) {
-                // Merge unique
+                // Merge unique — selecting room A then room B yields A ∪ B.
                 const set = new Set(this.selectedRowIds.concat(ids));
                 this.selectedRowIds = Array.from(set);
             } else {
+                // Drop only this room's ids — unticking room A leaves room B selected.
                 const drop = new Set(ids);
                 this.selectedRowIds = this.selectedRowIds.filter(id => !drop.has(id));
             }
@@ -2222,13 +2246,13 @@ function equipmentSection() {
         // 260815-ohw Task 2 — this is now a PURE read. It must never write
         // to this.selectedRowIds: canBulk() calls this from inside a
         // reactive :disabled binding, and a write here re-triggers Alpine's
-        // reactivity mid-read. That reconcile used to run before
-        // toggleAllInTbody's own x-model flush had landed on the DOM, saw
-        // zero checked boxes, and stomped selectedRowIds back to [] —
-        // destroying the very selection canBulk() was asked about. Task 1
-        // now keeps the DOM and the array in sync at the point of mutation
-        // (toggleAllInTbody, clearSelection, _deselectRow), so no reconcile
-        // is needed here.
+        // reactivity mid-read. That reconcile used to run before the old
+        // master-checkbox handler's own x-model flush had landed on the
+        // DOM, saw zero checked boxes, and stomped selectedRowIds back to
+        // [] — destroying the very selection canBulk() was asked about.
+        // Task 1 now keeps the DOM and the array in sync at the point of
+        // mutation (toggleAllInRoom, clearSelection, _deselectRow), so no
+        // reconcile is needed here.
         _selectedRows() {
             if (!this.$root) return [];
             return Array.from(this.$root.querySelectorAll('input.row-select:checked'))
@@ -2584,6 +2608,11 @@ function moveEquipRowToArea(areaInput) {
     if (!tbody) return;
     const newArea = (areaInput.value || '').trim() || 'General';
 
+    // 260816-prs — keep data-room in sync so toggleAllInRoom() (which
+    // queries tr[data-equip-row][data-room="..."]) can still find this row
+    // after it changes rooms via the area input.
+    row.dataset.room = newArea;
+
     // Find or create the room-group header inside this tbody.
     const headers = tbody.querySelectorAll('tr[data-room-row] td .eq-area-label');
     let targetHeaderRow = null;
@@ -2599,12 +2628,33 @@ function moveEquipRowToArea(areaInput) {
 
     if (!targetHeaderRow) {
         // Build a new room-header row that matches the existing markup so it
-        // looks identical to what Blade renders on first load.
+        // looks identical to what Blade renders on first load — including
+        // the 260816-prs per-room select-all checkbox in its own col-select
+        // cell (kept in a 1 + 7 colspan split so column widths line up).
+        const catKey = (tbody.id || '').replace(/^equipment-tbody-/, '');
         targetHeaderRow = document.createElement('tr');
         targetHeaderRow.setAttribute('data-room-row', '1');
+        targetHeaderRow.setAttribute('data-room', newArea);
         targetHeaderRow.style.background = 'var(--bg)';
+
+        const selectTd = document.createElement('td');
+        selectTd.className = 'col-select';
+        const cb = document.createElement('input');
+        cb.type  = 'checkbox';
+        cb.title = 'Select all visible rows in ' + newArea;
+        // Wired via Alpine.$data() instead of an inline @change attribute —
+        // this row is built with the DOM API (not innerHTML) specifically
+        // so a room name containing a quote can't break attribute parsing.
+        cb.addEventListener('change', function (ev) {
+            const root = document.getElementById('s-equipment');
+            const comp = root && window.Alpine ? window.Alpine.$data(root) : null;
+            if (comp) comp.toggleAllInRoom(ev.target, catKey, newArea);
+        });
+        selectTd.appendChild(cb);
+        targetHeaderRow.appendChild(selectTd);
+
         const td = document.createElement('td');
-        td.colSpan = 6;
+        td.colSpan = 7;
         td.style.cssText = 'font-weight:600;color:#0f5460;padding:.4rem .75rem;border-bottom:1px solid var(--border);';
         const label = document.createElement('span');
         label.className   = 'eq-area-label';
@@ -2682,14 +2732,38 @@ document.addEventListener('change', function (e) {
     // Find or create a "General" room-header row in the destination tbody.
     // Equipment rows are always grouped under a room header — we need one
     // in the target section or the row will appear without a section label.
+    // 260816-prs — this fallback header now needs the same data-room +
+    // per-room select-all checkbox as every other header so it isn't the
+    // one group in the table that select-all can't reach.
     let destRoomRow = tbody.querySelector('tr[data-room-row]');
     if (!destRoomRow) {
         destRoomRow = document.createElement('tr');
         destRoomRow.setAttribute('data-room-row', '1');
+        destRoomRow.setAttribute('data-room', 'General');
         destRoomRow.style.background = 'var(--bg)';
-        destRoomRow.innerHTML = `<td colspan="8" style="font-weight:600;color:#0f5460;padding:.4rem .75rem;border-bottom:1px solid var(--border);">
-            <span class="eq-area-label">General</span>
-        </td>`;
+
+        const selectTd = document.createElement('td');
+        selectTd.className = 'col-select';
+        const cb = document.createElement('input');
+        cb.type  = 'checkbox';
+        cb.title = 'Select all visible rows in General';
+        cb.addEventListener('change', function (ev) {
+            const root = document.getElementById('s-equipment');
+            const comp = root && window.Alpine ? window.Alpine.$data(root) : null;
+            if (comp) comp.toggleAllInRoom(ev.target, category, 'General');
+        });
+        selectTd.appendChild(cb);
+        destRoomRow.appendChild(selectTd);
+
+        const labelTd = document.createElement('td');
+        labelTd.colSpan = 7;
+        labelTd.style.cssText = 'font-weight:600;color:#0f5460;padding:.4rem .75rem;border-bottom:1px solid var(--border);';
+        const label = document.createElement('span');
+        label.className   = 'eq-area-label';
+        label.textContent = 'General';
+        labelTd.appendChild(label);
+        destRoomRow.appendChild(labelTd);
+
         tbody.appendChild(destRoomRow);
     }
 
