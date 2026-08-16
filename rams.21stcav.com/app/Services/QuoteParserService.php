@@ -95,6 +95,18 @@ class QuoteParserService
         'studio', 'lobby', 'suite', 'hall', 'office', 'floor', 'room',
     ];
 
+    // ── Prose stop-words for the room keyword-scan fallback ───────────────────
+    // Package 147 (21CQ30698) had the keyword-scan capture full narrative
+    // sentences as "rooms" — e.g. "s Boardroom currently contains" — because
+    // the pattern has no grammar awareness, it just grabs characters around a
+    // keyword. Whole-word, case-insensitive matching only, so "Board" inside
+    // "Boardroom" can never trip this list. See extractRooms().
+    private const ROOM_PROSE_STOPWORDS = [
+        'currently', 'contains', 'existing', 'should', 'will', 'would',
+        'there', 'these', 'their', 'which', 'that', 'been', 'have',
+        'requires', 'required',
+    ];
+
     // ── Generic email provider domains (rejected for client fallback) ─────────
 
     private const PREPARED_BY_PATTERNS = [
@@ -909,8 +921,36 @@ class QuoteParserService
                 // punctuation like em-dashes that break an alphabetic prefix run.
                 $pattern = '/([A-Za-z0-9\s\-\/]{0,50}' . preg_quote($kw, '/') . '[A-Za-z0-9\s\-\/]{0,20})/i';
 
-                if (preg_match($pattern, $line, $m)) {
-                    $room = trim($m[1]);
+                if (preg_match($pattern, $line, $m, PREG_OFFSET_CAPTURE)) {
+                    $raw   = $m[1][0];
+                    $start = $m[1][1];
+                    $end   = $start + strlen($raw);
+                    $room  = $raw;
+
+                    // A1 (package 147): drop a trailing partial word when the
+                    // {0,20} trailing window ran out mid-word — the character
+                    // immediately after the captured span still continues a
+                    // word, so the final whitespace-delimited token is a
+                    // truncation, not a whole word. Reproduces the fix for
+                    // "Boardroom Rack Reconfiguratio" → "Boardroom Rack".
+                    if ($end < strlen($line) && preg_match('/[A-Za-z0-9]/', $line[$end])) {
+                        $lastSpace = strrpos($room, ' ');
+                        $room      = $lastSpace === false ? '' : substr($room, 0, $lastSpace);
+                    }
+
+                    // A1 (package 147): drop a leading partial word when the
+                    // capture began mid-word — a non-class character (e.g. the
+                    // apostrophe in "client's") broke the run, so the first
+                    // whitespace-delimited token is a fragment left over from
+                    // the word before it. Reproduces the fix for
+                    // "s Boardroom currently contains" → "Boardroom currently
+                    // contains" (which A2 below then rejects on stop-words).
+                    if ($start > 0 && preg_match('/[A-Za-z0-9\']/', $line[$start - 1])) {
+                        $firstSpace = strpos($room, ' ');
+                        $room       = $firstSpace === false ? '' : substr($room, $firstSpace + 1);
+                    }
+
+                    $room = trim($room);
 
                     // Hard cap: room names longer than 60 chars are likely full
                     // sentence fragments caught by the pattern, not room names.
@@ -920,6 +960,12 @@ class QuoteParserService
 
                     // Must have at least 2 consecutive alphabetic characters
                     if (! preg_match('/[a-zA-Z]{2,}/', $room)) {
+                        break;
+                    }
+
+                    // A2 (package 147): reject prose fragments the keyword-scan
+                    // window still harvested after A1's trim.
+                    if ($this->looksLikeRoomProseFragment($room)) {
                         break;
                     }
 
@@ -935,6 +981,58 @@ class QuoteParserService
         }
 
         return array_values(array_unique($rooms));
+    }
+
+    /**
+     * A2 (defect A, package 147, 21CQ30698): does a room-keyword-scan capture
+     * read like a sentence fragment rather than a room label?
+     *
+     * Package 147 stored "s Boardroom currently contains" as a room because
+     * the keyword-scan pattern in extractRooms() has no grammar awareness —
+     * it just grabs characters around a keyword. A1's trim (in the caller)
+     * only removes truncated partial words at the edges; this catches
+     * captures that are whole-word but still clearly prose.
+     *
+     * The word-count threshold below is intentionally looser than a naive
+     * "rooms are short" rule would suggest: this codebase's own fixtures
+     * already rely on a full-sentence capture such as "Works to be carried
+     * out in the Boardroom area" (9 tokens) continuing to resolve to a room.
+     * Narrowed here per the plan's own guard-rail rather than breaking that
+     * fixture — the stop-word and short-leading-token checks below are what
+     * actually catch the package-147 fragments.
+     */
+    private function looksLikeRoomProseFragment(string $room): bool
+    {
+        if ($room === '') {
+            return true;
+        }
+
+        $words = preg_split('/\s+/', $room, -1, PREG_SPLIT_NO_EMPTY);
+
+        if (empty($words)) {
+            return true;
+        }
+
+        // Starts with a 1-2 character lowercase token — the signature of a
+        // capture that began mid-word (e.g. "s Boardroom …" from "client's").
+        if (preg_match('/^[a-z]{1,2}$/', $words[0])) {
+            return true;
+        }
+
+        // Too many words. Deliberately generous — see docblock above.
+        if (count($words) > 9) {
+            return true;
+        }
+
+        // Sentence words present — whole-word, case-insensitive match against
+        // a fixed stop-list so "Board" inside "Boardroom" can never trip it.
+        foreach (self::ROOM_PROSE_STOPWORDS as $stopword) {
+            if (preg_match('/\b' . preg_quote($stopword, '/') . '\b/i', $room)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // =========================================================================

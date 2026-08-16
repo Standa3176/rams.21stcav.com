@@ -693,6 +693,86 @@ class QuoteParserServiceTest extends TestCase
         $this->assertEmpty($result['rooms']);
     }
 
+    // ── Defect A regression (quick task 260816-rdz, package 147 / 21CQ30698) ──
+    //
+    // Production package 147 stored ["Boardroom Rack Reconfiguratio",
+    // "s Boardroom currently contains"] as its only two "rooms" — both
+    // mid-word fragments harvested by the keyword-scan fallback's loose
+    // 50-before/20-after character window. These cases reproduce the exact
+    // failure and assert it no longer happens; they fail if either the A1
+    // whole-word trim or the A2 prose-fragment rejection is reverted.
+
+    public function test_package_147_truncated_trailing_fragment_is_trimmed_to_whole_words(): void
+    {
+        // Reproduces "Boardroom Rack Reconfiguratio" (29 chars, cut mid-word
+        // by the {0,20}-after capture window) from package 147.
+        $text = 'Boardroom Rack Reconfiguration Project scope covers the whole floor.';
+
+        $result = $this->parser->parse($text);
+
+        $this->assertNotEmpty($result['rooms']);
+        foreach ($result['rooms'] as $room) {
+            $this->assertStringEndsNotWith('Reconfiguratio', $room);
+        }
+        $this->assertContains('Boardroom Rack', $result['rooms']);
+    }
+
+    public function test_package_147_apostrophe_leading_fragment_is_rejected(): void
+    {
+        // Reproduces "s Boardroom currently contains" (30 chars) from
+        // package 147 — the apostrophe in "client's" breaks the capture's
+        // character class, so the leading run starts mid-word at "s ".
+        $text = "As the client's Boardroom currently contains a legacy display, works are required.";
+
+        $result = $this->parser->parse($text);
+
+        $this->assertNotContains('s Boardroom currently contains', $result['rooms']);
+        $this->assertNotContains('Boardroom currently contains', $result['rooms']);
+        foreach ($result['rooms'] as $room) {
+            $this->assertStringStartsNotWith('s ', $room);
+        }
+    }
+
+    public function test_prose_fragment_with_leading_mid_word_token_is_rejected(): void
+    {
+        $text = "s Boardroom currently contains a display";
+
+        $result = $this->parser->parse($text);
+
+        $this->assertEmpty($result['rooms']);
+    }
+
+    public function test_prose_fragment_with_sentence_stopwords_is_rejected(): void
+    {
+        $text = "Boardroom currently contains a legacy display";
+
+        $result = $this->parser->parse($text);
+
+        $this->assertEmpty($result['rooms']);
+    }
+
+    public function test_legitimate_short_room_names_still_accepted(): void
+    {
+        // Positive cases from the plan — must survive A1/A2 unchanged.
+        $this->assertSame(['Boardroom'], $this->parser->parse('Boardroom')['rooms']);
+        $this->assertSame(['Meeting Room 1'], $this->parser->parse('Meeting Room 1')['rooms']);
+        $this->assertSame(['Digital Production Studio'], $this->parser->parse('Digital Production Studio')['rooms']);
+        $this->assertSame(['Boardroom Rack'], $this->parser->parse('Boardroom Rack')['rooms']);
+    }
+
+    public function test_existing_multi_word_sentence_room_capture_still_works(): void
+    {
+        // Guards against an overly aggressive word-count rule: this exact
+        // 9-token capture already resolves to a room in production today
+        // (test_extracts_boardroom_from_line, above) and must keep doing so.
+        $text = "Works to be carried out in the Boardroom area";
+
+        $result = $this->parser->parse($text);
+
+        $this->assertNotEmpty($result['rooms']);
+        $this->assertStringContainsStringIgnoringCase('boardroom', $result['rooms'][0]);
+    }
+
     public function test_tagged_part_number_strips_leading_ocr_punctuation_noise(): void
     {
         $text = implode("\n", [
