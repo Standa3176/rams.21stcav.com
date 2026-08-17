@@ -94,10 +94,13 @@ class SnaggingPdfGenerationTest extends TestCase
         $service = app(CommissioningPdfService::class);
         $filename = $service->buildFinal($programme, $signoff);
 
+        // M-09 added a microsecond segment (Ymd_His -> Ymd_His_u) so
+        // same-second retries cannot collide on filename. The regex must
+        // accept that trailing _u segment.
         $this->assertMatchesRegularExpression(
-            '/^snagging_programme_\d+_\d{8}_\d{6}_final\.pdf$/',
+            '/^snagging_programme_\d+_\d{8}_\d{6}_\d{6}_final\.pdf$/',
             $filename,
-            'Filename must follow snagging_programme_{id}_{Ymd_His}_final.pdf',
+            'Filename must follow snagging_programme_{id}_{Ymd_His_u}_final.pdf (M-09)',
         );
     }
 
