@@ -9,6 +9,7 @@ use App\Models\OmManual;
 use App\Models\Project;
 use App\Models\ProjectDrawing;
 use App\Models\RamsDocument;
+use App\Models\SiteSurvey;
 use App\Models\Worksheet;
 use App\Observers\InstallTaskObserver;
 use App\Policies\CableSchedulePolicy;
@@ -16,6 +17,7 @@ use App\Policies\OmManualPolicy;
 use App\Policies\ProjectDrawingPolicy;
 use App\Policies\ProjectPolicy;
 use App\Policies\RamsDocumentPolicy;
+use App\Policies\SiteSurveyPolicy;
 use App\Policies\WorksheetPolicy;
 use App\Repositories\ProductTaxonomyRepository;
 use App\Services\PdfOcrExtractorService;
@@ -127,6 +129,12 @@ class AppServiceProvider extends ServiceProvider
         // handlers share the same shape as RamsController's authorize() call.
         Gate::policy(Worksheet::class, WorksheetPolicy::class);
         Gate::policy(CableSchedule::class, CableSchedulePolicy::class);
+        // Quick task 260817-w4k — SiteSurvey was the only document type
+        // reachable through DocumentEditController with no policy behind
+        // it, so can('update', $survey) denied while the other four types
+        // allowed. Registered here before the AI-edit endpoints were
+        // routed through the policy.
+        Gate::policy(SiteSurvey::class, SiteSurveyPolicy::class);
 
         // ── Phase 16: commissioning generation trigger (D-03) ────────────────
         // Observer fires CommissioningItemGenerator::generate() when the
