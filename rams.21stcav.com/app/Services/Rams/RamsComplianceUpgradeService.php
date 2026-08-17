@@ -831,12 +831,18 @@ class RamsComplianceUpgradeService
             return $data;
         }
 
+        // 260817-r5e — the RA reference is the hazard's ROW POSITION in the
+        // rendered risk register, NOT $h['id']. Both renderers label the Ref
+        // column 'RA' . str_pad(index + 1) (DocxBuilderService:1221,
+        // rams-v2.blade.php:1393), so keying off $h['id'] emitted dangling
+        // references the moment ids stopped being 1..N in order — which they
+        // do whenever RamsDataBuilderService::normalise drops an unlabelled
+        // hazard row but keeps the surviving rows' original ids.
         $hazardIds = [];
-        foreach ((array) ($data['hazards'] ?? []) as $h) {
-            $id   = (int) ($h['id'] ?? 0);
+        foreach (array_values((array) ($data['hazards'] ?? [])) as $idx => $h) {
             $name = strtolower((string) ($h['hazard'] ?? ''));
-            if ($id > 0 && $name !== '') {
-                $hazardIds[] = ['id' => $id, 'name' => $name];
+            if ($name !== '') {
+                $hazardIds[] = ['id' => $idx + 1, 'name' => $name];
             }
         }
 
@@ -857,8 +863,23 @@ class RamsComplianceUpgradeService
         $upgradedPhases = [];
 
         foreach ($phases as $phase) {
+            $phase = (array) $phase;
+
+            // 260817-r5e — strip any model-authored "Associated Risks: …"
+            // bullet BEFORE deriving our own. Pre-fix, the AI prompt asked
+            // for one and this method added a second, so every phase rendered
+            // two lines carrying different RA-IDs (21CQ30960-OPS Rev 1.0).
+            // The prompt no longer asks — but models ignore negative
+            // instructions often enough that stripping here is the actual
+            // guarantee, and it also cleans phases already persisted in
+            // generated_data (upgrade() runs on every render path).
+            $phase['steps'] = array_values(array_filter(
+                (array) ($phase['steps'] ?? []),
+                static fn ($step): bool => ! self::isAssociatedRisksLine((string) $step),
+            ));
+
             $title     = strtolower((string) ($phase['title'] ?? ''));
-            $stepsText = strtolower(implode(' ', (array) ($phase['steps'] ?? [])));
+            $stepsText = strtolower(implode(' ', $phase['steps']));
             $combined  = $title . ' ' . $stepsText;
 
             $matchedIds = [];
@@ -903,6 +924,21 @@ class RamsComplianceUpgradeService
         $data['method_statement']['phases'] = $upgradedPhases;
 
         return $data;
+    }
+
+    /**
+     * 260817-r5e — is this method-statement bullet a risk cross-reference
+     * line rather than a work instruction?
+     *
+     * Matches the shapes a model actually produces: "Associated Risks: RA01,
+     * RA02", "- Associated risks — RA01", "• Associated Risk: RA03".
+     * Deliberately anchored to the start of the bullet so a genuine
+     * instruction that merely mentions risks ("Brief the team on the
+     * associated risks before starting") is left alone.
+     */
+    private static function isAssociatedRisksLine(string $step): bool
+    {
+        return preg_match('/^\s*[-•*\x{2022}\s]*associated\s+risks?\s*[:\-–—]/iu', $step) === 1;
     }
 
     // =========================================================================

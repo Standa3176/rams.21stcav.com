@@ -59,9 +59,19 @@ class MethodStatementPrompt extends BasePrompt
         //   1. Per-room granularity   — every step names the specific room(s)
         //   2. Kit-specific detail    — use specific make + model from the
         //                                equipment list, not generic terms
-        //   3. Risk-ID cross-refs     — end each phase with
-        //                                "Associated Risks: RA01, RA02, ..."
-        //                                using the RA-IDs supplied in context
+        //   3. Risk-ID cross-refs     — WITHDRAWN by 260817-r5e (see below)
+        //
+        // 260817-r5e — the AI must NOT author risk cross-references. Until
+        // this task, rule 3 asked the model for an "Associated Risks: …" line
+        // AND RamsComplianceUpgradeService::crossReferenceMethodStatementRisks
+        // independently derived its own — so every rendered phase carried TWO
+        // lines with DIFFERENT RA-IDs (observed in 21CQ30960-OPS Rev 1.0).
+        // The deterministic service is now the sole producer; a model-chosen
+        // risk cross-reference on a safety document is exactly the thing that
+        // must not be improvised. The service also STRIPS any such line the
+        // model emits anyway — models do not reliably obey negative
+        // instructions, so the prohibition below is defence-in-depth, not the
+        // guarantee.
         return implode(' ', [
             'You are writing a professional UK RAMS Method Statement for an AV installation contractor.',
             'Rules:',
@@ -72,7 +82,7 @@ class MethodStatementPrompt extends BasePrompt
             '- Output plain text only.',
             '- Per-room granularity: every step that touches a physical space MUST name the specific room(s) it applies to (e.g. "within Boardroom"). Do not write generic "in all rooms" instructions when a room list is provided.',
             '- Kit-specific detail: when a step references a piece of kit, name the specific make + model from the supplied equipment list (e.g. "Sennheiser TeamConnect Ceiling Mic", not "the microphone"). Only reference kit that appears in the supplied list.',
-            '- Risk-ID cross-references: each phase MUST end with a final line in the exact form "Associated Risks: RA01, RA02, RA03" (2-digit zero-padded IDs from the risk list supplied in context). Only reference RA-IDs that appear in the supplied risk list; do not invent RA-IDs. The line appears once per phase, as the last step in the phase\'s steps array.',
+            '- Risk cross-references are NOT yours to write: never output an "Associated Risks" line, an RA-ID list, or any other risk-register cross-reference. They are derived deterministically from the risk register after generation and any line you write would contradict them. The risk register is supplied to you as context only, so your steps address the right hazards.',
             // 260726-fx4 Task 5 — engineer-feedback grounding.
             '- When site_conditions is provided for a room, cite the relevant conditions in the method step for that room (e.g. wall_construction → "in the plasterboard partition wall"; brackets_required → name the specific bracket model; mounting_heights → quote the millimetre value from finished floor level; cable_routes → follow the engineer-noted route). Do NOT invent conditions that aren\'t in the data.',
             '- ' . self::userDataNote(),
@@ -153,12 +163,15 @@ class MethodStatementPrompt extends BasePrompt
             $siteConditionsLine = "\nSite conditions (from engineer site survey — cite these verbatim per room, do NOT invent):\n" . $wrappedJson;
         }
 
-        // 260725-rd1 — Risk list with stable RA-IDs so the AI can cross-reference.
-        // The docx renderer assigns RA{NN} deterministically by hazard array
-        // index (see DocxBuilderService::buildRiskAssessment) — we surface the
-        // same numbering scheme in the prompt so the AI outputs
-        // "Associated Risks: RA01, RA02, ..." lines that resolve when the docx
-        // is rendered.
+        // 260725-rd1 — Risk list with stable RA-IDs, surfaced with the same
+        // numbering the docx renderer uses (RA{NN} by hazard array index —
+        // see DocxBuilderService::buildRiskAssessment).
+        //
+        // 260817-r5e — this block is now CONTEXT ONLY. It exists so the steps
+        // address the hazards the assessment actually identified; the AI must
+        // not cite RA-IDs back at us (RamsComplianceUpgradeService derives the
+        // cross-reference deterministically and strips anything the model
+        // emits). The header wording no longer invites cross-referencing.
         $riskItems = array_values(array_filter(
             array_map(
                 static function ($h): string {
@@ -179,7 +192,7 @@ class MethodStatementPrompt extends BasePrompt
                 $id = 'RA' . str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT);
                 $lines[] = $id . ': ' . $this->wrapUserData($name);
             }
-            $riskListLine = "\nRisk register (use these RA-IDs verbatim when cross-referencing):\n" . implode("\n", $lines);
+            $riskListLine = "\nRisk register (context only — do NOT cite these RA-IDs in your output):\n" . implode("\n", $lines);
         }
 
         // Build optional supplementary lines — omitted when empty.
@@ -226,7 +239,7 @@ Requirements:
 - Any control-system programming or DSP configuration step must specify that engineers work OFF the live signal path (staging PC or bench-programmed) before hot-cutover, and that the client's IT contact is informed before any network device joins the LAN.
 - Where new displays, speakers or cabling attach to plant that another trade owns (ceiling grid, partitions, structural steel), the relevant step must reference coordination with that trade before penetration or fixing.
 - The Commissioning step must reference power-cycle and network-fail recovery verification for every codec, DSP or control processor deployed.
-- Each phase must have 4 to 8 bullet points PLUS a final "Associated Risks: RA01, RA02, ..." line as the LAST bullet in the steps array. Only reference RA-IDs from the "Risk register" list above. If no risk register is supplied, omit the Associated Risks line.
+- Each phase must have 4 to 8 bullet points. Do NOT add an "Associated Risks" bullet or any RA-ID cross-reference — those are generated deterministically from the risk register after your output is parsed.
 - Each bullet point is one plain-English sentence. No markdown, no bold, no symbols.
 - Do not reference any brand, product, or technology not present in the scope data above.{$retry}
 PROMPT;

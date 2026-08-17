@@ -145,17 +145,26 @@ class MethodStatementPromptTest extends TestCase
             '260725-rd1: systemMessage does not instruct the AI to use specific make + model.');
     }
 
-    public function test_system_message_enforces_associated_risks_cross_reference(): void
+    /**
+     * 260817-r5e supersedes the 260725-rd1 assertion that used to live here.
+     *
+     * rd1 asked the AI for an "Associated Risks: RA01, …" line while
+     * RamsComplianceUpgradeService independently derived its own — so every
+     * rendered phase carried TWO lines with different RA-IDs. The
+     * deterministic service is now the sole producer, so the prompt must
+     * FORBID the line rather than require it. The real guarantee is the strip
+     * in RamsComplianceUpgradeService (see MethodStatementAssociatedRisksTest);
+     * this asserts the prompt no longer acts as a second producer.
+     */
+    public function test_system_message_forbids_the_ai_from_writing_risk_cross_references(): void
     {
         $prompt = new MethodStatementPrompt();
         $system = $prompt->systemMessage();
 
-        $this->assertStringContainsString('Associated Risks:', $system,
-            '260725-rd1: systemMessage missing "Associated Risks:" cross-reference rule.');
-        $this->assertStringContainsString('RA01', $system,
-            '260725-rd1: systemMessage does not show the RA{NN} ID format.');
-        $this->assertStringContainsString('Risk-ID cross-references', $system,
-            '260725-rd1: systemMessage missing risk-ID cross-references rule heading.');
+        $this->assertStringContainsString('never output an "Associated Risks" line', $system,
+            '260817-r5e: systemMessage must explicitly forbid the AI from writing an Associated Risks line.');
+        $this->assertStringNotContainsString('each phase MUST end with a final line', $system,
+            '260817-r5e: the rd1 rule instructing the AI to emit an Associated Risks line has been reinstated — that recreates the two-producer defect.');
     }
 
     public function test_build_emits_risk_register_with_ra_ids_when_hazards_supplied(): void
@@ -213,8 +222,11 @@ class MethodStatementPromptTest extends TestCase
         // must not appear when no hazards were supplied. The bare "Risk
         // register" phrase does appear in the requirements section as a
         // reference; that reference is not context leakage.
+        // 260817-r5e: header re-worded when the AI stopped being a producer of
+        // the cross-reference. Asserting the OLD string here would pass even
+        // with hazards supplied — i.e. prove nothing.
         $this->assertStringNotContainsString(
-            'Risk register (use these RA-IDs verbatim when cross-referencing):',
+            'Risk register (context only — do NOT cite these RA-IDs in your output):',
             $built,
             '260725-rd1: Risk register context block emitted even though hazards[] is empty.',
         );
@@ -226,12 +238,19 @@ class MethodStatementPromptTest extends TestCase
         );
     }
 
-    public function test_build_body_instructs_each_phase_to_end_with_associated_risks_line(): void
+    /**
+     * 260817-r5e — inverse of the rd1 assertion this replaces. The prompt body
+     * must not ask for a per-phase Associated Risks bullet; the deterministic
+     * cross-reference in RamsComplianceUpgradeService owns that line.
+     */
+    public function test_build_body_forbids_a_per_phase_associated_risks_bullet(): void
     {
         $prompt = new MethodStatementPrompt();
         $built  = $prompt->build();
 
-        $this->assertStringContainsString('final "Associated Risks:', $built,
-            '260725-rd1: prompt body missing the "final Associated Risks" per-phase requirement.');
+        $this->assertStringNotContainsString('final "Associated Risks:', $built,
+            '260817-r5e: prompt body reinstates the "final Associated Risks" per-phase requirement — that is the second producer the fix removed.');
+        $this->assertStringContainsString('Do NOT add an "Associated Risks" bullet', $built,
+            '260817-r5e: prompt body missing the explicit prohibition on Associated Risks bullets.');
     }
 }
