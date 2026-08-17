@@ -26,9 +26,15 @@ class RamsComplianceUpgradeService
         $ramsData = self::upgradeScopeOfWorks($ramsData);
         $ramsData = self::ensurePerRoomBullets($ramsData);
         $ramsData = self::addPpeMatrix($ramsData);
-        $ramsData = self::addAccessEquipmentDetail($ramsData);
         $ramsData = self::fillMissingHazardControls($ramsData);
         $ramsData = self::addProjectSpecificRisks($ramsData);
+        // 260817-r5e Item 3 — MUST run after the two hazard steps above.
+        // addAccessEquipmentDetail now reconciles against the document's own
+        // hazard controls, and fillMissingHazardControls is what injects the
+        // "podium steps, tower, or MEWP" work-at-height control it has to see.
+        // Nothing between reads access_equipment_detail, so the move is inert
+        // apart from giving the reconciliation the complete risk assessment.
+        $ramsData = self::addAccessEquipmentDetail($ramsData);
         $ramsData = self::addRiskColourKey($ramsData);
         $ramsData = self::addPermitAndIsolation($ramsData);
         $ramsData = self::addFixingsControl($ramsData);
@@ -387,24 +393,54 @@ class RamsComplianceUpgradeService
         $groundLevel = self::containsPhrase($hints, ['ground level', 'floor level', 'at ground', 'reachable from the floor', 'reachable from floor']);
         $noAccessKit = self::containsPhrase($hints, ['no access equipment', 'without access equipment']);
 
+        // 260817-r5e Item 3 — reconcile against the document's own contents.
+        //
+        // 21CQ30960-OPS Rev 1.0 stated in §6.4 "Podium steps excluded —
+        // working height does not require a working platform" while RA01's
+        // controls listed podium steps and Step 8 told operatives to remove
+        // them. A RAMS that contradicts itself on a work-at-height control is
+        // worse than one that says nothing, and "working height does not
+        // require a working platform" is a safety judgement the generator is
+        // not entitled to make from a prose hint.
+        //
+        // So: drop an access-equipment type ONLY when nothing else in the
+        // document references it, and never write an exclusion claim. The PM's
+        // "ground level" instruction still takes effect — silently, which is
+        // all the data supports.
+        $referenced = self::accessEquipmentReferencedElsewhere($data);
+
+        /** @var list<string> $dropTypes */
+        $dropTypes = [];
         if ($groundLevel || $noAccessKit) {
-            // Keep only ladders + kick stool — strip platform-class items and their requirements.
-            $items = array_values(array_filter($items, static fn (string $s): bool
-                => stripos($s, 'podium') === false
-                    && stripos($s, 'tower') === false
-                    && stripos($s, 'MEWP')  === false
-                    && stripos($s, 'scissor') === false));
-            $requirements = array_values(array_filter($requirements, static fn (string $s): bool
-                => stripos($s, 'PASMA') === false
-                    && stripos($s, 'IPAF') === false
-                    && stripos($s, 'tower') === false
-                    && stripos($s, 'MEWP') === false
-                    && stripos($s, 'harness') === false));
-            $items[]        = 'Working height confirmed at ground/floor level — no platform access equipment required.';
+            $dropTypes = ['podium', 'tower', 'mewp'];
         } elseif ($noPodium) {
-            $items = array_values(array_filter($items, static fn (string $s): bool
-                => stripos($s, 'podium') === false));
-            $items[]        = 'Podium steps excluded — working height does not require a working platform.';
+            $dropTypes = ['podium'];
+        }
+
+        // Keyword → the item / requirement lines that belong to each type.
+        $typeKeywords = [
+            'podium' => ['items' => ['podium'],                     'requirements' => []],
+            'tower'  => ['items' => ['tower'],                      'requirements' => ['PASMA', 'tower']],
+            'mewp'   => ['items' => ['MEWP', 'scissor'],            'requirements' => ['IPAF', 'MEWP', 'harness']],
+        ];
+
+        foreach ($dropTypes as $type) {
+            if ($referenced[$type] ?? false) {
+                continue; // referenced in a control or a method step — leave it
+            }
+
+            foreach ($typeKeywords[$type]['items'] as $needle) {
+                $items = array_values(array_filter(
+                    $items,
+                    static fn (string $s): bool => stripos($s, $needle) === false,
+                ));
+            }
+            foreach ($typeKeywords[$type]['requirements'] as $needle) {
+                $requirements = array_values(array_filter(
+                    $requirements,
+                    static fn (string $s): bool => stripos($s, $needle) === false,
+                ));
+            }
         }
 
         $data['access_equipment_detail'] = [
@@ -413,6 +449,51 @@ class RamsComplianceUpgradeService
         ];
 
         return $data;
+    }
+
+    /**
+     * 260817-r5e Item 3 — which access-equipment types does the rest of this
+     * document already rely on?
+     *
+     * Scans the two places an engineer reads a work-at-height instruction:
+     * the risk assessment's hazard names + control measures, and the method
+     * statement's phase titles + steps. If podium steps appear in RA01's
+     * controls or in "remove access equipment" at Step 8, the §6.4 access list
+     * must not pretend they are out of scope.
+     *
+     * @return array{podium:bool,tower:bool,mewp:bool}
+     */
+    private static function accessEquipmentReferencedElsewhere(array $data): array
+    {
+        $corpus = [];
+
+        foreach ((array) ($data['hazards'] ?? []) as $h) {
+            if (! is_array($h)) {
+                continue;
+            }
+            $corpus[] = (string) ($h['hazard'] ?? '');
+            foreach ((array) ($h['controls'] ?? []) as $control) {
+                $corpus[] = (string) $control;
+            }
+        }
+
+        foreach ((array) ($data['method_statement']['phases'] ?? []) as $phase) {
+            if (! is_array($phase)) {
+                continue;
+            }
+            $corpus[] = (string) ($phase['title'] ?? '');
+            foreach ((array) ($phase['steps'] ?? []) as $step) {
+                $corpus[] = (string) $step;
+            }
+        }
+
+        $blob = strtolower(implode(' ', $corpus));
+
+        return [
+            'podium' => str_contains($blob, 'podium'),
+            'tower'  => str_contains($blob, 'access tower') || str_contains($blob, 'mobile tower'),
+            'mewp'   => str_contains($blob, 'mewp') || str_contains($blob, 'scissor lift'),
+        ];
     }
 
     /**
