@@ -167,6 +167,55 @@ class MethodStatementPromptTest extends TestCase
             '260817-r5e: the rd1 rule instructing the AI to emit an Associated Risks line has been reinstated — that recreates the two-producer defect.');
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // 260817-r5e Item 4 — verbatim product identifiers
+    //
+    // 21CQ30960's quote distinguished GRAPHITE Rally mic pods (reused from
+    // the Willen decommission) from new WHITE pods. The generated method
+    // statement called the reused ones white throughout, so an engineer
+    // picking to it takes the wrong item.
+    //
+    // This can only ever REDUCE paraphrase — the deterministic equipment
+    // schedule remains the authoritative pick list.
+    // ═══════════════════════════════════════════════════════════════════════
+
+    public function test_system_message_requires_verbatim_product_identifiers(): void
+    {
+        $prompt = new MethodStatementPrompt();
+        $system = $prompt->systemMessage();
+
+        $this->assertStringContainsString('Verbatim product identifiers', $system,
+            '260817-r5e Item 4: systemMessage missing the verbatim-identifier rule.');
+        $this->assertStringContainsString('colour, finish, size, variant and supply-status qualifiers', $system,
+            '260817-r5e Item 4: the rule must name the qualifiers that got dropped (colour was the one that bit).');
+        $this->assertStringContainsString('Do not paraphrase', $system,
+            '260817-r5e Item 4: systemMessage does not forbid paraphrasing item names.');
+    }
+
+    public function test_system_message_forbids_merging_similarly_named_variants(): void
+    {
+        $prompt = new MethodStatementPrompt();
+        $system = $prompt->systemMessage();
+
+        $this->assertStringContainsString('Never merge variants', $system,
+            '260817-r5e Item 4: systemMessage missing the no-merging rule.');
+        $this->assertStringContainsString('DISTINCT products', $system,
+            '260817-r5e Item 4: the rule must state that two similarly-named items are distinct.');
+        $this->assertStringContainsString('different physical unit', $system,
+            '260817-r5e Item 4: the rule must cover the reused-vs-new case (decommission/retained vs new install).');
+    }
+
+    public function test_build_body_carries_the_verbatim_and_no_merge_rules(): void
+    {
+        $prompt = new MethodStatementPrompt();
+        $built  = $prompt->build();
+
+        $this->assertStringContainsString('Reproduce item names VERBATIM', $built,
+            '260817-r5e Item 4: prompt body missing the verbatim-reproduction requirement.');
+        $this->assertStringContainsString('are DIFFERENT products', $built,
+            '260817-r5e Item 4: prompt body missing the similarly-named-variants requirement.');
+    }
+
     public function test_build_emits_risk_register_with_ra_ids_when_hazards_supplied(): void
     {
         $prompt = new MethodStatementPrompt();

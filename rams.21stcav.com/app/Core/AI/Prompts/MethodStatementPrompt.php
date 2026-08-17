@@ -82,6 +82,12 @@ class MethodStatementPrompt extends BasePrompt
             '- Output plain text only.',
             '- Per-room granularity: every step that touches a physical space MUST name the specific room(s) it applies to (e.g. "within Boardroom"). Do not write generic "in all rooms" instructions when a room list is provided.',
             '- Kit-specific detail: when a step references a piece of kit, name the specific make + model from the supplied equipment list (e.g. "Sennheiser TeamConnect Ceiling Mic", not "the microphone"). Only reference kit that appears in the supplied list.',
+            // 260817-r5e Item 4 — 21CQ30960 distinguished GRAPHITE Rally mic
+            // pods (reused from the Willen decommission) from new WHITE pods.
+            // The generated method statement called the reused ones white, so
+            // an engineer picking to it takes the wrong item off the van.
+            '- Verbatim product identifiers: reproduce every item string EXACTLY as supplied, including colour, finish, size, variant and supply-status qualifiers (e.g. "Rally Mic Pod (graphite)" must never be written as "Rally Mic Pod" or "white Rally Mic Pod"). Do not paraphrase, abbreviate, translate or tidy an item name.',
+            '- Never merge variants: where the supplied lists contain two similarly-named items they are DISTINCT products — name each one separately in the step that applies to it, and never write one sentence covering both. An item under "Decommission items" or "Retained items" is a different physical unit from a similarly-named item under "New install items", even when the model name matches.',
             '- Risk cross-references are NOT yours to write: never output an "Associated Risks" line, an RA-ID list, or any other risk-register cross-reference. They are derived deterministically from the risk register after generation and any line you write would contradict them. The risk register is supplied to you as context only, so your steps address the right hazards.',
             // 260726-fx4 Task 5 — engineer-feedback grounding.
             '- When site_conditions is provided for a room, cite the relevant conditions in the method step for that room (e.g. wall_construction → "in the plasterboard partition wall"; brackets_required → name the specific bracket model; mounting_heights → quote the millimetre value from finished floor level; cable_routes → follow the engineer-noted route). Do NOT invent conditions that aren\'t in the data.',
@@ -232,6 +238,8 @@ Requirements:
 - Include one or more Installation steps referencing the new install items by name. Do not invent any equipment not listed above.
 - Per-room granularity: every step that touches a physical space must name the specific room(s) it applies to using the room names from "Affected areas" / "Room descriptions" above. Do not write generic "in all rooms" instructions when a specific room list is available.
 - Kit-specific detail: when a step references a piece of kit, name the specific make + model from the "Key equipment" / "New install items" list above (e.g. "the Sennheiser TeamConnect Ceiling Mic Medium Housing unit", not "the microphone"). Only reference kit that appears in the supplied list; do not invent equipment.
+- Reproduce item names VERBATIM from the lists above — every colour, finish, size, variant and supply-status qualifier included. Copy the string; do not paraphrase or shorten it.
+- Two similarly-named items in the lists above are DIFFERENT products (e.g. a graphite unit being reused and a white unit being supplied new). Treat them separately, name each in the step that applies to it, and never write a single step that covers both.
 - Use room descriptions where provided to keep steps room-specific.
 - The penultimate step MUST cover Integration, Testing & Commissioning with signal path verification.
 - The final step MUST be Completion & Sign-Off covering removal of access equipment and waste, end-user training, and snagging sign-off.
