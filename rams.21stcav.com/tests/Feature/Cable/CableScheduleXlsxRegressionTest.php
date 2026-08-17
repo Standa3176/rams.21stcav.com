@@ -122,12 +122,65 @@ class CableScheduleXlsxRegressionTest extends TestCase
         $this->assertFileExists($pathA);
         $this->assertFileExists($pathB);
 
-        $this->assertSame(
-            hash_file('sha256', $pathA),
-            hash_file('sha256', $pathB),
+        $this->assertXlsxContentIdentical(
+            $pathA,
+            $pathB,
             'D-10 invariant violated: XLSX byte-output changed when FK columns were populated. '
             . 'CableScheduleXlsxService must read ONLY the legacy text columns.'
         );
+    }
+
+    /**
+     * Compare the content-bearing entries of two .xlsx files (they are zips),
+     * skipping docProps/* — CableScheduleXlsxService never pins document
+     * properties, so PhpSpreadsheet stamps dcterms:created / dcterms:modified
+     * with build time on every render, making a whole-file hash_file()
+     * comparison volatile regardless of the D-10 invariant it is meant to
+     * verify (two ~4s builds routinely land in different seconds).
+     *
+     * Only entries under xl/worksheets/*.xml and xl/sharedStrings.xml carry
+     * the actual cell data the D-10 invariant is about, so those are the
+     * entries compared byte-for-byte.
+     */
+    private function assertXlsxContentIdentical(string $pathA, string $pathB, string $message): void
+    {
+        $entriesA = $this->readXlsxContentEntries($pathA);
+        $entriesB = $this->readXlsxContentEntries($pathB);
+
+        $this->assertNotEmpty($entriesA, 'Expected at least one xl/worksheets/*.xml or xl/sharedStrings.xml entry in ' . $pathA);
+        $this->assertSame(array_keys($entriesA), array_keys($entriesB), $message . ' (entry set differs between renders)');
+
+        foreach ($entriesA as $name => $contentsA) {
+            $this->assertSame($contentsA, $entriesB[$name], $message . " (entry {$name} differs)");
+        }
+    }
+
+    /**
+     * @return array<string, string> entry name => raw contents, sorted by name
+     */
+    private function readXlsxContentEntries(string $path): array
+    {
+        $zip = new \ZipArchive();
+        $this->assertTrue($zip->open($path) === true, "Could not open {$path} as a zip archive.");
+
+        $entries = [];
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = $zip->getNameIndex($i);
+            if ($name === false) {
+                continue;
+            }
+            $isWorksheet = str_starts_with($name, 'xl/worksheets/') && str_ends_with($name, '.xml');
+            $isSharedStrings = $name === 'xl/sharedStrings.xml';
+            if (! $isWorksheet && ! $isSharedStrings) {
+                continue;
+            }
+            $entries[$name] = (string) $zip->getFromName($name);
+        }
+        $zip->close();
+
+        ksort($entries);
+
+        return $entries;
     }
 
     public function test_xlsx_export_query_log_does_not_touch_device_ports(): void
