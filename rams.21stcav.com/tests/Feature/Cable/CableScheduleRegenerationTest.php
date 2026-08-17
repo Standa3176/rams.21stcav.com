@@ -90,8 +90,27 @@ class CableScheduleRegenerationTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringNotContainsString('↻ Regenerate', $html,
-            'Regenerate button must be hidden when the update policy denies.');
+        // Assert the absence of the CONTROL, not its label. The visible
+        // caption "↻ Regenerate" also appears in document-edit-drawer's
+        // JavaScript copy ("…use the \"↻ Regenerate\" button…"), which
+        // renders regardless of the policy — so a label check passes or
+        // fails for reasons that have nothing to do with authorization,
+        // and would silently stop testing anything if the caption changed.
+        // The retry-generation form action is the thing the @if at
+        // cable-schedule/edit.blade.php:25 actually gates.
+        $this->assertStringNotContainsString(
+            route('cable-schedules.retry-generation', $this->schedule),
+            $html,
+            'The retry-generation form must not be rendered when the update policy denies.'
+        );
+
+        // And the submit control itself must be gone with it — pinned via
+        // the button's data-confirm hook rather than its caption.
+        $this->assertStringNotContainsString(
+            'data-confirm="Regenerate this cable schedule?',
+            $html,
+            'The Regenerate submit button must be hidden when the update policy denies.'
+        );
     }
 
     public function test_regenerate_button_submit_dispatches_job(): void
