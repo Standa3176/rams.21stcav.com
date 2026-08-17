@@ -6,6 +6,7 @@ use App\Models\RamsDocument;
 use App\Services\DocumentArtifactStorage;
 use App\Services\DocumentTemplateService;
 use App\Services\Rams\RamsDisplayPatchService;
+use App\Support\Rams\EquipmentScheduleFallback;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
 use PhpOffice\PhpWord\Settings;
@@ -823,19 +824,27 @@ class DocxBuilderService
             }
         } else {
             // ── Backward compat: fall back to quote line items ────────────────
-            $lineItems = $data['quote']['line_items'] ?? [];
-            if (! empty($lineItems)) {
+            //
+            // 260817-r5e Item 2a — this branch used to head every row
+            // "NEW INSTALLATION" and pass raw rows straight through. The scope
+            // buckets are empty here, so the generator does NOT know the
+            // activity: asserting one told an engineer to install kit that was
+            // being recovered from another room (21CQ30960-OPS Rev 1.0).
+            // EquipmentScheduleFallback drops the claim, groups duplicate
+            // rows, and suppresses a category name masquerading as a room.
+            $fallbackRows = EquipmentScheduleFallback::rows((array) ($data['quote']['line_items'] ?? []));
+            if (! empty($fallbackRows)) {
                 $subRow  = $eqTable->addRow(380);
                 $subCell = $subRow->addCell(self::W_PORT, array_merge($darkCell, ['gridSpan' => 4]));
-                $subCell->addText('NEW INSTALLATION', $this->font(9, bold: true, colour: self::WHITE));
+                $subCell->addText(EquipmentScheduleFallback::SECTION_LABEL, $this->font(9, bold: true, colour: self::WHITE));
 
-                foreach ($lineItems as $i => $item) {
+                foreach ($fallbackRows as $i => $item) {
                     $bg = ($i % 2 === 0) ? ['bgColor' => self::WHITE] : ['bgColor' => self::ROW_ALT];
                     $dr = $eqTable->addRow(380);
-                    $dr->addCell($wAct,  $bg)->addText('New Installation',                              $bf);
-                    $dr->addCell($wItem, $bg)->addText($this->t((string)($item['description'] ?? '')),  $bf);
-                    $dr->addCell($wQty,  $bg)->addText($this->t((string)($item['qty']         ?? '')),  $bf, ['alignment' => Jc::CENTER]);
-                    $dr->addCell($wNote, $bg)->addText($this->t((string)($item['room']        ?? '')),  $bf);
+                    $dr->addCell($wAct,  $bg)->addText($this->t($item['activity']), $bf);
+                    $dr->addCell($wItem, $bg)->addText($this->t($item['item']),     $bf);
+                    $dr->addCell($wQty,  $bg)->addText($this->t($item['qty']),      $bf, ['alignment' => Jc::CENTER]);
+                    $dr->addCell($wNote, $bg)->addText($this->t($item['area']),     $bf);
                 }
             } else {
                 // Empty placeholder row

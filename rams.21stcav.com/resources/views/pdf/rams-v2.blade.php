@@ -511,6 +511,13 @@ p { margin: 3pt 0; }
     $hasNew    = ! empty($scopeItems['new_install']  ?? []);
     $hasScope  = $hasDecomm || $hasRetain || $hasNew;
 
+    // 260817-r5e Item 2a — equipment-schedule fallback rows, used only when
+    // the scope buckets are all empty. Shared with DocxBuilderService so the
+    // PDF and the DOCX cannot disagree about what the schedule claims.
+    $fallbackRows = $hasScope
+        ? []
+        : \App\Support\Rams\EquipmentScheduleFallback::rows((array) ($quote['line_items'] ?? []));
+
     // Decommissioning enabled when flag set OR scope has decommission items
     $decommEnabled = ! empty($decommData['enabled']) || $hasDecomm;
 
@@ -1250,16 +1257,20 @@ p { margin: 3pt 0; }
         @endforeach
         @endif
 
-    @elseif(! empty($quote['line_items']))
+    @elseif(! empty($fallbackRows))
+        {{-- 260817-r5e Item 2a — scope buckets are empty, so the generator
+             does not know the activity. It says so instead of asserting
+             "NEW INSTALLATION" over kit that may be reused or stripped out.
+             Rows are grouped and a category-name "area" is suppressed. --}}
         <tr class="group-header">
-            <td colspan="5">NEW INSTALLATION</td>
+            <td colspan="5">{{ \App\Support\Rams\EquipmentScheduleFallback::SECTION_LABEL }}</td>
         </tr>
-        @foreach($quote['line_items'] as $item)
+        @foreach($fallbackRows as $item)
         <tr>
-            <td>NEW INSTALLATION</td>
-            <td>{{ $item['description'] ?? '' }}</td>
-            <td>{{ $item['room'] ?? '' }}</td>
-            <td style="text-align:center;">{{ $item['qty'] ?? '' }}</td>
+            <td>{{ $item['activity'] }}</td>
+            <td>{{ $item['item'] }}</td>
+            <td>{{ $item['area'] }}</td>
+            <td style="text-align:center;">{{ $item['qty'] }}</td>
             <td></td>
         </tr>
         @endforeach
