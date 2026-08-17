@@ -102,9 +102,11 @@
                         </button>
                     </template>
 
-                    {{-- Applied state --}}
+                    {{-- Applied state — RAMS defers artifact regen (260817-jsg), so its
+                         pill must not claim "regenerating" when nothing rebuilt yet. --}}
                     <template x-if="m.applied">
-                        <span class="chat-apply-pill chat-apply-pill--applied">✓ Applied — regenerating</span>
+                        <span class="chat-apply-pill chat-apply-pill--applied"
+                              x-text="m.deferredRegen ? '✓ Applied — data saved' : '✓ Applied — regenerating'"></span>
                     </template>
 
                     {{-- Stale base revision (409) — offer rebase-apply first, restart as fallback --}}
@@ -335,15 +337,30 @@
                             },
                         });
                         if (res.ok) {
+                            const body = await res.json().catch(() => ({}));
                             msg.applied = true;
                             msg.stale   = false;
-                            this._pushSystem(opts.rebase
-                                ? 'Rebased and applied. Regenerating document…'
-                                : 'Applied. Regenerating document…');
-                            // Clear stored thread — once applied, base revision
-                            // has moved. Next open will start a fresh thread.
-                            sessionStorage.removeItem(this._storageKey);
-                            setTimeout(() => window.location.reload(), 1400);
+
+                            // RAMS artifact regen is deliberately deferred (260817-jsg,
+                            // Cause A): the adapter's commitChanges() always returns a
+                            // null artifact_filename because rebuilding re-runs AI
+                            // generation. Ask before regenerating — never do it silently.
+                            if (this.documentType === 'rams' && !body.artifact_filename) {
+                                msg.deferredRegen = true;
+                                this._pushSystem('Applied. The RAMS data has been updated — the document file has not been regenerated yet.');
+                                // Clear stored thread — once applied, base revision has
+                                // moved. Next open will start a fresh thread. Do this
+                                // now (not after the confirm) so a declined regen still
+                                // leaves a clean slate for the next chat session.
+                                sessionStorage.removeItem(this._storageKey);
+                                await this._promptRamsRegen();
+                            } else {
+                                this._pushSystem(opts.rebase
+                                    ? 'Rebased and applied. Regenerating document…'
+                                    : 'Applied. Regenerating document…');
+                                sessionStorage.removeItem(this._storageKey);
+                                setTimeout(() => window.location.reload(), 1400);
+                            }
                         } else if (res.status === 409) {
                             // Base revision stale — the doc was updated behind
                             // the chat's back. Mark this message stale; the UI
@@ -363,6 +380,38 @@
                         this.applying = null;
                         this._scroll();
                     }
+                },
+
+                // RAMS-only (260817-jsg Task 2). Asks the user whether to rebuild the
+                // DOCX/PDF now that a chat edit has landed. Reuses the SAME hidden
+                // form (#rams-regen-after-save) and confirm helper (window.appConfirm)
+                // already wired up on resources/views/rams/review.blade.php for the
+                // manual "Save changes" regen prompt — same UX, same server endpoint
+                // (rams.regenerate → BuildRamsDocumentJob, creates a new revision).
+                // Declining leaves the data edited and the artifact untouched; the
+                // stale-banner component on that page (driven by RamsDocument::isStale())
+                // keeps reminding the user until they regenerate.
+                async _promptRamsRegen() {
+                    const regenForm = document.getElementById('rams-regen-after-save');
+                    if (!regenForm || typeof window.appConfirm !== 'function') {
+                        this._pushError('Could not find the regenerate action on this page. Reload and use the "↻ Regenerate" button to rebuild the document.');
+                        return;
+                    }
+
+                    const ok = await window.appConfirm(
+                        'The RAMS data has changed. Regenerate the document now so the download reflects your edit? ' +
+                        'This re-runs AI generation and creates a new revision.',
+                        { title: 'Regenerate RAMS?', confirmLabel: 'Regenerate' },
+                    );
+
+                    if (ok) {
+                        this._pushSystem('Regenerating document…');
+                        regenForm.submit();
+                        return;
+                    }
+
+                    this._pushSystem('Not regenerated. The downloadable document is now out of date — use "↻ Regenerate" above (or re-open this chat) when you\'re ready.');
+                    this._persist();
                 },
 
                 restart() {

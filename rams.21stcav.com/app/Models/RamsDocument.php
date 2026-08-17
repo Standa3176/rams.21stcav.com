@@ -204,7 +204,8 @@ class RamsDocument extends Model
 
     /**
      * True iff the project's latestPackage was updated after this RAMS's
-     * generated snapshot (RAMS document is out of date relative to source).
+     * generated snapshot (RAMS document is out of date relative to source),
+     * OR an AI-chat edit landed without a regen (260817-jsg).
      *
      * Defensive against:
      *  - status not in {completed, for_review, draft} → false
@@ -221,6 +222,18 @@ class RamsDocument extends Model
             self::STATUS_DRAFT,
         ], true)) {
             return false;
+        }
+
+        // 260817-jsg — AI-chat edit applied but not yet regenerated. RamsEditAdapter
+        // ::commitChanges() stamps this marker on reviewed_data because RAMS
+        // artifact regen is deliberately deferred to a user-confirmed rebuild;
+        // RamsBuilderService::runFromReview() clears it on the next successful
+        // build. Checked before the generated_at-based source-drift signal below
+        // because that signal relies on generated_data.generated_at, which the
+        // RAMS pipeline does not currently populate.
+        $reviewedData = $this->reviewed_data;
+        if (is_array($reviewedData) && ! empty($reviewedData['_pending_regen_since'])) {
+            return true;
         }
 
         // Quick task 260726-fx4 — check BOTH latest package and latest survey.
@@ -262,12 +275,24 @@ class RamsDocument extends Model
 
     /**
      * When isStale() is true, returns the Carbon timestamp of the source
-     * package's last update. Null when fresh or any defensive branch fired.
+     * package's last update (or the pending AI-chat edit, 260817-jsg).
+     * Null when fresh or any defensive branch fired.
      */
     public function staleSince(): ?\Illuminate\Support\Carbon
     {
         if (! $this->isStale()) {
             return null;
+        }
+
+        // 260817-jsg — pending AI-chat edit takes priority; it is the reason
+        // isStale() returned true whenever it's set (see isStale() above).
+        $reviewedData = $this->reviewed_data;
+        if (is_array($reviewedData) && ! empty($reviewedData['_pending_regen_since'])) {
+            try {
+                return \Illuminate\Support\Carbon::parse($reviewedData['_pending_regen_since']);
+            } catch (\Throwable) {
+                // Fall through to the source-drift candidates below.
+            }
         }
 
         // Quick task 260726-fx4 — surface the most-recent of the two sources.

@@ -300,6 +300,18 @@ class RamsBuilderService
             'path'      => $path,
         ]);
 
+        // Stale-document flag (260817-jsg Task 2) — this build is the regen that
+        // reviewed_data._pending_regen_since (set by RamsEditAdapter::commitChanges()
+        // on every unregenerated chat edit) was asking for. Clear it now that the
+        // build has fully succeeded so RamsDocument::isStale() / the stale-banner
+        // component stop flagging the document. Only writes when the flag was
+        // actually set.
+        if (array_key_exists('_pending_regen_since', $reviewedData)) {
+            $clearedReviewedData = $reviewedData;
+            unset($clearedReviewedData['_pending_regen_since']);
+            $record->update(['reviewed_data' => $clearedReviewedData]);
+        }
+
         return $path;
     }
 

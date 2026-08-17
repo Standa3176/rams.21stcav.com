@@ -11,13 +11,16 @@ use Illuminate\Support\Facades\Log;
  * reviewed_data. No direct DOCX edits. Artifact regen is explicitly deferred
  * (returns null) because the RAMS pipeline requires a full build via
  * BuildRamsDocumentJob / RamsDocumentRendererService — we don't want chat
- * edits to silently queue AI work. Persist-only here; regen is manual.
+ * edits to silently queue AI work. Persist-only here; regen is manual,
+ * user-confirmed via the chat drawer (260817-jsg Task 2).
  *
  * Every operation writes into reviewed_data (directly, or via
  * project_field_overrides for update_project_field) so the edit survives
  * RamsBuilderService::buildFromReview(), which overwrites generated_data
  * wholesale from reviewed_data on every regen (260817-jsg Task 1 — this
- * used to silently drop update_project_field edits).
+ * used to silently drop update_project_field edits). commitChanges() also
+ * stamps reviewed_data._pending_regen_since so RamsDocument::isStale()
+ * marks the document stale until the next successful build clears it.
  */
 class RamsEditAdapter implements DocumentEditAdapterInterface
 {
@@ -351,9 +354,23 @@ class RamsEditAdapter implements DocumentEditAdapterInterface
             Log::warning('RamsEditAdapter::commitChanges rams not found', ['id' => $documentId]);
             return null;
         }
+        $reviewedData = (array) ($payload['reviewed_data'] ?? $rams->reviewed_data ?? []);
+
+        // Stale-document marker (260817-jsg, Task 2) — artifact regen is deferred
+        // here (see class docblock), so every chat edit leaves the downloaded
+        // DOCX/PDF out of date until a rebuild runs. RamsDocument::isStale() /
+        // the stale-banner component read this flag; the chat UI offers an
+        // immediate regen prompt, and RamsBuilderService::runFromReview() clears
+        // the flag on the next successful build. Only set on the FIRST
+        // unregenerated edit so "stale since" reflects when staleness began,
+        // not the latest edit.
+        if (empty($reviewedData['_pending_regen_since'])) {
+            $reviewedData['_pending_regen_since'] = now()->toIso8601String();
+        }
+
         $updates = [
             'generated_data' => $payload['generated_data'] ?? $rams->generated_data,
-            'reviewed_data'  => $payload['reviewed_data']  ?? $rams->reviewed_data,
+            'reviewed_data'  => $reviewedData,
         ];
         // form_data mirror — preserves chat-edited working_hours across Regen.
         if (array_key_exists('form_data', $payload)) {
