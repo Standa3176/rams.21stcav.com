@@ -272,6 +272,17 @@ class RamsBuilderService
         // engineer-supplied values ALWAYS win.
         $data = $this->tier1Defaults->injectDefaultsIntoRamsData($data);
 
+        // Chat-edit durability (Cause B fix, 260817-jsg). update_project_field
+        // (RamsEditAdapter) writes its edit into reviewed_data.project_field_overrides
+        // BECAUSE this method replaces generated_data wholesale on every regen —
+        // re-apply those overrides onto the freshly-assembled project block now,
+        // last, so nothing above (compliance upgrade, tier-1 defaults) can clobber
+        // a value the user explicitly set via chat.
+        $projectFieldOverrides = (array) ($reviewedData['project_field_overrides'] ?? []);
+        if (! empty($projectFieldOverrides)) {
+            $data['project'] = array_merge((array) ($data['project'] ?? []), $projectFieldOverrides);
+        }
+
         // Persist.
         $record->update([
             'project_ref'    => $data['project']['ref']          ?: $record->project_ref,

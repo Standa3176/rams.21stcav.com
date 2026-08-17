@@ -12,6 +12,12 @@ use Illuminate\Support\Facades\Log;
  * (returns null) because the RAMS pipeline requires a full build via
  * BuildRamsDocumentJob / RamsDocumentRendererService — we don't want chat
  * edits to silently queue AI work. Persist-only here; regen is manual.
+ *
+ * Every operation writes into reviewed_data (directly, or via
+ * project_field_overrides for update_project_field) so the edit survives
+ * RamsBuilderService::buildFromReview(), which overwrites generated_data
+ * wholesale from reviewed_data on every regen (260817-jsg Task 1 — this
+ * used to silently drop update_project_field edits).
  */
 class RamsEditAdapter implements DocumentEditAdapterInterface
 {
@@ -160,10 +166,21 @@ class RamsEditAdapter implements DocumentEditAdapterInterface
         $payload['generated_data']['project'] = (array) ($payload['generated_data']['project'] ?? []);
         $payload['generated_data']['project'][$field] = $value;
 
-        // Durable mirror for fields the Regen pipeline rebuilds from form_data —
-        // without this, the chat edit is overwritten on next regenerate because
-        // RamsBuilderService::buildFromReview() re-reads form_data, not generated_data.
-        // Kept narrow to fields known to be blown away by regen.
+        // Durable mirror (Cause B fix, 260817-jsg) — RamsBuilderService::buildFromReview()
+        // takes reviewed_data as its sole source-of-truth and OVERWRITES generated_data
+        // wholesale on every regen. Without this, the generated_data write above is
+        // silently discarded the next time the RAMS is rebuilt. Stash the edit in
+        // reviewed_data.project_field_overrides — buildFromReview() re-applies this
+        // map onto the freshly-assembled project block right before it persists
+        // generated_data (see RamsBuilderService::runFromReview()), so the edit
+        // survives every future regen using the same field name written here.
+        $payload['reviewed_data'] = (array) ($payload['reviewed_data'] ?? []);
+        $payload['reviewed_data']['project_field_overrides'] = (array) ($payload['reviewed_data']['project_field_overrides'] ?? []);
+        $payload['reviewed_data']['project_field_overrides'][$field] = $value;
+
+        // Legacy narrow mirror — superseded by project_field_overrides above but
+        // kept because mergeReviewedIntoFormData() still reads form_data as a
+        // last-resort source for working_hours specifically. Harmless to keep.
         if (in_array($field, ['working_hours'], true)) {
             $payload['form_data'] = (array) ($payload['form_data'] ?? []);
             $payload['form_data'][$field] = $value;
