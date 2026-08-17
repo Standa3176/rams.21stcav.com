@@ -550,6 +550,134 @@ class QuoteWerksImportServiceTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Canonical CATEGORY names used as section headers (260817-r5e Item 2b)
+    //
+    // 21CQ30960 imported a QW section headed "Hardware". `area` was threaded
+    // onto every product beneath it, survived into the RAMS equipment
+    // schedule, and printed under "Room / Area" — a category name presented
+    // to an engineer as a room.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** @test */
+    public function hardware_section_header_clears_area_and_leaves_category_to_the_classifier(): void
+    {
+        $service = $this->makeService();
+
+        $parsed = $this->sampleParsedShape();
+        $parsed['equipment'] = [[
+            'description'  => 'Samsung 75" QM75B display',
+            'part_number'  => 'QM75B',
+            'area'         => 'Hardware',
+            'location'     => 'Hardware',
+            'qty'          => 1,
+            'unit_price'   => 1450.00,
+            'manufacturer' => 'Samsung',
+        ]];
+
+        $row = $service->buildExtractedData($parsed)['equipment'][0];
+
+        $this->assertSame('', $row['area'],
+            '260817-r5e 2b: "Hardware" is a grouping header, not a room — area must be cleared.');
+        $this->assertSame('', $row['location'],
+            '260817-r5e 2b: location was defaulted from the same header — it must be cleared too.');
+        $this->assertSame('hardware', $row['category'],
+            '260817-r5e 2b: the pattern maps to null, so the classifier output must stand.');
+    }
+
+    /** @test */
+    public function hardware_section_header_is_filtered_out_of_the_rooms_list(): void
+    {
+        $service = $this->makeService();
+
+        $parsed = $this->sampleParsedShape();
+        $parsed['rooms'] = ['Boardroom', 'Hardware', 'Conference Room'];
+
+        $result = $service->buildExtractedData($parsed);
+
+        $this->assertSame(['Boardroom', 'Conference Room'], $result['rooms'],
+            '260817-r5e 2b: "Hardware" must not appear in rooms[] as a fake room.');
+    }
+
+    /** @test */
+    public function a_room_genuinely_named_hardware_store_is_untouched(): void
+    {
+        $service = $this->makeService();
+
+        $parsed = $this->sampleParsedShape();
+        $parsed['rooms']     = ['Hardware Store', 'Cable Room'];
+        $parsed['equipment'] = [[
+            'description'  => 'Shure MXA920 ceiling array',
+            'part_number'  => 'MXA920',
+            'area'         => 'Hardware Store',
+            'location'     => 'Hardware Store',
+            'qty'          => 1,
+            'unit_price'   => 3200.00,
+            'manufacturer' => 'Shure',
+        ]];
+
+        $result = $service->buildExtractedData($parsed);
+
+        // The patterns are anchored (/^\s*hardware\s*$/i) so a real room whose
+        // name merely STARTS with a category word is not swallowed.
+        $this->assertSame('Hardware Store', $result['equipment'][0]['area'],
+            '260817-r5e 2b: anchoring failed — a genuine room was rerouted as a grouping header.');
+        $this->assertSame(['Hardware Store', 'Cable Room'], $result['rooms'],
+            '260817-r5e 2b: anchoring failed — genuine rooms were stripped from rooms[].');
+    }
+
+    /** @test */
+    public function remaining_canonical_category_headers_are_rerouted(): void
+    {
+        $service = $this->makeService();
+
+        $cases = [
+            // header                 => [expected category, note]
+            'Cables'                  => 'cables',
+            'Service Contracts'       => 'service_contracts',
+            'Customer Supplied'       => 'customer_supplied',
+        ];
+
+        foreach ($cases as $header => $expectedCategory) {
+            $parsed = $this->sampleParsedShape();
+            $parsed['equipment'] = [[
+                'description'  => 'Some line item',
+                'part_number'  => 'X',
+                'area'         => $header,
+                'location'     => $header,
+                'qty'          => 1,
+                'unit_price'   => 10.00,
+                'manufacturer' => null,
+            ]];
+
+            $row = $service->buildExtractedData($parsed)['equipment'][0];
+
+            $this->assertSame('', $row['area'], "Failed to clear area for header: {$header}");
+            $this->assertSame($expectedCategory, $row['category'], "Wrong forced category for header: {$header}");
+        }
+
+        // Grouping headers that carry commercial meaning map to null — the
+        // category is the PM's call at review, not a keyword's.
+        foreach (['Hardware Supply Only', 'Options', 'Unknown'] as $header) {
+            $parsed = $this->sampleParsedShape();
+            $parsed['equipment'] = [[
+                'description'  => 'Some line item',
+                'part_number'  => 'X',
+                'area'         => $header,
+                'location'     => $header,
+                'qty'          => 1,
+                'unit_price'   => 10.00,
+                'manufacturer' => null,
+            ]];
+
+            $row = $service->buildExtractedData($parsed)['equipment'][0];
+
+            $this->assertSame('', $row['area'], "Failed to clear area for header: {$header}");
+            $this->assertSame('hardware', $row['category'],
+                "260817-r5e 2b: {$header} must leave the classifier's output alone (maps to null).");
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // importFromParsedShape orchestration
     // ─────────────────────────────────────────────────────────────────────────
 

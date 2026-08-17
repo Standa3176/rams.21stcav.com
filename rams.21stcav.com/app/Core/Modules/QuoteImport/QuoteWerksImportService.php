@@ -6,6 +6,7 @@ use App\Models\ProjectPackage;
 use App\Models\User;
 use App\Services\Imports\EquipmentCategoryClassifier;
 use App\Services\QuoteImport\QuoteImportStencilStubber;
+use App\Support\Quote\NonRoomAreaLabels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -27,29 +28,15 @@ use Illuminate\Support\Str;
 class QuoteWerksImportService
 {
     /**
-     * QW section headers (LineType 32/256) serve two purposes:
-     *   - Rooms (Oregano, Cinnamon, Board Room, Reception)
-     *   - Groupings (Professional Services, Room Booking Panels, Summary, Delivery)
+     * QW section headers that are groupings, not rooms.
      *
-     * The fetcher can't tell them apart — it threads all section headers into
-     * `area` on subsequent products and appends all of them to `rooms[]`.
-     * We fix that here in RAMS-specific transformation land where knowledge
-     * of "what is a real room" belongs (not in the SQL fetcher).
+     * 260817-r5e moved the list to App\Support\Quote\NonRoomAreaLabels so the
+     * RAMS renderers and PackagesReclassifyEquipmentCommand share one copy —
+     * a category name that got past import used to print in the generated
+     * document's "Room / Area" column with nothing able to catch it.
      *
-     * Map format: regex → forced_category (null = clear area but keep the
-     * classifier's category output).
-     *
-     * @var array<string,string|null>
+     * @see \App\Support\Quote\NonRoomAreaLabels
      */
-    private const NON_ROOM_SECTION_PATTERNS = [
-        '/professional\s+services?/i' => 'services',
-        '/^\s*services?\s*$/i'        => 'services',
-        '/^\s*labour\s*$/i'           => 'services',
-        '/^\s*delivery\s*$/i'         => 'services',
-        '/^\s*consumables?\s*$/i'     => 'consumables',
-        '/^\s*summary\s*$/i'          => null,
-        '/room\s+booking\s+panels?/i' => null,
-    ];
 
     public function __construct(
         private readonly QuoteImportService          $importService,
@@ -267,7 +254,7 @@ class QuoteWerksImportService
      */
     private function applySectionHeaderReroute(string $area, string $location, string $category): array
     {
-        foreach (self::NON_ROOM_SECTION_PATTERNS as $pattern => $forcedCategory) {
+        foreach (NonRoomAreaLabels::PATTERNS as $pattern => $forcedCategory) {
             if ($area !== '' && preg_match($pattern, $area) === 1) {
                 // Wipe area — Blade renders empty as the "General" bucket.
                 // Wipe location too if it was defaulted from area (avoids
@@ -291,16 +278,6 @@ class QuoteWerksImportService
      */
     private function isNonRoomSectionHeader(string $name): bool
     {
-        if ($name === '') {
-            return true; // empty names are never real rooms
-        }
-
-        foreach (array_keys(self::NON_ROOM_SECTION_PATTERNS) as $pattern) {
-            if (preg_match($pattern, $name) === 1) {
-                return true;
-            }
-        }
-
-        return false;
+        return NonRoomAreaLabels::isNonRoom($name);
     }
 }

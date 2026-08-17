@@ -6,6 +6,7 @@ namespace App\Console\Commands;
 
 use App\Models\ProjectPackage;
 use App\Services\Imports\EquipmentCategoryClassifier;
+use App\Support\Quote\NonRoomAreaLabels;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -46,19 +47,13 @@ class PackagesReclassifyEquipmentCommand extends Command
 
     /**
      * QW section-header patterns re-routed by QuoteWerksImportService.
-     * Kept in sync with QuoteWerksImportService::NON_ROOM_SECTION_PATTERNS.
      *
-     * @var array<string,string|null>
+     * 260817-r5e: was a hand-synced copy of the import service's private
+     * const; both now read App\Support\Quote\NonRoomAreaLabels::PATTERNS so
+     * the two can no longer drift.
+     *
+     * @see \App\Support\Quote\NonRoomAreaLabels
      */
-    private const NON_ROOM_SECTION_PATTERNS = [
-        '/professional\s+services?/i' => 'services',
-        '/^\s*services?\s*$/i'        => 'services',
-        '/^\s*labour\s*$/i'           => 'services',
-        '/^\s*delivery\s*$/i'         => 'services',
-        '/^\s*consumables?\s*$/i'     => 'consumables',
-        '/^\s*summary\s*$/i'          => null,
-        '/room\s+booking\s+panels?/i' => null,
-    ];
 
     /** Equipment array keys that carry equipment rows on ProjectPackage.extracted_data. */
     private const EQUIPMENT_KEYS = ['equipment', 'equipment_list', 'line_items', 'equipment_deleted'];
@@ -217,7 +212,7 @@ class PackagesReclassifyEquipmentCommand extends Command
                 //    QuoteWerksImportService::applySectionHeaderReroute).
                 $newArea     = $oldArea;
                 $newLocation = $oldLocation;
-                foreach (self::NON_ROOM_SECTION_PATTERNS as $pattern => $forcedCategory) {
+                foreach (NonRoomAreaLabels::PATTERNS as $pattern => $forcedCategory) {
                     if ($newArea !== '' && preg_match($pattern, $newArea) === 1) {
                         $locationWasDefaultedFromArea = ($newLocation === $newArea);
                         $newArea     = '';
