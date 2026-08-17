@@ -126,13 +126,19 @@ class DocumentArtifactStorageTest extends TestCase
         $this->svc->writePath('not-a-real-type', 'x.docx');
     }
 
-    public function test_types_returns_all_four(): void
+    public function test_types_returns_the_full_registry(): void
     {
-        // Historical name — kept for backwards compatibility. After Phase 16
-        // Plan 02 the registry grew to 5 types (TYPE_SNAGGING added). Assert
-        // the full ordered list; the dedicated snagging-specific test below
-        // (test_types_array_includes_snagging) remains authoritative for the
-        // "must contain" contract.
+        // Historical name was "test_types_returns_all_four" — kept getting
+        // stale as the registry grew (4 -> 5 with TYPE_SNAGGING, now 8 with
+        // TYPE_DRAWING / TYPE_SURVEY / TYPE_REFERENCE) because only the
+        // fixed list was updated, not the method name. Renamed so it no
+        // longer lies about the count.
+        //
+        // IMPORTANT: whenever a new TYPE_* constant is added to
+        // DocumentArtifactStorage, it MUST be appended here in registration
+        // order. The dedicated snagging-specific test below
+        // (test_types_array_includes_snagging) remains the authoritative
+        // "must contain" guard for that one type.
         $this->assertSame(
             [
                 DocumentArtifactStorage::TYPE_RAMS,
@@ -140,6 +146,9 @@ class DocumentArtifactStorageTest extends TestCase
                 DocumentArtifactStorage::TYPE_WORKSHEET,
                 DocumentArtifactStorage::TYPE_CABLE,
                 DocumentArtifactStorage::TYPE_SNAGGING,
+                DocumentArtifactStorage::TYPE_DRAWING,
+                DocumentArtifactStorage::TYPE_SURVEY,
+                DocumentArtifactStorage::TYPE_REFERENCE,
             ],
             $this->svc->types()
         );
