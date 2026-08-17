@@ -131,6 +131,35 @@ class QueueRecoverCommandTest extends TestCase
 
         // Under the sync queue driver `queue:work --stop-when-empty` exits
         // immediately (no worker loop); the command therefore reports recovered.
+        //
+        // PRODUCTION FINDING (260817-bxc Item 5 — do NOT weaken this assertion):
+        // This test is flaky ONLY when run as part of the full `php artisan
+        // test` suite (reliably green in isolation / small groups). Root
+        // cause, confirmed by deliberately inflating memory_get_usage(true)
+        // past 128MB before this call: QueueRecoverCommand's internal
+        // `$this->call('queue:work', [...])` never passes --memory, so
+        // Illuminate\Queue\Worker::memoryExceeded() (128MB default) trips
+        // against the WHOLE PHP PROCESS's real memory
+        // (memory_get_usage(true)), not memory consumed since queue:work
+        // started. Worker::stopIfNecessary() then returns EXIT_MEMORY_LIMIT
+        // (12), which QueueRecoverCommand maps to EXIT_RECOVERY_FAILED (1)
+        // — even though the restart+drain plan executed correctly and the
+        // queue genuinely drained.
+        //
+        // In the test suite this trips because ~2000+ prior tests share one
+        // long-lived PHPUnit process and accumulate real memory before this
+        // test runs — a test-harness artifact (queue:recover, invoked fresh
+        // per cron tick in production, would not normally inherit that much
+        // prior memory). But the underlying coupling is real production
+        // behaviour: EXIT_RECOVERY_FAILED currently conflates "drain
+        // genuinely failed" with "this process happened to be over an
+        // unrelated memory ceiling," which could mask a successful recovery
+        // as a failure in any context where queue:recover runs inside a
+        // longer-lived process, or where the drain itself processes enough
+        // heavy document-generation jobs to approach 128MB. Fixing this
+        // (e.g. passing a higher/explicit --memory, or not conflating
+        // EXIT_MEMORY_LIMIT with EXIT_RECOVERY_FAILED) is a production
+        // change and out of scope for this quick task — see SUMMARY.md.
         $this->assertSame(QueueRecoverCommand::EXIT_RECOVERED, $exit);
     }
 }
