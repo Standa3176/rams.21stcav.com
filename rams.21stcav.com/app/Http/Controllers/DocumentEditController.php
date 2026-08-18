@@ -14,6 +14,7 @@ use App\Services\DocumentEdits\DocumentChangeSetValidator;
 use App\Services\DocumentEdits\DocumentEditAdapterInterface;
 use App\Services\DocumentEdits\DocumentEditAdapterRegistry;
 use App\Services\DocumentEdits\DocumentRevisionService;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -505,13 +506,25 @@ class DocumentEditController extends Controller
     }
 
     /**
-     * Accessibility check for a document edit thread. Returns null when the
-     * current (authenticated) user may access the row; otherwise returns a
-     * 401 (unauthenticated) or 404 (document does not exist) response.
+     * Access check shared by all seven document-edit handlers. Returns null
+     * when the request may proceed; otherwise returns the JSON error to send:
      *
-     * Shared team workspace: any authenticated user may open/parse/apply edit
-     * threads on any existing document — there is no per-owner 403. ownerIdFor()
-     * is still consulted purely to distinguish a missing document (→ 404).
+     *   401 unauthenticated   — no authenticated user
+     *   404 document_not_found — the row does not exist
+     *   403 forbidden          — the model's `update` policy denied
+     *
+     * Ordering is deliberate: existence is settled BEFORE authorization, so a
+     * 403 can never be used to confirm that a document exists.
+     *
+     * Quick task 260817-w4k — this method previously resolved the owner id and
+     * then discarded it, so the AI-edit surface (which mutates documents) never
+     * consulted a policy at all, across all five document types. Every policy
+     * returns true for any authenticated user today, so nothing is refused that
+     * was not refused before; the change is that the decision now runs THROUGH
+     * the policy, which is where CableSchedulePolicy's docblock says "any future
+     * per-user rule lands". Without this, the first genuine per-user rule added
+     * to a policy would be silently ignored here — invisibly, because the policy
+     * would look like it was being enforced.
      */
     private function authorizeDocument(Request $request, string $type, int $id): ?JsonResponse
     {
@@ -520,16 +533,33 @@ class DocumentEditController extends Controller
             return $this->jsonError('unauthenticated', 'Authentication required', 401);
         }
 
-        $ownerId = $this->ownerIdFor($type, $id);
-        if ($ownerId === null) {
+        $document = $this->documentFor($type, $id);
+        if ($document === null) {
             return $this->jsonError('document_not_found', "{$type} #{$id} not found", 404);
+        }
+
+        // JSON error shape, not $this->authorize() — an AuthorizationException
+        // would render Laravel's HTML error page into a fetch() client.
+        if ($user->cannot('update', $document)) {
+            return $this->jsonError('forbidden', "Not permitted to edit {$type} #{$id}", 403);
         }
 
         return null;
     }
 
-    /** Returns owner user_id for the document, or null when not found. */
-    private function ownerIdFor(string $type, int $id): ?int
+    /**
+     * The model instance behind a document-edit URL, or null when the row does
+     * not exist. Replaces ownerIdFor(), which returned $row->user_id — a value
+     * its only caller threw away; the policy needs the instance, not the id.
+     *
+     * The map is intentionally narrower than DocumentEditAdapterRegistry, which
+     * also knows 'drawing'. ProjectDrawing has no user_id column and has never
+     * been listed here, so every document-edit endpoint already answers 404 for
+     * type=drawing. Left unchanged by 260817-w4k rather than quietly switching
+     * on an untested surface — ProjectDrawingPolicy already exists if it is ever
+     * wired up deliberately.
+     */
+    private function documentFor(string $type, int $id): ?Model
     {
         $class = match ($type) {
             'rams'      => RamsDocument::class,
@@ -541,9 +571,7 @@ class DocumentEditController extends Controller
         };
         if ($class === null) return null;
 
-        $row = $class::query()->find($id);
-        if ($row === null) return null;
-        return (int) $row->user_id;
+        return $class::query()->find($id);
     }
 
     /**
