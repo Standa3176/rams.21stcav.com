@@ -22,6 +22,13 @@ use Tests\TestCase;
  */
 class DeviceStencilAuditTest extends TestCase
 {
+    /**
+     * The one migration under test. Targeted by path so this test is immune
+     * to any future migration being added after it (Phase 260822-esf broke the
+     * previous --step 1 approach exactly that way).
+     */
+    private const MIGRATION_PATH = 'database/migrations/2026_08_13_140000_add_needs_review_and_logo_path_to_device_stencils_and_create_device_stencil_audits.php';
+
     use RefreshDatabase;
 
     public function test_migration_adds_indexed_needs_review_and_nullable_logo_path_columns(): void
@@ -61,7 +68,12 @@ class DeviceStencilAuditTest extends TestCase
         // Plan 21-02's seed pack, then re-run the migration so its PHP-based
         // backfill step (Pitfall 1 — no raw SQL JSON functions) has to act
         // on genuinely pre-existing data, not a freshly created empty table.
-        Artisan::call('migrate:rollback', ['--step' => 1]);
+        // Target THIS migration by path, not --step 1. The original used
+        // --step 1, which silently assumed the device-stencils migration was
+        // the newest one in the repo. Phase 260822-esf added two later
+        // migrations, so --step 1 began rolling back an unrelated migration
+        // and this backfill never re-ran (caught by the full suite 2026-08-23).
+        Artisan::call('migrate:rollback', ['--path' => self::MIGRATION_PATH, '--realpath' => false]);
 
         $id = DB::table('device_stencils')->insertGetId([
             'part_number' => 'legacy-flagged-part',
@@ -82,7 +94,7 @@ class DeviceStencilAuditTest extends TestCase
             'updated_at'  => now(),
         ]);
 
-        Artisan::call('migrate');
+        Artisan::call('migrate', ['--path' => self::MIGRATION_PATH, '--realpath' => false]);
 
         $this->assertTrue((bool) DB::table('device_stencils')->where('id', $id)->value('needs_review'));
         $this->assertFalse((bool) DB::table('device_stencils')->where('id', $unflaggedId)->value('needs_review'));
