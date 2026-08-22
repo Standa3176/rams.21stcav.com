@@ -401,6 +401,75 @@ class Project extends Model
         return $this->hasOne(ProjectQuote::class)->latestOfMany('version_number');
     }
 
+    // ── Phase 260822-esf — Project Deliverables Selection ────────────────────
+
+    /**
+     * All ProjectDeliverable rows for this project (one per deliverable_key,
+     * D-01's three-state model). Not every project has a full set of 9 rows
+     * at all times — rows are created on first write (see
+     * ProjectDeliverablesService::setState()'s firstOrCreate) — callers
+     * needing a value for an un-created key should go through
+     * deliverableState() below, which defaults to STATE_NOT_YET_DECIDED.
+     *
+     * @see app/Models/ProjectDeliverable.php
+     * @see app/Services/ProjectDeliverablesService.php
+     */
+    public function deliverables(): HasMany
+    {
+        return $this->hasMany(ProjectDeliverable::class);
+    }
+
+    /**
+     * Snagging is App\Models\CommissioningSignoff — there is no dedicated
+     * Snagging/SnaggingItem model anywhere in this codebase. It's one row
+     * per InstallProgramme (CommissioningSignoff::$fillable includes
+     * snagging_pdf_path; InstallProgramme::commissioningSignoff(): HasOne),
+     * and InstallProgramme's own FK to Project is the default project_id
+     * (see installProgrammes() above — no explicit FK override there
+     * either). This relation is the two-hop HasManyThrough that makes "does
+     * this project have snagging data" answerable in one canonical place —
+     * do not look for (or add) a Project::snagging() shortcut or a
+     * standalone Snagging model; neither exists.
+     *
+     * @see app/Models/CommissioningSignoff.php
+     * @see app/Models/InstallProgramme.php::commissioningSignoff()
+     */
+    public function snaggingSignoffs(): \Illuminate\Database\Eloquent\Relations\HasManyThrough
+    {
+        return $this->hasManyThrough(
+            \App\Models\CommissioningSignoff::class,
+            \App\Models\InstallProgramme::class,
+            'project_id',
+            'install_programme_id',
+        );
+    }
+
+    /**
+     * Safe reader for a single deliverable's current state (D-01). DELIBERATELY
+     * safe to call on an unsaved/pure-unit-test Project instance — it NEVER
+     * triggers a relation query. Checks relationLoaded() first and never
+     * touches $this->deliverables unguarded, so it is callable from a pure
+     * PHPUnit\Framework\TestCase with no DB connection configured (required
+     * by canTransitionTo() / tests/Unit/ProjectTransitionTest.php in a later
+     * plan of this phase).
+     *
+     * Returns null when the caller has not eager-loaded the `deliverables`
+     * relation — callers must eager-load it first if they need a real
+     * answer. Once loaded, an un-created key defaults to
+     * STATE_NOT_YET_DECIDED (D-01's third state — no row yet is not the same
+     * as "decided not required").
+     */
+    public function deliverableState(string $key): ?string
+    {
+        if (! $this->relationLoaded('deliverables')) {
+            return null;
+        }
+
+        $row = $this->deliverables->firstWhere('deliverable_key', $key);
+
+        return $row?->state ?? \App\Models\ProjectDeliverable::STATE_NOT_YET_DECIDED;
+    }
+
     // ── Scopes ────────────────────────────────────────────────────────────────
 
     public function scopeActive($query)
