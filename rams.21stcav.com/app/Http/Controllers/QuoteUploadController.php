@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\ExtractRamsDraftJob;
+use App\Models\ProjectDeliverable;
 use App\Models\RamsDocument;
+use App\Services\ProjectDeliverablesService;
 use App\Services\ProjectQuoteVersionService;
 use App\Services\ProjectResolverService;
 use App\Services\ProjectSyncFromQuoteService;
@@ -46,6 +48,7 @@ class QuoteUploadController extends Controller
         private readonly ProjectResolverService      $resolver,
         private readonly ProjectSyncFromQuoteService $syncer,
         private readonly ProjectQuoteVersionService  $versioner,
+        private readonly ProjectDeliverablesService  $deliverablesService,
     ) {}
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -164,6 +167,8 @@ class QuoteUploadController extends Controller
             'filename'       => $path,                // relative path — use Storage::path() for absolute
             'status'         => RamsDocument::STATUS_UPLOADED,
         ]);
+
+        $this->deliverablesService->autoFlipIfNotRequired($project, ProjectDeliverable::KEY_RAMS, $request->user());
 
         // ── 9. Ensure worker is running, then dispatch Phase A extraction job ──
         app(WorkerMonitorService::class)->ensureRunning();

@@ -10,10 +10,12 @@ use App\Jobs\ExtractRamsDraftJob;
 use App\Mail\RamsDocumentMail;
 use App\Models\HazardTemplate;
 use App\Models\Project;
+use App\Models\ProjectDeliverable;
 use App\Models\ProjectPackage;
 use App\Models\RamsDocument;
 use App\Services\AiSettingsService;
 use App\Services\PdfService;
+use App\Services\ProjectDeliverablesService;
 use App\Services\ProjectPackageRamsReviewService;
 use App\Services\RamsBuilderService;
 use App\Services\RamsDocumentRendererService;
@@ -42,6 +44,7 @@ class RamsController extends Controller
         private readonly RamsReviewValidatorService      $reviewValidator,
         private readonly RamsReviewDataService           $reviewDataService,
         private readonly AiSettingsService               $aiSettings,
+        private readonly ProjectDeliverablesService       $deliverablesService,
     ) {}
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -192,6 +195,11 @@ class RamsController extends Controller
         if (! empty($validated['project_id'])) {
             $ramsDocument->project_id = (int) $validated['project_id'];
             $ramsDocument->save();
+
+            $project = Project::find((int) $validated['project_id']);
+            if ($project) {
+                $this->deliverablesService->autoFlipIfNotRequired($project, ProjectDeliverable::KEY_RAMS, auth()->user());
+            }
         }
 
         // 2. Queue generation to avoid long-running HTTP requests / 504 timeouts.
@@ -283,6 +291,8 @@ class RamsController extends Controller
             'filename'      => 'pending-' . now()->format('YmdHis') . '.docx',
             'status'        => RamsDocument::STATUS_GENERATING,
         ]);
+
+        $this->deliverablesService->autoFlipIfNotRequired($project, ProjectDeliverable::KEY_RAMS, auth()->user());
 
         app(WorkerMonitorService::class)->ensureRunning();
         BuildRamsDocumentJob::dispatch($ramsDocument->id);
@@ -918,6 +928,11 @@ class RamsController extends Controller
             'filename'       => 'pending-' . now()->format('YmdHis') . '.docx',
             'status'         => RamsDocument::STATUS_GENERATING,
         ]);
+
+        $regenerateProject = $newRams->project_id ? Project::find($newRams->project_id) : null;
+        if ($regenerateProject) {
+            $this->deliverablesService->autoFlipIfNotRequired($regenerateProject, ProjectDeliverable::KEY_RAMS, auth()->user());
+        }
 
         // Dispatch as background job to avoid 504 timeout.
         app(WorkerMonitorService::class)->ensureRunning();
