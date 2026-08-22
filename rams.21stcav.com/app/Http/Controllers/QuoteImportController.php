@@ -111,6 +111,55 @@ class QuoteImportController extends Controller
         return view('quote-import.review', compact('package', 'projects'));
     }
 
+    // ── Step 3.5: Deliverables interstitial (260822-08, D-16) ─────────────────
+
+    /**
+     * Renders the distinct interstitial page between review and confirm —
+     * NOT a fieldset on review.blade.php, NOT a modal (see 260822-CONTEXT.md
+     * ⚠ CLARIFICATION on D-16). review.blade.php's confirm form POSTs here;
+     * this action re-validates the same 7 project fields confirm() validates
+     * (carried forward as hidden inputs on the rendered view) and computes
+     * D-15's import-derived deliverable defaults, then renders the checklist.
+     * THAT page's own form is what finally POSTs to quote-import.confirm.
+     */
+    public function deliverablesStep(Request $request, ProjectPackage $package): View
+    {
+        $this->authorizePackage($package);
+
+        $validated = $request->validate([
+            'name'              => ['required', 'string', 'max:200'],
+            'ref'               => ['nullable', 'string', 'max:50'],
+            'client_name'       => ['required', 'string', 'max:150'],
+            'site_address'      => ['required', 'string', 'max:500'],
+            'works_description' => ['nullable', 'string'],
+            'project_id'        => ['nullable', 'integer', 'exists:projects,id'],
+            'new_project'       => ['nullable', 'boolean'],
+        ]);
+
+        // D-15: no labour/install/commissioning/RAMS/site-survey SKU line on
+        // the quote → Site Survey, RAMS and Worksheet default to Not required.
+        // This is one collapsed `services` bucket (EquipmentCategoryClassifier)
+        // — it supports "these 3 default off together", nothing finer. Every
+        // other deliverable always defaults to Not yet decided.
+        $hasServiceLine = collect($package->equipment_list ?? [])
+            ->contains(fn ($row) => strtolower(trim((string) ($row['category'] ?? ''))) === 'services');
+
+        $defaults = [];
+        foreach (\App\Models\ProjectDeliverable::ALL_KEYS as $key) {
+            $defaults[$key] = in_array($key, [
+                \App\Models\ProjectDeliverable::KEY_SITE_SURVEY,
+                \App\Models\ProjectDeliverable::KEY_RAMS,
+                \App\Models\ProjectDeliverable::KEY_WORKSHEET,
+            ], true)
+                ? ($hasServiceLine
+                    ? \App\Models\ProjectDeliverable::STATE_NOT_YET_DECIDED
+                    : \App\Models\ProjectDeliverable::STATE_NOT_REQUIRED)
+                : \App\Models\ProjectDeliverable::STATE_NOT_YET_DECIDED;
+        }
+
+        return view('quote-import.deliverables', compact('package', 'validated', 'defaults'));
+    }
+
     // ── Step 4: Confirm + link to project ────────────────────────────────────
 
     public function confirm(Request $request, ProjectPackage $package): RedirectResponse
@@ -126,6 +175,14 @@ class QuoteImportController extends Controller
             // Optionally reassign / create project
             'project_id'        => ['nullable', 'integer', 'exists:projects,id'],
             'new_project'       => ['nullable', 'boolean'],
+            // 260822-08 (D-15/D-16): the interstitial checklist's submitted
+            // states — required, one of the 9 canonical keys, 3-state enum.
+            'deliverables'      => ['required', 'array:' . implode(',', \App\Models\ProjectDeliverable::ALL_KEYS)],
+            'deliverables.*'    => ['required', 'string', \Illuminate\Validation\Rule::in([
+                \App\Models\ProjectDeliverable::STATE_REQUIRED,
+                \App\Models\ProjectDeliverable::STATE_NOT_REQUIRED,
+                \App\Models\ProjectDeliverable::STATE_NOT_YET_DECIDED,
+            ])],
         ]);
 
         // Determine project assignment
@@ -170,9 +227,10 @@ class QuoteImportController extends Controller
             }
 
             $this->service->confirm(
-                user:      auth()->user(),
-                package:   $package,
-                overrides: $overrides,
+                user:        auth()->user(),
+                package:     $package,
+                overrides:   $overrides,
+                deliverables: $validated['deliverables'],
             );
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('QuoteImportController: confirm failed', [

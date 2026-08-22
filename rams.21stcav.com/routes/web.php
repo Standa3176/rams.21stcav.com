@@ -211,6 +211,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/quote-import/{package}/extracting', [QuoteImportController::class, 'extracting'])->name('quote-import.extracting');
     Route::get('/quote-import/{package}/extract-status', [QuoteImportController::class, 'extractStatus'])->name('quote-import.extract-status');
     Route::get('/quote-import/{package}/review', [QuoteImportController::class, 'review'])->name('quote-import.review');
+    // 260822-08 (D-16): distinct interstitial step between review and confirm —
+    // renders the deliverables checklist, never a fieldset on review itself.
+    Route::post('/quote-import/{package}/deliverables-step', [QuoteImportController::class, 'deliverablesStep'])->name('quote-import.deliverables-step');
     Route::post('/quote-import/{package}/confirm', [QuoteImportController::class, 'confirm'])->name('quote-import.confirm');
 
     // Project-level data review (shared by all docs)

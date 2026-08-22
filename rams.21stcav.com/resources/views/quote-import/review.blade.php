@@ -50,7 +50,7 @@
                 <small>(edit before confirming)</small>
             </h2>
 
-            <form method="POST" action="{{ route('quote-import.confirm', $package) }}" id="confirmForm">
+            <form method="POST" action="{{ route('quote-import.deliverables-step', $package) }}" id="confirmForm">
                 @csrf
 
                 <div class="form-grid-2">
@@ -117,7 +117,7 @@
                 </div>
 
                 <div style="display:flex; gap:.75rem; margin-top:.5rem; flex-wrap:wrap;">
-                    <button type="submit" class="btn btn-teal">Confirm &amp; Open Project</button>
+                    <button type="submit" class="btn btn-teal">Continue</button>
                     <a href="{{ route('quote-import.create') }}" class="btn btn-outline">Discard</a>
 
                     {{-- Re-extract --}}
