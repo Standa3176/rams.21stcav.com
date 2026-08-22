@@ -229,6 +229,11 @@ Route::middleware('auth')->group(function () {
     Route::resource('projects', ProjectController::class)
         ->only(['index', 'create', 'store', 'show', 'edit', 'update', 'destroy']);
     Route::post('projects/{project}/transition', [ProjectController::class, 'transition'])->name('projects.transition');
+    // 260822-07 (D-10): the contract Plan 04 already relies on — its muted-tab
+    // "Add anyway" form posts to this exact path (see show.blade.php) because
+    // route() on an unregistered name throws RouteNotFoundException at render
+    // time. Path/name MUST stay exactly this.
+    Route::post('projects/{project}/deliverables', [ProjectController::class, 'updateDeliverables'])->name('projects.deliverables.update');
     Route::post('projects/{project}/archive', [ProjectController::class, 'archive'])->name('projects.archive');
     Route::post('projects/{project}/reopen', [ProjectController::class, 'reopen'])->name('projects.reopen');
 

@@ -5,19 +5,23 @@ namespace App\Http\Controllers;
 use App\Core\Modules\Projects\ProjectDataService;
 use App\Core\Modules\Projects\ProjectService;
 use App\Models\Project;
+use App\Models\ProjectDeliverable;
 use App\Models\ProjectPackage;
+use App\Services\ProjectDeliverablesService;
 use App\Services\TimeEntryService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class ProjectController extends Controller
 {
     public function __construct(
-        private readonly ProjectService     $service,
-        private readonly ProjectDataService $projectDataService,
-        private readonly TimeEntryService   $timeEntryService,
+        private readonly ProjectService              $service,
+        private readonly ProjectDataService           $projectDataService,
+        private readonly TimeEntryService             $timeEntryService,
+        private readonly ProjectDeliverablesService   $deliverablesService,
     ) {}
 
     // ── index ─────────────────────────────────────────────────────────────────
@@ -343,6 +347,60 @@ class ProjectController extends Controller
         return redirect()
             ->route('projects.show', $project)
             ->with('success', "Project advanced to: {$label}.");
+    }
+
+    // ── deliverables ─────────────────────────────────────────────────────────
+
+    /**
+     * D-10: edit a project's deliverable states from the Project Data tab.
+     *
+     * Accepts the multi-row edit form's `deliverables[key]=state` associative
+     * array shape. Also accepts Plan 04's already-shipped muted-tab "Add
+     * anyway" form, which posts a flat `deliverable_key` + `state` pair to
+     * this exact route (registered above) — normalized into the same
+     * `deliverables` array shape below so both callers share one validation
+     * and write path (Rule 1 fix: the flat shape would otherwise 422 against
+     * the `array:` rule and silently break Plan 04's shipped recovery
+     * action).
+     *
+     * Every changed key is written through ProjectDeliverablesService::
+     * setState() — the sole audited (D-03) write path. Never writes directly
+     * to project_deliverables.
+     */
+    public function updateDeliverables(Request $request, Project $project): RedirectResponse
+    {
+        // D-19: Any authenticated user can edit deliverables (auth already
+        // enforced by the route's `auth` middleware group).
+
+        if ($request->has('deliverable_key') && ! $request->has('deliverables')) {
+            $request->merge([
+                'deliverables' => [$request->input('deliverable_key') => $request->input('state')],
+            ]);
+        }
+
+        $validated = $request->validate([
+            'deliverables' => ['required', 'array:'.implode(',', ProjectDeliverable::ALL_KEYS)],
+            'deliverables.*' => ['required', 'string', Rule::in([
+                ProjectDeliverable::STATE_REQUIRED,
+                ProjectDeliverable::STATE_NOT_REQUIRED,
+                ProjectDeliverable::STATE_NOT_YET_DECIDED,
+            ])],
+            'reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        foreach ($validated['deliverables'] as $key => $newState) {
+            $this->deliverablesService->setState(
+                $project,
+                $key,
+                $newState,
+                auth()->user(),
+                $validated['reason'] ?? null,
+            );
+        }
+
+        return redirect()
+            ->route('projects.show', $project)
+            ->with('success', 'Deliverables updated.');
     }
 
     // ── archive ───────────────────────────────────────────────────────────────

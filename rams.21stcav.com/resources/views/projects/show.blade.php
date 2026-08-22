@@ -1950,6 +1950,69 @@
                         @endif
                     </p>
 
+                    {{-- 260822-07 (D-10): the first write form this tabpanel
+                         has ever had — everything else here is read-only
+                         canonical data. Every row change is written through
+                         ProjectDeliverablesService::setState() (D-03 audit
+                         trail), never directly to project_deliverables. --}}
+                    <div class="mb-6 border border-gray-200 rounded-lg p-4 bg-gray-50">
+                        <h3 class="text-sm font-semibold text-gray-900 mb-1">Deliverables</h3>
+                        <p class="text-xs text-gray-500 mb-3">
+                            Marks which deliverables this project is expected to produce.
+                            Every change is audited (who, when, and an optional reason).
+                        </p>
+                        <form method="POST" action="{{ route('projects.deliverables.update', $project) }}">
+                            @csrf
+                            @php
+                                $deliverableLabels = [
+                                    \App\Models\ProjectDeliverable::KEY_SITE_SURVEY      => 'Site Survey',
+                                    \App\Models\ProjectDeliverable::KEY_RAMS             => 'RAMS',
+                                    \App\Models\ProjectDeliverable::KEY_WORKSHEET        => 'Worksheet',
+                                    \App\Models\ProjectDeliverable::KEY_OM               => 'O&M',
+                                    \App\Models\ProjectDeliverable::KEY_CABLE_SCHEDULE   => 'Cable Schedule',
+                                    \App\Models\ProjectDeliverable::KEY_INSTALL_PROGRAMME => 'Install Programme',
+                                    \App\Models\ProjectDeliverable::KEY_DRAWINGS         => 'Drawings',
+                                    \App\Models\ProjectDeliverable::KEY_SNAGGING         => 'Snagging',
+                                    \App\Models\ProjectDeliverable::KEY_PROGRAMMING      => 'Programming',
+                                ];
+                            @endphp
+                            <div class="space-y-3 mb-4">
+                                @foreach (\App\Models\ProjectDeliverable::ALL_KEYS as $key)
+                                    @php $currentState = $project->deliverableState($key); @endphp
+                                    <div class="form-group flex items-center justify-between gap-4 flex-wrap">
+                                        <label class="form-label mb-0">{{ $deliverableLabels[$key] }}</label>
+                                        <div class="flex items-center gap-4 text-sm text-gray-700">
+                                            <label class="inline-flex items-center gap-1.5">
+                                                <input type="radio" name="deliverables[{{ $key }}]"
+                                                       value="{{ \App\Models\ProjectDeliverable::STATE_REQUIRED }}"
+                                                       {{ $currentState === \App\Models\ProjectDeliverable::STATE_REQUIRED ? 'checked' : '' }}>
+                                                Required
+                                            </label>
+                                            <label class="inline-flex items-center gap-1.5">
+                                                <input type="radio" name="deliverables[{{ $key }}]"
+                                                       value="{{ \App\Models\ProjectDeliverable::STATE_NOT_REQUIRED }}"
+                                                       {{ $currentState === \App\Models\ProjectDeliverable::STATE_NOT_REQUIRED ? 'checked' : '' }}>
+                                                Not required
+                                            </label>
+                                            <label class="inline-flex items-center gap-1.5">
+                                                <input type="radio" name="deliverables[{{ $key }}]"
+                                                       value="{{ \App\Models\ProjectDeliverable::STATE_NOT_YET_DECIDED }}"
+                                                       {{ $currentState === \App\Models\ProjectDeliverable::STATE_NOT_YET_DECIDED ? 'checked' : '' }}>
+                                                Not yet decided
+                                            </label>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="deliverables-reason">Reason (optional)</label>
+                                <textarea id="deliverables-reason" name="reason" class="form-control" rows="2"
+                                          placeholder="Why are you changing these?"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Save Deliverables</button>
+                        </form>
+                    </div>
+
                     @if (! empty($canonicalData['equipment']))
                         <h3 class="text-sm font-semibold text-gray-900 mb-2">Equipment ({{ count($canonicalData['equipment']) }})</h3>
                         <div class="overflow-x-auto mb-5">
