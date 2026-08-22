@@ -15,7 +15,12 @@ use Tests\TestCase;
  *
  * Verifies:
  *   - Drawings and Snagging render as real tabs — they had none before this phase
- *   - Programming never appears anywhere on the page (D-05 — flag only, no tab)
+ *   - Programming never has a tab-strip entry (D-05 — flag only, no tab, no
+ *     generator). 260822-07 (D-10) gives it a legitimate, REQUIRED appearance
+ *     elsewhere on the same page — as one of the 9 selectable rows in the
+ *     Project Data tab's new deliverables edit form (D-04's "nine selectable
+ *     deliverables" includes Programming by name) — so this assertion is
+ *     scoped to the tab-strip markup specifically, not the whole page.
  *   - A not-required-and-empty deliverable's tab is muted and grouped under
  *     "Not required", never hidden (D-08)
  *   - A not-required deliverable that ALREADY holds data renders exactly like
@@ -37,15 +42,20 @@ class ProjectTabStripTest extends TestCase
             ->assertSee('Snagging');
     }
 
-    public function test_programming_never_appears_on_the_page(): void
+    public function test_programming_never_appears_as_a_tab(): void
     {
         $owner   = User::factory()->create();
         $project = Project::factory()->create(['user_id' => $owner->id]);
 
+        // Narrowed to the exact tab-label markup the render loop emits
+        // (show.blade.php: <span class="ws-tab__label">{{ $t['label'] }}</span>)
+        // — a bare assertDontSee('Programming') would now false-fail against
+        // 260822-07's deliverables edit form, which legitimately renders the
+        // word "Programming" as a form-row label, not a tab.
         $this->actingAs($owner)
             ->get(route('projects.show', $project))
             ->assertOk()
-            ->assertDontSee('Programming');
+            ->assertDontSee('ws-tab__label">Programming', false);
     }
 
     public function test_not_required_empty_deliverable_renders_muted_and_grouped(): void
