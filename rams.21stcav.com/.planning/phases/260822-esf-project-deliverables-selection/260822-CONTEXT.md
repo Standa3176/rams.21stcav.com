@@ -99,6 +99,21 @@ what any deliverable contains or how it is generated.
   modal layered on the review screen. The review screen is already dense and
   actively worked; a modal there is the thing most likely to be dismissed
   unread.
+
+> **⚠ CLARIFICATION — 2026-08-22, after pattern mapping (user-confirmed).**
+> **D-16 means a NEW INTERSTITIAL STEP, not a fieldset.**
+>
+> Pattern mapping found there is no multi-step confirm flow to add a step to:
+> review → confirm is a **single form** (`quote-import/review.blade.php:53-80`
+> → `QuoteImportController::confirm()`). So "a step" had two possible readings.
+>
+> Locked reading: build a **distinct page between review and confirm** showing
+> only the deliverables checklist — new route, view and controller action.
+>
+> Rejected: adding a fieldset to the review form. That would place the checklist
+> on the same dense screen a modal was rejected for (D-16's original rationale),
+> and a section low on a long form is the easiest thing of all to scroll past.
+> Paying for a real step is the point of the decision, not an accident of it.
 - **D-17: Existing projects are inferred from what already exists.** Has a
   RAMS → `Required`; none → `Not yet decided`. Rationale: preserves current
   health for active projects while flagging genuinely ambiguous ones.
