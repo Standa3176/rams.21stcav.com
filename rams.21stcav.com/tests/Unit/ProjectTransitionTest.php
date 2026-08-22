@@ -3,6 +3,8 @@
 namespace Tests\Unit;
 
 use App\Models\Project;
+use App\Models\ProjectDeliverable;
+use Illuminate\Support\Collection;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -88,10 +90,61 @@ class ProjectTransitionTest extends TestCase
         $this->assertFalse($project->canTransitionTo('nonexistent_status'));
     }
 
-    public function test_cannot_transition_to_completely_skipped_state(): void
+    /**
+     * D-11 (260822-esf) — quote_imported -> engineering is valid ONLY when
+     * the project's Site Survey deliverable is explicitly Not required. This
+     * REPLACES the old test_cannot_transition_to_completely_skipped_state,
+     * which asserted this transition was unconditionally false — the exact
+     * opposite of D-11. The first case below preserves that original
+     * assertion (relation not loaded == safe default == still false) so a
+     * regression that makes the guard fail OPEN is still caught.
+     */
+    public function test_engineering_skip_from_quote_imported_requires_explicit_survey_not_required(): void
     {
-        // Cannot jump from quote_imported directly to engineering (skipping survey_pending)
+        // No `deliverables` relation loaded at all — safe default, matches
+        // every other existing test in this file that never sets the
+        // relation. Must stay false (this is the original pinned behaviour).
         $project = new Project(['status' => Project::STATUS_QUOTE_IMPORTED]);
+        $this->assertFalse($project->canTransitionTo(Project::STATUS_ENGINEERING));
+    }
+
+    public function test_engineering_skip_allowed_when_survey_explicitly_not_required(): void
+    {
+        $project = new Project(['status' => Project::STATUS_QUOTE_IMPORTED]);
+        $project->setRelation('deliverables', new Collection([
+            new ProjectDeliverable([
+                'deliverable_key' => ProjectDeliverable::KEY_SITE_SURVEY,
+                'state'           => ProjectDeliverable::STATE_NOT_REQUIRED,
+            ]),
+        ]));
+
+        $this->assertTrue($project->canTransitionTo(Project::STATUS_ENGINEERING));
+    }
+
+    public function test_engineering_skip_blocked_when_survey_is_required(): void
+    {
+        $project = new Project(['status' => Project::STATUS_QUOTE_IMPORTED]);
+        $project->setRelation('deliverables', new Collection([
+            new ProjectDeliverable([
+                'deliverable_key' => ProjectDeliverable::KEY_SITE_SURVEY,
+                'state'           => ProjectDeliverable::STATE_REQUIRED,
+            ]),
+        ]));
+
+        // Wave-0-mandated guard: the skip must stay invalid when Survey IS
+        // required — this is the case that would catch an "always allowed"
+        // regression (e.g. folding the branch into TRANSITIONS unconditionally).
+        $this->assertFalse($project->canTransitionTo(Project::STATUS_ENGINEERING));
+    }
+
+    public function test_engineering_skip_blocked_when_deliverables_loaded_but_empty(): void
+    {
+        // Relation IS loaded but has no row for site_survey — absence of an
+        // explicit row is "not_yet_decided", not "not_required". Must not
+        // accidentally legalise the skip for every project with no
+        // deliverables record yet (e.g. everything pre-dating this phase).
+        $project = new Project(['status' => Project::STATUS_QUOTE_IMPORTED]);
+        $project->setRelation('deliverables', new Collection());
 
         $this->assertFalse($project->canTransitionTo(Project::STATUS_ENGINEERING));
     }

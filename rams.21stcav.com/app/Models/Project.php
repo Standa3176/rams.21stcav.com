@@ -518,6 +518,26 @@ class Project extends Model
             return true;
         }
 
+        // ── D-11 (260822-esf) — narrow special case, NOT a change to TRANSITIONS ──
+        // A project whose Site Survey is explicitly Not required skips
+        // STATUS_SURVEY_PENDING entirely: quote_imported -> engineering directly.
+        // This is deliberately scoped to exactly this one (from, to) pair and
+        // gated on relationLoaded('deliverables') so canTransitionTo() NEVER
+        // issues its own query (tests/Unit/ProjectTransitionTest.php extends
+        // bare PHPUnit\Framework\TestCase with no DB). Do NOT "simplify" this by
+        // folding it into TRANSITIONS/TRANSITIONS_BACKWARD — those constants are
+        // the sole source of truth for every other transition, and adding
+        // STATUS_ENGINEERING there unconditionally would legalise the skip for
+        // every project regardless of its Survey deliverable state.
+        if (
+            $this->status === self::STATUS_QUOTE_IMPORTED
+            && $status === self::STATUS_ENGINEERING
+            && $this->relationLoaded('deliverables')
+            && $this->deliverableState(\App\Models\ProjectDeliverable::KEY_SITE_SURVEY) === \App\Models\ProjectDeliverable::STATE_NOT_REQUIRED
+        ) {
+            return true;
+        }
+
         // Check backward transitions (per D-20 — any user may revert lifecycle stage).
         return in_array($status, self::TRANSITIONS_BACKWARD[$this->status] ?? []);
     }
