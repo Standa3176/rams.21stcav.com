@@ -37,6 +37,7 @@ class QuoteImportService
         private readonly ProjectService             $projectService,
         private readonly QuoteExtractorService      $quoteExtractor,
         private readonly ProjectQuoteVersionService $quoteVersioner,
+        private readonly \App\Services\ProjectDeliverablesService $deliverablesService,
     ) {}
 
     // ── Primary entry point ───────────────────────────────────────────────────
@@ -398,6 +399,7 @@ class QuoteImportService
         User           $user,
         ProjectPackage $package,
         array          $overrides = [],
+        array          $deliverables = [],
     ): ProjectPackage {
         $confirmed = DB::transaction(function () use ($user, $package, $overrides) {
             $package->update(['status' => ProjectPackage::STATUS_REVIEWED]);
@@ -419,6 +421,23 @@ class QuoteImportService
 
             return $package->fresh();
         });
+
+        // ── 260822-08 (D-15/D-16): persist the interstitial's submitted
+        // deliverable checklist BEFORE Hook 1 (below) reads deliverable state
+        // to decide its auto-advance target. Must run strictly before Hook 1
+        // in the SAME request — a not-required Survey written after Hook 1's
+        // read would make every imported project miss its own D-11 skip.
+        if ($confirmed->project && $deliverables !== []) {
+            $this->deliverablesService->setInitialStates(
+                $confirmed->project,
+                $deliverables,
+                $user,
+            );
+            // Hook 1's loadMissing('deliverables') below is a no-op if the
+            // relation is already cached from earlier in this request —
+            // unset it first so the just-written rows are actually re-read.
+            $confirmed->project->unsetRelation('deliverables');
+        }
 
         // ── Auto-advance: quote confirmed → survey_pending OR engineering (D-11/D-18, Hook 1) ──
         // Guard: only fire when project is in quote_imported — canTransitionTo() also
