@@ -173,6 +173,42 @@
             color: var(--accent-700);
             border-color: var(--accent-100);
         }
+        /* 260822-04 (D-08) — "Not required" muted tab grouping. Mirrors the
+           .ws-tab__count--empty visual language above (low-opacity, not
+           hidden) rather than inventing a new colour system. */
+        .ws-tabs__divider {
+            display: inline-flex;
+            align-items: center;
+            padding: 10px 6px 10px 14px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--ink-400);
+            white-space: nowrap;
+        }
+        .ws-tab-group {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .ws-tab.ws-tab--muted {
+            opacity: 0.6;
+        }
+        .ws-tab.ws-tab--muted:hover { opacity: 1; }
+        .ws-tab__add-anyway { margin: 0; display: inline-flex; }
+        .ws-tab__add-anyway-btn {
+            background: transparent;
+            border: none;
+            padding: 4px 8px;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--accent-700);
+            text-decoration: underline;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .ws-tab__add-anyway-btn:hover { color: var(--accent-900, var(--accent-700)); }
         .ws > .bg-white {
             border-top-left-radius: 0;
             border-top-right-radius: 0;
@@ -395,6 +431,9 @@
     $countDrawings   = $project->drawings()->whereNull('superseded_by_id')->count();
     // 260504-q19 — Asset register count (all devices captured for this project).
     $countAssets     = \App\Models\Device::where('project_id', $project->id)->count();
+    // 260822-04 (D-04/D-07) — Snagging tab addition. Not eager-loaded, same
+    // live-query pattern as $countDrawings/$countAssets above.
+    $countSnagging   = $project->snaggingSignoffs()->count();
 
     $linkedByType = collect($linkedRecords)->keyBy('type');
 
@@ -444,7 +483,13 @@
             'href'  => route('project-packages.review.show', $primaryPackage),
             'tab'   => 'data',
         ];
-    } elseif ($countSurvey === 0) {
+    } elseif (
+        $countSurvey === 0
+        && $project->deliverableState(\App\Models\ProjectDeliverable::KEY_SITE_SURVEY) !== \App\Models\ProjectDeliverable::STATE_NOT_REQUIRED
+    ) {
+        // 260822-04 (D-11 Pitfall 3): never prompt to create a deliverable
+        // explicitly marked Not required. "Not yet decided" and "Required"
+        // both keep prompting exactly as before.
         $nextStep = [
             'icon'  => '📍',
             'title' => 'Create Site Survey',
@@ -453,7 +498,10 @@
             'href'  => route('site-surveys.from-project', $project),
             'tab'   => 'surveys',
         ];
-    } elseif ($countRams === 0) {
+    } elseif (
+        $countRams === 0
+        && $project->deliverableState(\App\Models\ProjectDeliverable::KEY_RAMS) !== \App\Models\ProjectDeliverable::STATE_NOT_REQUIRED
+    ) {
         $nextStep = [
             'icon'  => '🛡',
             'title' => 'Generate RAMS Document',
@@ -462,7 +510,10 @@
             'form_action' => route('rams.from-project', $project),
             'tab'   => 'rams',
         ];
-    } elseif ($countWorksheet === 0) {
+    } elseif (
+        $countWorksheet === 0
+        && $project->deliverableState(\App\Models\ProjectDeliverable::KEY_WORKSHEET) !== \App\Models\ProjectDeliverable::STATE_NOT_REQUIRED
+    ) {
         $nextStep = [
             'icon'  => '📋',
             'title' => 'Generate Worksheet',
@@ -471,7 +522,10 @@
             'form_action' => route('worksheets.generate-from-project', $project),
             'tab'   => 'worksheets',
         ];
-    } elseif ($countOm === 0) {
+    } elseif (
+        $countOm === 0
+        && $project->deliverableState(\App\Models\ProjectDeliverable::KEY_OM) !== \App\Models\ProjectDeliverable::STATE_NOT_REQUIRED
+    ) {
         $nextStep = [
             'icon'  => '📘',
             'title' => 'Generate O&M Manual',
@@ -483,15 +537,6 @@
     }
 
     $defaultTab = $nextStep['tab'] ?? 'surveys';
-
-    $outputs = [
-        ['key' => 'rams',       'icon' => '🛡',  'label' => 'RAMS',              'count' => $countRams,      'tab' => 'rams'],
-        ['key' => 'worksheet',  'icon' => '📋',  'label' => 'Worksheet',         'count' => $countWorksheet, 'tab' => 'worksheets'],
-        ['key' => 'survey',     'icon' => '📍',  'label' => 'Survey',            'count' => $countSurvey,    'tab' => 'surveys'],
-        ['key' => 'om',         'icon' => '📘',  'label' => 'O&M',               'count' => $countOm,        'tab' => 'om'],
-        ['key' => 'cable',      'icon' => '⚡', 'label' => 'Cable Schedule',     'count' => $countCable,     'tab' => 'cable'],
-        ['key' => 'install',    'icon' => '📅',  'label' => 'Install Programme', 'count' => $countInstall,   'tab' => 'install'],
-    ];
 @endphp
 
 <x-app-shell>
@@ -699,14 +744,37 @@
                  teal palette, ignoring our accent tokens. Retuned to
                  inline styles that pull from the CSS vars so past/current/
                  future states speak the same language as everything else. --}}
+            @php
+                // 260822-04 (D-11 Pitfall 2): a not-required Survey skips
+                // STATUS_SURVEY_PENDING entirely (Project::canTransitionTo()),
+                // so that stage genuinely never happened — it must render as
+                // skipped, never as a false "done" checkmark. Only Survey
+                // Pending can ever be skipped today, so this is computed once
+                // rather than per-iteration.
+                $surveySkipped = $project->deliverableState(\App\Models\ProjectDeliverable::KEY_SITE_SURVEY) === \App\Models\ProjectDeliverable::STATE_NOT_REQUIRED
+                    && $currentIdx > array_search(\App\Models\Project::STATUS_SURVEY_PENDING, $lifecycle);
+            @endphp
             <div class="flex items-center gap-2 overflow-x-auto py-1">
                 @foreach ($lifecycle as $i => $step)
                     @php
                         $stepLabel = \App\Models\Project::STATUS_LABELS[$step];
                         $isActive  = $step === $project->status;
                         $isPast    = $i < $currentIdx;
+                        $isSkipped = $step === \App\Models\Project::STATUS_SURVEY_PENDING && $surveySkipped;
                     @endphp
-                    @if ($isActive)
+                    @if ($isSkipped)
+                        {{-- Skipped step: same visual weight as the future/grey
+                             branch below — never the done-tick treatment, so a
+                             stage that genuinely never happened cannot read as
+                             completed. --}}
+                        <div class="flex-none inline-flex items-center gap-1.5 whitespace-nowrap ws-step--skipped"
+                             style="padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 500;
+                                    background: var(--ink-100); color: var(--ink-500);
+                                    border: 1px solid var(--ink-200);">
+                            <span style="display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; background: #fff; color: var(--ink-500); border: 1px solid var(--ink-200); font-size:9px;">—</span>
+                            {{ $stepLabel }} (skipped — not required)
+                        </div>
+                    @elseif ($isActive)
                         {{-- Current step: solid accent pill so the eye lands here first. --}}
                         <div class="flex-none inline-flex items-center gap-1.5 whitespace-nowrap"
                              style="padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
@@ -735,8 +803,11 @@
                     @endif
 
                     @if (! $loop->last)
+                        {{-- 260822-04: a skipped stage must not render as a
+                             completed accent-coloured connector either — that
+                             would visually contradict the grey pill above it. --}}
                         <div class="flex-none"
-                             style="width: 8px; height: 1px; background: {{ $isPast ? 'var(--accent-600)' : 'var(--ink-200)' }};"></div>
+                             style="width: 8px; height: 1px; background: {{ ($isPast && ! $isSkipped) ? 'var(--accent-600)' : 'var(--ink-200)' }};"></div>
                     @endif
                 @endforeach
             </div>
@@ -761,19 +832,42 @@
                  No background tinting; the underline does the work. SCC v2 style. --}}
             <div class="ws-tabs" role="tablist">
                 @php
+                    // 260822-04 (D-04/D-07): reconciled against the canonical
+                    // nine-item deliverable list. Drawings and Snagging are
+                    // new tabs (they had none before this phase); Programming
+                    // is deliberately absent — D-05 keeps it a flag with no
+                    // tab, generator or storage type. Quotes/Assets/Project
+                    // Data keep 'deliverable_key' => null — D-06 excludes
+                    // them from selection, so they are never eligible for
+                    // D-08/D-09 muting or grouping.
                     $tabs = [
-                        ['key' => 'surveys',    'label' => 'Surveys',           'count' => $countSurvey],
-                        ['key' => 'rams',       'label' => 'RAMS',              'count' => $countRams],
-                        ['key' => 'worksheets', 'label' => 'Worksheets',        'count' => $countWorksheet],
-                        ['key' => 'cable',      'label' => 'Cable Schedule',    'count' => $countCable],
-                        ['key' => 'om',         'label' => 'O&M',               'count' => $countOm],
-                        ['key' => 'install',    'label' => 'Install Programme', 'count' => $countInstall],
-                        ['key' => 'quotes',     'label' => 'Quotes',            'count' => $countQuotes],
-                        ['key' => 'assets',     'label' => 'Asset Register',    'count' => $countAssets],
-                        ['key' => 'data',       'label' => 'Project Data',      'count' => null],
+                        ['key' => 'surveys',    'label' => 'Surveys',           'count' => $countSurvey,    'deliverable_key' => \App\Models\ProjectDeliverable::KEY_SITE_SURVEY],
+                        ['key' => 'rams',       'label' => 'RAMS',              'count' => $countRams,      'deliverable_key' => \App\Models\ProjectDeliverable::KEY_RAMS],
+                        ['key' => 'worksheets', 'label' => 'Worksheets',        'count' => $countWorksheet, 'deliverable_key' => \App\Models\ProjectDeliverable::KEY_WORKSHEET],
+                        ['key' => 'cable',      'label' => 'Cable Schedule',    'count' => $countCable,     'deliverable_key' => \App\Models\ProjectDeliverable::KEY_CABLE_SCHEDULE],
+                        ['key' => 'om',         'label' => 'O&M',               'count' => $countOm,        'deliverable_key' => \App\Models\ProjectDeliverable::KEY_OM],
+                        ['key' => 'install',    'label' => 'Install Programme', 'count' => $countInstall,   'deliverable_key' => \App\Models\ProjectDeliverable::KEY_INSTALL_PROGRAMME],
+                        ['key' => 'drawings',   'label' => 'Drawings',          'count' => $countDrawings,  'deliverable_key' => \App\Models\ProjectDeliverable::KEY_DRAWINGS],
+                        ['key' => 'snagging',   'label' => 'Snagging',          'count' => $countSnagging,  'deliverable_key' => \App\Models\ProjectDeliverable::KEY_SNAGGING],
+                        ['key' => 'quotes',     'label' => 'Quotes',            'count' => $countQuotes,    'deliverable_key' => null],
+                        ['key' => 'assets',     'label' => 'Asset Register',    'count' => $countAssets,    'deliverable_key' => null],
+                        ['key' => 'data',       'label' => 'Project Data',      'count' => null,            'deliverable_key' => null],
                     ];
+
+                    // D-08/D-09: a tab is "not-required-and-empty" — and only
+                    // then eligible for the muted "Not required" grouping —
+                    // when it carries a deliverable_key, that deliverable is
+                    // explicitly Not required, AND it holds zero records.
+                    // D-09 is enforced by the `=== 0` / null check: any count
+                    // greater than 0 fails this test regardless of flag state,
+                    // so a populated-but-not-required tab always stays primary.
+                    $isNotRequiredEmpty = fn (array $t) => $t['deliverable_key'] !== null
+                        && $project->deliverableState($t['deliverable_key']) === \App\Models\ProjectDeliverable::STATE_NOT_REQUIRED
+                        && ($t['count'] === null || $t['count'] === 0);
+
+                    [$primaryTabs, $mutedTabs] = collect($tabs)->partition(fn ($t) => ! $isNotRequiredEmpty($t));
                 @endphp
-                @foreach ($tabs as $t)
+                @foreach ($primaryTabs as $t)
                     {{-- Re-audit UX-05 — was `@if($count > 0)` gate, so on a
                          fresh project 7/9 tabs rendered label-only and the
                          user couldn't tell which held data. Now render the
@@ -790,6 +884,40 @@
                         @endif
                     </button>
                 @endforeach
+                @if ($mutedTabs->isNotEmpty())
+                    {{-- D-08: muted and moved to the end — NEVER hidden. This
+                         is a styling variation on the tab strip, not a gate;
+                         see the UX-05 comment above for the regression this
+                         must not repeat. Each muted tab keeps its count pill
+                         and gets a visible, working "Add anyway" recovery
+                         action (D-02's soft-gate auto-flip). --}}
+                    <span class="ws-tabs__divider" aria-hidden="true">Not required</span>
+                    @foreach ($mutedTabs as $t)
+                        <div class="ws-tab-group ws-tab-group--muted">
+                            <button type="button" role="tab" class="ws-tab ws-tab--muted"
+                                    @click="setTab('{{ $t['key'] }}')"
+                                    :class="activeTab==='{{ $t['key'] }}' ? 'is-active' : ''"
+                                    :aria-selected="activeTab==='{{ $t['key'] }}'">
+                                <span class="ws-tab__label">{{ $t['label'] }}</span>
+                                @if ($t['count'] !== null)
+                                    <span class="ws-tab__count {{ $t['count'] === 0 ? 'ws-tab__count--empty' : '' }}">{{ $t['count'] }}</span>
+                                @endif
+                            </button>
+                            {{-- The target route (projects.deliverables.update)
+                                 lands in Plan 07 — it does not exist yet, so this
+                                 posts to the plain path Plan 07's controller will
+                                 register (PATTERNS.md Pattern 7), NOT the route()
+                                 helper, which would throw RouteNotFoundException
+                                 on every render of this page until Plan 07 ships. --}}
+                            <form method="POST" action="{{ url('/projects/'.$project->id.'/deliverables') }}" class="ws-tab__add-anyway">
+                                @csrf
+                                <input type="hidden" name="deliverable_key" value="{{ $t['deliverable_key'] }}">
+                                <input type="hidden" name="state" value="{{ \App\Models\ProjectDeliverable::STATE_REQUIRED }}">
+                                <button type="submit" class="ws-tab__add-anyway-btn">+ Add anyway</button>
+                            </form>
+                        </div>
+                    @endforeach
+                @endif
             </div>
 
             {{-- Table container — clean white reading surface inside the teal zone --}}
