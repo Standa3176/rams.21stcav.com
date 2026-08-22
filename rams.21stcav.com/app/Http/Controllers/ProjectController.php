@@ -128,6 +128,10 @@ class ProjectController extends Controller
             'cableSchedules'     => fn ($q) => $q->latest()->limit(3),
             'worksheets'         => fn ($q) => $q->latest()->limit(3),
             'installProgrammes'  => fn ($q) => $q->latest()->limit(3),
+            // 260822-04 (D-07/D-08/D-09): required so Project::deliverableState()
+            // can answer without issuing its own query — see the relationLoaded()
+            // guard in Project::deliverableState().
+            'deliverables',
         ]);
 
         $nextStatus = $project->nextStatus();
@@ -235,6 +239,28 @@ class ProjectController extends Controller
                 'route_name'         => 'install-programmes.review',
                 'generate_route'     => route('install-programmes.generate', $project),
                 'generate_label'     => 'Generate Install Programme',
+                'empty_action_label' => null,
+                'empty_action_route' => null,
+            ],
+            // 260822-04 (D-04/D-07): reconciliation additions — Drawings and
+            // Snagging had no Linked Records entry before this phase. Neither
+            // has a download/status route yet (D-07 Deferred Ideas), so this
+            // entry only offers the index/view route.
+            [
+                'type'               => 'Drawings',
+                'badge_class'        => 'badge-blue',
+                'records'            => $project->drawings()->whereNull('superseded_by_id')->get(),
+                'route_name'         => 'projects.drawings.index',
+                'generate_route'     => route('projects.drawings.index', $project),
+                'generate_label'     => 'View Drawings',
+                'empty_action_label' => null,
+                'empty_action_route' => null,
+            ],
+            [
+                'type'               => 'Snagging',
+                'badge_class'        => 'badge-grey',
+                'records'            => $project->snaggingSignoffs,
+                'route_name'         => null,
                 'empty_action_label' => null,
                 'empty_action_route' => null,
             ],
