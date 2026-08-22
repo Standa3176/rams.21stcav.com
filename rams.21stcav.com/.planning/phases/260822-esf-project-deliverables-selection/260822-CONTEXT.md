@@ -110,6 +110,26 @@ what any deliverable contains or how it is generated.
   paths diverge. No quote exists there, so it needs its own sensible default
   (Claude's discretion).
 
+> **⚠ CORRECTION — 2026-08-22, after research (user-confirmed).**
+> **D-18 is WITHDRAWN. Its premise was false.**
+>
+> D-18 assumed manual project creation was a live second entry point. It is not:
+> - `ProjectController::create():78-81` is a hard `redirect()->route('quote-import.create')`,
+>   so `resources/views/projects/create.blade.php` can never render.
+> - The only form posting to `projects.store` lives inside that unreachable view,
+>   making the store route effectively dead too.
+> - The dashboard's two `projects.create` links (`dashboard.blade.php:10,141`)
+>   therefore land on quote import.
+>
+> **Quote import is the ONLY live path to a project.** The checklist ships on the
+> import confirm flow (D-16) and nowhere else. Do not build checklist UI on the
+> manual-create form, and do not revive that form in this phase — reviving it is
+> a separate feature with its own decisions (what a project needs when there is
+> no quote to derive from).
+>
+> The dead create form / store route is recorded as a finding for a future task,
+> not fixed here.
+
 ### Claude's Discretion
 
 - Grace-period duration before `Not yet decided` goes amber (D-13).
