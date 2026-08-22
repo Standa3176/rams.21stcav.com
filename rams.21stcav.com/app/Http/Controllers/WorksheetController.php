@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Jobs\BuildWorksheetJob;
 use App\Models\Project;
+use App\Models\ProjectDeliverable;
 use App\Models\Worksheet;
 use App\Services\EngineerActivityService;
 use App\Services\PdfRenderService;
+use App\Services\ProjectDeliverablesService;
 use App\Services\WorkerMonitorService;
 use App\Services\WorksheetDocxService;
 use App\Services\WorksheetGeneratorService;
@@ -44,6 +46,7 @@ class WorksheetController extends Controller
         private readonly WorksheetGeneratorService $generator,
         private readonly WorksheetDocxService      $docxService,
         private readonly WorkerMonitorService      $workerMonitor,
+        private readonly ProjectDeliverablesService $deliverablesService,
     ) {}
 
     // =========================================================================
@@ -157,6 +160,8 @@ class WorksheetController extends Controller
             'site_address' => $project->site_address,
             'status'       => Worksheet::STATUS_GENERATING,
         ]);
+
+        $this->deliverablesService->autoFlipIfNotRequired($project, ProjectDeliverable::KEY_WORKSHEET, auth()->user());
 
         $this->workerMonitor->ensureRunning();
 

@@ -7,9 +7,11 @@ use App\Models\CableSchedule;
 use App\Models\CableScheduleItem;
 use App\Models\Device;
 use App\Models\Project;
+use App\Models\ProjectDeliverable;
 use App\Services\Cable\StencilPortResolver;
 use App\Services\CableScheduleGeneratorService;
 use App\Services\PdfTextExtractorService;
+use App\Services\ProjectDeliverablesService;
 use App\Services\QuoteLineExtractorService;
 use App\Services\WorkerMonitorService;
 use Illuminate\Http\JsonResponse;
@@ -30,6 +32,7 @@ class CableScheduleController extends Controller
         private readonly CableScheduleGeneratorService $deterministicGenerator,
         private readonly WorkerMonitorService      $workerMonitor,
         private readonly StencilPortResolver       $stencilResolver,
+        private readonly ProjectDeliverablesService $deliverablesService,
     ) {}
 
     public function index(Request $request): View
@@ -395,6 +398,8 @@ class CableScheduleController extends Controller
             'client_name'  => $project->client_name,
             'status'       => CableSchedule::STATUS_GENERATING,
         ]);
+
+        $this->deliverablesService->autoFlipIfNotRequired($project, ProjectDeliverable::KEY_CABLE_SCHEDULE, auth()->user());
 
         Log::info('CableScheduleController: generateFromProject queued', [
             'project_id'        => $project->id,

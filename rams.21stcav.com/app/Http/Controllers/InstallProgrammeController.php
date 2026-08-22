@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\InstallProgramme;
 use App\Models\InstallTask;
 use App\Models\Project;
+use App\Models\ProjectDeliverable;
 use App\Services\InstallProgrammeService;
+use App\Services\ProjectDeliverablesService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Log;
@@ -35,6 +37,7 @@ class InstallProgrammeController extends Controller
 {
     public function __construct(
         private readonly InstallProgrammeService $service,
+        private readonly ProjectDeliverablesService $deliverablesService,
     ) {}
 
     // =========================================================================
@@ -56,6 +59,8 @@ class InstallProgrammeController extends Controller
         abort_unless(auth()->check(), 403);
 
         $programme = $this->service->createForProject($project, auth()->user());
+
+        $this->deliverablesService->autoFlipIfNotRequired($project, ProjectDeliverable::KEY_INSTALL_PROGRAMME, auth()->user());
 
         Log::info('InstallProgrammeController: programme generated', [
             'programme_id' => $programme->id,

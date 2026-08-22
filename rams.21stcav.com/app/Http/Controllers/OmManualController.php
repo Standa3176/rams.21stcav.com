@@ -9,9 +9,11 @@ use App\Jobs\BuildOmManualJob;
 use App\Models\Device;
 use App\Models\OmManual;
 use App\Models\Project;
+use App\Models\ProjectDeliverable;
 use App\Models\ProjectPackage;
 use App\Services\OmManualDocxService;
 use App\Services\PdfService;
+use App\Services\ProjectDeliverablesService;
 use App\Services\WorkerMonitorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -27,6 +29,7 @@ class OmManualController extends Controller
         private readonly OmManualGeneratorService $generator,
         private readonly OmManualDocxService      $docxService,
         private readonly PdfService               $pdfService,
+        private readonly ProjectDeliverablesService $deliverablesService,
     ) {}
 
     // ── index ─────────────────────────────────────────────────────────────────
@@ -117,6 +120,10 @@ class OmManualController extends Controller
 
         $this->cleanupTmp($tmpDir);
 
+        if ($project !== null) {
+            $this->deliverablesService->autoFlipIfNotRequired($project, ProjectDeliverable::KEY_OM, auth()->user());
+        }
+
         return redirect()
             ->route('om-manuals.edit', $manual)
             ->with('success', 'Equipment extracted successfully. Please review the list below before generating the manual.');
@@ -142,6 +149,8 @@ class OmManualController extends Controller
         } catch (\Throwable $e) {
             return back()->with('error', 'Could not create O&M manual from project data: ' . $e->getMessage());
         }
+
+        $this->deliverablesService->autoFlipIfNotRequired($project, ProjectDeliverable::KEY_OM, auth()->user());
 
         return redirect()
             ->route('om-manuals.edit', $manual)
@@ -221,6 +230,8 @@ class OmManualController extends Controller
             'status'         => OmManual::STATUS_GENERATING,
             'error_message'  => null,
         ]);
+
+        $this->deliverablesService->autoFlipIfNotRequired($project, ProjectDeliverable::KEY_OM, auth()->user());
 
         Log::info('OmManualController: generateFromProject queued', [
             'project_id'   => $project->id,
