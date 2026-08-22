@@ -331,6 +331,25 @@ class ProjectController extends Controller
             'note'      => ['nullable', 'string', 'max:500'],
         ]);
 
+        // D-14: completing a project with required-but-missing deliverables
+        // warns and asks for confirmation — it never silently blocks, and it
+        // never silently proceeds. First submit (no confirm_incomplete) with
+        // outstanding required deliverables redirects back with a warning,
+        // WITHOUT performing the transition. Re-submitting with
+        // confirm_incomplete=1 proceeds exactly as this method did before
+        // this branch existed.
+        if ($validated['to_status'] === Project::STATUS_COMPLETED && ! $request->boolean('confirm_incomplete')) {
+            $outstanding = $this->outstandingRequiredDeliverables($project);
+            if ($outstanding !== []) {
+                return back()->with(
+                    'warning',
+                    'This project has required deliverables with no documents yet: '
+                        .implode(', ', $outstanding)
+                        .'. Re-submit to complete anyway.',
+                );
+            }
+        }
+
         try {
             $this->service->transition(
                 $project,
@@ -494,5 +513,57 @@ class ProjectController extends Controller
     private function authorizeProject(Project $project): void
     {
         abort_unless(auth()->check(), 403); // Shared workspace: any authenticated user has full access.
+    }
+
+    /**
+     * D-14: human-readable labels for every ALL_KEYS entry that is currently
+     * Required AND has zero backing documents. `programming` is deliberately
+     * EXCLUDED — it has no document type/generator (D-05), so there is
+     * nothing to be "missing" and nothing to warn about.
+     *
+     * This is a separate, simpler question than ProjectHealthService's D-12
+     * health-scoring rules — do not import ProjectHealthService here.
+     *
+     * @return array<int, string>
+     */
+    private function outstandingRequiredDeliverables(Project $project): array
+    {
+        // Project::deliverableState() only answers once `deliverables` is
+        // eager-loaded (relationLoaded() guard) — the route-model-bound
+        // $project passed into transition() has NOT been through show()'s
+        // eager-load list, so without this it would return null for every
+        // key and this whole check would silently never fire. Rule 1 fix.
+        $project->loadMissing('deliverables');
+
+        $counts = [
+            ProjectDeliverable::KEY_SITE_SURVEY       => $project->siteSurveys()->count(),
+            ProjectDeliverable::KEY_RAMS              => $project->ramsDocuments()->count(),
+            ProjectDeliverable::KEY_WORKSHEET         => $project->worksheets()->count(),
+            ProjectDeliverable::KEY_OM                => $project->omManuals()->count(),
+            ProjectDeliverable::KEY_CABLE_SCHEDULE    => $project->cableSchedules()->count(),
+            ProjectDeliverable::KEY_INSTALL_PROGRAMME => $project->installProgrammes()->count(),
+            ProjectDeliverable::KEY_DRAWINGS          => $project->drawings()->count(),
+            ProjectDeliverable::KEY_SNAGGING          => $project->snaggingSignoffs()->count(),
+        ];
+
+        $labels = [
+            ProjectDeliverable::KEY_SITE_SURVEY       => 'Surveys',
+            ProjectDeliverable::KEY_RAMS              => 'RAMS',
+            ProjectDeliverable::KEY_WORKSHEET         => 'Worksheets',
+            ProjectDeliverable::KEY_OM                => 'O&M',
+            ProjectDeliverable::KEY_CABLE_SCHEDULE    => 'Cable Schedule',
+            ProjectDeliverable::KEY_INSTALL_PROGRAMME => 'Install Programme',
+            ProjectDeliverable::KEY_DRAWINGS          => 'Drawings',
+            ProjectDeliverable::KEY_SNAGGING          => 'Snagging',
+        ];
+
+        $outstanding = [];
+        foreach ($counts as $key => $count) {
+            if ($project->deliverableState($key) === ProjectDeliverable::STATE_REQUIRED && $count === 0) {
+                $outstanding[] = $labels[$key];
+            }
+        }
+
+        return $outstanding;
     }
 }

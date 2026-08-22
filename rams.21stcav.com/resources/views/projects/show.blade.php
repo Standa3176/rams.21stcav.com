@@ -719,6 +719,18 @@
                           data-confirm-label="Advance">
                         @csrf
                         <input type="hidden" name="to_status" value="{{ $nextStatus }}">
+                        @if ($nextLabel === 'Completed')
+                            {{-- D-14: warn-then-confirm, never silently block or
+                                 silently proceed. First submit has no prior
+                                 warning in session, so this sends 0 — if
+                                 required deliverables are outstanding,
+                                 transition() redirects back with a `warning`
+                                 flash instead of changing status. The SAME
+                                 button's next click then sees that flashed
+                                 warning and sends 1, proceeding. No new
+                                 checkbox UI, no change to data-confirm. --}}
+                            <input type="hidden" name="confirm_incomplete" value="{{ session('warning') ? '1' : '0' }}">
+                        @endif
                         <button type="submit"
                                 class="inline-flex items-center border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm">
                             Advance → {{ $nextLabel }}

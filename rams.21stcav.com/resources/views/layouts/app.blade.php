@@ -1850,6 +1850,24 @@
                 </div>
             @endif
 
+            {{-- 260822-07 (D-14): `alert-banner--warning` CSS existed but had
+                 no matching @if block anywhere, so a flashed `warning` (e.g.
+                 ProjectController::transition()'s outstanding-required-
+                 deliverables warn-then-confirm branch) was invisible to the
+                 user — the confirm_incomplete hidden input would still flip
+                 to 1 on the next render, silently completing the project
+                 without the user ever seeing what was outstanding. Rule 2
+                 fix (missing critical functionality — D-14 explicitly
+                 requires "shows exactly what is outstanding"). --}}
+            @if (session('warning'))
+                <div class="alert-banner alert-banner--warning" role="status" aria-live="polite">
+                    <div class="alert-banner__icon" aria-hidden="true">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    </div>
+                    <div class="alert-banner__body">{{ session('warning') }}</div>
+                </div>
+            @endif
+
             @if (session('error'))
                 <div class="alert-banner alert-banner--error" role="alert" aria-live="assertive">
                     <div class="alert-banner__icon" aria-hidden="true">
