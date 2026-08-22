@@ -7,9 +7,11 @@ use App\Core\Modules\QuoteImport\QuoteImportService;
 use App\Core\Modules\Survey\SurveyService;
 use App\Models\Project;
 use App\Models\ProjectActivityLog;
+use App\Models\ProjectDeliverable;
 use App\Models\ProjectPackage;
 use App\Models\SiteSurvey;
 use App\Models\User;
+use App\Services\ProjectDeliverablesService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery;
 use Tests\TestCase;
@@ -254,5 +256,124 @@ class ProjectAutoAdvanceTest extends TestCase
 
         $this->assertNotNull($result);
         $this->assertEquals(ProjectPackage::STATUS_REVIEWED, $result->status);
+    }
+
+    // ─── Test 7: confirm skips survey_pending -> engineering when Survey is Not required (D-11) ───
+
+    /**
+     * @test
+     */
+    public function test_quote_confirm_advances_project_to_engineering_when_survey_not_required(): void
+    {
+        $project = Project::create([
+            'user_id'      => $this->user->id,
+            'name'         => 'Hardware Only Project',
+            'client_name'  => 'Client E',
+            'site_address' => '5 Hardware Way',
+            'status'       => Project::STATUS_QUOTE_IMPORTED,
+        ]);
+
+        app(ProjectDeliverablesService::class)->setState(
+            $project,
+            ProjectDeliverable::KEY_SITE_SURVEY,
+            ProjectDeliverable::STATE_NOT_REQUIRED,
+            $this->user,
+        );
+
+        $package = ProjectPackage::create([
+            'project_id'     => $project->id,
+            'user_id'        => $this->user->id,
+            'quote_filename' => 'test4.pdf',
+            'quote_path'     => 'quote-imports/test4.pdf',
+            'extracted_data' => [],
+            'equipment_list' => [],
+            'cable_list'     => [],
+            'revision'       => 1,
+            'status'         => ProjectPackage::STATUS_REVIEWED,
+        ]);
+
+        $service = app(QuoteImportService::class);
+        $service->confirm($this->user, $package);
+
+        $fresh = $project->fresh();
+
+        // The project lands directly on engineering — survey_pending never happened.
+        $this->assertEquals(Project::STATUS_ENGINEERING, $fresh->status);
+        $this->assertNotNull($fresh->engineering_started_at);
+        $this->assertNull($fresh->survey_started_at);
+
+        $this->assertDatabaseHas('project_activity_logs', [
+            'project_id' => $project->id,
+            'action'     => ProjectActivityLog::ACTION_STATUS_CHANGED,
+            'to_status'  => Project::STATUS_ENGINEERING,
+        ]);
+    }
+
+    // ─── Test 8: Hook 2 call site complete() is a no-op once Hook 1 already skipped to engineering ───
+
+    /**
+     * @test
+     */
+    public function test_survey_complete_call_site_is_noop_when_project_already_in_engineering(): void
+    {
+        // Simulates the post-Hook-1-skip state: project is already in
+        // engineering (as if it had just skipped survey_pending via D-11).
+        $project = Project::create([
+            'user_id'      => $this->user->id,
+            'name'         => 'Already Engineering Project',
+            'client_name'  => 'Client F',
+            'site_address' => '6 Skip Street',
+            'status'       => Project::STATUS_ENGINEERING,
+        ]);
+
+        $survey = SiteSurvey::create([
+            'user_id'      => $this->user->id,
+            'project_id'   => $project->id,
+            'project_name' => $project->name,
+            'status'       => 'draft',
+        ]);
+
+        $service = app(SurveyService::class);
+        $service->complete($survey, $this->user);
+
+        // Hook 2 must be a no-op — canTransitionTo(engineering) is false for
+        // a project already IN engineering (TRANSITIONS['engineering'] does
+        // not include itself), so status must be unchanged and nothing thrown.
+        $this->assertEquals(Project::STATUS_ENGINEERING, $project->fresh()->status);
+    }
+
+    // ─── Test 9: Hook 2 call site submitPublic() is ALSO a no-op in the same scenario ───
+
+    /**
+     * @test
+     */
+    public function test_survey_submit_public_call_site_is_noop_when_project_already_in_engineering(): void
+    {
+        $project = Project::create([
+            'user_id'      => $this->user->id,
+            'name'         => 'Already Engineering Public Project',
+            'client_name'  => 'Client G',
+            'site_address' => '7 Skip Avenue',
+            'status'       => Project::STATUS_ENGINEERING,
+        ]);
+
+        $survey = SiteSurvey::create([
+            'user_id'      => $this->user->id,
+            'project_id'   => $project->id,
+            'project_name' => $project->name,
+            'status'       => 'draft',
+        ]);
+
+        // No authenticated user in this test's calling context — matches the
+        // real public-link flow where auth()->user() is null and submitPublic()
+        // falls back to User::find($project->user_id).
+        $service = app(SurveyService::class);
+        $service->submitPublic($survey, [
+            'surveyor_name' => 'Jane Engineer',
+            'survey_date'   => now()->toDateString(),
+            'rooms'         => [],
+        ]);
+
+        $this->assertEquals(Project::STATUS_ENGINEERING, $project->fresh()->status);
     }
 }

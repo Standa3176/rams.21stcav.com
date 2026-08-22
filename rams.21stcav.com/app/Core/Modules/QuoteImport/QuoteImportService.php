@@ -420,26 +420,37 @@ class QuoteImportService
             return $package->fresh();
         });
 
-        // ── Auto-advance: quote confirmed → survey_pending (D-18, Hook 1) ──
+        // ── Auto-advance: quote confirmed → survey_pending OR engineering (D-11/D-18, Hook 1) ──
         // Guard: only fire when project is in quote_imported — canTransitionTo() also
         // returns true for backward transitions (engineering → survey_pending), which
         // must NOT be triggered automatically on quote confirm.
+        //
+        // D-11 (260822-esf): a project whose Site Survey deliverable is explicitly
+        // Not required skips STATUS_SURVEY_PENDING entirely and lands straight on
+        // STATUS_ENGINEERING. loadMissing('deliverables') makes that state available
+        // to Project::canTransitionTo()'s narrow D-11 branch (relationLoaded() guard)
+        // without ever issuing a query from inside the model itself.
         $linkedProject = $confirmed->project;
-        if (
-            $linkedProject?->status === Project::STATUS_QUOTE_IMPORTED &&
-            $linkedProject->canTransitionTo(Project::STATUS_SURVEY_PENDING)
-        ) {
-            try {
-                $this->projectService->transition(
-                    $linkedProject,
-                    Project::STATUS_SURVEY_PENDING,
-                    $user
-                );
-            } catch (\InvalidArgumentException) {
-                Log::warning('QuoteImportService: auto-advance to survey_pending skipped', [
-                    'project_id'  => $linkedProject->id,
-                    'from_status' => $linkedProject->status,
-                ]);
+        $linkedProject?->loadMissing('deliverables');
+        if ($linkedProject?->status === Project::STATUS_QUOTE_IMPORTED) {
+            $targetStatus = $linkedProject->canTransitionTo(Project::STATUS_ENGINEERING)
+                ? Project::STATUS_ENGINEERING
+                : Project::STATUS_SURVEY_PENDING;
+
+            if ($linkedProject->canTransitionTo($targetStatus)) {
+                try {
+                    $this->projectService->transition(
+                        $linkedProject,
+                        $targetStatus,
+                        $user
+                    );
+                } catch (\InvalidArgumentException) {
+                    Log::warning('QuoteImportService: auto-advance skipped', [
+                        'project_id'    => $linkedProject->id,
+                        'from_status'   => $linkedProject->status,
+                        'target_status' => $targetStatus,
+                    ]);
+                }
             }
         }
 
