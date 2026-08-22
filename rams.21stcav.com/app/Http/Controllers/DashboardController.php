@@ -57,6 +57,7 @@ class DashboardController extends Controller
             'ramsDocuments',
             'siteSurveys',
             'activeInstallProgramme.tasks',
+            'deliverables',
         ])
             ->whereNotIn('status', [Project::STATUS_ARCHIVED])
             ->orderByDesc('updated_at')
