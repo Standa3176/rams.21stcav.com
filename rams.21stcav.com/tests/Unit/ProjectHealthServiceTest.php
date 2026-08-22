@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\DTO\ProjectHealth;
 use App\Models\Project;
+use App\Models\ProjectDeliverable;
 use App\Models\RamsDocument;
 use App\Models\SiteSurvey;
 use App\Services\ProjectHealthService;
@@ -193,6 +194,105 @@ class ProjectHealthServiceTest extends TestCase
         $this->assertSame('green', $result->status);
     }
 
+    // ── D-12: not-required deliverables drop out of health entirely ────────────
+
+    public function test_green_when_rams_not_required_and_engineering_with_no_rams(): void
+    {
+        // Same fixture shape as test_red_when_engineering_no_approved_rams, but
+        // with RAMS explicitly marked not_required — the RED rule must not fire.
+        $project = $this->makeProject(Project::STATUS_ENGINEERING, [
+            'engineering_started_at' => Carbon::now()->subDays(2),
+        ]);
+        $project->setRelation('deliverables', collect([
+            $this->makeDeliverable(ProjectDeliverable::KEY_RAMS, ProjectDeliverable::STATE_NOT_REQUIRED),
+        ]));
+
+        $result = $this->service->assess($project);
+
+        $this->assertSame('green', $result->status);
+        $this->assertSame('On track', $result->reason);
+    }
+
+    public function test_green_when_survey_not_required_and_overdue(): void
+    {
+        // Same fixture shape as test_red_when_survey_overdue_no_submission
+        // (20 days overdue, zero submissions), but Site Survey is explicitly
+        // not_required — the RED "Survey overdue" rule must not fire.
+        $project = $this->makeProject(Project::STATUS_SURVEY_PENDING, [
+            'survey_started_at' => Carbon::now()->subDays(20),
+        ]);
+        $project->setRelation('deliverables', collect([
+            $this->makeDeliverable(ProjectDeliverable::KEY_SITE_SURVEY, ProjectDeliverable::STATE_NOT_REQUIRED),
+        ]));
+
+        $result = $this->service->assess($project);
+
+        $this->assertNotSame('red', $result->status);
+        $this->assertNotSame('Survey overdue — no submission', $result->reason);
+    }
+
+    // ── D-13: "Not yet decided" goes amber after the grace period ──────────────
+
+    public function test_amber_when_deliverable_undecided_past_grace_period(): void
+    {
+        // Nothing else wrong — quote_imported has no stage-duration milestone,
+        // so this isolates the D-13 rule.
+        $project = $this->makeProject(Project::STATUS_QUOTE_IMPORTED);
+        $project->setRelation('deliverables', collect([
+            $this->makeDeliverable(
+                ProjectDeliverable::KEY_PROGRAMMING,
+                ProjectDeliverable::STATE_NOT_YET_DECIDED,
+                Carbon::now()->subDays(10)
+            ),
+        ]));
+
+        $result = $this->service->assess($project);
+
+        $this->assertSame('amber', $result->status);
+        $this->assertStringContainsString('Not yet decided', $result->reason);
+    }
+
+    public function test_green_when_deliverable_undecided_within_grace_period(): void
+    {
+        $project = $this->makeProject(Project::STATUS_QUOTE_IMPORTED);
+        $project->setRelation('deliverables', collect([
+            $this->makeDeliverable(
+                ProjectDeliverable::KEY_PROGRAMMING,
+                ProjectDeliverable::STATE_NOT_YET_DECIDED,
+                Carbon::now()->subDays(2)
+            ),
+        ]));
+
+        $result = $this->service->assess($project);
+
+        $this->assertSame('green', $result->status);
+    }
+
+    public function test_red_still_wins_over_amber_grace_period(): void
+    {
+        // RAMS failed (existing RED-triggering fixture) PLUS an aged
+        // not-yet-decided deliverable — RED must still win; D-13's amber
+        // is last in priority order and must never mask it.
+        $project = $this->makeProject(Project::STATUS_ENGINEERING, [
+            'engineering_started_at' => Carbon::now()->subDays(2),
+        ]);
+        $project->setRelation('ramsDocuments', collect([
+            $this->makeRams(RamsDocument::STATUS_FAILED),
+        ]));
+        $project->setRelation('deliverables', collect([
+            $this->makeDeliverable(
+                ProjectDeliverable::KEY_PROGRAMMING,
+                ProjectDeliverable::STATE_NOT_YET_DECIDED,
+                Carbon::now()->subDays(10)
+            ),
+        ]));
+
+        $result = $this->service->assess($project);
+
+        $this->assertSame('red', $result->status);
+        $this->assertSame('RAMS document failed', $result->reason);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /**
@@ -212,8 +312,19 @@ class ProjectHealthServiceTest extends TestCase
         // Default empty relations — tests override when they need non-empty ones.
         $project->setRelation('ramsDocuments', new Collection());
         $project->setRelation('siteSurveys', new Collection());
+        $project->setRelation('deliverables', new Collection());
 
         return $project;
+    }
+
+    private function makeDeliverable(string $key, string $state, ?Carbon $createdAt = null): ProjectDeliverable
+    {
+        $deliverable = new ProjectDeliverable(['deliverable_key' => $key, 'state' => $state]);
+        $deliverable->deliverable_key = $key;
+        $deliverable->state           = $state;
+        $deliverable->created_at      = $createdAt ?? Carbon::now();
+
+        return $deliverable;
     }
 
     private function makeRams(string $status): RamsDocument
