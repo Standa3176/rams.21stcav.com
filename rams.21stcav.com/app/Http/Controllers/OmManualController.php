@@ -1164,17 +1164,37 @@ class OmManualController extends Controller
 
     // ── Private ───────────────────────────────────────────────────────────────
 
+    /**
+     * Best-effort tmp-directory cleanup after Pass 1 extraction. MUST NEVER
+     * throw — this runs after the OmManual record has already been created
+     * successfully, so a filesystem hiccup here (e.g. a not-yet-released
+     * file handle on Windows immediately after move()) must not crash an
+     * otherwise-successful request. Failures are logged, not surfaced.
+     */
     private function cleanupTmp(string $dir): void
     {
-        if (is_dir($dir)) {
-            $files = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
-                \RecursiveIteratorIterator::CHILD_FIRST
-            );
-            foreach ($files as $fileinfo) {
-                $fileinfo->isDir() ? rmdir($fileinfo->getRealPath()) : unlink($fileinfo->getRealPath());
+        if (! is_dir($dir)) {
+            return;
+        }
+
+        $files = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($files as $fileinfo) {
+            $ok = $fileinfo->isDir() ? @rmdir($fileinfo->getRealPath()) : @unlink($fileinfo->getRealPath());
+            if (! $ok) {
+                Log::warning('OmManualController: cleanupTmp could not remove entry', [
+                    'path' => $fileinfo->getRealPath(),
+                ]);
             }
-            rmdir($dir);
+        }
+
+        if (! @rmdir($dir)) {
+            Log::warning('OmManualController: cleanupTmp could not remove tmp directory', [
+                'dir' => $dir,
+            ]);
         }
     }
 }

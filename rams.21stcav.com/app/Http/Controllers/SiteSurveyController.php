@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Core\Modules\Survey\SurveyService;
 use App\Models\Project;
+use App\Models\ProjectDeliverable;
 use App\Models\SiteSurvey;
 use App\Models\SiteSurveyPhoto;
 use App\Models\SiteSurveyRoom;
 use App\Models\SiteSurveyRoomQuestion;
+use App\Services\ProjectDeliverablesService;
 use App\Services\Survey\SiteSurveyTierOneReadinessService;
 use App\Services\SurveyPdfService;
 use Illuminate\Http\JsonResponse;
@@ -22,6 +24,7 @@ class SiteSurveyController extends Controller
         private readonly SurveyService                     $service,
         private readonly SurveyPdfService                  $pdfService,
         private readonly SiteSurveyTierOneReadinessService $tierOne,
+        private readonly ProjectDeliverablesService        $deliverablesService,
     ) {}
 
     // ─── Listing / show ──────────────────────────────────────────────────────
@@ -97,6 +100,13 @@ class SiteSurveyController extends Controller
         $user   = auth()->user();
         $survey = $this->service->create($user, $data);
 
+        if ($survey->project_id) {
+            $project = Project::find($survey->project_id);
+            if ($project) {
+                $this->deliverablesService->autoFlipIfNotRequired($project, ProjectDeliverable::KEY_SITE_SURVEY, $user);
+            }
+        }
+
         $successMessage = $data['supersede']
             ? 'Previous survey archived. New survey created.'
             : 'Site survey created. Add photos to each room below.';
@@ -141,6 +151,8 @@ class SiteSurveyController extends Controller
         /** @var \App\Models\User $user */
         $user   = auth()->user();
         $survey = $this->service->createFromProject($project, $user);
+
+        $this->deliverablesService->autoFlipIfNotRequired($project, ProjectDeliverable::KEY_SITE_SURVEY, $user);
 
         return redirect()->route('site-surveys.confirm-rooms', $survey)
             ->with('success', 'Survey created and pre-filled from project data. Confirm the rooms below.');

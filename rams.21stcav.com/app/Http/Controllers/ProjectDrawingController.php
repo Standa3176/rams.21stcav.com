@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Jobs\BuildBoundPdfJob;
 use App\Models\Project;
+use App\Models\ProjectDeliverable;
 use App\Models\ProjectDrawing;
 use App\Services\DocumentEdits\DocumentEditAdapterRegistry;
 use App\Services\Drawings\BoundPdfBuilderService;
@@ -11,6 +12,7 @@ use App\Services\Drawings\DrawingDataResolverService;
 use App\Services\Drawings\DrawingExportRendererService;
 use App\Services\Drawings\DrawingService;
 use App\Services\Drawings\RackElevationRenderService;
+use App\Services\ProjectDeliverablesService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -43,6 +45,7 @@ class ProjectDrawingController extends Controller
 
     public function __construct(
         private readonly DrawingService $drawingService,
+        private readonly ProjectDeliverablesService $deliverablesService,
     ) {}
 
     /**
@@ -132,6 +135,8 @@ class ProjectDrawingController extends Controller
         // a fresh one — Warning 9.
         $this->drawingService->generateInitial($drawing, $userId);
 
+        $this->deliverablesService->autoFlipIfNotRequired($project, ProjectDeliverable::KEY_DRAWINGS, $request->user());
+
         return redirect()
             ->route('projects.drawings.index', $project)
             ->with('status', 'Schematic generation queued.');
@@ -179,6 +184,8 @@ class ProjectDrawingController extends Controller
         // CONTEXT.md "NO BuildRackElevationJob — rack rendering is synchronous
         // in Plan 18-03's editor."
         $this->drawingService->generateInitial($drawing, $userId);
+
+        $this->deliverablesService->autoFlipIfNotRequired($project, ProjectDeliverable::KEY_DRAWINGS, $request->user());
 
         return redirect()
             ->route('projects.drawings.show', [$project, $drawing])
@@ -265,6 +272,8 @@ class ProjectDrawingController extends Controller
         $this->authorize('update', $drawing);
 
         $this->drawingService->regenerate($drawing, (int) $request->user()->id);
+
+        $this->deliverablesService->autoFlipIfNotRequired($project, ProjectDeliverable::KEY_DRAWINGS, $request->user());
 
         return redirect()
             ->route('projects.drawings.index', $project)

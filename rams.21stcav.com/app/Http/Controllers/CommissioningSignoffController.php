@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Exceptions\CommissioningSignoffException;
 use App\Http\Requests\FinaliseCommissioningSignoffRequest;
 use App\Models\InstallProgramme;
+use App\Models\ProjectDeliverable;
 use App\Services\CommissioningPdfService;
 use App\Services\CommissioningService;
 use App\Services\DocumentArtifactStorage;
+use App\Services\ProjectDeliverablesService;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -41,6 +43,7 @@ class CommissioningSignoffController extends Controller
         private readonly CommissioningService $service,
         private readonly CommissioningPdfService $pdfService,
         private readonly DocumentArtifactStorage $artifacts,
+        private readonly ProjectDeliverablesService $deliverablesService,
     ) {}
 
     /**
@@ -113,6 +116,8 @@ class CommissioningSignoffController extends Controller
         } catch (CommissioningSignoffException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
+
+        $this->deliverablesService->autoFlipIfNotRequired($programme->project, ProjectDeliverable::KEY_SNAGGING, $request->user());
 
         return response()->json([
             'final_pdf_url'    => route('commissioning.snagging.show', ['programme' => $programme]),
