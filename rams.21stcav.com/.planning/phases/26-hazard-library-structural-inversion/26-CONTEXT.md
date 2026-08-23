@@ -169,6 +169,45 @@ The user did not select these areas; the planner decides, within the stated cons
 Killing only #1 and #5 (the two the ROADMAP names) leaves #2 re-injecting the same 11
 at render on the live template. All five read `config('rams_tier1.enabled')`.
 
+> **Correction (2026-08-23, after research — `26-RESEARCH.md` verified every path by
+> direct code read).** Two claims in the table above were wrong or imprecise. The
+> original text is left unmodified; these amendments supersede it.
+>
+> **Path 5 does not fire "always, regardless of engineer selection."** That framing came
+> from `.planning/REQUIREMENTS.md` and the ROADMAP, and does not survive reading the
+> code. `mandatoryBaseline()` is reached only when
+> `RiskTemplateResolverService::buildHazards()` is called with an **empty**
+> `$hazardNames` array (`includeMandatory = empty($names)`). The live
+> `buildFromReview()` path — `RamsBuilderService::reviewedToRisk()` — already calls
+> `resolveFromSeeds(..., false)` and never triggers it. Consequence for planning:
+> removing path 5 is **dead-code removal from `HazardLibraryService` PLUS a separate fix
+> to `RiskTemplateResolverService`'s empty-names fallback** — two edits, not one. The
+> 7 `MANDATORY_KEYWORDS` are still wrong and still go; the blast radius is just smaller
+> and differently shaped than D-02/HAZ-02 assumed.
+>
+> **The live primary renderer is DOCX, not the PDF blade.**
+> `DocxBuilderService::buildRiskAssessment()` is the main live path; `rams.blade.php`
+> is a parallel live PDF template (`RAMS_UNIFIED_COMPOSER` defaults false).
+> `rams-v2.blade.php` and `RiskAssessmentComposer` are **not live**. Any "hazards now
+> populate from include-when" change must be proven through the DOCX path, or the
+> phase's live validation proves nothing about what engineers actually receive.
+>
+> **RA{NN} ref stability is worse than noted.** Both *live* renderers compute refs
+> independently from raw array position. Only the non-live `RiskAssessmentComposer`
+> supports an explicit stored `ref` override. A variable-length register therefore
+> shifts refs on the paths that matter most.
+>
+> **Two further findings that change scope:**
+> - `Tier1BaselineHazardsRenderTest` directly asserts the behaviour this phase removes
+>   (baseline injecting "Working at Height" / "Manual Handling of AV Equipment" when
+>   hazards are empty). It must be **rewritten**, not left to fail.
+> - HAZ-04's real gap is in `resources/views/rams/quote-review.blade.php` — the
+>   pre-generation intake — which today offers only a Low/Medium/High select mapped to
+>   coarse `[preL, preS]` pairs by `RamsBuilderService::riskLevelsFromString()`. There is
+>   no numeric L×S input and no "reviewed" marker anywhere. Note
+>   `resources/views/rams/review.blade.php` is a **read-only post-generation diff view**
+>   — not the editable screen; do not confuse the two.
+
 ### Reusable Assets
 - **`hazard_templates` table + `HazardTemplate` model** — already the engineer-facing
   library, with `visibleTo($userId)` (global OR own) scoping and a `controls` JSON cast.
