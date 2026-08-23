@@ -13,7 +13,11 @@
 `references/house-rules.md`, `references/hazard-library.md`, `PORTING-NOTES.md`.
 Those documents are **settled 21CAV positions**, not proposals. Where the app and
 the skill disagree, the skill wins unless the user says otherwise for a specific job.
-**Total requirements:** 24
+**Total requirements:** 26 (GATE-01..12 = 12, RULE-01..10 = 10, HAZ-01..04 = 4).
+*Correction (2026-08-23, roadmapping pass): this section previously stated "24" —
+the itemised list below sums to 26. GATE-03 and GATE-08 are already shipped, leaving
+24 requiring new work; the roadmap covers all 26 IDs, with the 2 shipped ones marked
+for traceability only. See `.planning/ROADMAP.md` v3.0 section for the discrepancy note.*
 
 ### Why this milestone exists
 
@@ -30,6 +34,11 @@ The structural cause is stated plainly in `PORTING-NOTES.md`:
 `config/rams_tier1.php` ships 11 fixed `baseline_hazards` injected into every RAMS —
 exactly the inversion that document warns against. Fixing individual lines (FFP2,
 missing asbestos row) without fixing the shape leaves the defect generator intact.
+
+**Roadmapping finding (2026-08-23):** a second, stronger injection mechanism exists
+alongside `config/rams_tier1.php` — `App\Core\Modules\KnowledgeLibrary\HazardLibraryService::MANDATORY_KEYWORDS`
+(7 keywords) is merged into every resolved hazard set unconditionally, regardless of
+engineer selection, via `mergeWithMandatory()`. HAZ-02 (Phase 26) must fix both.
 
 ### Group A — Validation gates (deterministic checks)
 
@@ -81,12 +90,43 @@ The app has 11, applied unconditionally.
 Deliberately excluded to keep the document-quality core shippable:
 
 - Hold points as first-class objects (owner / state / blocking) — `PORTING-NOTES.md` calls this the single biggest upgrade over the skill; it is new capability, not parity
-- Site-level inheritance (asbestos register, access, welfare, A&E per site)
+- Site-level inheritance (asbestos register, access, welfare, A&E per site) — note: GATE-12 (named A&E must be real) wants exactly this kind of per-site data; Phase 29 must scope around its absence
 - Revision letters, supersede handling and diffing between revisions
 - Persisting the source JSON as an audit trail
 - Dynamic section cross-reference resolution (`§6.4` breaking when optional sections are omitted)
 - Toolbox-talk capture surface with signatures
 - Making `itIntegration` and similar Teams-Rooms-shaped sections conditional on activity
+
+### Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| GATE-01 | Phase 30 | Pending |
+| GATE-02 | Phase 30 | Pending |
+| GATE-03 | — | Shipped (260817-r5e) |
+| GATE-04 | Phase 30 | Pending |
+| GATE-05 | Phase 31 | Pending |
+| GATE-06 | Phase 28 | Pending |
+| GATE-07 | Phase 28 | Pending |
+| GATE-08 | — | Shipped (260817-r5e) |
+| GATE-09 | Phase 27 | Pending |
+| GATE-10 | Phase 31 | Pending |
+| GATE-11 | Phase 29 | Pending |
+| GATE-12 | Phase 29 | Pending |
+| RULE-01 | Phase 28 | Pending |
+| RULE-02 | Phase 27 | Pending |
+| RULE-03 | Phase 27 | Pending |
+| RULE-04 | Phase 31 | Pending |
+| RULE-05 | Phase 31 | Pending |
+| RULE-06 | Phase 28 | Pending |
+| RULE-07 | Phase 29 | Pending |
+| RULE-08 | Phase 29 | Pending |
+| RULE-09 | Phase 28 | Pending |
+| RULE-10 | Phase 28 | Pending |
+| HAZ-01 | Phase 26 | Pending |
+| HAZ-02 | Phase 26 | Pending |
+| HAZ-03 | Phase 26 | Pending |
+| HAZ-04 | Phase 26 | Pending |
 
 ---
 

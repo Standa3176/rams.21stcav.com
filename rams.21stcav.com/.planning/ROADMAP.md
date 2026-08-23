@@ -1,7 +1,7 @@
 ---
-milestone: v2.0
-milestone_name: Engineering-Grade AV Drawings
-last_updated: "2026-08-13"
+milestone: v3.0
+milestone_name: RAMS Skill Parity
+last_updated: "2026-08-23"
 ---
 
 # Roadmap
@@ -10,7 +10,7 @@ last_updated: "2026-08-13"
 
 See: `.planning/PROJECT.md` (updated 2026-05-09)
 
-**Current milestone:** v2.0 Engineering-Grade AV Drawings. Visual contract: XTEN-AV PAGING SYSTEM reference. Platform: draw.io / mxGraph (validated by spike `260509-ibx`).
+**Current milestone:** v3.0 RAMS Skill Parity. Source of truth: the `21cav-rams` Claude skill vendored at `.planning/reference/21cav-rams-skill/`. Where the app and the skill disagree on safety content, structure or scoring, the skill wins. v2.0 Engineering-Grade AV Drawings is **paused** mid-milestone (Phase 24 Plan 09 + Phase 25 remain open) while this milestone runs.
 
 ## Roadmap Overview
 
@@ -20,14 +20,150 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
 | v1.1 | Operations Dashboard & Notifications | 08–09 (10/11 deferred) | ✅ Shipped 2026-04-25 — [archive](milestones/v1.1-ROADMAP.md) |
 | v1.2 | Installation Programme & Field Management | 12–16 | ✅ Shipped 2026-04-25 — [archive](milestones/v1.2-ROADMAP.md) |
 | v1.3 | Technical Drawings & Schematics | 17–20 (19 → v2.0) | ✅ Shipped 2026-05-09 — [archive](milestones/v1.3-ROADMAP.md) |
-| **v2.0** | **Engineering-Grade AV Drawings** | **21–25** | **🚧 In progress** |
-| v1.4 | Client Portal & Project Visibility | 26–29 | 📋 Planned (renumbered after v2.0) |
-| v1.5 | Financial & Proposal Engine | 30–33 | 📋 Planned |
-| v1.6 | Service & Inventory | 34–37 | 📋 Planned |
+| v2.0 | Engineering-Grade AV Drawings | 21–25 | ⏸ Paused — 24-09 + Phase 25 open |
+| **v3.0** | **RAMS Skill Parity** | **26–31** | **📋 Planned** |
+| v1.4 | Client Portal & Project Visibility | 32–35 | 📋 Planned (renumbered after v3.0) |
+| v1.5 | Financial & Proposal Engine | 36–39 | 📋 Planned (renumbered after v3.0) |
+| v1.6 | Service & Inventory | 40–43 | 📋 Planned (renumbered after v3.0) |
 
 ---
 
-## 🚧 v2.0 Engineering-Grade AV Drawings (In Progress)
+## 📋 v3.0 RAMS Skill Parity (Planned)
+
+**Milestone Goal:** Close the gap between the `21cav-rams` Claude skill's settled methodology and what the app actually generates. A professional review of a real generated RAMS (21CQ30960, VW Blakelands) found defects the skill's own documents had already predicted by name — the double "Associated risks" line and the podium-steps contradiction are both written down in `house-rules.md` as known failure modes (both independently fixed by quick task `260817-r5e` before this milestone opened). This milestone ships the rest: 10 deterministic validation gates, 10 house rules enforced in code, and a hazard-library reconciliation that inverts the register from "full, user prunes" to "empty, user/job adds to."
+
+**The structural inversion is the spine.** `PORTING-NOTES.md`:
+
+> *"The default should be an empty register that the user adds to, never a full register the user prunes."*
+
+Two separate mechanisms currently violate this, not one:
+1. `config/rams_tier1.php:52` — 11 fixed `baseline_hazards`, injected via `Tier1RamsDefaultsService` whenever reviewed data supplies no hazards (fallback-only).
+2. `App\Core\Modules\KnowledgeLibrary\HazardLibraryService::MANDATORY_KEYWORDS` (`:36-44`) — 7 hazard keywords **always** merged into every resolved hazard set via `mergeWithMandatory()`, regardless of what the engineer selected or the AI extracted. This one is stronger than the config fallback and was not called out by name in REQUIREMENTS.md's framing — Phase 26 must fix both or the inversion is incomplete.
+
+Phase 26 (HAZ-01..04) fixes both, first, because several later gates and rules are only meaningful once hazard inclusion is conditional — GATE-05 (uniform-scoring detection) and GATE-10 (COSHH/standards padding) are near-meaningless against a fixed register, and RULE-02/03/01/06 edit hazard content that Phase 26 replaces wholesale.
+
+**Real-data risk found during roadmapping (see "Standing hazards" in the roadmapping brief — "a rule shipped last week would have turned the entire dashboard amber 7 days after deploy"):** several GATE requirements would fire as false-positive errors on *every single RAMS generated today* if shipped before their paired RULE fix, because the current defaults already violate the house rule the gate is meant to enforce:
+
+- **GATE-11** (CDM duty-holder ≠ "[To be confirmed]") — `RamsComplianceUpgradeService.php:1035-1036` hardcodes `'[To be confirmed]'` for `principal_designer`/`principal_contractor` on every job today. Shipping GATE-11 before RULE-07 would error on 100% of occupied-premises RAMS.
+- **GATE-12** (named A&E must be real) — `resources/views/pdf/rams.blade.php:1953` hardcodes *"Nearest hospital A&E to be identified at site induction."* as the literal default, with a `'TBC'` fallback at `:1976`. Shipping GATE-12 before RULE-08 would error on effectively every RAMS.
+- **GATE-07** ("confined space" mislabel) — `HazardLibraryService`'s current mandatory-keyword fallback title is literally `Str::title('confined spaces')`. Shipping GATE-07 before RULE-06/HAZ-01 retitle it would error on the current baseline itself.
+- **GATE-06** (FFP2 → error) — `config/rams_tier1.php:129` still reads FFP2 (contradicting `:286`'s FFP3). Shipping GATE-06 before RULE-01 would error on the current baseline itself.
+- **GATE-10** (standards/COSHH padding) — `config/rams_tier1.php`'s `coshh_products` is injected **unconditionally** (not fallback-only like hazards/standards — see `Tier1RamsDefaultsService::injectDefaultsIntoRamsData():82`), and the 9-entry standards table always renders in full. Shipping GATE-10 before RULE-04/05 would error on every RAMS with a non-empty standards or COSHH table.
+
+Every phase below pairs a GATE with the RULE fix (or the Phase 26 hazard-shape change) it depends on for correctness, in the same phase, so no gate ships ahead of the default it's meant to police.
+
+**Phases:** 26–31 (6 phases). Continues numbering from v2.0 (21–25); v1.4/v1.5/v1.6 renumbered to 32–43 below.
+
+**Sequencing / file-contention note:** `config/rams_tier1.php` is the single most-touched file across this milestone (Group B and Group C both write to it). Phase 26 restructures it most heavily (hazard list → include-when library); Phases 27, 28 and 31 make narrower edits to content Phase 26 creates. All four depend on Phase 26 landing first for exactly this reason — editing the current fixed arrays before Phase 26 replaces them would be immediately overwritten. Phase 29 (CDM/A&E) and Phase 30 (structural gates) touch different files (`RamsComplianceUpgradeService.php`, PDF templates) and carry less contention risk.
+
+**Documentation discrepancy found during roadmapping:** `REQUIREMENTS.md`'s v3.0 header states "Total requirements: 24," but the itemised list is GATE-01..12 (12) + RULE-01..10 (10) + HAZ-01..04 (4) = **26**, of which GATE-03 and GATE-08 are already shipped (24 remain open). The roadmap below covers all 26 IDs — the 24 that need new work, plus GATE-03/GATE-08 marked already-shipped for traceability, per the source document's own "listed for traceability, not rework" framing. Flagging rather than silently dropping 2 IDs to force the stated total.
+
+### Phases
+
+- [ ] **Phase 26: Hazard Library Structural Inversion** — Port all 18 `hazard-library.md` hazards with include-when conditions, replacing `config/rams_tier1.php` baseline_hazards AND `HazardLibraryService::MANDATORY_KEYWORDS`; align scores to the skill (incl. Working at Height residual 1×4); typical scores are editable defaults, never silently applied. Foundation for Phases 27–31.
+- [ ] **Phase 27: Manual-Handling & Display-Lift House Rules** — All displays are two-operative team lifts regardless of size; wall-mount removal stated as the highest-risk lift; GATE-09 errors on anything else.
+- [ ] **Phase 28: PPE, Ceiling & Electrical Boundary House Rules** — FFP3 (not FFP2) everywhere; "confined space" never applied to ceiling void/comms room/riser; electrical scope boundary + ceiling load statements land in output; GATE-06 + GATE-07 ship alongside.
+- [ ] **Phase 29: CDM Duty-Holder & Emergency Arrangements** — Settled sole-Contractor CDM position replaces "[To be confirmed]"; named A&E with address replaces "to be identified at site induction"; GATE-11 + GATE-12 ship alongside.
+- [ ] **Phase 30: Structural Validation Gates** — Orphan-controls check, every-area-has-a-method-step check, residual-≤-initial-score check (GATE-01, GATE-02, GATE-04).
+- [ ] **Phase 31: Standards/COSHH Scoping & Padding Gates** — Standards table and COSHH list become job-conditional (extends Phase 26's include-when pattern); uniform-scoring detection + COSHH/standards padding cross-check (GATE-05, GATE-10).
+
+### Out of scope for v3.0 (deferred to v3.1+)
+
+- Hold points as first-class objects (owner / state / blocking) — `PORTING-NOTES.md` calls this the single biggest upgrade over the skill; new capability, not parity
+- Site-level inheritance (asbestos register, access, welfare, A&E per site) — **note:** GATE-12 (Phase 29) wants a maintained A&E dataset; without site-level storage, Phase 29 planning must choose a scoping approach (curated static list / plausibility check / explicit defer) rather than assume a live per-site lookup
+- Revision letters, supersede handling and diffing between revisions
+- Persisting the source JSON as an audit trail
+- Dynamic section cross-reference resolution (`§6.4` breaking when optional sections are omitted)
+- Toolbox-talk capture surface with signatures
+- Making `itIntegration` and similar Teams-Rooms-shaped sections conditional on activity
+
+### Canonical refs
+
+- Source of truth: `.planning/reference/21cav-rams-skill/PORTING-NOTES.md` (12 validation gates, the two-layer split)
+- `.planning/reference/21cav-rams-skill/references/house-rules.md` (settled positions — RULE-01..10)
+- `.planning/reference/21cav-rams-skill/references/hazard-library.md` (18 hazards, typical scores, include-when — HAZ-01..04)
+- Already-shipped: `.planning/quick/20260817-rams-generator-defects/SUMMARY.md` (quick task 260817-r5e — GATE-03, GATE-08)
+- Real review defect trigger: 21CQ30960 (VW Blakelands) professional review
+- Config most touched: `config/rams_tier1.php`; second injection mechanism: `app/Core/Modules/KnowledgeLibrary/HazardLibraryService.php`
+- Live PDF template: `resources/views/pdf/rams.blade.php` (`rams-v2.blade.php` exists but `RAMS_UNIFIED_COMPOSER` is unset in production — not live, per 260817-r5e's finding)
+
+### Phase 26: Hazard Library Structural Inversion
+**Goal**: Replace both unconditional hazard-injection mechanisms — `config/rams_tier1.php`'s 11 `baseline_hazards` (fallback-only-when-empty, via `Tier1RamsDefaultsService`) and `HazardLibraryService::MANDATORY_KEYWORDS` (7 keywords, ALWAYS merged into every resolved hazard set regardless of engineer selection) — with the skill's full 18-hazard library, each carrying an include-when condition. A new RAMS starts from an empty register; hazards populate only when the job's captured scope/activities match a hazard's include-when trigger. Typical L×S scores from `hazard-library.md` are ported as editable defaults, never silently committed, aligning residual severity where the skill holds it at initial severity (Working at Height 1×4, not the current baseline's 2×3).
+**Depends on**: Nothing (first phase of v3.0; foundation for Phases 27–31, all of which edit hazard-shaped content this phase restructures)
+**Requirements**: HAZ-01, HAZ-02, HAZ-03, HAZ-04
+**Success Criteria** (what must be TRUE):
+  1. All 18 `hazard-library.md` hazards exist in the app's hazard source — the 10 the app already carries (reconciled to skill wording/scores) plus the 8 newly ported (Noise and vibration, Restricted access and ceiling voids, Low voltage AV connections, Asbestos-containing materials, Vehicle and plant movement, Lone and small-team working, Fire and evacuation, Decommissioning and WEEE) — each carrying an include-when condition
+  2. Creating a new RAMS (review form, quote-import auto-seed, or AI extraction) starts with zero pre-populated hazards; only hazards whose include-when condition matches the job's captured activities/scope appear — replacing BOTH `config/rams_tier1.php:52` (`baseline_hazards`, currently injected whenever reviewed hazards are empty) AND `HazardLibraryService::MANDATORY_KEYWORDS` (`:36-44`, currently always merged in via `mergeWithMandatory()` regardless of what was selected)
+  3. Typical initial/residual scores are visibly pre-filled but editable — never committed to `generated_data` without a human or model touch-point; Working at Height residual renders 1×4 (not the current baseline's 2×3 at `config/rams_tier1.php:67-68`)
+  4. Regenerating a real project (21CQ30960) shows only hazards its actual scope supports, manually spot-checked against the source quote — not validated against the old fixed 11/7-item lists, which cannot contain the answer
+**Plans**: TBD
+**UI hint**: yes (empty-register UX, include-when-driven hazard population, editable score inputs on the RAMS review screen)
+
+### Phase 27: Manual-Handling & Display-Lift House Rules
+**Goal**: Every generated RAMS states the two-operative display-lift position without exception and calls out wall-mount removal as the highest-risk lift on a strip-out; the generator errors rather than silently accepting anything else.
+**Depends on**: Phase 26 (RULE-02/03 edit the Manual Handling hazard's control text, which Phase 26 replaces wholesale — editing the pre-Phase-26 content would be immediately overwritten)
+**Requirements**: RULE-02, RULE-03, GATE-09
+**Success Criteria** (what must be TRUE):
+  1. The Manual Handling hazard's control text mandates a two-operative team lift for every display regardless of panel size — the current `config/rams_tier1.php:78` "Two-person lift mandatory for displays 55" and above" size threshold is gone, and no wording implies a four-operative or size-conditional lift; mechanical aids are stated as additional, never a substitute for the second person
+  2. Where a job's scope includes decommission/strip-out of a wall-mounted display, the generated method statement or hazard control explicitly states the removal-from-mount sequence: controlled to lowest practicable height, one operative each side, before release from the mount
+  3. GATE-09 errors when any reviewed or generated RAMS specifies a display lift as anything other than two-operative — proven by reverting the fix on a fixture and observing the gate fire, then restoring
+  4. Regenerating 21CQ30960 (or another live strip-out job) does not trip GATE-09 — confirms the fix and the gate agree against real data, not just a fixture
+**Plans**: TBD
+**UI hint**: yes (gate errors surface on the RAMS review screen)
+
+### Phase 28: PPE, Ceiling & Electrical Boundary House Rules
+**Goal**: Fix the FFP2/FFP3 contradiction and the "confined space" mislabel at every occurrence (config, `HazardLibraryService` fallback, and Phase 26's ported library), and ensure the ceiling-load and electrical-scope-boundary statements land in generated output; ship GATE-06 and GATE-07 in the same phase so neither fires against a still-broken default.
+**Depends on**: Phase 26 (RULE-01/RULE-06 edit hazard content Phase 26 restructures; GATE-07's "confined space" check needs the retitled "Restricted access and ceiling void working" hazard from HAZ-01 to exist first, or it fires against the app's own pre-fix baseline)
+**Requirements**: RULE-01, RULE-06, RULE-09, RULE-10, GATE-06, GATE-07
+**Success Criteria** (what must be TRUE):
+  1. No respiratory-PPE mention anywhere in generated output reads FFP2 — `config/rams_tier1.php:129` (Dust from drilling) and `:286` (Expanding Foam COSHH entry, already FFP3) agree; face-fit testing is stated
+  2. No hazard title, fallback string, or generated document text labels a ceiling void, comms room or riser "confined space[s]" — including `HazardLibraryService`'s prior "confined spaces" mandatory-keyword fallback (`:36-44`, `:210-215`) — all read "Restricted access and ceiling void working"
+  3. A generated RAMS for a job with ceiling-mounted AV equipment states the ceiling-load position (supported from structural soffit or purpose-designed mount kit — never suspended grid, pipework or sprinkler pipe) and, where the job touches mains power, the electrical scope boundary (terminates at existing socket/data outlet, no alteration to fixed installation, no live working)
+  4. GATE-06 errors on any FFP2 occurrence and GATE-07 errors on any ceiling-void/comms-room/riser hazard mislabelled "confined space" — both verified by reintroducing the defect on a fixture and observing the error, then restoring, and both pass clean against a freshly regenerated real project
+**Plans**: TBD
+**UI hint**: yes (gate errors surface on the RAMS review screen)
+
+### Phase 29: CDM Duty-Holder & Emergency Arrangements
+**Goal**: Replace the unconditional CDM duty-holder placeholder and the hardcoded "to be identified at site induction" A&E line with the settled positions, and ship GATE-11/GATE-12 so a RAMS can no longer go out the door with either placeholder.
+**Depends on**: Nothing structurally — touches `RamsComplianceUpgradeService.php` and the PDF templates, not the hazard register Phase 26 restructures; may run before or after Phases 27–28
+**Requirements**: RULE-07, RULE-08, GATE-11, GATE-12
+**Success Criteria** (what must be TRUE):
+  1. `RamsComplianceUpgradeService::upgrade()`'s CDM duty-holder defaults (`:1035-1036`, currently hardcoded `'[To be confirmed]'` for `principal_designer`/`principal_contractor` on every job) state the settled sole-Contractor position on an occupied-premises job instead
+  2. The Emergency Procedures section's nearest-A&E line (`resources/views/pdf/rams.blade.php:1953`, currently the literal string "Nearest hospital A&E to be identified at site induction.", plus `:1976`'s `'TBC'` fallback) is replaced by a named A&E with address by default
+  3. GATE-11 errors when the CDM duty-holder table is left as "[To be confirmed]" on an occupied-premises job; GATE-12 errors when the named A&E does not resolve to a real, currently-open A&E — **scoping flag**: no UK A&E open/closed dataset exists in this codebase today, and site-level A&E storage is explicitly out of scope for v3.1 (see Out of Scope above), so phase planning must pick an approach (curated static list, plausibility check, or explicit narrower scope) rather than assume a live lookup exists
+  4. Regenerating a live occupied-premises project shows a stated CDM position and a real named A&E with address, not either placeholder — verified against production data, not just a fixture
+**Plans**: TBD
+**UI hint**: yes (gate errors surface on the RAMS review screen; CDM/A&E fields may need review-form inputs)
+
+### Phase 30: Structural Validation Gates
+**Goal**: Ship the three gates that check document-structural consistency — orphan controls, area/method-step coverage, and residual-vs-initial scoring — against the finished Phase 26 hazard shape.
+**Depends on**: Phase 26 (GATE-01's "matching hazard row" check and GATE-04's residual-score check need the final hazard set and HAZ-03's aligned scores to be meaningful, not the old fixed 11-hazard baseline)
+**Requirements**: GATE-01, GATE-02, GATE-04
+**Success Criteria** (what must be TRUE):
+  1. GATE-01 errors when a method step or hazard control references a document, permit or hold point (e.g. "review the asbestos register") with no matching hazard row AND no matching `clientReqs` entry — proven against a fixture reproducing the canonical asbestos-orphan failure named in `PORTING-NOTES.md`
+  2. GATE-02 errors when any area/room in the RAMS has zero method steps
+  3. GATE-04 flags (does not silently accept) any hazard where residual severity is lower than initial severity, and errors when residual score exceeds initial score on any hazard
+  4. Running all three gates against a real regenerated project (21CQ30960) with the Phase 26 hazard set passes clean — no false positives against legitimate, correctly-scoped output
+**Plans**: TBD
+**UI hint**: yes (gate errors/warnings surface on the RAMS review screen)
+
+### Phase 31: Standards/COSHH Scoping & Padding Gates
+**Goal**: Extend Phase 26's include-when pattern to the standards-references and COSHH-substances tables so they cite only what the job involves, then ship the two gates the source notes call out as "far more reliable... once inclusion is conditional" — uniform-scoring detection and COSHH/standards padding cross-check.
+**Depends on**: Phase 26 (extends the same include-when mechanism to a second config table; GATE-05's uniform-scoring detection is only meaningful once hazard inclusion is conditional)
+**Requirements**: RULE-04, RULE-05, GATE-05, GATE-10
+**Success Criteria** (what must be TRUE):
+  1. The generated standards table cites only standards the job's captured activities actually involve — `config/rams_tier1.php:352-397`'s always-rendered 9-entry table (including BS EN 60849 voice-alarm, BS 8492 PA systems, HSG 47 underground services and BS EN 60825-1 laser safety, none of which are job-conditional today) becomes include-when scoped
+  2. The generated COSHH table lists only substances the job actually carries — `Tier1RamsDefaultsService::injectDefaultsIntoRamsData()`'s unconditional `coshh_baseline` assignment (`:82`, currently ALWAYS set regardless of scope, unlike hazards/standards which are fallback-only) becomes include-when scoped, so a Teams Rooms install no longer shows solder flux or expanding-foam entries
+  3. GATE-05 warns when most hazards on a RAMS share the same initial score (assembled-from-library signal) — verified against a fixture that deliberately reintroduces uniform scoring
+  4. GATE-10 errors when a cited standard or COSHH substance has no supporting activity in the job's scope — verified against a fixture reproducing the named offenders (BS EN 60849, BS 8492, HSG 47, laser safety with no laser, soldering flux with no soldering) and passing clean against a freshly regenerated real project
+**Plans**: TBD
+**UI hint**: yes (gate errors/warnings surface on the RAMS review screen)
+
+---
+
+## 🚧 v2.0 Engineering-Grade AV Drawings (Paused)
+
+**Status note (2026-08-23):** Paused mid-milestone in favour of v3.0. Phases 21, 22, 22.1 and 23 are complete on disk. Phase 24 has one open plan (24-09, a bounded human-checkpoint curation task, out of autonomous-executor scope by design). Phase 25 remains unplanned. Resume either after v3.0 ships or opportunistically between v3.0 phases.
 
 **Milestone Goal:** Auto-generate AV technical drawings at the engineering-grade fidelity of XTEN-AV / D-Tools / Lucidchart. Custom device cards (manufacturer logo + name + model + port rails), port-to-port cable routing, signal-type colour coding, sub-room zones, multi-page paginator with title block, sheet border. Output renders in the draw.io / mxGraph embed validated by spike `260509-ibx`. Visual contract = the XTEN-AV PAGING SYSTEM reference user shared 2026-05-09.
 
@@ -45,7 +181,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
 - [x] **Phase 22: Cable Schedule with Port-Level FKs** ✅ COMPLETE 2026-05-12 (3/3 plans) — `source_port_id` + `dest_port_id` columns on `cable_schedule_items`; cascading dropdown UI (room → device → port); connector-compatibility validation; auto-derive from quote `cable_list` "X to Y" naming where unambiguous; one-shot backfill command. Depends on Phase 21. Estimate: 2–3 weeks.
 - [x] **Phase 22.1: RAMS Scope/Room-Data Consolidation** ✅ COMPLETE 2026-05-13 (7/7 plans) — inserted phase; eliminates field-duplication across the 3-stage RAMS pipeline (`form_data` → `reviewed_data` → `generated_data`). Backward-compatible `generated_data` shape; backfill migration; dead-path removal. Survey↔RAMS sync + `Project.works_description` propagation deferred to Phase 22.2. See detail section below.
 - [x] **Phase 23: XTEN-AV-Style Renderer** ✅ COMPLETE 2026-05-15 (7/7 plans, 4 waves) — custom device-card stencils with port rails; port-to-port cable routing; signal-type colour coding (audio/video/control/network/USB); cable ID labels; sub-room zones (RACK / CEILING / etc) auto-derived + engineer-overridable; multi-page paginator (system + audio + video + control sub-sheets); standardised title block; sheet border. Depends on Phase 21+22. Estimate: 2–4 weeks (faster via draw.io vs ~4–5 weeks native). **7 plans, 4 waves** (planned 2026-05-13).
-- [ ] **Phase 24: Stencil Curation UI + Quote-Import Auto-Stub** — quote-import auto-stub flow seeds `device_stencils` + category-default `device_ports` for every new part_number seen in quote line items; admin route at `/admin/device-stencils` + edit screen (port table, not drag — D-01) for upgrading auto-generic stencils to engineer-curated ones; manufacturer-logo upload; "promote" action flips `device_stencils.source` from auto-generated → engineer-curated; cross-project propagation automatic via cache lookup. Closes the Phase 21 Tier 1 gap (audit 2026-05-15: 5/96 = 5% coverage). Depends on Phase 21 + Phase 22. Planned 2026-08-13 (9 plans, 7 waves).
+- [ ] **Phase 24: Stencil Curation UI + Quote-Import Auto-Stub** — quote-import auto-stub flow seeds `device_stencils` + category-default `device_ports` for every new part_number seen in quote line items; admin route at `/admin/device-stencils` + edit screen (port table, not drag — D-01) for upgrading auto-generic stencils to engineer-curated ones; manufacturer-logo upload; "promote" action flips `device_stencils.source` from auto-generated → engineer-curated; cross-project propagation automatic via cache lookup. Closes the Phase 21 Tier 1 gap (audit 2026-05-15: 5/96 = 5% coverage). Depends on Phase 21 + Phase 22. Planned 2026-08-13 (9 plans, 7 waves). Plans 01-08, 10, 11, 12 complete; 24-09 (bounded human-checkpoint curation) remains open.
 - [ ] **Phase 25: AI Assist + Replacement Wiring** — Claude vision over manufacturer datasheet PDFs → port JSON → engineer review/approve flow (covers long-tail devices); chat-edit operations on rendered drawings (`move_device_to_zone`, `add_cable_between_ports`, etc.) bounded by canonical-data validity; bound PDF (v1.3 Phase 20) + O&M Manual auto-embed (v1.3 Phase 17) swap from D2 output to engineering-grade output for projects with sufficient catalog coverage. Depends on Phase 21+22+23. Estimate: 2–3 weeks.
 
 ### Out of scope for v2.0 (deferred to v2.1+)
@@ -86,9 +222,9 @@ See: `.planning/PROJECT.md` (updated 2026-05-09)
   4. Phase 23's renderer can consume `cable_schedule_items.source_port_id` + `dest_port_id` to draw port-to-port cable routing without further data layer work
   5. v1.3 cable schedule XLSX export, schematic SVG generator, and bound-PDF cable-list section continue to render without regression for legacy rows where the new FK columns are NULL
 **Plans**: 3 plans, 2 waves
-  - [x] 22-01-PLAN.md � Schema migration (4 FK columns + override-note + port-pair index) + CableScheduleItem fillable + belongsTo relations + config/cables.php + CableConnectorCompatibilityService. Wave 1 � foundation. Requirements: DRAW-37, DRAW-39.
-  - [x] 22-02-PLAN.md � Alpine.js port-picker modal (D-02 side-by-side) + chain-link icon column + extended CableScheduleController@update with cross-project FK injection guard (T-22-A4) + D-10 regression tests (XLSX byte-identity + SchematicGenerator NULL-FK case). Wave 2 � depends on 22-01. Requirements: DRAW-38, DRAW-39.
-  - [x] 22-03-PLAN.md � CablePortFkResolverService (pure deterministic matcher) + cables:backfill-port-fks artisan command (dry-run-default with --apply flag, per-row 4-category report, idempotent, T-22-A5/A6 mitigated). Wave 2 � depends on 22-01. Requirements: DRAW-40, DRAW-41.
+  - [x] 22-01-PLAN.md — Schema migration (4 FK columns + override-note + port-pair index) + CableScheduleItem fillable + belongsTo relations + config/cables.php + CableConnectorCompatibilityService. Wave 1 — foundation. Requirements: DRAW-37, DRAW-39.
+  - [x] 22-02-PLAN.md — Alpine.js port-picker modal (D-02 side-by-side) + chain-link icon column + extended CableScheduleController@update with cross-project FK injection guard (T-22-A4) + D-10 regression tests (XLSX byte-identity + SchematicGenerator NULL-FK case). Wave 2 — depends on 22-01. Requirements: DRAW-38, DRAW-39.
+  - [x] 22-03-PLAN.md — CablePortFkResolverService (pure deterministic matcher) + cables:backfill-port-fks artisan command (dry-run-default with --apply flag, per-row 4-category report, idempotent, T-22-A5/A6 mitigated). Wave 2 — depends on 22-01. Requirements: DRAW-40, DRAW-41.
 **UI hint**: yes (cascading dropdown UI on cable schedule edit; backend command + form changes)
 **Canonical refs**:
   - `.planning/phases/21-device-port-catalog-stencil-cache/21-CONTEXT.md` (Phase 21 decisions D-01..D-15 — port catalog contract)
@@ -280,29 +416,31 @@ Floor plan drawing tool moved out of v1.3 scope on 2026-05-02 to avoid building 
 
 ## Future Milestones (Outline)
 
-### v1.4 Client Portal & Project Visibility
+### v1.4 Client Portal & Project Visibility (Phases 32–35)
 *"Clients see what they need, when they need it"*
+
+> Renumbered from 26–29 to 32–35 (2026-08-23) to make room for v3.0 (Phases 26–31). Phases 21/22 below were completed under an earlier numbering pass before this renumbering and are listed as-is; treat the numbers in this outline block as provisional until re-planned.
 
 - [x] Phase 21: Client Portal — Branded project status page per client/site with secure access (completed 2026-05-10)
 - [x] Phase 22: Document Access — Clients download RAMS, O&M, drawings and certificates from portal (completed 2026-05-12)
-- [ ] Phase 23: Survey & Installation Progress — Live completion percentages per room visible to client
-- [ ] Phase 24: Notification & Communication — Client receives updates on project milestones and document availability
+- [ ] Phase 34: Survey & Installation Progress — Live completion percentages per room visible to client
+- [ ] Phase 35: Notification & Communication — Client receives updates on project milestones and document availability
 
-### v1.5 Financial & Proposal Engine
+### v1.5 Financial & Proposal Engine (Phases 36–39)
 *"From pricing rules to signed proposal"*
 
-- [ ] Phase 25: Pricing Engine — Multiplier-based config (HW value x multiplier with min/max), admin+sales accessible
-- [ ] Phase 26: Proposal Generator — New client + renewal flows, PDF/DOCX branded output
-- [ ] Phase 27: Budget Tracking — Project cost monitoring, margin alerts, forecast vs actual
-- [ ] Phase 28: Renewal Workflow — Auto-populate from existing contract hardware, year-on-year escalation
+- [ ] Phase 36: Pricing Engine — Multiplier-based config (HW value x multiplier with min/max), admin+sales accessible
+- [ ] Phase 37: Proposal Generator — New client + renewal flows, PDF/DOCX branded output
+- [ ] Phase 38: Budget Tracking — Project cost monitoring, margin alerts, forecast vs actual
+- [ ] Phase 39: Renewal Workflow — Auto-populate from existing contract hardware, year-on-year escalation
 
-### v1.6 Service & Inventory
+### v1.6 Service & Inventory (Phases 40–43)
 *"Post-install lifecycle"*
 
-- [ ] Phase 29: Asset Registry — Track installed equipment as live assets with QR codes per item
-- [ ] Phase 30: Service Tickets — Contract search, room/asset select, auto-fill site/contact, callback scheduling
-- [ ] Phase 31: PMV Checklists — Per-equipment-type maintenance checks with fault diagnosis and sign-off
-- [ ] Phase 32: AI Troubleshooting — QR scan triggers AI-guided device-specific troubleshooting workflow
+- [ ] Phase 40: Asset Registry — Track installed equipment as live assets with QR codes per item
+- [ ] Phase 41: Service Tickets — Contract search, room/asset select, auto-fill site/contact, callback scheduling
+- [ ] Phase 42: PMV Checklists — Per-equipment-type maintenance checks with fault diagnosis and sign-off
+- [ ] Phase 43: AI Troubleshooting — QR scan triggers AI-guided device-specific troubleshooting workflow
 
 ---
 
@@ -345,4 +483,16 @@ Plans:
 | 18. Rack Elevations | v1.3 | 2/2 | Complete    | 2026-05-02 |
 | 19. Floor Plans (Konva) | v1.3 → v2.0 | 0/0 | Deferred to backlog 999.1 | - |
 | 20. Drawing Export + O&M Integration | v1.3 | 2/2 | Complete    | 2026-05-03 |
+| 21. Device Port Catalog + Stencil Cache | v2.0 | 3/3 | Complete | 2026-05-10 |
+| 22. Cable Schedule with Port-Level FKs | v2.0 | 3/3 | Complete | 2026-05-12 |
+| 22.1. RAMS Scope/Room-Data Consolidation | v2.0 | 7/7 | Complete | 2026-05-13 |
+| 23. XTEN-AV-Style Renderer | v2.0 | 7/7 | Complete | 2026-05-15 |
+| 24. Stencil Curation UI + Quote-Import Auto-Stub | v2.0 | 11/12 | Paused — 24-09 open (human checkpoint) | - |
+| 25. AI Assist + Replacement Wiring | v2.0 | 0/0 | Not started | - |
+| 26. Hazard Library Structural Inversion | v3.0 | 0/0 | Not started | - |
+| 27. Manual-Handling & Display-Lift House Rules | v3.0 | 0/0 | Not started | - |
+| 28. PPE, Ceiling & Electrical Boundary House Rules | v3.0 | 0/0 | Not started | - |
+| 29. CDM Duty-Holder & Emergency Arrangements | v3.0 | 0/0 | Not started | - |
+| 30. Structural Validation Gates | v3.0 | 0/0 | Not started | - |
+| 31. Standards/COSHH Scoping & Padding Gates | v3.0 | 0/0 | Not started | - |
 | 999.1. v2.0 Engineering-Grade AV Drawings (incl. floor plans + DXF) | Backlog | 0/0 | Backlog | - |
