@@ -76,6 +76,86 @@ class ProjectDeliverablesServiceTest extends TestCase
         $this->assertDatabaseCount('project_deliverable_audits', 2);
     }
 
+    // ── undecided_since (260823-bcm, D-13 amber-backcatalogue fix) ──────────────
+
+    public function test_set_state_to_not_yet_decided_sets_undecided_since_on_first_write(): void
+    {
+        $project = Project::factory()->create();
+        $user = User::factory()->create();
+
+        $row = $this->service->setState(
+            $project,
+            ProjectDeliverable::KEY_DRAWINGS,
+            ProjectDeliverable::STATE_NOT_YET_DECIDED,
+            $user,
+        );
+
+        $this->assertNotNull($row->undecided_since);
+    }
+
+    public function test_set_state_to_required_or_not_required_clears_undecided_since(): void
+    {
+        $project = Project::factory()->create();
+        $user = User::factory()->create();
+
+        // First land the row on not_yet_decided so undecided_since is set...
+        $this->service->setState($project, ProjectDeliverable::KEY_CABLE_SCHEDULE, ProjectDeliverable::STATE_NOT_YET_DECIDED, $user);
+
+        // ...then move it to Required — the clock must clear.
+        $row = $this->service->setState($project, ProjectDeliverable::KEY_CABLE_SCHEDULE, ProjectDeliverable::STATE_REQUIRED, $user);
+
+        $this->assertNull($row->undecided_since);
+    }
+
+    public function test_resaving_not_yet_decided_over_itself_does_not_restart_the_clock(): void
+    {
+        $project = Project::factory()->create();
+        $user = User::factory()->create();
+
+        $first = $this->service->setState($project, ProjectDeliverable::KEY_SNAGGING, ProjectDeliverable::STATE_NOT_YET_DECIDED, $user);
+        $firstUndecidedSince = $first->undecided_since;
+
+        $this->assertNotNull($firstUndecidedSince);
+
+        // Simulate real elapsed time between the two writes so a clock reset
+        // would be observable — without this, both writes could land in the
+        // same microsecond and the test would pass even with no null-guard.
+        $this->travel(3)->days();
+
+        $second = $this->service->setState($project, ProjectDeliverable::KEY_SNAGGING, ProjectDeliverable::STATE_NOT_YET_DECIDED, $user);
+
+        $this->assertTrue(
+            $firstUndecidedSince->equalTo($second->undecided_since),
+            'Re-saving the same not_yet_decided state must not move undecided_since forward.'
+        );
+    }
+
+    public function test_moving_off_not_yet_decided_and_back_starts_a_fresh_clock(): void
+    {
+        $project = Project::factory()->create();
+        $user = User::factory()->create();
+
+        $first = $this->service->setState($project, ProjectDeliverable::KEY_INSTALL_PROGRAMME, ProjectDeliverable::STATE_NOT_YET_DECIDED, $user);
+        $firstUndecidedSince = $first->undecided_since;
+
+        $this->travel(3)->days();
+
+        // Move off not_yet_decided — clears the clock.
+        $this->service->setState($project, ProjectDeliverable::KEY_INSTALL_PROGRAMME, ProjectDeliverable::STATE_REQUIRED, $user);
+
+        $this->travel(2)->days();
+
+        // ...and back — must be a genuinely fresh clock, not the original.
+        $third = $this->service->setState($project, ProjectDeliverable::KEY_INSTALL_PROGRAMME, ProjectDeliverable::STATE_NOT_YET_DECIDED, $user);
+
+        $this->assertNotNull($third->undecided_since);
+        $this->assertFalse(
+            $firstUndecidedSince->equalTo($third->undecided_since),
+            'Re-entering not_yet_decided after leaving it must start a fresh clock, not reuse the original.'
+        );
+        $this->assertTrue($third->undecided_since->greaterThan($firstUndecidedSince));
+    }
+
     // ── autoFlipIfNotRequired() ──────────────────────────────────────────────
 
     public function test_auto_flip_flips_not_required_to_required_with_audit(): void

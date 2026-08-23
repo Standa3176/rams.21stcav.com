@@ -38,6 +38,13 @@ class ProjectDeliverablesService
      * every call — even a no-op re-set to the same state (D-03: "who, when"
      * must be provable even for a confirm-no-change action).
      *
+     * Also maintains `undecided_since` (260823-bcm, D-13 amber-backcatalogue
+     * fix — the sole write path for it, same as `state`):
+     *   - writing STATE_NOT_YET_DECIDED sets it to now() ONLY if it is
+     *     currently null — re-saving the same state must not restart the
+     *     D-13 amber-grace-period clock.
+     *   - writing any other state clears it to null.
+     *
      * @throws \Throwable  Never validates $newState — see this phase's
      *                     threat model T-260822-01: callers (controllers)
      *                     MUST validate the state via FormRequest/
@@ -59,7 +66,21 @@ class ProjectDeliverablesService
             );
 
             $before = ['state' => $row->state];
-            $row->update(['state' => $newState]);
+
+            // undecided_since: set to now() only if not already set (don't
+            // restart the D-13 clock on a re-save), cleared to null for any
+            // other state. Kept out of the before/after audit snapshot
+            // deliberately — the audit trail's documented shape (D-03) is
+            // state-only and this is a derived clock, not a user-facing edit.
+            $newUndecidedSince = $newState === ProjectDeliverable::STATE_NOT_YET_DECIDED
+                ? ($row->undecided_since ?? now())
+                : null;
+
+            $row->update([
+                'state' => $newState,
+                'undecided_since' => $newUndecidedSince,
+            ]);
+
             $after = ['state' => $newState];
 
             ProjectDeliverableAudit::create([

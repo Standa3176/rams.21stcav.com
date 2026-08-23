@@ -31,12 +31,19 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  *
  * @see app/Models/ProjectDeliverableAudit.php
  * @see app/Services/ProjectDeliverablesService.php
+ * @see app/Services/ProjectHealthService.php (D-13 amber rule, reads undecided_since)
  * @see .planning/phases/260822-esf-project-deliverables-selection/260822-CONTEXT.md (D-01, D-04, D-05, D-06)
+ * @see .planning/quick/20260823-amber-backcatalogue/PLAN.md (undecided_since)
  *
  * @property int $id
  * @property int $project_id
  * @property string $deliverable_key
  * @property string $state
+ * @property \Illuminate\Support\Carbon|null $undecided_since Anchors the D-13
+ *   amber-grace-period clock. Non-null = this row became `not_yet_decided` at
+ *   that moment via a real decision path (ProjectDeliverablesService::setState()).
+ *   Null = never explicitly left undecided by a human (e.g. the D-17
+ *   back-catalogue retrofit) — grandfathered, never goes amber under D-13.
  */
 class ProjectDeliverable extends Model
 {
@@ -89,6 +96,11 @@ class ProjectDeliverable extends Model
         'project_id',
         'deliverable_key',
         'state',
+        'undecided_since',
+    ];
+
+    protected $casts = [
+        'undecided_since' => 'datetime',
     ];
 
     // ── Relationships ────────────────────────────────────────────────────────

@@ -91,16 +91,36 @@ class ProjectHealthService
         // Gated on relationLoaded('deliverables'): if the caller hasn't
         // eager-loaded it, this rule is skipped entirely rather than issuing
         // a query (same "MUST NOT query" contract as the rest of this class).
+        //
+        // 260823-bcm fix: real production numbers (89 projects, 60 with a
+        // RAMS, 13 with a survey, Programming inferable on none) proved the
+        // original created_at-anchored version of this rule would turn the
+        // ENTIRE project list amber exactly 7 days after the D-17 retrofit
+        // migration ran, since all 801 backfilled rows share one created_at.
+        // Fixed two ways:
+        //   - the clock now anchors to undecided_since (set only by a real
+        //     human decision path, ProjectDeliverablesService::setState()),
+        //     not created_at. Backfilled rows have undecided_since = null
+        //     and are grandfathered — they can never go amber under D-13.
+        //   - Programming (KEY_PROGRAMMING) is skipped entirely: no model,
+        //     table, or relation exists for it anywhere in this codebase
+        //     (D-05), so no evidence can ever move it off not_yet_decided.
+        //     Nagging about a deliverable nothing can ever resolve is pure
+        //     noise, not a signal.
         if ($project->relationLoaded('deliverables')) {
             $undecided = [];
 
             foreach (ProjectDeliverable::ALL_KEYS as $key) {
+                if ($key === ProjectDeliverable::KEY_PROGRAMMING) {
+                    continue;
+                }
+
                 $row = $project->deliverables->firstWhere('deliverable_key', $key);
 
                 if ($row !== null
                     && $row->state === ProjectDeliverable::STATE_NOT_YET_DECIDED
-                    && $row->created_at instanceof Carbon
-                    && Carbon::now()->diffInDays($row->created_at, false) < -self::DELIVERABLE_DECISION_GRACE_DAYS) {
+                    && $row->undecided_since instanceof Carbon
+                    && Carbon::now()->diffInDays($row->undecided_since, false) < -self::DELIVERABLE_DECISION_GRACE_DAYS) {
                     $undecided[] = $row;
                 }
             }

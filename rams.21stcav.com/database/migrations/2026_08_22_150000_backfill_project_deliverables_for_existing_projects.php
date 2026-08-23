@@ -127,6 +127,15 @@ return new class extends Migration
             'project_id' => $projectId,
             'deliverable_key' => $key,
             'state' => $state,
+            // undecided_since MUST stay null for every backfilled row, even
+            // when $state is 'not_yet_decided' — written explicitly (not
+            // relying on the column default) so a later reader can see this
+            // is deliberate: these 89 pre-existing projects predate the
+            // deliverable-selection feature entirely and must never nag
+            // under D-13's amber-grace-period rule (260823-bcm). Only a real
+            // human decision path (ProjectDeliverablesService::setState())
+            // is allowed to set this column to a non-null value.
+            'undecided_since' => null,
             'created_at' => now(),
             'updated_at' => now(),
         ]);

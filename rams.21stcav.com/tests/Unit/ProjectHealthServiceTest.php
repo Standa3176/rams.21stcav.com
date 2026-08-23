@@ -10,6 +10,7 @@ use App\Models\SiteSurvey;
 use App\Services\ProjectHealthService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -41,6 +42,55 @@ class ProjectHealthServiceTest extends TestCase
 
         $this->assertInstanceOf(ProjectHealth::class, $result);
         $this->assertContains($result->status, ['green', 'amber', 'red']);
+    }
+
+    /**
+     * MUST NOT query — the class docblock states this contract explicitly.
+     * 260823-bcm added a new D-13 code path (the `deliverables` relation
+     * eager-loaded, iterated, and read for `undecided_since`), so this
+     * proves — with an actual query-count assertion via DB::listen(), not
+     * by reading the code — that path still never touches the database.
+     * Exercises a representative sweep of assess() call shapes: deliverables
+     * present/absent, every D-13 branch (skip-Programming, null
+     * undecided_since, aged undecided_since, in-grace undecided_since), plus
+     * every RED/AMBER/GREEN branch above it in priority order.
+     */
+    public function test_assess_never_issues_a_database_query(): void
+    {
+        $queryCount = 0;
+        DB::listen(function () use (&$queryCount) {
+            $queryCount++;
+        });
+
+        $projects = [
+            $this->makeProject(Project::STATUS_QUOTE_IMPORTED),
+            $this->withRams(
+                $this->makeProject(Project::STATUS_ENGINEERING, ['engineering_started_at' => Carbon::now()->subDays(2)]),
+                RamsDocument::STATUS_FAILED,
+            ),
+            $this->withDeliverables(
+                $this->makeProject(Project::STATUS_QUOTE_IMPORTED),
+                [$this->makeDeliverable(ProjectDeliverable::KEY_PROGRAMMING, ProjectDeliverable::STATE_NOT_YET_DECIDED, Carbon::now()->subDays(30), undecidedSince: Carbon::now()->subDays(30))],
+            ),
+            $this->withDeliverables(
+                $this->makeProject(Project::STATUS_QUOTE_IMPORTED),
+                [$this->makeDeliverable(ProjectDeliverable::KEY_WORKSHEET, ProjectDeliverable::STATE_NOT_YET_DECIDED, Carbon::now()->subDays(365), undecidedSince: null)],
+            ),
+            $this->withDeliverables(
+                $this->makeProject(Project::STATUS_QUOTE_IMPORTED),
+                [$this->makeDeliverable(ProjectDeliverable::KEY_WORKSHEET, ProjectDeliverable::STATE_NOT_YET_DECIDED, Carbon::now()->subDays(10))],
+            ),
+            $this->withDeliverables(
+                $this->makeProject(Project::STATUS_QUOTE_IMPORTED),
+                [$this->makeDeliverable(ProjectDeliverable::KEY_WORKSHEET, ProjectDeliverable::STATE_NOT_YET_DECIDED, Carbon::now()->subDays(2))],
+            ),
+        ];
+
+        foreach ($projects as $project) {
+            $this->service->assess($project);
+        }
+
+        $this->assertSame(0, $queryCount, 'ProjectHealthService::assess() must never issue a database query.');
     }
 
     // ── RED branches ──────────────────────────────────────────────────────────
@@ -232,15 +282,19 @@ class ProjectHealthServiceTest extends TestCase
     }
 
     // ── D-13: "Not yet decided" goes amber after the grace period ──────────────
+    // 260823-bcm: the clock anchors to undecided_since (set only via a real
+    // decision path), never created_at, and Programming is excluded entirely
+    // (see the new tests below for those two behaviours specifically).
 
     public function test_amber_when_deliverable_undecided_past_grace_period(): void
     {
         // Nothing else wrong — quote_imported has no stage-duration milestone,
-        // so this isolates the D-13 rule.
+        // so this isolates the D-13 rule. Uses a non-Programming key since
+        // Programming is permanently excluded from this rule (260823-bcm).
         $project = $this->makeProject(Project::STATUS_QUOTE_IMPORTED);
         $project->setRelation('deliverables', collect([
             $this->makeDeliverable(
-                ProjectDeliverable::KEY_PROGRAMMING,
+                ProjectDeliverable::KEY_WORKSHEET,
                 ProjectDeliverable::STATE_NOT_YET_DECIDED,
                 Carbon::now()->subDays(10)
             ),
@@ -257,7 +311,7 @@ class ProjectHealthServiceTest extends TestCase
         $project = $this->makeProject(Project::STATUS_QUOTE_IMPORTED);
         $project->setRelation('deliverables', collect([
             $this->makeDeliverable(
-                ProjectDeliverable::KEY_PROGRAMMING,
+                ProjectDeliverable::KEY_WORKSHEET,
                 ProjectDeliverable::STATE_NOT_YET_DECIDED,
                 Carbon::now()->subDays(2)
             ),
@@ -281,7 +335,7 @@ class ProjectHealthServiceTest extends TestCase
         ]));
         $project->setRelation('deliverables', collect([
             $this->makeDeliverable(
-                ProjectDeliverable::KEY_PROGRAMMING,
+                ProjectDeliverable::KEY_WORKSHEET,
                 ProjectDeliverable::STATE_NOT_YET_DECIDED,
                 Carbon::now()->subDays(10)
             ),
@@ -291,6 +345,54 @@ class ProjectHealthServiceTest extends TestCase
 
         $this->assertSame('red', $result->status);
         $this->assertSame('RAMS document failed', $result->reason);
+    }
+
+    // ── 260823-bcm: grandfathered (backfilled) rows never go amber ─────────────
+
+    public function test_green_when_undecided_since_is_null_no_matter_how_old_created_at_is(): void
+    {
+        // Simulates a D-17 retrofit row: state=not_yet_decided,
+        // undecided_since=null, but created_at is ancient (well past the
+        // grace period). Before this fix, D-13 anchored to created_at and
+        // this would go amber — that is exactly the "100% of the project
+        // list goes amber on day 7" defect this quick task fixes.
+        $project = $this->makeProject(Project::STATUS_QUOTE_IMPORTED);
+        $project->setRelation('deliverables', collect([
+            $this->makeDeliverable(
+                ProjectDeliverable::KEY_WORKSHEET,
+                ProjectDeliverable::STATE_NOT_YET_DECIDED,
+                Carbon::now()->subDays(365),
+                undecidedSince: null,
+            ),
+        ]));
+
+        $result = $this->service->assess($project);
+
+        $this->assertSame('green', $result->status);
+    }
+
+    // ── 260823-bcm: Programming is permanently excluded from D-13 ──────────────
+
+    public function test_programming_never_triggers_amber_even_when_ancient_and_explicitly_undecided(): void
+    {
+        // Programming (KEY_PROGRAMMING) has no model/table/relation anywhere
+        // (D-05) — no evidence can ever move it off not_yet_decided, so it
+        // must never trip D-13, even with a genuine (non-null) undecided_since
+        // far past the grace period — the strongest possible case for amber,
+        // and it must still be green.
+        $project = $this->makeProject(Project::STATUS_QUOTE_IMPORTED);
+        $project->setRelation('deliverables', collect([
+            $this->makeDeliverable(
+                ProjectDeliverable::KEY_PROGRAMMING,
+                ProjectDeliverable::STATE_NOT_YET_DECIDED,
+                Carbon::now()->subDays(10),
+                undecidedSince: Carbon::now()->subDays(10),
+            ),
+        ]));
+
+        $result = $this->service->assess($project);
+
+        $this->assertSame('green', $result->status);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -317,14 +419,47 @@ class ProjectHealthServiceTest extends TestCase
         return $project;
     }
 
-    private function makeDeliverable(string $key, string $state, ?Carbon $createdAt = null): ProjectDeliverable
-    {
+    /**
+     * @param  Carbon|false|null  $undecidedSince  false (default, not passed)
+     *                                              means "anchor to $createdAt",
+     *                                              matching this rule's normal
+     *                                              real-world shape where a row's
+     *                                              undecided_since and created_at
+     *                                              line up. Pass an explicit
+     *                                              `null` to simulate a
+     *                                              grandfathered (backfilled)
+     *                                              row, or an explicit Carbon to
+     *                                              set a different clock anchor
+     *                                              than created_at.
+     */
+    private function makeDeliverable(
+        string $key,
+        string $state,
+        ?Carbon $createdAt = null,
+        Carbon|false|null $undecidedSince = false,
+    ): ProjectDeliverable {
         $deliverable = new ProjectDeliverable(['deliverable_key' => $key, 'state' => $state]);
         $deliverable->deliverable_key = $key;
         $deliverable->state           = $state;
         $deliverable->created_at      = $createdAt ?? Carbon::now();
+        $deliverable->undecided_since = $undecidedSince === false ? $deliverable->created_at : $undecidedSince;
 
         return $deliverable;
+    }
+
+    private function withRams(Project $project, string $status): Project
+    {
+        $project->setRelation('ramsDocuments', collect([$this->makeRams($status)]));
+
+        return $project;
+    }
+
+    /** @param  ProjectDeliverable[]  $deliverables */
+    private function withDeliverables(Project $project, array $deliverables): Project
+    {
+        $project->setRelation('deliverables', collect($deliverables));
+
+        return $project;
     }
 
     private function makeRams(string $status): RamsDocument

@@ -157,6 +157,27 @@ class DeliverableRetrofitTest extends TestCase
         ]);
     }
 
+    // ── Case 6: backfilled rows are grandfathered against D-13 (260823-bcm) ─
+
+    public function test_backfilled_rows_have_null_undecided_since(): void
+    {
+        // D-13's amber-grace-period clock (ProjectHealthService) reads
+        // undecided_since, not created_at. Every row this migration writes
+        // must leave it null — these 89 pre-existing projects predate the
+        // deliverable-selection feature and must never go amber under D-13,
+        // no matter how old the row gets.
+        $project = Project::factory()->create();
+
+        $this->runBackfill();
+
+        $rows = DB::table('project_deliverables')->where('project_id', $project->id)->get();
+
+        $this->assertCount(9, $rows);
+        foreach ($rows as $row) {
+            $this->assertNull($row->undecided_since, "deliverable_key={$row->deliverable_key} must have null undecided_since");
+        }
+    }
+
     // ── Case 5: no admin-role user exists — fallback must not SQL-error ─────
 
     public function test_backfill_does_not_error_when_no_admin_role_user_exists(): void
