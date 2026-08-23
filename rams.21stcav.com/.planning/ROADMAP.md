@@ -96,7 +96,14 @@ Every phase below pairs a GATE with the RULE fix (or the Phase 26 hazard-shape c
   2. Creating a new RAMS (review form, quote-import auto-seed, or AI extraction) starts with zero pre-populated hazards; only hazards whose include-when condition matches the job's captured activities/scope appear — replacing BOTH `config/rams_tier1.php:52` (`baseline_hazards`, currently injected whenever reviewed hazards are empty) AND `HazardLibraryService::MANDATORY_KEYWORDS` (`:36-44`, currently always merged in via `mergeWithMandatory()` regardless of what was selected)
   3. Typical initial/residual scores are visibly pre-filled but editable — never committed to `generated_data` without a human or model touch-point; Working at Height residual renders 1×4 (not the current baseline's 2×3 at `config/rams_tier1.php:67-68`)
   4. Regenerating a real project (21CQ30960) shows only hazards its actual scope supports, manually spot-checked against the source quote — not validated against the old fixed 11/7-item lists, which cannot contain the answer
-**Plans**: TBD
+**Plans**: 6 plans across 4 waves
+Plans:
+- [ ] 26-01-PLAN.md — Migration + HazardTemplateSeeder rewrite (18-hazard library, include_when tiers, orphan-row cleanup) + BLOCKING migrate/seed
+- [ ] 26-02-PLAN.md — HazardIncludeWhenResolver (tier 1/2/3 evaluation service) + unit tests
+- [ ] 26-03-PLAN.md — Remove injection paths #1/#2/#3/#4 (Tier1RamsDefaultsService, rams.blade.php, rams-v2.blade.php, RiskAssessmentComposer) + new RAMS_HAZARD_LIBRARY_TIERING kill-switch
+- [ ] 26-04-PLAN.md — Remove path #5 (HazardLibraryService mandatory-baseline); wire tiered resolver into RiskTemplateResolverService + call sites
+- [ ] 26-05-PLAN.md — HAZ-04 editable score defaults + reviewed marker + needs-confirmation badge (RamsReviewDataService, reviewedToRisk(), quote-review.blade.php)
+- [ ] 26-06-PLAN.md — DOCX-path verification, RA-ref regression, live deploy + 21CQ30960 spot-check (human checkpoint)
 **UI hint**: yes (empty-register UX, include-when-driven hazard population, editable score inputs on the RAMS review screen)
 
 ### Phase 27: Manual-Handling & Display-Lift House Rules
