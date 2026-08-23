@@ -81,6 +81,39 @@ house-rule text edits (Phases 27–28), CDM/A&E (Phase 29).
 
   Deterministic wherever it can be, model only where it must be. Tier assignment per
   hazard is a planning decision; the tiering rule itself is locked.
+
+  > **Correction (2026-08-23, after plan-check — user decision). Tier 3 does NOT use an
+  > AI pass.** The original D-05 text above is left unmodified; this amendment supersedes
+  > its tier-3 clause.
+  >
+  > **Why:** `CLAUDE.md` line 12 constrains this project — *"AI is ONLY allowed for
+  > formatting and method statement structuring — **never for inventing scope**,
+  > equipment, or design"* — reinforced by *"All document content must trace back to
+  > quote data, survey data, or reviewed inputs"* and the project's core value, *"No AI
+  > guessing."* Deciding which hazards belong on a safety document **is** scope. D-05's
+  > original tier 3 asked AI to do exactly that, so it conflicted with the project's own
+  > rules. The user resolved the conflict in favour of `CLAUDE.md`.
+  >
+  > **The rule now:** no AI decides hazard inclusion, at any tier. The 5 judgement
+  > hazards — asbestos (building pre-2000 / age unknown), lone and small-team working
+  > (fewer than 3 operatives or split areas), occupational road risk (site outside normal
+  > travel radius), vehicle and plant movement (warehouse / workshop / yard / loading
+  > bay), occupied premises (live building, staff present) — are **always surfaced as
+  > candidates requiring human confirmation**, on every job, via the D-06 mechanism.
+  >
+  > Keyword matching may be used on these hazards **only to pre-tick the candidate and
+  > order it sensibly** — never to auto-confirm it and never to exclude it. A keyword
+  > miss must still surface the candidate; a keyword hit must still require the
+  > engineer's confirmation. Tier 3 therefore differs from tier 2 in exactly one way:
+  > **tier 2 resolves to in-or-out, tier 3 always resolves to "ask a human."**
+  >
+  > **Consequence to plan for:** up to 5 confirmation rows per job. That is the accepted
+  > cost, not a defect to engineer away. Do not reintroduce an AI call to reduce it.
+  >
+  > Rejected alternatives: amending `CLAUDE.md` to permit AI hazard proposals (loosens
+  > the very constraint this milestone exists to enforce); adding structured capture
+  > fields to make tier 3 deterministic (still the best long-term answer — see
+  > `<deferred>` — but out of scope here).
 - **D-06:** When a condition **cannot be evaluated** because the data isn't captured,
   the hazard is **included and visibly flagged as needing confirmation** — not silently
   dropped. Safety-critical default: an engineer removing a surplus hazard is a better
