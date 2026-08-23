@@ -714,7 +714,7 @@
             <x-slot name="actions">
                 @if (! $project->isArchived() && $nextStatus)
                     @php $nextLabel = \App\Models\Project::STATUS_LABELS[$nextStatus]; @endphp
-                    <form method="POST" action="{{ route('projects.transition', $project) }}" class="m-0"
+                    <form id="ws-advance-form" method="POST" action="{{ route('projects.transition', $project) }}" class="m-0"
                           data-confirm="Advance project to {{ $nextLabel }}?"
                           data-confirm-label="Advance">
                         @csrf
@@ -765,6 +765,19 @@
                 // rather than per-iteration.
                 $surveySkipped = $project->deliverableState(\App\Models\ProjectDeliverable::KEY_SITE_SURVEY) === \App\Models\ProjectDeliverable::STATE_NOT_REQUIRED
                     && $currentIdx > array_search(\App\Models\Project::STATUS_SURVEY_PENDING, $lifecycle);
+
+                // 260823-cpv: a project genuinely PARKED AT Survey Pending
+                // (never skipped past it) whose Site Survey is later marked
+                // not-required. Deliberately NOT folded into $surveySkipped
+                // above — that branch's `>` requires the project to already
+                // be past the stage, and stays exactly as written (it has
+                // its own false-done-tick test). This is the other half of
+                // the same deliverable state: the status column genuinely
+                // IS survey_pending, so the stepper must keep showing it as
+                // the active step — this only adds a nudge alongside it,
+                // never a done-tick, never a skipped/grey pill.
+                $surveyParkedNotRequired = $project->status === \App\Models\Project::STATUS_SURVEY_PENDING
+                    && $project->deliverableState(\App\Models\ProjectDeliverable::KEY_SITE_SURVEY) === \App\Models\ProjectDeliverable::STATE_NOT_REQUIRED;
             @endphp
             <div class="flex items-center gap-2 overflow-x-auto py-1">
                 @foreach ($lifecycle as $i => $step)
@@ -823,6 +836,30 @@
                     @endif
                 @endforeach
             </div>
+
+            @if ($surveyParkedNotRequired && $nextStatus)
+                {{-- 260823-cpv: nudge, not auto-advance, not a greyed pill.
+                     The stepper above still shows Survey Pending as the
+                     active step — that status is real. This hint states the
+                     fact and offers the SAME Advance action the toolbar
+                     button above already performs (form="ws-advance-form"
+                     associates this button with that existing <form> by id
+                     — no second route, no duplicate data-confirm wiring;
+                     the shared submit-intercept in layouts/app.blade.php
+                     fires exactly as it does for the toolbar button because
+                     the event still targets that one <form> element). --}}
+                <div class="ws-step-hint" style="margin-top:8px; padding:6px 10px; border-radius: var(--radius-sm);
+                            background: var(--accent-50); border: 1px solid color-mix(in oklab, var(--accent-600) 18%, transparent);
+                            font-size: var(--fs-small); color: var(--ink-700);
+                            display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <span>Site Survey is not required for this project.</span>
+                    <button type="submit" form="ws-advance-form"
+                            style="background:none; border:none; padding:0; margin:0; cursor:pointer;
+                                   font: inherit; font-weight:600; color: var(--accent-700); text-decoration: underline;">
+                        Advance to {{ \App\Models\Project::STATUS_LABELS[$nextStatus] }} →
+                    </button>
+                </div>
+            @endif
         </x-section-card>
         </div>{{-- /psv__workflow --}}
 
