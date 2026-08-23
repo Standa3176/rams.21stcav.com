@@ -1,11 +1,92 @@
-# RAMS Platform — v2.0 Requirements
+# RAMS Platform — Requirements
 
-**Milestone:** v2.0 Engineering-Grade AV Drawings
-**Defined:** 2026-05-09
-**Phases:** 21–25 (5 phases)
-**Total requirements:** 28
-**Visual contract:** XTEN-AV PAGING SYSTEM reference (shared 2026-05-09)
-**Platform:** draw.io / mxGraph (validated by spike `260509-ibx` 2026-05-09)
+> Current milestone: **v3.0 RAMS Skill Parity**. v2.0 requirements are preserved
+> below; v2.0 is **PARKED** (see MILESTONES.md), not cancelled.
+
+---
+
+## Milestone v3.0 Requirements
+
+**Milestone:** v3.0 RAMS Skill Parity
+**Defined:** 2026-08-23
+**Source of truth:** the `21cav-rams` Claude skill, supplied by the user 2026-08-23 —
+`references/house-rules.md`, `references/hazard-library.md`, `PORTING-NOTES.md`.
+Those documents are **settled 21CAV positions**, not proposals. Where the app and
+the skill disagree, the skill wins unless the user says otherwise for a specific job.
+**Total requirements:** 24
+
+### Why this milestone exists
+
+A professional review of a real generated RAMS (21CQ30960, VW Blakelands) found
+defects that the skill's own documents had already predicted by name — the double
+"Associated risks" line and the podium-steps contradiction are both written down in
+`house-rules.md` as known failure modes. The app diverged from the methodology.
+
+The structural cause is stated plainly in `PORTING-NOTES.md`:
+
+> *"The default should be an empty register that the user adds to, never a full
+> register the user prunes."*
+
+`config/rams_tier1.php` ships 11 fixed `baseline_hazards` injected into every RAMS —
+exactly the inversion that document warns against. Fixing individual lines (FFP2,
+missing asbestos row) without fixing the shape leaves the defect generator intact.
+
+### Group A — Validation gates (deterministic checks)
+
+From `PORTING-NOTES.md` "Validation gates worth implementing in code". These are the
+recurring review defects; the notes argue they are far more reliable as code than as
+instructions to a model. **GATE-03 and GATE-08 already shipped** (quick task 260817-r5e)
+and are listed for traceability, not rework.
+
+- [ ] **GATE-01**: Orphan controls — every method step or hazard control referencing a document, permit or hold point has a matching hazard row AND a matching `clientReqs` entry. Canonical failure: "review the asbestos register" with no asbestos hazard behind it.
+- [ ] **GATE-02**: Every area has at least one method step.
+- [x] **GATE-03**: Every method step has exactly one `risks` line, and every RA reference resolves to a hazard that exists. *(Shipped 260817-r5e — includes the index-vs-id dangling-reference fix.)*
+- [ ] **GATE-04**: Residual score ≤ initial score on every hazard, and residual severity normally unchanged. Flag `s2 < s1` for human review rather than accepting it — controls reduce likelihood, not severity.
+- [ ] **GATE-05**: Uniform-scoring detection — if most hazards share the same initial score, the register was assembled from the library rather than the job. Warn.
+- [ ] **GATE-06**: FFP2 anywhere → error. House rule is FFP3 with face-fit testing.
+- [ ] **GATE-07**: "Confined space" applied to a ceiling void, comms room or riser → error. Not confined spaces under the 1997 Regulations.
+- [x] **GATE-08**: Access-equipment contradiction — something excluded in one section and required as a control in another. *(Shipped 260817-r5e — podium steps.)*
+- [ ] **GATE-09**: Display lift specified as anything other than two-operative → error.
+- [ ] **GATE-10**: COSHH and standards padding — cross-check every COSHH substance and cited standard against the activity list. Named offenders: BS EN 60849, BS 8492, HSG 47, laser safety on a job with no laser, soldering flux with no soldering.
+- [ ] **GATE-11**: CDM duty-holder table left as "[To be confirmed]" on an occupied-premises job → error. There is a settled position.
+- [ ] **GATE-12**: Named A&E must be a real A&E. A subcontractor RAMS once named a hospital whose A&E closed in 2014.
+
+### Group B — House rules enforced in code
+
+From `references/house-rules.md`. Settled positions applied without asking.
+
+- [ ] **RULE-01**: FFP3 with face-fit testing replaces FFP2 wherever respiratory PPE is specified. `config/rams_tier1.php:129` currently contradicts `:286` in the same file.
+- [ ] **RULE-02**: All displays are two-operative team lifts regardless of panel size. Never four-operative; never conditional on screen size. Mechanical aids are additional, not a substitute for the second person.
+- [ ] **RULE-03**: Removal of a display *from* an existing wall mount is stated explicitly as the highest-risk lift on a strip-out — controlled to lowest practicable height, one operative each side, before release from the mount.
+- [ ] **RULE-04**: Standards table cites only what the job involves. No library padding.
+- [ ] **RULE-05**: COSHH lists only substances actually carried.
+- [ ] **RULE-06**: Restricted-access hazard is titled "Restricted access and ceiling void working" — never "confined space".
+- [ ] **RULE-07**: CDM duty-holder note states the settled sole-Contractor position rather than "[To be confirmed]".
+- [ ] **RULE-08**: Nearest A&E named with address; "to be identified at site induction" is not acceptable output.
+- [ ] **RULE-09**: Electrical scope boundary stated — works terminate at existing socket or client data outlet, no alteration to fixed installation, no live working.
+- [ ] **RULE-10**: Ceiling load stated as supported from structural soffit or purpose-designed mount kit — never suspended grid, pipework or sprinkler pipe.
+
+### Group C — Hazard library reconciliation
+
+From `references/hazard-library.md` (18 hazards, each with an explicit "Include when").
+The app has 11, applied unconditionally.
+
+- [ ] **HAZ-01**: Port the 8 hazards present in the skill and absent from the app — Noise and vibration, Restricted access and ceiling voids, Low voltage AV connections, Asbestos-containing materials, Vehicle and plant movement, Lone and small-team working, Fire and evacuation, Decommissioning and WEEE.
+- [ ] **HAZ-02**: Each hazard carries an **include-when** condition; a hazard is included only when the job meets it. This is the inversion — register starts empty and is added to.
+- [ ] **HAZ-03**: Align scores to the skill's typical values, including residual severity held at initial severity where the skill does so (Working at Height residual `1×4`, not `2×3`).
+- [ ] **HAZ-04**: Typical scores are **defaults a user or the model adjusts**, never silently applied — per `PORTING-NOTES.md`: *"Do not let the app apply the typical scores silently."*
+
+### Out of scope for v3.0 (deferred to v3.1+)
+
+Deliberately excluded to keep the document-quality core shippable:
+
+- Hold points as first-class objects (owner / state / blocking) — `PORTING-NOTES.md` calls this the single biggest upgrade over the skill; it is new capability, not parity
+- Site-level inheritance (asbestos register, access, welfare, A&E per site)
+- Revision letters, supersede handling and diffing between revisions
+- Persisting the source JSON as an audit trail
+- Dynamic section cross-reference resolution (`§6.4` breaking when optional sections are omitted)
+- Toolbox-talk capture surface with signatures
+- Making `itIntegration` and similar Teams-Rooms-shaped sections conditional on activity
 
 ---
 

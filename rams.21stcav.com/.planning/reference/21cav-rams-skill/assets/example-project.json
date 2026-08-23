@@ -1,0 +1,893 @@
+{
+  "project": {
+    "quoteRef": "21CQ30960-OPS",
+    "docRef": "21CQ30960-RAMS",
+    "rev": "Rev A",
+    "date": "17/08/2026",
+    "status": "For Issue",
+    "subtitle": "AV DECOMMISSION, INSTALLATION & COMMISSIONING",
+    "client": "Volkswagen Group",
+    "clientContact": "Nick Chapman",
+    "site": "Yeomans Drive, Blakelands, Milton Keynes, MK14 5AN",
+    "rooms": "Willen Decommission, Nadin Decommission, GND & Nadin Installation, HR Offices Installation, Commercial Vehicles Stand Up",
+    "preparedBy": "Sonny Tanda",
+    "pm": "Sonny Tanda",
+    "lead": "Goldy Singh",
+    "engineers": "Jay Singh",
+    "hours": "Monday–Friday, 09:00–17:30",
+    "duration": "1 day first fix cabling, 4 days installation and decommission, plus configuration."
+  },
+  "coverCallout": [
+    "This document must be read, understood and signed by every operative before work begins, and retained on site for the duration of the works.",
+    "Work must not start until the client has provided the site asbestos register, confirmed the structural adequacy of all display mounting positions, and confirmed that power and PoE network points are installed and live."
+  ],
+  "revisions": [
+    [
+      "Rev A",
+      "17/08/2026",
+      "Sonny Tanda",
+      "Initial issue. Produced from quotation 21CQ30960-OPS.",
+      "Current"
+    ]
+  ],
+  "policy": [
+    "21st Century AV Ltd is committed to ensuring the health, safety and welfare of all its employees, subcontractors, clients and members of the public who may be affected by our activities. We comply fully with the Health and Safety at Work etc. Act 1974 and all relevant statutory provisions, including the Management of Health and Safety at Work Regulations 1999, the Provision and Use of Work Equipment Regulations 1998 (PUWER), the Manual Handling Operations Regulations 1992, the Work at Height Regulations 2005 and the Electricity at Work Regulations 1989.",
+    "All engineers operating on behalf of 21st Century AV Ltd are briefed on site-specific risks prior to commencement of works and are required to adhere to this Risk Assessment and Method Statement at all times. Engineers will not commence work until they are satisfied that it is safe to do so. Any near misses, accidents or unsafe conditions must be reported to the site manager and to the 21st Century AV operations team immediately.",
+    "This document must be read, understood and complied with by all persons carrying out the works described herein. It is to be retained on site for the duration of the works."
+  ],
+  "standards": [
+    [
+      "BS 7671:2018+A2:2022",
+      "Requirements for Electrical Installations (IET Wiring Regulations, 18th Edition)",
+      "Every mains connection, plug-top termination and power distribution arrangement on this project. 21CAV works terminate at existing socket outlets."
+    ],
+    [
+      "BS 6701:2016+A1:2020",
+      "Telecommunications equipment and cabling — specification for installation, operation and maintenance",
+      "All CAT6 structured cabling runs, patch panel and RJ45 termination works across the five installation areas."
+    ],
+    [
+      "BS EN 50174-2",
+      "Information technology — cabling installation planning and practices inside buildings",
+      "Cable routing, separation from mains services and bend radius control within containment and ceiling voids."
+    ],
+    [
+      "Work at Height Regulations 2005",
+      "Statutory duties for work at height",
+      "Display and mount installation, ceiling microphone installation in the Commercial Vehicles area, and the pillar-mounted PTZ camera."
+    ],
+    [
+      "Control of Asbestos Regulations 2012",
+      "Duty to manage asbestos in non-domestic premises",
+      "All penetrative works and ceiling void access. Client asbestos register required before any drilling or void entry."
+    ],
+    [
+      "Manual Handling Operations Regulations 1992",
+      "Statutory duties for manual handling",
+      "Removal and installation of 75\", 65\" and 55\" displays and associated wall mounts."
+    ],
+    [
+      "COSHH 2002",
+      "Control of Substances Hazardous to Health Regulations",
+      "Construction dust from drilling, cleaning solvents and adhesives used during installation."
+    ],
+    [
+      "CDM 2015",
+      "Construction (Design and Management) Regulations 2015",
+      "Duty holder roles and pre-construction information for this project. See CDM duty holder table."
+    ],
+    [
+      "HSG 273",
+      "The safe use of vehicles on construction sites",
+      "Delivery, loading and unloading of AV equipment, and works carried out within the Commercial Vehicles area where site traffic operates."
+    ],
+    [
+      "PUWER 1998",
+      "Provision and Use of Work Equipment Regulations 1998",
+      "All power tools, hand tools, access equipment and any MEWP used during the works."
+    ],
+    [
+      "AVIXA F502.01",
+      "AV Systems Performance Verification",
+      "Post-install commissioning verification methodology and system sign-off criteria applied on this project."
+    ]
+  ],
+  "activities": [
+    "Decommission and safe removal of existing AV hardware from the Willen Meeting Room and the Nadin open space",
+    "Inspection, testing and preparation of retained equipment for redeployment",
+    "Installation and alignment of display screens on wall and articulating mounts",
+    "Installation of audio system components, including ceiling-mounted microphones",
+    "Mounting and fixing of AV equipment to walls, ceilings, pillars and furniture",
+    "Structured cabling, containment, termination and labelling of all cables at both ends",
+    "Testing and commissioning of all AV systems, including Microsoft Teams Rooms configuration",
+    "Client handover and system demonstration"
+  ],
+  "equipment": {
+    "Commercial Vehicles Stand Up": [
+      [
+        "Sony 65\" FW-65BZ30L display",
+        "1",
+        "New supply"
+      ],
+      [
+        "Double-arm articulating wall mount — 32–65\"",
+        "1",
+        "New supply"
+      ],
+      [
+        "Logitech Rally Plus VC system (camera, display hub, table hub, 2× speakers, remote, PSUs)",
+        "1",
+        "Reused — from Willen"
+      ],
+      [
+        "Logitech Rally mounting kit (speaker, camera, table hub, display hub brackets)",
+        "1",
+        "Reused — from Willen"
+      ],
+      [
+        "Logitech Rally mic pod — white",
+        "2",
+        "New supply"
+      ],
+      [
+        "Logitech Rally ceiling mic pod mount — white",
+        "2",
+        "New supply"
+      ],
+      [
+        "Logitech Rally mic pod CAT coupler / extender cable",
+        "1",
+        "New supply"
+      ],
+      [
+        "Logitech Tap Cat5e kit (ThinkSmart Core Gen 2 base bundle)",
+        "1",
+        "New supply"
+      ],
+      [
+        "USB 2.0 extender kit — 50 m, 4× USB-A to 1× USB-B, PoC",
+        "1",
+        "New supply"
+      ]
+    ],
+    "GND Meeting Room & Nadin Meeting Room": [
+      [
+        "75\" large format display",
+        "2",
+        "Reused — from Willen"
+      ],
+      [
+        "Large format display wall mount",
+        "2",
+        "Reused — from Willen"
+      ],
+      [
+        "Logitech Rally Bar",
+        "2",
+        "New supply"
+      ],
+      [
+        "Logitech wall mount for video bars",
+        "2",
+        "New supply"
+      ],
+      [
+        "Logitech Tap Cat5e kit (ThinkSmart Core Gen 2 base bundle)",
+        "2",
+        "New supply"
+      ],
+      [
+        "Logitech Rally mic pod — graphite",
+        "2",
+        "Reused — from Willen"
+      ],
+      [
+        "Logitech Rally mic pod CAT coupler / extender cable",
+        "2",
+        "New supply"
+      ]
+    ],
+    "HR Office 1 & HR Office 2": [
+      [
+        "55\" large format display",
+        "1",
+        "Reused — from Nadin open space"
+      ],
+      [
+        "Tilting wall mount",
+        "1",
+        "Reused — from Nadin open space"
+      ],
+      [
+        "Sony 55\" FW-55BZ30L display",
+        "1",
+        "New supply"
+      ],
+      [
+        "Tilting wall mount for 39–65\" screens (BT8431/B)",
+        "1",
+        "New supply"
+      ],
+      [
+        "Logitech MeetUp",
+        "2",
+        "New supply"
+      ],
+      [
+        "Logitech Tap Cat5e kit (ThinkSmart Core Gen 2 base bundle)",
+        "2",
+        "New supply"
+      ]
+    ]
+  },
+  "exclusions": [
+    "No structural works",
+    "No core drilling unless explicitly scoped",
+    "No containment beyond surface trunking and existing conduit routes",
+    "No decorative making good after cable routes, or following removal of decommissioned equipment — making good of walls, floors and ceilings remains the responsibility of others",
+    "No IT network provision, IP addressing, VLAN configuration or Microsoft Teams Rooms licensing",
+    "No alteration to the fixed electrical installation — 21CAV works terminate at existing socket outlets and client data outlets",
+    "No structural reinforcement of mounting walls — the client is to confirm and provide reinforcement where the substrate is gypsum",
+    "No asbestos survey, sampling or removal of any kind",
+    "No hot works of any description"
+  ],
+  "clientReqs": [
+    "Provide the site asbestos register and any relevant management survey prior to works",
+    "Confirm structural adequacy of all display mounting positions and provide wall reinforcement where the substrate is gypsum",
+    "Provide dedicated power outlets as per the agreed specification",
+    "Provide network drops, PoE ports and IT infrastructure as specified, commissioned and live prior to installation",
+    "Ensure all software licences and Microsoft Teams Rooms resource accounts are available prior to commencement of works",
+    "Book out rooms for the agreed installation period",
+    "Ensure a site contact is available throughout the installation, and full IT team access for the duration of configuration",
+    "Confirm the safe working window and traffic management arrangement for the Commercial Vehicles area",
+    "Confirm arrangements for storage and disposal of decommissioned equipment and packaging waste"
+  ],
+  "hazards": [
+    {
+      "ref": "RA01",
+      "hazard": "Working at Height",
+      "persons": [
+        "21CAV Staff",
+        "Client Staff",
+        "Others"
+      ],
+      "l1": 3,
+      "s1": 4,
+      "controls": [
+        "Select appropriate access equipment: podium steps or mobile access tower. Kick stools for low-level access only.",
+        "Ceiling height in the Commercial Vehicles area to be confirmed at survey. Where working height exceeds safe tower range, a MEWP with an IPAF-certified operator is required and this RAMS is reissued.",
+        "Inspect all access equipment before each use — do not use damaged items. Towers erected, altered and dismantled by PASMA-trained operatives only, and tagged.",
+        "Set up access equipment on stable, level ground only. Castors locked. Never move a platform with a person or tools on it.",
+        "Maintain three points of contact when ascending or descending. Step ladders are not used as a working platform for extended or two-handed tasks.",
+        "Erect barriers and warning signs below any overhead work. A second operative attends at ground level at all times.",
+        "Wear a hard hat within the overhead works exclusion zone.",
+        "Never over-reach — reposition access equipment as required. Tools raised and lowered in a bag or tethered.",
+        "Do not use chairs, boxes or improvised platforms as working platforms."
+      ],
+      "l2": 1,
+      "s2": 4
+    },
+    {
+      "ref": "RA02",
+      "hazard": "Manual Handling",
+      "persons": [
+        "21CAV Staff",
+        "Client Staff",
+        "Others"
+      ],
+      "l1": 4,
+      "s1": 3,
+      "controls": [
+        "Use mechanical aids (sack trucks, lifting trolleys, panel lifter) for items over 20 kg.",
+        "Team lift required for all displays — minimum two operatives for every 55\", 65\" and 75\" panel. Mechanical aid (trolley or panel lifter) used in addition where available.",
+        "Removal of a display from an existing wall mount is treated as the highest-risk lift on this project. Load is controlled to the lowest practicable height and placed directly onto padded support.",
+        "Pre-plan the route and clear all access paths before moving equipment. Passenger lift used between floors — no carrying on stairs.",
+        "Wear appropriate gloves and safety footwear at all times.",
+        "Conduct a task-specific manual handling assessment prior to every lift. Any operative may stop a lift.",
+        "Take regular breaks to avoid fatigue during prolonged lifting tasks. Do not lay displays face-down."
+      ],
+      "l2": 2,
+      "s2": 3
+    },
+    {
+      "ref": "RA03",
+      "hazard": "Electrical Hazards",
+      "persons": [
+        "21CAV Staff",
+        "Client Staff",
+        "Others"
+      ],
+      "l1": 2,
+      "s1": 5,
+      "controls": [
+        "All electrical work to be carried out by competent, authorised persons only. No live working under any circumstances.",
+        "Isolate and lock off power circuits before making any electrical connection or disconnecting decommissioned equipment.",
+        "Test for dead using an approved GS38-compliant voltage indicator, proved on a known source before and after testing.",
+        "Do not use damaged cables, plugs or extension leads — remove from service immediately.",
+        "All temporary power supplies to use RCD protection. All tools PAT tested and in date.",
+        "Comply with BS 7671 (IET Wiring Regulations) 18th Edition at all times.",
+        "Notify the client facilities team before isolating any shared power circuit. Any hardwired supply is isolated by the client's authorised person with site lock-off and tagging applied."
+      ],
+      "l2": 1,
+      "s2": 4
+    },
+    {
+      "ref": "RA04",
+      "hazard": "Slips, Trips & Falls (Same Level)",
+      "persons": [
+        "21CAV Staff",
+        "Client Staff",
+        "Others"
+      ],
+      "l1": 3,
+      "s1": 3,
+      "controls": [
+        "Keep all work areas clean and tidy — return tools to bags after each task.",
+        "Secure trailing cables immediately with cable covers or matting. No cable left across a walkway overnight.",
+        "Erect hazard warning signs and barriers around active work zones.",
+        "Ensure adequate lighting in all areas where work is taking place.",
+        "Wear steel-toe-cap safety footwear at all times on site.",
+        "Report and isolate any spills or wet surfaces immediately."
+      ],
+      "l2": 2,
+      "s2": 2
+    },
+    {
+      "ref": "RA05",
+      "hazard": "Noise and Vibration",
+      "persons": [
+        "21CAV Staff",
+        "Client Staff",
+        "Others"
+      ],
+      "l1": 3,
+      "s1": 3,
+      "controls": [
+        "Use hearing protection when exposed to sustained drilling or power tool noise.",
+        "Limit noisy works to agreed times and inform occupants in advance.",
+        "Use low-vibration SDS tools where practicable and take regular breaks. Trigger time managed to keep daily HAV exposure below the EAV."
+      ],
+      "l2": 1,
+      "s2": 2
+    },
+    {
+      "ref": "RA06",
+      "hazard": "Working in Occupied Premises",
+      "persons": [
+        "21CAV Staff",
+        "Client Staff",
+        "Others"
+      ],
+      "l1": 3,
+      "s1": 3,
+      "controls": [
+        "Maintain clean, segregated work areas with clear signage and barriers.",
+        "Coordinate work windows to minimise disruption to occupants.",
+        "Protect client property and ensure confidentiality of visible data.",
+        "Tools, materials and part-installed equipment never left unattended in occupied areas. All areas made safe at the end of each working day."
+      ],
+      "l2": 1,
+      "s2": 2
+    },
+    {
+      "ref": "RA07",
+      "hazard": "Restricted Access & Ceiling Void Working",
+      "persons": [
+        "21CAV Staff"
+      ],
+      "l1": 3,
+      "s1": 3,
+      "controls": [
+        "Confirm ventilation and safe access before entering ceiling voids, comms rooms or enclosures. These are not classified as confined spaces, but access is restricted and is treated as a controlled activity.",
+        "Asbestos register reviewed and signed off before any void is opened — see RA12.",
+        "Void visually inspected with a head torch before any hand or tool is introduced. Existing services identified and not disturbed.",
+        "No standing, kneeling or leaning on the suspended ceiling grid. All loads supported from the structural soffit or a purpose-designed ceiling mount kit only.",
+        "Do not obstruct escape routes; maintain clear access at all times.",
+        "Ensure a second person is aware of entry and available for assistance. Tiles removed one at a time, stacked flat and replaced the same working day."
+      ],
+      "l2": 1,
+      "s2": 2
+    },
+    {
+      "ref": "RA08",
+      "hazard": "Cable Pulling & Termination",
+      "persons": [
+        "21CAV Staff"
+      ],
+      "l1": 3,
+      "s1": 2,
+      "controls": [
+        "Cable pulling carried out in pairs for runs over 15 m, including the 50 m USB extender run in the Commercial Vehicles area.",
+        "Cable lubricant used on long conduit pulls to reduce force.",
+        "Eye protection worn during cable termination and crimping.",
+        "Sharp cable ends covered immediately after cutting.",
+        "Work area kept clear of cable coils to prevent trip hazard."
+      ],
+      "l2": 1,
+      "s2": 1
+    },
+    {
+      "ref": "RA09",
+      "hazard": "Low Voltage AV Connections",
+      "persons": [
+        "21CAV Staff"
+      ],
+      "l1": 2,
+      "s1": 3,
+      "controls": [
+        "All AV equipment powered down before connecting or disconnecting cables.",
+        "Visual inspection of cables and connectors before each use.",
+        "No work on mains-voltage circuits — all mains connections by qualified electrician.",
+        "PAT-tested power supplies and extension leads only.",
+        "Equipment earthing verified before power-on. PoE device power draw confirmed within the switch budget before connection."
+      ],
+      "l2": 1,
+      "s2": 2
+    },
+    {
+      "ref": "RA10",
+      "hazard": "Fixings into Walls, Ceilings & Pillars",
+      "persons": [
+        "21CAV Staff",
+        "Client Staff",
+        "Building Occupants"
+      ],
+      "l1": 3,
+      "s1": 4,
+      "controls": [
+        "Verify substrate type (plasterboard, masonry, concrete, steel) before drilling. Client written confirmation of wall reinforcement obtained where the substrate is gypsum.",
+        "Use correct anchor type and size for the substrate and load, with a minimum 4:1 safety factor over combined display and bracket weight.",
+        "Do not fix into unknown surfaces — confirm with site/building management. The right-hand pillar in the Commercial Vehicles area is confirmed structurally suitable before the PTZ camera is fixed; if it is non-structural cladding, an alternative position is agreed with the client.",
+        "Check for hidden services (pipes, cables, reinforcement) with a calibrated detector in both scan modes before any penetration. Depth stops set on all drills.",
+        "Any penetration of a fire-rated element is stopped and referred to the client for a specified fire-stopping detail before proceeding.",
+        "Pull-test fixings to confirm load capacity before mounting equipment. Photograph every completed bracket for the handover file."
+      ],
+      "l2": 1,
+      "s2": 4
+    },
+    {
+      "ref": "RA11",
+      "hazard": "Dust from Drilling & Cutting",
+      "persons": [
+        "21CAV Staff",
+        "Client Staff",
+        "Building Occupants"
+      ],
+      "l1": 3,
+      "s1": 3,
+      "controls": [
+        "FFP3 dust mask and safety glasses worn during all drilling and cutting. All operatives face-fit tested.",
+        "Use on-tool dust extraction (M-class vacuum) or a drill dust collection shroud where practicable.",
+        "Lay dust sheets below work area to contain debris and protect furniture and floor finishes.",
+        "Vacuum work area immediately after drilling — dry sweeping is prohibited.",
+        "Inform building occupants of dust-generating works in advance and exclude them from the immediate area."
+      ],
+      "l2": 1,
+      "s2": 2
+    },
+    {
+      "ref": "RA12",
+      "hazard": "Asbestos-Containing Materials",
+      "persons": [
+        "21CAV Staff",
+        "Client Staff",
+        "Building Occupants"
+      ],
+      "l1": 2,
+      "s1": 5,
+      "controls": [
+        "No penetrative work, ceiling void access or removal of building fabric takes place until the client asbestos register and management survey have been provided, reviewed and signed off by the lead engineer.",
+        "Where the register does not cover a specific location, a refurbishment and demolition survey must be provided by the client before work in that location proceeds.",
+        "All operatives hold current UKATA or IATP Asbestos Awareness (Category A) training.",
+        "If suspected ACM is encountered or disturbed: STOP work, withdraw all persons, prevent access, do not clean up, and report immediately to client facilities and the Project Manager.",
+        "21CAV will not remove, drill, cut, sand or otherwise disturb any material suspected of containing asbestos under any circumstances."
+      ],
+      "l2": 1,
+      "s2": 5
+    },
+    {
+      "ref": "RA13",
+      "hazard": "Vehicle & Plant Movement — Commercial Vehicles Area",
+      "persons": [
+        "21CAV Staff",
+        "Client Staff",
+        "FLT Operators"
+      ],
+      "l1": 3,
+      "s1": 5,
+      "controls": [
+        "Site induction covering traffic routes, segregation and speed limits completed by every operative before entering the area.",
+        "Class 2 high-visibility clothing mandatory throughout the Commercial Vehicles area.",
+        "A safe working window and exclusion arrangement agreed in advance with the Commercial Vehicles area supervisor.",
+        "Work area physically segregated with barriers, cones and signage for the full duration, including the access equipment footprint.",
+        "Designated pedestrian walkways used at all times. No work under, adjacent to or within the operating radius of moving plant.",
+        "FLT operations suspended in the immediate work area or physically separated by barriers. Eye contact obtained with any plant operator before moving within their working area."
+      ],
+      "l2": 1,
+      "s2": 4
+    }
+  ],
+  "team": [
+    [
+      "Project Manager — Sonny Tanda",
+      "1",
+      "SMSTS or equivalent. CSCS card. First Aid at Work certificate. Responsible for site management and client liaison."
+    ],
+    [
+      "Lead Engineer — Goldy Singh",
+      "1",
+      "Qualified AV installation engineer. CSCS/ECS card required. Competent with display installation, structured cabling and AV commissioning. PASMA required for tower use; IPAF required if a MEWP is deployed. Asbestos Awareness (Category A) current."
+    ],
+    [
+      "Engineer — Jay Singh",
+      "1",
+      "Qualified AV installation engineer. CSCS/ECS card required. Experienced in structured AV cabling and equipment installation. Asbestos Awareness (Category A) current."
+    ]
+  ],
+  "teamCallout": "All display lifts on this project are two-operative team lifts, matching the two-engineer team listed above. Trolleys and screen protection are carried as standard; a panel lifter is used in addition where available. Any operative may stop a lift.",
+  "tools": [
+    "Drill and drill bits (battery / 110 V, with depth stops)",
+    "On-tool dust extraction / M-class vacuum",
+    "Cable and pipe detector (calibrated)",
+    "Multi-tool / oscillating cutter",
+    "Cable fish tape",
+    "Crimping tools",
+    "Cable tester",
+    "Multi-meter and GS38-compliant voltage indicator",
+    "Torque driver for mount fixings",
+    "Laptop for commissioning",
+    "Label printer"
+  ],
+  "ppe": [
+    [
+      "General AV installation works",
+      [
+        "Safety footwear (steel toe cap, EN ISO 20345 S3)",
+        "Hi-vis vest (EN ISO 20471 Class 2)"
+      ]
+    ],
+    [
+      "Works within the Commercial Vehicles area",
+      [
+        "Safety footwear",
+        "Hi-vis vest or jacket — Class 2 mandatory",
+        "Hard hat where site rules require"
+      ]
+    ],
+    [
+      "Drilling / cutting / fixing",
+      [
+        "Safety glasses (EN 166)",
+        "Nitrile gloves",
+        "Dust mask — FFP3 (EN 149)"
+      ]
+    ],
+    [
+      "Working at height",
+      [
+        "Hard hat (EN 397)",
+        "Appropriate access equipment as specified in §6.4"
+      ]
+    ],
+    [
+      "Cable installation and termination",
+      [
+        "Cut-resistant gloves (EN 388)",
+        "Eye protection"
+      ]
+    ],
+    [
+      "Working in ceiling voids",
+      [
+        "Hard hat",
+        "Dust mask — FFP3",
+        "Safety glasses",
+        "Gloves",
+        "Head torch"
+      ]
+    ],
+    [
+      "Manual handling of heavy equipment",
+      [
+        "Safety footwear",
+        "Gloves",
+        "Team lift as specified in §6.7"
+      ]
+    ]
+  ],
+  "accessEquipment": [
+    "Podium steps with full guardrail — primary working platform for display and video bar mounting",
+    "Mobile access tower (where above 2 m, PASMA assembled, tagged and inspected) — ceiling microphone and pillar camera installation",
+    "MEWP / scissor lift (where above 3.5 m, IPAF certified operator) — subject to confirmation of ceiling height in the Commercial Vehicles area at survey",
+    "Step ladders (EN 131 compliant, inspected before each use) — short-duration light-duty tasks only, never as a working platform",
+    "Kick stool (for low-level access only)"
+  ],
+  "accessRequirements": [
+    "All access equipment to be inspected before use and defective items removed from service",
+    "PASMA certification required for tower assembly, alteration and dismantling",
+    "IPAF certification required for MEWP / powered access operation",
+    "Harness and lanyard to be used with MEWP where required by site rules",
+    "Access equipment not to be positioned near open edges, on uneven surfaces or within a live vehicle route",
+    "No improvised access (chairs, desks, stacked items) permitted"
+  ],
+  "methodSteps": [
+    {
+      "title": "Step 1 — Arrival & Site Induction",
+      "bullets": [
+        "Upon arrival at Yeomans Drive, Blakelands, Milton Keynes, MK14 5AN, all engineers must sign in at the client reception and obtain a visitor or contractor pass before entering any work area.",
+        "A toolbox talk must be delivered to all operatives on site covering the scope of works, sequencing across the Willen Meeting Room, Nadin open space, Group Network Development, Nadin Meeting Room, two HR Offices and the Commercial Vehicles Stand Up area, and the specific hazards associated with each phase.",
+        "The site asbestos register must be reviewed and signed off by the lead engineer before any drilling, cutting or fixing commences in any of the affected areas.",
+        "Permit-to-work documentation must be obtained and confirmed as valid for all works involving working at height, ceiling penetrations and electrical connections across all five work zones.",
+        "The safe working window and traffic segregation arrangement for the Commercial Vehicles area must be confirmed with the area supervisor before any work is set out in that space.",
+        "The emergency assembly point must be confirmed with the client facilities contact and communicated to all members of the installation team before works begin.",
+        "A full PPE check must be carried out ensuring all operatives are equipped with safety footwear, high-visibility clothing, hard hats where required, gloves and eye protection appropriate to each task.",
+        "The client facilities or IT contact must be identified and briefed on the programme of works, with agreement obtained on working hours and access arrangements for each affected space to minimise disruption to occupied areas."
+      ],
+      "risks": "RA01, RA04, RA06, RA12, RA13"
+    },
+    {
+      "title": "Step 2 — Decommissioning & Handback",
+      "bullets": [
+        "Within the Willen Meeting Room, isolate and make safe all mains power circuits serving the existing AV equipment before commencing any disconnection works, applying a test-before-touch verification using an approved voltage indicator on each circuit.",
+        "Within the Willen Meeting Room, systematically disconnect and carefully remove all existing AV hardware forming the client-supplied Logitech Rally Plus VC system, including the Display Hub, Table Hub, PTZ camera, Rally speakers, remote control, power supplies and associated cabling, labelling every item clearly to confirm its intended destination within the new installations.",
+        "Within the Willen Meeting Room, remove both 75\" large-format displays and their wall mounts. A minimum of two operatives is required to control each load during descent, one either side of the panel, with the display taken to the lowest practicable height before release from the mount. Place each display horizontally on padded support to prevent screen damage.",
+        "Within the Willen Meeting Room, remove the two Logitech Rally mic pods (graphite) and the Rally mounting kit brackets, labelling them for reuse in the Group Network Development and Nadin Meeting Rooms.",
+        "Within the Willen Meeting Room, once all hardware has been removed, cap or make safe any exposed cable terminations. Note that making good of walls, floors and ceilings remains the responsibility of others and no remedial finishing works are to be carried out by the AV team.",
+        "Within the Nadin open space, isolate and verify dead the mains circuit to the existing 55\" display before disconnecting the display and its tilting wall mount, again using a minimum of two operatives to manage the manual handling of the screen.",
+        "Within the Nadin open space, remove the 55\" display and tilting wall mount carefully, label the items for confirmed reuse within the HR Office installation, and ensure they are stored securely in a designated holding area with no risk of transit damage. Making good of the wall following removal remains the responsibility of others.",
+        "All decommissioned equipment must be logged by serial number against the project reference 21CQ30960-OPS asset list and stored in a clean, secure area agreed with the client facilities contact, ready for redeployment in subsequent installation phases."
+      ],
+      "risks": "RA01, RA02, RA03, RA04, RA06, RA09"
+    },
+    {
+      "title": "Step 3 — Retained Equipment Inspection & Preparation",
+      "bullets": [
+        "All hardware removed from the Willen Meeting Room and Nadin open space during Step 2 must be individually inspected for physical damage, completeness and functional integrity before being accepted for redeployment across the new installation areas.",
+        "The client-supplied Logitech Rally Plus VC system components, including the Display Hub, Table Hub, PTZ camera and Rally speakers, must be checked for firmware currency, correct factory reset status and cable integrity, with any defective items flagged to the Project Manager and client representative before installation proceeds.",
+        "The two Logitech Rally mic pods (graphite) decommissioned from the Willen Meeting Room must be inspected for physical condition and confirmed operational before allocation to the Group Network Development and Nadin Meeting Room installations respectively.",
+        "The two 75\" displays and wall mounts removed from the Willen Meeting Room, and the 55\" display and tilting wall mount removed from the Nadin open space, must each be powered on using a temporary mains connection to verify screen operation and absence of panel damage before redeployment.",
+        "A written inspection record must be completed for every retained item, cross-referenced against the 21CQ30960-OPS asset schedule, and countersigned by the lead engineer before any retained item is transported to its new installation location."
+      ],
+      "risks": "RA02, RA03, RA09"
+    },
+    {
+      "title": "Step 4 — Structured Cabling & Containment",
+      "bullets": [
+        "Before drilling or fixing in any of the five installation areas, confirm that penetrations and fixings are approved and that no building services are present at the intended routes. Scan every proposed penetration with a calibrated cable and pipe detector in both scan modes immediately before drilling.",
+        "Within the Group Network Development room, install containment and route a 10 m CAT6 cable between the intended Logitech Rally Bar position beneath the display and the table position designated for the Logitech Tap Cat5e, dressing neatly within trunking or existing conduit and applying test-before-touch verification on any existing data or power circuit encountered.",
+        "Within the Nadin Meeting Room, install containment and route a 10 m CAT6 cable between the Logitech Rally Bar position and the Logitech Tap Cat5e table location in the same manner, verifying all existing circuits before any contact.",
+        "Within the Group Network Development room and the Nadin Meeting Room, route a USB-A to USB-B cable between the Logitech Rally Bar and the Logitech NUC PC compute unit, and route an HDMI cable for video output from the compute unit to the display, dressing all cables within the agreed containment.",
+        "Within each HR Office, route the USB-C ingest cable from the Logitech NUC PC to the Logitech Tap Cat5e table position, keeping cabling within trunking or agreed containment routes and applying test-before-touch on any encountered circuits.",
+        "Within the Commercial Vehicles Stand Up area, route all cabling for the client-supplied Logitech Rally Plus VC system, including signal, USB and HDMI runs, between the Sony 65\" FW-65BZ30L display position, the double-arm wall mount housing, the right-hand pillar camera position and the ceiling microphone positions. Install the 50 m PoC USB 2.0 extender run between the Tap position and the compute position.",
+        "In the Commercial Vehicles area, all cable is supported from the structural soffit or purpose-designed supports. No cable is supported from the suspended ceiling grid, pipework, sprinkler pipe or other services. Coordinate with the party responsible for the ceiling grid before any ceiling penetration is made for the white ceiling microphone drops.",
+        "On completion of all cabling, carry out continuity and polarity testing on every CAT6 run and verify HDMI cable integrity end-to-end before any equipment is connected. Label all cables at both ends in accordance with the 21CQ30960-OPS drawing set."
+      ],
+      "risks": "RA01, RA04, RA07, RA08, RA10, RA11, RA12, RA13"
+    },
+    {
+      "title": "Step 5 — Display & Mount Installation",
+      "bullets": [
+        "Within the Group Network Development room, confirm with the client that wall reinforcement is in place and that a mains power outlet and PoE network point are present at the planned display position before commencing any fixing. Install the wall mount repurposed from the Willen Meeting Room at the agreed height using fixings appropriate to the confirmed wall construction, ensuring the mount is level and torqued to the manufacturer's specification. Pull-test the completed bracket before hanging the display.",
+        "Within the Group Network Development room, with a minimum of two operatives, lift and secure the repurposed 75\" display onto the installed wall mount, connecting the HDMI cable from the Logitech NUC PC compute unit and confirming all cables are routed cleanly behind or within the agreed containment.",
+        "Within the Nadin Meeting Room, confirm wall reinforcement and the presence of mains power and PoE network points at the display position, then install the wall mount for the repurposed 75\" display at the agreed height, again ensuring correct fixings for the wall construction. Pull-test the bracket, then lift and secure the display with a minimum of two operatives and connect the HDMI output from the Logitech NUC PC.",
+        "Within HR Office 1, install the tilting wall mount repurposed from the Nadin open space at the agreed height using fixings suited to the confirmed wall construction. Pull-test the bracket, then with a minimum of two operatives lift and secure the repurposed 55\" display onto the mount, connecting all cabling as routed in Step 4.",
+        "Within HR Office 2, install the new BT8431/B tilting wall mount at the agreed height, pull-test the bracket, then with a minimum of two operatives lift and secure the new Sony 55\" FW-55BZ30L display onto the mount and connect all cabling as routed.",
+        "Within the Commercial Vehicles Stand Up area, install the double-arm articulating wall mount at the agreed position, confirming the substrate and fixing points are approved and structurally adequate. Pull-test the bracket, then with a minimum of two operatives lift and secure the Sony 65\" FW-65BZ30L display, connecting all HDMI and power cabling routed in Step 4 and confirming the articulating arm operates freely across its full range of movement without fouling adjacent structure or straining cabling."
+      ],
+      "risks": "RA01, RA02, RA03, RA04, RA10, RA13"
+    },
+    {
+      "title": "Step 6 — AV Equipment & Audio Installation",
+      "bullets": [
+        "Within the Group Network Development room, mount the Logitech Rally Bar centrally beneath the display at the agreed position, connect the 10 m CAT6 cable to the Logitech Tap Cat5e, connect the USB-A to USB-B cable to the Logitech NUC PC compute unit, connect the mains AC adapter, and connect the network patch lead to the client-provided PoE network point. Notify the client IT contact before the Rally Bar joins the LAN.",
+        "Within the Group Network Development room, position the Logitech NUC PC behind the display in the agreed location with adequate ventilation clearance, secure it using the appropriate mounting solution, and connect the HDMI video output cable to the display. Position the Logitech Tap Cat5e on the in-room table and run the USB-C ingest cable to the compute unit, then place the decommissioned Logitech Rally mic pod (graphite) alongside the Tap Cat5e on the table, dressing the CAT coupler and extender cable to prevent a trip hazard.",
+        "Within the Nadin Meeting Room, carry out the same sequence as described for the Group Network Development room: mount the Logitech Rally Bar centrally beneath the display, connect all cabling including the 10 m CAT6 run, USB-A to USB-B cable, mains adapter and network patch lead, notifying the client IT contact before the device joins the LAN. Mount the Logitech NUC PC behind the display, position the Logitech Tap Cat5e on the table with the USB-C ingest cable connected, and place the second decommissioned Rally mic pod (graphite) on the table alongside the Tap.",
+        "Within each HR Office, mount the Logitech MeetUp centrally beneath the 55\" display at the agreed position, connect all cabling as routed in Step 4, and mount the Logitech NUC PC compute unit behind the display. Position the Tap Cat5e on the in-room table and connect the USB-C ingest cable to the compute unit, notifying the client IT contact before each device joins the LAN.",
+        "Within the Commercial Vehicles Stand Up area, mount the repurposed client-supplied Logitech Rally Plus components behind the Sony 65\" FW-65BZ30L display in the agreed positions, connecting the Display Hub, Table Hub and NUC PC to all cabling routes completed in Step 4 and to the mains supply points provided by the client.",
+        "Within the Commercial Vehicles Stand Up area, mount the Logitech Rally PTZ camera on the right-hand pillar just below the ceiling recess, securing it using fixings appropriate to the confirmed substrate and connecting its cable run back to the Display Hub. Wall-mount the Logitech Tap Cat5e adjacent to the display at an ergonomically accessible height and connect it to the Table Hub via the routed cabling, notifying the client IT contact before the device joins the LAN.",
+        "Within the Commercial Vehicles Stand Up area, mount the two new Logitech Rally mic pods (white) in the ceiling above and to the side of the display using the Logitech ceiling mic pod mount kits, at the positions agreed with the engineer to provide optimum speech capture for presenters and front-of-room participants. All load is supported from the structural soffit. Coordinate with the party responsible for the ceiling grid before making any penetrations, and connect each microphone cable back to the Display Hub through the containment installed in Step 4. Mount the repurposed Rally speakers either side of the display and connect them to the Display Hub.",
+        "Record on the handover documentation that the ceiling microphone arrangement is designed to capture presenters and participants at the front of the room and is not intended to cover the wider audience area at this stage, as stated in the quotation."
+      ],
+      "risks": "RA01, RA02, RA03, RA07, RA09, RA10, RA13"
+    },
+    {
+      "title": "Step 7 — Integration, Testing & Commissioning",
+      "bullets": [
+        "Before connecting any device to the client LAN, inform the client IT contact and confirm that IP addressing, VLAN assignment and network provisioning are in place for every device across the Group Network Development room, Nadin Meeting Room, both HR Offices and the Commercial Vehicles Stand Up area.",
+        "Within the Group Network Development room, power on the Logitech NUC PC, Rally Bar and Tap Cat5e in sequence, verify the Microsoft Teams Rooms application launches correctly, and confirm full signal path integrity: HDMI video from the compute unit to the display, CAT6 control signal from the Rally Bar to the Tap Cat5e, USB-A to USB-B connection between the Rally Bar and the compute unit, and audio input from the table mic pod.",
+        "Within the Nadin Meeting Room, repeat the same power-on and signal path verification sequence, confirming Microsoft Teams Rooms operation and all cable connections as above.",
+        "Within each HR Office, power on the Logitech NUC PC, MeetUp and Tap Cat5e, verify the Microsoft Teams Rooms application launches, and confirm the full signal path including USB-C ingest from the compute unit to the Tap Cat5e and HDMI video output to the 55\" display.",
+        "Within the Commercial Vehicles Stand Up area, power on the Display Hub, NUC PC, Tap Cat5e, Rally PTZ camera, Rally speakers and both white ceiling microphones in sequence, verifying Microsoft Teams Rooms application launch on the Sony 65\" display and confirming the full signal path for video, audio reproduction, microphone capture and touch control via the wall-mounted Tap Cat5e. Set camera presets and confirm speaker levels and microphone gain across the intended presenter area.",
+        "Carry out a power-cycle recovery test on every codec, control processor and network device across all five installation areas, confirming that each system returns to its expected operational state without manual intervention following a loss and restoration of mains power, and that each Tap Cat5e re-establishes its connection automatically.",
+        "Carry out a network-fail recovery test on the Tap Cat5e and associated codec in each room, confirming that the system raises an appropriate fault indication and recovers to normal operation when network connectivity is restored, without requiring manual reset."
+      ],
+      "risks": "RA03, RA04, RA06, RA09"
+    },
+    {
+      "title": "Step 8 — Completion & Sign-Off",
+      "bullets": [
+        "Remove all access equipment including podium steps, mobile access towers, step ladders and kick stools from the Group Network Development room, Nadin Meeting Room, both HR Offices and the Commercial Vehicles Stand Up area, inspecting each space to confirm no tools, fixings or waste materials have been left behind.",
+        "Collect and remove all installation waste including packaging, cable off-cuts and consumable waste from all five work areas, disposing of materials in accordance with the waste arrangement agreed with the client under §6 Environmental Management.",
+        "Conduct a snagging inspection across all five installation areas, checking display alignment, cable management, mount security, equipment labelling and system presentation against the 21CQ30960-OPS project specification, and record any items requiring remediation before sign-off.",
+        "Provide end-user training to nominated client representatives in each space, covering day-to-day operation of the Logitech Tap Cat5e, joining and hosting Microsoft Teams meetings, use of the table and ceiling microphones, and basic troubleshooting steps appropriate to each space.",
+        "Hand over all relevant documentation to the client including as-built cable schedules, equipment asset records cross-referenced to project 21CQ30960-OPS, photographs of completed bracket fixings, and manufacturer warranty information for the new Sony displays and mounts.",
+        "Obtain a written snagging sign-off from the client representative confirming satisfactory completion of all works within scope, noting that making good of walls, floors and ceilings in the former Willen Meeting Room and Nadin open space remains the responsibility of others and falls outside this AV contractor's scope."
+      ],
+      "risks": "RA02, RA04, RA06"
+    }
+  ],
+  "materialHandling": [
+    [
+      "2",
+      "75\" large format display — reused from Willen",
+      "Team lift, two operatives minimum. Highest-risk lift on this project — removal from the existing wall mount is controlled to the lowest practicable height with one operative each side. Use a trolley or panel lifter where available. Do not lay face-down."
+    ],
+    [
+      "2",
+      "Large format display wall mount — reused from Willen",
+      "Team lift, two operatives minimum. Use screen protection during transit."
+    ],
+    [
+      "1",
+      "Sony 65\" FW-65BZ30L display",
+      "Team lift, two operatives minimum (approx. 23 kg excl. mount). Do not lay face-down."
+    ],
+    [
+      "1",
+      "Double-arm articulating wall mount — 32–65\"",
+      "Two-operative lift. Confirm bracket weight before lifting; heavier than a fixed plate mount."
+    ],
+    [
+      "1",
+      "55\" large format display — reused from Nadin open space",
+      "Team lift, two operatives minimum. Use screen protection during transit. Do not lay face-down."
+    ],
+    [
+      "1",
+      "Sony 55\" FW-55BZ30L display",
+      "Team lift, two operatives minimum (approx. 17 kg excl. mount). Do not lay face-down."
+    ],
+    [
+      "1",
+      "Tilting wall mount for 39–65\" screens",
+      "Single-operative lift. Check weight before lifting."
+    ],
+    [
+      "2",
+      "Logitech wall mount for video bars",
+      "Single-operative lift."
+    ]
+  ],
+  "permits": [
+    "No live working on mains-voltage circuits — all mains connections by qualified electrician",
+    "Obtain permit to work before accessing ceiling voids, risers or restricted areas",
+    "Electrical isolation required before removing or disconnecting any decommissioned equipment",
+    "Client or building management approval required before any fixings into fire-rated structures",
+    "No hot works are included in this scope. Should any hot work become necessary, works stop and a hot works permit is obtained before proceeding",
+    "All isolation points to be locked off and tagged during the isolation period, by the client's authorised person where the supply is hardwired"
+  ],
+  "fixings": [
+    "Verify substrate type (plasterboard, masonry, concrete, steel) before selecting fixings",
+    "Obtain the client's written confirmation of wall reinforcement where the substrate is gypsum, before drilling",
+    "Use manufacturer-approved anchors rated for the equipment weight and substrate type, with a minimum 4:1 safety factor",
+    "Do not fix into unknown or unverified surfaces — confirm with site/building management",
+    "Check for hidden services (pipes, cables, steel reinforcement) using a detector before drilling, in both scan modes",
+    "Pull-test all structural fixings to confirm load capacity before mounting AV equipment",
+    "Photograph and document fixing positions and types in the as-installed record"
+  ],
+  "qa": [
+    "Lead engineer is responsible for all on-site H&S decisions and work quality",
+    "All installation work to be visually inspected before commissioning begins",
+    "Cable terminations to be tested and verified before system power-on",
+    "Snagging list to be completed and agreed with client before sign-off",
+    "As-installed documentation (cable schedule, photos, test results) compiled before leaving site",
+    "Any deviation from the method statement to be reported to the Project Manager immediately"
+  ],
+  "coordination": {
+    "intro": "Where AV works interface with building fabric or services controlled by others, the Lead Engineer must confirm the interface point with the responsible party before penetration, fixing or cable pull. Interface disputes are escalated to the Project Manager for resolution before works proceed; engineers do not commence contested works.",
+    "points": [
+      "Ceiling grid / structure — any penetration of the ceiling in the Commercial Vehicles area requires prior confirmation that the grid is fully supported and no live services are on the drill path. All AV load is supported from the structural soffit, never from the grid.",
+      "Wall construction — any fixing or cable pull through a partition requires prior confirmation from the client that the wall is structurally adequate and that no fire-stop will be breached.",
+      "Client facilities / electrical — coordinate mains isolation and lock-off with the client's authorised person before any disconnection of decommissioned equipment.",
+      "Commercial Vehicles area supervisor — agree the safe working window, exclusion zone and traffic segregation before any work is set out in that space.",
+      "Client IT contact — any tie-in to client-owned IT infrastructure requires prior confirmation that the port is provisioned, the VLAN is correctly assigned and PoE budget is available. See §6.12."
+    ]
+  },
+  "itIntegration": {
+    "intro": "The client's IT contact must be informed and available before any compute unit, codec, room controller or network device joins the client LAN. Configuration is performed off the live signal path where practicable, and cutover occurs only after the client IT contact confirms the target VLAN is live and the switch port is enabled.",
+    "points": [
+      "Verify existing network before patching — confirm switch port, VLAN and PoE budget with the client IT contact before any device connects",
+      "Label all cables at both ends — comms-room patch panels and room-end faceplates labelled to the agreed naming convention before commissioning",
+      "Confirm firewall rules with client IT — any Microsoft Teams Rooms or Logitech device egress requirement is verified before hot-cutover",
+      "Test-before-connect on shared switches — bench-test devices before joining the client LAN; do not plug an untested device into a live production port",
+      "Protect against unintended broadcast or PoE damage — verify device power draw is within the switch PoE budget and that no DHCP server or STP root election disturbs the client LAN",
+      "Coordinate cutover with client IT — firmware updates on client-owned hardware only with written authorisation and during agreed maintenance windows. Credentials handed over via the O&M Manual"
+    ],
+    "closing": "Power-cycle and network-fail recovery is verified during commissioning for every compute unit and room controller — each device must autonomously return to the last-good configuration after unexpected loss of power or network."
+  },
+  "coshh": [
+    [
+      "Construction dust from drilling and cutting",
+      "Drilling into plasterboard, masonry and concrete pillars generates respirable dust, including crystalline silica from masonry and concrete. Use FFP3 respirators (face-fit tested) and on-tool dust extraction or a drill dust shroud. Damp-wipe and vacuum on completion; dry sweeping is prohibited."
+    ],
+    [
+      "Cable conduit adhesives and sealants",
+      "Used in limited quantities. Ensure adequate ventilation. Wear nitrile gloves and safety glasses. Avoid skin contact. Store in accordance with the manufacturer safety data sheet."
+    ],
+    [
+      "Isopropyl alcohol cleaning wipes and aerosol air duster",
+      "Used for display and lens cleaning. Adequate ventilation required; aerosols never used in confined or unventilated spaces. Store upright in a secure van locker away from heat sources."
+    ],
+    [
+      "Cable lubricant",
+      "Used on long conduit pulls. Nitrile gloves worn. Any spill contained and cleaned immediately; spill kit carried in each vehicle."
+    ]
+  ],
+  "coshhNote": "COSHH assessments and safety data sheets for all substances listed above are carried in the vehicle documentation file and are available on request. Engineers must report any unexpected COSHH hazard — including discovery of asbestos-containing materials or chemical spills — to the Project Manager and cease work in the affected area immediately. No work is to recommence until the hazard is assessed and controlled.",
+  "waste": [
+    "Waste removal responsibility to be confirmed in writing with the client prior to works. The quotation states that rubbish removal is the responsibility of the client unless previously agreed.",
+    "No waste to be disposed of via the client's trade waste unless agreed in writing.",
+    "Hazardous waste (batteries, lamps, WEEE) to be disposed of via registered carriers only, under a valid waste transfer note.",
+    "Decommissioned equipment retained for reuse is logged by serial number, protected and stored in a secure area agreed with the client — it is not waste and is not to be disposed of.",
+    "Site to be left clean and tidy at the end of each working day."
+  ],
+  "noiseDust": [
+    "Noisy operations (drilling, chasing) to be carried out during agreed working hours only and with prior notification to the site or client representative.",
+    "Dust suppression measures (dust sheets, on-tool extraction, vacuuming) to be used where practicable.",
+    "Hand-arm vibration exposure to be minimised; use of powered tools to comply with the Control of Vibration at Work Regulations 2005. Trigger time managed and tasks rotated where extended drilling is required.",
+    "Any spill of materials on site (cable lubricants, adhesives) to be contained and cleaned immediately."
+  ],
+  "welfare": [
+    [
+      "Toilets",
+      "Engineers will use welfare facilities provided or indicated by the site or client representative. Location to be confirmed at site induction."
+    ],
+    [
+      "Washing facilities",
+      "Adequate washing facilities with hot and cold water to be made available on site."
+    ],
+    [
+      "Rest area",
+      "Engineers will use designated rest areas as directed by the site manager. No eating or drinking in work areas."
+    ],
+    [
+      "First aid",
+      "At least one engineer on site will hold a current First Aid at Work or Emergency First Aid at Work certificate. A stocked first aid kit is carried at all times."
+    ],
+    [
+      "Nearest A&E",
+      "Milton Keynes University Hospital, Standing Way, Eaglestone, Milton Keynes, MK6 5LD. Route and travel time to be confirmed at site induction."
+    ],
+    [
+      "Drinking water",
+      "Engineers to carry their own supply; confirm availability of potable water with the site contact."
+    ]
+  ],
+  "cdm": [
+    [
+      "Client",
+      "Volkswagen Group"
+    ],
+    [
+      "Principal Designer",
+      "[To be confirmed — see note below]"
+    ],
+    [
+      "Principal Contractor",
+      "[To be confirmed — see note below]"
+    ],
+    [
+      "Contractor",
+      "21st Century AV Ltd"
+    ],
+    [
+      "Project Manager",
+      "Sonny Tanda"
+    ],
+    [
+      "Site Supervisor",
+      "Goldy Singh"
+    ]
+  ],
+  "cdmNote": "This project is carried out in occupied, operational premises. Where 21st Century AV Ltd is the only contractor engaged, the client's duty to appoint a Principal Designer and Principal Contractor does not arise and 21CAV acts as the sole Contractor under CDM 2015. Where other contractors are engaged on the same project, the client must confirm the Principal Designer and Principal Contractor appointments in writing before works commence. F10 notification is submitted by the Principal Contractor where applicable."
+}
