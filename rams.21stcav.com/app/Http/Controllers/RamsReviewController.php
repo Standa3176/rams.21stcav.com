@@ -209,7 +209,13 @@ class RamsReviewController extends Controller
         $raw['activities'] = $activities;
 
         // ── Hazards ───────────────────────────────────────────────────────────
-        $hazards = [];
+        // Phase 26-05 (HAZ-04): score clamping + the legacy risk-string bucket
+        // fallback are delegated to RamsReviewDataService::normalise() below —
+        // the SAME schema gate the review screen's GET/show() path already
+        // uses — so save/approve and load can never drift out of sync on the
+        // hazard row shape (pre/post likelihood+severity, score_reviewed,
+        // needs_confirmation).
+        $hazardsRaw = [];
         foreach (array_values($raw['hazards'] ?? []) as $h) {
             if (empty($h['hazard'])) {
                 continue; // skip empty rows
@@ -229,19 +235,20 @@ class RamsReviewController extends Controller
                 ));
             }
 
-            $risk = $h['risk'] ?? 'Medium';
-            if (! in_array($risk, ['Low', 'Medium', 'High'], true)) {
-                $risk = 'Medium';
-            }
-
-            $hazards[] = [
-                'activity_key'     => trim((string) ($h['activity_key'] ?? '')),
-                'hazard'           => trim((string) ($h['hazard'] ?? '')),
-                'risk'             => $risk,
-                'control_measures' => $cm,
+            $hazardsRaw[] = [
+                'activity_key'       => trim((string) ($h['activity_key'] ?? '')),
+                'hazard'             => trim((string) ($h['hazard'] ?? '')),
+                'risk'               => $h['risk'] ?? null, // legacy fallback only — current form no longer submits this
+                'pre_likelihood'     => $h['pre_likelihood']  ?? null,
+                'pre_severity'       => $h['pre_severity']    ?? null,
+                'post_likelihood'    => $h['post_likelihood'] ?? null,
+                'post_severity'      => $h['post_severity']   ?? null,
+                'score_reviewed'     => ($h['score_reviewed']     ?? '0') === '1',
+                'needs_confirmation' => ($h['needs_confirmation'] ?? '0') === '1',
+                'control_measures'   => $cm,
             ];
         }
-        $raw['hazards'] = $hazards;
+        $raw['hazards'] = $this->reviewDataService->normalise(['hazards' => $hazardsRaw])['hazards'];
 
         // ── PPE ───────────────────────────────────────────────────────────────
         $raw['ppe'] = array_values(array_filter(

@@ -84,9 +84,21 @@
 .repeater-table textarea { resize: vertical; min-height: 60px; }
 .col-qty   { width: 70px; }
 .col-area  { width: 150px; }
-.col-risk  { width: 110px; }
+.col-score { width: 58px; }
 .col-act   { width: 140px; }
 .col-del   { width: 40px; text-align: center; }
+
+/* ── Phase 26-05 (HAZ-04): needs-confirmation hazard rows ────────────── */
+.badge-needs-confirmation {
+    margin-left: .5rem;
+    font-size: .7rem;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.hazard-needs-confirmation {
+    border-left: 3px solid #f59e0b !important;
+    background: #fffbeb !important;
+}
 
 /* ── PPE checkboxes ────────────────────────────────────────────────── */
 .ppe-grid {
@@ -767,15 +779,22 @@
                     <tr>
                         <th class="col-act">Activity</th>
                         <th>Hazard</th>
-                        <th class="col-risk">Risk Level</th>
+                        <th class="col-score" title="Initial Likelihood (1-5)">Init L</th>
+                        <th class="col-score" title="Initial Severity (1-5)">Init S</th>
+                        <th class="col-score" title="Residual Likelihood (1-5)">Res L</th>
+                        <th class="col-score" title="Residual Severity (1-5)">Res S</th>
                         <th>Control Measures <span style="font-weight:400;font-size:.75rem;">(one per line)</span></th>
                         <th class="col-del"></th>
                     </tr>
                 </thead>
                 <tbody id="hazards-tbody">
                     @foreach ($reviewPayload['hazards'] as $i => $hazard)
-                        @php $c_haz = $fieldChanged("hazards.{$i}.hazard"); @endphp
-                        <tr class="{{ $diffClass($c_haz) }}">
+                        @php
+                            $c_haz = $fieldChanged("hazards.{$i}.hazard");
+                            $hazardNeedsConfirmation = ! empty($hazard['needs_confirmation']);
+                            $hazardRowClass = trim($diffClass($c_haz) . ($hazardNeedsConfirmation ? ' hazard-needs-confirmation' : ''));
+                        @endphp
+                        <tr class="{{ $hazardRowClass }}">
                             <td class="col-act">
                                 <input type="text"
                                        name="hazards[{{ $i }}][activity_key]"
@@ -790,16 +809,33 @@
                                        value="{{ old("hazards.{$i}.hazard", $hazard['hazard']) }}"
                                        placeholder="e.g. Working at Height"
                                        maxlength="500">
+                                @if ($hazardNeedsConfirmation)
+                                    <span class="badge badge-warning badge-needs-confirmation">Needs confirmation</span>
+                                @endif
                             </td>
-                            <td class="col-risk">
-                                <select name="hazards[{{ $i }}][risk]">
-                                    @foreach (['Low', 'Medium', 'High'] as $level)
-                                        <option value="{{ $level }}"
-                                                {{ old("hazards.{$i}.risk", $hazard['risk']) === $level ? 'selected' : '' }}>
-                                            {{ $level }}
-                                        </option>
-                                    @endforeach
-                                </select>
+                            <td class="col-score">
+                                <input type="number" min="1" max="5"
+                                       name="hazards[{{ $i }}][pre_likelihood]"
+                                       value="{{ old("hazards.{$i}.pre_likelihood", $hazard['pre_likelihood']) }}"
+                                       oninput="markHazardReviewed(this)">
+                            </td>
+                            <td class="col-score">
+                                <input type="number" min="1" max="5"
+                                       name="hazards[{{ $i }}][pre_severity]"
+                                       value="{{ old("hazards.{$i}.pre_severity", $hazard['pre_severity']) }}"
+                                       oninput="markHazardReviewed(this)">
+                            </td>
+                            <td class="col-score">
+                                <input type="number" min="1" max="5"
+                                       name="hazards[{{ $i }}][post_likelihood]"
+                                       value="{{ old("hazards.{$i}.post_likelihood", $hazard['post_likelihood']) }}"
+                                       oninput="markHazardReviewed(this)">
+                            </td>
+                            <td class="col-score">
+                                <input type="number" min="1" max="5"
+                                       name="hazards[{{ $i }}][post_severity]"
+                                       value="{{ old("hazards.{$i}.post_severity", $hazard['post_severity']) }}"
+                                       oninput="markHazardReviewed(this)">
                             </td>
                             <td>
                                 <textarea name="hazards[{{ $i }}][control_measures]"
@@ -807,6 +843,16 @@
                                           placeholder="Enter each control measure on a new line…">{{ old("hazards.{$i}.control_measures", implode("\n", $hazard['control_measures'])) }}</textarea>
                             </td>
                             <td class="col-del">
+                                <input type="hidden"
+                                       name="hazards[{{ $i }}][score_reviewed]"
+                                       value="{{ old("hazards.{$i}.score_reviewed", ! empty($hazard['score_reviewed']) ? '1' : '0') }}"
+                                       data-score-reviewed-flag>
+                                {{-- Round-trips the resolver's needs_confirmation flag through
+                                     Save/Approve — not user-editable, so a save never silently
+                                     clears a row the tiered resolver flagged for confirmation. --}}
+                                <input type="hidden"
+                                       name="hazards[{{ $i }}][needs_confirmation]"
+                                       value="{{ old("hazards.{$i}.needs_confirmation", $hazardNeedsConfirmation ? '1' : '0') }}">
                                 <button type="button" class="btn-remove" onclick="removeRow(this)" title="Remove">✕</button>
                             </td>
                         </tr>
@@ -1006,6 +1052,11 @@ function activityRowTemplate(idx) {
 }
 
 function hazardRowTemplate(idx) {
+    // Phase 26-05 (HAZ-04): a manually-added row was just typed by the
+    // engineer — it is inherently reviewed, so score_reviewed defaults to
+    // "1" here (unlike server-rendered pre-filled rows, which default to
+    // "0" until touched). No needs-confirmation badge — that flag only ever
+    // arrives from the tiered resolver on server-rendered rows.
     return `<tr>
         <td class="col-act">
             <input type="text" name="hazards[${idx}][activity_key]" placeholder="optional" maxlength="100" style="font-family:monospace;font-size:.78rem;">
@@ -1013,20 +1064,36 @@ function hazardRowTemplate(idx) {
         <td>
             <input type="text" name="hazards[${idx}][hazard]" placeholder="e.g. Working at Height" maxlength="500">
         </td>
-        <td class="col-risk">
-            <select name="hazards[${idx}][risk]">
-                <option value="Low">Low</option>
-                <option value="Medium" selected>Medium</option>
-                <option value="High">High</option>
-            </select>
+        <td class="col-score">
+            <input type="number" min="1" max="5" name="hazards[${idx}][pre_likelihood]" value="3" oninput="markHazardReviewed(this)">
+        </td>
+        <td class="col-score">
+            <input type="number" min="1" max="5" name="hazards[${idx}][pre_severity]" value="3" oninput="markHazardReviewed(this)">
+        </td>
+        <td class="col-score">
+            <input type="number" min="1" max="5" name="hazards[${idx}][post_likelihood]" value="2" oninput="markHazardReviewed(this)">
+        </td>
+        <td class="col-score">
+            <input type="number" min="1" max="5" name="hazards[${idx}][post_severity]" value="2" oninput="markHazardReviewed(this)">
         </td>
         <td>
             <textarea name="hazards[${idx}][control_measures]" rows="3" placeholder="Enter each control measure on a new line…"></textarea>
         </td>
         <td class="col-del">
+            <input type="hidden" name="hazards[${idx}][score_reviewed]" value="1" data-score-reviewed-flag>
+            <input type="hidden" name="hazards[${idx}][needs_confirmation]" value="0">
             <button type="button" class="btn-remove" onclick="removeRow(this)" title="Remove">✕</button>
         </td>
     </tr>`;
+}
+
+// Phase 26-05 (HAZ-04): flip the hidden score_reviewed marker to "1" the
+// moment an engineer edits any of a hazard row's 4 numeric score inputs.
+function markHazardReviewed(el) {
+    const row = el.closest('tr');
+    if (! row) return;
+    const flag = row.querySelector('[data-score-reviewed-flag]');
+    if (flag) flag.value = '1';
 }
 
 // ─── Generic add / remove ─────────────────────────────────────────────────────
