@@ -16,6 +16,7 @@ class HazardTemplate extends Model
         'post_likelihood',
         'post_severity',
         'controls',
+        'include_when',
         'is_global',
     ];
 
