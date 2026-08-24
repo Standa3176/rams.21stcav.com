@@ -211,13 +211,7 @@ class RiskTemplateResolverService
             return $explicit;
         }
 
-        $library = HazardTemplate::visibleTo($userId)->get();
-
-        $tiered = $this->includeWhenResolver->resolve($library, [
-            'activities'        => $activities,
-            'drilling_required' => $drillingRequired,
-            'scope_narrative'   => $scopeNarrative,
-        ]);
+        $tiered = $this->fetchTieredCandidates($userId, $activities, $drillingRequired, $scopeNarrative);
 
         foreach ($tiered as $match) {
             $alreadyPresent = $match->id !== null
@@ -230,6 +224,94 @@ class RiskTemplateResolverService
         }
 
         return $explicit;
+    }
+
+    /**
+     * Fetch the full visible hazard library and evaluate it against the
+     * job's captured signals via HazardIncludeWhenResolver. Extracted from
+     * resolveHazards() so BOTH callers of tier evaluation — resolveHazards()
+     * itself and the public tieredRowsNotAlreadyPresent() below — go through
+     * the exact same evaluation call. Tier logic can never diverge between
+     * the two entry points.
+     *
+     * @return Collection<int, HazardTemplate>
+     */
+    private function fetchTieredCandidates(int $userId, array $activities, bool $drillingRequired, string $scopeNarrative): Collection
+    {
+        $library = HazardTemplate::visibleTo($userId)->get();
+
+        return $this->includeWhenResolver->resolve($library, [
+            'activities'        => $activities,
+            'drilling_required' => $drillingRequired,
+            'scope_narrative'   => $scopeNarrative,
+        ]);
+    }
+
+    /**
+     * Reusable tier-1/3 fetch-and-dedup entry point for callers that already
+     * hold a fully-formed hazard register (not just a list of names to
+     * resolve) — specifically RamsBuilderService::reviewedToRisk(), which
+     * merges tier-1 (always) and tier-3 (confirm) hazard candidates onto an
+     * already-built register of reviewed engineer picks, without
+     * re-resolving those picks through resolveFromSeeds() a second time.
+     *
+     * Honours the same rams_tier1.hazard_tiering_enabled reversibility
+     * guarantee as resolveHazards(): when tiering is disabled this returns
+     * an empty array unconditionally, never resurrecting the old fixed
+     * baseline.
+     *
+     * @param  string[]  $existingHazardNames  Names already present in the caller's register.
+     *   Dedup is case-insensitive and whitespace-trimmed (the sole comparison
+     *   rule — plain strings never carry a hazard_templates.id to compare).
+     * @param  string[]  $activities
+     * @return array  Hazard rows in the same shape buildHazards() emits, minus
+     *   'id' (the caller owns id sequencing for its merged register) and
+     *   with score_reviewed forced false (an injected candidate has never
+     *   been human-reviewed).
+     */
+    public function tieredRowsNotAlreadyPresent(
+        array $existingHazardNames,
+        array $activities = [],
+        bool $drillingRequired = false,
+        string $scopeNarrative = '',
+        int $userId = 0,
+    ): array {
+        if (! config('rams_tier1.hazard_tiering_enabled', true)) {
+            return [];
+        }
+
+        $candidates = $this->fetchTieredCandidates($userId, $activities, $drillingRequired, $scopeNarrative);
+
+        $existingNormalised = array_map(
+            static fn (string $n): string => strtolower(trim($n)),
+            $existingHazardNames,
+        );
+
+        $rows = [];
+        foreach ($candidates as $match) {
+            $normalisedName = strtolower(trim((string) ($match->name ?? '')));
+
+            if (in_array($normalisedName, $existingNormalised, true)) {
+                continue;
+            }
+
+            $rows[] = [
+                'hazard'             => (string) ($match->name ?? ''),
+                'persons_at_risk'    => ['21CAV Staff', 'Client Staff', 'Others'],
+                'pre_likelihood'     => (int) ($match->pre_likelihood  ?? 3),
+                'pre_severity'       => (int) ($match->pre_severity    ?? 3),
+                'controls'           => array_values(array_filter(
+                    array_map('strval', (array) ($match->controls ?? [])),
+                    static fn (string $s): bool => strlen(trim($s)) > 0,
+                )),
+                'post_likelihood'    => (int) ($match->post_likelihood ?? 1),
+                'post_severity'      => (int) ($match->post_severity   ?? 2),
+                'score_reviewed'     => false,
+                'needs_confirmation' => (bool) ($match->needs_confirmation ?? false),
+            ];
+        }
+
+        return $rows;
     }
 
     // =========================================================================

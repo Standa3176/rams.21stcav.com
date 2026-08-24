@@ -139,4 +139,99 @@ class RiskTemplateResolverServiceTest extends TestCase
             $this->assertNotContains($title, $names);
         }
     }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Phase 26 Plan 07 (HAZ-02 gap closure) — tieredRowsNotAlreadyPresent(),
+    // the reusable tier-1/3 fetch-and-dedup entry point for callers (namely
+    // RamsBuilderService::reviewedToRisk()) that already hold a fully-formed
+    // register built from reviewed engineer picks, not just a list of names
+    // to resolve through resolveFromSeeds().
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private function tieredNames(array $rows): array
+    {
+        return array_map(static fn (array $row): string => $row['hazard'], $rows);
+    }
+
+    public function test_tiered_rows_not_already_present_blank_input_returns_nine_rows(): void
+    {
+        $resolver = app(RiskTemplateResolverService::class);
+
+        $rows = $resolver->tieredRowsNotAlreadyPresent([], [], false, '');
+
+        $this->assertCount(9, $rows, 'expected 4 always-tier + 5 confirm-tier rows when nothing is already present');
+
+        $names = $this->tieredNames($rows);
+        $this->assertContains('Slips, trips and falls', $names);
+        $this->assertContains('Low voltage AV connections', $names);
+        $this->assertContains('Fire and evacuation', $names);
+        $this->assertContains('COSHH substances', $names);
+
+        $confirmRows = array_filter($rows, fn (array $row): bool => $row['needs_confirmation'] === true);
+        $this->assertCount(5, $confirmRows);
+
+        $alwaysRows = array_filter($rows, fn (array $row): bool => $row['needs_confirmation'] === false);
+        $this->assertCount(4, $alwaysRows);
+    }
+
+    public function test_tiered_rows_not_already_present_excludes_named_always_tier_hazards(): void
+    {
+        $resolver = app(RiskTemplateResolverService::class);
+
+        $rows = $resolver->tieredRowsNotAlreadyPresent(
+            ['Slips, trips and falls', 'Low voltage AV connections', 'Fire and evacuation', 'COSHH substances'],
+            [],
+            false,
+            '',
+        );
+
+        $this->assertCount(5, $rows, 'only the 5 confirm-tier rows should remain once the 4 always-tier names are already present');
+
+        $names = $this->tieredNames($rows);
+        $this->assertNotContains('Slips, trips and falls', $names);
+        $this->assertNotContains('Low voltage AV connections', $names);
+        $this->assertNotContains('Fire and evacuation', $names);
+        $this->assertNotContains('COSHH substances', $names);
+    }
+
+    public function test_tiered_rows_not_already_present_dedup_is_case_insensitive_and_trims(): void
+    {
+        $resolver = app(RiskTemplateResolverService::class);
+
+        $rows = $resolver->tieredRowsNotAlreadyPresent(
+            ['  low voltage av connections  '],
+            [],
+            false,
+            '',
+        );
+
+        $names = $this->tieredNames($rows);
+        $this->assertNotContains('Low voltage AV connections', $names, 'dedup must be case-insensitive and trim whitespace');
+        $this->assertCount(8, $rows, 'the other 3 always-tier + 5 confirm-tier rows are still returned');
+    }
+
+    public function test_tiered_rows_not_already_present_returns_empty_when_tiering_disabled(): void
+    {
+        config(['rams_tier1.hazard_tiering_enabled' => false]);
+
+        $resolver = app(RiskTemplateResolverService::class);
+
+        $rows = $resolver->tieredRowsNotAlreadyPresent(['Manual handling'], ['ceiling_works'], true, 'drilling into the ceiling');
+
+        $this->assertSame([], $rows, 'flag off must return zero rows regardless of existing names or signals — the reversibility guarantee');
+    }
+
+    public function test_tiered_rows_not_already_present_matches_tier_two_activity_signal(): void
+    {
+        $resolver = app(RiskTemplateResolverService::class);
+
+        $rows = $resolver->tieredRowsNotAlreadyPresent([], ['ceiling_works'], false, '');
+
+        $names = $this->tieredNames($rows);
+        $this->assertContains(
+            'Restricted access and ceiling voids',
+            $names,
+            'tier-2 activity signal matching must flow through the same HazardIncludeWhenResolver call resolveHazards() uses',
+        );
+    }
 }
