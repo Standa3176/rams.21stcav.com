@@ -397,23 +397,44 @@ class RamsBuilderService
     private function reviewedToRisk(array $rd, ?int $userId = null): array
     {
         $hazards = array_values(array_map(function (array $h, int $i) {
-            $preL = null;
-            $preS = null;
-            $postL = null;
-            $postS = null;
             $controls = (array) ($h['control_measures'] ?? []);
-
             $name = (string) ($h['hazard'] ?? '');
 
-            // Prefer hazard library values when available
+            // Phase 26-05 (HAZ-04): an already-numeric score on the review
+            // row — whether it arrived via a library match upstream or was
+            // typed by the engineer on the review screen — always wins. The
+            // library lookup below may still fill a GAP (a missing score, or
+            // empty controls) but must never overwrite a numeric value the
+            // row itself already carries.
+            $preL  = is_numeric($h['pre_likelihood']  ?? null) ? (int) $h['pre_likelihood']  : null;
+            $preS  = is_numeric($h['pre_severity']    ?? null) ? (int) $h['pre_severity']    : null;
+            $postL = is_numeric($h['post_likelihood'] ?? null) ? (int) $h['post_likelihood'] : null;
+            $postS = is_numeric($h['post_severity']   ?? null) ? (int) $h['post_severity']   : null;
+
+            // Read the reviewed/confirmation markers from the row (default
+            // false when absent) so they can be written into generated_data
+            // below.
+            $scoreReviewed = (bool) ($h['score_reviewed'] ?? false);
+            $needsConfirmation = (bool) ($h['needs_confirmation'] ?? false);
+
+            // Prefer hazard library values when available — but only to fill
+            // gaps, never to override a score the row already supplied.
             if ($name !== '') {
                 $resolved = $this->hazardLibrary->resolveFromSeeds($userId ?? 0, [$name]);
                 $tpl = $resolved->first();
                 if ($tpl) {
-                    $preL = (int) ($tpl->pre_likelihood  ?? null);
-                    $preS = (int) ($tpl->pre_severity    ?? null);
-                    $postL = (int) ($tpl->post_likelihood ?? null);
-                    $postS = (int) ($tpl->post_severity   ?? null);
+                    if ($preL === null) {
+                        $preL = (int) ($tpl->pre_likelihood  ?? null);
+                    }
+                    if ($preS === null) {
+                        $preS = (int) ($tpl->pre_severity    ?? null);
+                    }
+                    if ($postL === null) {
+                        $postL = (int) ($tpl->post_likelihood ?? null);
+                    }
+                    if ($postS === null) {
+                        $postS = (int) ($tpl->post_severity   ?? null);
+                    }
                     if (empty($controls)) {
                         $controls = (array) ($tpl->controls ?? []);
                     }
@@ -429,17 +450,19 @@ class RamsBuilderService
                 $postS = max(1, $preS - 1);
             }
             return [
-                'id'              => $i + 1,
-                'hazard'          => $name,
-                'persons_at_risk' => ['21CAV Staff', 'Client Staff', 'Others'],
-                'pre_likelihood'  => $preL,
-                'pre_severity'    => $preS,
-                'controls'        => array_values(array_filter(
-                                         array_map('strval', $controls),
-                                         fn ($s) => strlen(trim($s)) > 0,
-                                     )),
-                'post_likelihood' => $postL,
-                'post_severity'   => $postS,
+                'id'                 => $i + 1,
+                'hazard'             => $name,
+                'persons_at_risk'    => ['21CAV Staff', 'Client Staff', 'Others'],
+                'pre_likelihood'     => $preL,
+                'pre_severity'       => $preS,
+                'controls'           => array_values(array_filter(
+                                            array_map('strval', $controls),
+                                            fn ($s) => strlen(trim($s)) > 0,
+                                        )),
+                'post_likelihood'    => $postL,
+                'post_severity'      => $postS,
+                'score_reviewed'     => $scoreReviewed,
+                'needs_confirmation' => $needsConfirmation,
             ];
         }, $rd['hazards'] ?? [], array_keys($rd['hazards'] ?? [])));
 
