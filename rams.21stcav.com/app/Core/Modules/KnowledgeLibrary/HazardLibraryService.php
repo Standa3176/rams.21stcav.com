@@ -3,6 +3,7 @@
 namespace App\Core\Modules\KnowledgeLibrary;
 
 use App\Models\HazardTemplate;
+use App\Services\Rams\LegacyHazardNameFoldMap;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
@@ -181,6 +182,15 @@ class HazardLibraryService
      */
     private function fuzzyMatch(string $seed, Collection $library): ?HazardTemplate
     {
+        // Phase 26 Plan 08 (HAZ-02 gap closure, round 2): fold a legacy
+        // hazard name onto its canonical library name FIRST, before any of
+        // the 3 tiers below run. This is the single choke point every
+        // caller of resolveFromSeeds() shares (RiskTemplateResolverService's
+        // explicit-picks path and RamsBuilderService::reviewedToRisk()'s
+        // reviewed-data path alike) — a legacy alias folds identically on
+        // every generation entry point, with no second implementation.
+        $seed = LegacyHazardNameFoldMap::canonicalName($seed) ?? $seed;
+
         $seedLower = Str::lower(trim($seed));
 
         // 1. Exact

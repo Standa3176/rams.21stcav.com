@@ -29,6 +29,12 @@ use Illuminate\Database\Seeder;
  *   - Deletes only the is_global=true rows this reseed supersedes (the old
  *     13-hazard library folded into the 18 per D-02) — scoped strictly to
  *     is_global=true so it can never reach a user's own row.
+ *
+ * D-02's fold mapping (old app hazard names -> nearest skill hazard) is NOT
+ * duplicated in this file. Its single, executable, machine-readable form is
+ * `App\Services\Rams\LegacyHazardNameFoldMap` (Phase 26 Plan 08), consumed
+ * by `HazardLibraryService::fuzzyMatch()` — read that class, not this
+ * docblock, for the authoritative 16-entry mapping.
  */
 class HazardTemplateSeeder extends Seeder
 {
