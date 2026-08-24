@@ -151,4 +151,88 @@ class RamsReviewDataServiceTest extends TestCase
         $this->assertSame($expected, array_keys($out),
             'Phase 22.1 D-09: project array must contain exactly the 11 canonical keys (overview removed).');
     }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Phase 26 Plan 05 (HAZ-04): normaliseHazards() extended numeric-score schema
+    // ══════════════════════════════════════════════════════════════════════════
+
+    public function test_normaliseHazards_round_trips_numeric_scores_and_markers_unchanged(): void
+    {
+        $raw = [
+            [
+                'activity_key'       => 'display_installation',
+                'hazard'             => 'Working at Height',
+                'pre_likelihood'     => 3,
+                'pre_severity'       => 4,
+                'post_likelihood'    => 1,
+                'post_severity'      => 4,
+                'score_reviewed'     => true,
+                'needs_confirmation' => false,
+                'control_measures'   => ['Use podium steps'],
+            ],
+        ];
+
+        $out = $this->service->normalise(['hazards' => $raw])['hazards'];
+
+        $this->assertCount(1, $out);
+        $this->assertSame(3, $out[0]['pre_likelihood']);
+        $this->assertSame(4, $out[0]['pre_severity']);
+        $this->assertSame(1, $out[0]['post_likelihood']);
+        $this->assertSame(4, $out[0]['post_severity']);
+        $this->assertTrue($out[0]['score_reviewed']);
+        $this->assertFalse($out[0]['needs_confirmation']);
+        $this->assertSame(['Use podium steps'], $out[0]['control_measures']);
+    }
+
+    public function test_normaliseHazards_legacy_risk_only_row_falls_back_to_bucket_convention(): void
+    {
+        $raw = [
+            [
+                'hazard' => 'Working at Height',
+                'risk'   => 'High',
+            ],
+        ];
+
+        $out = $this->service->normalise(['hazards' => $raw])['hazards'];
+
+        // High => [4,4] initial, matching RamsBuilderService::riskLevelsFromString(),
+        // residual one lower per reviewedToRisk()'s existing max(1, preL-1) pattern.
+        $this->assertSame(4, $out[0]['pre_likelihood']);
+        $this->assertSame(4, $out[0]['pre_severity']);
+        $this->assertSame(3, $out[0]['post_likelihood']);
+        $this->assertSame(3, $out[0]['post_severity']);
+        $this->assertFalse($out[0]['score_reviewed']);
+        $this->assertFalse($out[0]['needs_confirmation']);
+    }
+
+    public function test_normaliseHazards_clamps_out_of_range_and_falls_back_on_non_numeric(): void
+    {
+        $raw = [
+            [
+                'hazard'         => 'Working at Height',
+                'pre_likelihood' => 9,
+            ],
+            [
+                'hazard'         => 'Manual Handling',
+                'pre_likelihood' => 'abc',
+                'risk'           => 'Low',
+            ],
+        ];
+
+        $out = $this->service->normalise(['hazards' => $raw])['hazards'];
+
+        $this->assertSame(5, $out[0]['pre_likelihood'], 'out-of-range numeric clamps to 5');
+        $this->assertSame(2, $out[1]['pre_likelihood'], 'non-numeric falls back to legacy-bucket default (Low => 2)');
+    }
+
+    public function test_normaliseHazards_output_does_not_contain_legacy_risk_key(): void
+    {
+        $out = $this->service->normalise(['hazards' => [['hazard' => 'Test', 'risk' => 'Medium']]])['hazards'];
+
+        $this->assertArrayNotHasKey(
+            'risk',
+            $out[0],
+            'Phase 26 HAZ-04: risk is fully superseded by the 4 numeric fields + score_reviewed',
+        );
+    }
 }
