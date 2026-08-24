@@ -104,7 +104,7 @@ Every phase below pairs a GATE with the RULE fix (or the Phase 26 hazard-shape c
 Plans:
 **Wave 1**
 
-- [ ] 26-01-PLAN.md — Migration + HazardTemplateSeeder rewrite (18-hazard library, include_when tiers, orphan-row cleanup) + BLOCKING migrate/seed
+- [x] 26-01-PLAN.md — Migration + HazardTemplateSeeder rewrite (18-hazard library, include_when tiers, orphan-row cleanup) + BLOCKING migrate/seed
 - [ ] 26-02-PLAN.md — HazardIncludeWhenResolver (tier 1/2/3 evaluation service) + unit tests
 - [ ] 26-03-PLAN.md — Remove injection paths #1/#2/#3/#4 (Tier1RamsDefaultsService, rams.blade.php, rams-v2.blade.php, RiskAssessmentComposer) + new RAMS_HAZARD_LIBRARY_TIERING kill-switch
 
@@ -574,7 +574,7 @@ Plans:
 | 23. XTEN-AV-Style Renderer | v2.0 | 7/7 | Complete | 2026-05-15 |
 | 24. Stencil Curation UI + Quote-Import Auto-Stub | v2.0 | 11/12 | Paused — 24-09 open (human checkpoint) | - |
 | 25. AI Assist + Replacement Wiring | v2.0 | 0/0 | Not started | - |
-| 26. Hazard Library Structural Inversion | v3.0 | 0/0 | Not started | - |
+| 26. Hazard Library Structural Inversion | v3.0 | 1/6 | In Progress|  |
 | 27. Manual-Handling & Display-Lift House Rules | v3.0 | 0/0 | Not started | - |
 | 28. PPE, Ceiling & Electrical Boundary House Rules | v3.0 | 0/0 | Not started | - |
 | 29. CDM Duty-Holder & Emergency Arrangements | v3.0 | 0/0 | Not started | - |

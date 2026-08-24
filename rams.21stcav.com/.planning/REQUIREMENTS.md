@@ -80,9 +80,9 @@ From `references/house-rules.md`. Settled positions applied without asking.
 From `references/hazard-library.md` (18 hazards, each with an explicit "Include when").
 The app has 11, applied unconditionally.
 
-- [ ] **HAZ-01**: Port the 8 hazards present in the skill and absent from the app — Noise and vibration, Restricted access and ceiling voids, Low voltage AV connections, Asbestos-containing materials, Vehicle and plant movement, Lone and small-team working, Fire and evacuation, Decommissioning and WEEE.
+- [x] **HAZ-01**: Port the 8 hazards present in the skill and absent from the app — Noise and vibration, Restricted access and ceiling voids, Low voltage AV connections, Asbestos-containing materials, Vehicle and plant movement, Lone and small-team working, Fire and evacuation, Decommissioning and WEEE.
 - [ ] **HAZ-02**: Each hazard carries an **include-when** condition; a hazard is included only when the job meets it. This is the inversion — register starts empty and is added to.
-- [ ] **HAZ-03**: Align scores to the skill's typical values, including residual severity held at initial severity where the skill does so (Working at Height residual `1×4`, not `2×3`).
+- [x] **HAZ-03**: Align scores to the skill's typical values, including residual severity held at initial severity where the skill does so (Working at Height residual `1×4`, not `2×3`).
 - [ ] **HAZ-04**: Typical scores are **defaults a user or the model adjusts**, never silently applied — per `PORTING-NOTES.md`: *"Do not let the app apply the typical scores silently."*
 
 ### Out of scope for v3.0 (deferred to v3.1+)
@@ -123,9 +123,9 @@ Deliberately excluded to keep the document-quality core shippable:
 | RULE-08 | Phase 29 | Pending |
 | RULE-09 | Phase 28 | Pending |
 | RULE-10 | Phase 28 | Pending |
-| HAZ-01 | Phase 26 | Pending |
+| HAZ-01 | Phase 26 | Complete |
 | HAZ-02 | Phase 26 | Pending |
-| HAZ-03 | Phase 26 | Pending |
+| HAZ-03 | Phase 26 | Complete |
 | HAZ-04 | Phase 26 | Pending |
 
 ---
