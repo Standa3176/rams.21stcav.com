@@ -81,7 +81,7 @@ From `references/hazard-library.md` (18 hazards, each with an explicit "Include 
 The app has 11, applied unconditionally.
 
 - [x] **HAZ-01**: Port the 8 hazards present in the skill and absent from the app — Noise and vibration, Restricted access and ceiling voids, Low voltage AV connections, Asbestos-containing materials, Vehicle and plant movement, Lone and small-team working, Fire and evacuation, Decommissioning and WEEE.
-- [ ] **HAZ-02**: Each hazard carries an **include-when** condition; a hazard is included only when the job meets it. This is the inversion — register starts empty and is added to.
+- [ ] **HAZ-02**: Each hazard carries an **include-when** condition; a hazard is included only when the job meets it. This is the inversion — register starts empty and is added to. (Plan 26-02 landed the tiered evaluation logic; the requirement is fully met only once Plan 26-04 wires it into the live RAMS pipeline.)
 - [x] **HAZ-03**: Align scores to the skill's typical values, including residual severity held at initial severity where the skill does so (Working at Height residual `1×4`, not `2×3`).
 - [ ] **HAZ-04**: Typical scores are **defaults a user or the model adjusts**, never silently applied — per `PORTING-NOTES.md`: *"Do not let the app apply the typical scores silently."*
 
@@ -124,7 +124,7 @@ Deliberately excluded to keep the document-quality core shippable:
 | RULE-09 | Phase 28 | Pending |
 | RULE-10 | Phase 28 | Pending |
 | HAZ-01 | Phase 26 | Complete |
-| HAZ-02 | Phase 26 | Pending |
+| HAZ-02 | Phase 26 | Pending (logic landed Plan 26-02; wiring is Plan 26-04) |
 | HAZ-03 | Phase 26 | Complete |
 | HAZ-04 | Phase 26 | Pending |
 
