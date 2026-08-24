@@ -81,7 +81,7 @@ From `references/hazard-library.md` (18 hazards, each with an explicit "Include 
 The app has 11, applied unconditionally.
 
 - [x] **HAZ-01**: Port the 8 hazards present in the skill and absent from the app — Noise and vibration, Restricted access and ceiling voids, Low voltage AV connections, Asbestos-containing materials, Vehicle and plant movement, Lone and small-team working, Fire and evacuation, Decommissioning and WEEE.
-- [ ] **HAZ-02**: Each hazard carries an **include-when** condition; a hazard is included only when the job meets it. This is the inversion — register starts empty and is added to. (Plan 26-02 landed the tiered evaluation logic; Plan 26-03 removed all four fixed-baseline re-injection paths so the register can no longer be silently padded — but nothing yet populates it from include-when matches. The requirement is fully met only once Plan 26-04 wires `HazardIncludeWhenResolver` into the live RAMS pipeline.)
+- [x] **HAZ-02**: Each hazard carries an **include-when** condition; a hazard is included only when the job meets it. This is the inversion — register starts empty and is added to. (Plan 26-02 landed the tiered evaluation logic; Plan 26-03 removed all four fixed-baseline re-injection paths; Plan 26-04 wired `HazardIncludeWhenResolver` into `RiskTemplateResolverService` and both live call sites — `RamsExtractionDraftBuilderService::build()` and `RamsBuilderService::runPipeline()` — so a fresh RAMS register now genuinely starts from the 4 always-tier hazards, is added to by matched tier-2 signals, and always surfaces the 5 tier-3 hazards for human confirmation. Requirement fully satisfied end-to-end, verified against both call sites.)
 - [x] **HAZ-03**: Align scores to the skill's typical values, including residual severity held at initial severity where the skill does so (Working at Height residual `1×4`, not `2×3`).
 - [ ] **HAZ-04**: Typical scores are **defaults a user or the model adjusts**, never silently applied — per `PORTING-NOTES.md`: *"Do not let the app apply the typical scores silently."*
 
@@ -124,7 +124,7 @@ Deliberately excluded to keep the document-quality core shippable:
 | RULE-09 | Phase 28 | Pending |
 | RULE-10 | Phase 28 | Pending |
 | HAZ-01 | Phase 26 | Complete |
-| HAZ-02 | Phase 26 | Pending (logic + fallback removal landed Plans 26-02/26-03; wiring is Plan 26-04) |
+| HAZ-02 | Phase 26 | Complete (logic + fallback removal Plans 26-02/26-03; live pipeline wiring Plan 26-04) |
 | HAZ-03 | Phase 26 | Complete |
 | HAZ-04 | Phase 26 | Pending |
 
