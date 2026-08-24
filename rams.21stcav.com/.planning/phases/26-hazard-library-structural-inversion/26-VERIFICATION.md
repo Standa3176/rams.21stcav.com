@@ -137,3 +137,86 @@ would not change this path, because the path never reaches the flag.
 ---
 
 *Verified 2026-08-24 against live production data.*
+
+---
+
+# Round 2 — after Plan 26-07 (2026-08-24)
+
+**Verdict: GAPS FOUND again.** HAZ-02 and HAZ-03 reopened. Verified on live against
+project 92 / RAMS **97** (fresh generation via `generateFromProject`, `reviewed=7
+generated=21`), DOCX/PDF output inspected end to end.
+
+## Confirmed working
+
+- Tiered resolution now fires on the `runFromReview()` path — 14 library hazards were
+  added on top of the 7 reviewed picks. The 26-07 fix works.
+- Scoring on the new rows is job-shaped, not uniform: Fixings `3x4 -> 1x4`, Asbestos
+  `2x5 -> 1x5`, Vehicle and plant `3x5 -> 1x4`, Cable pulling `3x2 -> 1x1`.
+- Five tier-3 rows carry `needs_confirmation`: Occupied premises, Asbestos-containing
+  materials, Vehicle and plant movement, Lone and small-team working, Occupational road
+  risk. Exactly the designed behaviour.
+- `Decommissioning and WEEE` present — correct for a strip-out job.
+- `Restricted access and ceiling voids` present with correct wording and the explicit
+  "these are not classified as confined spaces" control.
+- The sixth injection path is gated — Cable pulling and Fixings now arrive on merit.
+
+## Gap 1 — legacy reviewed names collide instead of deduping (HAZ-02)
+
+Dedup matches near-exact names only. Reworded legacy names produce duplicate rows:
+
+| Legacy row | Library row | Result |
+|---|---|---|
+| RA04 `Slips, Trips & Falls (Same Level)` | RA08 `Slips, trips and falls` | duplicate |
+| RA06 `Working in Occupied Premises` | RA09 `Occupied premises` | duplicate |
+| RA07 `Confined Spaces` | RA10 `Restricted access and ceiling voids` | duplicate |
+
+`Working at Height`, `Manual Handling` and `Noise and Vibration` deduped correctly.
+`Electrical` is absent from the output entirely — cause not yet established; either it
+deduped against `Electrical Hazards` or its tier-2 signal did not fire. **Establish which
+before assuming.**
+
+**Severity: this ships `Confined Spaces` in a client-facing safety document** — the exact
+mislabel `house-rules.md` records as a known failure mode, two rows above its own
+correction. RULE-06 / GATE-07 land in Phase 28, but Phase 26 is what puts the row there.
+
+**Cause:** D-02's fold mapping (old app names → nearest skill hazard) was applied to the
+seeder but never to reviewed-data passthrough.
+
+## Gap 2 — legacy scores defeat HAZ-03
+
+RA01 Working at Height renders **`3x3 -> 2x2`**, not the required `1x4`. The stale
+reviewed row wins over the library default.
+
+Reviewed-beats-library is correct in principle, but this project's `reviewed_data` is not
+engineer judgement — it is old `MANDATORY_KEYWORDS` baseline output saved into the project
+package in August. The precedence rule is faithfully preserving the padding the milestone
+exists to remove. The first eight rows are all `3x3 -> 2x2`, still the GATE-05
+uniform-scoring signature.
+
+`score_reviewed` (shipped in 26-05) is the discriminator: where it is false, no human ever
+touched the score and the library default should win.
+
+## Not regressions — other phases' scope, confirmed still outstanding
+
+Observed in the same document; do NOT fix in Phase 26:
+- `Dust mask (FFP2)` in the PPE table (p18) — RULE-01 / GATE-06, Phase 28
+- RA02 `Team lift required for screens and equipment over 40" — minimum two persons` —
+  the size-conditional threshold RULE-02 bans, Phase 27
+- Material handling table `minimum 3 persons recommended for 65"` — contradicts RULE-02's
+  two-operative position, Phase 27
+- CDM duty-holder rows all blank — RULE-07 / GATE-11, Phase 29
+- `Nearest hospital A&E to be identified at site induction` — RULE-08 / GATE-12, Phase 29
+- Standards table cites BS EN 60849, BS 8492, HSG 47, laser safety on a job with no laser
+  or PA/VA scope — RULE-04 / GATE-10, Phase 31
+
+## Outstanding
+
+1. **Plan 26-08** — apply D-02's fold mapping to reviewed-hazard names before dedup; add
+   the `score_reviewed=false ⇒ library default wins` rule; establish why `Electrical` is
+   absent; add live-shaped test fixtures using the real legacy vocabulary.
+2. Re-verify on live against 21CQ30960 afterwards.
+3. RAMS 96 and 97 are test artefacts on production for project 92 — supersede or delete.
+4. Rollback proof still not run.
+5. Review-screen UI (`/rams/{id}/quote-review`) still not visually confirmed on live.
+
+*Verified 2026-08-24 against live production data (RAMS 97).*
