@@ -152,21 +152,58 @@ class RamsReviewDataService
         ));
     }
 
+    /**
+     * Phase 26 Plan 05 (HAZ-04): the review screen must pre-fill and let an
+     * engineer edit real numeric L×S scores — never silently commit a typical
+     * score the app chose. This normaliser is the schema gate every hazard
+     * row must survive: `risk` (Low/Medium/High) is fully superseded by four
+     * numeric fields plus a `score_reviewed` marker and the tiered resolver's
+     * `needs_confirmation` flag (Plan 26-04 / D-06).
+     *
+     * Every numeric field is clamped independently to 1-5 when present and
+     * numeric; a missing or non-numeric field falls back to the matching
+     * value from an inline High/Medium/Low bucket map (keyed off the legacy
+     * `risk` string, defaulting to Medium) — the same convention
+     * RamsBuilderService::riskLevelsFromString() already uses, extended with
+     * a residual pair via reviewedToRisk()'s existing "one lower" pattern.
+     * This keeps old reviewed_data rows that only ever had `risk` normalising
+     * correctly with no data migration required.
+     */
     private function normaliseHazards(mixed $raw): array
     {
         if (! is_array($raw)) {
             return [];
         }
 
+        // High/Medium/Low => [pre_likelihood, pre_severity, post_likelihood, post_severity]
+        $legacyBuckets = [
+            'high'   => ['pre_likelihood' => 4, 'pre_severity' => 4, 'post_likelihood' => 3, 'post_severity' => 3],
+            'medium' => ['pre_likelihood' => 3, 'pre_severity' => 3, 'post_likelihood' => 2, 'post_severity' => 2],
+            'low'    => ['pre_likelihood' => 2, 'pre_severity' => 2, 'post_likelihood' => 1, 'post_severity' => 1],
+        ];
+
         return array_values(array_map(
-            fn ($h) => [
-                'activity_key'     => (string) ($h['activity_key'] ?? ''),
-                'hazard'           => (string) ($h['hazard']       ?? ''),
-                'risk'             => in_array($h['risk'] ?? '', ['Low', 'Medium', 'High'])
-                                        ? $h['risk']
-                                        : 'Medium',
-                'control_measures' => $this->normaliseStringArray($h['control_measures'] ?? []),
-            ],
+            function ($h) use ($legacyBuckets) {
+                $bucketKey = strtolower(trim((string) ($h['risk'] ?? '')));
+                $bucket = $legacyBuckets[$bucketKey] ?? $legacyBuckets['medium'];
+
+                $score = function (string $key) use ($h, $bucket) {
+                    $value = $h[$key] ?? null;
+                    return is_numeric($value) ? max(1, min(5, (int) $value)) : $bucket[$key];
+                };
+
+                return [
+                    'activity_key'       => (string) ($h['activity_key'] ?? ''),
+                    'hazard'             => (string) ($h['hazard']       ?? ''),
+                    'pre_likelihood'     => $score('pre_likelihood'),
+                    'pre_severity'       => $score('pre_severity'),
+                    'post_likelihood'    => $score('post_likelihood'),
+                    'post_severity'      => $score('post_severity'),
+                    'score_reviewed'     => (bool) ($h['score_reviewed'] ?? false),
+                    'needs_confirmation' => (bool) ($h['needs_confirmation'] ?? false),
+                    'control_measures'   => $this->normaliseStringArray($h['control_measures'] ?? []),
+                ];
+            },
             $raw,
         ));
     }
