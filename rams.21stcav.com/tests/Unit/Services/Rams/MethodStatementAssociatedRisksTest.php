@@ -57,6 +57,30 @@ class MethodStatementAssociatedRisksTest extends TestCase
         ];
     }
 
+    /**
+     * Phase 26 Plan 06 — variable-length register regression (HAZ-01..04).
+     *
+     * 8 hazards with non-sequential ids, mirroring hazards()' shape. The
+     * fixed 11-hazard register this app used to always inject is gone as of
+     * Plan 26-03/26-04; the register is now variable-length (a near-empty
+     * scope yields 9 rows — 4 always + 5 confirm-tier — while a busier scope
+     * can yield many more). RA{NN} refs must still resolve 1:1 at THIS size,
+     * not just at the old fixture's size of 3.
+     */
+    private function biggerHazards(): array
+    {
+        return [
+            ['id' => 4,  'hazard' => 'Working at height',                'controls' => ['Use podium steps']],
+            ['id' => 9,  'hazard' => 'Manual handling',                  'controls' => ['Team lift']],
+            ['id' => 11, 'hazard' => 'Electrical contact',                'controls' => ['Isolate and lock off']],
+            ['id' => 15, 'hazard' => 'Slips, trips and falls',            'controls' => ['Keep walkways clear']],
+            ['id' => 16, 'hazard' => 'Fixings into walls, ceilings and pillars', 'controls' => ['Cable avoidance tool scan']],
+            ['id' => 20, 'hazard' => 'Occupied premises',                 'controls' => ['Coordinate with site staff']],
+            ['id' => 22, 'hazard' => 'Restricted access and ceiling voids', 'controls' => ['Use a spotter']],
+            ['id' => 25, 'hazard' => 'Fire and evacuation',               'controls' => ['Know the muster point']],
+        ];
+    }
+
     /** Count how many "Associated Risks" lines a rendered phase would show. */
     private function countRiskLines(array $phase): int
     {
@@ -168,6 +192,60 @@ class MethodStatementAssociatedRisksTest extends TestCase
                 $sawAtLeastOne = true;
                 $this->assertContains($ref, $valid,
                     "260817-r5e Item 1: {$ref} is a DANGLING reference — the risk register only contains " . implode(', ', $valid) . '.');
+            }
+        }
+
+        $this->assertTrue($sawAtLeastOne,
+            'Fixture produced no cross-references at all — the assertion above would have proved nothing.');
+    }
+
+    /**
+     * Phase 26 Plan 06 — same invariant as
+     * test_emitted_ra_ids_all_exist_in_the_rendered_risk_register() above,
+     * proven at count=8 instead of count=3. Both tests must coexist as
+     * regression guards for different register sizes: the fixed 11-hazard
+     * baseline is gone (Plan 26-03/26-04), so the register genuinely varies
+     * in length job-to-job now, and RA-ref resolution must not be a
+     * coincidence of the old fixed size.
+     */
+    public function test_emitted_ra_ids_all_exist_in_the_rendered_risk_register_at_variable_length(): void
+    {
+        $hazards = $this->biggerHazards();
+
+        $result = $this->crossReference([
+            'hazards' => $hazards,
+            'method_statement' => ['phases' => [
+                ['title' => 'Step 3 — Display Installation', 'steps' => ['Mount the display at height in the Boardroom.']],
+                ['title' => 'Step 5 — Rack Build',           'steps' => ['Manual handling of the rack into position.']],
+                ['title' => 'Step 7 — Commissioning',        'steps' => ['Electrical connection and power-on checks.']],
+                ['title' => 'Step 8 — Ceiling Void Cabling',  'steps' => ['Pull cable above the ceiling grid in the void.']],
+                ['title' => 'Step 9 — Occupied Areas',        'steps' => ['Work around staff while the building remains occupied.']],
+            ]],
+        ]);
+
+        // The renderers label risk-register rows RA01..RA{count} by array
+        // position (DocxBuilderService:1230, rams-v2.blade.php:1393) —
+        // generic across any register length.
+        $valid = [];
+        foreach (array_keys(array_values($hazards)) as $idx) {
+            $valid[] = 'RA' . str_pad((string) ($idx + 1), 2, '0', STR_PAD_LEFT);
+        }
+
+        $sawAtLeastOne = false;
+
+        foreach ($result['method_statement']['phases'] as $phase) {
+            $label = (string) ($phase['associated_risks_label'] ?? '');
+            if (trim($label) === '') {
+                continue;
+            }
+
+            preg_match_all('/RA\d{2}/', $label, $m);
+            $this->assertNotEmpty($m[0], 'Label present but carried no RA-IDs: ' . $label);
+
+            foreach ($m[0] as $ref) {
+                $sawAtLeastOne = true;
+                $this->assertContains($ref, $valid,
+                    "Phase 26 Plan 06: {$ref} is a DANGLING reference at register size 8 — the risk register only contains " . implode(', ', $valid) . '.');
             }
         }
 
