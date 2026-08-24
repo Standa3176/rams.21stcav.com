@@ -42,7 +42,7 @@ key-decisions:
 patterns-established:
   - "When removing a fixed-value fallback, grep the whole app tree (not just files_modified) for the removed config key before declaring the plan done — this plan's own verification step caught a stale docblock reference in RiskAssessmentSectionDto.php that wasn't in the interfaces list"
 
-requirements-completed: [HAZ-02, HAZ-03]
+requirements-completed: [HAZ-03]
 
 # Metrics
 duration: ~40min
@@ -121,6 +121,21 @@ completed: 2026-08-24
 
 ## Issues Encountered
 None beyond the deviations documented above.
+
+**Process correction (same pattern as Plan 26-02):** the plan's frontmatter lists
+`requirements: [HAZ-02, HAZ-03]`, and the standard executor state-update step
+initially ran `requirements mark-complete HAZ-02 HAZ-03`, which checked HAZ-02
+off in `REQUIREMENTS.md`. Reverted before finalizing: HAZ-02 describes
+end-to-end register behaviour ("a hazard is included only when the job meets
+it... register starts empty and is added to"). This plan removes the fixed-
+baseline fallback (so the register can no longer be silently padded) but does
+not wire `HazardIncludeWhenResolver` into the live pipeline — Plan 26-04 does
+that. `REQUIREMENTS.md` HAZ-02 remains `[ ]` Pending, crediting Plans 26-02
+and 26-03's contributions and pointing at 26-04 for full satisfaction.
+`requirements-completed` frontmatter above reflects only HAZ-03 (already
+independently true from Plan 26-01's seed data — the `2×3`→`1×4` residual
+score change survives this plan's config-array deletion because that value
+lived in the seeded `hazard_templates` row, not in the deleted config array).
 
 ## User Setup Required
 None - no external service configuration required. Config-only + code removal + test updates; no migration, no deploy (Plan 26-06 owns live deploy).
