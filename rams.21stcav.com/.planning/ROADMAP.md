@@ -114,7 +114,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 26-05-PLAN.md — HAZ-04 editable score defaults + reviewed marker + needs-confirmation badge (RamsReviewDataService, reviewedToRisk(), quote-review.blade.php)
+- [x] 26-05-PLAN.md — HAZ-04 editable score defaults + reviewed marker + needs-confirmation badge (RamsReviewDataService, reviewedToRisk(), quote-review.blade.php)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -574,7 +574,7 @@ Plans:
 | 23. XTEN-AV-Style Renderer | v2.0 | 7/7 | Complete | 2026-05-15 |
 | 24. Stencil Curation UI + Quote-Import Auto-Stub | v2.0 | 11/12 | Paused — 24-09 open (human checkpoint) | - |
 | 25. AI Assist + Replacement Wiring | v2.0 | 0/0 | Not started | - |
-| 26. Hazard Library Structural Inversion | v3.0 | 4/6 | In Progress|  |
+| 26. Hazard Library Structural Inversion | v3.0 | 5/6 | In Progress|  |
 | 27. Manual-Handling & Display-Lift House Rules | v3.0 | 0/0 | Not started | - |
 | 28. PPE, Ceiling & Electrical Boundary House Rules | v3.0 | 0/0 | Not started | - |
 | 29. CDM Duty-Holder & Emergency Arrangements | v3.0 | 0/0 | Not started | - |
