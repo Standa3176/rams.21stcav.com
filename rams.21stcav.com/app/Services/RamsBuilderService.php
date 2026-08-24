@@ -451,25 +451,53 @@ class RamsBuilderService
             $scoreReviewed = (bool) ($h['score_reviewed'] ?? false);
             $needsConfirmation = (bool) ($h['needs_confirmation'] ?? false);
 
-            // Prefer hazard library values when available — but only to fill
-            // gaps, never to override a score the row already supplied.
+            // Phase 26 Plan 08 (HAZ-02/HAZ-03 gap closure, round 2): fold the
+            // row onto its matched library template's canonical name (via
+            // HazardLibraryService::fuzzyMatch()'s LegacyHazardNameFoldMap
+            // step, when applicable), gate score precedence on
+            // score_reviewed (absent treated as false — the library default
+            // wins), and replace controls unconditionally on a genuine
+            // rename (never on a case-only/no-op match).
+            $tpl = null;
+            $finalName = $name;
+            $renamed = false;
+
             if ($name !== '') {
                 $resolved = $this->hazardLibrary->resolveFromSeeds($userId ?? 0, [$name]);
                 $tpl = $resolved->first();
-                if ($tpl) {
-                    if ($preL === null) {
-                        $preL = (int) ($tpl->pre_likelihood  ?? null);
-                    }
-                    if ($preS === null) {
-                        $preS = (int) ($tpl->pre_severity    ?? null);
-                    }
-                    if ($postL === null) {
+
+                if ($tpl !== null && ($tpl->id ?? null) !== null) {
+                    $finalName = (string) $tpl->name;
+                    $renamed = strtolower(trim((string) $tpl->name)) !== strtolower(trim($name));
+
+                    if ($scoreReviewed === true) {
+                        // Engineer values win — only fill a genuinely
+                        // missing slot from the library.
+                        if ($preL === null) {
+                            $preL = (int) ($tpl->pre_likelihood  ?? null);
+                        }
+                        if ($preS === null) {
+                            $preS = (int) ($tpl->pre_severity    ?? null);
+                        }
+                        if ($postL === null) {
+                            $postL = (int) ($tpl->post_likelihood ?? null);
+                        }
+                        if ($postS === null) {
+                            $postS = (int) ($tpl->post_severity   ?? null);
+                        }
+                    } else {
+                        // No human ever touched this score through the
+                        // numeric UI (score_reviewed false or absent) — the
+                        // library's typical value wins outright, restoring
+                        // HAZ-03's residual score instead of preserving
+                        // stale pre-Phase-26 padding.
+                        $preL  = (int) ($tpl->pre_likelihood  ?? null);
+                        $preS  = (int) ($tpl->pre_severity    ?? null);
                         $postL = (int) ($tpl->post_likelihood ?? null);
-                    }
-                    if ($postS === null) {
                         $postS = (int) ($tpl->post_severity   ?? null);
                     }
-                    if (empty($controls)) {
+
+                    if ($renamed || empty($controls)) {
                         $controls = (array) ($tpl->controls ?? []);
                     }
                 }
@@ -483,8 +511,17 @@ class RamsBuilderService
                 $postL = max(1, $preL - 1);
                 $postS = max(1, $preS - 1);
             }
+
+            // A folded reviewed pick that lands on a confirm-tier hazard
+            // must carry the D-06 confirmation flag regardless of which
+            // name it arrived under — never downgrade an already-true value,
+            // only ever escalate.
+            if ($tpl !== null && ($tpl->id ?? null) !== null && str_starts_with((string) ($tpl->include_when ?? ''), 'confirm:')) {
+                $needsConfirmation = true;
+            }
+
             return [
-                'hazard'             => $name,
+                'hazard'             => $finalName,
                 'persons_at_risk'    => ['21CAV Staff', 'Client Staff', 'Others'],
                 'pre_likelihood'     => $preL,
                 'pre_severity'       => $preS,
@@ -498,6 +535,21 @@ class RamsBuilderService
                 'needs_confirmation' => $needsConfirmation,
             ];
         }, $rd['hazards'] ?? [], array_keys($rd['hazards'] ?? [])));
+
+        // Same-batch dedup: two different legacy names in the same
+        // reviewed_data that both fold onto the same canonical target
+        // collapse to the FIRST occurrence, before the tiered merge below.
+        $seenNames = [];
+        $deduped = [];
+        foreach ($hazards as $row) {
+            $key = strtolower(trim((string) $row['hazard']));
+            if (isset($seenNames[$key])) {
+                continue;
+            }
+            $seenNames[$key] = true;
+            $deduped[] = $row;
+        }
+        $hazards = array_values($deduped);
 
         // Merge tier-1 (always) and tier-3 (confirm) candidates on top of the
         // reviewed picks, deduplicated by name against them. Idempotent by

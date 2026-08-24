@@ -415,9 +415,11 @@ class RamsBuilderServiceTest extends TestCase
     // ══════════════════════════════════════════════════════════════════════════
 
     /**
-     * A row's own numeric pre_likelihood/pre_severity always win over a
-     * library re-lookup — even when the hazard name fuzzy-matches a template
-     * with different numbers.
+     * A row's own numeric pre_likelihood/pre_severity win over a library
+     * re-lookup ONLY when score_reviewed is explicitly true — Plan 26-08's
+     * gate. Without that marker, the SAME fixture (library match, differing
+     * numbers) must instead resolve to the library's own scores (see the
+     * companion test below).
      */
     public function test_reviewedToRisk_prefers_row_numeric_scores_over_library_match(): void
     {
@@ -441,12 +443,198 @@ class RamsBuilderServiceTest extends TestCase
             'pre_likelihood'   => 3,
             'pre_severity'     => 4,
             'control_measures' => ['Engineer-entered control'],
+            'score_reviewed'   => true,
         ]]];
 
         $out = $this->invokeReviewedToRisk($service, $rd);
 
-        $this->assertSame(3, $out['hazards'][0]['pre_likelihood'], 'row value wins over library match');
-        $this->assertSame(4, $out['hazards'][0]['pre_severity'], 'row value wins over library match');
+        $this->assertSame(3, $out['hazards'][0]['pre_likelihood'], 'row value wins over library match when score_reviewed is true');
+        $this->assertSame(4, $out['hazards'][0]['pre_severity'], 'row value wins over library match when score_reviewed is true');
+    }
+
+    /**
+     * Plan 26-08 (HAZ-03 gap closure, round 2): the SAME fixture as above
+     * (a real library match with differing numbers) but with score_reviewed
+     * entirely ABSENT from the row (not set to false) — proves "absent ==
+     * false" resolves to the library's own scores, not the row's stale
+     * numbers. This is the named HAZ-03 mechanism proof: a reviewed row
+     * whose score no human ever touched through the numeric UI must not
+     * win over the library default.
+     */
+    public function test_reviewedToRisk_score_reviewed_false_or_absent_defers_to_library_scores(): void
+    {
+        $hazardLibrary = Mockery::mock(HazardLibraryService::class);
+        $hazardLibrary->shouldReceive('resolveFromSeeds')
+            ->with(0, ['Working at Height'])
+            ->andReturn(collect([(object) [
+                'id'              => 1,
+                'name'            => 'Working at Height',
+                'controls'        => ['Library control'],
+                'pre_likelihood'  => 4,
+                'pre_severity'    => 5,
+                'post_likelihood' => 3,
+                'post_severity'   => 4,
+            ]]));
+
+        $service = $this->makeServiceWithHazardLibrary($hazardLibrary);
+
+        $rd = ['hazards' => [[
+            'hazard'           => 'Working at Height',
+            'pre_likelihood'   => 3,
+            'pre_severity'     => 4,
+            'control_measures' => ['Engineer-entered control'],
+            // score_reviewed key entirely absent — not merely false.
+        ]]];
+
+        $out = $this->invokeReviewedToRisk($service, $rd);
+
+        $this->assertSame(4, $out['hazards'][0]['pre_likelihood'], 'library value wins when score_reviewed is absent');
+        $this->assertSame(5, $out['hazards'][0]['pre_severity'], 'library value wins when score_reviewed is absent');
+    }
+
+    /**
+     * Plan 26-08 (HAZ-02 gap closure, round 2): a legacy-named row that
+     * resolves to a genuinely different canonical name (rename, not a
+     * case-only casing fix) carries the MATCHED TEMPLATE's exact name and
+     * its controls — unconditionally, independent of score_reviewed.
+     */
+    public function test_reviewedToRisk_renamed_row_carries_matched_template_name_and_controls(): void
+    {
+        $hazardLibrary = Mockery::mock(HazardLibraryService::class);
+        $hazardLibrary->shouldReceive('resolveFromSeeds')
+            ->with(0, ['Confined Spaces'])
+            ->andReturn(collect([(object) [
+                'id'              => 7,
+                'name'            => 'Restricted access and ceiling voids',
+                'controls'        => ['These are not classified as confined spaces.'],
+                'pre_likelihood'  => 3,
+                'pre_severity'    => 3,
+                'post_likelihood' => 1,
+                'post_severity'   => 2,
+            ]]));
+
+        $service = $this->makeServiceWithHazardLibrary($hazardLibrary);
+
+        $rd = ['hazards' => [[
+            'hazard'           => 'Confined Spaces',
+            'control_measures' => [],
+        ]]];
+
+        $out = $this->invokeReviewedToRisk($service, $rd);
+
+        $this->assertSame('Restricted access and ceiling voids', $out['hazards'][0]['hazard']);
+        $this->assertSame(['These are not classified as confined spaces.'], $out['hazards'][0]['controls']);
+    }
+
+    /**
+     * Plan 26-08: a case-only/no-op rename (matched template's name differs
+     * only in casing) still displays under the template's exact casing, but
+     * a NON-empty row control list is preserved unchanged — controls are
+     * gap-filled-only, not replaced, when the match is not a genuine rename.
+     */
+    public function test_reviewedToRisk_case_only_match_renames_display_but_keeps_row_controls(): void
+    {
+        $hazardLibrary = Mockery::mock(HazardLibraryService::class);
+        $hazardLibrary->shouldReceive('resolveFromSeeds')
+            ->with(0, ['Working at Height'])
+            ->andReturn(collect([(object) [
+                'id'              => 1,
+                'name'            => 'Working at height',
+                'controls'        => ['Library control — should not be used'],
+                'pre_likelihood'  => 3,
+                'pre_severity'    => 4,
+                'post_likelihood' => 1,
+                'post_severity'   => 4,
+            ]]));
+
+        $service = $this->makeServiceWithHazardLibrary($hazardLibrary);
+
+        $rd = ['hazards' => [[
+            'hazard'           => 'Working at Height',
+            'control_measures' => ['Engineer-entered control — must survive'],
+            'score_reviewed'   => true,
+        ]]];
+
+        $out = $this->invokeReviewedToRisk($service, $rd);
+
+        $this->assertSame('Working at height', $out['hazards'][0]['hazard'], 'case-only match renames for display casing');
+        $this->assertSame(['Engineer-entered control — must survive'], $out['hazards'][0]['controls'], 'controls unchanged on a case-only/no-op rename');
+    }
+
+    /**
+     * Plan 26-08: a reviewed pick that folds onto a confirm-tier hazard is
+     * escalated to needs_confirmation=true regardless of the source row
+     * never having set it.
+     */
+    public function test_reviewedToRisk_folded_confirm_tier_row_is_escalated_to_needs_confirmation(): void
+    {
+        $hazardLibrary = Mockery::mock(HazardLibraryService::class);
+        $hazardLibrary->shouldReceive('resolveFromSeeds')
+            ->with(0, ['Working in Occupied Premises'])
+            ->andReturn(collect([(object) [
+                'id'              => 9,
+                'name'            => 'Occupied premises',
+                'controls'        => ['Coordinate work windows to minimise disruption.'],
+                'pre_likelihood'  => 3,
+                'pre_severity'    => 3,
+                'post_likelihood' => 1,
+                'post_severity'   => 2,
+                'include_when'    => 'confirm:occupied_premises',
+            ]]));
+
+        $service = $this->makeServiceWithHazardLibrary($hazardLibrary);
+
+        $rd = ['hazards' => [[
+            'hazard' => 'Working in Occupied Premises',
+        ]]];
+
+        $out = $this->invokeReviewedToRisk($service, $rd);
+
+        $this->assertTrue($out['hazards'][0]['needs_confirmation'], 'a folded confirm-tier pick must be escalated to needs_confirmation=true');
+    }
+
+    /**
+     * Plan 26-08 (HAZ-02 gap closure, round 2): two rows in the same batch
+     * that both resolve to the SAME canonical template collapse into one
+     * row — the same-batch dedup pass that runs before the tiered merge.
+     */
+    public function test_reviewedToRisk_same_batch_collision_collapses_to_one_row(): void
+    {
+        $hazardLibrary = Mockery::mock(HazardLibraryService::class);
+        $hazardLibrary->shouldReceive('resolveFromSeeds')
+            ->with(0, ['Confined Spaces'])
+            ->andReturn(collect([(object) [
+                'id'              => 7,
+                'name'            => 'Restricted access and ceiling voids',
+                'controls'        => ['Library control A'],
+                'pre_likelihood'  => 3,
+                'pre_severity'    => 3,
+                'post_likelihood' => 1,
+                'post_severity'   => 2,
+            ]]));
+        $hazardLibrary->shouldReceive('resolveFromSeeds')
+            ->with(0, ['Cable Installation in Ceiling Voids'])
+            ->andReturn(collect([(object) [
+                'id'              => 7,
+                'name'            => 'Restricted access and ceiling voids',
+                'controls'        => ['Library control A'],
+                'pre_likelihood'  => 3,
+                'pre_severity'    => 3,
+                'post_likelihood' => 1,
+                'post_severity'   => 2,
+            ]]));
+
+        $service = $this->makeServiceWithHazardLibrary($hazardLibrary);
+
+        $rd = ['hazards' => [
+            ['hazard' => 'Confined Spaces'],
+            ['hazard' => 'Cable Installation in Ceiling Voids'],
+        ]];
+
+        $out = $this->invokeReviewedToRisk($service, $rd);
+
+        $this->assertCount(1, $out['hazards'], 'two same-batch rows folding onto the same canonical target collapse to one row');
+        $this->assertSame('Restricted access and ceiling voids', $out['hazards'][0]['hazard']);
     }
 
     /**
