@@ -46,9 +46,23 @@ class RamsExtractionDraftBuilderService
     {
         $parsed     = $this->quoteParser->parse($extractedText);
         $classified = $this->classifier->classify($parsed['equipment'] ?? []);
+
+        // Scope narrative feeds HazardIncludeWhenResolver's tier-2 keyword
+        // matching (Phase 26 HAZ-02) — built from already-parsed/validated
+        // text, not new raw user input.
+        $scopeNarrative = trim(implode(' ', array_filter([
+            (string) ($parsed['works_summary'] ?? ''),
+            (string) ($formData['works_description'] ?? ''),
+            implode(' ', array_column($parsed['equipment'] ?? [], 'description')),
+        ])));
+
         $risk       = $this->riskResolver->resolve(
             $classified['activities'],
             $classified['drilling_required'] ?? false,
+            null,
+            [],
+            [],
+            $scopeNarrative,
         );
 
         return [
@@ -149,14 +163,16 @@ class RamsExtractionDraftBuilderService
     private function buildHazards(array $hazards): array
     {
         return array_values(array_map(function (array $h) {
-            $likelihood = max(1, (int) ($h['pre_likelihood'] ?? 3));
-            $severity   = max(1, (int) ($h['pre_severity']   ?? 3));
-
             return [
-                'activity_key'     => '',
-                'hazard'           => (string) ($h['hazard'] ?? ''),
-                'risk'             => $this->riskLabel($likelihood, $severity),
-                'control_measures' => array_values(array_filter(
+                'activity_key'       => '',
+                'hazard'             => (string) ($h['hazard'] ?? ''),
+                'pre_likelihood'     => max(1, (int) ($h['pre_likelihood']  ?? 3)),
+                'pre_severity'       => max(1, (int) ($h['pre_severity']    ?? 3)),
+                'post_likelihood'    => max(1, (int) ($h['post_likelihood'] ?? 1)),
+                'post_severity'      => max(1, (int) ($h['post_severity']   ?? 2)),
+                'needs_confirmation' => (bool) ($h['needs_confirmation'] ?? false),
+                'score_reviewed'     => false,
+                'control_measures'   => array_values(array_filter(
                     array_map('strval', (array) ($h['controls'] ?? [])),
                     fn (string $s) => strlen(trim($s)) > 0,
                 )),
@@ -182,14 +198,6 @@ class RamsExtractionDraftBuilderService
     // =========================================================================
     // PRIVATE HELPERS
     // =========================================================================
-
-    private function riskLabel(int $likelihood, int $severity): string
-    {
-        $score = $likelihood * $severity;
-        if ($score >= 12) return 'High';
-        if ($score >= 6)  return 'Medium';
-        return 'Low';
-    }
 
     private function accessContains(array $accessEquipment, array $keywords): bool
     {

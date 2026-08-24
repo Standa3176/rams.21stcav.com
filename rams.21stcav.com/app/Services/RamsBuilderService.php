@@ -407,7 +407,7 @@ class RamsBuilderService
 
             // Prefer hazard library values when available
             if ($name !== '') {
-                $resolved = $this->hazardLibrary->resolveFromSeeds($userId ?? 0, [$name], false);
+                $resolved = $this->hazardLibrary->resolveFromSeeds($userId ?? 0, [$name]);
                 $tpl = $resolved->first();
                 if ($tpl) {
                     $preL = (int) ($tpl->pre_likelihood  ?? null);
@@ -697,12 +697,22 @@ class RamsBuilderService
 
         $classified = $this->classifier->classify($parsed['equipment'] ?? []);
 
+        // Scope narrative feeds HazardIncludeWhenResolver's tier-2 keyword
+        // matching (Phase 26 HAZ-02) — built from already-parsed/validated
+        // text, not new raw user input.
+        $scopeNarrative = trim(implode(' ', array_filter([
+            (string) ($parsed['works_summary'] ?? ''),
+            (string) ($formData['works_description'] ?? ''),
+            implode(' ', array_column($parsed['equipment'] ?? [], 'description')),
+        ])));
+
         $risk = $this->riskResolver->resolve(
             $classified['activities'],
             $classified['drilling_required'] ?? false,
             $record->user_id,
             $formData['hazards'] ?? [],
             $formData['persons_at_risk'] ?? [],
+            $scopeNarrative,
         );
 
         // Build ProjectContext — passed forward to RamsDataBuilderService for all data shaping.
