@@ -89,6 +89,36 @@ class RamsBuilderServiceTest extends TestCase
         return $method->invoke($service, $reviewedData, $formData, $record);
     }
 
+    /**
+     * Phase 26 Plan 05 (HAZ-04): variant of makeService() that accepts a
+     * caller-supplied HazardLibraryService mock, so reviewedToRisk() tests
+     * can control what resolveFromSeeds() returns per hazard name.
+     */
+    private function makeServiceWithHazardLibrary(HazardLibraryService $hazardLibrary): RamsBuilderService
+    {
+        $methodMock = Mockery::mock(MethodStatementGeneratorService::class);
+        $methodMock->shouldReceive('generate')->andReturn(['phases' => []])->byDefault();
+
+        return new RamsBuilderService(
+            Mockery::mock(QuoteParserService::class),
+            Mockery::mock(EquipmentClassifierService::class),
+            Mockery::mock(RiskTemplateResolverService::class),
+            $methodMock,
+            Mockery::mock(RamsDataBuilderService::class),
+            Mockery::mock(RamsDocumentRendererService::class),
+            $hazardLibrary,
+            $this->roomOverviewSummary,
+            new Tier1RamsDefaultsService(),
+        );
+    }
+
+    private function invokeReviewedToRisk(RamsBuilderService $service, array $rd, ?int $userId = null): array
+    {
+        $method = new \ReflectionMethod(RamsBuilderService::class, 'reviewedToRisk');
+        $method->setAccessible(true);
+        return $method->invoke($service, $rd, $userId);
+    }
+
     // ── Data helpers ──────────────────────────────────────────────────────────
 
     private function makePopulatedRoomOverviews(): array
@@ -341,5 +371,99 @@ class RamsBuilderServiceTest extends TestCase
         $this->assertSame('Supply and install AV systems.', $capturedParsed['scope_of_works']);
         $this->assertArrayHasKey('works_overview', $capturedParsed);
         $this->assertSame('A two-sentence overview.', $capturedParsed['works_overview']);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Phase 26 Plan 05 (HAZ-04): reviewedToRisk() honours engineer-entered
+    // scores and carries score_reviewed/needs_confirmation into generated_data
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * A row's own numeric pre_likelihood/pre_severity always win over a
+     * library re-lookup — even when the hazard name fuzzy-matches a template
+     * with different numbers.
+     */
+    public function test_reviewedToRisk_prefers_row_numeric_scores_over_library_match(): void
+    {
+        $hazardLibrary = Mockery::mock(HazardLibraryService::class);
+        $hazardLibrary->shouldReceive('resolveFromSeeds')
+            ->with(0, ['Working at Height'])
+            ->andReturn(collect([(object) [
+                'id'              => 1,
+                'name'            => 'Working at Height',
+                'controls'        => ['Library control'],
+                'pre_likelihood'  => 4,
+                'pre_severity'    => 5,
+                'post_likelihood' => 3,
+                'post_severity'   => 4,
+            ]]));
+
+        $service = $this->makeServiceWithHazardLibrary($hazardLibrary);
+
+        $rd = ['hazards' => [[
+            'hazard'           => 'Working at Height',
+            'pre_likelihood'   => 3,
+            'pre_severity'     => 4,
+            'control_measures' => ['Engineer-entered control'],
+        ]]];
+
+        $out = $this->invokeReviewedToRisk($service, $rd);
+
+        $this->assertSame(3, $out['hazards'][0]['pre_likelihood'], 'row value wins over library match');
+        $this->assertSame(4, $out['hazards'][0]['pre_severity'], 'row value wins over library match');
+    }
+
+    /**
+     * score_reviewed on the reviewed_data row survives into the generated
+     * hazard row's own score_reviewed key.
+     */
+    public function test_reviewedToRisk_carries_score_reviewed_marker_to_output(): void
+    {
+        $hazardLibrary = Mockery::mock(HazardLibraryService::class);
+        $hazardLibrary->shouldReceive('resolveFromSeeds')->andReturn(collect());
+
+        $service = $this->makeServiceWithHazardLibrary($hazardLibrary);
+
+        $rd = ['hazards' => [[
+            'hazard'             => 'Manual Handling',
+            'pre_likelihood'     => 3,
+            'pre_severity'       => 3,
+            'score_reviewed'     => true,
+            'needs_confirmation' => true,
+        ]]];
+
+        $out = $this->invokeReviewedToRisk($service, $rd);
+
+        $this->assertTrue($out['hazards'][0]['score_reviewed']);
+        $this->assertTrue($out['hazards'][0]['needs_confirmation']);
+    }
+
+    /**
+     * A legacy row with no numeric fields at all still resolves via the
+     * existing library-lookup-then-risk-string fallback chain, unchanged.
+     * score_reviewed/needs_confirmation default to false in the output.
+     */
+    public function test_reviewedToRisk_legacy_row_without_numeric_fields_falls_back_unchanged(): void
+    {
+        $hazardLibrary = Mockery::mock(HazardLibraryService::class);
+        $hazardLibrary->shouldReceive('resolveFromSeeds')
+            ->with(0, ['Electrical Isolation'])
+            ->andReturn(collect());
+
+        $service = $this->makeServiceWithHazardLibrary($hazardLibrary);
+
+        $rd = ['hazards' => [[
+            'hazard' => 'Electrical Isolation',
+            'risk'   => 'High',
+        ]]];
+
+        $out = $this->invokeReviewedToRisk($service, $rd);
+
+        $this->assertSame(4, $out['hazards'][0]['pre_likelihood']);
+        $this->assertSame(4, $out['hazards'][0]['pre_severity']);
+        $this->assertSame(3, $out['hazards'][0]['post_likelihood']);
+        $this->assertSame(3, $out['hazards'][0]['post_severity']);
+        $this->assertFalse($out['hazards'][0]['score_reviewed']);
+        $this->assertFalse($out['hazards'][0]['needs_confirmation']);
     }
 }
