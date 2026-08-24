@@ -11,9 +11,8 @@ use Illuminate\Support\Str;
  *
  * Responsibilities:
  *   1. Resolve a RAMS hazard list from a mix of library template IDs and AI-seed strings.
- *   2. Guarantee mandatory baseline hazards always appear in every RAMS.
- *   3. Provide formatted data for downstream method-statement prompt context.
- *   4. Offer the full library for JSON API / modal use.
+ *   2. Provide formatted data for downstream method-statement prompt context.
+ *   3. Offer the full library for JSON API / modal use.
  *
  * Usage inside RamsController / RamsBuilderService:
  *   $service = app(HazardLibraryService::class);
@@ -29,20 +28,6 @@ use Illuminate\Support\Str;
  */
 class HazardLibraryService
 {
-    /**
-     * Hazard names that must appear in EVERY RAMS regardless of scope.
-     * These map to standard library entries by keyword.
-     */
-    private const MANDATORY_KEYWORDS = [
-        'working at height',
-        'manual handling',
-        'electrical',
-        'slips, trips and falls',
-        'noise and vibration',
-        'working in occupied premises',
-        'confined spaces',
-    ];
-
     // ── Resolution methods ────────────────────────────────────────────────────
 
     /**
@@ -51,17 +36,15 @@ class HazardLibraryService
      * @param  int[]  $ids
      * @return Collection<HazardTemplate>
      */
-    public function resolveByIds(int $userId, array $ids, bool $includeMandatory = true): Collection
+    public function resolveByIds(int $userId, array $ids): Collection
     {
         if (empty($ids)) {
-            return $includeMandatory ? $this->mandatoryBaseline($userId) : collect();
+            return collect();
         }
 
-        $selected = HazardTemplate::visibleTo($userId)
+        return HazardTemplate::visibleTo($userId)
             ->whereIn('id', $ids)
             ->get();
-
-        return $includeMandatory ? $this->mergeWithMandatory($userId, $selected) : $selected;
     }
 
     /**
@@ -69,12 +52,11 @@ class HazardLibraryService
      *
      * Each seed string is fuzzy-matched against the library.
      * Any seed that has no match is returned as a plain-string fallback item.
-     * Mandatory baseline hazards are always included.
      *
      * @param  string[]  $seeds  Strings from QuoteExtractionPrompt hazards array.
      * @return array<int, HazardTemplate|string>  Mix of HazardTemplate models and fallback strings.
      */
-    public function resolveFromSeeds(int $userId, array $seeds, bool $includeMandatory = true): Collection
+    public function resolveFromSeeds(int $userId, array $seeds): Collection
     {
         $library = HazardTemplate::visibleTo($userId)->get();
         $matched = collect();
@@ -91,8 +73,7 @@ class HazardLibraryService
             }
         }
 
-        // Merge mandatory, then append unmatched seeds as plain strings
-        $resolved = $includeMandatory ? $this->mergeWithMandatory($userId, $matched) : $matched;
+        $resolved = $matched;
 
         // Wrap unmatched strings as pseudo-objects for uniform handling
         foreach ($unmatched as $text) {
@@ -187,90 +168,6 @@ class HazardLibraryService
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
-
-    /**
-     * Return the mandatory baseline hazards from the library.
-     * Falls back to plain-string pseudo-objects if no matching template is found.
-     */
-    private function mandatoryBaseline(int $userId): Collection
-    {
-        $library  = HazardTemplate::visibleTo($userId)->get();
-        $baseline = collect();
-        $fallbackControls = [
-            'noise and vibration' => [
-                'Use hearing protection when exposed to sustained drilling or power tool noise.',
-                'Limit noisy works to agreed times and inform occupants in advance.',
-                'Use low-vibration tools where practicable and take regular breaks.',
-            ],
-            'working in occupied premises' => [
-                'Maintain clean, segregated work areas with clear signage and barriers.',
-                'Coordinate work windows to minimise disruption to occupants.',
-                'Protect client property and ensure confidentiality of visible data.',
-            ],
-            'confined spaces' => [
-                'Confirm ventilation and safe access before entering comms rooms or enclosures.',
-                'Do not obstruct escape routes; maintain clear access at all times.',
-                'Ensure a second person is aware of entry and available for assistance.',
-            ],
-        ];
-
-        foreach (self::MANDATORY_KEYWORDS as $keyword) {
-            $match = $this->fuzzyMatch($keyword, $library);
-
-            if ($match !== null) {
-                $baseline->push($match);
-            } else {
-                $controls = $fallbackControls[$keyword] ?? [];
-                // Title-case but keep connector words ("and", "in", "on", "of",
-                // "the") in lower case — Laravel's Str::title() capitalises
-                // every word, producing "Noise And Vibration" / "Working In
-                // Occupied Premises" which doesn't match the reference style.
-                $titled = Str::title($keyword);
-                $titled = preg_replace_callback(
-                    '/\s(And|In|On|Of|The|For|To|At)\b/',
-                    fn ($m) => ' ' . strtolower($m[1]),
-                    $titled
-                );
-                $baseline->push((object) [
-                    'id'              => null,
-                    'name'            => $titled,
-                    'description'     => null,
-                    'controls'        => $controls,
-                    'pre_likelihood'  => 3,
-                    'pre_severity'    => 3,
-                    'post_likelihood' => 1,
-                    'post_severity'   => 2,
-                    'is_global'       => false,
-                ]);
-            }
-        }
-
-        return $baseline;
-    }
-
-    /**
-     * Merge a resolved collection with mandatory hazards, deduplicating by ID.
-     */
-    private function mergeWithMandatory(int $userId, Collection $resolved): Collection
-    {
-        $mandatory = $this->mandatoryBaseline($userId);
-
-        foreach ($mandatory as $m) {
-            if ($m->id === null) {
-                // Pseudo-object — add only if no template with same name already present
-                $nameExists = $resolved->contains(
-                    fn($r) => Str::lower($r->name) === Str::lower($m->name)
-                );
-                if (! $nameExists) {
-                    $resolved->push($m);
-                }
-            } elseif (! $resolved->contains('id', $m->id)) {
-                $resolved->push($m);
-            }
-        }
-
-        return $resolved;
-    }
 
     /**
      * Fuzzy-match a seed string against a library collection.
