@@ -6,18 +6,28 @@ use Carbon\Carbon;
 use Tests\TestCase;
 
 /**
- * Quick task 260712-twi Task 2 feature tests — PDF Section 5 baseline
- * hazards fallback + engineer-hazards-win override.
+ * Phase 26 (Hazard Library Structural Inversion) feature tests — PDF
+ * Section 5 hazard rendering, post-removal of the 260712-twi render-time
+ * baseline fallback.
  *
- * Locks the render-time defensive fallback added at line ~309 of
- * resources/views/pdf/rams.blade.php:
+ * These tests originally locked the OLD behaviour (quick task 260712-twi
+ * Task 2): an empty hazards array silently padded itself with the fixed
+ * 11-hazard baseline_hazards config array at render time. Phase 26 Plan 03
+ * removed that fallback entirely (resources/views/pdf/rams.blade.php no
+ * longer contains it), so this file now locks the OPPOSITE, current
+ * contract:
  *
- *   1. When $data['hazards'] is empty AND config('rams_tier1.enabled') is
- *      true, the 8 canonical baseline AV hazards render in the register.
- *   2. When $data['hazards'] contains engineer-supplied hazards, those
- *      render VERBATIM and the baseline is NOT injected.
- *   3. When the kill-switch is off, the empty-register "No hazards
- *      identified" note is preserved (existing else-branch behaviour).
+ *   1. $data['hazards'] renders EXACTLY what it is given — an empty array
+ *      stays empty and produces the "No hazards identified." note,
+ *      regardless of config('rams_tier1.enabled').
+ *   2. Engineer-supplied hazards render verbatim (unchanged — there is no
+ *      baseline left to not-inject either way, so this is now a simpler
+ *      but still-meaningful regression guard against any future
+ *      reintroduction of a fallback).
+ *   3. config('rams_tier1.enabled') being false or true makes no
+ *      difference to hazard rendering any more, because nothing in the
+ *      render path reads that flag for hazards — proving the render layer
+ *      is stable regardless of the flag's value.
  *
  * View rendered directly (no Browsershot, no PDF binary) so tests run fast
  * and Content assertions are simple string checks.
@@ -68,22 +78,27 @@ class Tier1BaselineHazardsRenderTest extends TestCase
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // 1. Empty hazards → baseline fallback fires
+    // 1. Empty hazards → NO baseline injected, "No hazards identified." renders
     // ══════════════════════════════════════════════════════════════════════════
 
-    public function test_baseline_hazards_render_when_reviewed_data_hazards_is_empty(): void
+    public function test_no_baseline_injected_when_hazards_empty(): void
     {
         config(['rams_tier1.enabled' => true]);
 
         $html = $this->renderWith($this->baseData(['hazards' => []]));
 
-        // At least 3 of the 8 canonical baseline hazard titles must appear.
-        $this->assertStringContainsString('Working at Height', $html);
-        $this->assertStringContainsString('Manual Handling of AV Equipment', $html);
-        $this->assertStringContainsString('Electrical Isolation', $html);
-        // "No hazards identified" else-branch text must NOT appear because
-        // the fallback populated the register.
-        $this->assertStringNotContainsString('No hazards identified.', $html);
+        // Empty stays empty — the render-time fallback no longer exists.
+        $this->assertStringContainsString('No hazards identified.', $html);
+
+        // None of the old fixed-11 baseline hazard titles must appear.
+        // "Working at Height" (old Title-Case baseline string) is a
+        // deliberate case-sensitive canary distinguishing the removed
+        // baseline vocabulary from the new sentence-case skill vocabulary
+        // ("Working at height") — a case-insensitive match here would be
+        // too weak to prove the old fallback is gone.
+        $this->assertStringNotContainsString('Working at Height', $html);
+        $this->assertStringNotContainsString('Manual Handling of AV Equipment', $html);
+        $this->assertStringNotContainsString('Electrical Isolation', $html);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -116,7 +131,7 @@ class Tier1BaselineHazardsRenderTest extends TestCase
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // 3. Kill-switch off → legacy "No hazards identified" restored
+    // 3. rams_tier1.enabled=false → render layer unaffected, still no baseline
     // ══════════════════════════════════════════════════════════════════════════
 
     public function test_disabled_flag_leaves_hazards_empty_no_baseline_injected(): void
@@ -125,7 +140,8 @@ class Tier1BaselineHazardsRenderTest extends TestCase
 
         $html = $this->renderWith($this->baseData(['hazards' => []]));
 
-        // Legacy else-branch behaviour restored.
+        // Empty stays empty regardless of the flag's value — nothing in the
+        // render path reads rams_tier1.enabled for hazards any more.
         $this->assertStringContainsString('No hazards identified.', $html);
         // Baseline titles must NOT appear.
         $this->assertStringNotContainsString('Working at Height', $html);

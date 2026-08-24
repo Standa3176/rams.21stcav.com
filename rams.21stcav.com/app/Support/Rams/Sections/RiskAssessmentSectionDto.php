@@ -15,8 +15,9 @@ namespace App\Support\Rams\Sections;
  *                    'controls' => ['...', ...],
  *                    'residual_l' => 2, 'residual_s' => 3, 'residual_r' => 6 ]
  *
- * Populated by RamsDocumentComposer (Plan 02) from
- * reviewed hazards / config('rams_tier1.baseline_hazards').
+ * Populated by RamsDocumentComposer (Plan 02) from reviewed / generated
+ * hazards. Phase 26 removed the config-baseline fallback that used to
+ * apply here — an empty hazards array now stays empty.
  */
 final readonly class RiskAssessmentSectionDto
 {
