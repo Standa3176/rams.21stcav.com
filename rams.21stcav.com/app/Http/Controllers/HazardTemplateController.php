@@ -36,7 +36,7 @@ class HazardTemplateController extends Controller
         HazardTemplate::create([
             'user_id'         => $isGlobal ? null : auth()->id(),
             'name'            => $data['name'],
-            'description'     => $data['description'],
+            'description'     => $data['description'] ?? null,
             'pre_likelihood'  => $data['pre_likelihood'],
             'pre_severity'    => $data['pre_severity'],
             'post_likelihood' => $data['post_likelihood'],
@@ -74,7 +74,7 @@ class HazardTemplateController extends Controller
 
         $hazardTemplate->update([
             'name'            => $data['name'],
-            'description'     => $data['description'],
+            'description'     => $data['description'] ?? null,
             'pre_likelihood'  => $data['pre_likelihood'],
             'pre_severity'    => $data['pre_severity'],
             'post_likelihood' => $data['post_likelihood'],
