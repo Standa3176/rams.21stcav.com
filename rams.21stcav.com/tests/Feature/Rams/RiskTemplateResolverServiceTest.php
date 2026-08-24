@@ -46,7 +46,21 @@ class RiskTemplateResolverServiceTest extends TestCase
         );
     }
 
-    public function test_blank_signal_set_returns_exactly_the_four_always_tier_hazards(): void
+    /**
+     * NOTE on the expected count: the plan's Task 2 behavior text says this
+     * scenario "returns exactly the 4 always-tier hazard rows". That is
+     * imprecise given Plan 26-02's locked HazardIncludeWhenResolver design
+     * (not modified by this plan) — CONTEXT.md's binding 2026-08-23 tier-3
+     * correction is explicit that the 5 `confirm:<key>` hazards are "always
+     * surfaced as candidates requiring human confirmation, on every job...
+     * up to 5 confirmation rows per job. That is the accepted cost, not a
+     * defect to engineer away." So a genuinely blank signal set correctly
+     * resolves to the 4 always-tier hazards PLUS the 5 always-confirm
+     * hazards (9 total), with only the 4 always-tier rows carrying
+     * needs_confirmation=false. This test asserts that actual, locked
+     * contract rather than the plan text's imprecise restatement of it.
+     */
+    public function test_blank_signal_set_returns_the_four_always_tier_plus_five_confirm_tier_hazards(): void
     {
         $resolver = app(RiskTemplateResolverService::class);
 
@@ -54,11 +68,19 @@ class RiskTemplateResolverServiceTest extends TestCase
 
         $names = $this->hazardNames($result);
 
-        $this->assertCount(4, $names);
+        $this->assertCount(9, $names, 'expected 4 always-tier + 5 always-confirm-tier hazards');
         $this->assertContains('Slips, trips and falls', $names);
         $this->assertContains('Low voltage AV connections', $names);
         $this->assertContains('Fire and evacuation', $names);
         $this->assertContains('COSHH substances', $names);
+
+        // The 5 confirm-tier hazards are always surfaced too (D-06 / the
+        // tier-3 correction), each carrying needs_confirmation = true.
+        $confirmRows = array_filter($result['hazards'], fn (array $row): bool => $row['needs_confirmation'] === true);
+        $this->assertCount(5, $confirmRows);
+
+        $alwaysRows = array_filter($result['hazards'], fn (array $row): bool => $row['needs_confirmation'] === false);
+        $this->assertCount(4, $alwaysRows);
     }
 
     public function test_ceiling_works_activity_pulls_in_tier_two_ceiling_hazards(): void

@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Core\Modules\KnowledgeLibrary\HazardLibraryService;
+use App\Models\HazardTemplate;
+use App\Services\Rams\HazardIncludeWhenResolver;
 use Illuminate\Support\Collection;
 
 /**
@@ -22,6 +24,7 @@ class RiskTemplateResolverService
 {
     public function __construct(
         private readonly HazardLibraryService $hazardLibrary,
+        private readonly HazardIncludeWhenResolver $includeWhenResolver,
     ) {}
 
     // ── PPE ───────────────────────────────────────────────────────────────────
@@ -74,10 +77,11 @@ class RiskTemplateResolverService
         ?int $userId = null,
         array $hazardNames = [],
         array $personsAtRisk = [],
+        string $scopeNarrative = '',
     ): array
     {
         return [
-            'hazards'          => $this->buildHazards($userId, $hazardNames, $personsAtRisk),
+            'hazards'          => $this->buildHazards($userId, $hazardNames, $personsAtRisk, $activities, $drillingRequired, $scopeNarrative),
             'ppe'              => $this->buildPpe($activities, $drillingRequired),
             'access_equipment' => $this->buildAccessEquipment($activities),
         ];
@@ -127,18 +131,30 @@ class RiskTemplateResolverService
     /**
      * Build hazard rows from the Hazard Library.
      *
-     * If explicit hazard names are provided (manual RAMS form), resolve ONLY those
-     * names and keep the output aligned with template controls.
-     *
-     * If no names are provided (auto flow), fall back to the mandatory baseline.
+     * Explicit hazard names (manual RAMS form / regenerate) are always
+     * resolved and included. When hazard tiering is enabled
+     * (config('rams_tier1.hazard_tiering_enabled')), the tiered
+     * HazardIncludeWhenResolver additionally evaluates the full visible
+     * library against the job's captured signals (activities, drilling
+     * flag, scope narrative) and merges its matches in — deduplicated
+     * against the explicit picks. When tiering is disabled, only the
+     * explicit picks are returned: zero auto-population, and the old fixed
+     * baseline is never resurrected (the reversibility guarantee).
      *
      * @param  int|null  $userId
      * @param  string[]  $hazardNames
      * @param  string[]  $personsAtRisk
+     * @param  string[]  $activities
      * @return array
      */
-    private function buildHazards(?int $userId, array $hazardNames, array $personsAtRisk): array
-    {
+    private function buildHazards(
+        ?int $userId,
+        array $hazardNames,
+        array $personsAtRisk,
+        array $activities = [],
+        bool $drillingRequired = false,
+        string $scopeNarrative = '',
+    ): array {
         $userId = $userId ?? 0;
 
         $names = array_values(array_filter(
@@ -146,7 +162,7 @@ class RiskTemplateResolverService
             static fn (string $s): bool => strlen(trim($s)) > 0,
         ));
 
-        $resolved = $this->resolveHazards($userId, $names);
+        $resolved = $this->resolveHazards($userId, $names, $activities, $drillingRequired, $scopeNarrative);
 
         $people = array_values(array_unique(array_filter(
             array_map('strval', $personsAtRisk),
@@ -161,17 +177,18 @@ class RiskTemplateResolverService
         $i = 1;
         foreach ($resolved as $h) {
             $rows[] = [
-                'id'              => $i++,
-                'hazard'          => (string) ($h->name ?? ''),
-                'persons_at_risk' => $people,
-                'pre_likelihood'  => (int) ($h->pre_likelihood  ?? 3),
-                'pre_severity'    => (int) ($h->pre_severity    ?? 3),
-                'controls'        => array_values(array_filter(
+                'id'                 => $i++,
+                'hazard'             => (string) ($h->name ?? ''),
+                'persons_at_risk'    => $people,
+                'pre_likelihood'     => (int) ($h->pre_likelihood  ?? 3),
+                'pre_severity'       => (int) ($h->pre_severity    ?? 3),
+                'controls'           => array_values(array_filter(
                     array_map('strval', (array) ($h->controls ?? [])),
                     static fn (string $s): bool => strlen(trim($s)) > 0,
                 )),
-                'post_likelihood' => (int) ($h->post_likelihood ?? 1),
-                'post_severity'   => (int) ($h->post_severity   ?? 2),
+                'post_likelihood'    => (int) ($h->post_likelihood ?? 1),
+                'post_severity'      => (int) ($h->post_severity   ?? 2),
+                'needs_confirmation' => (bool) ($h->needs_confirmation ?? false),
             ];
         }
 
@@ -179,18 +196,40 @@ class RiskTemplateResolverService
     }
 
     /**
-     * Resolve hazards from the library.
-     *
-     * If explicit names are provided, do NOT add mandatory baselines.
-     * If empty, include the mandatory baseline hazards.
+     * Resolve hazards: explicit picks (always resolved via the library's
+     * fuzzy-match) merged with tiered include-when matches when tiering is
+     * enabled. Explicit picks always win — a tiered match never replaces or
+     * drops one.
      *
      * @return Collection
      */
-    private function resolveHazards(int $userId, array $names): Collection
+    private function resolveHazards(int $userId, array $names, array $activities, bool $drillingRequired, string $scopeNarrative): Collection
     {
-        $includeMandatory = empty($names);
+        $explicit = $this->hazardLibrary->resolveFromSeeds($userId, $names);
 
-        return $this->hazardLibrary->resolveFromSeeds($userId, $names, $includeMandatory);
+        if (! config('rams_tier1.hazard_tiering_enabled', true)) {
+            return $explicit;
+        }
+
+        $library = HazardTemplate::visibleTo($userId)->get();
+
+        $tiered = $this->includeWhenResolver->resolve($library, [
+            'activities'        => $activities,
+            'drilling_required' => $drillingRequired,
+            'scope_narrative'   => $scopeNarrative,
+        ]);
+
+        foreach ($tiered as $match) {
+            $alreadyPresent = $match->id !== null
+                ? $explicit->contains('id', $match->id)
+                : $explicit->contains(fn ($e) => strtolower((string) ($e->name ?? '')) === strtolower((string) $match->name));
+
+            if (! $alreadyPresent) {
+                $explicit->push($match);
+            }
+        }
+
+        return $explicit;
     }
 
     // =========================================================================
