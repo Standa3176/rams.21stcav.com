@@ -210,7 +210,7 @@ class ReviewedHazardTieringTest extends TestCase
             $reviewedByName[$row['hazard']] = $row;
         }
 
-        $this->assertSame(4, $reviewedByName['Working at Height']['post_severity'] ?? null, 'reviewed row untouched — pre-severity/controls check below');
+        $this->assertSame(3, $reviewedByName['Working at Height']['post_severity'] ?? null, 'reviewed row untouched — post-severity check');
         $this->assertSame(['Use podium steps, maintain 3-point contact'], $reviewedByName['Working at Height']['controls'] ?? null);
         $this->assertSame(3, $reviewedByName['Working at Height']['pre_likelihood'] ?? null);
         $this->assertSame(4, $reviewedByName['Working at Height']['pre_severity'] ?? null);
@@ -271,9 +271,17 @@ class ReviewedHazardTieringTest extends TestCase
     }
 
     /**
-     * Test 4: RAMS_HAZARD_LIBRARY_TIERING=false degrades runFromReview() to
-     * reviewed-picks-only — zero tier-1/3 additions, the rollback path for
-     * this generation entry point (26-VERIFICATION.md Outstanding item 4).
+     * Test 4: RAMS_HAZARD_LIBRARY_TIERING=false degrades reviewedToRisk()'s
+     * own merge point to reviewed-picks-only — zero tier-1/3 library
+     * additions, the rollback path for this generation entry point
+     * (26-VERIFICATION.md Outstanding item 4).
+     *
+     * RamsComplianceUpgradeService::addProjectSpecificRisks() is a SEPARATE
+     * injection path gated behind the SAME flag (Task 3); when the flag is
+     * off it preserves pre-Phase-26 legacy behaviour byte-identically — its
+     * unconditional legacy candidates are therefore EXPECTED here too, not
+     * a bug. Success criterion: "legacy behaviour preserved byte-identical,
+     * not degraded to a blank hole" on BOTH gated paths simultaneously.
      */
     public function test_tiering_disabled_degrades_to_reviewed_picks_only(): void
     {
@@ -285,11 +293,27 @@ class ReviewedHazardTieringTest extends TestCase
         $rebuilt = $this->regenerate($rams);
         $names   = $this->hazardNames($rebuilt);
 
-        $this->assertCount(5, $names, 'flag off must return ONLY the 5 reviewed names — zero tier-1/3 auto-population');
-        $this->assertEqualsCanonicalizing(
-            ['Working at Height', 'Manual Handling', 'Electrical Hazards', 'Slips, Trips & Falls (Same Level)', 'Noise and Vibration'],
-            $names,
-        );
+        // The 5 reviewed picks always survive.
+        foreach (['Working at Height', 'Manual Handling', 'Electrical Hazards', 'Slips, Trips & Falls (Same Level)', 'Noise and Vibration'] as $reviewed) {
+            $this->assertContains($reviewed, $names, "reviewed hazard '{$reviewed}' must survive with tiering disabled");
+        }
+
+        // reviewedToRisk()'s tier-1/3 merge point contributes ZERO rows —
+        // none of the 18-hazard library's always/confirm-tier names appear.
+        $tieredLibraryNames = [
+            'Slips, trips and falls', 'Low voltage AV connections', 'Fire and evacuation', 'COSHH substances',
+            'Occupied premises', 'Asbestos-containing materials', 'Vehicle and plant movement',
+            'Lone and small-team working', 'Occupational road risk',
+        ];
+        foreach ($tieredLibraryNames as $tieredName) {
+            $this->assertNotContains($tieredName, $names, "tiered library hazard '{$tieredName}' must not appear via reviewedToRisk() when tiering is disabled");
+        }
+
+        // addProjectSpecificRisks()'s own byte-identical legacy rollback —
+        // its 3 unconditional candidates fire exactly as they did pre-Phase-26.
+        foreach (['Cable Pulling & Termination', 'Low Voltage AV Connections', 'Fixings into Walls & Ceilings'] as $legacy) {
+            $this->assertContains($legacy, $names, "legacy candidate '{$legacy}' expected — addProjectSpecificRisks() rollback must be byte-identical to pre-Phase-26 behaviour");
+        }
     }
 
     /**

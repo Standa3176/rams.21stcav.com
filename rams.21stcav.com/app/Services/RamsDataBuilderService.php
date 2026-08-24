@@ -437,14 +437,22 @@ class RamsDataBuilderService
             ));
 
             $normHazards[] = [
-                'id'              => max(0, (int) ($h['id']              ?? 0)),
-                'hazard'          => $label,
-                'persons_at_risk' => $persons,
-                'pre_likelihood'  => max(1, min(5, (int) ($h['pre_likelihood']  ?? 1))),
-                'pre_severity'    => max(1, min(5, (int) ($h['pre_severity']    ?? 1))),
-                'controls'        => $controls,
-                'post_likelihood' => max(1, min(5, (int) ($h['post_likelihood'] ?? 1))),
-                'post_severity'   => max(1, min(5, (int) ($h['post_severity']   ?? 1))),
+                'id'                 => max(0, (int) ($h['id']              ?? 0)),
+                'hazard'             => $label,
+                'persons_at_risk'    => $persons,
+                'pre_likelihood'     => max(1, min(5, (int) ($h['pre_likelihood']  ?? 1))),
+                'pre_severity'       => max(1, min(5, (int) ($h['pre_severity']    ?? 1))),
+                'controls'           => $controls,
+                'post_likelihood'    => max(1, min(5, (int) ($h['post_likelihood'] ?? 1))),
+                'post_severity'      => max(1, min(5, (int) ($h['post_severity']   ?? 1))),
+                // Phase 26 Plan 07 (HAZ-02/HAZ-04): preserved through
+                // normalisation — previously silently dropped here, which
+                // meant a confirm-tier hazard's needs_confirmation flag
+                // never survived from RiskTemplateResolverService's output
+                // into generated_data on EITHER generation path. Both keys
+                // default false, matching the resolver's own defaults.
+                'score_reviewed'     => (bool) ($h['score_reviewed']     ?? false),
+                'needs_confirmation' => (bool) ($h['needs_confirmation'] ?? false),
             ];
         }
 

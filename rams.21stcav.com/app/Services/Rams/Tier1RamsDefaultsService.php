@@ -37,10 +37,10 @@ namespace App\Services\Rams;
  *
  * Phase 26 (Hazard Library Structural Inversion): this service no longer
  * touches $data['hazards'] at all. Hazard population is handled entirely,
- * upstream of this method, by RiskTemplateResolverService /
- * HazardIncludeWhenResolver (see app/Services/Rams/HazardIncludeWhenResolver.php)
- * evaluating each hazard_templates row's include_when condition. An empty
- * $data['hazards'] array reaching this method now stays empty.
+ * upstream of this method, by RiskTemplateResolverService and the tiered
+ * include-when resolver it delegates to, evaluating each hazard_templates
+ * row's include_when condition. An empty $data['hazards'] array reaching
+ * this method now stays empty.
  *
  * @see config/rams_tier1.php
  * @see app/Services/RamsBuilderService.php

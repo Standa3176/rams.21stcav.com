@@ -610,6 +610,35 @@ class RamsComplianceUpgradeService
 
     private static function addProjectSpecificRisks(array $data): array
     {
+        // Phase 26 Plan 07 (HAZ-02 gap closure): this method's function is
+        // fully superseded by the declarative 18-hazard tiered library on
+        // BOTH RamsBuilderService::runFromReview() and ::runPipeline(). It
+        // is the sixth, previously-undocumented hazard-injection path
+        // (26-07-PLAN.md <investigation>) — the traced-and-resolved cause
+        // of the unexplained 7→11 delta in 26-VERIFICATION.md. Every one of
+        // its 7 candidates now has a direct or D-02-mapped equivalent in
+        // hazard_templates: Cable Pulling & Termination -> "Cable pulling
+        // and termination" (signal:first_fix_cabling); Low Voltage AV
+        // Connections -> "Low voltage AV connections" (always); Fixings
+        // into Walls & Ceilings -> "Fixings into walls, ceilings and
+        // pillars" (signal:any_penetration); Rack Installation -> folded
+        // into "Manual handling" (signal:display_mount_or_rack) +
+        // "Fixings into walls, ceilings and pillars" per D-02; Working in
+        // Ceiling Voids -> "Restricted access and ceiling voids"
+        // (signal:ceiling_void_access); Dust from Drilling & Cutting ->
+        // "Dust from drilling and cutting" (signal:any_drilling); Working
+        // Near Existing Services -> folded into "Fixings into walls,
+        // ceilings and pillars" per D-02 (hidden-services check).
+        //
+        // The guard below is the ENTIRE change. Everything after it is
+        // otherwise byte-identical to pre-Plan-07 behaviour — do not touch,
+        // rename, or "improve" any of it, since it must remain exactly what
+        // fires when an operator sets RAMS_HAZARD_LIBRARY_TIERING=false to
+        // roll back.
+        if (config('rams_tier1.hazard_tiering_enabled', true)) {
+            return $data;
+        }
+
         $existing = (array) ($data['hazards'] ?? []);
 
         // Track existing hazard names to avoid duplicates — keep in sync as we append.
