@@ -115,6 +115,30 @@ class RiskTemplateResolverServiceTest extends TestCase
         $this->assertContains('COSHH substances', $names);
     }
 
+    /**
+     * Plan 26-08 (HAZ-02 gap closure, round 2) — Task 3: proves the fold
+     * reaches the SECOND generation entry point too (the explicit-picks /
+     * manual-create-form / runPipeline path via resolveFromSeeds()), not
+     * only reviewedToRisk(). A legacy alias name folds to its canonical
+     * library name and "Confined Spaces" is unreachable here either.
+     */
+    public function test_legacy_alias_hazard_names_fold_to_their_canonical_library_row_on_the_explicit_picks_path(): void
+    {
+        $user = User::factory()->create();
+        $resolver = app(RiskTemplateResolverService::class);
+
+        $result = $resolver->resolve([], false, $user->id, ['Confined Spaces', 'Struck by Falling Objects'], []);
+
+        $names = $this->hazardNames($result);
+
+        $this->assertContains('Restricted access and ceiling voids', $names);
+        $this->assertContains('Working at height', $names);
+
+        foreach ($names as $name) {
+            $this->assertNotSame('confined spaces', strtolower(trim($name)), "no row's hazard may case-insensitively equal 'Confined Spaces'");
+        }
+    }
+
     public function test_disabled_tiering_flag_degrades_to_explicit_picks_only(): void
     {
         config(['rams_tier1.hazard_tiering_enabled' => false]);

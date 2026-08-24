@@ -47,11 +47,13 @@ namespace App\Services\Rams;
  *   - "Cable Installation in Ceiling Voids" -> "Restricted access and
  *     ceiling voids"
  *
- * Group 3 — the retired `MANDATORY_KEYWORDS` fallback names that had no
- * old-13-template match, traced via
+ * Group 3 — the retired always-on hazard-keyword fallback names (removed
+ * from HazardLibraryService by Plan 26-04, see
+ * HazardInjectionPathsRemovedGuardTest) that had no old-13-template match,
+ * traced via
  * `git show 28039e9^:./app/Core/Modules/KnowledgeLibrary/HazardLibraryService.php`
- * (the pre-Phase-26-04 `HazardLibraryService`, `mandatoryBaseline()`'s
- * title-cased fallback names):
+ * (the pre-Phase-26-04 `HazardLibraryService`, its title-cased fallback
+ * names):
  *   - "Noise and Vibration" -> "Noise and vibration"
  *   - "Working in Occupied Premises" -> "Occupied premises"
  *   - "Confined Spaces" -> "Restricted access and ceiling voids" — the
@@ -89,7 +91,7 @@ final class LegacyHazardNameFoldMap
         'lone working' => 'Lone and small-team working',
         'cable installation in ceiling voids' => 'Restricted access and ceiling voids',
 
-        // ── Group 3 — retired MANDATORY_KEYWORDS fallback names ────────────
+        // ── Group 3 — retired always-on hazard-keyword fallback names ──────
         'noise and vibration' => 'Noise and vibration',
         'working in occupied premises' => 'Occupied premises',
         'confined spaces' => 'Restricted access and ceiling voids',

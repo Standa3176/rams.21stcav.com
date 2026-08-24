@@ -80,6 +80,7 @@ class ReviewedHazardTieringTest extends TestCase
                 'control_measures' => ['Use podium steps, maintain 3-point contact'],
                 'post_likelihood'  => 2,
                 'post_severity'    => 3,
+                'score_reviewed'   => true,
             ],
             [
                 'hazard'           => 'Manual Handling',
@@ -88,6 +89,7 @@ class ReviewedHazardTieringTest extends TestCase
                 'control_measures' => ['Team lift for items over 20 kg'],
                 'post_likelihood'  => 1,
                 'post_severity'    => 2,
+                'score_reviewed'   => true,
             ],
             [
                 'hazard'           => 'Electrical Hazards',
@@ -96,6 +98,7 @@ class ReviewedHazardTieringTest extends TestCase
                 'control_measures' => ['Isolate supply before connecting'],
                 'post_likelihood'  => 1,
                 'post_severity'    => 3,
+                'score_reviewed'   => true,
             ],
             [
                 'hazard'           => 'Slips, Trips & Falls (Same Level)',
@@ -104,6 +107,7 @@ class ReviewedHazardTieringTest extends TestCase
                 'control_measures' => ['Keep walkways clear of cable coils'],
                 'post_likelihood'  => 1,
                 'post_severity'    => 1,
+                'score_reviewed'   => true,
             ],
             [
                 'hazard'           => 'Noise and Vibration',
@@ -112,8 +116,39 @@ class ReviewedHazardTieringTest extends TestCase
                 'control_measures' => ['Hearing protection worn during drilling'],
                 'post_likelihood'  => 1,
                 'post_severity'    => 1,
+                'score_reviewed'   => true,
             ],
         ];
+    }
+
+    /**
+     * Plan 26-08 (HAZ-02/HAZ-03 gap closure, round 2) — the real 7-name
+     * legacy vocabulary observed on live (21CQ30960 / RAMS 97), the exact
+     * fixture gap that let round 1 AND round 2 through: uniform 3x3->2x2
+     * scores (the GATE-05 signature), a single generic control string, and
+     * NO score_reviewed key present at all — mirrors real pre-26-05 data.
+     */
+    private function makeUnreviewedLegacyHazards(): array
+    {
+        $names = [
+            'Working at Height',
+            'Manual Handling',
+            'Electrical Hazards',
+            'Slips, Trips & Falls (Same Level)',
+            'Noise and Vibration',
+            'Working in Occupied Premises',
+            'Confined Spaces',
+        ];
+
+        return array_map(static fn (string $name): array => [
+            'hazard'           => $name,
+            'pre_likelihood'   => 3,
+            'pre_severity'     => 3,
+            'control_measures' => ['Generic control noted during review.'],
+            'post_likelihood'  => 2,
+            'post_severity'    => 2,
+            // score_reviewed deliberately absent — mirrors real pre-26-05 data.
+        ], $names);
     }
 
     private function makeReviewedData(string $scopeOfWorks, ?array $hazards = null): array
@@ -187,9 +222,18 @@ class ReviewedHazardTieringTest extends TestCase
     // ── Tests ─────────────────────────────────────────────────────────────────
 
     /**
-     * Test 2: a reviewed RAMS with no drilling/fixing language regenerates to
-     * 5 reviewed + 4 always-tier + 5 confirm-tier = 14 rows, zero duplicates,
-     * reviewed values untouched, none of the three drilling-gated hazards.
+     * Test 2: a reviewed RAMS with no drilling/fixing language regenerates.
+     * Plan 26-08: with score_reviewed=true on all 5 reviewed rows, each
+     * folds onto its canonical library name (Electrical Hazards ->
+     * Electrical, Slips, Trips & Falls (Same Level) -> Slips, trips and
+     * falls, and the 3 case-only matches display under the library's exact
+     * casing) — reviewed VALUES win (score_reviewed=true), so scores are
+     * unchanged, but controls on a genuine rename are replaced with the
+     * library's own text. "Slips, trips and falls" is ALSO one of the 4
+     * always-tier hazards, so the reviewed row and the always-tier
+     * candidate collapse into ONE row: 5 reviewed (distinct after fold) + 3
+     * new always-tier (excluding the one collision) + 5 confirm-tier = 13
+     * rows, zero duplicates, none of the three drilling-gated hazards.
      */
     public function test_reviewed_rams_regenerates_with_always_and_confirm_tier_hazards_merged_on_top(): void
     {
@@ -201,27 +245,37 @@ class ReviewedHazardTieringTest extends TestCase
         $hazards = (array) ($rebuilt->generated_data['hazards'] ?? []);
         $names   = $this->hazardNames($rebuilt);
 
-        $this->assertCount(14, $hazards, 'expected 5 reviewed + 4 always-tier + 5 confirm-tier = 14 rows');
-        $this->assertSame(14, count(array_unique($names)), 'zero duplicate hazard names');
+        $this->assertCount(13, $hazards, 'expected 5 folded reviewed + 3 new always-tier + 5 confirm-tier = 13 rows (Slips/trips/falls collapses with its always-tier counterpart)');
+        $this->assertSame(13, count(array_unique($names)), 'zero duplicate hazard names');
 
-        // The 5 originally-reviewed rows survive, untouched.
+        // The 5 originally-reviewed rows survive under their FOLDED canonical
+        // names (score_reviewed=true means their own numeric scores win).
         $reviewedByName = [];
         foreach ($hazards as $row) {
             $reviewedByName[$row['hazard']] = $row;
         }
 
-        $this->assertSame(3, $reviewedByName['Working at Height']['post_severity'] ?? null, 'reviewed row untouched — post-severity check');
-        $this->assertSame(['Use podium steps, maintain 3-point contact'], $reviewedByName['Working at Height']['controls'] ?? null);
-        $this->assertSame(3, $reviewedByName['Working at Height']['pre_likelihood'] ?? null);
-        $this->assertSame(4, $reviewedByName['Working at Height']['pre_severity'] ?? null);
+        $this->assertSame(3, $reviewedByName['Working at height']['post_severity'] ?? null, 'reviewed row scores untouched — post-severity check');
+        $this->assertSame(['Use podium steps, maintain 3-point contact'], $reviewedByName['Working at height']['controls'] ?? null, 'case-only match keeps the row own controls (gap-fill only)');
+        $this->assertSame(3, $reviewedByName['Working at height']['pre_likelihood'] ?? null);
+        $this->assertSame(4, $reviewedByName['Working at height']['pre_severity'] ?? null);
 
-        $this->assertSame(['Team lift for items over 20 kg'], $reviewedByName['Manual Handling']['controls'] ?? null);
-        $this->assertSame(['Isolate supply before connecting'], $reviewedByName['Electrical Hazards']['controls'] ?? null);
-        $this->assertSame(['Keep walkways clear of cable coils'], $reviewedByName['Slips, Trips & Falls (Same Level)']['controls'] ?? null);
-        $this->assertSame(['Hearing protection worn during drilling'], $reviewedByName['Noise and Vibration']['controls'] ?? null);
+        $this->assertSame(['Team lift for items over 20 kg'], $reviewedByName['Manual handling']['controls'] ?? null);
+        $this->assertSame(
+            'All electrical work to be carried out by competent, authorised persons only. No live working under any circumstances.',
+            $reviewedByName['Electrical']['controls'][0] ?? null,
+            'a genuine rename (Electrical Hazards -> Electrical) replaces controls with the library text',
+        );
+        $this->assertSame(['Hearing protection worn during drilling'], $reviewedByName['Noise and vibration']['controls'] ?? null);
 
-        // The 4 always-tier hazards.
-        foreach (['Slips, trips and falls', 'Low voltage AV connections', 'Fire and evacuation', 'COSHH substances'] as $always) {
+        // "Slips, trips and falls" is both the folded reviewed row AND an
+        // always-tier hazard — it collapses to one row, and since
+        // score_reviewed=true the reviewed row's own scores survive.
+        $this->assertSame(1, $reviewedByName['Slips, trips and falls']['post_likelihood'] ?? null, 'the collapsed row keeps the REVIEWED row values, not the always-tier defaults');
+
+        // The remaining 3 always-tier hazards (Slips/trips/falls already
+        // asserted above via the collapsed reviewed row).
+        foreach (['Low voltage AV connections', 'Fire and evacuation', 'COSHH substances'] as $always) {
             $this->assertContains($always, $names, "always-tier hazard '{$always}' missing from merged register");
         }
 
@@ -238,7 +292,7 @@ class ReviewedHazardTieringTest extends TestCase
         // Negative baseline (Test 6 restates this explicitly): no drilling
         // language anywhere in the scope narrative, so none of the three
         // drilling-gated tier-2 hazards should appear.
-        foreach (['Dust from drilling and cutting', 'Fixings into walls, ceilings and pillars', 'Noise and vibration'] as $drillingGated) {
+        foreach (['Dust from drilling and cutting', 'Fixings into walls, ceilings and pillars'] as $drillingGated) {
             $this->assertNotContains($drillingGated, $names, "drilling-gated hazard '{$drillingGated}' must NOT appear with no drilling language in scope");
         }
     }
@@ -260,8 +314,8 @@ class ReviewedHazardTieringTest extends TestCase
         $second = $this->regenerate($first);
         $secondNames = $this->hazardNames($second);
 
-        $this->assertCount(14, $firstNames);
-        $this->assertCount(14, $secondNames);
+        $this->assertCount(13, $firstNames);
+        $this->assertCount(13, $secondNames);
 
         $sortedFirst  = $firstNames;
         $sortedSecond = $secondNames;
@@ -282,6 +336,11 @@ class ReviewedHazardTieringTest extends TestCase
      * unconditional legacy candidates are therefore EXPECTED here too, not
      * a bug. Success criterion: "legacy behaviour preserved byte-identical,
      * not degraded to a blank hole" on BOTH gated paths simultaneously.
+     *
+     * Plan 26-08: the fold/rename applies REGARDLESS of
+     * rams_tier1.hazard_tiering_enabled (only the TIERED MERGE is gated by
+     * that flag) — so the 5 reviewed picks survive under their FOLDED
+     * canonical names, not the raw legacy names.
      */
     public function test_tiering_disabled_degrades_to_reviewed_picks_only(): void
     {
@@ -293,15 +352,19 @@ class ReviewedHazardTieringTest extends TestCase
         $rebuilt = $this->regenerate($rams);
         $names   = $this->hazardNames($rebuilt);
 
-        // The 5 reviewed picks always survive.
-        foreach (['Working at Height', 'Manual Handling', 'Electrical Hazards', 'Slips, Trips & Falls (Same Level)', 'Noise and Vibration'] as $reviewed) {
-            $this->assertContains($reviewed, $names, "reviewed hazard '{$reviewed}' must survive with tiering disabled");
+        // The 5 reviewed picks always survive — under their folded names.
+        foreach (['Working at height', 'Manual handling', 'Electrical', 'Slips, trips and falls', 'Noise and vibration'] as $reviewed) {
+            $this->assertContains($reviewed, $names, "folded reviewed hazard '{$reviewed}' must survive with tiering disabled");
         }
 
         // reviewedToRisk()'s tier-1/3 merge point contributes ZERO rows —
         // none of the 18-hazard library's always/confirm-tier names appear.
+        // "Slips, trips and falls" is deliberately EXCLUDED from this
+        // negative list: it is one of the 5 folded reviewed picks above
+        // (Slips, Trips & Falls (Same Level) -> Slips, trips and falls),
+        // present via the fold — not via the (disabled) tier merge.
         $tieredLibraryNames = [
-            'Slips, trips and falls', 'Low voltage AV connections', 'Fire and evacuation', 'COSHH substances',
+            'Low voltage AV connections', 'Fire and evacuation', 'COSHH substances',
             'Occupied premises', 'Asbestos-containing materials', 'Vehicle and plant movement',
             'Lone and small-team working', 'Occupational road risk',
         ];
@@ -349,7 +412,14 @@ class ReviewedHazardTieringTest extends TestCase
      * Test 6 (Blocker 1 coverage, negative direction): the same fixture as
      * Test 2 with no drilling/fixing language anywhere in the scope
      * narrative explicitly asserts none of the three drilling-gated hazards
-     * appear — the fail-safe default.
+     * appear via a signal match — the fail-safe default.
+     *
+     * "Noise and vibration" is deliberately EXCLUDED from this negative
+     * list (Plan 26-08): the fixture's reviewed "Noise and Vibration" row
+     * now folds onto the library's canonical "Noise and vibration" name, so
+     * it IS present in the output — via the fold, not via a drilling-signal
+     * false positive. The remaining 2 checks still fully prove the
+     * fail-safe default (neither is a reviewed pick name in this fixture).
      */
     public function test_no_drilling_language_yields_none_of_the_drilling_gated_hazards(): void
     {
@@ -359,8 +429,114 @@ class ReviewedHazardTieringTest extends TestCase
         $rebuilt = $this->regenerate($rams);
         $names   = $this->hazardNames($rebuilt);
 
-        foreach (['Dust from drilling and cutting', 'Fixings into walls, ceilings and pillars', 'Noise and vibration'] as $drillingGated) {
+        foreach (['Dust from drilling and cutting', 'Fixings into walls, ceilings and pillars'] as $drillingGated) {
             $this->assertNotContains($drillingGated, $names, "drilling-gated hazard '{$drillingGated}' must NOT appear with no drilling language in scope — no keyword hit must never become a false positive");
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Plan 26-08 (HAZ-02/HAZ-03 gap closure, round 2) — the REAL 7-name
+    // legacy vocabulary observed on live (21CQ30960 / RAMS 97), the exact
+    // fixture gap that let round 1 AND round 2 through.
+    // ══════════════════════════════════════════════════════════════════════
+
+    /**
+     * The full 7-name live-evidence legacy vocabulary, with uniform
+     * 3x3->2x2 scores and NO score_reviewed key (mirrors real pre-26-05
+     * data), regenerated with a neutral scope narrative:
+     *   - 7 reviewed rows fold onto 7 DISTINCT canonical names, zero
+     *     duplicates among themselves.
+     *   - No row's hazard case-insensitively equals "Confined Spaces".
+     *   - "Restricted access and ceiling voids" carries the library's
+     *     residual score and its exact "not classified as confined spaces"
+     *     control text.
+     *   - "Working at height" carries the library's residual 1x4 (the named
+     *     HAZ-03 proof) — restored from the fixture's stale 3x3->2x2 input,
+     *     because score_reviewed is absent.
+     *   - "Occupied premises" (folded from "Working in Occupied Premises")
+     *     carries needs_confirmation=true.
+     *   - "Electrical" (folded from "Electrical Hazards") carries the
+     *     library's own control text.
+     *   - Total: 7 folded-distinct reviewed names + 3 new always-tier
+     *     (excluding "Slips, trips and falls", which collapses with its
+     *     reviewed counterpart) + 4 new confirm-tier (excluding "Occupied
+     *     premises", which likewise collapses) = 14 rows.
+     */
+    public function test_real_legacy_vocabulary_folds_dedupes_and_restores_library_scores(): void
+    {
+        $user = User::factory()->create();
+        $rams = $this->makeRams($user, $this->makeReviewedData(
+            'Supply and install AV systems.',
+            $this->makeUnreviewedLegacyHazards(),
+        ));
+
+        $rebuilt = $this->regenerate($rams);
+
+        $hazards = (array) ($rebuilt->generated_data['hazards'] ?? []);
+        $names   = $this->hazardNames($rebuilt);
+
+        $this->assertCount(14, $hazards, 'expected 7 folded-distinct reviewed + 3 new always-tier + 4 new confirm-tier = 14 rows');
+        $this->assertSame(14, count(array_unique($names)), 'zero duplicate hazard names');
+
+        foreach ($names as $name) {
+            $this->assertNotSame('confined spaces', strtolower(trim($name)), "no row's hazard may case-insensitively equal 'Confined Spaces' — the client-facing mislabel this plan closes");
+        }
+
+        $byName = [];
+        foreach ($hazards as $row) {
+            $byName[$row['hazard']] = $row;
+        }
+
+        $this->assertArrayHasKey('Restricted access and ceiling voids', $byName);
+        $this->assertSame(1, $byName['Restricted access and ceiling voids']['post_likelihood'] ?? null);
+        $this->assertSame(2, $byName['Restricted access and ceiling voids']['post_severity'] ?? null);
+        $this->assertContains(
+            'Confirm ventilation and safe access before entering ceiling voids, comms rooms or enclosures. These are not classified as confined spaces, but access is restricted and is treated as a controlled activity.',
+            $byName['Restricted access and ceiling voids']['controls'] ?? [],
+        );
+
+        $this->assertArrayHasKey('Working at height', $byName);
+        $this->assertSame(3, $byName['Working at height']['pre_likelihood'] ?? null);
+        $this->assertSame(4, $byName['Working at height']['pre_severity'] ?? null);
+        $this->assertSame(1, $byName['Working at height']['post_likelihood'] ?? null, 'HAZ-03: residual score restored from stale reviewed_data when score_reviewed is absent');
+        $this->assertSame(4, $byName['Working at height']['post_severity'] ?? null);
+
+        $this->assertArrayHasKey('Occupied premises', $byName);
+        $this->assertTrue((bool) ($byName['Occupied premises']['needs_confirmation'] ?? false));
+
+        $this->assertArrayHasKey('Electrical', $byName);
+        $this->assertContains(
+            'All electrical work to be carried out by competent, authorised persons only. No live working under any circumstances.',
+            $byName['Electrical']['controls'] ?? [],
+        );
+    }
+
+    /**
+     * Regenerating the same real-legacy-vocabulary fixture twice produces
+     * an identical hazard name set — idempotency holds for the full 7-name
+     * live vocabulary too, not just the clean 5-name fixture.
+     */
+    public function test_real_legacy_vocabulary_regenerates_idempotently(): void
+    {
+        $user = User::factory()->create();
+        $rams = $this->makeRams($user, $this->makeReviewedData(
+            'Supply and install AV systems.',
+            $this->makeUnreviewedLegacyHazards(),
+        ));
+
+        $first  = $this->regenerate($rams);
+        $firstNames = $this->hazardNames($first);
+
+        $second = $this->regenerate($first);
+        $secondNames = $this->hazardNames($second);
+
+        $this->assertCount(14, $firstNames);
+        $this->assertCount(14, $secondNames);
+
+        $sortedFirst  = $firstNames;
+        $sortedSecond = $secondNames;
+        sort($sortedFirst);
+        sort($sortedSecond);
+        $this->assertSame($sortedFirst, $sortedSecond, 'regenerating twice must produce an identical hazard name set — no duplicate accumulation');
     }
 }
