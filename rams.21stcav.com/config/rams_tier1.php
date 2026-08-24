@@ -37,199 +37,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Baseline AV hazard register
+    | Hazard tiering kill-switch (Phase 26)
     |--------------------------------------------------------------------------
     |
-    | Injected into $data['hazards'] when the reviewed data supplies no
-    | hazards. Each hazard MUST carry >= 3 industry-standard control
-    | measures. Likelihood/severity scores are pre-mitigation and residual
-    | (post-mitigation) 1-5. Reviewed by AV install ops as best-effort
-    | tier-one competence baseline for UK AV installation works.
-    |
-    | See CDM 2015, HSG 65, AVIXA F502.01, PUWER 1998, MHOR 1992.
+    | Gates ONLY the Phase 26 hazard include-when auto-population — i.e.
+    | Plan 26-04's HazardIncludeWhenResolver wiring into the RAMS build
+    | pipeline. Intentionally decoupled from 'enabled' above: that flag
+    | also gates standards_references and coshh_products/coshh_baseline,
+    | neither of which Phase 26 touches. Setting
+    | RAMS_HAZARD_LIBRARY_TIERING=false disables auto-population only —
+    | explicit engineer hazard picks are unaffected. The register does
+    | NOT fall back to the old fixed 11-hazard baseline array formerly
+    | defined here (removed by this plan) — it simply contains only what
+    | was explicitly picked. This is the one-.env-edit rollback the
+    | phase's live-validation constraint requires.
     |
     */
-    'baseline_hazards' => [
-
-        [
-            'hazard'          => 'Working at Height',
-            'persons_at_risk' => ['21CAV Engineers', 'Other Trades', 'Client Staff'],
-            'pre_likelihood'  => 4,
-            'pre_severity'    => 4,
-            'controls'        => [
-                'Class 1 stepladder EN131 rated with 3 points of contact at all times when in use.',
-                'Podium steps preferred over ladders where work exceeds 5 minutes duration.',
-                'PASMA or IPAF certification held by any engineer using mobile access tower or MEWP.',
-                'Buddy system in operation whenever any engineer works above 2 metres.',
-                'Access equipment inspected daily before use and recorded on Site Inspection Log.',
-                'Fall arrest / restraint PPE deployed where edge protection is not present.',
-            ],
-            'post_likelihood' => 2,
-            'post_severity'   => 3,
-        ],
-
-        [
-            'hazard'          => 'Manual Handling of AV Equipment',
-            'persons_at_risk' => ['21CAV Engineers', 'Other Trades'],
-            'pre_likelihood'  => 4,
-            'pre_severity'    => 3,
-            'controls'        => [
-                'Manual Handling Operations Regulations 1992 (MHOR) compliant lift assessment before any single-item lift over 20kg.',
-                'Two-person lift mandatory for displays 55" and above and any rack shell weighing over 25kg.',
-                'Mechanical aids (sack trolley, panel dolly, pallet truck) used in preference to manual lifts where site permits.',
-                'Route survey completed before large item is moved from vehicle to install location.',
-                'Loading and unloading zones agreed with site contact and coned off before works.',
-            ],
-            'post_likelihood' => 2,
-            'post_severity'   => 2,
-        ],
-
-        [
-            'hazard'          => 'Electrical Isolation & Live Working',
-            'persons_at_risk' => ['21CAV Engineers', 'Client Staff', 'Other Trades'],
-            'pre_likelihood'  => 3,
-            'pre_severity'    => 5,
-            'controls'        => [
-                'BS 7671:2018+A2:2022 compliant isolation — lock-off and tag-off applied to every circuit before termination or connection works.',
-                'Test-before-touch verification with proven voltage-indicator on every conductor before any physical contact.',
-                'Only competent persons (18th Edition qualified or equivalent) perform any works on fixed electrical installation.',
-                'Live working NOT permitted except where absolutely unavoidable and authorised in writing under a permit-to-work.',
-                'Rescue plan and shock-treatment first-aid kit on site whenever any electrical works are in progress.',
-            ],
-            'post_likelihood' => 1,
-            'post_severity'   => 4,
-        ],
-
-        [
-            'hazard'          => 'Slips, Trips & Falls from Cable Runs and Site Clutter',
-            'persons_at_risk' => ['21CAV Engineers', 'Client Staff', 'Members of Public'],
-            'pre_likelihood'  => 4,
-            'pre_severity'    => 3,
-            'controls'        => [
-                'Loose cabling routed against skirtings or through cable-covers rated for the expected foot-traffic load.',
-                'Temporary cable runs across walkways covered with heavy-duty yellow cable-trunking or matting.',
-                'Site kept clean, tools stored back to toolbox at every task-change, no offcuts left on floor.',
-                'Wet-floor / drilling-debris signage deployed when floor becomes temporarily hazardous.',
-                'Wet vacuum used to remove drilling debris from client carpet or hard floor before area is re-opened.',
-            ],
-            'post_likelihood' => 2,
-            'post_severity'   => 2,
-        ],
-
-        [
-            'hazard'          => 'Drilling into Ceilings, Walls and Floors — Unknown Services Behind Substrate',
-            'persons_at_risk' => ['21CAV Engineers', 'Client Staff', 'Other Trades'],
-            'pre_likelihood'  => 3,
-            'pre_severity'    => 5,
-            'controls'        => [
-                'HSG 47 "Avoiding danger from underground services" reviewed for any works on external walls, floor slabs or below-ground penetrations.',
-                'Cable / pipe / metal detector scan carried out on every proposed drill site before drill goes in.',
-                'Client asset drawings requested and reviewed for services in target substrate; recorded on Permit to Drill.',
-                'Trial-pilot drill (2mm bit) always precedes final fixing bore; stop and re-assess if trial reveals unexpected substrate.',
-                'FFP2 respiratory PPE + safety goggles worn during any drilling into plasterboard, masonry or MDF.',
-                'Dust extraction attachment used on drill where surface is finished and dust would settle on client property.',
-            ],
-            'post_likelihood' => 1,
-            'post_severity'   => 4,
-        ],
-
-        [
-            'hazard'          => 'Working in Occupied Client Space',
-            'persons_at_risk' => ['21CAV Engineers', 'Client Staff', 'Members of Public'],
-            'pre_likelihood'  => 3,
-            'pre_severity'    => 3,
-            'controls'        => [
-                'Working area segregated from client thoroughfares using barriers, cones and signage before works commence.',
-                'Client site contact informed of noise / disruption windows in advance and daily.',
-                'Toolbox talk delivered to any client staff who must transit the works area.',
-                'Where feasible, noisiest works scheduled outside client core operating hours.',
-                'Emergency-exit and fire-escape routes kept clear at all times regardless of works progress.',
-            ],
-            'post_likelihood' => 2,
-            'post_severity'   => 2,
-        ],
-
-        [
-            'hazard'          => 'Use of Access Equipment — Ladders, MEWPs, Mobile Towers',
-            'persons_at_risk' => ['21CAV Engineers', 'Other Trades'],
-            'pre_likelihood'  => 3,
-            'pre_severity'    => 4,
-            'controls'        => [
-                'IPAF PAL card mandatory for any engineer operating a Mobile Elevated Work Platform (scissor lift, cherry picker).',
-                'PASMA card mandatory for any engineer erecting or dismantling a mobile access tower.',
-                'Daily pre-use inspection of every access-equipment item logged on Site Inspection Log; defects tagged out.',
-                'Ground-level surface confirmed level, load-rated and clear of tripping hazards before tower or MEWP is set up.',
-                'Wind-speed check for any external MEWP works — no works above 12.5 m/s (Beaufort 6) mean wind speed.',
-                'Second person (spotter) at ground level during any powered platform movement.',
-            ],
-            'post_likelihood' => 1,
-            'post_severity'   => 3,
-        ],
-
-        [
-            'hazard'          => 'Engineer Fatigue from Long Working Days',
-            'persons_at_risk' => ['21CAV Engineers', 'Other Trades', 'Members of Public'],
-            'pre_likelihood'  => 3,
-            'pre_severity'    => 3,
-            'controls'        => [
-                'Working Time Regulations 1998 observed — 11 hour minimum daily rest between shifts, break every 6 hours.',
-                'Shift patterns exceeding 10 hours require Project Manager approval and a rotating second engineer for high-risk tasks.',
-                'Overnight-driving assessment before any works following a 300+ mile client journey.',
-                'Engineers report fatigue-related concerns to Lead Engineer without penalty; task reassignment or stand-down authorised.',
-                'No working-at-height, no live-electrical works, no MEWP operation after hour 10 of a working shift.',
-            ],
-            'post_likelihood' => 2,
-            'post_severity'   => 2,
-        ],
-
-        [
-            'hazard'          => 'Laser Projector Eye Safety',
-            'persons_at_risk' => ['21CAV Engineers', 'Client Staff', 'Members of Public'],
-            'pre_likelihood'  => 3,
-            'pre_severity'    => 5,
-            'controls'        => [
-                'BS EN 60825-1:2014+A11:2021 laser class determined and recorded for every laser-based projector before install commences.',
-                'Direct-beam viewing avoided at all times while projector is powered on; engineers work from behind or to the side of the projected beam.',
-                'Laser safety warning label affixed to projector chassis and mount, and to the room entry point where a Class 3R or higher device is installed.',
-                'Projector powered down and lens cap fitted before any lens cleaning, filter change or optical adjustment.',
-                'Commissioning-time verification that installed throw geometry keeps the primary beam above 2.1m head height in any accessible aisle, walkway or spectator area.',
-            ],
-            'post_likelihood' => 1,
-            'post_severity'   => 4,
-        ],
-
-        [
-            'hazard'          => 'RF Exposure from Wireless AV Devices (Wireless Mics, DECT, Wi-Fi APs, Bluetooth Beacons)',
-            'persons_at_risk' => ['21CAV Engineers', 'Client Staff'],
-            'pre_likelihood'  => 2,
-            'pre_severity'    => 3,
-            'controls'        => [
-                'Control of Electromagnetic Fields at Work Regulations 2016 observed — no engineer to remain within 20cm of a live high-power transmitter (>100mW EIRP) for extended periods during antenna alignment or spectrum survey.',
-                'Every deployed wireless device confirmed to carry a valid UKCA or CE mark and to operate on an Ofcom licence-exempt or correctly-licensed frequency band before power-up.',
-                'Antenna alignment and RF-survey work performed with transmitter at lowest usable power; power stepped up only after physical position is set.',
-                'Pregnant engineers to declare and be reassigned from prolonged high-power antenna work or RF-survey duties; task reassignment authorised without penalty.',
-            ],
-            'post_likelihood' => 1,
-            'post_severity'   => 2,
-        ],
-
-        [
-            'hazard'          => 'Cable Pulling Injuries (Back Strain, Rope Burn, Hand Laceration during pulls through conduit/tray/ceiling void)',
-            'persons_at_risk' => ['21CAV Engineers', 'Other Trades'],
-            'pre_likelihood'  => 4,
-            'pre_severity'    => 3,
-            'controls'        => [
-                'MHOR 1992 applied to any cable-drum lift exceeding 20kg — two-person handling mandatory; mechanical drum stand used to unspool where site permits.',
-                'Pulling gloves (cut-resistance level B or above, EN 388) worn during any conduit, tray or containment pull.',
-                'Cable-pull lubricant used on runs longer than 10m or through more than 2 bends; jacket-compatible formulation confirmed against LSZH or PVC jacket spec (see COSHH baseline).',
-                'Mechanical pull-winch preferred over hand-pull for runs longer than 30m or where friction load is unknown; hand-pull limited to short straight runs.',
-                'Designated banksman at the receiving end of any blind pull (through ceiling void, riser or bulkhead) to prevent cable snag and trip hazard on the pull side.',
-            ],
-            'post_likelihood' => 2,
-            'post_severity'   => 2,
-        ],
-
-    ],
+    'hazard_tiering_enabled' => env('RAMS_HAZARD_LIBRARY_TIERING', true),
 
     /*
     |--------------------------------------------------------------------------

@@ -30,11 +30,17 @@ namespace App\Services\Rams;
  *   When false, injectDefaultsIntoRamsData() returns $data unchanged.
  *
  * Non-clobbering behaviour:
- *   - hazards               → set only when empty / missing on $data
  *   - standards_references  → set only when empty / missing on $data
  *   - coshh_baseline        → ALWAYS set (new key, doesn't collide with
  *                              engineer-added $data['coshh'] which stays
  *                              independent).
+ *
+ * Phase 26 (Hazard Library Structural Inversion): this service no longer
+ * touches $data['hazards'] at all. Hazard population is handled entirely,
+ * upstream of this method, by RiskTemplateResolverService /
+ * HazardIncludeWhenResolver (see app/Services/Rams/HazardIncludeWhenResolver.php)
+ * evaluating each hazard_templates row's include_when condition. An empty
+ * $data['hazards'] array reaching this method now stays empty.
  *
  * @see config/rams_tier1.php
  * @see app/Services/RamsBuilderService.php
@@ -47,11 +53,12 @@ class Tier1RamsDefaultsService
      *
      * Behaviour (fallback-only, engineer wins):
      *   - If `config('rams_tier1.enabled')` is false → return $data unchanged.
-     *   - If `$data['hazards']` is empty or unset → set from config.
      *   - If `$data['standards_references']` is empty or unset → set from config.
      *   - Always set `$data['coshh_baseline']` from config (non-clobbering,
      *     the existing `$data['coshh']` engineer-additions key stays
      *     independent).
+     *
+     * $data['hazards'] is never touched here (Phase 26) — see class docblock.
      *
      * @param  array  $data  RAMS data bag (typically $record->generated_data).
      * @return array  Mutated data bag with tier-1 defaults folded in.
@@ -60,14 +67,6 @@ class Tier1RamsDefaultsService
     {
         if (! (bool) config('rams_tier1.enabled', true)) {
             return $data;
-        }
-
-        // ── Baseline AV hazard register (Section 5 fallback) ─────────────
-        // Engineer values ALWAYS win: only inject when the hazards key is
-        // missing OR its value is an empty array. Any populated engineer
-        // hazard list is preserved verbatim.
-        if (empty($data['hazards']) || ! is_array($data['hazards'])) {
-            $data['hazards'] = (array) config('rams_tier1.baseline_hazards', []);
         }
 
         // ── Standards & Guidance references (Section 3 table) ────────────
