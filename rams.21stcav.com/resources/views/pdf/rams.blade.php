@@ -306,16 +306,6 @@ p { margin: 3pt 0; }
     $tools       = is_array($tools)      ? $tools      : [];
     $clientResp  = is_array($clientResp) ? $clientResp : [];
 
-    // 260712-twi Task 2 — defensive render-time fallback for tier-1 AV
-    // baseline hazards. Task 1 already folds baseline hazards into
-    // generated_data['hazards'] at build time; this belt-and-braces path
-    // catches any legacy generated_data records persisted BEFORE Task 1
-    // shipped. Engineer values already loaded above still win — this only
-    // fires when hazards is empty AND the kill-switch is on.
-    if (empty($hazards) && config('rams_tier1.enabled', true)) {
-        $hazards = (array) config('rams_tier1.baseline_hazards', []);
-    }
-
     // Company config
     $company  = config('rams.company_name',    '21st Century AV Ltd');
     $compShort= config('rams.company_short',   '21CAV');

@@ -10,8 +10,9 @@ use Illuminate\Contracts\Config\Repository;
  * Composes Section 5 (Risk Assessment) from post-patch RamsDocument.
  *
  * Reads $rams->reviewed_data['hazards'][] first; falls back to
- * generated_data['hazards'][]; last-resort falls back to
- * config('rams_tier1.baseline_hazards') per the 260712-twi kill-switch.
+ * generated_data['hazards'][]. No config fallback (Phase 26 removed the
+ * 260712-twi fixed-baseline kill-switch) — an empty hazards array on
+ * both keys stays empty.
  *
  * Assigns stable RA{NN} refs — the same 1-indexed scheme that
  * DocxBuilderService::buildRiskAssessment() computes inline (line 1119)
@@ -31,11 +32,7 @@ final class RiskAssessmentComposer
         $rd = $record->reviewed_data  ?? [];
         $gd = $record->generated_data ?? [];
 
-        $raw = (array) ($rd['hazards']
-            ?? ($gd['hazards']
-                ?? ($this->config->get('rams_tier1.enabled', true)
-                    ? $this->config->get('rams_tier1.baseline_hazards', [])
-                    : [])));
+        $raw = (array) ($rd['hazards'] ?? $gd['hazards'] ?? []);
 
         $hazards = [];
         foreach (array_values($raw) as $idx => $h) {
