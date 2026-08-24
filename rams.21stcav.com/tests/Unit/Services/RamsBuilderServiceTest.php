@@ -55,18 +55,39 @@ class RamsBuilderServiceTest extends TestCase
         return $mock;
     }
 
+    /**
+     * Phase 26 Plan 07: default RiskTemplateResolverService mock —
+     * tieredRowsNotAlreadyPresent() returns no additional rows unless a
+     * test overrides the expectation. Every runFromReview()/reviewedToRisk()
+     * call now reaches this method, so a mock without it throws
+     * BadMethodCallException.
+     */
+    private function makeDefaultRiskResolverMock(): RiskTemplateResolverService
+    {
+        $mock = Mockery::mock(RiskTemplateResolverService::class);
+        $mock->shouldReceive('tieredRowsNotAlreadyPresent')->andReturn([])->byDefault();
+
+        return $mock;
+    }
+
     private function makeService(
         RoomOverviewSummaryService $roomOverviewSummary,
-        ?MethodStatementGeneratorService $methodStatementMock = null
+        ?MethodStatementGeneratorService $methodStatementMock = null,
+        ?EquipmentClassifierService $classifierMock = null,
+        ?RiskTemplateResolverService $riskResolverMock = null,
     ): RamsBuilderService {
         $methodMock = $methodStatementMock ?? Mockery::mock(MethodStatementGeneratorService::class);
         if ($methodStatementMock === null) {
             $methodMock->shouldReceive('generate')->andReturn(['phases' => []])->byDefault();
         }
+        $classifier = $classifierMock ?? Mockery::mock(EquipmentClassifierService::class);
+        if ($classifierMock === null) {
+            $classifier->shouldReceive('textIndicatesDrilling')->andReturn(false)->byDefault();
+        }
         return new RamsBuilderService(
             Mockery::mock(QuoteParserService::class),
-            Mockery::mock(EquipmentClassifierService::class),
-            Mockery::mock(RiskTemplateResolverService::class),
+            $classifier,
+            $riskResolverMock ?? $this->makeDefaultRiskResolverMock(),
             $methodMock,
             Mockery::mock(RamsDataBuilderService::class),
             Mockery::mock(RamsDocumentRendererService::class),
@@ -93,16 +114,25 @@ class RamsBuilderServiceTest extends TestCase
      * Phase 26 Plan 05 (HAZ-04): variant of makeService() that accepts a
      * caller-supplied HazardLibraryService mock, so reviewedToRisk() tests
      * can control what resolveFromSeeds() returns per hazard name.
+     *
+     * Phase 26 Plan 07: also accepts an optional RiskTemplateResolverService
+     * mock override so a test can assert on tieredRowsNotAlreadyPresent()
+     * call arguments; defaults to the zero-rows stub otherwise.
      */
-    private function makeServiceWithHazardLibrary(HazardLibraryService $hazardLibrary): RamsBuilderService
-    {
+    private function makeServiceWithHazardLibrary(
+        HazardLibraryService $hazardLibrary,
+        ?RiskTemplateResolverService $riskResolverMock = null,
+    ): RamsBuilderService {
         $methodMock = Mockery::mock(MethodStatementGeneratorService::class);
         $methodMock->shouldReceive('generate')->andReturn(['phases' => []])->byDefault();
 
+        $classifier = Mockery::mock(EquipmentClassifierService::class);
+        $classifier->shouldReceive('textIndicatesDrilling')->andReturn(false)->byDefault();
+
         return new RamsBuilderService(
             Mockery::mock(QuoteParserService::class),
-            Mockery::mock(EquipmentClassifierService::class),
-            Mockery::mock(RiskTemplateResolverService::class),
+            $classifier,
+            $riskResolverMock ?? $this->makeDefaultRiskResolverMock(),
             $methodMock,
             Mockery::mock(RamsDataBuilderService::class),
             Mockery::mock(RamsDocumentRendererService::class),
@@ -112,11 +142,17 @@ class RamsBuilderServiceTest extends TestCase
         );
     }
 
-    private function invokeReviewedToRisk(RamsBuilderService $service, array $rd, ?int $userId = null): array
-    {
+    private function invokeReviewedToRisk(
+        RamsBuilderService $service,
+        array $rd,
+        ?int $userId = null,
+        array $activities = [],
+        string $scopeNarrative = '',
+        bool $drillingRequired = false,
+    ): array {
         $method = new \ReflectionMethod(RamsBuilderService::class, 'reviewedToRisk');
         $method->setAccessible(true);
-        return $method->invoke($service, $rd, $userId);
+        return $method->invoke($service, $rd, $userId, $activities, $scopeNarrative, $drillingRequired);
     }
 
     // ── Data helpers ──────────────────────────────────────────────────────────
@@ -465,5 +501,67 @@ class RamsBuilderServiceTest extends TestCase
         $this->assertSame(3, $out['hazards'][0]['post_severity']);
         $this->assertFalse($out['hazards'][0]['score_reviewed']);
         $this->assertFalse($out['hazards'][0]['needs_confirmation']);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Phase 26 Plan 07 (HAZ-02 gap closure) — reviewedToRisk() merges tier-1/3
+    // candidates from RiskTemplateResolverService::tieredRowsNotAlreadyPresent()
+    // onto the reviewed picks, forwarding the REAL derived drilling signal.
+    // ══════════════════════════════════════════════════════════════════════════
+
+    public function test_reviewedToRisk_merges_tiered_rows_and_resequences_ids(): void
+    {
+        $hazardLibrary = Mockery::mock(HazardLibraryService::class);
+        $hazardLibrary->shouldReceive('resolveFromSeeds')
+            ->with(0, ['Working at Height'])
+            ->andReturn(collect());
+
+        $riskResolver = Mockery::mock(RiskTemplateResolverService::class);
+        $riskResolver->shouldReceive('tieredRowsNotAlreadyPresent')
+            ->once()
+            ->with(
+                ['Working at Height'],
+                ['ceiling_works'],
+                true,
+                'drill fixing brackets to the ceiling',
+                0,
+            )
+            ->andReturn([
+                [
+                    'hazard'             => 'Low voltage AV connections',
+                    'persons_at_risk'    => ['21CAV Staff', 'Client Staff', 'Others'],
+                    'pre_likelihood'     => 3,
+                    'pre_severity'       => 3,
+                    'controls'           => ['Isolate before connecting'],
+                    'post_likelihood'    => 1,
+                    'post_severity'      => 2,
+                    'score_reviewed'     => false,
+                    'needs_confirmation' => false,
+                ],
+            ]);
+
+        $service = $this->makeServiceWithHazardLibrary($hazardLibrary, $riskResolver);
+
+        $rd = ['hazards' => [[
+            'hazard'           => 'Working at Height',
+            'pre_likelihood'   => 3,
+            'pre_severity'     => 4,
+            'control_measures' => ['Engineer-entered control'],
+        ]]];
+
+        $out = $this->invokeReviewedToRisk(
+            $service,
+            $rd,
+            0,
+            ['ceiling_works'],
+            'drill fixing brackets to the ceiling',
+            true,
+        );
+
+        $this->assertCount(2, $out['hazards'], 'reviewed pick plus the one tiered row returned by the mock');
+        $this->assertSame('Working at Height', $out['hazards'][0]['hazard']);
+        $this->assertSame(1, $out['hazards'][0]['id']);
+        $this->assertSame('Low voltage AV connections', $out['hazards'][1]['hazard']);
+        $this->assertSame(2, $out['hazards'][1]['id'], 'ids are re-sequenced 1..N across the FULL merged array');
     }
 }

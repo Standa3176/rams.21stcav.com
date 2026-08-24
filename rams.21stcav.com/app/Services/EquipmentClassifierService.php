@@ -190,6 +190,31 @@ class EquipmentClassifierService
             ?? ucwords(str_replace('_', ' ', $key));
     }
 
+    /**
+     * Phase 26 Plan 07 (HAZ-02 gap closure): whether the given free-text
+     * narrative indicates drilling/fixing work, reading the SAME mount/fixing
+     * keyword constant classify()'s per-item drilling loop already
+     * matches — a single source of truth, not a second divergent keyword
+     * list. Used by RamsBuilderService::runFromReview() to derive a real
+     * drilling signal from the reviewed scope narrative (works summary,
+     * scope of works, works overview, equipment descriptions), instead of
+     * the hardcoded `false` that path used to forward.
+     *
+     * Fail-safe by construction: no keyword hit never becomes a positive.
+     */
+    public function textIndicatesDrilling(string $text): bool
+    {
+        $lower = strtolower($text);
+
+        foreach (self::MOUNT_KEYWORDS as $kw) {
+            if (str_contains($lower, $kw)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     // =========================================================================
     // PRIVATE HELPERS
     // =========================================================================

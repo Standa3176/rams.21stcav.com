@@ -133,7 +133,24 @@ class RamsBuilderService
         // Convert reviewed_data sections to the formats expected by existing services.
         $parsedQuote = $this->reviewedToParsed($reviewedData);
         $classified  = $this->reviewedToClassified($reviewedData);
-        $risk        = $this->reviewedToRisk($reviewedData, $record->user_id);
+
+        // Phase 26 Plan 07 (HAZ-02 gap closure) — scope narrative built from
+        // already-parsed/validated reviewed data (mirrors runPipeline()'s
+        // construction, not literally reused since runFromReview() has no
+        // formData['works_description']), feeding HazardIncludeWhenResolver's
+        // tier-2 keyword matching. The derived drilling signal replaces the
+        // hardcoded `false` this path used to forward — reuses the single
+        // MOUNT_KEYWORDS vocabulary via EquipmentClassifierService, never a
+        // second keyword list.
+        $scopeNarrative = trim(implode(' ', array_filter([
+            (string) ($parsedQuote['works_summary']  ?? ''),
+            (string) ($parsedQuote['scope_of_works'] ?? ''),
+            (string) ($parsedQuote['works_overview']  ?? ''),
+            implode(' ', array_column($parsedQuote['equipment'] ?? [], 'description')),
+        ])));
+        $drillingRequired = $this->classifier->textIndicatesDrilling($scopeNarrative);
+
+        $risk        = $this->reviewedToRisk($reviewedData, $record->user_id, $classified['activities'], $scopeNarrative, $drillingRequired);
         $mergedForm  = $this->mergeReviewedIntoFormData($reviewedData, $formData);
 
         // Build ProjectContext — passed forward to RamsDataBuilderService for all data shaping.
@@ -393,9 +410,26 @@ class RamsBuilderService
     /**
      * Convert reviewed_data hazards + ppe + access into the risk shape
      * expected by RamsDataBuilderService::assemble().
+     *
+     * Phase 26 Plan 07 (HAZ-02 gap closure): after the reviewed rows are
+     * built (per-row logic below is completely unchanged), tier-1 (always)
+     * and tier-3 (confirm) hazard candidates are merged on top via
+     * RiskTemplateResolverService::tieredRowsNotAlreadyPresent() — the same
+     * reusable entry point runPipeline()'s resolver uses internally, so
+     * there is exactly one merge implementation, not two. Reviewed picks
+     * always win: a tiered candidate is only appended when its name is not
+     * already present. $drillingRequired must be the REAL signal derived by
+     * runFromReview() via EquipmentClassifierService::textIndicatesDrilling()
+     * — never a hardcoded false — so the three drilling-gated tier-2
+     * hazards can auto-populate on this path too.
      */
-    private function reviewedToRisk(array $rd, ?int $userId = null): array
-    {
+    private function reviewedToRisk(
+        array $rd,
+        ?int $userId = null,
+        array $activities = [],
+        string $scopeNarrative = '',
+        bool $drillingRequired = false,
+    ): array {
         $hazards = array_values(array_map(function (array $h, int $i) {
             $controls = (array) ($h['control_measures'] ?? []);
             $name = (string) ($h['hazard'] ?? '');
@@ -450,7 +484,6 @@ class RamsBuilderService
                 $postS = max(1, $preS - 1);
             }
             return [
-                'id'                 => $i + 1,
                 'hazard'             => $name,
                 'persons_at_risk'    => ['21CAV Staff', 'Client Staff', 'Others'],
                 'pre_likelihood'     => $preL,
@@ -465,6 +498,23 @@ class RamsBuilderService
                 'needs_confirmation' => $needsConfirmation,
             ];
         }, $rd['hazards'] ?? [], array_keys($rd['hazards'] ?? [])));
+
+        // Merge tier-1 (always) and tier-3 (confirm) candidates on top of the
+        // reviewed picks, deduplicated by name against them. Idempotent by
+        // construction: this is computed fresh from $rd on every call and
+        // never written back into reviewed_data, so regenerating the same
+        // reviewed RAMS repeatedly never accumulates duplicate rows.
+        $tieredRows = $this->riskResolver->tieredRowsNotAlreadyPresent(array_column($hazards, 'hazard'), $activities, $drillingRequired, $scopeNarrative, $userId ?? 0);
+
+        $hazards = array_values(array_merge($hazards, $tieredRows));
+
+        // Re-sequence id 1..N across the FULL merged array (reviewed rows +
+        // injected rows) in a single pass, replacing the per-row id
+        // assignment the map closure above used to do.
+        foreach ($hazards as $idx => &$row) {
+            $row['id'] = $idx + 1;
+        }
+        unset($row);
 
         // Convert access booleans to access_equipment strings.
         $access = $rd['access'] ?? [];
