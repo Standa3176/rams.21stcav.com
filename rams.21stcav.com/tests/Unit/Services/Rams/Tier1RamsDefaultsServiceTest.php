@@ -6,19 +6,19 @@ use App\Services\Rams\Tier1RamsDefaultsService;
 use Tests\TestCase;
 
 /**
- * Quick task 260712-twi Task 1 unit tests.
+ * Quick task 260712-twi Task 1 unit tests, updated by Phase 26 Plan 03
+ * (Hazard Library Structural Inversion) to lock the current no-hazard-
+ * fallback contract:
  *
- * Locks the tier-1 defaults fallback layer:
- *
- *   1. Injects baseline hazards when $data['hazards'] is missing.
+ *   1. $data['hazards'] missing stays missing/unset — never injected.
  *   2. Preserves engineer-supplied hazards verbatim (engineer wins).
- *   3. Treats empty-array hazards as "missing" and replaces with baseline.
+ *   3. Empty-array hazards stays empty — never replaced with a baseline.
  *   4. Preserves engineer-supplied standards_references verbatim.
  *   5. Disabled kill-switch returns $data unchanged.
  *
  * @see app/Services/Rams/Tier1RamsDefaultsService.php
  * @see config/rams_tier1.php
- * @see .planning/quick/260712-twi-tier-1-av-rams-content-upgrade-baseline-/260712-twi-PLAN.md
+ * @see .planning/phases/26-hazard-library-structural-inversion/26-03-PLAN.md
  */
 class Tier1RamsDefaultsServiceTest extends TestCase
 {
@@ -28,26 +28,21 @@ class Tier1RamsDefaultsServiceTest extends TestCase
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // 1. Injects baseline hazards when reviewed data has none
+    // 1. Missing hazards key stays missing — no baseline injection (Phase 26)
     // ══════════════════════════════════════════════════════════════════════════
 
-    public function test_injects_baseline_hazards_when_data_hazards_is_missing(): void
+    public function test_does_not_inject_hazards_when_data_hazards_is_missing(): void
     {
         $data = ['project' => ['name' => 'Test']];
 
         $out = $this->service()->injectDefaultsIntoRamsData($data);
 
-        $this->assertArrayHasKey('hazards', $out);
-        $this->assertIsArray($out['hazards']);
-        $this->assertGreaterThanOrEqual(
-            8,
-            count($out['hazards']),
-            'Expected >= 8 canonical AV baseline hazards to be injected.',
-        );
-        // Sanity check the shape of the first hazard.
-        $this->assertArrayHasKey('hazard', $out['hazards'][0]);
-        $this->assertArrayHasKey('controls', $out['hazards'][0]);
-        $this->assertGreaterThanOrEqual(3, count($out['hazards'][0]['controls']));
+        // Phase 26 removed the hazards fallback entirely — the service no
+        // longer sets $data['hazards'] under any circumstance. Hazard
+        // population is now handled upstream by HazardIncludeWhenResolver.
+        $this->assertArrayNotHasKey('hazards', $out);
+        // Non-hazard tier-1 defaults are unaffected.
+        $this->assertArrayHasKey('coshh_baseline', $out);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -73,7 +68,7 @@ class Tier1RamsDefaultsServiceTest extends TestCase
         $this->assertCount(
             1,
             $out['hazards'],
-            'Engineer-supplied hazards must NOT be augmented with baseline.',
+            'Engineer-supplied hazards must NOT be augmented with a baseline (there is none left to inject).',
         );
         $this->assertSame(
             'Custom engineer hazard XYZ',
@@ -83,20 +78,20 @@ class Tier1RamsDefaultsServiceTest extends TestCase
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // 3. Empty array hazards treated as missing → baseline injected
+    // 3. Empty array hazards stays empty — no baseline injection (Phase 26)
     // ══════════════════════════════════════════════════════════════════════════
 
-    public function test_treats_empty_array_hazards_as_missing(): void
+    public function test_empty_array_hazards_stays_empty(): void
     {
         $data = ['hazards' => []];
 
         $out = $this->service()->injectDefaultsIntoRamsData($data);
 
-        $this->assertNotEmpty(
+        $this->assertSame(
+            [],
             $out['hazards'],
-            'Empty hazards[] must be replaced with baseline set.',
+            'Empty hazards[] must stay empty — no fallback re-populates it.',
         );
-        $this->assertGreaterThanOrEqual(8, count($out['hazards']));
     }
 
     // ══════════════════════════════════════════════════════════════════════════

@@ -114,9 +114,12 @@ class RamsDocumentComposerTest extends TestCase
         // Section 3 (standards table) always populated from tier1 config.
         $this->assertFalse($dto->standardsTable->isEmpty());
 
-        // No hazards supplied → tier1 baseline fires (fallback is enabled by default).
-        $this->assertNotEmpty($dto->riskAssessment->hazards);
-        $this->assertSame('RA01', $dto->riskAssessment->hazards[0]['ref']);
+        // Phase 26: no hazards supplied → register stays empty. The
+        // RiskAssessmentComposer config-baseline fallback was removed;
+        // hazard population is now handled upstream by
+        // HazardIncludeWhenResolver (Plan 26-04), not exercised by this
+        // fixture.
+        $this->assertEmpty($dto->riskAssessment->hazards);
     }
 
     // ══════════════════════════════════════════════════════════════════════
