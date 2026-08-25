@@ -13,7 +13,11 @@
 `references/house-rules.md`, `references/hazard-library.md`, `PORTING-NOTES.md`.
 Those documents are **settled 21CAV positions**, not proposals. Where the app and
 the skill disagree, the skill wins unless the user says otherwise for a specific job.
-**Total requirements:** 26 (GATE-01..12 = 12, RULE-01..10 = 10, HAZ-01..04 = 4).
+**Total requirements:** 30 (GATE-01..14 = 14, RULE-01..12 = 12, HAZ-01..04 = 4).
+*Addendum (2026-08-25): GATE-13, GATE-14, RULE-11 and RULE-12 added after an independent
+professional review of the regenerated 21CQ30960 pack (RAMS 97). That review independently
+re-derived most of the existing v3.0 requirements, confirming the milestone's scope, and
+surfaced these four defects that no existing requirement covered.*
 *Correction (2026-08-23, roadmapping pass): this section previously stated "24" —
 the itemised list below sums to 26. GATE-03 and GATE-08 are already shipped, leaving
 24 requiring new work; the roadmap covers all 26 IDs, with the 2 shipped ones marked
@@ -59,6 +63,8 @@ and are listed for traceability, not rework.
 - [ ] **GATE-10**: COSHH and standards padding — cross-check every COSHH substance and cited standard against the activity list. Named offenders: BS EN 60849, BS 8492, HSG 47, laser safety on a job with no laser, soldering flux with no soldering.
 - [ ] **GATE-11**: CDM duty-holder table left as "[To be confirmed]" on an occupied-premises job → error. There is a settled position.
 - [ ] **GATE-12**: Named A&E must be a real A&E. A subcontractor RAMS once named a hospital whose A&E closed in 2014.
+- [ ] **GATE-13**: Hot-works contradiction — a RAMS asserting "No hot works of any kind included in this scope" while also requiring a hot-works permit, or listing solder/flux in COSHH, is self-contradictory and must error. Same contradiction class as the shipped GATE-08. *(Found 2026-08-25 in 21CQ30960: RA18 says no hot works, §6.8 requires a hot-works permit for soldering, and COSHH carries Tin/Lead solder and rosin flux — three sections disagreeing.)*
+- [ ] **GATE-14**: Missing risk references — every method step must cite the hazards its own text implies. GATE-03 (shipped) checks that cited references *resolve*; nothing checks that a step is *missing* a reference it plainly needs. *(Found 2026-08-25 in 21CQ30960: Step 4 "Display & Mount Installation" cites RA11/12/13/21 but omits RA01 Working at Height and RA02 Manual Handling, on a step entirely about lifting displays onto wall mounts.)*
 
 ### Group B — House rules enforced in code
 
@@ -74,6 +80,8 @@ From `references/house-rules.md`. Settled positions applied without asking.
 - [ ] **RULE-08**: Nearest A&E named with address; "to be identified at site induction" is not acceptable output.
 - [ ] **RULE-09**: Electrical scope boundary stated — works terminate at existing socket or client data outlet, no alteration to fixed installation, no live working.
 - [ ] **RULE-10**: Ceiling load stated as supported from structural soffit or purpose-designed mount kit — never suspended grid, pipework or sprinkler pipe.
+- [ ] **RULE-11**: Expanding foam is never described as a cable-penetration fire-stop. Fire-rated penetrations are sealed with the client-specified system restoring the original compartment rating, or referred to the specialist trade. *(Found 2026-08-25 in 21CQ30960: RA13 and RA18 both state the correct position, then the COSHH table lists "Expanding Foam — cable-penetration fire-stop", contradicting them. A principal contractor could reasonably challenge the pack on this.)* **Needs a human decision on the actual approved product/system before implementation.**
+- [ ] **RULE-12**: Manual-handling controls derive from actual equipment weight, manufacturer handling requirements and route assessment — never from screen diagonal alone. Mount and bracket rows must not inherit display handling text. *(Found 2026-08-25 in 21CQ30960 §6.7: a double-arm wall mount and a tilting wall mount both carry the "minimum 3 persons recommended for 65-inch" wording belonging to a display.)*
 
 ### Group C — Hazard library reconciliation
 
@@ -113,6 +121,8 @@ Deliberately excluded to keep the document-quality core shippable:
 | GATE-10 | Phase 31 | Pending |
 | GATE-11 | Phase 29 | Pending |
 | GATE-12 | Phase 29 | Pending |
+| GATE-13 | Phase 30 | Pending (added 2026-08-25) |
+| GATE-14 | Phase 30 | Pending (added 2026-08-25) |
 | RULE-01 | Phase 28 | Pending |
 | RULE-02 | Phase 27 | Pending |
 | RULE-03 | Phase 27 | Pending |
@@ -123,8 +133,10 @@ Deliberately excluded to keep the document-quality core shippable:
 | RULE-08 | Phase 29 | Pending |
 | RULE-09 | Phase 28 | Pending |
 | RULE-10 | Phase 28 | Pending |
+| RULE-11 | Phase 28 | Pending (added 2026-08-25) |
+| RULE-12 | Phase 27 | Pending (added 2026-08-25) |
 | HAZ-01 | Phase 26 | Complete |
-| HAZ-02 | Phase 26 | Reopened — round 2 (code fix landed Plan 26-08: legacy-name fold + same-batch dedup; AWAITING LIVE RE-VERIFICATION against 21CQ30960/RAMS 97 before this can flip to Complete a third time) |
+| HAZ-02 | Phase 26 | Complete (verified live 2026-08-25, RAMS 98 — 18 rows, zero duplicates, no Confined Spaces) |
 | HAZ-03 | Phase 26 | Complete (score_reviewed-gated precedence, Plan 26-08) |
 | HAZ-04 | Phase 26 | Complete |
 

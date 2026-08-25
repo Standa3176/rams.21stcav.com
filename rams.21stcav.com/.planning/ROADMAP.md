@@ -130,7 +130,7 @@ Plans:
 
 **Goal**: Every generated RAMS states the two-operative display-lift position without exception and calls out wall-mount removal as the highest-risk lift on a strip-out; the generator errors rather than silently accepting anything else.
 **Depends on**: Phase 26 (RULE-02/03 edit the Manual Handling hazard's control text, which Phase 26 replaces wholesale — editing the pre-Phase-26 content would be immediately overwritten)
-**Requirements**: RULE-02, RULE-03, GATE-09
+**Requirements**: RULE-02, RULE-03, RULE-12, GATE-09
 **Success Criteria** (what must be TRUE):
 
   1. The Manual Handling hazard's control text mandates a two-operative team lift for every display regardless of panel size — the current `config/rams_tier1.php:78` "Two-person lift mandatory for displays 55" and above" size threshold is gone, and no wording implies a four-operative or size-conditional lift; mechanical aids are stated as additional, never a substitute for the second person
@@ -145,7 +145,7 @@ Plans:
 
 **Goal**: Fix the FFP2/FFP3 contradiction and the "confined space" mislabel at every occurrence (config, `HazardLibraryService` fallback, and Phase 26's ported library), and ensure the ceiling-load and electrical-scope-boundary statements land in generated output; ship GATE-06 and GATE-07 in the same phase so neither fires against a still-broken default.
 **Depends on**: Phase 26 (RULE-01/RULE-06 edit hazard content Phase 26 restructures; GATE-07's "confined space" check needs the retitled "Restricted access and ceiling void working" hazard from HAZ-01 to exist first, or it fires against the app's own pre-fix baseline)
-**Requirements**: RULE-01, RULE-06, RULE-09, RULE-10, GATE-06, GATE-07
+**Requirements**: RULE-01, RULE-06, RULE-09, RULE-10, RULE-11, GATE-06, GATE-07
 **Success Criteria** (what must be TRUE):
 
   1. No respiratory-PPE mention anywhere in generated output reads FFP2 — `config/rams_tier1.php:129` (Dust from drilling) and `:286` (Expanding Foam COSHH entry, already FFP3) agree; face-fit testing is stated
@@ -175,7 +175,7 @@ Plans:
 
 **Goal**: Ship the three gates that check document-structural consistency — orphan controls, area/method-step coverage, and residual-vs-initial scoring — against the finished Phase 26 hazard shape.
 **Depends on**: Phase 26 (GATE-01's "matching hazard row" check and GATE-04's residual-score check need the final hazard set and HAZ-03's aligned scores to be meaningful, not the old fixed 11-hazard baseline)
-**Requirements**: GATE-01, GATE-02, GATE-04
+**Requirements**: GATE-01, GATE-02, GATE-04, GATE-13, GATE-14
 **Success Criteria** (what must be TRUE):
 
   1. GATE-01 errors when a method step or hazard control references a document, permit or hold point (e.g. "review the asbestos register") with no matching hazard row AND no matching `clientReqs` entry — proven against a fixture reproducing the canonical asbestos-orphan failure named in `PORTING-NOTES.md`
