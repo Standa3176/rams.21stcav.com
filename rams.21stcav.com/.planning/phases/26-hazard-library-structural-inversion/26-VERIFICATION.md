@@ -220,3 +220,84 @@ Observed in the same document; do NOT fix in Phase 26:
 5. Review-screen UI (`/rams/{id}/quote-review`) still not visually confirmed on live.
 
 *Verified 2026-08-24 against live production data (RAMS 97).*
+
+---
+
+# Round 3 — after Plan 26-08 (2026-08-25)
+
+**Verdict: HAZ-01..04 ALL VERIFIED ON LIVE.** Two operational items remain open (below);
+the four requirements themselves are closed on production evidence.
+
+Verified against project 92 / RAMS **98** — a fresh `generateFromProject` run through the
+deployed 26-08 code. `reviewed=7 generated=18`.
+
+## Every round-2 defect closed
+
+| Check | Round 2 (RAMS 97) | Round 3 (RAMS 98) |
+|---|---|---|
+| Row count | 21 | **18** |
+| `Confined Spaces` | present, client-facing | **gone** — folded to *Restricted access and ceiling voids* |
+| Slips duplicate pair | 2 rows | merged |
+| Occupied premises duplicate pair | 2 rows | merged |
+| Working at height | `3x3 -> 2x2` | **`3x4 -> 1x4`** |
+| `Electrical Hazards` | absent from output | **folded to `Electrical` `2x5 -> 1x4`** |
+| Vocabulary | mixed legacy + library | **all canonical library** |
+| Uniform `3x3 -> 2x2` block | 8 rows | gone |
+
+Scores now match `hazard-library.md` exactly — *Manual handling* `4x3 -> 2x3`,
+*Slips, trips and falls* `3x3 -> 2x2*, *Fixings* `3x4 -> 1x4`, *Asbestos* `2x5 -> 1x5`.
+Five tier-3 rows carry `needs_confirmation`: Occupied premises, Asbestos-containing
+materials, Vehicle and plant movement, Lone and small-team working, Occupational road risk.
+
+## The `Electrical` anomaly — resolved, benign
+
+Round 2 recorded `Electrical` as absent with an unexplained cause, and the plan-checker
+flagged a possible silent data-loss path. **It was not data loss.** `Electrical Hazards`
+was present throughout (it renders as row 3 of RAMS 97) and now folds correctly to
+`Electrical`. The round-2 note derived from a misreading of the RAMS 96 output. No
+data-loss path exists; no further investigation needed.
+
+## Open observation — 18 of 18 is not yet proof of discrimination
+
+RAMS 98 contains **the entire 18-hazard library**. For this job that is defensible: a
+multi-room strip-out and install, occupied automotive premises, ceiling-mounted mics,
+mains isolation and disconnection, drilling and fixings, a commercial-vehicle area, and a
+~60-mile trip from Reading. Every row can be justified from the scope.
+
+But a register equal to the whole library is precisely the shape GATE-05 exists to warn
+about. If **every** job renders 18/18, the inversion has not achieved discrimination — it
+is a longer route to the same full register, and `PORTING-NOTES.md`'s "empty register the
+user adds to" is satisfied only in mechanism, not in outcome.
+
+**Not a Phase 26 defect on this evidence, but it must be tested before the milestone is
+called done:** generate a RAMS for a simple single-room display swap and confirm the row
+count is materially lower. If it is not, the tier-2 signal vocabulary is matching too
+broadly and needs narrowing.
+
+## Still open (operational, not requirement gaps)
+
+1. **Rollback proof (26-06 Task 3).** `RAMS_HAZARD_LIBRARY_TIERING=false` +
+   `php artisan config:clear` + regenerate; confirm the register degrades to reviewed/
+   manual picks only and does **not** resurrect the old 11-hazard baseline; restore the
+   flag. This is the live safety net and has never been exercised.
+2. **Review-screen UI unconfirmed.** `/rams/{id}/quote-review` has still not been opened
+   on live. HAZ-04's numeric L×S inputs and the needs-confirmation badge are test-covered
+   but not visually verified.
+3. **Discrimination check** — the simple-job test described above.
+4. **Test artefacts on production:** RAMS 96, 97 and 98 for project 92. Supersede or
+   delete when convenient.
+
+## What this phase cost, and why
+
+Three rounds of live verification found three real defects that **2296 passing tests did
+not catch**:
+1. `runFromReview()` never wired to the tiered resolver (round 1)
+2. Legacy reviewed names colliding instead of folding, shipping `Confined Spaces` (round 2)
+3. Stale legacy scores defeating HAZ-03 (round 2)
+
+The tests were not weak — every fixture started from clean data, while real projects carry
+accumulated review history in `reviewed_data`. That gap was only ever reachable through
+production data. It also surfaced a **sixth** hazard-injection path
+(`RamsComplianceUpgradeService::addProjectSpecificRisks()`) that no artifact had catalogued.
+
+*Verified 2026-08-25 against live production data (RAMS 98).*
