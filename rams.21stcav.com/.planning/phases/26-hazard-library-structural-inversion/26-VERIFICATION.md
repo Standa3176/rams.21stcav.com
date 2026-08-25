@@ -301,3 +301,54 @@ production data. It also surfaced a **sixth** hazard-injection path
 (`RamsComplianceUpgradeService::addProjectSpecificRisks()`) that no artifact had catalogued.
 
 *Verified 2026-08-25 against live production data (RAMS 98).*
+
+---
+
+# Rollback proof — 26-06 Task 3 CLOSED (2026-08-25)
+
+The live safety net was exercised end to end on production.
+
+```
+echo "RAMS_HAZARD_LIBRARY_TIERING=false" >> .env && php artisan config:clear
+# regenerate project 92 -> RAMS 99
+sed -i '/^RAMS_HAZARD_LIBRARY_TIERING=false$/d' .env && php artisan config:clear
+# grep confirms flag removed, back to default (enabled)
+```
+
+**RAMS 99 with tiering disabled — 11 rows:**
+
+- Rows 1-7: the reviewed picks, **correctly folded to canonical names** — Working at
+  height, Manual handling, Electrical, Slips trips and falls, Noise and vibration,
+  Occupied premises, Restricted access and ceiling voids
+- Rows 8-11: the legacy `RamsComplianceUpgradeService::addProjectSpecificRisks()` rows in
+  old vocabulary — Cable Pulling & Termination, Low Voltage AV Connections, Fixings into
+  Walls & Ceilings, Dust from Drilling & Cutting
+
+**Verdict: PASSES.** This is exactly 26-07's stated contract — flag off restores
+byte-identical legacy behaviour for the sixth injection path. The old 11-hazard
+`baseline_hazards` set does **not** return (no "Struck by Falling Objects", no "Hidden
+Services"), and no always/confirm-tier hazards are added. Rollback is one `.env` edit plus
+a config clear, no redeploy, as designed.
+
+**Bonus finding:** `Confined Spaces` stays folded away even in rollback mode, because the
+fold map lives in `HazardLibraryService::fuzzyMatch()` rather than behind the flag. The
+banned mislabel is unreachable in both states.
+
+**Minor open cosmetic:** rollback mode yields mixed vocabulary — canonical folded names
+alongside `&`-style legacy ones from the compliance-upgrade path. Only visible in a state
+you would occupy briefly. The compliance-upgrade candidate names arguably should fold too.
+
+Flag confirmed removed from live `.env` afterwards; tiering is back to its default
+(enabled). Phase 26's live checkpoint is fully discharged.
+
+## Phase 26 status
+
+- HAZ-01, HAZ-02, HAZ-03, HAZ-04 — **all verified on live production data**
+- 26-06 Task 3 (deploy + 21CQ30960 spot-check + rollback proof) — **CLOSED**
+
+Remaining, non-blocking:
+1. Review-screen UI (`/rams/{id}/quote-review`) never visually confirmed on live
+2. Discrimination check — RAMS 98 rendered 18 of 18 library hazards; justifiable for this
+   job, but a simple single-room swap must produce materially fewer rows or the tier-2
+   vocabulary is matching too broadly
+3. RAMS 96, 97, 98, 99 are test artefacts on production for project 92 — supersede/delete
