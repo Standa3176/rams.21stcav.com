@@ -215,6 +215,33 @@ class EquipmentClassifierService
         return false;
     }
 
+    /**
+     * Phase 27 Plan 02 (RULE-03 decommission-scope scan): whether the given
+     * free-text narrative matches the SAME display/screen keyword vocabulary
+     * classify() already uses for its 'display_installation' activity — a
+     * single source of truth, mirroring textIndicatesDrilling()'s established
+     * shape for MOUNT_KEYWORDS rather than a second, divergent keyword list.
+     * Used by RamsComplianceUpgradeService::deriveMaterialHandling() to
+     * detect a display item within the scope_items.decommission bucket, so
+     * the RULE-03 wall-mount-removal statement is appended only for displays
+     * (house-rules.md:18-19 — non-display strip-out items keep their own
+     * handling rules).
+     *
+     * Fail-safe by construction: no keyword hit never becomes a positive.
+     */
+    public function textIndicatesDisplay(string $text): bool
+    {
+        $lower = strtolower($text);
+
+        foreach (self::ACTIVITY_MAP['display_installation']['keywords'] as $kw) {
+            if (str_contains($lower, $kw)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     // =========================================================================
     // PRIVATE HELPERS
     // =========================================================================

@@ -1175,6 +1175,44 @@ class RamsComplianceUpgradeService
             }
         }
 
+        // Scan scope items (decommission) — Phase 27 Plan 02 (RULE-03): this
+        // bucket was never scanned before, so a display being stripped out
+        // produced zero §6.7 rows regardless of RULE-03. Display items found
+        // here additionally get the wall-mount-removal statement appended,
+        // since that sequence is the highest-risk lift on a strip-out
+        // (house-rules.md:13-16) — not just a generic team-lift line.
+        // Non-display decommission items (e.g. a rack being stripped out)
+        // are scanned the same way as before, with no statement appended —
+        // RULE-03 is display-specific.
+        $equipmentClassifier = new \App\Services\EquipmentClassifierService();
+        foreach ((array) ($data['scope_items']['decommission'] ?? []) as $item) {
+            $name = strtolower(trim((string) ($item['item_name'] ?? '')));
+            if ($isNonPhysical($item['category'] ?? null, $name)) {
+                continue;
+            }
+            foreach ($heavyKeywords as $kw) {
+                if (str_contains($name, $kw)) {
+                    $resolved = self::suggestHandlingMethod((string) ($item['item_name'] ?? ''), (int) ($item['qty'] ?? 1));
+                    if ($resolved === null) break;
+
+                    $sentence = $resolved['sentence'];
+                    if ($equipmentClassifier->textIndicatesDisplay((string) ($item['item_name'] ?? ''))) {
+                        $sentence .= ' ' . DisplayLiftPolicy::wallMountRemovalStatement();
+                    }
+
+                    $detectedItems[] = [
+                        'item'            => ($item['item_name'] ?? '') . ' (decommission)',
+                        'qty'             => (int) ($item['qty'] ?? 1),
+                        'handling_method' => $sentence,
+                        'min_persons'     => $resolved['min_persons'],
+                        'inches'          => $resolved['inches'],
+                        'phase'           => 'decommission',
+                    ];
+                    break;
+                }
+            }
+        }
+
         // Scan ProjectContext rooms equipment
         foreach ((array) ($data['rooms'] ?? []) as $room) {
             foreach ((array) ($room['equipment'] ?? []) as $eq) {

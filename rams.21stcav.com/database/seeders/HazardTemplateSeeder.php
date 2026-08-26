@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\HazardTemplate;
+use App\Services\Rams\DisplayLiftPolicy;
 use Illuminate\Database\Seeder;
 
 /**
@@ -116,8 +117,8 @@ class HazardTemplateSeeder extends Seeder
                 'post_severity'   => 3,
                 'controls'        => [
                     'Use mechanical aids (sack trucks, lifting trolleys, panel lifter) for items over 20 kg.',
-                    'Team lift required for all displays — minimum two operatives for every panel size. Mechanical aid used in addition where available.',
-                    'Removal of a display from an existing wall mount is the highest-risk lift on any strip-out. Load is controlled to the lowest practicable height with one operative each side before release from the mount.',
+                    DisplayLiftPolicy::genericBandSummary(),
+                    DisplayLiftPolicy::wallMountRemovalStatement(),
                     'Pre-plan the route and clear all access paths before moving equipment. Passenger lift used between floors — no carrying on stairs.',
                     'Wear appropriate gloves and safety footwear at all times.',
                     'Conduct a task-specific manual handling assessment prior to every lift. Any operative may stop a lift.',
