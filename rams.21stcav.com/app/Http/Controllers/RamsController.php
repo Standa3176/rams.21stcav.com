@@ -583,8 +583,27 @@ class RamsController extends Controller
         // rebuilds generated_data).
         $generatedData['site_emergency'] = $reviewedData['site_emergency'];
 
+        // Also mirror material_handling into generated_data (Plan 27-07,
+        // GATE-09 coverage-gap closure) so enforceDisplayLiftGate()'s
+        // engineer-row loop can see the team size the engineer just typed
+        // on THIS save request. Without this mirror, the gate's engineer-row
+        // check always sees an empty array on the Save Review path — the
+        // exact path an engineer uses — even though the same field is
+        // already gated on the two RamsBuilderService entry points
+        // (Plan 27-06). See deferred-items.md item 1.
+        $generatedData['material_handling'] = $reviewedData['material_handling'] ?? [];
+
         // ── Apply Tier 1 compliance upgrade before persist + render ────────
-        $generatedData = \App\Services\Rams\RamsComplianceUpgradeService::upgrade($generatedData);
+        // A RamsGenerationException here means GATE-09 (or another Tier 1
+        // rule) rejected data the engineer just typed on this exact request.
+        // Redirect back with the message rather than letting it escape as an
+        // unhandled 500 — nothing has been persisted yet at this point, so
+        // there is nothing to roll back.
+        try {
+            $generatedData = \App\Services\Rams\RamsComplianceUpgradeService::upgrade($generatedData);
+        } catch (\App\Exceptions\RamsGenerationException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
 
         // Mirror personnel + vehicle + programme date fields into form_data so
         // a later regenerate (BuildRamsDocumentJob → RamsDataBuilderService::buildFromForm)
