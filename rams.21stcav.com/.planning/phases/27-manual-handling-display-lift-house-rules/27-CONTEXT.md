@@ -54,6 +54,44 @@ the config file.
   substitute" clause both survive intact. Only its *"regardless of panel size"* clause is
   amended.
 
+  > **CORRECTION (2026-08-25, after research — user decision). A single-operative band
+  > below 55″ is reinstated.** The D-01 text above is left unmodified; this amendment
+  > supersedes its "never 1 operative" clause. Every other clause stands.
+  >
+  > **The bands now are:**
+  >
+  > | Item | Team size |
+  > |---|---|
+  > | Scheduling / touch / control panels ≤14″ | **No manual-handling row at all** — existing exclusion, unchanged |
+  > | Display under 55″ | **1 operative** |
+  > | Display 55″ to 90″ inclusive | **2 operatives minimum** |
+  > | Display above 90″ | **3 operatives minimum** |
+  > | Any display, any size | **Never 4 or more** |
+  >
+  > **Why it changed:** research surfaced that `SafetyProfileService` has no equivalent
+  > of `suggestHandlingMethod()`'s ≤14″ small-panel exclusion, so D-04's removal of the
+  > 55″ threshold would have put a "minimum 2-person lift" instruction on a 10.1″
+  > room-booking panel. Asked to resolve that, the user kept the ≤14″ exclusion **and**
+  > reinstated a single-operative band below 55″ — returning to the position first typed
+  > at the start of the discussion (*"55 can be one man"*), which the two-operative-floor
+  > answer had displaced. The user stated it twice; the reversal was named explicitly and
+  > confirmed, and the exact boundary was pinned in a follow-up rather than assumed.
+  >
+  > **Consequences for planning:**
+  > - The ≤14″ exclusion is **not** the same thing as the <55″ single-operative band. A
+  >   ≤14″ control panel produces **no row**; a 43″ display produces a **1-operative
+  >   row**. `DisplayLiftPolicy` must model three outcomes, not two: no-row, a team size,
+  >   and the band boundaries between them.
+  > - GATE-09's error conditions are now: 4 or more operatives at any size; 2 operatives
+  >   above 90″; **1 operative at 55″ or larger**. 1 operative below 55″ is correct output,
+  >   not a defect.
+  > - D-05's silent 2-operative fallback for an **unresolvable** size is unchanged. Note
+  >   the asymmetry this creates and do not "fix" it: an unknown size takes 2, which is
+  >   above the <55″ band's 1. That is deliberate — unknown defaults conservatively.
+  > - This is now a **two-step divergence from the skill**, not one. `house-rules.md:8-11`
+  >   says two-operative regardless of size; the app says 1 / 2 / 3 by band. Still recorded
+  >   app-side only — do not edit the skill.
+
   **Required edits before `/gsd:plan-phase 27` runs** — planning against the unamended
   text will produce a plan that contradicts this decision:
   1. `.planning/REQUIREMENTS.md:74` — RULE-02 restated as the floor-plus-ladder position,
@@ -286,12 +324,20 @@ The user chose not to discuss these. The planner decides, within the stated cons
 ## Specific Ideas
 
 - **The band numbers are the user's own, stated verbatim:** *"55 can be one man, 65-85
-  2 man and >90 3 man."* After being shown the RULE-02 conflict the user selected the
-  **two-operative floor** variant — which removes the one-man band entirely and keeps
-  the ladder only above 90 inches. The originally-typed one-man position is **not** what
-  gets built; D-01 is.
-- **The 86–90 and 56–64 inch gaps in the originally-typed ladder are closed by D-01's
-  floor** — everything up to and including 90 inches is 2 operatives. No band gaps remain.
+  2 man and >90 3 man."* Shown the RULE-02 conflict, the user first selected the
+  **two-operative floor** variant, dropping the one-man band. Research then surfaced the
+  small-panel problem, and in resolving it the user **reinstated the single-operative
+  band below 55 inches** — see D-01's correction block, which is the governing text.
+  The final position is closer to what was first typed than to the intermediate
+  floor-only answer.
+- **No band gaps remain.** Under D-01-as-corrected: ≤14 inch control panels get no row;
+  below 55 is 1 operative; 55 to 90 inclusive is 2; above 90 is 3. The 56–64 and 86–90
+  gaps in the originally-typed ladder are closed.
+- **The reversal was raised, not absorbed.** Claude flagged that "1 man below 55" reverses
+  D-01's "never 1 operative at any size" and that RULE-02/GATE-09 had already been
+  committed on the floor position. The user confirmed, and the exact boundary was pinned
+  in a follow-up question rather than inferred. Recorded so a later reader does not treat
+  the divergence from `house-rules.md` as drift.
 - **Validation happens on live** at `rams.21stcav.com` against production data, not a
   staging environment (carried from Phase 26). Deploy as `stcav`, not root.
 - **The proof job is 21CQ30960 (VW Blakelands)** — the professional review that triggered
