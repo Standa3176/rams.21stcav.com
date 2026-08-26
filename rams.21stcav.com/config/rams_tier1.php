@@ -57,6 +57,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Display-lift gate kill-switch (Phase 27, GATE-09)
+    |--------------------------------------------------------------------------
+    |
+    | Gates ONLY RamsComplianceUpgradeService::enforceDisplayLiftGate() — the
+    | independent re-check of every display item's stated manual-handling
+    | team size against App\Services\Rams\DisplayLiftPolicy::violatesPolicy()
+    | (4+ operatives at any size, 2 operatives above 90", or 1 operative at
+    | 55" or larger). When false, enforceDisplayLiftGate() is never called —
+    | upgrade() proceeds byte-identical to pre-GATE-09 behaviour, no redeploy
+    | required. This is this milestone's live-validation posture applied to
+    | GATE-09 specifically: see 27-CONTEXT.md's Reversibility discretion item
+    | and T-27-03 in 27-03-PLAN.md's threat register.
+    |
+    */
+    'display_lift_gate_enabled' => env('RAMS_DISPLAY_LIFT_GATE', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Baseline COSHH inventory
     |--------------------------------------------------------------------------
     |

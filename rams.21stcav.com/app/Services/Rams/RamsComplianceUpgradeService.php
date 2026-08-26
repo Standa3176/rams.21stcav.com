@@ -2,6 +2,8 @@
 
 namespace App\Services\Rams;
 
+use App\Exceptions\RamsGenerationException;
+
 /**
  * RamsComplianceUpgradeService
  *
@@ -40,6 +42,16 @@ class RamsComplianceUpgradeService
         $ramsData = self::addFixingsControl($ramsData);
         $ramsData = self::addSupervisionAndQA($ramsData);
         $ramsData = self::deriveMaterialHandling($ramsData);
+        // GATE-09 — independent re-check of every display item's stated team
+        // size against DisplayLiftPolicy::violatesPolicy(). Config-gated so
+        // this milestone's live-validation posture can roll it back with a
+        // single .env edit (RAMS_DISPLAY_LIFT_GATE), mirroring
+        // RAMS_HAZARD_LIBRARY_TIERING's established shape exactly. When the
+        // flag is false, enforceDisplayLiftGate() is never called — upgrade()
+        // proceeds byte-identical to pre-GATE-09 behaviour.
+        if (config('rams_tier1.display_lift_gate_enabled', true)) {
+            $ramsData = self::enforceDisplayLiftGate($ramsData);
+        }
         $ramsData = self::crossReferenceMethodStatementRisks($ramsData);
         $ramsData = self::addCdmDutyHolders($ramsData);
         $ramsData = self::cleanTextArtifacts($ramsData);
@@ -1077,6 +1089,69 @@ class RamsComplianceUpgradeService
     // =========================================================================
     // 12. MATERIAL HANDLING — derive from equipment data
     // =========================================================================
+
+    /**
+     * GATE-09 — an independent re-check of every display-lift item
+     * `deriveMaterialHandling()` just derived, run immediately after it in
+     * `upgrade()`'s pipeline (config-gated by the caller).
+     *
+     * This method NEVER re-derives a team size and NEVER calls
+     * {@see DisplayLiftPolicy::forSize()} — it only re-checks the numbers
+     * `deriveMaterialHandling()` already stored, via the independent
+     * {@see DisplayLiftPolicy::violatesPolicy()} re-check. This is the "gate
+     * never trusts the same call path that produced the text" anti-pattern
+     * guard from 27-RESEARCH.md: a violation check that merely re-derived
+     * `forSize()`'s own output and compared it would not be a true
+     * independent check.
+     *
+     * `material_handling.large_items` (the engineer-typed manual override
+     * array read by `DocxBuilderService::buildMaterialHandling()`) is
+     * explicitly OUT of scope — it is manually-typed engineer input, not
+     * policy-derived content, consistent with the existing "engineer values
+     * always win, never re-validated" pattern (HAZ-04's `score_reviewed`
+     * precedent).
+     *
+     * Throws {@see RamsGenerationException} on the FIRST violating item
+     * found, naming the item, its stated `min_persons`, and its resolved
+     * `inches` (or "unresolved" when null) so the `error_message` surfaced
+     * on `rams/index.blade.php` (via `BuildRamsDocumentJob::handle()`'s
+     * `catch (\Throwable $e)` -> `RamsDocument.status = STATUS_FAILED` ->
+     * `error_message`) is actionable, not generic.
+     */
+    private static function enforceDisplayLiftGate(array $data): array
+    {
+        $items = (array) ($data['material_handling_derived']['items'] ?? []);
+
+        foreach ($items as $item) {
+            $minPersons = $item['min_persons'] ?? null;
+            if ($minPersons === null) {
+                // Non-display item (mount/bracket/projector/rack/amp/speaker/
+                // catch-all) — DisplayLiftPolicy's bands do not govern these,
+                // per deriveMaterialHandling()'s own null convention.
+                continue;
+            }
+
+            $inches = $item['inches'] ?? null;
+
+            if (DisplayLiftPolicy::violatesPolicy((int) $minPersons, $inches === null ? null : (float) $inches)) {
+                $inchesLabel = $inches === null ? 'unresolved' : ((string) $inches . '"');
+
+                throw new RamsGenerationException(sprintf(
+                    'Manual handling team size for "%s" (%s operative%s, %s) does not meet the display-lift '
+                    . 'house rules (RULE-02/GATE-09): 4+ operatives are never required, 2 operatives are '
+                    . 'insufficient above 90", and 1 operative is insufficient at 55" or larger. Correct the '
+                    . 'stated team size before regenerating, or set RAMS_DISPLAY_LIFT_GATE=false to disable '
+                    . 'this check.',
+                    (string) ($item['item'] ?? 'unnamed item'),
+                    (string) $minPersons,
+                    ((int) $minPersons === 1 ? '' : 's'),
+                    $inchesLabel,
+                ));
+            }
+        }
+
+        return $data;
+    }
 
     /**
      * Detect heavy/bulky equipment from all available data sources and set
