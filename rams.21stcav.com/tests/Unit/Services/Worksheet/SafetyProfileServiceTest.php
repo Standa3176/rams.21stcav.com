@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Services\Worksheet;
 
+use App\Services\Rams\DisplayLiftPolicy;
 use App\Services\Worksheet\SafetyProfileService;
 use PHPUnit\Framework\TestCase;
 
@@ -20,21 +21,30 @@ class SafetyProfileServiceTest extends TestCase
         $this->assertSame([], $this->svc->profileRoom([], []));
     }
 
-    public function test_large_display_via_keyword_fires_two_person_lift(): void
+    public function test_large_display_via_keyword_fires_two_operative_band(): void
     {
+        // 75" resolves to DisplayLiftPolicy's 55"-90" band (2 operatives
+        // minimum) — the shared band's sentence, not a hardcoded
+        // "Large display detected" string (RULE-02/D-04 parity).
         $out = $this->svc->profileRoom([], [
             ['name' => 'Samsung 75" QM75B Display'],
         ]);
         $this->assertNotEmpty($out);
-        $this->assertStringStartsWith('Large display detected', $out[0]);
+        $this->assertSame(DisplayLiftPolicy::forSize(75.0)['sentence'], $out[0]);
     }
 
-    public function test_small_display_does_not_fire_two_person_lift(): void
+    public function test_genuine_small_display_now_fires_single_operative_band(): void
     {
+        // D-04: a genuine 32" display is NOT a ≤14" control panel, so under
+        // the corrected bands it now DOES produce a warning — the
+        // 1-operative band, not the old "no warning at all" behaviour this
+        // test previously pinned. A worksheet and a RAMS document must never
+        // disagree about which displays need a stated team size.
         $out = $this->svc->profileRoom([], [
             ['name' => 'Samsung 32" LCD Monitor'],
         ]);
-        $this->assertEmpty(array_filter($out, fn ($w) => str_starts_with($w, 'Large display')));
+        $this->assertNotEmpty($out);
+        $this->assertSame(DisplayLiftPolicy::forSize(32.0)['sentence'], $out[0]);
     }
 
     public function test_large_display_via_metadata_fires_regardless_of_name(): void
@@ -42,7 +52,42 @@ class SafetyProfileServiceTest extends TestCase
         $out = $this->svc->profileRoom([], [
             ['name' => 'Widget 42', 'display_size_in' => 85],
         ]);
-        $this->assertStringStartsWith('Large display', $out[0]);
+        $this->assertSame(DisplayLiftPolicy::forSize(85.0)['sentence'], $out[0]);
+    }
+
+    public function test_above_90_display_fires_three_operative_band(): void
+    {
+        $out = $this->svc->profileRoom([], [
+            ['name' => 'Samsung 96" Display'],
+        ]);
+        $this->assertNotEmpty($out);
+        $this->assertSame(DisplayLiftPolicy::forSize(96.0)['sentence'], $out[0]);
+        $this->assertStringNotContainsString('minimum 2-person lift', $out[0]);
+    }
+
+    public function test_above_90_display_via_metadata_fires_three_operative_band(): void
+    {
+        // Metadata-first path (display_size_in => 95, no size keyword needed
+        // in the name) resolves the same 3-operative band as the keyword
+        // path — proving metadata-first still works after the D-04 change.
+        $out = $this->svc->profileRoom([], [
+            ['name' => 'Boardroom Video Wall', 'display_size_in' => 95],
+        ]);
+        $this->assertNotEmpty($out);
+        $this->assertSame(DisplayLiftPolicy::forSize(95.0)['sentence'], $out[0]);
+    }
+
+    public function test_small_control_panel_still_produces_no_warning(): void
+    {
+        // The ≤14" scheduling/touch/control-panel exclusion is mirrored from
+        // suggestHandlingMethod() (Open Question 1, resolved in favour of
+        // consistency) — a genuine control panel still gets no row at all,
+        // unlike a genuine small display which now does.
+        $out = $this->svc->profileRoom([], [
+            ['name' => '10.1in room scheduling touch panel'],
+        ]);
+        $this->assertSame([], $out);
+        $this->assertNull(DisplayLiftPolicy::forSize(10.1, true));
     }
 
     public function test_rack_chassis_fires_team_lift_only_in_the_room_with_the_rack(): void

@@ -160,4 +160,26 @@ class MethodStatementServiceTest extends TestCase
         $this->assertSame('Room B: Description B.', $lines[1]);
         $this->assertSame('Room C: Description C.', $lines[2]);
     }
+
+    // ── Test 7: fallback() Installation Works step no longer hardcodes a
+    //            "two-person lifts" claim (RULE-02/D-04 parity) ───────────────
+
+    public function test_fallback_installation_works_step_has_no_hardcoded_two_person_lift_claim(): void
+    {
+        $phases = $this->service->fallback()['phases'];
+
+        $installationWorks = null;
+        foreach ($phases as $phase) {
+            if (($phase['title'] ?? '') === '4. Installation Works') {
+                $installationWorks = $phase;
+                break;
+            }
+        }
+
+        $this->assertNotNull($installationWorks, 'fallback() must still include the "4. Installation Works" phase.');
+
+        foreach ($installationWorks['steps'] as $step) {
+            $this->assertStringNotContainsString('two-person lifts', $step);
+        }
+    }
 }
