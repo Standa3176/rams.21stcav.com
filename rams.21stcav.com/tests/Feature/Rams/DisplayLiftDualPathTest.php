@@ -252,6 +252,15 @@ class DisplayLiftDualPathTest extends TestCase
     }
 
     // ── Violating fixtures (isolated-process alias mock of DisplayLiftPolicy) ─
+    //
+    // Plan 27-06 note: these 2 tests cover the DERIVED-items branch only
+    // (material_handling_derived.items, produced by deriveMaterialHandling()
+    // via DisplayLiftPolicy::forSize()) — which remains conformant-by-
+    // construction and therefore still needs this mock to force a violation.
+    // The engineer-typed branch (material_handling.large_items) this mock
+    // does NOT cover is proven unmocked, on real production-shaped data, by
+    // test_gate_fires_on_engineer_row_via_run_from_review/_run_pipeline below
+    // — THAT is Plan 27-06's actual coverage-gap closure.
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
@@ -308,5 +317,72 @@ class DisplayLiftDualPathTest extends TestCase
         $this->assertSame(RamsDocument::STATUS_FAILED, $fresh->status);
         $this->assertNotEmpty($fresh->error_message);
         $this->assertStringContainsString('display-lift house rules', $fresh->error_message);
+    }
+
+    // ── Plan 27-06 — engineer-typed rows (REAL DisplayLiftPolicy, no mock) ──
+    //
+    // This is the actual coverage-gap closure: material_handling_derived
+    // items can never trip the gate (see the class docblock above), but
+    // material_handling.large_items is free-text an engineer types on the
+    // RAMS review screen — no DisplayLiftPolicy::forSize() involved at all —
+    // so a genuinely violating (min_persons, inches) pair reaches
+    // enforceDisplayLiftGate() through ordinary business data. No mock of
+    // any kind is used in either test below.
+
+    public function test_gate_fires_on_engineer_row_via_run_from_review(): void
+    {
+        $this->seed(HazardTemplateSeeder::class);
+        $this->fakeClaudeResponse();
+
+        $user = User::factory()->create();
+        $rams = $this->makeReviewedRams($user, $this->baseReviewedData([
+            'material_handling' => [
+                'has_large_items' => true,
+                'large_items'     => [
+                    ['item' => 'Samsung 98" display', 'handling_method' => 'Team lift — minimum 4 persons', 'weight_kg' => ''],
+                ],
+                'handling_notes' => '',
+            ],
+        ]), 'DLD-ENG-RFR');
+
+        try {
+            (new BuildRamsDocumentJob($rams->id))->handle(app(RamsBuilderService::class));
+            $this->fail('Expected RamsGenerationException was not thrown via runFromReview() for an engineer-typed row.');
+        } catch (RamsGenerationException $e) {
+            $this->assertStringContainsString('Samsung 98" display', $e->getMessage());
+        }
+
+        $fresh = $rams->fresh();
+        $this->assertSame(RamsDocument::STATUS_FAILED, $fresh->status);
+        $this->assertNotEmpty($fresh->error_message);
+        $this->assertStringContainsString('Samsung 98" display', $fresh->error_message);
+    }
+
+    public function test_gate_fires_on_engineer_row_via_run_pipeline(): void
+    {
+        $this->seed(HazardTemplateSeeder::class);
+        $this->fakeClaudeResponse();
+
+        $rams = $this->makeManualFormRams([
+            'material_handling' => [
+                'has_large_items' => true,
+                'large_items'     => [
+                    ['item' => 'Samsung 98" display', 'handling_method' => 'Team lift — minimum 4 persons', 'weight_kg' => ''],
+                ],
+                'handling_notes' => '',
+            ],
+        ], 'DLD-ENG-PIPE');
+
+        try {
+            (new BuildRamsDocumentJob($rams->id))->handle(app(RamsBuilderService::class));
+            $this->fail('Expected RamsGenerationException was not thrown via runPipeline() for an engineer-typed row.');
+        } catch (RamsGenerationException $e) {
+            $this->assertStringContainsString('Samsung 98" display', $e->getMessage());
+        }
+
+        $fresh = $rams->fresh();
+        $this->assertSame(RamsDocument::STATUS_FAILED, $fresh->status);
+        $this->assertNotEmpty($fresh->error_message);
+        $this->assertStringContainsString('Samsung 98" display', $fresh->error_message);
     }
 }

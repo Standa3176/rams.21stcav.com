@@ -280,6 +280,17 @@ class RamsBuilderService
             'new_install'  => (array) ($reviewedData['new_install_items']  ?? $data['scope_items']['new_install']  ?? []),
         ];
 
+        // Plan 27-06 (GATE-09 coverage-gap closure) — mirror reviewed_data
+        // ['material_handling'] onto the pipeline array. RamsController's
+        // review screen persists the engineer-typed large_items override into
+        // reviewed_data['material_handling'] (RamsController.php:495-502), but
+        // nothing previously carried it into the array upgrade() checks and
+        // DocxBuilderService/the PDF template actually read — the engineer's
+        // stated team size never reached generated_data at all via this path,
+        // let alone GATE-09's re-check. Mirrored here, immediately before
+        // upgrade(), exactly like scope_items above.
+        $data['material_handling'] = (array) ($reviewedData['material_handling'] ?? $data['material_handling'] ?? []);
+
         // ── Tier 1 compliance upgrade (PPE matrix, CDM, risk colour key, etc.) ─
         $data = RamsComplianceUpgradeService::upgrade($data);
 
@@ -876,6 +887,15 @@ class RamsBuilderService
         if (empty($data['scope_of_works'])) {
             $data['scope_of_works'] = trim((string) ($formData['works_description'] ?? $parsed['works_summary'] ?? ''));
         }
+
+        // Plan 27-06 (GATE-09 coverage-gap closure) — mirror formData
+        // ['material_handling'] onto the pipeline array, matching
+        // runFromReview()'s equivalent mirror above. buildFromForm()'s manual
+        // creation form does not currently expose this field, but a later
+        // regenerate/edit flow may pass it through formData, and this keeps
+        // both real generation entry points symmetric for GATE-09's engineer-
+        // row re-check.
+        $data['material_handling'] = (array) ($formData['material_handling'] ?? $data['material_handling'] ?? []);
 
         // ── Tier 1 compliance upgrade (PPE matrix, CDM, risk colour key, etc.) ─
         $data = RamsComplianceUpgradeService::upgrade($data);
