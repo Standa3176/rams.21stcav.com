@@ -138,13 +138,14 @@ Plans:
   3. GATE-09 errors on a display lift that does not conform to RULE-02's bands — 4 or more operatives at any size, 2 operatives above 90″, or 1 operative at 55″ or larger — proven by reverting the fix on a fixture and observing the gate fire, then restoring. A 1-operative lift below 55″ and an unresolvable display size both pass clean. *(Amended 2026-08-25 alongside RULE-02.)*
   4. Regenerating 21CQ30960 (or another live strip-out job) does not trip GATE-09 — confirms the fix and the gate agree against real data, not just a fixture
 
-**Plans**: 5 plans, 4 waves
+**Plans**: 6 plans, 4 waves (27-06 added mid-execution, Wave 3)
 Plans:
 - [x] 27-01-PLAN.md — DisplayLiftPolicy (D-03 single shared source: bands, independent violatesPolicy() re-check, RULE-03 statement, seeder-facing summary) + unit tests. Wave 1.
 - [x] 27-02-PLAN.md — RULE-02 ladder replacement + RULE-12 branch-order fix in suggestHandlingMethod(); RULE-03 decommission-scope scan in deriveMaterialHandling(); HazardTemplateSeeder re-sourced from DisplayLiftPolicy. Wave 2 — depends on 27-01. **LANDED 2026-08-26** (RULE-12's weight-derivation clause deliberately deferred — see 27-02-SUMMARY.md).
 - [x] 27-03-PLAN.md — GATE-09: enforceDisplayLiftGate() wired into upgrade(), RAMS_DISPLAY_LIFT_GATE env flag, dual-path proof (runFromReview/runPipeline), structural guard against divergent bands. Wave 3 — depends on 27-02.
 - [x] 27-04-PLAN.md — D-04 worksheet parity: SafetyProfileService + MethodStatementService fallback string read DisplayLiftPolicy. Wave 2 (parallel with 27-02) — depends on 27-01. **LANDED 2026-08-26** (see 27-04-SUMMARY.md).
-- [ ] 27-05-PLAN.md — Live deploy + reseed + 21CQ30960 regeneration verification (ROADMAP success criterion 4) + rollback-flag smoke test. Wave 4 — depends on 27-02, 27-03, 27-04.
+- [x] 27-06-PLAN.md — **Added mid-execution** (Wave 3, depends on 27-01/27-02/27-03/27-04) after a coverage gap was found in 27-03's shipped GATE-09: extends enforceDisplayLiftGate() to also validate engineer-typed material_handling.large_items rows, which the original gate could never check (policy-derived items are conformant by construction). **LANDED 2026-08-26** (see 27-06-SUMMARY.md).
+- [ ] 27-05-PLAN.md — Live deploy + reseed + 21CQ30960 regeneration verification (ROADMAP success criterion 4) + rollback-flag smoke test. Wave 4 — depends on 27-02, 27-03, 27-04, 27-06.
 **UI hint**: yes (gate errors surface on the RAMS review screen)
 
 ### Phase 28: PPE, Ceiling & Electrical Boundary House Rules
