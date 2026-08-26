@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Core\AI\AIManager;
 use App\Core\AI\Prompts\MethodStatementPrompt;
 use App\Exceptions\AIGenerationException;
+use App\Services\Rams\DisplayLiftPolicy;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -458,7 +459,8 @@ class MethodStatementService
                     'steps' => [
                         'Sequence installation by room in the agreed order, completing containment, mounting and cabling in each area before moving on.',
                         'Route cables via the agreed containment (ceiling void, trunking or conduit as per survey), fire-stop all penetrations, and segregate data, audio and power runs.',
-                        'Survey wall substrates, select fixings appropriate to the surface type, and mount displays and screens using two-person lifts, torquing fixings to manufacturer guidance.',
+                        'Survey wall substrates, select fixings appropriate to the surface type, and mount displays and screens per the required lift team size ('
+                            . DisplayLiftPolicy::genericBandSummary() . '), torquing fixings to manufacturer guidance.',
                         'Install audio equipment including speakers and amplifiers using approved structural fixings, routing cables neatly back to equipment locations.',
                         'Build rack infrastructure from the bottom up to manage weight distribution and install equipment to manufacturer specifications, without disrupting any live infrastructure.',
                         'Connect control and switching equipment, apply labelling to all interfaces, and verify signal flow before proceeding to commissioning.',

@@ -2,6 +2,8 @@
 
 namespace App\Services\Worksheet;
 
+use App\Services\Rams\DisplayLiftPolicy;
+
 /**
  * Per-room safety callout builder.
  *
@@ -20,8 +22,7 @@ namespace App\Services\Worksheet;
  */
 class SafetyProfileService
 {
-    public const LARGE_DISPLAY_INCHES = 55;  // ≥ this → two-person lift
-    public const HEAVY_ITEM_KG        = 25;  // ≥ this → heavy-item warning
+    public const HEAVY_ITEM_KG = 25;  // ≥ this → heavy-item warning
 
     /**
      * Produce the list of safety warnings for one room.
@@ -34,8 +35,9 @@ class SafetyProfileService
     {
         $warnings = [];
 
-        if ($this->roomContainsLargeDisplay($items)) {
-            $warnings['large_display'] = 'Large display detected — minimum 2-person lift required. Use screen-protection packaging and soft-edge grips during transit.';
+        $displayWarning = $this->resolveDisplayLiftWarning($items);
+        if ($displayWarning !== null) {
+            $warnings['large_display'] = $displayWarning;
         }
 
         if ($this->roomContainsRackChassis($items)) {
@@ -59,19 +61,79 @@ class SafetyProfileService
 
     // ─── Rule implementations ────────────────────────────────────────────────
 
-    private function roomContainsLargeDisplay(array $items): bool
+    /**
+     * Resolve the worst-case (highest `min_persons`) display-lift band among
+     * a room's items, via the single shared `DisplayLiftPolicy` (RULE-02/D-04)
+     * — the same bands and the same general inch-parsing pattern
+     * `RamsComplianceUpgradeService::suggestHandlingMethod()` uses, so the
+     * worksheet and the RAMS never state different team sizes for the same
+     * display. Returns `null` when no item in the room resolves to a display
+     * band at all (either because nothing looks like a display, or because
+     * every display present is a ≤14" scheduling/touch/control panel — the
+     * pre-existing exclusion, mirrored here for consistency).
+     */
+    private function resolveDisplayLiftWarning(array $items): ?string
     {
+        $worst = null;
+
         foreach ($items as $i) {
             if (! is_array($i)) continue;
-            $sizeIn = (int) ($i['display_size_in'] ?? 0);
-            if ($sizeIn >= self::LARGE_DISPLAY_INCHES) return true;
 
-            // Keyword fallback: scan name for explicit size tokens.
             $name = strtolower((string) ($i['name'] ?? $i['description'] ?? ''));
-            if (preg_match('/\b(55|65|70|75|85|86|98|100)\s*[\"”]/u', $name)) return true;
-            if (preg_match('/\b(55|65|70|75|85|86|98|100)\s*inch\b/u', $name)) return true;
+            $paddedName = ' ' . $name . ' ';
+
+            // Metadata-first.
+            $inches = null;
+            $hasSizeMeta = isset($i['display_size_in']) && is_numeric($i['display_size_in']);
+            if ($hasSizeMeta) {
+                $inches = (float) $i['display_size_in'];
+            }
+
+            // Keyword fallback: the SAME general inch-parsing regex
+            // RamsComplianceUpgradeService::suggestHandlingMethod() uses —
+            // "98″", "98\"", "98 inch", "98-inch", "10.1″" — not the old
+            // fixed-size list (55|65|70|75|85|86|98|100).
+            $sizeFromName = null;
+            if ($inches === null && preg_match('/(\d+(?:\.\d+)?)\s*(?:″|"|\\\\"|\xE2\x80\xB3|inch|in\b|-inch)/u', $name, $m)) {
+                $sizeFromName = (float) $m[1];
+                $inches = $sizeFromName;
+            }
+
+            // Is this item display-shaped at all? Metadata tag, a resolved
+            // size token in the name, or a display-ish keyword. A rack/amp/
+            // speaker item with none of these is not a "display" and
+            // produces no warning here — unchanged from today.
+            $looksLikeDisplay = $hasSizeMeta
+                || $sizeFromName !== null
+                || str_contains($name, 'display')
+                || str_contains($paddedName, ' tv ')
+                || str_contains($name, 'television')
+                || str_contains($name, 'screen')
+                || str_contains($name, 'monitor')
+                || str_contains($name, 'lcd');
+
+            if (! $looksLikeDisplay) {
+                continue;
+            }
+
+            // Same scheduling/touch/booking/control-panel keyword set
+            // suggestHandlingMethod() uses, mirrored for consistency
+            // (Open Question 1, resolved in favour of consistency).
+            $isSmallControlPanel = $inches !== null && $inches <= 14
+                && (str_contains($name, 'scheduling') || str_contains($name, 'touch panel')
+                    || str_contains($name, 'booking panel') || str_contains($name, 'control panel'));
+
+            $band = DisplayLiftPolicy::forSize($inches, $isSmallControlPanel);
+            if ($band === null) {
+                continue;
+            }
+
+            if ($worst === null || $band['min_persons'] > $worst['min_persons']) {
+                $worst = $band;
+            }
         }
-        return false;
+
+        return $worst['sentence'] ?? null;
     }
 
     private function roomContainsRackChassis(array $items): bool
