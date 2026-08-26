@@ -414,8 +414,25 @@ p { margin: 3pt 0; }
         }
         $requiredPermits = $derived;
     }
-    // Material handling
-    $matHandling = $rams->reviewed_data['material_handling'] ?? [];
+    // Material handling — prefer generated_data (Plan 27-07): the output of
+    // RamsComplianceUpgradeService::upgrade(), which is where GATE-09's
+    // enforceDisplayLiftGate() re-validates engineer-typed team sizes. This
+    // is the same source DocxBuilderService::buildMaterialHandling() reads,
+    // so the DOCX and PDF now agree.
+    //
+    // The reviewed_data fallback below is DELIBERATE and remains ungated —
+    // it exists ONLY so RAMS documents generated before this phase (which
+    // have no generated_data['material_handling'] key at all) keep
+    // rendering their material-handling table. New generations always
+    // populate the gated key on all three entry points
+    // (RamsBuilderService::runFromReview()/runPipeline() — Plan 27-06 —
+    // and RamsController::updateAndDownload() — Plan 27-07), so this
+    // fallback is only reachable for documents that predate this phase and
+    // are already issued (see deferred-items.md).
+    $generatedMatHandling = $rams->generated_data['material_handling'] ?? null;
+    $matHandling = (is_array($generatedMatHandling) && ! empty($generatedMatHandling))
+        ? $generatedMatHandling
+        : ($rams->reviewed_data['material_handling'] ?? []);
     $mhItems     = is_array($matHandling['large_items'] ?? null) ? $matHandling['large_items'] : [];
     $mhNotes     = $matHandling['handling_notes'] ?? '';
     // CDM
