@@ -140,7 +140,7 @@ Plans:
 
 **Plans**: 5 plans, 4 waves
 Plans:
-- [ ] 27-01-PLAN.md — DisplayLiftPolicy (D-03 single shared source: bands, independent violatesPolicy() re-check, RULE-03 statement, seeder-facing summary) + unit tests. Wave 1.
+- [x] 27-01-PLAN.md — DisplayLiftPolicy (D-03 single shared source: bands, independent violatesPolicy() re-check, RULE-03 statement, seeder-facing summary) + unit tests. Wave 1.
 - [ ] 27-02-PLAN.md — RULE-02 ladder replacement + RULE-12 branch-order fix in suggestHandlingMethod(); RULE-03 decommission-scope scan in deriveMaterialHandling(); HazardTemplateSeeder re-sourced from DisplayLiftPolicy. Wave 2 — depends on 27-01.
 - [ ] 27-03-PLAN.md — GATE-09: enforceDisplayLiftGate() wired into upgrade(), RAMS_DISPLAY_LIFT_GATE env flag, dual-path proof (runFromReview/runPipeline), structural guard against divergent bands. Wave 3 — depends on 27-02.
 - [ ] 27-04-PLAN.md — D-04 worksheet parity: SafetyProfileService + MethodStatementService fallback string read DisplayLiftPolicy. Wave 2 (parallel with 27-02) — depends on 27-01.
@@ -585,7 +585,7 @@ Plans:
 | 24. Stencil Curation UI + Quote-Import Auto-Stub | v2.0 | 11/12 | Paused — 24-09 open (human checkpoint) | - |
 | 25. AI Assist + Replacement Wiring | v2.0 | 0/0 | Not started | - |
 | 26. Hazard Library Structural Inversion | v3.0 | 8/8 | Code complete — open: 26-06 Task 3 live deploy checkpoint, HAZ-02 live re-verification | - |
-| 27. Manual-Handling & Display-Lift House Rules | v3.0 | 0/0 | Not started | - |
+| 27. Manual-Handling & Display-Lift House Rules | v3.0 | 1/5 | In Progress|  |
 | 28. PPE, Ceiling & Electrical Boundary House Rules | v3.0 | 0/0 | Not started | - |
 | 29. CDM Duty-Holder & Emergency Arrangements | v3.0 | 0/0 | Not started | - |
 | 30. Structural Validation Gates | v3.0 | 0/0 | Not started | - |
