@@ -49,7 +49,9 @@ updated: 2026-08-26
 | 27-03-03 | 03 | 3 | GATE-09 | T-27-03 | Both `runFromReview()` and `runPipeline()` fire identically; structural guard on `DisplayLiftPolicy::` callers | feature | `php artisan test --filter=DisplayLiftDualPathTest` and `--filter=DisplayLiftPolicySourceGuardTest` | ❌ W0 | ⬜ pending |
 | 27-04-01 | 04 | 2 | RULE-02 | T-27-05 | Worksheet parity: general inch regex, `DisplayLiftPolicy`-sourced wording, no divergent numbers | unit | `php artisan test --filter=SafetyProfileServiceTest` | ⚠️ extend existing | ⬜ pending |
 | 27-04-02 | 04 | 2 | RULE-02 | T-27-05 | Method-statement fallback string reads `DisplayLiftPolicy`, no hardcoded "two-person" claim | unit | `php artisan test --filter=MethodStatementServiceTest` | ⚠️ extend existing | ⬜ pending |
-| 27-05-01 | 05 | 4 | GATE-09 | T-27-03 | Live deploy + reseed; gate does not block a real strip-out job | manual (checkpoint:human-verify) | n/a — live verification | n/a | ⬜ pending |
+| 27-05-01 | 05 | 4 | GATE-09 | T-27-03 | Live deploy as `stcav` + reseed | manual (checkpoint) | n/a — live deployment | n/a | ⬜ pending |
+| 27-05-02 | 05 | 4 | GATE-09 | T-27-03 | 21CQ30960 regenerated on live; gate does not block a real strip-out job; §6.7 table and Manual Handling row inspected | manual (checkpoint:human-verify, blocking) | n/a — live verification | n/a | ⬜ pending |
+| 27-05-03 | 05 | 4 | GATE-09 | T-27-04 | `RAMS_DISPLAY_LIFT_GATE=false` proven a genuine rollback, then restored | manual (checkpoint) | n/a — live flag smoke test | n/a | ⬜ pending |
 
 *Status: pending until tasks execute.*
 
@@ -78,7 +80,7 @@ updated: 2026-08-26
 
 ## Validation Sign-Off
 
-- [x] All tasks have `<automated>` verify or Wave 0 dependencies (27-05-01 is the sole manual exception, justified above)
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies. The manual exceptions are **all three Wave 4 tasks** — `27-05-01` (live deploy), `27-05-02` (blocking human-verify of 21CQ30960 on live), `27-05-03` (rollback-flag smoke test). All are `checkpoint:*` types and none is automatable: ROADMAP success criterion 4 requires proof against real live data, which by construction cannot be a fixture. Waves 1–3 are fully automated.
 - [x] Sampling continuity: no 3 consecutive tasks without automated verify
 - [x] Wave 0 covers all MISSING references
 - [x] No watch-mode flags

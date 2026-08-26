@@ -542,7 +542,21 @@ $data['scope_items'] = [
 | A2 | `fillMissingHazardControls()`'s "manual handling" fallback bullets are unreachable against Phase-26-seeded hazards because every seeded hazard ships with a non-empty `controls` array | Common Pitfalls #3 | If a future data path ever produces a "Manual handling" hazard row with an empty `controls` array (e.g. a malformed AI-extracted hazard name that fuzzy-matches but loses its controls), this generic fallback would fire with wording that doesn't reference `DisplayLiftPolicy`. Low risk, but worth a defensive test if the planner wants full coverage. |
 | A3 | The AI-generated (non-fallback) method statement will not independently state a numeric team size that contradicts `DisplayLiftPolicy` in practice, given current prompt instructions | Common Pitfalls #5 | If wrong, GATE-09 as designed (checking structured `material_handling_derived` only) would not catch an AI-authored contradiction in §6.6 prose. Recorded as an explicit Open Question, not silently assumed away. |
 
-## Open Questions
+## Open Questions (ALL RESOLVED — 2026-08-25, during planning)
+
+> **Q1 — RESOLVED by user decision.** The ≤14″ scheduling/touch/control-panel exclusion is
+> KEPT and mirrored onto the worksheet side (Plan 27-04 Task 1). The user additionally
+> reinstated a single-operative band below 55″ — see 27-CONTEXT.md D-01's correction block,
+> which is the governing text. A ≤14″ control panel gets **no row**; a 43″ display gets a
+> **1-operative row**. These are different outcomes, not the same one.
+>
+> **Q2 — RESOLVED as deferred.** GATE-09 does not scan AI-generated prose for stray
+> team-size mentions. Deferred by plan design, per the recommendation below and D-05's
+> precedent of accepting an unobserved residual risk rather than over-engineering.
+>
+> **Q3 — RESOLVED as not applicable.** `fillMissingHazardControls()`'s generic default is
+> confirmed unreachable against seeded data; Plan 27-02's action text records it as a
+> dead-code false lead and plans no edit to it.
 
 1. **Does D-01's floor apply to a small monitor / room-scheduling panel the same way it applies to a genuine display?**
    - What we know: `suggestHandlingMethod()` already excludes small scheduling/touch/booking/control panels ≤14″ from the manual-handling row entirely (`RamsComplianceUpgradeService.php:1245-1249`). `SafetyProfileService::roomContainsLargeDisplay()` has no equivalent exclusion — it just checks size, and its keyword regex currently only matches specific large sizes anyway.

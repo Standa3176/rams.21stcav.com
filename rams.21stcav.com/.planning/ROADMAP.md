@@ -128,7 +128,7 @@ Plans:
 
 ### Phase 27: Manual-Handling & Display-Lift House Rules
 
-**Goal**: Every generated RAMS states the two-operative display-lift position without exception and calls out wall-mount removal as the highest-risk lift on a strip-out; the generator errors rather than silently accepting anything else.
+**Goal**: Every generated RAMS states a display-lift team size conforming to RULE-02's banded position — no manual-handling row for ≤14″ control panels, 1 operative under 55″, minimum 2 from 55″ to 90″ inclusive, minimum 3 above 90″, never 4 or more — resolved from one shared source; mount and bracket rows stop inheriting display handling text; wall-mount removal is called out as the highest-risk lift on a strip-out; and the generator errors rather than silently accepting a non-conforming lift. *(Goal restated 2026-08-25 to match the amended RULE-02 and success criteria 1 and 3 below; the original read "the two-operative display-lift position without exception", which predates the correction.)*
 **Depends on**: Phase 26 (RULE-02/03 edit the Manual Handling hazard's control text, which Phase 26 replaces wholesale — editing the pre-Phase-26 content would be immediately overwritten)
 **Requirements**: RULE-02, RULE-03, RULE-12, GATE-09
 **Success Criteria** (what must be TRUE):
