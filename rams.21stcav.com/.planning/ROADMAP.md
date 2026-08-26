@@ -142,7 +142,7 @@ Plans:
 Plans:
 - [x] 27-01-PLAN.md — DisplayLiftPolicy (D-03 single shared source: bands, independent violatesPolicy() re-check, RULE-03 statement, seeder-facing summary) + unit tests. Wave 1.
 - [x] 27-02-PLAN.md — RULE-02 ladder replacement + RULE-12 branch-order fix in suggestHandlingMethod(); RULE-03 decommission-scope scan in deriveMaterialHandling(); HazardTemplateSeeder re-sourced from DisplayLiftPolicy. Wave 2 — depends on 27-01. **LANDED 2026-08-26** (RULE-12's weight-derivation clause deliberately deferred — see 27-02-SUMMARY.md).
-- [ ] 27-03-PLAN.md — GATE-09: enforceDisplayLiftGate() wired into upgrade(), RAMS_DISPLAY_LIFT_GATE env flag, dual-path proof (runFromReview/runPipeline), structural guard against divergent bands. Wave 3 — depends on 27-02.
+- [x] 27-03-PLAN.md — GATE-09: enforceDisplayLiftGate() wired into upgrade(), RAMS_DISPLAY_LIFT_GATE env flag, dual-path proof (runFromReview/runPipeline), structural guard against divergent bands. Wave 3 — depends on 27-02.
 - [x] 27-04-PLAN.md — D-04 worksheet parity: SafetyProfileService + MethodStatementService fallback string read DisplayLiftPolicy. Wave 2 (parallel with 27-02) — depends on 27-01. **LANDED 2026-08-26** (see 27-04-SUMMARY.md).
 - [ ] 27-05-PLAN.md — Live deploy + reseed + 21CQ30960 regeneration verification (ROADMAP success criterion 4) + rollback-flag smoke test. Wave 4 — depends on 27-02, 27-03, 27-04.
 **UI hint**: yes (gate errors surface on the RAMS review screen)
@@ -585,7 +585,7 @@ Plans:
 | 24. Stencil Curation UI + Quote-Import Auto-Stub | v2.0 | 11/12 | Paused — 24-09 open (human checkpoint) | - |
 | 25. AI Assist + Replacement Wiring | v2.0 | 0/0 | Not started | - |
 | 26. Hazard Library Structural Inversion | v3.0 | 8/8 | Code complete — open: 26-06 Task 3 live deploy checkpoint, HAZ-02 live re-verification | - |
-| 27. Manual-Handling & Display-Lift House Rules | v3.0 | 1/5 | In Progress|  |
+| 27. Manual-Handling & Display-Lift House Rules | v3.0 | 4/5 | In Progress|  |
 | 28. PPE, Ceiling & Electrical Boundary House Rules | v3.0 | 0/0 | Not started | - |
 | 29. CDM Duty-Holder & Emergency Arrangements | v3.0 | 0/0 | Not started | - |
 | 30. Structural Validation Gates | v3.0 | 0/0 | Not started | - |

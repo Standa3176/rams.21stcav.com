@@ -59,7 +59,7 @@ and are listed for traceability, not rework.
 - [ ] **GATE-06**: FFP2 anywhere → error. House rule is FFP3 with face-fit testing.
 - [ ] **GATE-07**: "Confined space" applied to a ceiling void, comms room or riser → error. Not confined spaces under the 1997 Regulations.
 - [x] **GATE-08**: Access-equipment contradiction — something excluded in one section and required as a control in another. *(Shipped 260817-r5e — podium steps.)*
-- [ ] **GATE-09**: Display lift that does not conform to RULE-02's bands → error. Specifically: **4 or more operatives at any size** → error; **2 operatives for a display above 90″** → error; **1 operative for a display 55″ or larger** → error. 1 operative below 55″ is **correct output, not a defect**. An unresolvable display size is **not** an error (it takes the 2-operative band silently — see 27-CONTEXT.md D-05). *(Amended 2026-08-25 alongside RULE-02; originally read "anything other than two-operative → error".)*
+- [x] **GATE-09**: Display lift that does not conform to RULE-02's bands → error. Specifically: **4 or more operatives at any size** → error; **2 operatives for a display above 90″** → error; **1 operative for a display 55″ or larger** → error. 1 operative below 55″ is **correct output, not a defect**. An unresolvable display size is **not** an error (it takes the 2-operative band silently — see 27-CONTEXT.md D-05). *(Amended 2026-08-25 alongside RULE-02; originally read "anything other than two-operative → error".)*
 - [ ] **GATE-10**: COSHH and standards padding — cross-check every COSHH substance and cited standard against the activity list. Named offenders: BS EN 60849, BS 8492, HSG 47, laser safety on a job with no laser, soldering flux with no soldering.
 - [ ] **GATE-11**: CDM duty-holder table left as "[To be confirmed]" on an occupied-premises job → error. There is a settled position.
 - [ ] **GATE-12**: Named A&E must be a real A&E. A subcontractor RAMS once named a hospital whose A&E closed in 2014.
@@ -117,7 +117,7 @@ Deliberately excluded to keep the document-quality core shippable:
 | GATE-06 | Phase 28 | Pending |
 | GATE-07 | Phase 28 | Pending |
 | GATE-08 | — | Shipped (260817-r5e) |
-| GATE-09 | Phase 27 | Pending |
+| GATE-09 | Phase 27 | Complete |
 | GATE-10 | Phase 31 | Pending |
 | GATE-11 | Phase 29 | Pending |
 | GATE-12 | Phase 29 | Pending |
