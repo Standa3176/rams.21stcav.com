@@ -1139,12 +1139,14 @@ class RamsComplianceUpgradeService
             }
             foreach ($heavyKeywords as $kw) {
                 if (str_contains($desc, $kw)) {
-                    $method = self::suggestHandlingMethod((string) ($item['description'] ?? ''), $qty);
-                    if ($method === null) break;     // sub-kg control panel, skip
+                    $resolved = self::suggestHandlingMethod((string) ($item['description'] ?? ''), $qty);
+                    if ($resolved === null) break;     // sub-kg control panel, skip
                     $detectedItems[] = [
                         'item'            => $item['description'] ?? '',
                         'qty'             => $qty,
-                        'handling_method' => $method,
+                        'handling_method' => $resolved['sentence'],
+                        'min_persons'     => $resolved['min_persons'],
+                        'inches'          => $resolved['inches'],
                     ];
                     break;
                 }
@@ -1159,12 +1161,14 @@ class RamsComplianceUpgradeService
             }
             foreach ($heavyKeywords as $kw) {
                 if (str_contains($name, $kw)) {
-                    $method = self::suggestHandlingMethod((string) ($item['item_name'] ?? ''), (int) ($item['qty'] ?? 1));
-                    if ($method === null) break;
+                    $resolved = self::suggestHandlingMethod((string) ($item['item_name'] ?? ''), (int) ($item['qty'] ?? 1));
+                    if ($resolved === null) break;
                     $detectedItems[] = [
                         'item'            => $item['item_name'] ?? '',
                         'qty'             => (int) ($item['qty'] ?? 1),
-                        'handling_method' => $method,
+                        'handling_method' => $resolved['sentence'],
+                        'min_persons'     => $resolved['min_persons'],
+                        'inches'          => $resolved['inches'],
                     ];
                     break;
                 }
@@ -1176,12 +1180,14 @@ class RamsComplianceUpgradeService
             foreach ((array) ($room['equipment'] ?? []) as $eq) {
                 $type = strtolower(trim((string) ($eq['type'] ?? '')));
                 if (in_array($type, ['display', 'projector', 'speaker', 'dsp', 'switcher'], true)) {
-                    $method = self::suggestHandlingMethod($type);
-                    if ($method === null) continue;
+                    $resolved = self::suggestHandlingMethod($type);
+                    if ($resolved === null) continue;
                     $detectedItems[] = [
                         'item'            => ucfirst($type) . ' (' . ($room['name'] ?? 'Room') . ')',
                         'qty'             => 1,
-                        'handling_method' => $method,
+                        'handling_method' => $resolved['sentence'],
+                        'min_persons'     => $resolved['min_persons'],
+                        'inches'          => $resolved['inches'],
                     ];
                 }
             }
@@ -1224,11 +1230,24 @@ class RamsComplianceUpgradeService
      * (display vs control panel vs speaker), so we can size the team and
      * select the right control.
      *
-     * Returns null when the description is a small control panel / scheduler
-     * that does not warrant a manual-handling row at all; the caller treats
-     * null as "skip this row".
+     * Phase 27 Plan 02 (RULE-02, RULE-12): the display/tv/screen band no
+     * longer hardcodes its own team-size ladder — it delegates to
+     * DisplayLiftPolicy::forSize(), the single shared source D-03 requires.
+     * The mount/bracket branch is now checked BEFORE the display branch (was
+     * after — RULE-12's root cause): a description containing both "mount"
+     * and "display" (e.g. "double-arm wall mount for 65 inch display") must
+     * resolve as a mount, never inherit the display band's text.
+     *
+     * Returns null when the description is a small control panel / scheduler,
+     * or a small panel mount, that does not warrant a manual-handling row at
+     * all; the caller treats null as "skip this row". Every other case
+     * returns ['sentence' => string, 'min_persons' => ?int, 'inches' => ?float]
+     * — min_persons/inches are non-null only for the display band (the only
+     * branch DisplayLiftPolicy governs); every other branch (mount/bracket,
+     * projector, rack, amp/dsp, speaker, catch-all) reports null/null since
+     * D-01's bands do not apply to non-display items (house-rules.md:18-19).
      */
-    private static function suggestHandlingMethod(string $description, int $qty = 1): ?string
+    private static function suggestHandlingMethod(string $description, int $qty = 1): ?array
     {
         $desc = strtolower($description);
 
@@ -1249,24 +1268,13 @@ class RamsComplianceUpgradeService
             return null;
         }
 
-        // Displays / TVs / large screens — team size scales with inch size.
-        if (str_contains($desc, 'display') || str_contains($desc, ' tv ') || str_contains($desc, 'television')
-            || (str_contains($desc, 'screen') && $inches !== null && $inches >= 32)) {
-            if ($inches !== null && $inches >= 85) {
-                return 'Team lift — minimum 4 persons for ' . rtrim(rtrim((string) $inches, '0'), '.') . '″ size class. '
-                     . 'Use lifting handles or strap kit. Two persons take the front, two the rear; do not pivot on edges. '
-                     . 'Use screen protection during transit. Do not lay face-down.';
-            }
-            if ($inches !== null && $inches >= 65) {
-                return 'Team lift — minimum 3 persons recommended for ' . rtrim(rtrim((string) $inches, '0'), '.') . '″. '
-                     . 'Two persons may lift if using a panel-lift trolley. Use screen protection during transit. Do not lay face-down.';
-            }
-            return 'Team lift (2 persons minimum). Use screen protection during transit. Do not lay face-down.';
-        }
-
-        // Wall mounts / brackets — only the heavy XL display brackets warrant
-        // a team lift; small panel mounts (e.g. multisurface kit for a 10.1″)
-        // are sub-1 kg and need no special handling row.
+        // Wall mounts / brackets — checked BEFORE the display/tv/screen band
+        // (RULE-12 fix, moved from below unmodified). Only the heavy XL
+        // display brackets warrant a team lift; small panel mounts (e.g.
+        // multisurface kit for a 10.1″) are sub-1 kg and need no special
+        // handling row. Non-display items are NOT governed by D-01's bands
+        // (house-rules.md:18-19: "wall mounts and rack rails are usually
+        // two-person, small brackets and video bar mounts single-person").
         if (str_contains($desc, 'mount') || str_contains($desc, 'bracket')) {
             if (str_contains($desc, 'multisurface') || str_contains($desc, 'small panel')
                 || (str_contains($desc, 'mount') && str_contains($desc, '10.1'))) {
@@ -1274,39 +1282,91 @@ class RamsComplianceUpgradeService
             }
             if (str_contains($desc, 'x-large') || str_contains($desc, 'xl ') || str_contains($desc, 'fusion')
                 || str_contains($desc, 'large')) {
-                return 'Team lift (2 persons minimum) — heavy display bracket. Pre-stage at install location to avoid double handling.';
+                return [
+                    'sentence'    => 'Team lift (2 persons minimum) — heavy display bracket. Pre-stage at install location to avoid double handling.',
+                    'min_persons' => null,
+                    'inches'      => null,
+                ];
             }
-            return 'Single person lift for tilting/fixed wall mount. Check weight before lifting.';
+
+            return [
+                'sentence'    => 'Single person lift for tilting/fixed wall mount. Check weight before lifting.',
+                'min_persons' => null,
+                'inches'      => null,
+            ];
+        }
+
+        // Displays / TVs / large screens — team size resolved through the
+        // single shared DisplayLiftPolicy band table (RULE-02). $isSmallPanel
+        // is always false by the time execution reaches here (handled by the
+        // early return above), so DisplayLiftPolicy is never asked to
+        // resolve a scheduling/touch panel.
+        if (str_contains($desc, 'display') || str_contains($desc, ' tv ') || str_contains($desc, 'television')
+            || (str_contains($desc, 'screen') && $inches !== null && $inches >= 32)) {
+            $band = DisplayLiftPolicy::forSize($inches, $isSmallPanel);
+            if ($band === null) {
+                return null;
+            }
+
+            return [
+                'sentence'    => $band['sentence'],
+                'min_persons' => $band['min_persons'],
+                'inches'      => $inches,
+            ];
         }
 
         // Projectors and ceiling-mounted gear.
         if (str_contains($desc, 'projector')) {
-            return 'Team lift for ceiling installation. Secure to access equipment (podium / tower) before releasing.';
+            return [
+                'sentence'    => 'Team lift for ceiling installation. Secure to access equipment (podium / tower) before releasing.',
+                'min_persons' => null,
+                'inches'      => null,
+            ];
         }
 
         // Rack / cabinet hardware.
         if (str_contains($desc, 'rack')) {
-            return 'Use equipment trolley for transport. Team lift for rack positioning. Secure to floor or wall before loading equipment.';
+            return [
+                'sentence'    => 'Use equipment trolley for transport. Team lift for rack positioning. Secure to floor or wall before loading equipment.',
+                'min_persons' => null,
+                'inches'      => null,
+            ];
         }
 
         // Audio amps and DSPs — typically 5–15 kg, single person.
         if (str_contains($desc, 'amplifier') || str_contains($desc, ' amp ') || str_contains($desc, 'dsp')) {
-            return 'Single person lift acceptable if under 20 kg. Check weight before lifting.';
+            return [
+                'sentence'    => 'Single person lift acceptable if under 20 kg. Check weight before lifting.',
+                'min_persons' => null,
+                'inches'      => null,
+            ];
         }
 
         // Ceiling speakers — light per unit, but ceiling install needs access
         // equipment, not a team lift.
         if (str_contains($desc, 'ceiling') && str_contains($desc, 'speaker')) {
-            return 'Single-hand lift per unit. Use podium / tower for ceiling installation; do not lift from a step ladder above shoulder height.';
+            return [
+                'sentence'    => 'Single-hand lift per unit. Use podium / tower for ceiling installation; do not lift from a step ladder above shoulder height.',
+                'min_persons' => null,
+                'inches'      => null,
+            ];
         }
 
         if (str_contains($desc, 'speaker')) {
-            return $qty > 2
-                ? 'Multiple units — stage near install positions. Team lift only when fitting at high level.'
-                : 'Single person lift for wall/shelf mount. Team lift only for ceiling-mounted installs.';
+            return [
+                'sentence'    => $qty > 2
+                    ? 'Multiple units — stage near install positions. Team lift only when fitting at high level.'
+                    : 'Single person lift for wall/shelf mount. Team lift only for ceiling-mounted installs.',
+                'min_persons' => null,
+                'inches'      => null,
+            ];
         }
 
-        return 'Assess weight before lifting. Team lift for items over 20 kg.';
+        return [
+            'sentence'    => 'Assess weight before lifting. Team lift for items over 20 kg.',
+            'min_persons' => null,
+            'inches'      => null,
+        ];
     }
 
     // =========================================================================
