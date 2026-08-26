@@ -19,6 +19,16 @@ use App\Exceptions\RamsGenerationException;
  */
 class RamsComplianceUpgradeService
 {
+    /**
+     * The inch-size extraction regex. Originally inline inside
+     * `suggestHandlingMethod()`; extracted to a shared constant by Plan 27-06
+     * (Task 1) so `parseStatedInches()` (the engineer-typed-row GATE-09
+     * extension) reuses the EXACT same pattern rather than declaring a
+     * second, potentially-divergent one. Matches "98″", "98\"", "98 inch",
+     * "98-inch", "10.1″", etc. Capture group 1 is the numeric value.
+     */
+    private const INCH_REGEX = '/(\d+(?:\.\d+)?)\s*(?:″|"|\\\\"|\xE2\x80\xB3|inch|in\b|-inch)/u';
+
     // =========================================================================
     // PUBLIC ENTRY POINT
     // =========================================================================
@@ -1154,6 +1164,103 @@ class RamsComplianceUpgradeService
     }
 
     /**
+     * Plan 27-06 Task 1 — conservative free-text team-size parser for
+     * engineer-typed `material_handling.large_items[].handling_method`
+     * strings. Extracts an operative count; NEVER decides conformance
+     * (that is `DisplayLiftPolicy::violatesPolicy()`'s job alone, wired in
+     * by Task 2) and NEVER calls `DisplayLiftPolicy`.
+     *
+     * Recognises, case-insensitively: bare digits and the number-words
+     * one-four directly adjacent to "person(s)"/"operative(s)" (e.g.
+     * "2 persons", "two persons", "minimum 3 persons", "3-person lift",
+     * "team lift (2 persons minimum)", "minimum 4 operatives",
+     * "two-operative team lift"), plus "single"/"single-hand" mapped to 1
+     * ("single person lift", "single-hand lift").
+     *
+     * T-27-06-01 (HIGH): a parsing miss must never block a real job.
+     * Ambiguity ALWAYS returns null, never a guess:
+     *   - no recognisable count anywhere in the text -> null.
+     *   - two or more DIFFERENT counts found (e.g. "2 persons normally, 3
+     *     for the 98 inch") -> null, even though one of them looks like a
+     *     confident match — a genuinely conflicting statement is exactly
+     *     the case a conservative parser must decline to resolve.
+     *
+     * Implementation: normalises the recognised phrasings to bare digits,
+     * masks out inch/size phrases (including "NN to MM inches" ranges, so a
+     * display's diagonal is never mistaken for a team-size count — this is
+     * what keeps every sentence `DisplayLiftPolicy::forSize()` emits,
+     * including "...55 to 90 inches..." and "...above 90 inches...",
+     * round-tripping to exactly one number), then requires EXACTLY one
+     * distinct number to remain in what is left.
+     */
+    private static function parseStatedTeamSize(string $text): ?int
+    {
+        $normalised = strtolower($text);
+
+        // "single person"/"single-person"/"single hand"/"single-hand" -> 1.
+        $normalised = preg_replace('/\bsingle[\s-]+(?:person|hand)\b/u', '1 person', $normalised)
+            ?? $normalised;
+
+        // Number-words one-four, ONLY when directly adjacent to a
+        // person/operative keyword — an unrelated "two" elsewhere in the
+        // text (there is none in this app's vocabulary today, but the rule
+        // is deliberately conservative) is never treated as a team-size
+        // mention.
+        $wordMap = ['one' => '1', 'two' => '2', 'three' => '3', 'four' => '4'];
+        $normalised = preg_replace_callback(
+            '/\b(one|two|three|four)\b(?=[\s-]*(?:persons?|operatives?)\b)/u',
+            static fn (array $m): string => $wordMap[$m[1]],
+            $normalised,
+        ) ?? $normalised;
+
+        // Mask out inch/size phrases — including "NN to MM inches" ranges —
+        // so a display's stated diagonal is never mistaken for a team-size
+        // count. Deliberately broader than self::INCH_REGEX (adds the
+        // plural "inches" and an optional leading "NN to "/"NN-" range
+        // prefix); this masking pattern is an internal detail of THIS
+        // parser only — parseStatedInches() below reuses self::INCH_REGEX
+        // verbatim, unrelated to this mask.
+        $masked = preg_replace(
+            '/(?:\d+(?:\.\d+)?\s*(?:to|-)\s*)?\d+(?:\.\d+)?\s*(?:″|"|\\\\"|\xE2\x80\xB3|inch(?:es)?|in\b|-inch)/u',
+            ' ',
+            $normalised,
+        ) ?? $normalised;
+
+        if (! preg_match_all('/\d+(?:\.\d+)?/u', $masked, $matches) || empty($matches[0])) {
+            return null; // no recognisable count present
+        }
+
+        $distinct = array_unique(array_map(
+            static fn (string $n): int => (int) round((float) $n),
+            $matches[0],
+        ));
+
+        if (count($distinct) !== 1) {
+            return null; // ambiguous — two or more different counts stated
+        }
+
+        return (int) reset($distinct);
+    }
+
+    /**
+     * Plan 27-06 Task 1 — reuses self::INCH_REGEX (suggestHandlingMethod()'s
+     * existing inch-extraction pattern) VERBATIM, applied to `$text` only.
+     * The gate's caller (Task 2) applies this to the row's `item` field
+     * first, then its `handling_method` field, using the first match found.
+     * No match returns null (D-05's silent-fallback precedent, extended to
+     * engineer rows — an unresolvable size is never a gate error on its
+     * own, per {@see \App\Services\Rams\DisplayLiftPolicy::violatesPolicy()}).
+     */
+    private static function parseStatedInches(string $text): ?float
+    {
+        if (preg_match(self::INCH_REGEX, strtolower($text), $m)) {
+            return (float) $m[1];
+        }
+
+        return null;
+    }
+
+    /**
      * Detect heavy/bulky equipment from all available data sources and set
      * a deterministic material_handling_derived key so the PDF template can
      * render accurate text instead of the contradictory "no heavy items" fallback.
@@ -1367,7 +1474,7 @@ class RamsComplianceUpgradeService
         // Extract inch size — "98″", "98\"", "98 inch", "98-inch", "10.1″".
         // Returns float (10.1) or null when no inch number found.
         $inches = null;
-        if (preg_match('/(\d+(?:\.\d+)?)\s*(?:″|"|\\\\"|\xE2\x80\xB3|inch|in\b|-inch)/u', $desc, $m)) {
+        if (preg_match(self::INCH_REGEX, $desc, $m)) {
             $inches = (float) $m[1];
         }
 
