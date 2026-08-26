@@ -193,7 +193,8 @@ class DisplayLiftDualPathTest extends TestCase
             ->shouldReceive('forSize')->andReturn(['min_persons' => 2, 'sentence' => 'Team lift — stub sentence.'])
             ->shouldReceive('violatesPolicy')->andReturn(true)
             ->shouldReceive('wallMountRemovalStatement')->andReturn('Stub wall-mount removal statement.')
-            ->shouldReceive('genericBandSummary')->andReturn('Stub generic band summary.');
+            ->shouldReceive('genericBandSummary')->andReturn('Stub generic band summary.')
+            ->shouldReceive('compactBandSummary')->andReturn('stub compact band summary');
     }
 
     // ── Conforming fixtures (REAL DisplayLiftPolicy, no mock) ────────────────

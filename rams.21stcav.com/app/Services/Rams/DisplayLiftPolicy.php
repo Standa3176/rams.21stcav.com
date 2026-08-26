@@ -224,10 +224,23 @@ final class DisplayLiftPolicy
      */
     public static function genericBandSummary(): string
     {
-        return 'Displays up to 14 inches used as scheduling, touch or control panels require no manual-handling row. '
-            . 'Displays under 55 inches are a 1-operative lift, displays from 55 to 90 inches inclusive require a minimum of 2 operatives, '
-            . 'and displays above 90 inches require a minimum of 3 operatives. Never 4 or more operatives are required at any size. '
-            . 'Mechanical aids are additional and never discharge a required operative.';
+        return 'Screens of 14 inches or under used as scheduling, touch or control panels are single-hand items and need no team lift. '
+            . 'Displays under 55 inches are a single-operative lift. Displays from 55 to 90 inches inclusive are a minimum '
+            . 'two-operative team lift, and displays above 90 inches a minimum three-operative team lift. Four or more '
+            . 'operatives are never specified, at any size. Mechanical aids are used in addition to the stated team and '
+            . 'never in place of a required operative.';
+    }
+
+    /**
+     * A compact, parenthetical form of the bands for interpolation INSIDE a
+     * sentence — e.g. a method-statement step. {@see genericBandSummary()} is
+     * five sentences and reads badly when dropped into parentheses mid-clause,
+     * which is exactly what `MethodStatementService`'s Installation Works step
+     * was doing. Same numbers, same single source; only the prose differs.
+     */
+    public static function compactBandSummary(): string
+    {
+        return 'single operative under 55 inches, minimum two from 55 to 90 inches, minimum three above 90 inches';
     }
 
     /**
