@@ -1,0 +1,6 @@
+{
+  "//": "quick-260827-ramsdoc — the app root is an ESM project (type:module), but the ported 21CAV RAMS assembler (build_rams.js / brand.js) is CommonJS. This nearest-package.json marks this subtree CommonJS so `node build_rams.js` runs unchanged.",
+  "name": "21cav-rams-skill",
+  "private": true,
+  "type": "commonjs"
+}

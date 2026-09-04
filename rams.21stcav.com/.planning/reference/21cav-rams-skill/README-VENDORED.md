@@ -38,3 +38,25 @@ skill was supplied — GATE-03 (one risks line per step, references must resolve
 GATE-08 (access-equipment contradiction). Both were derived from a reviewer's
 critique of a real document; both are named in `PORTING-NOTES.md`. Two independent
 routes to the same defects.
+
+---
+
+## Re-vendored 2026-08-26
+
+The 2026-08-23 vendoring above was a **truncated, older snapshot**. Re-synced from the
+live skill in `service-contractor-creator/resources/rams-skill/`.
+
+What the 08-23 copy was missing: 8 of `house-rules.md`'s 21 sections (121 lines vs 298),
+`references/standards-and-legislation.md` and `data/standards-library.json` entirely, and
+materially older control text throughout `hazard-library.md`. Phases 26 and 27 were planned
+and shipped against that subset — one live defect resulted (unconditional strip-out language
+on installation-only jobs).
+
+**Read `.planning/reference/SKILL-RESYNC-2026-08-26.md` before planning any further phase.**
+It maps the recovered material against REQUIREMENTS.md: one open blocker answered (RULE-11),
+two shipped positions contradicted (the 20 kg threshold; CDM sole-contractor wording), and
+seven candidate new requirements.
+
+`MANIFEST.sha256` + `tests/Feature/Rams/VendoredSkillDriftGuardTest.php` now guard this
+directory against in-place edits. They cannot detect upstream drift — **re-compare against
+SCC manually before each remaining phase.**

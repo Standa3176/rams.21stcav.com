@@ -30,7 +30,9 @@ Professional Services block.
 
 Read `references/house-rules.md` — these are settled 21CAV positions (two-person
 display lifts, FFP3, ceiling loads from the soffit, scope boundaries, what not to
-cite). Apply them without asking.
+cite). Apply them without asking. Read `references/standards-and-legislation.md`
+for the canonical standards/legal designations — cite standards and CDM duties
+**only** from there, verbatim; never invent a code, an edition or an ACOP number.
 
 Then read `references/hazard-library.md` and select the hazards the job actually
 involves. Include a row for every hazard the work presents, and no rows for
@@ -126,6 +128,7 @@ them silently.
 - `scripts/brand.js` — brand tokens and layout helpers (teal #01889F, gold #D4AF37, Verdana headings, Poppins body)
 - `references/quote-extraction.md` — reading a QuoteWerks PDF
 - `references/house-rules.md` — settled 21CAV safety positions
+- `references/standards-and-legislation.md` — canonical standards/legal codes + CDM duties
 - `references/hazard-library.md` — hazard bank with typical scores and controls
 - `references/project-schema.md` — JSON structure
 - `assets/example-project.json` — complete worked example

@@ -118,7 +118,16 @@ class HazardTemplateSeeder extends Seeder
                 'controls'        => [
                     'Use mechanical aids (sack trucks, lifting trolleys, panel lifter) for items over 20 kg.',
                     DisplayLiftPolicy::genericBandSummary(),
-                    DisplayLiftPolicy::wallMountRemovalStatement(),
+                    // NOTE: DisplayLiftPolicy::wallMountRemovalStatement() is deliberately
+                    // NOT listed here. `references/hazard-library.md` marks that control
+                    // "(Removal jobs only — omit entirely on an installation-only job.)"
+                    // and house-rules.md's "Removal / strip-out language is removal-only"
+                    // says the same. A static control on this hazard fires on every job
+                    // matching signal:display_mount_or_rack, including installation-only
+                    // work, which would assert strip-out activity that is not in scope.
+                    // The statement is emitted conditionally instead, by
+                    // RamsComplianceUpgradeService::deriveMaterialHandling()'s
+                    // scope_items.decommission scan. See 27-08 in deferred-items.md.
                     'Pre-plan the route and clear all access paths before moving equipment. Passenger lift used between floors — no carrying on stairs.',
                     'Wear appropriate gloves and safety footwear at all times.',
                     'Conduct a task-specific manual handling assessment prior to every lift. Any operative may stop a lift.',

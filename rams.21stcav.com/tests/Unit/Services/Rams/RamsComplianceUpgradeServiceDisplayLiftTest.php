@@ -214,11 +214,33 @@ class RamsComplianceUpgradeServiceDisplayLiftTest extends TestCase
         $controlsText = implode(' ', $manualHandling['controls']);
 
         $this->assertStringNotContainsString('for every panel size', $controlsText);
-        $this->assertStringContainsString('one operative each side', $controlsText);
+
+        // The band summary IS sourced from DisplayLiftPolicy and belongs on every
+        // job this hazard applies to.
+        $this->assertStringContainsString('single-operative lift', $controlsText);
+
+        // RULE-03's wall-mount removal statement must NOT be a static control.
+        // `references/hazard-library.md` marks it "(Removal jobs only — omit
+        // entirely on an installation-only job.)" and house-rules.md's
+        // "Removal / strip-out language is removal-only" agrees. This hazard's
+        // include_when is signal:display_mount_or_rack, which matches
+        // installation-only jobs, so a static control here would assert
+        // strip-out work that is not in scope. It is emitted conditionally by
+        // deriveMaterialHandling()'s scope_items.decommission scan instead.
+        $this->assertStringNotContainsString(
+            'one operative each side',
+            $controlsText,
+            'The wall-mount removal sequence must not appear as an unconditional control — '
+            . 'it would state strip-out activity on installation-only jobs.',
+        );
+        $this->assertStringNotContainsString('strip-out', $controlsText);
+
         $this->assertCount(
-            7,
+            6,
             $manualHandling['controls'],
-            'Re-sourcing two bullets from DisplayLiftPolicy must not add or remove entries from the array.',
+            'One bullet is re-sourced from DisplayLiftPolicy (the band summary); the '
+            . 'wall-mount removal bullet was deliberately removed. Changing this count '
+            . 'means a control was added or dropped — check that is intended.',
         );
     }
 }

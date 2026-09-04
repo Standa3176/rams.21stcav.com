@@ -1,0 +1,70 @@
+{
+  "_comment": "Controlled standards & legislation library — the SINGLE source of truth for the RAMS authoring prompt (RamsAuthorService) and the deterministic validator (RamsProjectValidator). Version/transition logic is modelled explicitly; obsolete references and merely-conditional guidance are separate concepts. quick-260830-ramsqa.",
+  "standards": [
+    { "code": "HSWA1974", "reference": "Health and Safety at Work etc. Act 1974", "title": "General statutory duty of care", "amendment": null, "category": "general", "kind": "statutory", "status": "current", "applies_when": "always", "url": "https://www.legislation.gov.uk/ukpga/1974/37", "notes": null },
+    { "code": "MHSWR1999", "reference": "Management of Health and Safety at Work Regulations 1999", "title": "Risk assessment duty", "amendment": null, "category": "general", "kind": "statutory", "status": "current", "applies_when": "always", "url": "https://www.legislation.gov.uk/uksi/1999/3242", "notes": null },
+    { "code": "WAHR2005", "reference": "Work at Height Regulations 2005", "aliases": ["Working at Height Regulations 2005", "Work at Height Regs 2005", "WAHR 2005", "WAHR"], "title": "Statutory duties for work at height", "amendment": null, "category": "work_at_height", "kind": "statutory", "status": "current", "applies_when": "any work above standing reach", "url": "https://www.legislation.gov.uk/uksi/2005/735", "notes": "There is no ACOP for work at height — reference the Regulations directly (HSE guidance INDG401). Never invent an L-number ACOP for work at height." },
+    { "code": "MHOR1992", "reference": "Manual Handling Operations Regulations 1992 (as amended)", "aliases": ["Manual Handling Operations Regulations 1992", "Manual Handling Regulations 1992", "Manual Handling Regs 1992", "MHOR 1992", "MHOR"], "title": "Manual handling", "amendment": null, "category": "manual_handling", "kind": "statutory", "status": "current", "applies_when": "any display, mount or rack lift", "url": "https://www.legislation.gov.uk/uksi/1992/2793", "notes": "No fixed 'safe' lifting weight exists in UK law." },
+    { "code": "PUWER1998", "reference": "Provision and Use of Work Equipment Regulations 1998 (PUWER)", "aliases": ["Provision and Use of Work Equipment Regulations 1998", "PUWER 1998", "PUWER"], "title": "Work equipment, access towers, tools", "amendment": null, "category": "work_equipment", "kind": "statutory", "status": "current", "applies_when": "access equipment or power tools used", "url": "https://www.legislation.gov.uk/uksi/1998/2306", "notes": null },
+    { "code": "LOLER1998", "reference": "Lifting Operations and Lifting Equipment Regulations 1998 (LOLER)", "aliases": ["Lifting Operations and Lifting Equipment Regulations 1998", "LOLER 1998", "LOLER"], "title": "Lifting equipment", "amendment": null, "category": "lifting", "kind": "statutory", "status": "current", "applies_when": "only where a lifting appliance or accessory is used", "url": "https://www.legislation.gov.uk/uksi/1998/2307", "notes": null },
+    { "code": "EAWR1989", "reference": "Electricity at Work Regulations 1989", "aliases": ["Electricity at Work Regs 1989", "EAWR 1989", "EAWR"], "title": "Electrical safety", "amendment": null, "category": "electrical", "kind": "statutory", "status": "current", "applies_when": "any electrical connection or disconnection", "url": "https://www.legislation.gov.uk/uksi/1989/635", "notes": null },
+    {
+      "code": "BS7671",
+      "reference": "BS 7671:2018+A4:2026",
+      "current_reference": "BS 7671:2018+A4:2026",
+      "supersedes": "BS 7671:2018+A3:2024",
+      "transition_valid_until": "2026-10-15",
+      "accepted_transitional_references": ["BS 7671:2018+A3:2024"],
+      "withdrawn": ["BS 7671:2018+A2:2022", "BS 7671:2018+A1:2020", "BS 7671:2018"],
+      "title": "Requirements for Electrical Installations (IET Wiring Regulations, 18th Edition)",
+      "amendment": "A4:2026",
+      "category": "electrical_fixed_installation",
+      "kind": "standard",
+      "status": "current",
+      "applies_when": "only where 21CAV works on the fixed electrical installation (installation or alteration in scope) — NOT for connecting AV equipment to existing socket outlets",
+      "url": null,
+      "notes": "Amendment 4:2026 was published April 2026 and is current; the previous Amendment 3:2024 edition remains valid during the transition until 15 October 2026. Do not cite an earlier amendment (A2:2022 / A1:2020) as current. Connection to an existing socket outlet is NOT fixed-installation work."
+    },
+    { "code": "BSEN62368_1", "reference": "BS EN IEC 62368-1:2024+A11:2024", "title": "Audio/video, information and communication technology equipment — safety requirements", "amendment": "A11:2024", "category": "equipment_safety", "kind": "standard", "status": "current", "applies_when": "AV/ICT equipment", "url": null, "notes": "Replaced the withdrawn BS EN 60950-1." },
+    { "code": "BS6701", "reference": "BS 6701:2016+A1:2017", "title": "Telecommunications equipment and cabling — specification for installation, operation and maintenance", "amendment": "A1:2017", "category": "cabling", "kind": "standard", "status": "current", "applies_when": "structured cabling / termination works", "url": null, "notes": "The amendment is A1:2017, not A1:2020." },
+    { "code": "BSEN50174_2", "reference": "BS EN 50174-2:2018", "title": "Information technology — cabling installation planning and practices inside buildings", "amendment": null, "category": "cabling", "kind": "standard", "status": "current", "applies_when": "cable routing, containment and separation from mains services", "url": null, "notes": null },
+    { "code": "BS8539", "reference": "BS 8539:2012+A1:2021", "title": "Code of practice for the selection and installation of post-installed anchors in concrete and masonry", "amendment": "A1:2021", "category": "fixings_anchors", "kind": "standard", "status": "current", "applies_when": "display/mount fixings using post-installed anchors in concrete or masonry", "url": null, "notes": "Base the fixing on the manufacturer's published design/load data in accordance with this code — never an assumed universal safety factor or invented proof-test value." },
+    { "code": "COSHH2002", "reference": "Control of Substances Hazardous to Health Regulations 2002 (COSHH)", "aliases": ["Control of Substances Hazardous to Health Regulations 2002", "COSHH 2002", "COSHH Regulations 2002", "COSHH"], "title": "Hazardous substances, including respirable crystalline silica", "amendment": null, "category": "coshh", "kind": "statutory", "status": "current", "applies_when": "any drilling into masonry/concrete, or hazardous substances carried", "url": "https://www.legislation.gov.uk/uksi/2002/2677", "notes": null },
+    { "code": "CNWR2005", "reference": "Control of Noise at Work Regulations 2005", "aliases": ["Noise at Work Regulations 2005", "Control of Noise at Work Regs 2005"], "title": "Noise at work", "amendment": null, "category": "noise", "kind": "statutory", "status": "current", "applies_when": "sustained drilling or power-tool noise", "url": "https://www.legislation.gov.uk/uksi/2005/1643", "notes": "Noise uses EAV/ELV terminology (not the RCS WEL)." },
+    { "code": "CVWR2005", "reference": "Control of Vibration at Work Regulations 2005", "aliases": ["Vibration at Work Regulations 2005", "Control of Vibration at Work Regs 2005", "HAVS Regulations 2005"], "title": "Hand-arm vibration", "amendment": null, "category": "vibration", "kind": "statutory", "status": "current", "applies_when": "SDS / percussive tool use", "url": "https://www.legislation.gov.uk/uksi/2005/1093", "notes": "Vibration uses EAV/ELV terminology." },
+    { "code": "CDM2015", "reference": "Construction (Design and Management) Regulations 2015 (CDM 2015)", "aliases": ["Construction (Design and Management) Regulations 2015", "Construction Design and Management Regulations 2015", "CDM Regulations 2015", "CDM 2015", "CDM"], "title": "Construction project duties", "amendment": null, "category": "cdm", "kind": "statutory", "status": "current", "applies_when": "always", "url": "https://www.legislation.gov.uk/uksi/2015/51", "notes": "See the cdm block for duty-holder and F10 rules." },
+    { "code": "RRFSO2005", "reference": "Regulatory Reform (Fire Safety) Order 2005", "title": "Fire safety in occupied premises", "amendment": null, "category": "fire", "kind": "statutory", "status": "current", "applies_when": "always, in occupied buildings", "url": "https://www.legislation.gov.uk/uksi/2005/1541", "notes": null },
+    { "code": "CAR2012", "reference": "Control of Asbestos Regulations 2012", "title": "Asbestos", "amendment": null, "category": "asbestos", "kind": "statutory", "status": "current", "applies_when": "any penetrative work or void access in a building of pre-2000 or unknown age", "url": "https://www.legislation.gov.uk/uksi/2012/632", "notes": "Include whenever penetrative work / void access applies." }
+  ],
+  "obsolete_or_superseded": [
+    { "pattern": "BS EN 60950-1", "reason": "withdrawn AV/ICT equipment-safety standard", "superseded_by": "BS EN IEC 62368-1:2024+A11:2024" },
+    { "pattern": "BS EN 60849", "reason": "withdrawn voice-alarm standard", "superseded_by": "BS EN 50849" },
+    { "pattern": "L144", "reason": "the CDM 2007 ACOP — withdrawn under CDM 2015; there is no work-at-height ACOP", "superseded_by": null },
+    { "pattern": "0300 003 1647", "reason": "not a current RIDDOR contact — do not invent an 'HSE Incident Hotline'", "superseded_by": "0345 300 9923" }
+  ],
+  "conditional_guidance": [
+    { "reference": "HSG47 (Avoiding danger from underground services)", "match": "HSG47", "kind": "guidance", "category": "underground_services", "status": "current", "applies_when": "excavation or work around underground services", "note": "Current HSE guidance — valid, but only cite where excavation / underground-service risk actually exists." },
+    { "reference": "L146 (Consulting workers on health and safety)", "match": "L146", "kind": "guidance", "category": "worker_consultation", "status": "current", "applies_when": "the RAMS genuinely addresses worker-consultation arrangements", "note": "Current guidance — valid, not confined-spaces. Usually irrelevant to a project RAMS; omit rather than treating it as invalid." },
+    { "reference": "L101 (Safe work in confined spaces)", "match": "L101", "kind": "guidance", "category": "confined_spaces", "status": "current", "applies_when": "genuine confined-space work — ceiling voids and comms rooms are NOT confined spaces", "note": "Valid confined-spaces ACOP; do not cite for 21CAV void/comms work." },
+    { "reference": "BS EN 50849", "match": "BS EN 50849", "kind": "standard", "category": "voice_alarm", "status": "current", "applies_when": "voice-alarm systems in scope", "note": "Current voice-alarm standard (superseded BS EN 60849)." },
+    { "reference": "BS 8492", "match": "BS 8492", "kind": "standard", "category": "pa_systems", "status": "current", "applies_when": "public-address systems in scope", "note": "Valid PA standard; omit unless PA is in scope." },
+    { "reference": "BS 6262-4", "match": "BS 6262-4", "kind": "standard", "category": "glazing", "status": "current", "applies_when": "glazing / human-impact-safety of glass in scope", "note": "A GLAZING standard — valid for glazing, but it is not an access, scaffold or work-at-height standard and must not be cited for those." },
+    { "reference": "ANSI/AVIXA F502.01:2018 (Rack Building for Audiovisual Systems)", "match": "AVIXA F502.01", "kind": "standard", "category": "av_rack_building", "status": "current", "applies_when": "AV equipment racks are built / populated / assembled in scope", "note": "Real, current AVIXA workmanship standard for rack building — cite ONLY when equipment racks are actually built or populated. It is a build-quality standard, not a health-and-safety instrument, and does not belong in a display-only / socket-only RAMS." }
+  ],
+  "reporting": {
+    "riddor_phone": "0345 300 9923",
+    "riddor_note": "Fatal accidents and specified injuries can be reported by telephone on 0345 300 9923; other RIDDOR reports are made online at hse.gov.uk."
+  },
+  "exposure_limits": {
+    "rcs_wel": "0.1 mg/m³",
+    "rcs_wel_basis": "8-hour time-weighted average",
+    "rcs_note": "Respirable crystalline silica is a carcinogen: reduce exposure as low as reasonably practicable and control below the Workplace Exposure Limit. Never call this an 'EAV' — EAV/ELV belong to the noise and vibration regulations."
+  },
+  "cdm": {
+    "notifiable_rule": "more than 30 working days AND more than 20 workers working simultaneously at any point, OR more than 500 person-days",
+    "f10_duty": "the Client has the legal duty to ensure HSE is notified using Form F10 before the construction phase begins; the notification may be submitted on the Client's behalf, but the duty remains the Client's (never 'the Principal Contractor must notify HSE')",
+    "pd_pc_trigger": "the project involves, or is likely to involve, more than one contractor (not whether contractors are on site 'simultaneously')",
+    "construction_phase_plan": "where 21CAV is the sole contractor, 21CAV prepares the construction phase plan and the Client does NOT; where multiple contractors, the Client appoints a Principal Designer and Principal Contractor and ensures a plan is prepared",
+    "contractor_duties_regulation": "Regulation 15"
+  }
+}

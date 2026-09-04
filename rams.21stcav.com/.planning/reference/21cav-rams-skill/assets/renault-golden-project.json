@@ -1,0 +1,160 @@
+{
+  "_comment": "quick-260830-ramsqa (Commit 4) — clean Preliminary Renault-style golden fixture (21CQ30705-OPS). Passes RamsProjectValidator with zero ERRORs and builds a representative multi-room RAMS for rendered-layout QA. Do not add invented thresholds/anchor factors/tower heights; keep Qty cells to short tokens.",
+  "project": {
+    "quoteRef": "21CQ30705-OPS",
+    "docRef": "21CQ30705-RAMS",
+    "rev": "Rev A",
+    "date": "30/08/2026",
+    "status": "Draft — Preliminary (subject to technical survey)",
+    "subtitle": "AV INSTALLATION & COMMISSIONING",
+    "client": "Renault GB Limited",
+    "clientContact": "Renault Facilities Team",
+    "site": "Rivers Office Park, Denham Way, Maple Cross, Rickmansworth, WD3 9YS",
+    "rooms": "Ground and first-floor meeting rooms (Willen, Nadin, Group Network Development, HR Offices, Commercial Vehicles stand-up area)",
+    "engineers": "Named at survey",
+    "lead": "Named at survey",
+    "pm": "Alison",
+    "preparedBy": "21st Century AV Ltd",
+    "hours": "Monday–Friday, 09:00–17:30",
+    "duration": "5 days installation and commissioning"
+  },
+  "revisions": [
+    ["A", "30/08/2026", "21CAV", "Preliminary issue for technical survey", "Draft — Preliminary"]
+  ],
+  "policy": [
+    "21st Century AV Ltd is committed to ensuring the health, safety and welfare of its employees and of all persons who may be affected by its work activities, so far as is reasonably practicable, in accordance with the Health and Safety at Work etc. Act 1974.",
+    "This RAMS is prepared under the Management of Health and Safety at Work Regulations 1999 and is reviewed before works commence and whenever conditions change."
+  ],
+  "standards": [
+    ["Health and Safety at Work etc. Act 1974", "General statutory duty of care", "All works"],
+    ["Management of Health and Safety at Work Regulations 1999", "Risk assessment duty", "All works"],
+    ["Work at Height Regulations 2005", "Statutory duties for work at height", "Display and video-bar installation at height"],
+    ["Manual Handling Operations Regulations 1992", "Manual handling", "Display and mount lifting"],
+    ["PUWER 1998", "Work equipment, access towers, tools", "Access equipment and power tools"],
+    ["COSHH 2002", "Hazardous substances, including respirable crystalline silica", "Drilling into masonry/concrete"],
+    ["BS 8539:2012+A1:2021", "Code of practice for post-installed anchors in concrete and masonry", "Display and mount fixings"],
+    ["Control of Asbestos Regulations 2012", "Asbestos", "Penetrative work in a building of unknown age"],
+    ["CDM 2015", "Construction (Design and Management) duties", "Project duties"]
+  ],
+  "activities": [
+    "Install wall-mounted displays, video bars and associated AV control equipment across the listed meeting rooms.",
+    "Route first-fix AV signal/data/ELV cabling within containment and existing conduit, and terminate at existing socket outlets and client data outlets.",
+    "Configure and commission each room and demonstrate operation to the client."
+  ],
+  "areas": [
+    ["Willen Meeting Room", "Install", "Two wall-mounted displays and a video bar; connect to existing outlets."],
+    ["Nadin Open Space", "Install", "One wall-mounted display and a video bar; connect to existing outlets."],
+    ["Group Network Development", "Install", "One display, video bar and table connectivity."],
+    ["HR Offices", "Install", "Compact video-conferencing kit at each desk position."]
+  ],
+  "exclusions": [
+    "Rubbish and packaging removal is the client's responsibility unless agreed in writing.",
+    "No alteration to the fixed electrical installation — 21CAV terminates at existing socket outlets and client data outlets.",
+    "Fire-stopping of penetrations is excluded and referred to the client / principal contractor.",
+    "Making good and decorative finishing is by others."
+  ],
+  "clientReqs": [
+    "Asbestos register reviewed and signed off before any penetrative work; a refurbishment and demolition survey is provided where the register does not cover the work location.",
+    "Confirmed equipment weights, mounting heights, substrate types and access arrangements to be established at the technical survey.",
+    "Power outlets, network points and any licensing to be in place at each display position before installation.",
+    "Named lead engineer, engineers and a site contact to be confirmed before mobilisation."
+  ],
+  "equipment": {
+    "Willen Meeting Room": [
+      ["75-inch display", "2", "21CAV supply"],
+      ["Video bar", "1", "21CAV supply"],
+      ["Tilting wall mount", "2", "21CAV supply"]
+    ],
+    "Nadin Open Space": [
+      ["55-inch display", "1", "21CAV supply"],
+      ["Video bar", "1", "21CAV supply"],
+      ["Tilting wall mount", "1", "21CAV supply"]
+    ],
+    "Group Network Development": [
+      ["Display", "1", "21CAV supply"],
+      ["Rally bar and table hub", "1", "21CAV supply"]
+    ],
+    "HR Offices": [
+      ["Compact VC kit", "3", "21CAV supply"]
+    ]
+  },
+  "hazards": [
+    { "ref": "RA01", "hazard": "Working at height installing displays and mounts", "persons": ["21CAV Staff", "Client staff"], "l1": 3, "s1": 4, "controls": ["Use podium steps or a mobile access tower selected at survey to suit the working height and ground conditions; PASMA-trained operatives erect and use towers.", "Exclusion zone maintained beneath overhead work."], "l2": 1, "s2": 4 },
+    { "ref": "RA02", "hazard": "Fixings into walls and substrate failure", "persons": ["21CAV Staff"], "l1": 3, "s1": 4, "controls": ["Verify the substrate on site and select the fixing in accordance with the manufacturer's published design/load data and BS 8539.", "Pull-test the completed bracket before hanging the display."], "l2": 1, "s2": 4 },
+    { "ref": "RA03", "hazard": "Asbestos-containing materials disturbed during penetrative work", "persons": ["21CAV Staff", "Client staff"], "l1": 2, "s1": 5, "controls": ["No penetrative drilling until the asbestos register is reviewed and signed off; refurbishment and demolition survey where the register does not cover the location."], "l2": 1, "s2": 5 },
+    { "ref": "RA04", "hazard": "Dust from drilling into masonry / concrete", "persons": ["21CAV Staff"], "l1": 3, "s1": 3, "controls": ["FFP3 RPE and on-tool M-class extraction; respirable crystalline silica maintained below its Workplace Exposure Limit of 0.1 mg/m³ (8-hour TWA) so far as is reasonably practicable; vacuum after drilling — no dry sweeping."], "l2": 1, "s2": 2 },
+    { "ref": "RA05", "hazard": "Manual handling of heavy and bulky displays", "persons": ["21CAV Staff"], "l1": 3, "s1": 3, "controls": ["Two-operative team lift for all displays; mechanical aids (panel lifter, trolley) used where available; no display lifted above shoulder height."], "l2": 1, "s2": 3 },
+    { "ref": "RA06", "hazard": "Slips, trips and trailing cables in occupied areas", "persons": ["21CAV Staff", "Client staff", "Public"], "l1": 3, "s1": 2, "controls": ["Work area cordoned; cables covered or routed away from walkways; housekeeping maintained throughout."], "l2": 1, "s2": 2 }
+  ],
+  "team": [
+    ["Lead Engineer", "1", "PASMA where towers used; competence confirmed for allocated tasks"],
+    ["Installation Engineer", "3", "Competence confirmed for allocated tasks"],
+    ["Commissioning Engineer", "1", "AV commissioning competence"]
+  ],
+  "tools": [
+    "SDS drill with on-tool M-class extraction",
+    "Torque tools for mount fixings",
+    "Cable rods and first-fix containment tools",
+    "Test equipment for commissioning"
+  ],
+  "ppe": [
+    ["Drilling into masonry", ["FFP3 RPE", "Safety glasses", "Gloves"]],
+    ["Working at height", ["Safety footwear", "Hi-vis where required"]],
+    ["General installation", ["Safety footwear", "Gloves"]]
+  ],
+  "accessEquipment": [
+    "Podium steps or a mobile access tower selected at the technical survey to suit the working height, tower configuration and ground conditions.",
+    "Towers erected and used only by PASMA-trained operatives."
+  ],
+  "methodSteps": [
+    { "title": "Site set-up and pre-start checks", "bullets": ["Sign in and receive the client site induction; 21CAV conducts its own toolbox talk covering this RAMS.", "Confirm the asbestos register has been reviewed and signed off before any penetrative work.", "Establish the work area, exclusion zones and cable-management arrangements."], "risks": "RA03, RA06" },
+    { "title": "Verify substrate and set out mount positions", "bullets": ["Confirm wall reinforcement and the presence of power and network points at each display position.", "Set out the mount at the agreed height using fixings appropriate to the confirmed wall construction.", "Pull-test the completed bracket before hanging the display."], "risks": "RA01, RA02" },
+    { "title": "Install displays and video bars", "bullets": ["Lift and secure each display with a minimum of two operatives.", "Mount the video bar at the agreed position and connect the manufacturer flexes to the existing socket outlets.", "Dress cabling neatly within trunking or existing conduit."], "risks": "RA01, RA05" },
+    { "title": "First-fix cabling and containment", "bullets": ["Route first-fix AV signal/data/ELV cabling within containment and existing conduit.", "Maintain separation from mains services and control bend radius.", "Terminate at existing socket outlets and client data outlets."], "risks": "RA06" },
+    { "title": "Configuration, commissioning and handover", "bullets": ["Configure and commission each room and confirm operation.", "Carry out a power-cycle recovery test on each system.", "Demonstrate operation to the client and obtain a written snagging sign-off."], "risks": "RA06" }
+  ],
+  "materialHandling": [
+    ["2", "75-inch display", "Two-operative team lift; mechanical aid used where available; not lifted above shoulder height."],
+    ["1", "55-inch display", "Two-operative team lift; mechanical aid used where available."],
+    ["TBC", "Boxed AV equipment", "Trolley used for horizontal moves; team lift for placement."]
+  ],
+  "permits": [
+    "Confirm with the client whether a permit to work is required for any area before commencing.",
+    "Hot works are not anticipated; any change is subject to a separate permit."
+  ],
+  "fixings": [
+    "Fixings are selected after substrate verification in accordance with the manufacturer's published design and load data and BS 8539.",
+    "Brackets are pull-tested before the display is hung."
+  ],
+  "qa": [
+    "The Lead Engineer verifies each installation against the manufacturer's instructions and this RAMS.",
+    "Snagging is recorded and a written sign-off obtained from the client representative."
+  ],
+  "coshh": [
+    ["Respirable crystalline silica (drilling dust)", "FFP3 RPE and on-tool M-class extraction; control below the Workplace Exposure Limit of 0.1 mg/m³ (8-hour TWA) so far as is reasonably practicable; vacuum after drilling."],
+    ["Cleaning solvents / wipes", "Use per the safety data sheet; adequate ventilation; gloves worn."]
+  ],
+  "waste": [
+    "Packaging and offcuts are segregated; recyclable materials separated where practicable.",
+    "Waste and rubbish removal is the client's responsibility unless agreed in writing."
+  ],
+  "noiseDust": [
+    "Drilling is intermittent; on-tool extraction controls dust at source.",
+    "Occupants are advised before noisy activities and work is scheduled to minimise disruption."
+  ],
+  "cdm": [
+    ["Client", "Renault GB Limited"],
+    ["Principal Designer / Principal Contractor", "As appointed by the Client where more than one contractor is involved"],
+    ["Contractor / 21CAV", "Where 21CAV is the sole contractor it prepares the construction phase plan; where multiple contractors are involved it works to the Principal Contractor's plan (Regulation 15)."]
+  ],
+  "cdmNote": "The Client is anticipated to be the sole appointing party; the Client shall confirm whether more than one contractor is (or is likely to be) involved. The Client ensures HSE is notified using Form F10 where the project is notifiable (more than 30 working days and more than 20 workers simultaneously, or more than 500 person-days).",
+  "emergencyContacts": [
+    ["Emergency Services (Fire, Police, Ambulance)", "999"],
+    ["Non-Emergency Police", "101"],
+    ["NHS non-emergency medical", "111"],
+    ["Site contact", "Renault Facilities Team"],
+    ["21CAV Operations", "01189 977770"],
+    ["HSE Incident Contact Centre (RIDDOR)", "0345 300 9923"],
+    ["Nearest A&E", "To be confirmed at survey against a verified 24/7 Emergency Department"]
+  ]
+}

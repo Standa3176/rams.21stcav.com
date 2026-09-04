@@ -25,9 +25,10 @@ const {
   TEAL, TEAL_DARK, TEAL_LIGHT, GOLD, GOLD_LIGHT, WHITE, TEXT, TEXT_LIGHT,
   LOW_FILL, MED_FILL, HIGH_FILL, VHIGH_FILL, HEAD_FONT, BODY_FONT,
   A4, MARGIN, CONTENT_W, LAND_CONTENT_W, cellBorders, cellMargins, noBorder,
-  p, bullet, sp, sectionHeader, subHeader, calloutBox, fieldTable, dataTable,
-  coverBlock, runningHeader, runningFooter, numbering,
+  p, bullet, sp, pageBreakBefore, qtyCell, sectionHeader, subHeader, calloutBox,
+  fieldTable, dataTable, coverBlock, runningHeader, runningFooter, internalFooter, numbering,
 } = B;
+const { TableLayoutType } = require("docx");
 
 const [, , jsonPath, outPath] = process.argv;
 if (!jsonPath || !outPath) {
@@ -40,7 +41,10 @@ const P = D.project || {};
 const REV = P.rev || "Rev A";
 const HDR = `21st Century AV Ltd  |  Risk Assessment & Method Statement  |  ${P.quoteRef || ""}  |  ${REV}`;
 const FTR = `${P.docRef || P.quoteRef || ""} ${REV}  |  © 21st Century AV Ltd — Confidential`;
-const pb = () => new Paragraph({ children: [new PageBreak()] });
+// A forced page break, reserved for genuine top-level document divisions only
+// (cover, risk assessment, COSHH, emergency, sign-off). Implemented with the
+// safe pageBreakBefore paragraph property — see brand.js — never a PageBreak run.
+const pb = () => pageBreakBefore();
 
 const bandFill = v => (v >= 17 ? VHIGH_FILL : v >= 10 ? HIGH_FILL : v >= 5 ? MED_FILL : LOW_FILL);
 const bandName = v => (v >= 10 ? "HIGH" : v >= 5 ? "MED" : "LOW");
@@ -71,10 +75,10 @@ A.push(fieldTable([
   ["Lead Engineer", P.lead || ""],
   ["Engineers", P.engineers || ""],
 ]));
-if (D.coverCallout) {
-  A.push(sp(200));
-  A.push(calloutBox(D.coverCallout, { gold: true, bold: true }));
-}
+// quick-260903-nocover — the gold cover callout was removed: it duplicated the
+// Section 4 "Client responsibilities and pre-start hold points" (clientReqs) and
+// the cover Status field. Hold points now live only in Section 4; the cover keeps
+// its Status field. coverCallout is no longer rendered even if present in the JSON.
 
 // 1. Document control
 A.push(pb());
@@ -93,7 +97,7 @@ A.push(dataTable(
     ["Prepared by", P.preparedBy || "", "", ""],
     ["Reviewed by", "", "", ""],
     ["Approved by", "", "", ""],
-    ["Accepted by (Client)", P.clientContact || "", "", ""],
+    ["Accepted by (Client)", "", "", ""],
   ],
   [3000, 2746, 2400, 1600],
   { boldFirstCol: true },
@@ -117,7 +121,7 @@ A.push(fieldTable([
 
 // 3. Policy + standards
 if (D.policy || D.standards) {
-  A.push(pb());
+  A.push(sp(240));   // flow naturally after §2; keepNext holds the heading with its content
   A.push(sectionHeader("3. Health & safety policy statement"));
   A.push(sp(140));
   (D.policy || []).forEach(t => A.push(p(t)));
@@ -134,7 +138,7 @@ if (D.policy || D.standards) {
 }
 
 // 4. Scope of works
-A.push(pb());
+A.push(sp(260));
 A.push(sectionHeader("4. Scope of works"));
 A.push(sp(140));
 if (D.activities) {
@@ -168,7 +172,13 @@ if (D.areas) {
 if (D.equipment) {
   A.push(sp(200));
   A.push(subHeader("Equipment schedule"));
-  A.push(p("Allocated by installation area. Items marked as reused are recovered during the decommission phases and are not new supply.",
+  // Only mention reuse/decommission when the schedule actually contains reused
+  // items — otherwise this note contaminates an installation-only RAMS.
+  const hasReused = Object.values(D.equipment).some(items =>
+    (items || []).some(row => /\b(reuse|reused|recovered|salvaged|decommission)\b/i.test(String((row || [])[2] || ""))));
+  A.push(p(hasReused
+    ? "Allocated by installation area. Items marked as reused are recovered during the decommission phases and are not new supply."
+    : "Allocated by installation area.",
     { italics: true, size: 16, color: TEXT_LIGHT }));
   Object.entries(D.equipment).forEach(([area, items], i) => {
     A.push(sp(i === 0 ? 60 : 140));
@@ -180,7 +190,7 @@ if (D.equipment) {
       ["Item", "Qty", "Source"],
       items.map(([item, qty, src]) => [
         item,
-        { t: qty, align: AlignmentType.CENTER, bold: true },
+        qtyCell(qty),
         { t: src, color: /reuse/i.test(src) ? "B03A2E" : TEAL_DARK },
       ]),
       [5646, 900, 3200],
@@ -247,14 +257,14 @@ A.push(sp(120));
     }
     rows.push(new TableRow({ children: cells }));
   }
-  A.push(new Table({ width: { size: w * 6, type: WidthType.DXA }, columnWidths: widths, rows: [head, ...rows] }));
+  A.push(new Table({ width: { size: w * 6, type: WidthType.DXA }, columnWidths: widths, layout: TableLayoutType.FIXED, rows: [head, ...rows] }));
 })();
 A.push(sp(160));
 A.push(dataTable(
   ["Band", "Score", "Action required"],
   [
     [{ t: "LOW", fill: LOW_FILL, bold: true }, { t: "1 – 4", fill: LOW_FILL, align: AlignmentType.CENTER }, "Acceptable. Monitor and maintain controls."],
-    [{ t: "MEDIUM", fill: MED_FILL, bold: true }, { t: "5 – 9", fill: MED_FILL, align: AlignmentType.CENTER }, "Action required to reduce risk so far as is reasonably practicable."],
+    [{ t: "MEDIUM", fill: MED_FILL, bold: true }, { t: "5 – 9", fill: MED_FILL, align: AlignmentType.CENTER }, "Further reduction required where reasonably practicable. Work may proceed once the listed controls are implemented and the residual risk is accepted by the Lead Engineer."],
     [{ t: "HIGH", fill: HIGH_FILL, bold: true }, { t: "10+", fill: HIGH_FILL, align: AlignmentType.CENTER }, "Work must not proceed until the listed controls are implemented and verified by the Lead Engineer."],
   ],
   [2200, 1600, 5946],
@@ -286,7 +296,10 @@ if (D.hazards && D.hazards.length) {
   });
   LB.push(dataTable(
     ["Ref", "Hazard", "Persons at risk", "L", "S", "Risk", "Control measures", "L", "S", "Risk"],
-    rows, widths, { size: 15, headSize: 14 },
+    rows, widths,
+    // A single hazard's control list can legitimately be taller than a page, so
+    // allow rows to split here — the header still repeats on the continuation.
+    { size: 15, headSize: 14, cantSplitRows: false },
   ));
 }
 
@@ -299,8 +312,8 @@ if (D.team) {
   M.push(subHeader("6.1 Team requirements"));
   M.push(dataTable(
     ["Role", "Qty", "Requirements"],
-    D.team.map(([r, q, req]) => [r, { t: q, align: AlignmentType.CENTER }, req]),
-    [2900, 700, 6146],
+    D.team.map(([r, q, req]) => [r, qtyCell(q, { bold: false }), req]),
+    [2900, 1000, 5846],
     { boldFirstCol: true },
   ));
   if (D.teamCallout) {
@@ -327,7 +340,7 @@ if (D.ppe) {
 }
 
 if (D.accessEquipment) {
-  M.push(pb());
+  M.push(sp(260));
   M.push(subHeader("6.4 Access equipment"));
   D.accessEquipment.forEach(t => M.push(bullet(t)));
   if (D.accessRequirements) {
@@ -338,13 +351,15 @@ if (D.accessEquipment) {
 }
 
 if (D.methodSteps) {
-  M.push(pb());
+  M.push(sp(220));   // subsection — flow naturally; step titles carry keepNext
   M.push(subHeader("6.5 Method of works"));
   M.push(sp(60));
   D.methodSteps.forEach((step, i) => {
     if (i > 0) M.push(sp(200));
     M.push(new Paragraph({
       spacing: { before: 60, after: 100 },
+      keepNext: true,   // keep a step title with the first lines of the step
+      keepLines: true,
       children: [new TextRun({ text: step.title, font: HEAD_FONT, size: 18, bold: true, color: TEAL })],
     }));
     (step.bullets || []).forEach(t => M.push(bullet(t)));
@@ -353,7 +368,8 @@ if (D.methodSteps) {
       M.push(new Table({
         width: { size: CONTENT_W, type: WidthType.DXA },
         columnWidths: [CONTENT_W],
-        rows: [new TableRow({ children: [new TableCell({
+        layout: TableLayoutType.FIXED,
+        rows: [new TableRow({ cantSplit: true, children: [new TableCell({
           width: { size: CONTENT_W, type: WidthType.DXA },
           shading: { fill: GOLD_LIGHT, type: ShadingType.CLEAR },
           margins: { top: 80, bottom: 80, left: 140, right: 140 },
@@ -369,12 +385,12 @@ if (D.methodSteps) {
 }
 
 if (D.materialHandling) {
-  M.push(pb());
+  M.push(sp(220));   // subsection — flow naturally
   M.push(subHeader("6.6 Material handling"));
   M.push(dataTable(
     ["Qty", "Item", "Handling method / controls"],
-    D.materialHandling.map(([q, i, m]) => [{ t: q, align: AlignmentType.CENTER, bold: true }, i, m]),
-    [700, 3400, 5646],
+    D.materialHandling.map(([q, i, m]) => [qtyCell(q), i, m]),
+    [900, 4650, 4196],
     { zebra: true },
   ));
   M.push(sp(120));
@@ -441,7 +457,7 @@ if (D.waste || D.noiseDust) {
 }
 
 if (D.welfare) {
-  M.push(pb());
+  M.push(sp(240));   // flow naturally after the preceding block
   M.push(sectionHeader("Welfare arrangements"));
   M.push(sp(140));
   M.push(fieldTable(D.welfare));
@@ -525,6 +541,26 @@ M.push(calloutBox([
   "01189 977770  |  info@21stcenturyav.com  |  www.21stcenturyav.com  |  Company No. 03700669",
 ], { gold: true, bold: true }));
 
+/* ===================== internal page-0 (removable) =====================
+ * All 21CAV-internal working notes go on ONE detachable page at the very front.
+ * It is page 0: the client front matter below restarts numbering at 1, so the
+ * client document begins at the cover (page 1) and this page can be deleted for
+ * issue without disturbing the client page numbers. Client-facing maturity
+ * caveats (e.g. "Draft — Preliminary") stay on the cover, NOT here. Absent
+ * `internalNotes` => no internal page and numbering is unchanged. */
+const I = [];
+const internalNotes = Array.isArray(D.internalNotes) ? D.internalNotes : [];
+if (internalNotes.length) {
+  I.push(calloutBox(["INTERNAL WORKING NOTES — NOT FOR ISSUE TO CLIENT"], { gold: true, bold: true }));
+  I.push(sp(140));
+  I.push(p("For 21st Century AV internal use only. This is page 0 and is excluded from the client page numbering — the client document begins at page 1 (the cover). Delete this page before issuing the RAMS to the client."));
+  I.push(sp(160));
+  I.push(sectionHeader("Pre-issue / survey checklist"));
+  I.push(sp(120));
+  internalNotes.forEach(t => I.push(bullet(t)));
+}
+const hasInternal = I.length > 0;
+
 /* ========================= assemble ========================= */
 const portraitProps = { page: { size: { width: A4.width, height: A4.height }, margin: MARGIN } };
 const landscapeProps = {
@@ -533,9 +569,23 @@ const landscapeProps = {
     margin: { top: 1080, right: 1080, bottom: 1080, left: 1080 },
   },
 };
-const hf = { headers: { default: runningHeader(HDR) }, footers: { default: runningFooter(FTR) } };
+// With a removable page-0 present, drop the "of N" total (see runningFooter): the
+// client pages read Page 1, 2, 3 … from the cover, always correct in any renderer.
+const hf = { headers: { default: runningHeader(HDR) }, footers: { default: runningFooter(FTR, { hideTotal: hasInternal }) } };
+// When a removable page-0 precedes it, the client front matter restarts at page 1.
+const clientFirstProps = hasInternal
+  ? { page: { ...portraitProps.page, pageNumbers: { start: 1 } } }
+  : portraitProps;
 
-const sections = [{ properties: portraitProps, ...hf, children: A }];
+const sections = [];
+if (hasInternal) {
+  const internalHf = {
+    headers: { default: runningHeader("INTERNAL WORKING COPY — NOT FOR ISSUE") },
+    footers: { default: internalFooter("INTERNAL — NOT FOR ISSUE  ·  remove before sending to client  ·  excluded from client page numbering") },
+  };
+  sections.push({ properties: portraitProps, ...internalHf, children: I });
+}
+sections.push({ properties: clientFirstProps, ...hf, children: A });
 if (LB.length) sections.push({ properties: landscapeProps, ...hf, children: LB });
 sections.push({ properties: portraitProps, ...hf, children: M });
 

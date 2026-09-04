@@ -73,6 +73,27 @@ contractual.
 | Working hours | `project.hours` |
 | Labour day counts | `project.duration`, team sizing |
 
+## Fields the user provides — use them, don't leave them as hold points
+
+The app passes user-completed project fields alongside the quote. When present,
+map them into `project` and use them as fact (not "to be confirmed"):
+
+| Provided field | Maps to |
+|---|---|
+| `planned_start_date`, `planned_end_date` | `project.date` (start) and `project.duration` (derive the span, e.g. "start–end") |
+| `lead_engineer` | `project.lead` |
+| `engineers` | `project.engineers` |
+| `site_contact_name` + `site_contact_phone` | `project.clientContact` where no client contact is given, the Site contact row in `emergencyContacts`, and welfare/coordination |
+| `client_contact` | `project.clientContact` |
+| `project_manager` | `project.pm` |
+| `working_hours` | `project.hours` |
+| `rooms` | `project.rooms`, and seed `areas`/method steps |
+| `access_notes` | access requirements, asbestos/coordination hold points as appropriate |
+
+Only the equipment weights, mounting heights and substrates remain survey hold
+points once these are supplied — so a RAMS with all fields provided should read as
+genuinely project-specific, not generic.
+
 ## Things the quote won't tell you
 
 Flag these rather than inventing them:
@@ -86,6 +107,22 @@ Flag these rather than inventing them:
 - **Named engineers** — leave blank or as supplied by the user
 - **Whether the area is trafficked** — an area name like "Commercial Vehicles"
   strongly implies FLT and vehicle movement, but confirm rather than assume
+
+## Build a real, room-by-room equipment schedule
+
+The quote's line items are the equipment schedule — use them. Populate
+`equipment` room-by-room with the actual makes/models, quantities and location
+from the quote (not "displays, mounts, speakers"). In `materialHandling`, identify
+the **heaviest items** and give their lift method; where a weight isn't in the
+quote, give an indicative figure marked confirm-at-survey rather than omitting it.
+A method statement that walks the actual kit into the actual rooms is what makes
+the RAMS project-specific rather than generic safety theory.
+
+**Don't invent scope.** Only name equipment types in the scope/activities that the
+quote line items actually contain. If the quote doesn't specify speaker arrays,
+ceiling microphones or wall-mounted displays, keep the scope generic ("AV equipment
+per the quoted schedule") until the survey confirms them — do not let the scope be
+more specific than the known equipment schedule.
 
 ## Sanity checks before building
 

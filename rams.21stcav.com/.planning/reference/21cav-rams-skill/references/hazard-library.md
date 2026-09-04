@@ -52,24 +52,27 @@ pillar mounting or anything above 3 m.
 Typical: initial 4×3, residual 2×3. See house-rules.md — **all displays are
 two-operative team lifts** regardless of size.
 
-1. Use mechanical aids (sack trucks, lifting trolleys, panel lifter) for items over 20 kg.
+1. Mechanical aids (sack trucks, lifting trolleys, panel lifter) are used where the load's weight, dimensions, shape, route or the task-specific manual-handling assessment indicates they are required. (There is no fixed "safe" lifting weight in UK law — do not state a kg threshold such as "over 20 kg".)
 2. Team lift required for all displays — minimum two operatives for every panel size. Mechanical aid used in addition where available.
-3. Removal of a display from an existing wall mount is the highest-risk lift on any strip-out. Load is controlled to the lowest practicable height with one operative each side before release from the mount.
+3. *(Removal jobs only — omit entirely on an installation-only job.)* Removal of a display from an existing wall mount is the highest-risk lift on a strip-out. Load is controlled to the lowest practicable height with one operative each side before release from the mount.
 4. Pre-plan the route and clear all access paths before moving equipment. Passenger lift used between floors — no carrying on stairs.
 5. Wear appropriate gloves and safety footwear at all times.
 6. Conduct a task-specific manual handling assessment prior to every lift. Any operative may stop a lift.
 7. Take regular breaks to avoid fatigue during prolonged lifting tasks. Do not lay displays face-down.
 
 ## Electrical
-Typical: initial 2×5, residual 1×4.
+Typical: initial 2×5, residual 1×4. **21CAV connects to existing socket outlets
+only** — see house-rules "Electrical scope boundary". The lock-off / test-dead
+controls below apply to genuine work on the fixed installation; do not present
+plugging equipment into an existing socket as if it were fixed-installation work.
 
-1. All electrical work to be carried out by competent, authorised persons only. No live working under any circumstances.
-2. Isolate and lock off power circuits before making any connection or disconnecting decommissioned equipment.
-3. Test for dead using an approved GS38-compliant voltage indicator, proved on a known source before and after testing.
+1. All electrical work on the fixed installation to be carried out by competent, authorised persons only. No live working under any circumstances.
+2. 21CAV works terminate at existing socket outlets. Where a hardwired supply must be isolated, it is isolated and locked off by the client's authorised competent electrician — not by 21CAV — before any such work.
+3. Where 21CAV works on the fixed installation is expressly in scope, test for dead using an approved GS38-compliant voltage indicator, proved on a known source before and after testing.
 4. Do not use damaged cables, plugs or extension leads — remove from service immediately.
 5. All temporary power supplies to use RCD protection. All tools PAT tested and in date.
-6. Comply with BS 7671 (IET Wiring Regulations) 18th Edition at all times.
-7. Notify the client facilities team before isolating any shared power circuit. Any hardwired supply is isolated by the client's authorised person with site lock-off and tagging applied.
+6. Any 21CAV work on the fixed installation (where in scope) complies with the current amendment of BS 7671:2018 (IET Wiring Regulations, 18th Edition). Connection to an existing socket outlet is not fixed-installation work and is not described as such.
+7. Notify the client facilities team before any shared power circuit is isolated.
 
 ## Slips, trips and falls
 Typical: initial 3×3, residual 2×2.
@@ -122,7 +125,7 @@ Typical: initial 2×3, residual 1×2.
 
 1. All AV equipment powered down before connecting or disconnecting cables.
 2. Visual inspection of cables and connectors before each use.
-3. No work on mains-voltage circuits — all mains connections by qualified electrician.
+3. No work on fixed mains circuits. Hardwired / fixed-installation connections are undertaken by the client's authorised electrician; 21CAV connects manufacturer-supplied equipment to existing socket outlets only.
 4. PAT-tested power supplies and extension leads only.
 5. Equipment earthing verified before power-on. PoE device power draw confirmed within the switch budget before connection.
 
@@ -130,22 +133,24 @@ Typical: initial 2×3, residual 1×2.
 Typical: initial 3×4, residual 1×4. This is the row that carries the display-fall
 risk — do not under-score it.
 
-1. Verify substrate type (plasterboard, masonry, concrete, steel) before drilling. Client written confirmation of wall reinforcement obtained where the substrate is gypsum.
-2. Use correct anchor type and size for the substrate and load, with a minimum 4:1 safety factor over combined display and bracket weight.
+1. Verify substrate type (plasterboard, masonry, concrete, steel) on site before drilling. Client written confirmation of wall reinforcement obtained where the substrate is gypsum.
+2. Select the fixing after the substrate is verified, in accordance with the mount and fixing manufacturer's published design/load data — and, for post-installed anchors in concrete or masonry, in accordance with BS 8539:2012+A1:2021 — with structural-engineering advice where the load, edge distance or substrate is marginal. Do not assume an anchor diameter, drill size or embedment from the substrate description, and do not mandate a blanket safety factor in place of the manufacturer's design data.
 3. Do not fix into unknown surfaces — confirm with site/building management. Where a mounting point is a cladding or non-structural finish, agree an alternative position with the client.
 4. Check for hidden services (pipes, cables, reinforcement) with a calibrated detector in both scan modes before any penetration. Depth stops set on all drills.
-5. Any penetration of a fire-rated element is stopped and referred to the client for a specified fire-stopping detail before proceeding.
-6. Pull-test fixings to confirm load capacity before mounting equipment. Photograph every completed bracket for the handover file.
+5. Fire-stopping is not in 21CAV scope: any penetration of a fire-rated element is sealed by others / referred to the client with a specified fire-stopping detail before proceeding (state this consistently with the exclusions and QA — 21CAV does not both exclude and claim to fire-stop).
+6. Where the fixing manufacturer's procedure specifies a proof/pull test, carry it out to the value and method it specifies; otherwise rely on the manufacturer-rated anchor and 4:1 design factor. Do not promise a blanket pull-test of every fixing to an assumed value. Photograph every completed bracket for the handover file.
 
 ## Dust from drilling and cutting
 Typical: initial 3×3, residual 1×2. **FFP3, not FFP2** — masonry and concrete
 generate respirable crystalline silica.
 
 1. FFP3 dust mask and safety glasses worn during all drilling and cutting. All operatives face-fit tested.
-2. Use on-tool dust extraction (M-class vacuum) or a drill dust collection shroud where practicable.
+2. Respirable crystalline silica is a carcinogen: exposure is reduced as low as reasonably practicable and in all cases controlled below the Workplace Exposure Limit of 0.1 mg/m³ (8-hour TWA), using on-tool extraction, FFP3 RPE (never write "FFE3" or "FFP2") and minimising task duration. (Do not describe this as an "EAV" — that term belongs to noise/vibration — and do not list asbestos-awareness training here.)
+3. Use on-tool dust extraction (M-class vacuum) or a drill dust collection shroud where practicable.
 3. Lay dust sheets below work area to contain debris and protect furniture and floor finishes.
 4. Vacuum work area immediately after drilling — dry sweeping is prohibited.
 5. Inform building occupants of dust-generating works in advance and exclude them from the immediate area.
+6. Before drilling, coordinate with Facilities to identify smoke/heat detectors near the work; arrange any permitted temporary detector protection or isolation through the client's authorised person. Remove any temporary protection/isolation and reinstate the fire detection system immediately after drilling, and confirm it is operational. (Do not say "reposition the detector" — the detector is not moved — and do not invent a fixed no-drilling distance such as "within 1 m".)
 
 ## Asbestos-containing materials
 Typical: initial 2×5, residual 1×5. Include whenever there is any penetrative
@@ -184,7 +189,7 @@ Typical: initial 2×5, residual 1×4.
 1. Fire alarm procedure, escape routes, assembly point and site-specific evacuation arrangements covered at induction and briefed to every operative.
 2. Escape routes, fire exits and fire equipment never obstructed by cable, tools, equipment or access platforms.
 3. Fire doors never wedged or held open. Cable never routed through a fire door.
-4. Any penetration of a fire-rated element fire-stopped to the original compartment rating using a client-specified system, or referred to the client before proceeding.
+4. Fire-stopping is not in 21CAV scope: any penetration of a fire-rated element is sealed by others / referred to the client with a specified fire-stopping detail before proceeding. (State this the same way in exclusions and QA.)
 5. No hot works of any kind included in this scope.
 
 ## COSHH substances
@@ -208,10 +213,12 @@ or the site is a significant distance from Reading.
 6. No handheld mobile phone use while driving.
 
 ## Decommissioning and WEEE
-Typical: initial 2×3, residual 1×2.
+Typical: initial 2×3, residual 1×2. **Removal jobs only** — include this row only
+where the quote scope actually includes removing existing equipment. Omit it
+entirely on an installation-only job.
 
 1. Confirm in writing with the client who is responsible for waste removal before mobilisation.
 2. Decommissioned equipment retained for reuse is logged by serial number, protected and stored in a secure area agreed with the client. It is not waste and is not to be disposed of.
-3. Equipment for reuse stored flat or on an A-frame, never leaned against walls or stacked.
+3. Equipment for reuse stored upright / on edge in accordance with the manufacturer's instructions, or on an approved A-frame — never laid flat, leaned against walls or stacked.
 4. Any waste removed by 21CAV is transferred under a valid waste transfer note to a licensed carrier; WEEE items routed to an approved treatment facility.
 5. Batteries and power supplies segregated from general waste. Packaging flattened and recycled.
