@@ -236,6 +236,14 @@ class DisplayLiftGateEngineerRowsTest extends TestCase
         $source = file_get_contents(app_path('Services/Rams/RamsComplianceUpgradeService.php'));
         $this->assertIsString($source);
 
+        // Normalise line endings before any offset is taken. On a CRLF working
+        // copy (a Windows checkout, or any tool that rewrites the file) the
+        // "\n    }\n" search below finds nothing, and the test fails claiming
+        // the method is missing — a false failure that says nothing about the
+        // code under test. Normalising first also keeps $start and $methodEnd
+        // measured against the same string. Hit on 2026-08-26.
+        $source = str_replace(["\r\n", "\r"], "\n", $source);
+
         $start = strpos($source, 'private static function enforceDisplayLiftGate');
         $this->assertIsInt($start, 'enforceDisplayLiftGate() not found');
 

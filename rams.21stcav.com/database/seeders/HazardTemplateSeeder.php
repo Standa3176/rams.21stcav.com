@@ -116,7 +116,7 @@ class HazardTemplateSeeder extends Seeder
                 'post_likelihood' => 2,
                 'post_severity'   => 3,
                 'controls'        => [
-                    'Use mechanical aids (sack trucks, lifting trolleys, panel lifter) for items over 20 kg.',
+                    'Mechanical aids (sack trucks, lifting trolleys, panel lifter) are used where the weight, dimensions, shape, route or the task-specific manual handling assessment indicates they are required. There is no fixed safe lifting weight in law — team size and aids follow the assessment, not a kg threshold.',
                     DisplayLiftPolicy::genericBandSummary(),
                     // NOTE: DisplayLiftPolicy::wallMountRemovalStatement() is deliberately
                     // NOT listed here. `references/hazard-library.md` marks that control

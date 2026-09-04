@@ -555,7 +555,7 @@ class RamsComplianceUpgradeService
                 'Barrier or cordon area below when working above occupied spaces',
             ],
             'manual handling' => [
-                'Assess load weight before lifting — team lift for items over 20 kg',
+                'Assess each load before lifting — its weight, dimensions, shape and carry route decide whether it is a team lift',
                 'Use mechanical aids (trolley, lifter) where available',
                 'Adopt correct lifting technique: bend knees, keep back straight, lift with legs',
                 'Plan route before carrying — ensure path is clear and level',
@@ -710,7 +710,7 @@ class RamsComplianceUpgradeService
                 'pre_likelihood'  => 3,
                 'pre_severity'    => 3,
                 'controls'        => [
-                    'Team lift for items over 20 kg; mechanical aids used where available',
+                    'Team lift where the weight, dimensions, shape or route of the load requires it; mechanical aids used in addition where available',
                     'Rack secured to floor or wall before loading equipment',
                     'Cable management applied as equipment is installed — no trailing cables',
                     'Power isolated until all rack equipment is physically secured',
@@ -1491,7 +1491,7 @@ class RamsComplianceUpgradeService
             'items'           => $unique,
             'statement'       => $hasHeavy
                 ? 'This installation includes heavy or bulky AV equipment requiring manual handling controls. '
-                  . 'Team lifts (minimum 2 persons) are required for items over 20 kg. '
+                  . 'Team lifts are required where the weight, dimensions, shape, route or the task-specific manual handling assessment indicates them. '
                   . 'Mechanical aids (trolley, lifter) must be used where available. '
                   . 'Correct lifting technique must be adopted at all times.'
                 : 'No significant heavy or bulky items have been identified for this installation. '
@@ -1616,7 +1616,7 @@ class RamsComplianceUpgradeService
         // Audio amps and DSPs — typically 5–15 kg, single person.
         if (str_contains($desc, 'amplifier') || str_contains($desc, ' amp ') || str_contains($desc, 'dsp')) {
             return [
-                'sentence'    => 'Single person lift acceptable if under 20 kg. Check weight before lifting.',
+                'sentence'    => 'Single person lift where the task-specific manual handling assessment allows. Check the weight and carry route before lifting.',
                 'min_persons' => null,
                 'inches'      => null,
             ];
@@ -1643,7 +1643,7 @@ class RamsComplianceUpgradeService
         }
 
         return [
-            'sentence'    => 'Assess weight before lifting. Team lift for items over 20 kg.',
+            'sentence'    => 'Assess the load before lifting — weight, dimensions, shape and carry route decide the team size.',
             'min_persons' => null,
             'inches'      => null,
         ];
