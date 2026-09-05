@@ -3,7 +3,8 @@
 **Verified:** 2026-08-26 (live, `rams.21stcav.com`, code `77f6e76`)
 **Method:** real regeneration of 21CQ30960 (VW Blakelands) through `BuildRamsDocumentJob`
 on production data — RAMS **100**, regenerated from source RAMS 99 (`21CQ30960-OPS`).
-**Status:** ❌ **NOT PASSED — 2 of 4 ROADMAP success criteria unmet.** Do not close.
+**Status:** ❌ **NOT PASSED — 1 of 4 ROADMAP success criteria unmet.** Do not close.
+*(Updated 2026-08-26: Blocker 1 CLOSED by Plan 27-08, re-verified live on RAMS 102. Criterion 2 remains unmet — Blocker 2 is a quote-classification gap upstream of this phase.)*
 
 ---
 
@@ -12,7 +13,7 @@ on production data — RAMS **100**, regenerated from source RAMS 99 (`21CQ30960
 | # | Criterion | Result |
 |---|---|---|
 | 1 | Display lift team size resolved from one shared source, producing RULE-02's bands; old ladder and aid-as-substitute wording gone | ✅ **PASS** |
-| 2 | Where scope includes decommission/strip-out of a wall-mounted display, the removal-from-mount sequence is stated | ❌ **FAIL** |
+| 2 | Where scope includes decommission/strip-out of a wall-mounted display, the removal-from-mount sequence is stated | ❌ **FAIL** (Blocker 2, still open) |
 | 3 | GATE-09 errors on a non-conforming lift, proven by revert-and-restore | ✅ **PASS** (automated; see below for the live caveat) |
 | 4 | Regenerating 21CQ30960 does not trip GATE-09 | ✅ **PASS** |
 
@@ -49,7 +50,7 @@ display branch and inherited a team-lift instruction meant for a panel.
 
 ---
 
-## Blocker 1 — the hazard library never reaches a regenerated document
+## Blocker 1 — the hazard library never reaches a regenerated document (DIAGNOSIS — see closure below)
 
 **Severity: high.** Affects RULE-02 and RULE-13 on the most common generation path.
 
@@ -87,6 +88,35 @@ library's text has changed conflicts with the codebase's "engineer values always
 convention (HAZ-04's `score_reviewed` precedent). A house rule is not an engineer
 preference, but replacing engineer-edited controls wholesale is not obviously right either.
 Needs a decision before a plan.
+
+---
+
+## Blocker 1 — CLOSED 2026-08-26 (live, RAMS 102)
+
+Plan 27-08 shipped and was re-verified on production against real data.
+
+| Check | Before (RAMS 100) | After (RAMS 102) |
+|---|---|---|
+| `over 20 kg` in `generated_data` | `FOUND` | **`clean`** |
+| Manual Handling controls | stale reviewed text | **current library text** |
+| Backfill migration | — | **60 documents, 438 hazard rows** |
+
+The Manual Handling hazard now renders the library's corrected controls, including
+*"There is no fixed safe lifting weight in law — team size and aids follow the assessment,
+not a kg threshold"* and the full band statement.
+
+**Which tier fired matters, and it is the right one.** The migration backfilled those 438
+rows to `controls_reviewed = true`, so tier 2 deliberately left them alone as engineer-owned.
+**Tier 1** replaced the Manual Handling controls, because they breached RULE-13 (`over 20 kg`)
+and RULE-02 (`screens and equipment over 40"`). That is the exact behaviour the two-tier
+policy was chosen for: engineer text preserved wherever it is clean, corrected only where it
+breaches a settled safety position. Both halves proven on production data rather than
+fixtures.
+
+Note the first attempt at this verification (also 2026-08-26) ran as `root`, so `git pull`
+failed on dubious ownership, `migrate` reported "Nothing to migrate", and the regeneration
+tested pre-27-08 code — reproducing the bug rather than testing the fix. Recorded because the
+output looked like a failed verification and was not one.
 
 ---
 
@@ -133,25 +163,28 @@ material-handling row and Save Review).
 
 ---
 
-## Recommendation
+## Recommendation (updated 2026-08-26)
 
-Keep Phase 27 **open**. Criteria 1, 3 and 4 are met and the RULE-12 fix is proven against
-the exact defect that motivated the milestone — that is real progress and it is deployed.
-But closing now would record criterion 2 as met when it has never once fired, and would
-leave the library-bypass hidden behind a green test suite.
+Keep Phase 27 **open on criterion 2 only**.
 
-Two follow-on plans, in this order:
+Criteria 1, 3 and 4 are met. RULE-12 is proven fixed against the exact defect that motivated
+the milestone. Blocker 1 is closed on live evidence (RAMS 102). All of it is deployed.
 
-1. **27-08 — reviewed-data control refresh.** Decide and implement when library controls
-   supersede reviewed ones. Blocker 1 is the higher severity: it silently defeats every
-   house-rule correction on the common path, and it will defeat Phases 28 and 31's
-   corrections too, so fixing it before those phases ship is worth more than fixing it after.
-2. **27-09 (or its own phase) — decommission classification.** Populate
-   `scope_items.decommission` from the quote package. Likely belongs with the quote-import
-   work rather than here; if so, criterion 2 should be moved out of Phase 27 explicitly
-   rather than left failing.
+**Remaining work is Blocker 2, and it is arguably not this phase's.** `scope_items.decommission`
+is empty because the quote package classifies everything as `new_install`; Phase 27's RULE-03
+implementation is correct and unreachable. Two honest options:
 
-**Artefact:** RAMS **100** on production is a verification document and can be deleted.
+1. **Move criterion 2 out of Phase 27** into the quote-import/classification work where the
+   gap actually lives, and close Phase 27 on the three criteria it owns. Preferred — leaving a
+   criterion failing against code that is not at fault misrepresents both.
+2. Open a plan here to populate `scope_items.decommission` from the quote package, accepting
+   that it is quote-classification work wearing a Phase 27 label.
+
+Either way this is a scope call, not an implementation one.
+
+**Artefacts:** RAMS **100, 101, 102** on production are verification documents and can be
+deleted. 101 and 102 were created by re-runs of the verification script, which sources from
+the newest matching document.
 
 ---
 

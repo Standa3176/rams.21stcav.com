@@ -2,7 +2,7 @@
 
 **Completed:** 2026-08-26
 **Requirements:** RULE-02, RULE-13
-**Status:** code complete, **live re-verification OUTSTANDING** (see below)
+**Status:** COMPLETE — verified live 2026-08-26 (RAMS 102).
 
 Closes Blocker 1 from `27-VERIFICATION.md`: the hazard library's control text never reached
 a RAMS regenerated from existing reviewed data.
@@ -94,7 +94,24 @@ can flag the app's own library output, they will flag correct engineer text too.
 
 ---
 
-## ⚠ Live re-verification is OUTSTANDING
+## Live re-verification PASSED — 2026-08-26, RAMS 102
+
+Deployed as `stcav`, migration ran (**60 documents, 438 hazard rows** backfilled), 21CQ30960
+regenerated on production:
+
+- Banned-wording scan: `clean "over 20 kg"` — it read `FOUND` before this plan.
+- Manual Handling hazard now carries the current library controls.
+- **Tier 1 is what fired.** The backfill had marked those rows `controls_reviewed = true`, so
+  tier 2 left them alone as engineer-owned; tier 1 replaced them for breaching RULE-13 and
+  RULE-02. Both halves of the two-tier policy proven on production data.
+
+RULE-02 and RULE-13 now hold on the reviewed-data path.
+
+A first attempt ran as `root`, so the pull failed on dubious ownership and `migrate` reported
+"Nothing to migrate" — that run tested pre-27-08 code and its `FOUND "over 20 kg"` result was
+not evidence about this plan.
+
+### Original pre-deploy note (retained)
 
 **This plan is not done and RULE-02/RULE-13 are not closed on the reviewed-data path until
 21CQ30960 is regenerated on production and the Manual Handling hazard is confirmed to carry
