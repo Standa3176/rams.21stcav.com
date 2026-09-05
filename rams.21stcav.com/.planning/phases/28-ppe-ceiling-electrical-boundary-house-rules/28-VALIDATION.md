@@ -52,6 +52,9 @@ commands below are pre-seeded from research and are the minimum coverage this ph
 | TBD | TBD | TBD | RULE-10 | — | Ceiling-load statement lands whenever the `ceiling_works` activity is present, incl. mount-only jobs | feature | `php artisan test --filter=HazardIncludeWhenResolver` | ⚠️ verify | ⬜ pending |
 | TBD | TBD | TBD | GATE-06 | — | Throws on any FFP2 surviving to generation; proven by revert-and-restore | feature | `php artisan test --filter=Ffp2ConfinedSpaceGate` | ❌ W0 | ⬜ pending |
 | TBD | TBD | TBD | GATE-07 | — | Throws on affirmative confined-space labelling; **clean on the seeder's own negating line** | unit + feature | `php artisan test --filter=ControlTextRuleViolations` | ✅ extend | ⬜ pending |
+| TBD | 28-01 | 1 | GATE-07 | — | Hyphenated `confined-space entry` classifies identically to the spaced form | unit | `php artisan test --filter=ControlTextRuleViolations` | ✅ extend | ⬜ pending |
+| TBD | 28-06 | 2 | GATE-07 | — | A hazard **NAME** of `Confined Space` / `Confined Spaces` / `Confined Space Entry` throws, even when its controls are clean | unit + feature | `php artisan test --filter=Ffp2ConfinedSpaceGateTest` | ❌ W0 | ⬜ pending |
+| TBD | 28-06 | 2 | GATE-06, GATE-07 | — | Gate throws via `runPipeline()` **and** via `runFromReview()`, not only Save Review | feature | `php artisan test --filter=Ffp2ConfinedSpaceDualPathGateTest` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -66,6 +69,11 @@ commands below are pre-seeded from research and are the minimum coverage this ph
       Exclusion list: the 5 backup-only occurrences under `resources/views.backup-260430/` and the
       two `rams.blade - keep boarder.php` / `rams.blade-keep-borders.php` copies. Zero `FFP2`
       occurrences exist under `tests/` today, so nothing pre-existing conflicts.
+- [ ] `tests/Feature/Rams/Ffp2ConfinedSpaceDualPathGateTest.php` — **required, not optional**
+      (plan-checker Blocker 2, revision 1). Proves the gate throws via `runPipeline()`
+      (`RamsBuilderService.php:941`) and via `runFromReview()` (`:296`), not only via the Save
+      Review HTTP route. The reflection unit test is path-agnostic and does not substitute for
+      this. Phase 26 was closed prematurely twice on exactly this gap.
 - [ ] GATE-06/07 throw-and-surface suite mirroring Phase 27's four-file GATE-09 shape
       (`DisplayLiftGateTest`, `DisplayLiftDualPathTest`, `DisplayLiftSaveReviewGateTest`,
       `DisplayLiftPdfSourceTest` — ~65 tests). **Planner decides whether all four dual-path shapes
