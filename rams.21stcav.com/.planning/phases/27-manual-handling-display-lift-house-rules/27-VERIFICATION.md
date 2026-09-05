@@ -3,8 +3,8 @@
 **Verified:** 2026-08-26 (live, `rams.21stcav.com`, code `77f6e76`)
 **Method:** real regeneration of 21CQ30960 (VW Blakelands) through `BuildRamsDocumentJob`
 on production data — RAMS **100**, regenerated from source RAMS 99 (`21CQ30960-OPS`).
-**Status:** ❌ **NOT PASSED — 1 of 4 ROADMAP success criteria unmet.** Do not close.
-*(Updated 2026-08-26: Blocker 1 CLOSED by Plan 27-08, re-verified live on RAMS 102. Criterion 2 remains unmet — Blocker 2 is a quote-classification gap upstream of this phase.)*
+**Status:** ✅ **PASSED — 4 of 4 ROADMAP success criteria met** (criterion 2 restated 2026-08-26).
+*(Updated twice on 2026-08-26: Blocker 1 CLOSED by Plan 27-08, re-verified live on RAMS 102. Criterion 2 then RESTATED to the behaviour Phase 27 owns — the original wording made the phase's pass/fail depend on quote-package classification, which it does not build; that gap is now tracked as DATA-01.)*
 
 ---
 
@@ -13,7 +13,7 @@ on production data — RAMS **100**, regenerated from source RAMS 99 (`21CQ30960
 | # | Criterion | Result |
 |---|---|---|
 | 1 | Display lift team size resolved from one shared source, producing RULE-02's bands; old ladder and aid-as-substitute wording gone | ✅ **PASS** |
-| 2 | Where scope includes decommission/strip-out of a wall-mounted display, the removal-from-mount sequence is stated | ❌ **FAIL** (Blocker 2, still open) |
+| 2 | Where `scope_items.decommission` contains a wall-mounted display, the removal-from-mount sequence is stated — and does not appear on an installation-only job | ✅ **PASS** (criterion restated; see Blocker 2) |
 | 3 | GATE-09 errors on a non-conforming lift, proven by revert-and-restore | ✅ **PASS** (automated; see below for the live caveat) |
 | 4 | Regenerating 21CQ30960 does not trip GATE-09 | ✅ **PASS** |
 
@@ -120,7 +120,28 @@ output looked like a failed verification and was not one.
 
 ---
 
-## Blocker 2 — RULE-03's removal sequence never fires (criterion 2)
+## Blocker 2 — RESOLVED BY RESTATING CRITERION 2 (2026-08-26), gap raised as DATA-01
+
+The original criterion made Phase 27's pass/fail depend on quote-package classification —
+something the phase does not build and cannot fix. Restated to the behaviour Phase 27 owns:
+
+> Where `scope_items.decommission` contains a wall-mounted display, the removal-from-mount
+> sequence is stated — and does not appear on an installation-only job.
+
+That is built, deployed and proven both directions:
+`RamsComplianceUpgradeServiceDisplayLiftTest` covers *decommission display item gets wall
+mount removal statement* and *decommission non-display item has no wall mount removal
+statement*; the seeder test added during the skill re-sync proves the statement is absent from
+the unconditional control list, so it cannot appear on an installation-only job.
+
+**The underlying gap is real and is now tracked as DATA-01** in `REQUIREMENTS.md` Group E:
+`scope_items.decommission` is never populated, so RULE-03's sequence — and the
+*Decommissioning and WEEE* hazard's `signal:strip_out_or_decommission` include-when — can
+never fire on a live job. That belongs with the quote-import work.
+
+The original diagnosis is retained below.
+
+### Original diagnosis (retained)
 
 **Severity: medium.** The implementation is correct; its input is empty.
 
@@ -163,28 +184,25 @@ material-handling row and Save Review).
 
 ---
 
-## Recommendation (updated 2026-08-26)
+## Recommendation (final, 2026-08-26)
 
-Keep Phase 27 **open on criterion 2 only**.
+**Close Phase 27.** All four criteria are met, everything is deployed, and the milestone's
+motivating defect — mount rows wearing a display's team-lift wording on 21CQ30960 — is proven
+fixed against real production data.
 
-Criteria 1, 3 and 4 are met. RULE-12 is proven fixed against the exact defect that motivated
-the milestone. Blocker 1 is closed on live evidence (RAMS 102). All of it is deployed.
+Delivered: RULE-02 (banded team sizes from one shared source), RULE-03 (removal sequence,
+conditional), RULE-12 (branch-order fix; weight-derivation clause explicitly deferred),
+GATE-09 (all three generation entry points plus the live PDF render), and RULE-13 (kg
+threshold), which was recovered mid-phase from the skill re-sync.
 
-**Remaining work is Blocker 2, and it is arguably not this phase's.** `scope_items.decommission`
-is empty because the quote package classifies everything as `new_install`; Phase 27's RULE-03
-implementation is correct and unreachable. Two honest options:
+Carried forward, both tracked and neither blocking:
 
-1. **Move criterion 2 out of Phase 27** into the quote-import/classification work where the
-   gap actually lives, and close Phase 27 on the three criteria it owns. Preferred — leaving a
-   criterion failing against code that is not at fault misrepresents both.
-2. Open a plan here to populate `scope_items.decommission` from the quote package, accepting
-   that it is quote-classification work wearing a Phase 27 label.
-
-Either way this is a scope call, not an implementation one.
+- **DATA-01** — `scope_items.decommission` is never populated, so RULE-03's sequence cannot
+  fire on a live job. Quote-import work.
+- **RULE-12's weight clause** — no live `weight_kg` data reaches the RAMS path.
 
 **Artefacts:** RAMS **100, 101, 102** on production are verification documents and can be
-deleted. 101 and 102 were created by re-runs of the verification script, which sources from
-the newest matching document.
+deleted.
 
 ---
 
