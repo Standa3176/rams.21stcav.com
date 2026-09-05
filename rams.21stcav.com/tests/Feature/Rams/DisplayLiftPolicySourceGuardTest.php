@@ -18,7 +18,7 @@ use Tests\TestCase;
  *
  *   grep -rl "DisplayLiftPolicy::" app --include=*.php
  *
- * returned 3 files:
+ * returned 3 files at Plan 27-03 time (a 4th was added by Plan 27-08):
  *   - app/Services/Rams/RamsComplianceUpgradeService.php (Plan 27-02's
  *     suggestHandlingMethod()/deriveMaterialHandling() delegation, plus this
  *     plan's enforceDisplayLiftGate() independent re-check)
@@ -40,13 +40,20 @@ use Tests\TestCase;
 class DisplayLiftPolicySourceGuardTest extends TestCase
 {
     /**
-     * The 3 files that genuinely call DisplayLiftPolicy's static methods,
-     * re-derived from a live repo grep at plan execution time.
+     * The files that genuinely call DisplayLiftPolicy's static methods,
+     * re-derived from a live repo grep at plan execution time. 3 at Plan
+     * 27-03; a 4th added by Plan 27-08.
      */
     private const ALLOWED_FILES = [
         'app/Services/Rams/RamsComplianceUpgradeService.php',
         'app/Services/MethodStatementService.php',
         'app/Services/Worksheet/SafetyProfileService.php',
+        // Added Plan 27-08. ControlTextRuleViolations::detectSizeConditionalLift()
+        // decides whether a free-text control line states a lift team that
+        // DISAGREES with the policy — so it must ask the policy. Referencing it
+        // is the correct behaviour here; re-encoding the bands to avoid tripping
+        // this guard would be precisely the divergence the guard exists to stop.
+        'app/Services/Rams/ControlTextRuleViolations.php',
     ];
 
     private const MARKER = 'DisplayLiftPolicy::';
@@ -92,13 +99,15 @@ class DisplayLiftPolicySourceGuardTest extends TestCase
     }
 
     /**
-     * Sanity check that the allow-list itself is exactly 3 entries and every
+     * Sanity check that the allow-list itself is exactly 4 entries and every
      * entry resolves to a real file — a typo in the constant would otherwise
      * silently widen what the guard permits.
      */
-    public function test_allow_list_has_three_entries_and_all_resolve(): void
+    public function test_allow_list_has_four_entries_and_all_resolve(): void
     {
-        $this->assertCount(3, self::ALLOWED_FILES);
+        // 4 since Plan 27-08 added ControlTextRuleViolations, which must ask the
+        // policy in order to detect control text that disagrees with it.
+        $this->assertCount(4, self::ALLOWED_FILES);
 
         foreach (self::ALLOWED_FILES as $rel) {
             $this->assertFileExists(base_path($rel), "allow-listed path does not exist: {$rel}");

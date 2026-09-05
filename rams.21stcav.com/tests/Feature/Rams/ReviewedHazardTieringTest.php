@@ -256,17 +256,74 @@ class ReviewedHazardTieringTest extends TestCase
         }
 
         $this->assertSame(3, $reviewedByName['Working at height']['post_severity'] ?? null, 'reviewed row scores untouched — post-severity check');
-        $this->assertSame(['Use podium steps, maintain 3-point contact'], $reviewedByName['Working at height']['controls'] ?? null, 'case-only match keeps the row own controls (gap-fill only)');
+        // SUPERSEDED BY PLAN 27-08. This previously asserted that a case-only
+        // name match keeps the row's own controls, because Phase 26 decided
+        // control replacement by whether a genuine RENAME had occurred. That
+        // proxy is gone: Plan 27-08 replaced it with an explicit
+        // `controls_reviewed` marker, and this fixture row carries no marker,
+        // so the library's current text now wins (tier 2). That is the whole
+        // point of 27-08 — stale reviewed controls were surviving every
+        // regeneration and defeating every house-rule correction
+        // (27-VERIFICATION.md, Blocker 1).
+        //
+        // The protection that actually matters is asserted below and in
+        // ReviewedControlRefreshTest: text an engineer really edited survives.
+        $this->assertNotSame(
+            ['Use podium steps, maintain 3-point contact'],
+            $reviewedByName['Working at height']['controls'] ?? null,
+            'unmarked reviewed controls must now be refreshed from the library (Plan 27-08 tier 2)',
+        );
+        $this->assertStringContainsString(
+            'podium steps or mobile access tower',
+            implode(' ', (array) ($reviewedByName['Working at height']['controls'] ?? [])),
+            'the refreshed controls should be the library Working at height text',
+        );
         $this->assertSame(3, $reviewedByName['Working at height']['pre_likelihood'] ?? null);
         $this->assertSame(4, $reviewedByName['Working at height']['pre_severity'] ?? null);
 
-        $this->assertSame(['Team lift for items over 20 kg'], $reviewedByName['Manual handling']['controls'] ?? null);
+        // SUPERSEDED BY PLAN 27-08, twice over. This fixture text is BOTH
+        // unmarked (tier 2 refreshes it from the library) and itself a RULE-13
+        // breach — "over 20 kg" is exactly the banned kg threshold, so tier 1
+        // would replace it even if an engineer had authored it. The assertion
+        // that it survives regeneration is the behaviour 27-08 exists to end.
+        $manualControls = implode(' ', (array) ($reviewedByName['Manual handling']['controls'] ?? []));
+
+        $this->assertStringNotContainsString(
+            'over 20 kg',
+            $manualControls,
+            'a RULE-13 kg threshold must never survive regeneration (Plan 27-08 tier 1)',
+        );
+        $this->assertStringContainsString(
+            'not a kg threshold',
+            $manualControls,
+            'the refreshed controls should be the current library Manual handling text',
+        );
         $this->assertSame(
             'All electrical work to be carried out by competent, authorised persons only. No live working under any circumstances.',
             $reviewedByName['Electrical']['controls'][0] ?? null,
-            'a genuine rename (Electrical Hazards -> Electrical) replaces controls with the library text',
+            // Same outcome as before Plan 27-08, different reason: this used to
+            // hold because a genuine rename (Electrical Hazards -> Electrical)
+            // forced replacement. That rule is gone; it now holds because the
+            // row carries no controls_reviewed marker, so tier 2 applies.
+            'unmarked reviewed controls are replaced with the library text',
         );
-        $this->assertSame(['Hearing protection worn during drilling'], $reviewedByName['Noise and vibration']['controls'] ?? null);
+
+        // SUPERSEDED BY PLAN 27-08 — same tier-2 supersession as the Working at
+        // height and Manual handling rows above. This fixture row is unmarked,
+        // so the library text now wins instead of the stale one-line reviewed
+        // control surviving every regeneration.
+        $noiseControls = implode(' ', (array) ($reviewedByName['Noise and vibration']['controls'] ?? []));
+
+        $this->assertNotSame(
+            ['Hearing protection worn during drilling'],
+            $reviewedByName['Noise and vibration']['controls'] ?? null,
+            'unmarked reviewed controls must now be refreshed from the library (Plan 27-08 tier 2)',
+        );
+        $this->assertStringContainsString(
+            'hearing protection',
+            strtolower($noiseControls),
+            'the refreshed controls should be the current library Noise and vibration text',
+        );
 
         // "Slips, trips and falls" is both the folded reviewed row AND an
         // always-tier hazard — it collapses to one row, and since

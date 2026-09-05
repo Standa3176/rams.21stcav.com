@@ -172,6 +172,8 @@ class RamsExtractionDraftBuilderService
                 'post_severity'      => max(1, (int) ($h['post_severity']   ?? 2)),
                 'needs_confirmation' => (bool) ($h['needs_confirmation'] ?? false),
                 'score_reviewed'     => false,
+                // A freshly extracted draft has never been reviewed by anyone.
+                'controls_reviewed'  => false,
                 'control_measures'   => array_values(array_filter(
                     array_map('strval', (array) ($h['controls'] ?? [])),
                     fn (string $s) => strlen(trim($s)) > 0,

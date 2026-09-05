@@ -452,6 +452,7 @@ class RamsDataBuilderService
                 // into generated_data on EITHER generation path. Both keys
                 // default false, matching the resolver's own defaults.
                 'score_reviewed'     => (bool) ($h['score_reviewed']     ?? false),
+                'controls_reviewed'  => (bool) ($h['controls_reviewed']  ?? false),
                 'needs_confirmation' => (bool) ($h['needs_confirmation'] ?? false),
             ];
         }

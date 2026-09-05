@@ -244,6 +244,9 @@ class RamsReviewController extends Controller
                 'post_likelihood'    => $h['post_likelihood'] ?? null,
                 'post_severity'      => $h['post_severity']   ?? null,
                 'score_reviewed'     => ($h['score_reviewed']     ?? '0') === '1',
+                // Plan 27-08 — mirrors score_reviewed. Set by the review form
+                // only when the controls textarea actually changed.
+                'controls_reviewed'  => ($h['controls_reviewed']  ?? '0') === '1',
                 'needs_confirmation' => ($h['needs_confirmation'] ?? '0') === '1',
                 'control_measures'   => $cm,
             ];

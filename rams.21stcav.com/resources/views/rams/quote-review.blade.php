@@ -840,6 +840,7 @@
                             <td>
                                 <textarea name="hazards[{{ $i }}][control_measures]"
                                           rows="3"
+                                          oninput="markControlsReviewed(this)"
                                           placeholder="Enter each control measure on a new line…">{{ old("hazards.{$i}.control_measures", implode("\n", $hazard['control_measures'])) }}</textarea>
                             </td>
                             <td class="col-del">
@@ -847,6 +848,14 @@
                                        name="hazards[{{ $i }}][score_reviewed]"
                                        value="{{ old("hazards.{$i}.score_reviewed", ! empty($hazard['score_reviewed']) ? '1' : '0') }}"
                                        data-score-reviewed-flag>
+                                {{-- Plan 27-08: mirrors score_reviewed. Flipped to "1" only
+                                     when the engineer actually edits the controls textarea, so
+                                     an untouched row lets the current library text win instead
+                                     of stale reviewed data surviving every regeneration. --}}
+                                <input type="hidden"
+                                       name="hazards[{{ $i }}][controls_reviewed]"
+                                       value="{{ old("hazards.{$i}.controls_reviewed", ! empty($hazard['controls_reviewed']) ? '1' : '0') }}"
+                                       data-controls-reviewed-flag>
                                 {{-- Round-trips the resolver's needs_confirmation flag through
                                      Save/Approve — not user-editable, so a save never silently
                                      clears a row the tiered resolver flagged for confirmation. --}}
@@ -1081,6 +1090,7 @@ function hazardRowTemplate(idx) {
         </td>
         <td class="col-del">
             <input type="hidden" name="hazards[${idx}][score_reviewed]" value="1" data-score-reviewed-flag>
+            <input type="hidden" name="hazards[${idx}][controls_reviewed]" value="1" data-controls-reviewed-flag>
             <input type="hidden" name="hazards[${idx}][needs_confirmation]" value="0">
             <button type="button" class="btn-remove" onclick="removeRow(this)" title="Remove">✕</button>
         </td>
@@ -1093,6 +1103,16 @@ function markHazardReviewed(el) {
     const row = el.closest('tr');
     if (! row) return;
     const flag = row.querySelector('[data-score-reviewed-flag]');
+    if (flag) flag.value = '1';
+}
+
+// Plan 27-08: same mechanism for the controls textarea. Absent/"0" means no
+// human ever edited these controls, which is what lets reviewedToRisk() replace
+// them with the library's current text.
+function markControlsReviewed(el) {
+    const row = el.closest('tr');
+    if (! row) return;
+    const flag = row.querySelector('[data-controls-reviewed-flag]');
     if (flag) flag.value = '1';
 }
 

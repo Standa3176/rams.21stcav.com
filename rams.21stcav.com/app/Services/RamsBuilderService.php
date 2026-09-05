@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Core\Modules\KnowledgeLibrary\HazardLibraryService;
 use App\Models\RamsDocument;
 use App\Services\ProjectContext\ProjectContextBuilder;
+use App\Services\Rams\ControlTextRuleViolations;
 use App\Services\Rams\RamsComplianceUpgradeService;
 use App\Services\Rams\Tier1RamsDefaultsService;
 use Illuminate\Support\Facades\Log;
@@ -445,6 +446,14 @@ class RamsBuilderService
             $controls = (array) ($h['control_measures'] ?? []);
             $name = (string) ($h['hazard'] ?? '');
 
+            // Plan 27-08: provenance marker for the control text, mirroring
+            // score_reviewed exactly. Absent === false === "no human ever
+            // edited these controls", which lets the library's current text
+            // win instead of stale reviewed data surviving forever.
+            $controlsReviewed = ($h['controls_reviewed'] ?? false) === true
+                || ($h['controls_reviewed'] ?? '0') === '1';
+            $controlsReplacedReason = [];
+
             // Phase 26-05 (HAZ-04): an already-numeric score on the review
             // row — whether it arrived via a library match upstream or was
             // typed by the engineer on the review screen — always wins. The
@@ -508,7 +517,34 @@ class RamsBuilderService
                         $postS = (int) ($tpl->post_severity   ?? null);
                     }
 
-                    if ($renamed || empty($controls)) {
+                    // ── Control precedence (Plan 27-08) ──────────────────
+                    // Ordered, first match wins. Replaces the previous
+                    // replace-on-genuine-rename rule from Plan 26-08, which
+                    // is subsumed by tier 2: a renamed row has, by
+                    // definition, never had its controls reviewed under the
+                    // canonical name.
+                    //
+                    // Tier 1 — the reviewed text breaches a settled house
+                    // rule. Replace regardless of who authored it: a house
+                    // rule is a safety position, not an engineer preference.
+                    // Live evidence (27-VERIFICATION.md): a regenerated
+                    // 21CQ30960 carried "items over 20 kg" and "screens and
+                    // equipment over 40\" — minimum two persons", both of
+                    // which breach RULE-13 and RULE-02 respectively.
+                    //
+                    // Tier 2 — nobody ever edited these controls, so the
+                    // library has simply moved on and there is no human
+                    // intent to protect. Mirrors score_reviewed's rule
+                    // exactly (see the score branch above).
+                    //
+                    // Tier 3 — an engineer edited them and they breach
+                    // nothing. Their text stands.
+                    $violations = ControlTextRuleViolations::detectAll($controls);
+
+                    if ($violations !== []) {
+                        $controlsReplacedReason = array_values(array_unique(array_values($violations)));
+                        $controls = (array) ($tpl->controls ?? []);
+                    } elseif ($controlsReviewed !== true || empty($controls)) {
                         $controls = (array) ($tpl->controls ?? []);
                     }
                 }
@@ -543,6 +579,10 @@ class RamsBuilderService
                 'post_likelihood'    => $postL,
                 'post_severity'      => $postS,
                 'score_reviewed'     => $scoreReviewed,
+                'controls_reviewed'  => $controlsReviewed,
+                // Present only when tier 1 fired, so a replacement of
+                // engineer-authored text is inspectable rather than silent.
+                'controls_replaced_reason' => $controlsReplacedReason !== [] ? $controlsReplacedReason : null,
                 'needs_confirmation' => $needsConfirmation,
             ];
         }, $rd['hazards'] ?? [], array_keys($rd['hazards'] ?? [])));

@@ -200,6 +200,7 @@ class RamsReviewDataService
                     'post_likelihood'    => $score('post_likelihood'),
                     'post_severity'      => $score('post_severity'),
                     'score_reviewed'     => (bool) ($h['score_reviewed'] ?? false),
+                    'controls_reviewed'  => (bool) ($h['controls_reviewed'] ?? false),
                     'needs_confirmation' => (bool) ($h['needs_confirmation'] ?? false),
                     'control_measures'   => $this->normaliseStringArray($h['control_measures'] ?? []),
                 ];

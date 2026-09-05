@@ -1255,51 +1255,11 @@ class RamsComplianceUpgradeService
      */
     private static function parseStatedTeamSize(string $text): ?int
     {
-        $normalised = strtolower($text);
-
-        // "single person"/"single-person"/"single hand"/"single-hand" -> 1.
-        $normalised = preg_replace('/\bsingle[\s-]+(?:person|hand)\b/u', '1 person', $normalised)
-            ?? $normalised;
-
-        // Number-words one-four, ONLY when directly adjacent to a
-        // person/operative keyword — an unrelated "two" elsewhere in the
-        // text (there is none in this app's vocabulary today, but the rule
-        // is deliberately conservative) is never treated as a team-size
-        // mention.
-        $wordMap = ['one' => '1', 'two' => '2', 'three' => '3', 'four' => '4'];
-        $normalised = preg_replace_callback(
-            '/\b(one|two|three|four)\b(?=[\s-]*(?:persons?|operatives?)\b)/u',
-            static fn (array $m): string => $wordMap[$m[1]],
-            $normalised,
-        ) ?? $normalised;
-
-        // Mask out inch/size phrases — including "NN to MM inches" ranges —
-        // so a display's stated diagonal is never mistaken for a team-size
-        // count. Deliberately broader than self::INCH_REGEX (adds the
-        // plural "inches" and an optional leading "NN to "/"NN-" range
-        // prefix); this masking pattern is an internal detail of THIS
-        // parser only — parseStatedInches() below reuses self::INCH_REGEX
-        // verbatim, unrelated to this mask.
-        $masked = preg_replace(
-            '/(?:\d+(?:\.\d+)?\s*(?:to|-)\s*)?\d+(?:\.\d+)?\s*(?:″|"|\\\\"|\xE2\x80\xB3|inch(?:es)?|in\b|-inch)/u',
-            ' ',
-            $normalised,
-        ) ?? $normalised;
-
-        if (! preg_match_all('/\d+(?:\.\d+)?/u', $masked, $matches) || empty($matches[0])) {
-            return null; // no recognisable count present
-        }
-
-        $distinct = array_unique(array_map(
-            static fn (string $n): int => (int) round((float) $n),
-            $matches[0],
-        ));
-
-        if (count($distinct) !== 1) {
-            return null; // ambiguous — two or more different counts stated
-        }
-
-        return (int) reset($distinct);
+        // Single implementation lives on ControlTextRuleViolations (Plan 27-08
+        // Task 1) so the gate and the violation detectors can never disagree
+        // about what a control line says. This forwarder keeps existing call
+        // sites and the private visibility contract intact.
+        return ControlTextRuleViolations::parseStatedTeamSize($text);
     }
 
     /**
@@ -1313,11 +1273,10 @@ class RamsComplianceUpgradeService
      */
     private static function parseStatedInches(string $text): ?float
     {
-        if (preg_match(self::INCH_REGEX, strtolower($text), $m)) {
-            return (float) $m[1];
-        }
-
-        return null;
+        // Single implementation lives on ControlTextRuleViolations (Plan 27-08
+        // Task 1). This forwarder keeps existing call sites and the private
+        // visibility contract intact while guaranteeing exactly one parser.
+        return ControlTextRuleViolations::parseStatedInches($text);
     }
 
     /**
