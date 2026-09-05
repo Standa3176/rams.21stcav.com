@@ -1,7 +1,8 @@
 # Phase 28: PPE, Ceiling & Electrical Boundary House Rules - Context
 
 **Gathered:** 2026-09-05
-**Status:** Ready for planning — **with one scope question that must be answered first** (see D-09)
+**Status:** Ready for planning. *(D-09 was raised as a blocking open question and was
+CLOSED the same day — RULE-11 moved out to Phase 31. No open questions remain.)*
 
 <domain>
 ## Phase Boundary
@@ -13,11 +14,14 @@ output; and GATE-06 and GATE-07 ship in the same phase so neither fires against 
 still-broken default.
 
 **In scope:** RULE-01 (FFP3 + face-fit), RULE-06 (restricted-access hazard title),
-RULE-09 (electrical scope boundary), RULE-10 (ceiling load), GATE-06, GATE-07. RULE-11
-(fire-stopping) is assigned to this phase in `REQUIREMENTS.md` but is absent from every
-ROADMAP success criterion — **see D-09, this must be resolved before planning.**
+RULE-09 (electrical scope boundary), RULE-10 (ceiling load), GATE-06, GATE-07. **Five
+requirements, two gates — that is the whole phase.**
 
-**Out of scope:** display-lift team sizes and manual handling (Phase 27, shipped);
+**Out of scope:** **RULE-11 (fire-stopping) — moved to Phase 31 on 2026-09-05, see D-09.**
+`config/rams_tier1.php:286` (the Expanding Foam COSHH entry) is edited by this phase for
+its FFP3 content and by Phase 31 for its fire-stop claim; **do not fix the fire-stop
+wording here** — Phase 31 owns it and now has a success criterion for it. Also out of
+scope: display-lift team sizes and manual handling (Phase 27, shipped);
 CDM duty-holder and A&E arrangements (Phase 29); structural gates GATE-01/04/13/14
 (Phase 30); standards/COSHH scoping (Phase 31); GATE-17's RCS/WEL and RIDDOR content
 (explicitly noted in `REQUIREMENTS.md:110` as *extending* RULE-01 — a later phase, not
@@ -253,7 +257,36 @@ exception: it is a genuine open question the planner must not resolve alone.
     `reviewed_data` payloads carry FFP2 — **measure on live before deciding**, don't
     assume either way.
 
-### D-09 — OPEN QUESTION, must be answered before planning
+### D-09 — RESOLVED 2026-09-05: RULE-11 is OUT of Phase 28, moved to Phase 31
+
+**User decision:** *"move RULE-11 out and fix the requirements table."*
+
+**Edits made the same day, all four surfaces now agree:**
+1. `ROADMAP.md` Phase 28 `**Requirements**:` — RULE-11 removed, with a note saying where
+   it went and why.
+2. `ROADMAP.md` Phase 31 `**Requirements**:` — RULE-11 added, with a warning that it is
+   wider than a COSHH scoping fix (exclusions list and hazard register are new surface
+   for that phase).
+3. `ROADMAP.md` Phase 31 — **new success criterion 5** covering the one-consistent-position
+   rule, the "to the original rating" contradiction, and the expanding-foam COSHH claim,
+   verified by regenerating 21CQ30960. *This was the point of the whole exercise: a
+   requirement with no criterion is what created D-09 in the first place, so RULE-11 was
+   not allowed to land in Phase 31 the same way it sat in Phase 28.*
+4. `ROADMAP.md` milestone bullet for Phase 31 and `REQUIREMENTS.md` — traceability row
+   flipped to Phase 31 and RULE-11's own entry annotated with the reassignment.
+
+**Destination rationale:** RULE-11's concrete defect is a COSHH-table entry — Expanding
+Foam described as a cable-penetration fire-stop — and Phase 31 criterion 2 *already named
+the expanding-foam entry* before this move. RULE-05 and GATE-10 own that table.
+
+**Consequence for Phase 28 planning:** `config/rams_tier1.php:286` is touched by both
+phases — by Phase 28 for FFP3 content, by Phase 31 for the fire-stop claim. **Phase 28
+must not "tidy" the fire-stop wording while it is in that file.** Leaving a known defect
+in place is deliberate here, not an oversight.
+
+---
+
+*Original question, retained for the record:*
 
 **Is RULE-11 (fire-stopping) in Phase 28 or not?**
 
@@ -283,6 +316,8 @@ update `REQUIREMENTS.md:178`'s phase assignment. **Do not leave the two document
 disagreeing** — that is the exact failure mode that made Phase 27 restate two criteria
 mid-verification.
 
+**→ (b) was chosen. See the RESOLVED block above.**
+
 </decisions>
 
 <canonical_refs>
@@ -302,8 +337,9 @@ mid-verification.
   purpose-designed mount kit, never grid/pipework/sprinkler; ceiling voids and comms
   rooms are not confined spaces under the Confined Spaces Regulations 1997; title the
   hazard "Restricted access and ceiling void working"; **do not cite ACOP L101**.
-- `.planning/reference/21cav-rams-skill/references/house-rules.md` §"Fire-stopping — one
-  consistent position" (`:105-113`) — RULE-11. Read only if D-09 resolves it into scope.
+- ~~`.planning/reference/21cav-rams-skill/references/house-rules.md` §"Fire-stopping — one
+  consistent position" (`:105-113`)~~ — RULE-11, **now Phase 31 (D-09 resolved). Not
+  Phase 28 reading.** Listed only so nobody re-derives it from the roadmap.
 - `.planning/reference/21cav-rams-skill/references/house-rules.md` §"Scope boundaries to
   state explicitly" (`:217-227`) — the unconditional-statement licence relevant to D-06.
 - `.planning/reference/SKILL-RESYNC-2026-08-26.md` §B-1 — records that the fire-stopping
@@ -353,8 +389,9 @@ mid-verification.
   caught and surfaced. The established gate surface.
 - `config/rams_tier1.php:74` — `display_lift_gate_enabled` / `RAMS_DISPLAY_LIFT_GATE`, the
   env-flag shape for D-08; `:128` already-FFP3 Expanding Foam entry; `:286` the Expanding
-  Foam COSHH entry named in ROADMAP criterion 1 (**and the home of RULE-11's
-  contradiction**).
+  Foam COSHH entry named in ROADMAP criterion 1. ⚠️ **`:286` is also the home of RULE-11's
+  fire-stop contradiction, which is Phase 31's, not this phase's. Edit it for FFP3 content
+  only and leave the fire-stop claim alone** (D-09).
 - `database/seeders/HazardTemplateSeeder.php:210-227` — hazard #7 "Restricted access and
   ceiling voids": `:220` the negating sentence D-01 must not flag, `:223` RULE-10's
   ceiling-load statement, `:227` the `signal:ceiling_void_access` include-when that D-06
@@ -462,6 +499,11 @@ mid-verification.
 <deferred>
 ## Deferred Ideas
 
+- **RULE-11 — fire-stopping, one consistent position → Phase 31** (moved 2026-09-05,
+  D-09). Not deferred vaguely: it has a home, a success criterion (Phase 31 criterion 5)
+  and a traceability row. Phase 31 planning must note it is **wider than a COSHH scoping
+  fix** — the exclusions list and hazard register need the same position, which is new
+  surface for that phase.
 - **GATE-17 — RCS exposure limits and RIDDOR** (`REQUIREMENTS.md:110`). Explicitly noted
   there as *extending* Phase 28's RULE-01: respirable crystalline silica controlled below
   its **WEL** (0.1 mg/m³, 8-hour TWA) and never called an "EAV"; no asbestos-awareness

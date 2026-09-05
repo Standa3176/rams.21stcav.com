@@ -138,8 +138,25 @@ they are recorded as **D-08** with the Phase 27 precedents attached rather than 
   existing `reviewed_data` before deciding on a migration.
 
 **Not discretion — genuinely open:** D-09, whether RULE-11 (fire-stopping) is in this
-phase. `REQUIREMENTS.md:178` says yes; no ROADMAP success criterion mentions it. Must be
-resolved before `/gsd:plan-phase 28`.
+phase. `REQUIREMENTS.md:178` said yes; no ROADMAP success criterion mentioned it.
+
+### D-09 — resolved same day (2026-09-05)
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Add a fifth Phase 28 success criterion and build RULE-11 here | Keeps the requirements line honest; grows Phase 28 by a fifth deliverable spanning exclusions, hazard register and QA | |
+| Move RULE-11 out and fix the requirements table | Keeps Phase 28 to five requirements and two gates; RULE-11 gets a phase where its defect actually lives | ✓ |
+
+**User's choice:** *"move RULE-11 out and fix the requirements table."*
+**Destination:** Phase 31 (Standards/COSHH Scoping & Padding Gates) — chosen on evidence,
+not preference: Phase 31's success criterion 2 *already named the expanding-foam COSHH
+entry* before this move, and RULE-05/GATE-10 own that table.
+**Notes:** RULE-11 was **not** allowed to land in Phase 31 the same way it sat in
+Phase 28 — a new success criterion 5 was written for it, since a requirement with no
+criterion is precisely what created D-09. Phase 31's requirements line also carries a
+warning that RULE-11 is wider than a COSHH scoping fix. One consequence recorded for
+Phase 28 planning: `config/rams_tier1.php:286` is now touched by both phases, and
+Phase 28 must edit it for FFP3 content only, leaving the fire-stop claim for Phase 31.
 
 ## Deferred Ideas
 

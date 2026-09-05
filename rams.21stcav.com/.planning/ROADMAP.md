@@ -66,7 +66,7 @@ Every phase below pairs a GATE with the RULE fix (or the Phase 26 hazard-shape c
 - [ ] **Phase 28: PPE, Ceiling & Electrical Boundary House Rules** — FFP3 (not FFP2) everywhere; "confined space" never applied to ceiling void/comms room/riser; electrical scope boundary + ceiling load statements land in output; GATE-06 + GATE-07 ship alongside.
 - [ ] **Phase 29: CDM Duty-Holder & Emergency Arrangements** — Settled sole-Contractor CDM position replaces "[To be confirmed]"; named A&E with address replaces "to be identified at site induction"; GATE-11 + GATE-12 ship alongside.
 - [ ] **Phase 30: Structural Validation Gates** — Orphan-controls check, every-area-has-a-method-step check, residual-≤-initial-score check (GATE-01, GATE-02, GATE-04).
-- [ ] **Phase 31: Standards/COSHH Scoping & Padding Gates** — Standards table and COSHH list become job-conditional (extends Phase 26's include-when pattern); uniform-scoring detection + COSHH/standards padding cross-check (GATE-05, GATE-10).
+- [ ] **Phase 31: Standards/COSHH Scoping & Padding Gates** — Standards table and COSHH list become job-conditional (extends Phase 26's include-when pattern); uniform-scoring detection + COSHH/standards padding cross-check (GATE-05, GATE-10); **plus RULE-11 — one consistent fire-stopping position across exclusions, hazard register and QA (moved here from Phase 28 on 2026-09-05)**.
 
 ### Out of scope for v3.0 (deferred to v3.1+)
 
@@ -154,7 +154,8 @@ Plans:
 
 **Goal**: Fix the FFP2/FFP3 contradiction and the "confined space" mislabel at every occurrence (config, `HazardLibraryService` fallback, and Phase 26's ported library), and ensure the ceiling-load and electrical-scope-boundary statements land in generated output; ship GATE-06 and GATE-07 in the same phase so neither fires against a still-broken default.
 **Depends on**: Phase 26 (RULE-01/RULE-06 edit hazard content Phase 26 restructures; GATE-07's "confined space" check needs the retitled "Restricted access and ceiling void working" hazard from HAZ-01 to exist first, or it fires against the app's own pre-fix baseline)
-**Requirements**: RULE-01, RULE-06, RULE-09, RULE-10, RULE-11, GATE-06, GATE-07
+**Requirements**: RULE-01, RULE-06, RULE-09, RULE-10, GATE-06, GATE-07
+> **RULE-11 moved out to Phase 31 on 2026-09-05.** It was listed here but appeared in none of the four success criteria below, so it would have shipped silently unbuilt or been built with nothing to verify against. Its defect lives in the COSHH table — the Expanding Foam entry already named in Phase 31 criterion 2 — and RULE-05/GATE-10 own that table. Decision and rationale: `28-CONTEXT.md` D-09.
 **Success Criteria** (what must be TRUE):
 
   1. No respiratory-PPE mention anywhere in generated output reads FFP2 — `config/rams_tier1.php:129` (Dust from drilling) and `:286` (Expanding Foam COSHH entry, already FFP3) agree; face-fit testing is stated
@@ -199,13 +200,15 @@ Plans:
 
 **Goal**: Extend Phase 26's include-when pattern to the standards-references and COSHH-substances tables so they cite only what the job involves, then ship the two gates the source notes call out as "far more reliable... once inclusion is conditional" — uniform-scoring detection and COSHH/standards padding cross-check.
 **Depends on**: Phase 26 (extends the same include-when mechanism to a second config table; GATE-05's uniform-scoring detection is only meaningful once hazard inclusion is conditional)
-**Requirements**: RULE-04, RULE-05, GATE-05, GATE-10
+**Requirements**: RULE-04, RULE-05, RULE-11, GATE-05, GATE-10
+> **RULE-11 (fire-stopping) moved here from Phase 28 on 2026-09-05** — see `28-CONTEXT.md` D-09. It lands here because its concrete defect is a COSHH-table entry (Expanding Foam described as a cable-penetration fire-stop), which criterion 2 already names, and because RULE-05/GATE-10 own that table. Note it is **wider than a COSHH scoping fix**: it also requires the exclusions list and the hazard register to state the same position, which is new surface for this phase. Its former blocker is closed — there is no 21CAV approved fire-stopping product to name; fire-stopping is excluded outright (`house-rules.md` §"Fire-stopping — one consistent position").
 **Success Criteria** (what must be TRUE):
 
   1. The generated standards table cites only standards the job's captured activities actually involve — `config/rams_tier1.php:352-397`'s always-rendered 9-entry table (including BS EN 60849 voice-alarm, BS 8492 PA systems, HSG 47 underground services and BS EN 60825-1 laser safety, none of which are job-conditional today) becomes include-when scoped
   2. The generated COSHH table lists only substances the job actually carries — `Tier1RamsDefaultsService::injectDefaultsIntoRamsData()`'s unconditional `coshh_baseline` assignment (`:82`, currently ALWAYS set regardless of scope, unlike hazards/standards which are fallback-only) becomes include-when scoped, so a Teams Rooms install no longer shows solder flux or expanding-foam entries
   3. GATE-05 warns when most hazards on a RAMS share the same initial score (assembled-from-library signal) — verified against a fixture that deliberately reintroduces uniform scoring
   4. GATE-10 errors when a cited standard or COSHH substance has no supporting activity in the job's scope — verified against a fixture reproducing the named offenders (BS EN 60849, BS 8492, HSG 47, laser safety with no laser, soldering flux with no soldering) and passing clean against a freshly regenerated real project
+  5. **(RULE-11, added 2026-09-05)** A generated RAMS takes ONE fire-stopping position across all three places it appears — the exclusions list, the hazard register and QA. Fire-stopping is excluded: any penetration of a fire-rated element is sealed by others or referred to the client with a specified detail before proceeding. No generated document both excludes fire-stopping and claims in a hazard row or QA to fire-stop penetrations "to the original rating", and no COSHH entry describes expanding foam as a cable-penetration fire-stop — verified by regenerating 21CQ30960, whose RAMS 97 pack carried exactly that contradiction (RA13 and RA18 correct, COSHH table contradicting both)
 
 **Plans**: TBD
 **UI hint**: yes (gate errors/warnings surface on the RAMS review screen)
