@@ -14,11 +14,22 @@ use Tests\TestCase;
 class LegacyHazardNameFoldMapTest extends TestCase
 {
     /** Test 1: case-insensitive, trim-only matching. */
-    public function test_confined_spaces_resolves_to_restricted_access_and_ceiling_voids(): void
+    public function test_confined_spaces_resolves_to_restricted_access_and_ceiling_void_working(): void
     {
-        $this->assertSame('Restricted access and ceiling voids', LegacyHazardNameFoldMap::canonicalName('Confined Spaces'));
-        $this->assertSame('Restricted access and ceiling voids', LegacyHazardNameFoldMap::canonicalName(' Confined Spaces '));
-        $this->assertSame('Restricted access and ceiling voids', LegacyHazardNameFoldMap::canonicalName('CONFINED SPACES'));
+        $this->assertSame('Restricted access and ceiling void working', LegacyHazardNameFoldMap::canonicalName('Confined Spaces'));
+        $this->assertSame('Restricted access and ceiling void working', LegacyHazardNameFoldMap::canonicalName(' Confined Spaces '));
+        $this->assertSame('Restricted access and ceiling void working', LegacyHazardNameFoldMap::canonicalName('CONFINED SPACES'));
+    }
+
+    /**
+     * Test 1b (Phase 28 Plan 02, D-05): the Phase-26-shipped title itself
+     * (not a pre-Phase-26 legacy name) must also fold forward to the
+     * renamed canonical title — the regression proof for the "already-
+     * reviewed document keeps folding forward" truth.
+     */
+    public function test_phase_26_shipped_title_also_resolves_to_the_renamed_canonical_title(): void
+    {
+        $this->assertSame('Restricted access and ceiling void working', LegacyHazardNameFoldMap::canonicalName('Restricted access and ceiling voids'));
     }
 
     /** Test 2: an unmapped name passes through untouched (D-04). */

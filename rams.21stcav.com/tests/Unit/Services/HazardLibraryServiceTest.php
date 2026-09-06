@@ -54,7 +54,7 @@ class HazardLibraryServiceTest extends TestCase
 
         $this->assertNotNull($resolved);
         $this->assertNotNull($resolved->id);
-        $this->assertSame('Restricted access and ceiling voids', $resolved->name);
+        $this->assertSame('Restricted access and ceiling void working', $resolved->name);
     }
 
     /** Test 7: one of D-02's original 6 folds resolves through the same call chain. */

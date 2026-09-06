@@ -18,7 +18,7 @@ use Tests\TestCase;
  *      hazards — never a full/old baseline, never zero.
  *   2. Ceiling-related activity signals additionally pull in the tier-2
  *      hazards keyed to `ceiling_works` (Working at height, Manual
- *      handling, Restricted access and ceiling voids).
+ *      handling, Restricted access and ceiling void working).
  *   3. An explicitly-named hazard (manual create form pick) is always
  *      present in the resolved set, merged with — not replacing — the
  *      always-tier hazards.
@@ -93,7 +93,7 @@ class RiskTemplateResolverServiceTest extends TestCase
 
         $this->assertContains('Working at height', $names);
         $this->assertContains('Manual handling', $names);
-        $this->assertContains('Restricted access and ceiling voids', $names);
+        $this->assertContains('Restricted access and ceiling void working', $names);
 
         // Always-tier hazards are still present alongside the tier-2 matches.
         $this->assertContains('Slips, trips and falls', $names);
@@ -131,7 +131,7 @@ class RiskTemplateResolverServiceTest extends TestCase
 
         $names = $this->hazardNames($result);
 
-        $this->assertContains('Restricted access and ceiling voids', $names);
+        $this->assertContains('Restricted access and ceiling void working', $names);
         $this->assertContains('Working at height', $names);
 
         foreach ($names as $name) {
@@ -253,7 +253,7 @@ class RiskTemplateResolverServiceTest extends TestCase
 
         $names = $this->tieredNames($rows);
         $this->assertContains(
-            'Restricted access and ceiling voids',
+            'Restricted access and ceiling void working',
             $names,
             'tier-2 activity signal matching must flow through the same HazardIncludeWhenResolver call resolveHazards() uses',
         );

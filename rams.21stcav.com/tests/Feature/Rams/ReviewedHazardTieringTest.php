@@ -504,7 +504,7 @@ class ReviewedHazardTieringTest extends TestCase
      *   - 7 reviewed rows fold onto 7 DISTINCT canonical names, zero
      *     duplicates among themselves.
      *   - No row's hazard case-insensitively equals "Confined Spaces".
-     *   - "Restricted access and ceiling voids" carries the library's
+     *   - "Restricted access and ceiling void working" carries the library's
      *     residual score and its exact "not classified as confined spaces"
      *     control text.
      *   - "Working at height" carries the library's residual 1x4 (the named
@@ -544,12 +544,12 @@ class ReviewedHazardTieringTest extends TestCase
             $byName[$row['hazard']] = $row;
         }
 
-        $this->assertArrayHasKey('Restricted access and ceiling voids', $byName);
-        $this->assertSame(1, $byName['Restricted access and ceiling voids']['post_likelihood'] ?? null);
-        $this->assertSame(2, $byName['Restricted access and ceiling voids']['post_severity'] ?? null);
+        $this->assertArrayHasKey('Restricted access and ceiling void working', $byName);
+        $this->assertSame(1, $byName['Restricted access and ceiling void working']['post_likelihood'] ?? null);
+        $this->assertSame(2, $byName['Restricted access and ceiling void working']['post_severity'] ?? null);
         $this->assertContains(
             'Confirm ventilation and safe access before entering ceiling voids, comms rooms or enclosures. These are not classified as confined spaces, but access is restricted and is treated as a controlled activity.',
-            $byName['Restricted access and ceiling voids']['controls'] ?? [],
+            $byName['Restricted access and ceiling void working']['controls'] ?? [],
         );
 
         $this->assertArrayHasKey('Working at height', $byName);
