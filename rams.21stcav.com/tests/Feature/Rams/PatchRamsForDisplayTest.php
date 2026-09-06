@@ -245,10 +245,16 @@ class PatchRamsForDisplayTest extends TestCase
         $this->assertCount(1, $rd['scope_traceability']);
         $this->assertSame('Display 75"', $rd['scope_traceability'][0]['quote_item']);
 
-        // exclusions seeded with the canonical 5-item list
+        // exclusions seeded with the canonical default list — 5 original
+        // items plus RULE-09's electrical scope boundary bullet added in
+        // Phase 28 Plan 05 (28-05-PLAN.md).
         $this->assertIsArray($rd['exclusions']);
-        $this->assertCount(5, $rd['exclusions']);
+        $this->assertCount(6, $rd['exclusions']);
         $this->assertContains('No structural works', $rd['exclusions']);
+        $this->assertContains(
+            'Electrical scope terminates at the existing socket outlet or client data outlet — no alteration to the fixed electrical installation and no live working under any circumstances.',
+            $rd['exclusions'],
+        );
 
         // Other review sub-keys initialised to empty arrays
         $this->assertSame([], $rd['client_responsibilities_expanded']);
