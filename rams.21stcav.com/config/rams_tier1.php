@@ -75,6 +75,30 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | FFP2 / confined-space gate kill-switch (Phase 28, GATE-06/GATE-07)
+    |--------------------------------------------------------------------------
+    |
+    | Gates ONLY
+    | RamsComplianceUpgradeService::enforceFfp2AndConfinedSpaceGate() — the
+    | independent re-check of every hazard NAME and every surviving hazard
+    | control line (via App\Services\Rams\ControlTextRuleViolations::detect())
+    | for the 'ffp2' and 'confined_space' rule keys, plus a raw case-
+    | insensitive substring check for the literal token FFP2 across
+    | $data['ppe'] and $data['ppe_matrix'][*]['ppe']. When false,
+    | enforceFfp2AndConfinedSpaceGate() is never called — upgrade() proceeds
+    | byte-identical to pre-GATE-06/07 behaviour, no redeploy required.
+    |
+    | A NEW, INDEPENDENT flag per D-08 — deliberately never reuses
+    | RAMS_DISPLAY_LIFT_GATE, so GATE-09 can never be accidentally disarmed
+    | by a GATE-06/07 rollback, or vice versa. See
+    | 28-CONTEXT.md's D-08 discretion item and this plan's threat register
+    | (T-28-06-01).
+    |
+    */
+    'ffp2_confined_space_gate_enabled' => env('RAMS_PPE_CEILING_ELECTRICAL_GATE', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Baseline COSHH inventory
     |--------------------------------------------------------------------------
     |

@@ -62,6 +62,19 @@ class RamsComplianceUpgradeService
         if (config('rams_tier1.display_lift_gate_enabled', true)) {
             $ramsData = self::enforceDisplayLiftGate($ramsData);
         }
+        // GATE-06/GATE-07 — independent re-check of every hazard NAME and
+        // every surviving hazard control line for FFP2/confined-space
+        // violations, plus a raw FFP2 substring check across the PPE
+        // surfaces. Config-gated with its OWN flag (D-08 — never reuses
+        // RAMS_DISPLAY_LIFT_GATE) so this milestone's live-validation
+        // posture can roll it back with a single .env edit
+        // (RAMS_PPE_CEILING_ELECTRICAL_GATE) without touching GATE-09. When
+        // the flag is false, enforceFfp2AndConfinedSpaceGate() is never
+        // called — upgrade() proceeds byte-identical to pre-GATE-06/07
+        // behaviour.
+        if (config('rams_tier1.ffp2_confined_space_gate_enabled', true)) {
+            $ramsData = self::enforceFfp2AndConfinedSpaceGate($ramsData);
+        }
         $ramsData = self::crossReferenceMethodStatementRisks($ramsData);
         $ramsData = self::addCdmDutyHolders($ramsData);
         $ramsData = self::cleanTextArtifacts($ramsData);
@@ -1221,6 +1234,142 @@ class RamsComplianceUpgradeService
         }
 
         return $data;
+    }
+
+    /**
+     * GATE-06 / GATE-07 — independent re-check of every hazard NAME and
+     * every surviving hazard control line for FFP2 / confined-space
+     * violations, run immediately after {@see self::enforceDisplayLiftGate()}
+     * in `upgrade()`'s pipeline (config-gated by the caller). Completes
+     * D-03's "auto-correct-then-throw" pair for RULE-01/RULE-06: Plan 28-01's
+     * tier-1 auto-correction inside `RamsBuilderService::reviewedToRisk()`
+     * fixes what it can reach; this gate catches everything that survives
+     * into a fully-assembled `$data` array regardless of which generation
+     * entry point produced it — most importantly the Save Review path
+     * (`RamsController::updateAndDownload()`), which never calls
+     * `reviewedToRisk()` at all.
+     *
+     * **This method NEVER re-implements FFP2/confined-space classification.**
+     * It calls {@see ControlTextRuleViolations::detect()} /
+     * {@see ControlTextRuleViolations::detectAll()} — the single choke
+     * point — on whatever text survives into `$data`, exactly as
+     * {@see self::enforceDisplayLiftGate()} calls
+     * `DisplayLiftPolicy::violatesPolicy()` rather than re-encoding its
+     * bands. Duplicating a detector's logic here would let this gate and
+     * `ControlTextRuleViolations` silently diverge.
+     *
+     * **The hazard-NAME check is unconditional per hazard and is NOT nested
+     * inside any template-resolution branch** (Revision 1, plan-checker
+     * Blocker 1). An unresolved hazard name is precisely the case that
+     * reaches generation uncorrected: `RamsBuilderService::reviewedToRisk()`'s
+     * `if ($tpl !== null && ($tpl->id ?? null) !== null)` block — and
+     * therefore its tier-1 `detectAll()` call — is skipped entirely for an
+     * unmatched name, and `LegacyHazardNameFoldMap` only folds the exact
+     * plural string `'confined spaces'`. A hazard named "Confined Space"
+     * (singular), "Confined Spaces Entry", etc. resolves to nothing upstream
+     * and this gate is the ONLY mechanism that ever sees it.
+     *
+     * **The gate ERRORS on a mislabelled name; it does NOT silently rename
+     * it.** An unrecognised hazard name is the "cannot confidently classify,
+     * do not guess" case (ROADMAP criterion 4 specifies erroring, not
+     * auto-correction) — renaming an engineer's hazard row silently would be
+     * a larger, unrequested action than replacing a control line.
+     *
+     * Scans three surfaces, not just hazard controls (required for GATE-06's
+     * literal wording — "errors on any FFP2 occurrence" — to be true rather
+     * than true-only-for-the-hazard-controls-subset):
+     *   1. `$data['hazards'][*]['hazard']` — the hazard's own NAME, via
+     *      `ControlTextRuleViolations::detect()` (confined_space only, in
+     *      practice, since `detectFfp2()` matches a bare token names rarely
+     *      carry — but the check is not restricted to one key).
+     *   2. `$data['hazards'][*]['controls']` — via
+     *      `ControlTextRuleViolations::detectAll()` (both `ffp2` and
+     *      `confined_space` keys).
+     *   3. `$data['ppe']` and `$data['ppe_matrix'][*]['ppe']` — a flat,
+     *      case-insensitive substring check for the literal token `FFP2`.
+     *      NOT routed through `ControlTextRuleViolations`: PPE is a closed
+     *      vocabulary (a fixed pick-list), not free text needing
+     *      classification, per Plan 28-03's own reasoning.
+     *
+     * Throws {@see RamsGenerationException} on the FIRST violation found,
+     * naming which rule fired, the offending text, and the exact env flag
+     * (`RAMS_PPE_CEILING_ELECTRICAL_GATE=false`) to disable the check.
+     */
+    private static function enforceFfp2AndConfinedSpaceGate(array $data): array
+    {
+        $hazards = (array) ($data['hazards'] ?? []);
+
+        foreach ($hazards as $hazard) {
+            $hazard = (array) $hazard;
+            $name = (string) ($hazard['hazard'] ?? '');
+
+            // Unconditional per hazard — NOT nested inside any
+            // template-resolution branch. See method docblock, Revision 1
+            // Blocker 1.
+            $nameViolation = ControlTextRuleViolations::detect($name);
+
+            if ($nameViolation !== null) {
+                throw new RamsGenerationException(sprintf(
+                    'Hazard name "%s" is classified as a confined-space house-rule violation (GATE-07/RULE-06). '
+                    . 'Rename this hazard before regenerating, or set '
+                    . 'RAMS_PPE_CEILING_ELECTRICAL_GATE=false to disable this check.',
+                    $name,
+                ));
+            }
+
+            $controls = array_map('strval', (array) ($hazard['controls'] ?? []));
+            $controlViolations = ControlTextRuleViolations::detectAll($controls);
+
+            foreach ($controlViolations as $index => $violationKey) {
+                throw new RamsGenerationException(sprintf(
+                    'Control line "%s" on hazard "%s" is classified as a %s (%s) house-rule violation. '
+                    . 'Correct the control text before regenerating, or set '
+                    . 'RAMS_PPE_CEILING_ELECTRICAL_GATE=false to disable this check.',
+                    $controls[$index] ?? '',
+                    $name,
+                    self::ffp2ConfinedSpaceRuleLabel($violationKey),
+                    self::ffp2ConfinedSpaceGateLabel($violationKey),
+                ));
+            }
+        }
+
+        foreach ((array) ($data['ppe'] ?? []) as $entry) {
+            if (stripos((string) $entry, 'FFP2') !== false) {
+                throw new RamsGenerationException(sprintf(
+                    'PPE entry "%s" contains the banned token FFP2 (GATE-06/RULE-01). Replace it with the '
+                    . 'FFP3 equivalent before regenerating, or set RAMS_PPE_CEILING_ELECTRICAL_GATE=false '
+                    . 'to disable this check.',
+                    (string) $entry,
+                ));
+            }
+        }
+
+        foreach ((array) ($data['ppe_matrix'] ?? []) as $row) {
+            foreach ((array) ($row['ppe'] ?? []) as $entry) {
+                if (stripos((string) $entry, 'FFP2') !== false) {
+                    throw new RamsGenerationException(sprintf(
+                        'PPE matrix entry "%s" contains the banned token FFP2 (GATE-06/RULE-01). Replace it '
+                        . 'with the FFP3 equivalent before regenerating, or set '
+                        . 'RAMS_PPE_CEILING_ELECTRICAL_GATE=false to disable this check.',
+                        (string) $entry,
+                    ));
+                }
+            }
+        }
+
+        return $data;
+    }
+
+    /** Rule label for GATE-06/07 throw messages — 'ffp2' vs 'confined_space'. */
+    private static function ffp2ConfinedSpaceRuleLabel(string $violationKey): string
+    {
+        return $violationKey === 'ffp2' ? 'FFP2' : 'confined-space';
+    }
+
+    /** Gate/rule citation for GATE-06/07 throw messages — 'ffp2' vs 'confined_space'. */
+    private static function ffp2ConfinedSpaceGateLabel(string $violationKey): string
+    {
+        return $violationKey === 'ffp2' ? 'GATE-06/RULE-01' : 'GATE-07/RULE-06';
     }
 
     /**
