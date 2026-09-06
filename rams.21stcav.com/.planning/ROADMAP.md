@@ -167,7 +167,7 @@ Plans:
 
   - [x] 28-01-PLAN.md — `ControlTextRuleViolations` ffp2/confined_space detectors + negation-aware proof corpus (D-01). Wave 1. Requirements: RULE-01, GATE-07.
   - [x] 28-02-PLAN.md — RULE-06 hazard title rename to "Restricted access and ceiling void working" across seeder, fold map (+ new supersession entry) and drift-guard test (D-05). Wave 1. Requirements: RULE-06.
-  - [ ] 28-03-PLAN.md — new `PpeVocabularyFoldMap` closed-vocabulary fix for the `reviewed_data['ppe']` array gap research found (Q4), wired into `reviewedToRisk()`/`mergePpe()`, plus an end-to-end render regression test. Wave 1. Requirements: RULE-01.
+  - [x] 28-03-PLAN.md — new `PpeVocabularyFoldMap` closed-vocabulary fix for the `reviewed_data['ppe']` array gap research found (Q4), wired into `reviewedToRisk()`/`mergePpe()`, plus an end-to-end render regression test. Wave 1. Requirements: RULE-01.
   - [ ] 28-04-PLAN.md — remaining 12 live FFP2 source-site fixes + repo-wide static FFP2 ban test (D-04). Wave 1. Requirements: RULE-01, GATE-06.
   - [ ] 28-05-PLAN.md — RULE-09 electrical-boundary exclusions bullet (unconditional default, D-06/D-07 minimum-sentence scope) + RULE-10 end-to-end regression lock for the already-firing ceiling-load signal (Q1). Wave 1. Requirements: RULE-09, RULE-10.
   - [ ] 28-06-PLAN.md — GATE-06/GATE-07 throwing re-check in `RamsComplianceUpgradeService::upgrade()`, new `RAMS_PPE_CEILING_ELECTRICAL_GATE` flag, closes the `RamsController::downloadPdf()` catch gap (D-03/D-08). Wave 2 — depends on 28-01, 28-04. Requirements: GATE-06, GATE-07.
@@ -602,7 +602,7 @@ Plans:
 | 25. AI Assist + Replacement Wiring | v2.0 | 0/0 | Not started | - |
 | 26. Hazard Library Structural Inversion | v3.0 | 8/8 | Code complete — open: 26-06 Task 3 live deploy checkpoint, HAZ-02 live re-verification | - |
 | 27. Manual-Handling & Display-Lift House Rules | v3.0 | 4/5 | In Progress|  |
-| 28. PPE, Ceiling & Electrical Boundary House Rules | v3.0 | 2/8 | In Progress|  |
+| 28. PPE, Ceiling & Electrical Boundary House Rules | v3.0 | 3/8 | In Progress|  |
 | 29. CDM Duty-Holder & Emergency Arrangements | v3.0 | 0/0 | Not started | - |
 | 30. Structural Validation Gates | v3.0 | 0/0 | Not started | - |
 | 31. Standards/COSHH Scoping & Padding Gates | v3.0 | 0/0 | Not started | - |
