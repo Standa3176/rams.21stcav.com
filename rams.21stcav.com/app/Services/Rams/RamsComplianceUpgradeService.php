@@ -1305,10 +1305,16 @@ class RamsComplianceUpgradeService
 
             // Unconditional per hazard — NOT nested inside any
             // template-resolution branch. See method docblock, Revision 1
-            // Blocker 1.
+            // Blocker 1. ControlTextRuleViolations::DETECTORS also carries
+            // 'kg_threshold' and 'size_conditional_lift' (Phase 27, RULE-13)
+            // — this gate is GATE-06/GATE-07 only, so only the
+            // confined_space key (the only one a bare hazard-name label can
+            // plausibly trip) is in scope here; any other key is silently
+            // ignored, exactly as `fillMissingHazardControls()` and other
+            // Phase 28 surfaces leave RULE-13 entirely to its own mechanism.
             $nameViolation = ControlTextRuleViolations::detect($name);
 
-            if ($nameViolation !== null) {
+            if ($nameViolation === 'confined_space') {
                 throw new RamsGenerationException(sprintf(
                     'Hazard name "%s" is classified as a confined-space house-rule violation (GATE-07/RULE-06). '
                     . 'Rename this hazard before regenerating, or set '
@@ -1321,6 +1327,17 @@ class RamsComplianceUpgradeService
             $controlViolations = ControlTextRuleViolations::detectAll($controls);
 
             foreach ($controlViolations as $index => $violationKey) {
+                // GATE-06/GATE-07 in scope ONLY — 'kg_threshold' and
+                // 'size_conditional_lift' (Phase 27, RULE-13) are also
+                // registered on the SAME DETECTORS choke point and can
+                // legitimately fire on ordinary manual-handling control
+                // text (e.g. "Team lift for items over 20 kg"). RULE-13 has
+                // its own dedicated mechanism (tier-1 auto-correction only,
+                // no throwing gate) — this gate must not throw on it.
+                if ($violationKey !== 'ffp2' && $violationKey !== 'confined_space') {
+                    continue;
+                }
+
                 throw new RamsGenerationException(sprintf(
                     'Control line "%s" on hazard "%s" is classified as a %s (%s) house-rule violation. '
                     . 'Correct the control text before regenerating, or set '

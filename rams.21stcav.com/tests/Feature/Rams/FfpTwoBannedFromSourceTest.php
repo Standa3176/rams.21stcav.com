@@ -56,6 +56,15 @@ class FfpTwoBannedFromSourceTest extends TestCase
         'tests/Unit/Services/Rams/ControlTextRuleViolationsTest.php',
         'tests/Unit/Services/Rams/PpeVocabularyFoldMapTest.php',
         'tests/Feature/Rams/PpeFfp2RenderRegressionTest.php',
+        // Plan 28-06 (GATE-06/GATE-07) — the runtime throwing-gate mechanism
+        // itself (a `stripos(..., 'FFP2')` check, the same category as
+        // ControlTextRuleViolations::detectFfp2()'s own regex above), its
+        // config kill-switch docblock, and its 3 direct test fixtures.
+        'app/Services/Rams/RamsComplianceUpgradeService.php',
+        'config/rams_tier1.php',
+        'tests/Unit/Services/Rams/Ffp2ConfinedSpaceGateTest.php',
+        'tests/Feature/Rams/Ffp2ConfinedSpaceSaveReviewGateTest.php',
+        'tests/Feature/Rams/Ffp2ConfinedSpaceDualPathGateTest.php',
     ];
 
     public function test_ffp2_does_not_appear_in_any_non_backup_source_file(): void
