@@ -65,6 +65,12 @@ class FfpTwoBannedFromSourceTest extends TestCase
         'tests/Unit/Services/Rams/Ffp2ConfinedSpaceGateTest.php',
         'tests/Feature/Rams/Ffp2ConfinedSpaceSaveReviewGateTest.php',
         'tests/Feature/Rams/Ffp2ConfinedSpaceDualPathGateTest.php',
+        // Plan 28-07 — the backfill migration's own direct test fixture.
+        // Its fixture deliberately seeds a stored "Dust Mask (FFP2)"
+        // string (and an FFP2 hazard control line) to prove the migration
+        // corrects already-persisted data — never generated document
+        // content, same category as every other fixture file above.
+        'tests/Feature/Rams/BackfillPpeFfp2AndElectricalExclusionBulletMigrationTest.php',
     ];
 
     public function test_ffp2_does_not_appear_in_any_non_backup_source_file(): void
