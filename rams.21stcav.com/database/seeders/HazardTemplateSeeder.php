@@ -208,9 +208,9 @@ class HazardTemplateSeeder extends Seeder
                 'include_when'    => 'confirm:occupied_premises',
             ],
 
-            // ── 7. Restricted access and ceiling voids (tier 2 — signal:ceiling_void_access)
+            // ── 7. Restricted access and ceiling void working (tier 2 — signal:ceiling_void_access)
             [
-                'name'            => 'Restricted access and ceiling voids',
+                'name'            => 'Restricted access and ceiling void working',
                 'description'     => 'Restricted access into ceiling voids, comms rooms and enclosures.',
                 'pre_likelihood'  => 3,
                 'pre_severity'    => 3,

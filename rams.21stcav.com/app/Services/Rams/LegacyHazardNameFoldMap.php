@@ -64,6 +64,25 @@ namespace App\Services\Rams;
  * A future reader extending this map should not need to repeat this git
  * archaeology — this docblock is the record of where every entry came
  * from.
+ *
+ * ── Phase 28 Plan 02, 2026-09-06 — D-05 rename ──────────────────────────
+ *
+ * `HazardTemplateSeeder`'s hazard #7 was renamed from "Restricted access
+ * and ceiling voids" to "Restricted access and ceiling void working" to
+ * match `house-rules.md` §"Ceiling work" and the verbatim wording already
+ * in `REQUIREMENTS.md` RULE-06 and `ROADMAP.md`'s Phase 28 success
+ * criterion 2 (both predate this rename and needed no edit). Group 2's
+ * "Cable Installation in Ceiling Voids" and Group 3's "Confined Spaces"
+ * entries above now both resolve to the renamed string.
+ *
+ * This rename also creates a reachability gap Groups 1-3 do not cover:
+ * any document reviewed between Phase 26 (when "Restricted access and
+ * ceiling voids" first shipped) and this Phase 28 rename carries that
+ * exact string, which is NOT a pre-Phase-26 legacy name — it is the
+ * app's own prior canonical output. Without an explicit entry for it,
+ * such a document would silently keep the old title forever on
+ * regeneration. The new entry immediately below the Group 3 block closes
+ * that gap; it is a rename-supersession entry, not a legacy-name fold.
  */
 final class LegacyHazardNameFoldMap
 {
@@ -89,12 +108,19 @@ final class LegacyHazardNameFoldMap
         'electrical hazards' => 'Electrical',
         'dust & debris (including drilling)' => 'Dust from drilling and cutting',
         'lone working' => 'Lone and small-team working',
-        'cable installation in ceiling voids' => 'Restricted access and ceiling voids',
+        'cable installation in ceiling voids' => 'Restricted access and ceiling void working',
 
         // ── Group 3 — retired always-on hazard-keyword fallback names ──────
         'noise and vibration' => 'Noise and vibration',
         'working in occupied premises' => 'Occupied premises',
-        'confined spaces' => 'Restricted access and ceiling voids',
+        'confined spaces' => 'Restricted access and ceiling void working',
+
+        // ── Phase 28 Plan 02 (D-05) — rename-supersession entry, NOT a ─────
+        // pre-Phase-26 legacy name. This is the exact title Phase 26 shipped
+        // ("Restricted access and ceiling voids"); a document reviewed
+        // between Phase 26 and this rename carries that string, not any of
+        // the Group 1-3 legacy names, and must still fold forward.
+        'restricted access and ceiling voids' => 'Restricted access and ceiling void working',
     ];
 
     /**
