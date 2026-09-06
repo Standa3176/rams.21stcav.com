@@ -4,6 +4,7 @@ namespace Tests\Unit\Services\Rams;
 
 use App\Services\Rams\ControlTextRuleViolations;
 use App\Services\Rams\DisplayLiftPolicy;
+use App\Services\Rams\LegacyHazardNameFoldMap;
 use Database\Seeders\HazardTemplateSeeder;
 use Tests\TestCase;
 
@@ -110,6 +111,163 @@ class ControlTextRuleViolationsTest extends TestCase
             'Wear appropriate gloves and safety footwear at all times.',
             'Take regular breaks to avoid fatigue during prolonged lifting tasks.',
         ]));
+    }
+
+    // ── ffp2 (RULE-01) ────────────────────────────────────────────────────────
+
+    public function test_detects_bare_ffp2_token(): void
+    {
+        $this->assertSame(
+            'ffp2',
+            ControlTextRuleViolations::detect(
+                'Dust mask (FFP2) worn when accessing ceiling voids.',
+            ),
+        );
+    }
+
+    public function test_ffp2_or_ffp3_hedge_is_still_flagged(): void
+    {
+        // RiskMatrixService.php:133 — offering FFP2 as an acceptable
+        // alternative is itself the defect, not a sentence to spare.
+        $this->assertSame(
+            'ffp2',
+            ControlTextRuleViolations::detect(
+                'Wear FFP2 or FFP3 dust masks during all drilling and cutting operations.',
+            ),
+        );
+    }
+
+    public function test_ffp3_alone_is_never_flagged(): void
+    {
+        // HazardTemplateSeeder.php:294 — the seeder's already-correct
+        // hazard #11 sentence, verbatim.
+        $this->assertNull(
+            ControlTextRuleViolations::detect(
+                'FFP3 dust mask and safety glasses worn during all drilling and cutting. '
+                . 'All operatives face-fit tested.',
+            ),
+        );
+    }
+
+    // ── confined_space (GATE-07) ─────────────────────────────────────────────
+
+    public function test_detects_confined_space_affirmative_constructions(): void
+    {
+        foreach ([
+            'This is a confined space.',
+            'Confined space entry procedures apply.',
+            'A confined space permit is required before entry.',
+            'Refer to ACOP L101 for confined space entry.',
+            'Confined Space',
+        ] as $control) {
+            $this->assertSame(
+                'confined_space',
+                ControlTextRuleViolations::detect($control),
+                "Expected a confined_space violation in: {$control}",
+            );
+        }
+    }
+
+    public function test_confined_space_negation_is_clean(): void
+    {
+        // HazardTemplateSeeder.php:220 — hazard #7's exact sentence,
+        // copied verbatim, never paraphrased.
+        $this->assertNull(
+            ControlTextRuleViolations::detect(
+                'Confirm ventilation and safe access before entering ceiling voids, comms rooms '
+                . 'or enclosures. These are not classified as confined spaces, but access is '
+                . 'restricted and is treated as a controlled activity.',
+            ),
+        );
+    }
+
+    public function test_fold_map_target_is_never_flagged_as_confined_space(): void
+    {
+        foreach (LegacyHazardNameFoldMap::all() as $canonicalName) {
+            $this->assertNull(
+                ControlTextRuleViolations::detect($canonicalName),
+                "Fold-map canonical name was flagged as confined_space: {$canonicalName}",
+            );
+        }
+    }
+
+    public function test_ai_extraction_prompt_confined_spaces_example_is_flagged_when_affirmative(): void
+    {
+        // Modelled on PromptBuilderService::buildFromFiles()'s "confined
+        // spaces" example category — proves the gate would catch what the
+        // live AI-extraction path could plausibly produce, without editing
+        // the prompt itself.
+        $this->assertSame(
+            'confined_space',
+            ControlTextRuleViolations::detect(
+                'Confined spaces present in ceiling voids and enclosures — confined space entry '
+                . 'procedures required.',
+            ),
+        );
+    }
+
+    public function test_hyphenated_confined_space_is_flagged(): void
+    {
+        // Revision 1 checker finding: proves the hyphen/whitespace
+        // normalisation step actually runs. This test FAILS against a
+        // detector that omits it, so it is non-vacuous by construction.
+        $this->assertSame(
+            'confined_space',
+            ControlTextRuleViolations::detect('Confined-space entry procedures apply.'),
+        );
+    }
+
+    public function test_bare_hyphenated_name_with_no_other_keyword_is_flagged(): void
+    {
+        // Revision 2 checker finding: the ONE combination (hyphenated AND
+        // carrying no affirmative keyword) that reaches the bare-substring
+        // fallback — the only fixture proving the fallback itself reads the
+        // normalised string rather than the merely-lowercased one. Without
+        // this case an implementation can pass every other test and still
+        // ship the gap.
+        $this->assertSame(
+            'confined_space',
+            ControlTextRuleViolations::detect('Confined-Space'),
+        );
+    }
+
+    public function test_bare_hazard_name_labels_are_flagged(): void
+    {
+        // Short LABELS, not prose — the literal strings reachable through
+        // the free-text hazard-name inputs at
+        // resources/views/project-packages/review.blade.php:1875 / :2484
+        // and resources/views/rams/quote-review.blade.php:808. Plan 28-06
+        // Task 1 feeds the name field to this detector; this test proves
+        // the classifier copes with that input shape.
+        foreach (['Confined Space', 'Confined Spaces', 'Confined Space Entry'] as $name) {
+            $this->assertSame(
+                'confined_space',
+                ControlTextRuleViolations::detect($name),
+                "Expected a confined_space violation for the bare name: {$name}",
+            );
+        }
+    }
+
+    public function test_coordination_boilerplate_permit_list_is_documented_as_out_of_scope(): void
+    {
+        // DocxBuilderService.php:1903 §6.11 — this sentence DOES classify as
+        // confined_space, and that is intentional and harmless: it is
+        // rendered as direct DOCX boilerplate and never enters
+        // $data['hazards'], so Plan 28-06's gate never scans it. It names a
+        // permit category the Principal Contractor may operate on their
+        // site; it does not assert that a 21CAV-controlled space IS a
+        // confined space. See this plan's <scope_decisions> block. This
+        // test exists so that if this boilerplate is ever routed through
+        // hazard data in future, the behaviour is already known rather than
+        // surprising.
+        $this->assertSame(
+            'confined_space',
+            ControlTextRuleViolations::detect(
+                'Principal Contractor — obtain permits-to-work (ceiling access, hot works, roof '
+                . 'access, confined-space entry) from the Principal Contractor before commencing '
+                . 'the relevant activity.',
+            ),
+        );
     }
 
     // ── SELF-CHECKS — the app must never reject its own output ───────────────
