@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Services\Cable\CableScheduleBuilderService;
+use App\Services\Rams\PpeVocabularyFoldMap;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -222,7 +223,7 @@ class RamsDataBuilderService
 
     private function mergePpe(array $basePpe, array $formPpe): array
     {
-        return array_values(array_unique(array_merge($basePpe, $formPpe)));
+        return array_values(array_unique(PpeVocabularyFoldMap::canonicalAll(array_merge($basePpe, $formPpe))));
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Core\Modules\KnowledgeLibrary\HazardLibraryService;
 use App\Models\RamsDocument;
 use App\Services\ProjectContext\ProjectContextBuilder;
 use App\Services\Rams\ControlTextRuleViolations;
+use App\Services\Rams\PpeVocabularyFoldMap;
 use App\Services\Rams\RamsComplianceUpgradeService;
 use App\Services\Rams\Tier1RamsDefaultsService;
 use Illuminate\Support\Facades\Log;
@@ -630,7 +631,7 @@ class RamsBuilderService
         return [
             'hazards'          => $hazards,
             'ppe'              => array_values(array_filter(
-                                      array_map('strval', (array) ($rd['ppe'] ?? [])),
+                                      array_map('strval', PpeVocabularyFoldMap::canonicalAll((array) ($rd['ppe'] ?? []))),
                                       fn ($s) => strlen(trim($s)) > 0,
                                   )),
             'access_equipment' => $accessEquipment,

@@ -41,7 +41,7 @@ class RiskTemplateResolverService
      * Multi-activity intersections handled by looping all matching entries.
      */
     private const PPE_ACTIVITY_MAP = [
-        'ceiling_works'        => ['Hard Hat', 'Dust Mask (FFP2)'],
+        'ceiling_works'        => ['Hard Hat', 'Dust Mask (FFP3)'],
         'display_installation' => ['Hard Hat'],
         'audio_installation'   => ['Hearing Protection'],
     ];
@@ -103,7 +103,7 @@ class RiskTemplateResolverService
 
         // Drilling without ceiling_works still requires a dust mask.
         if ($drillingRequired && ! in_array('ceiling_works', $activities, true)) {
-            $ppe[] = 'Dust Mask (FFP2)';
+            $ppe[] = 'Dust Mask (FFP3)';
         }
 
         return array_values(array_unique($ppe));
