@@ -83,7 +83,7 @@ From `references/house-rules.md`. Settled positions applied without asking.
 - [x] **RULE-03**: Removal of a display *from* an existing wall mount is stated explicitly as the highest-risk lift on a strip-out — controlled to lowest practicable height, one operative each side, before release from the mount. *(Closed 2026-08-26, Plan 27-02: `deriveMaterialHandling()` now scans `scope_items.decommission` and appends `DisplayLiftPolicy::wallMountRemovalStatement()` for display items found there — the statement previously existed only as a buried hazard-control bullet, never on the generated §6.7 table for a real strip-out job. See `27-02-SUMMARY.md`.)* **Caveat added 2026-08-26 — the emission is correct but UNEXERCISED on live data.** Live verification of 21CQ30960 (RAMS 100/102) found `scope_items.decommission` empty — all 24 items classified `new_install` — on a job whose own method statement describes a decommissioned display. The scan works and has nothing to scan. Closed on the behaviour it owns; the classification gap is **DATA-01**. Plan 27-08 additionally removed the statement from the seeder's static controls, so it no longer appears unconditionally on installation-only jobs (`hazard-library.md` marks it "Removal jobs only").
 - [ ] **RULE-04**: Standards table cites only what the job involves. No library padding.
 - [ ] **RULE-05**: COSHH lists only substances actually carried.
-- [ ] **RULE-06**: Restricted-access hazard is titled "Restricted access and ceiling void working" — never "confined space".
+- [x] **RULE-06**: Restricted-access hazard is titled "Restricted access and ceiling void working" — never "confined space".
 - [ ] **RULE-07**: CDM duty-holder note replaces "[To be confirmed]" with the **anticipated** sole-Contractor position — worded *"21CAV is currently anticipated to be the sole contractor for the AV works…"*, never an unequivocal assertion that 21CAV **is** the sole contractor. *(**RESTATED 2026-08-26.** Originally read "states the settled sole-Contractor position", which the skill explicitly forbids: `references/standards-and-legislation.md` §"CDM 2015 — how to word the duty holders" says* **"Do not state unequivocally that '21CAV is the sole contractor'. At preliminary stage the contractor make-up is usually unconfirmed."** *That file was absent from the 2026-08-23 vendoring and recovered on 2026-08-26 — see `.planning/reference/SKILL-RESYNC-2026-08-26.md` §C-2. Phase 29 as previously specified would have shipped the forbidden assertion.)*
 - [ ] **RULE-08**: Nearest A&E named with address; "to be identified at site induction" is not acceptable output.
 - [ ] **RULE-09**: Electrical scope boundary stated — works terminate at existing socket or client data outlet, no alteration to fixed installation, no live working.
@@ -170,7 +170,7 @@ Deliberately excluded to keep the document-quality core shippable:
 | RULE-03 | Phase 27 | Complete (Plan 27-02, 2026-08-26 — decommission-scope scan appends wall-mount-removal statement) |
 | RULE-04 | Phase 31 | Pending |
 | RULE-05 | Phase 31 | Pending |
-| RULE-06 | Phase 28 | Pending |
+| RULE-06 | Phase 28 | Complete |
 | RULE-07 | Phase 29 | Pending |
 | RULE-08 | Phase 29 | Pending |
 | RULE-09 | Phase 28 | Pending |
