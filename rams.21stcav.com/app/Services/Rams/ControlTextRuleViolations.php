@@ -84,6 +84,44 @@ final class ControlTextRuleViolations
     private const DETECTORS = [
         'kg_threshold'          => 'detectKgThreshold',
         'size_conditional_lift' => 'detectSizeConditionalLift',
+        'ffp2'                  => 'detectFfp2',
+        'confined_space'        => 'detectConfinedSpace',
+    ];
+
+    /**
+     * GATE-07 — phrases that mean the app's own wording is explicitly
+     * DENYING a confined-space label ("These are not classified as confined
+     * spaces..."). Checked first; a match short-circuits
+     * {@see self::detectConfinedSpace()} to clean regardless of anything
+     * else in the line. Written in NORMALISED (single-space, unhyphenated,
+     * lowercase) form — see that method's docblock.
+     *
+     * @var list<string>
+     */
+    private const CONFINED_SPACE_NEGATIONS = [
+        'not classified as a confined space',
+        'not classified as confined spaces',
+        'not a confined space',
+        'not confined spaces',
+        'are not classified as confined',
+        'is not classified as confined',
+        'not treated as a confined space',
+    ];
+
+    /**
+     * GATE-07 — phrases that affirmatively assert (or cite) a confined-space
+     * label. A match here (checked after {@see self::CONFINED_SPACE_NEGATIONS}
+     * finds nothing) is always a violation. Written in NORMALISED form.
+     *
+     * @var list<string>
+     */
+    private const CONFINED_SPACE_AFFIRMATIVE = [
+        'confined space entry',
+        'confined space permit',
+        'is a confined space',
+        'is classified as a confined space',
+        'acop l101',
+        ' l101',
     ];
 
     /**
@@ -216,6 +254,64 @@ final class ControlTextRuleViolations
         }
 
         return $statedPersons !== $expected['min_persons'];
+    }
+
+    /**
+     * RULE-01 — the bare token FFP2 (any casing, any surrounding context).
+     * There is no legitimate sentence containing the literal token FFP2 —
+     * the house rule is FFP3 with face-fit testing, full stop — so this is a
+     * trivial word-boundary regex with no negation list, unlike
+     * {@see self::detectConfinedSpace()}. Deliberately catches the
+     * "FFP2 or FFP3" hedge (RiskMatrixService.php:133): stating FFP2 as an
+     * acceptable alternative is itself the defect, not a sentence to spare.
+     */
+    private static function detectFfp2(string $control): bool
+    {
+        return (bool) preg_match('/\bFFP2\b/i', $control);
+    }
+
+    /**
+     * GATE-07 — a control line (or bare hazard-name label) affirmatively
+     * asserts a "confined space" classification for what is, per RULE-06,
+     * restricted-access — never a true confined space under the Confined
+     * Spaces Regulations 1997. Conservative-by-construction
+     * (T-28-01-01, HIGH): negation is checked first and always wins, an
+     * unrecognised affirmative phrase never guesses, and the bare-substring
+     * fallback exists ONLY to catch a short label carrying no other
+     * keyword (e.g. a hazard named exactly "Confined Space"). Never
+     * re-encodes ACOP L101 guidance itself — it only recognises a
+     * citation of it.
+     *
+     * Hyphens and repeated whitespace are normalised to a single space
+     * BEFORE any of the three checks below, so 'confined-space entry' and
+     * 'confined space entry' are indistinguishable to this method. This
+     * normalisation is load-bearing (revision 1 checker finding): without
+     * it, a hyphenated form escapes both the affirmative phrase list and
+     * the bare-substring fallback because it never contains the literal
+     * substring 'confined space'. All three checks — negations,
+     * affirmatives, and the bare fallback — read this SAME normalised
+     * string (revision 2 checker finding: a fallback that reads the
+     * merely-lowercased string instead reopens the identical gap for a
+     * bare hyphenated name with no other keyword, e.g. "Confined-Space").
+     */
+    private static function detectConfinedSpace(string $control): bool
+    {
+        $lower      = strtolower($control);
+        $normalised = preg_replace('/[\s\-]+/u', ' ', $lower) ?? $lower;
+
+        foreach (self::CONFINED_SPACE_NEGATIONS as $phrase) {
+            if (str_contains($normalised, $phrase)) {
+                return false;
+            }
+        }
+
+        foreach (self::CONFINED_SPACE_AFFIRMATIVE as $phrase) {
+            if (str_contains($normalised, $phrase)) {
+                return true;
+            }
+        }
+
+        return str_contains($normalised, 'confined space');
     }
 
     // =========================================================================
