@@ -848,10 +848,18 @@ class RamsController extends Controller
         // This is transient — nothing is persisted to DB.
         $this->patchRamsForDisplay($rams);
 
-        // Apply Tier 1 compliance upgrade to generated_data (transient — not persisted)
-        $rams->generated_data = \App\Services\Rams\RamsComplianceUpgradeService::upgrade(
-            $rams->generated_data
-        );
+        // Apply Tier 1 compliance upgrade to generated_data (transient — not persisted).
+        // A RamsGenerationException here (e.g. GATE-06/07/09) is caught and
+        // surfaced as a friendly redirect rather than an unhandled 500 —
+        // this was previously the one upgrade() call site with no catch at
+        // all for this exception type (Plan 28-06 Task 2).
+        try {
+            $rams->generated_data = \App\Services\Rams\RamsComplianceUpgradeService::upgrade(
+                $rams->generated_data
+            );
+        } catch (\App\Exceptions\RamsGenerationException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         try {
             $pdfPath = $this->pdfService->buildRams($rams);
