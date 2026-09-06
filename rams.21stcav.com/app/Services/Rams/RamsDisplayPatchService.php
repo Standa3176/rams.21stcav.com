@@ -391,6 +391,12 @@ class RamsDisplayPatchService
                 'No containment beyond surface trunking',
                 'No decorative making good after cable routes',
                 'No IT network provision unless scoped',
+                // Phase 28 Plan 05 — RULE-09: electrical scope boundary. D-07
+                // ships this one sentence only; see 28-05-SUMMARY.md for the
+                // explicit deferral of BS 7671/lock-off wording, the
+                // live-working PPE row ban, and the "first-fix power" ->
+                // "first-fix AV signal/data/ELV cabling" rename.
+                'Electrical scope terminates at the existing socket outlet or client data outlet — no alteration to the fixed electrical installation and no live working under any circumstances.',
             ];
         }
         $rd['client_responsibilities_expanded'] = $rd['client_responsibilities_expanded'] ?? [];
