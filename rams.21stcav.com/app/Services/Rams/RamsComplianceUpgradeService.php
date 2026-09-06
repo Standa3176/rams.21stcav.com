@@ -346,7 +346,7 @@ class RamsComplianceUpgradeService
             ],
             [
                 'task' => 'Drilling / cutting / fixing',
-                'ppe'  => ['Safety glasses', 'Latex / nitrile gloves', 'Dust mask (FFP2)'],
+                'ppe'  => ['Safety glasses', 'Latex / nitrile gloves', 'Dust mask (FFP3)'],
             ],
             [
                 'task' => 'Working at height',
@@ -358,7 +358,7 @@ class RamsComplianceUpgradeService
             ],
             [
                 'task' => 'Working in ceiling voids',
-                'ppe'  => ['Hard hat', 'Dust mask (FFP2)', 'Safety glasses', 'Gloves'],
+                'ppe'  => ['Hard hat', 'Dust mask (FFP3)', 'Safety glasses', 'Gloves'],
             ],
             [
                 'task' => 'Manual handling of heavy equipment',
@@ -744,7 +744,7 @@ class RamsComplianceUpgradeService
                 'pre_severity'    => 3,
                 'controls'        => [
                     'Hard hat worn at all times when ceiling tiles are removed',
-                    'Dust mask (FFP2) worn when accessing ceiling voids',
+                    'Dust mask (FFP3) worn when accessing ceiling voids',
                     'Ceiling tiles removed and replaced one at a time — never left open unattended',
                     'Dust sheets laid below work area to protect furniture and equipment',
                     'Area beneath cordoned off when overhead work is in progress',
@@ -793,7 +793,7 @@ class RamsComplianceUpgradeService
                 'pre_likelihood'  => 3,
                 'pre_severity'    => 2,
                 'controls'        => [
-                    'FFP2 dust mask and safety glasses worn during all drilling and cutting',
+                    'FFP3 dust mask and safety glasses worn during all drilling and cutting',
                     'Use dust extraction attachment on drill where practicable',
                     'Lay dust sheets below work area to contain debris',
                     'Vacuum work area immediately after drilling — do not leave dust accumulation',

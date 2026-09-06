@@ -30,7 +30,7 @@ class ProjectPackageReviewController extends Controller
         'Safety Glasses',
         'Latex / Nitrile Gloves',
         'Hard Hat',
-        'Dust Mask (FFP2)',
+        'Dust Mask (FFP3)',
         'Hearing Protection',
         'Gloves',
         'Overalls',
