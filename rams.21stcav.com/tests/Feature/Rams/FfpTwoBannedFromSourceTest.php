@@ -71,6 +71,19 @@ class FfpTwoBannedFromSourceTest extends TestCase
         // corrects already-persisted data — never generated document
         // content, same category as every other fixture file above.
         'tests/Feature/Rams/BackfillPpeFfp2AndElectricalExclusionBulletMigrationTest.php',
+        // Phase 28 follow-up (2026-09-07) — the residual-control-line backfill
+        // and its test. Production diagnosis found 34 documents still carrying
+        // FFP2 in hazard controls after the first backfill, because the
+        // residual lines sit under three LEGACY hazard names absent from
+        // `hazard_templates` ("Dust from Drilling & Cutting" with an ampersand,
+        // "Working in Ceiling Voids", and a long AI-generated name), so the
+        // first migration's library lookup missed and it correctly failed
+        // closed. This migration holds the two exact stored strings as literal
+        // search keys — the same "mechanism's own source" category as
+        // ControlTextRuleViolations::detectFfp2()'s regex above, not generated
+        // document content.
+        'database/migrations/2026_09_07_090000_backfill_residual_ffp2_control_lines.php',
+        'tests/Feature/Rams/BackfillResidualFfp2ControlLinesMigrationTest.php',
     ];
 
     public function test_ffp2_does_not_appear_in_any_non_backup_source_file(): void
