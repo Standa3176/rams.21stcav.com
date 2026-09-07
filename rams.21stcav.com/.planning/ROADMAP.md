@@ -63,7 +63,7 @@ Every phase below pairs a GATE with the RULE fix (or the Phase 26 hazard-shape c
 
 - [x] **Phase 26: Hazard Library Structural Inversion** — Port all 18 `hazard-library.md` hazards with include-when conditions, replacing `config/rams_tier1.php` baseline_hazards AND `HazardLibraryService::MANDATORY_KEYWORDS`; align scores to the skill (incl. Working at Height residual 1×4); typical scores are editable defaults, never silently applied. Foundation for Phases 27–31.
 - [x] **Phase 27: Manual-Handling & Display-Lift House Rules** — Display lifts take banded team sizes (no row ≤14″, 1 operative <55″, 2 minimum 55–90″, 3 minimum >90″, never 4+), resolved from one shared source; wall-mount removal stated as the highest-risk lift; mount/bracket rows stop inheriting display handling text (RULE-12); GATE-09 errors on any non-conforming lift. *(RULE-02 amended 2026-08-25 — deliberate 21CAV override of the skill; see REQUIREMENTS.md RULE-02.)*
-- [ ] **Phase 28: PPE, Ceiling & Electrical Boundary House Rules** — FFP3 (not FFP2) everywhere; "confined space" never applied to ceiling void/comms room/riser; electrical scope boundary + ceiling load statements land in output; GATE-06 + GATE-07 ship alongside.
+- [x] **Phase 28: PPE, Ceiling & Electrical Boundary House Rules** — FFP3 (not FFP2) everywhere; "confined space" never applied to ceiling void/comms room/riser; electrical scope boundary + ceiling load statements land in output; GATE-06 + GATE-07 ship alongside. *(**COMPLETE + DEPLOYED LIVE 2026-09-07**, 4/4 criteria — see `28-08-SUMMARY.md`. 8 plans, 29 commits. Two production backfill migrations cleared the whole corpus: 54 documents' PPE arrays, 48 residual control lines across 34 documents, 52 documents' legacy `Confined Spaces` hazard name, and 32 documents' exclusions. Armed gate verified passing on the real 21CQ30960 payload (project 92, RAMS 102). RULE-11 moved to Phase 31 during discussion — see D-09.)*
 - [ ] **Phase 29: CDM Duty-Holder & Emergency Arrangements** — Settled sole-Contractor CDM position replaces "[To be confirmed]"; named A&E with address replaces "to be identified at site induction"; GATE-11 + GATE-12 ship alongside.
 - [ ] **Phase 30: Structural Validation Gates** — Orphan-controls check, every-area-has-a-method-step check, residual-≤-initial-score check (GATE-01, GATE-02, GATE-04).
 - [ ] **Phase 31: Standards/COSHH Scoping & Padding Gates** — Standards table and COSHH list become job-conditional (extends Phase 26's include-when pattern); uniform-scoring detection + COSHH/standards padding cross-check (GATE-05, GATE-10); **plus RULE-11 — one consistent fire-stopping position across exclusions, hazard register and QA (moved here from Phase 28 on 2026-09-05)**.
@@ -172,7 +172,7 @@ Plans:
   - [x] 28-05-PLAN.md — RULE-09 electrical-boundary exclusions bullet (unconditional default, D-06/D-07 minimum-sentence scope) + RULE-10 end-to-end regression lock for the already-firing ceiling-load signal (Q1). Wave 1. Requirements: RULE-09, RULE-10.
   - [x] 28-06-PLAN.md — GATE-06/GATE-07 throwing re-check in `RamsComplianceUpgradeService::upgrade()`, new `RAMS_PPE_CEILING_ELECTRICAL_GATE` flag, closes the `RamsController::downloadPdf()` catch gap (D-03/D-08). Wave 2 — depends on 28-01, 28-04. Requirements: GATE-06, GATE-07.
   - [x] 28-07-PLAN.md — measure-first production count (checkpoint) + idempotent backfill migration for already-persisted `reviewed_data['ppe']`/`['exclusions']` (D-08, orchestrator-mandated). Wave 2 — depends on 28-03, 28-05. Requirements: RULE-01, RULE-09.
-  - [ ] 28-08-PLAN.md — full test suite + live production regeneration checkpoint against 21CQ30960 (ROADMAP criterion 4). Wave 3 — depends on all prior plans. Requirements: RULE-01, RULE-06, RULE-09, RULE-10, GATE-06, GATE-07.
+  - [x] 28-08-PLAN.md — full test suite + live production regeneration checkpoint against 21CQ30960 (ROADMAP criterion 4). Wave 3 — depends on all prior plans. Requirements: RULE-01, RULE-06, RULE-09, RULE-10, GATE-06, GATE-07.
 
 **UI hint**: yes (gate errors surface on the RAMS review screen)
 
@@ -602,7 +602,7 @@ Plans:
 | 25. AI Assist + Replacement Wiring | v2.0 | 0/0 | Not started | - |
 | 26. Hazard Library Structural Inversion | v3.0 | 8/8 | Code complete — open: 26-06 Task 3 live deploy checkpoint, HAZ-02 live re-verification | - |
 | 27. Manual-Handling & Display-Lift House Rules | v3.0 | 4/5 | In Progress|  |
-| 28. PPE, Ceiling & Electrical Boundary House Rules | v3.0 | 7/8 | In Progress|  |
+| 28. PPE, Ceiling & Electrical Boundary House Rules | v3.0 | 8/8 | Complete   | 2026-09-07 |
 | 29. CDM Duty-Holder & Emergency Arrangements | v3.0 | 0/0 | Not started | - |
 | 30. Structural Validation Gates | v3.0 | 0/0 | Not started | - |
 | 31. Standards/COSHH Scoping & Padding Gates | v3.0 | 0/0 | Not started | - |
