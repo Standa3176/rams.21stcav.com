@@ -1878,10 +1878,25 @@
                                        maxlength="500">
                             </td>
                             <td class="col-risk">
+                                @php
+                                    // `risk` was dropped from RamsReviewDataService::normaliseHazards()'s
+                                    // output by 45f4260 (Phase 26-05), which replaced the legacy
+                                    // High/Medium/Low string with the numeric pre_/post_ score schema.
+                                    // This blade was never updated, so it fataled with
+                                    // `Undefined array key "risk"` on every package review carrying a
+                                    // hazard. Derive the label from the scores instead, using the same
+                                    // thresholds as ProjectPackageRamsReviewService::riskLabelFromScore()
+                                    // so all three call sites agree. A legacy `risk` value is still
+                                    // honoured when present.
+                                    $preScore  = (int) ($hazard['pre_likelihood'] ?? 3)
+                                               * (int) ($hazard['pre_severity'] ?? 3);
+                                    $riskLabel = $hazard['risk']
+                                        ?? ($preScore <= 3 ? 'Low' : ($preScore <= 6 ? 'Medium' : 'High'));
+                                @endphp
                                 <select name="hazards[{{ $i }}][risk]">
                                     @foreach (['Low', 'Medium', 'High'] as $level)
                                         <option value="{{ $level }}"
-                                                {{ old("hazards.{$i}.risk", $hazard['risk']) === $level ? 'selected' : '' }}>
+                                                {{ old("hazards.{$i}.risk", $riskLabel) === $level ? 'selected' : '' }}>
                                             {{ $level }}
                                         </option>
                                     @endforeach
