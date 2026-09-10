@@ -130,7 +130,7 @@ class RiskMatrixService
             'controls'        => [
                 'Check the asbestos register or obtain an asbestos survey before any drilling.',
                 'Use dust extraction equipment when drilling into walls, floors or ceilings.',
-                'Wear FFP3 dust masks during all drilling and cutting operations.',
+                'Wear FFP3 dust masks during all drilling and cutting operations. All operatives face-fit tested.',
                 'Wear safety glasses/goggles during drilling and cutting.',
                 'Seal off the work area from occupied spaces using temporary screens or sheeting.',
                 'Dispose of all waste and debris in accordance with site waste procedures.',

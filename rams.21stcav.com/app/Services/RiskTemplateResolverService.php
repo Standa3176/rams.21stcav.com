@@ -518,7 +518,7 @@ class RiskTemplateResolverService
             if (! empty($ef['wall_needs_chase_out'])) {
                 $this->mergeHazard($hazardMap, $roomName, 'Dust & Debris (Including Drilling)',
                     'Wall chasing required for cable conduit. High dust generation. ' .
-                    'Use FFP3 dust mask, on-tool extraction, and seal off occupied areas.'
+                    'Use FFP3 dust mask (all operatives face-fit tested), on-tool extraction, and seal off occupied areas.'
                 );
                 $allPpe[] = 'Dust Mask (FFP3)';
             }

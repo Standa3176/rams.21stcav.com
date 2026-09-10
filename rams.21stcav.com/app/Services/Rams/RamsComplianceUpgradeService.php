@@ -757,7 +757,7 @@ class RamsComplianceUpgradeService
                 'pre_severity'    => 3,
                 'controls'        => [
                     'Hard hat worn at all times when ceiling tiles are removed',
-                    'Dust mask (FFP3) worn when accessing ceiling voids',
+                    'Dust mask (FFP3) worn when accessing ceiling voids. All operatives face-fit tested.',
                     'Ceiling tiles removed and replaced one at a time — never left open unattended',
                     'Dust sheets laid below work area to protect furniture and equipment',
                     'Area beneath cordoned off when overhead work is in progress',
@@ -806,7 +806,7 @@ class RamsComplianceUpgradeService
                 'pre_likelihood'  => 3,
                 'pre_severity'    => 2,
                 'controls'        => [
-                    'FFP3 dust mask and safety glasses worn during all drilling and cutting',
+                    'FFP3 dust mask and safety glasses worn during all drilling and cutting. All operatives face-fit tested.',
                     'Use dust extraction attachment on drill where practicable',
                     'Lay dust sheets below work area to contain debris',
                     'Vacuum work area immediately after drilling — do not leave dust accumulation',
