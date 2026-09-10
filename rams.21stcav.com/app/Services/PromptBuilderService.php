@@ -149,8 +149,17 @@ PROMPT;
         $drawingInstruction = $hasDrawings
             ? "You have also been provided with one or more site drawings or floor plans. "
               . "Study them carefully and identify any additional hazards visible in the drawings "
-              . "(e.g. working at height, confined spaces, floor penetrations, ceiling voids, "
+              . "(e.g. working at height, restricted access, floor penetrations, ceiling voids, "
               . "rack/equipment locations, cable routes, proximity to other services). "
+              // RULE-06 / GATE-07: this list previously offered "confined spaces" as an
+              // example category, so the model could mint a hazard NAMED "Confined Spaces" —
+              // which GATE-07 (armed in Phase 28) throws on, failing the RAMS build on a
+              // brand-new project. Steer positively rather than just dropping the keyword:
+              // house-rules.md §"Ceiling work" is the authority.
+              . "Ceiling voids, comms rooms and risers are NOT confined spaces under the "
+              . "Confined Spaces Regulations 1997 — never label them as such, and never cite "
+              . "the confined-spaces ACOP. Where access is restricted, title the hazard "
+              . "\"Restricted access and ceiling void working\". "
               . "Incorporate those hazards into the hazards array alongside those derived from the quote. "
               . "Use drawing references (sheet number, revision, or filename) when populating "
               . "the drawing_ref column of scope_of_works where applicable."
