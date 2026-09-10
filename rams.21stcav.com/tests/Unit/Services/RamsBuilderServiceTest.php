@@ -527,12 +527,9 @@ class RamsBuilderServiceTest extends TestCase
     }
 
     /**
-     * Plan 26-08: a case-only/no-op rename (matched template's name differs
-     * only in casing) still displays under the template's exact casing, but
-     * a NON-empty row control list is preserved unchanged — controls are
-     * gap-filled-only, not replaced, when the match is not a genuine rename.
+     * @return \Mockery\MockInterface&HazardLibraryService
      */
-    public function test_reviewedToRisk_case_only_match_renames_display_but_keeps_row_controls(): void
+    private function caseOnlyMatchLibrary()
     {
         $hazardLibrary = Mockery::mock(HazardLibraryService::class);
         $hazardLibrary->shouldReceive('resolveFromSeeds')
@@ -540,25 +537,98 @@ class RamsBuilderServiceTest extends TestCase
             ->andReturn(collect([(object) [
                 'id'              => 1,
                 'name'            => 'Working at height',
-                'controls'        => ['Library control — should not be used'],
+                'controls'        => ['Library control'],
                 'pre_likelihood'  => 3,
                 'pre_severity'    => 4,
                 'post_likelihood' => 1,
                 'post_severity'   => 4,
             ]]));
 
-        $service = $this->makeServiceWithHazardLibrary($hazardLibrary);
+        return $hazardLibrary;
+    }
+
+    /**
+     * Plan 27-08 tier 3 — an engineer edited the controls (`controls_reviewed`
+     * true) and they breach no house rule, so THEIR TEXT STANDS. A case-only
+     * match still renames for display casing.
+     *
+     * ── Why this test was rewritten (quick task 260910-qip) ──────────────────
+     * This replaced a Plan 26-08 test asserting *"controls are gap-filled-only,
+     * not replaced, when the match is not a genuine rename"* — with a fixture
+     * that set `score_reviewed` but NOT `controls_reviewed`. Plan 27-08
+     * deliberately SUPERSEDED that rule; its own comment at
+     * `RamsBuilderService.php:521-525` says it "Replaces the previous
+     * replace-on-genuine-rename rule from Plan 26-08, which is subsumed by
+     * tier 2". Under the current 3-tier precedence that fixture correctly hits
+     * tier 2 (nobody ever edited these controls) and the library wins — so the
+     * old test asserted a contract the codebase had intentionally abandoned,
+     * and sat red across Phases 26-28.
+     *
+     * It was NOT a live bug: Plan 27-08 shipped the migration that backfilled
+     * 438 hazard rows to `controls_reviewed = true`, so real engineer-edited
+     * controls carry the marker and land in tier 3, as this test proves.
+     *
+     * The two tests here pin both halves of that boundary so the distinction
+     * cannot silently rot again.
+     */
+    public function test_reviewedToRisk_case_only_match_renames_display_and_keeps_reviewed_controls(): void
+    {
+        $service = $this->makeServiceWithHazardLibrary($this->caseOnlyMatchLibrary());
 
         $rd = ['hazards' => [[
-            'hazard'           => 'Working at Height',
-            'control_measures' => ['Engineer-entered control — must survive'],
-            'score_reviewed'   => true,
+            'hazard'            => 'Working at Height',
+            'control_measures'  => ['Engineer-entered control — must survive'],
+            'score_reviewed'    => true,
+            // Tier 3 requires this marker. Without it the row is, by the
+            // 27-08 contract, un-owned text the library may refresh.
+            'controls_reviewed' => true,
         ]]];
 
         $out = $this->invokeReviewedToRisk($service, $rd);
 
-        $this->assertSame('Working at height', $out['hazards'][0]['hazard'], 'case-only match renames for display casing');
-        $this->assertSame(['Engineer-entered control — must survive'], $out['hazards'][0]['controls'], 'controls unchanged on a case-only/no-op rename');
+        $this->assertSame(
+            'Working at height',
+            $out['hazards'][0]['hazard'],
+            'case-only match renames for display casing',
+        );
+        $this->assertSame(
+            ['Engineer-entered control — must survive'],
+            $out['hazards'][0]['controls'],
+            'tier 3: engineer-reviewed controls that breach no house rule are preserved',
+        );
+    }
+
+    /**
+     * Plan 27-08 tier 2 — `controls_reviewed` absent means nobody ever edited
+     * these controls, so the library's current text wins rather than stale
+     * reviewed data surviving forever. Display casing still normalises.
+     *
+     * This is the exact fixture the superseded Plan 26-08 test used; it now
+     * asserts the opposite outcome, which is the whole point of recording it.
+     */
+    public function test_reviewedToRisk_case_only_match_refreshes_unreviewed_controls_from_library(): void
+    {
+        $service = $this->makeServiceWithHazardLibrary($this->caseOnlyMatchLibrary());
+
+        $rd = ['hazards' => [[
+            'hazard'           => 'Working at Height',
+            'control_measures' => ['Stale unreviewed control'],
+            'score_reviewed'   => true,
+            // controls_reviewed deliberately absent -> tier 2.
+        ]]];
+
+        $out = $this->invokeReviewedToRisk($service, $rd);
+
+        $this->assertSame(
+            'Working at height',
+            $out['hazards'][0]['hazard'],
+            'case-only match renames for display casing',
+        );
+        $this->assertSame(
+            ['Library control'],
+            $out['hazards'][0]['controls'],
+            'tier 2: controls nobody ever reviewed are refreshed from the library',
+        );
     }
 
     /**
