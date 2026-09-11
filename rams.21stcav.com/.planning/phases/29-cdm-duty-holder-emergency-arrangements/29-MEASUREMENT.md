@@ -75,3 +75,43 @@ to `true` in production. Neither plan is rescoped by this finding.
 touched by Task 1. Task 2's commands were read-only (a `config()` read and a `select` +
 in-memory filter; zero writes) — see the threat model in `29-01-PLAN.md`. No production writes
 occurred in either task.*
+
+---
+
+## Production deploy 2026-09-11 (Plan 29-06, Task 3 — deploy + backfill half)
+
+**Status:** ✅ Deploy and backfill migration verified on production. Visual document
+inspection (the other half of Task 3 / ROADMAP criterion 4) is **outstanding** — see
+`29-06-SUMMARY.md`.
+
+**Deploy:** Pushed `429fdfd..38eb41d` to the RAMS remote; the VPS pulled fast-forward
+`efdac0f..38eb41d` as `stcav` at `/home/stcav/rams.21stcav.com.git/rams.21stcav.com`.
+49 files changed. `php artisan optimize:clear && php artisan config:cache` ran clean.
+
+**Backfill migration (`2026_09_11_180000_backfill_cdm_duty_holder_placeholder.php`)** ran via
+`php artisan migrate --force` as `stcav`, with this exact output:
+
+```
+backfill_cdm_duty_holder_placeholder: 46 document(s) touched — 46 generated_data.cdm_duty_holders PD/PC replace, 0 reviewed_data.cdm PD/PC row replace (143.18ms)
+```
+
+**Interpretation:**
+
+- **46 touched matches the 29-01 measurement of 46/54 exactly** — every production row this
+  phase's own Wave 0 measurement identified as carrying the CDM `[To be confirmed]` placeholder
+  was replaced by the backfill, no more and no fewer.
+- **The `0` for `reviewed_data.cdm` empirically confirms 29-RESEARCH.md's finding** that
+  `generated_data.cdm_duty_holders` is the column feeding live output, and that no production
+  row had engineer-entered CDM rows carrying the placeholder. The placeholder-only guard
+  (D-04's carry-forward guard) never needed to skip a real typed value in this run — there was
+  none to skip.
+
+**Gate arming state:** `RAMS_CDM_AE_GATE` remains unset (defaults `false`) in the production
+`.env` — the gates are deployed but **NOT armed**, per D-03. This is the intended end state
+until the outstanding visual document inspection (below) passes.
+
+**Outstanding (not done in this session):** The visual inspection of a regenerated live
+project's PDF and DOCX — CDM duty-holder table wording, Section 7.0 A&E row, Welfare First Aid
+bullet deferring to Section 7.0. No document was opened and checked. **ROADMAP Phase 29 success
+criterion 4 is therefore NOT met** — the deploy and backfill halves are done; the
+document-inspection half is not. See `29-06-SUMMARY.md` for the full breakdown and follow-ups.

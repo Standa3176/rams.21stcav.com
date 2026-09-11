@@ -50,23 +50,34 @@ use Tests\TestCase;
  *   `'site_emergency'` at all (grep-verified: zero matches in the whole
  *   file). Neither `runPipeline()` nor `runFromReview()` copies
  *   `reviewedData['site_emergency']` / `formData['site_emergency']` into the
- *   `$data` array passed to `RamsComplianceUpgradeService::upgrade()` — that
- *   key is populated later, by `RamsController::updateAndDownload()`
- *   (`:564-584`), which patches `generated_data['site_emergency']` directly
- *   on an ALREADY-BUILT record, entirely outside `upgrade()`'s call graph.
- *   This was confirmed empirically during this plan's investigation: a
- *   throwaway probe test drove `buildFromReview()` with
- *   `reviewedData['site_emergency']` set to a banned urgent-care-keyword
- *   name and `cdm_ae_gate_enabled` forced true — no exception was thrown,
- *   because `enforceEmergencyGate()` only ever sees the empty array
- *   `$data['site_emergency'] ?? []` that `RamsDataBuilderService::assemble()`
- *   produces. This is a genuine, pre-existing gap between GATE-12's wiring
- *   point (`upgrade()`, called only during initial AI-assisted generation)
- *   and where site-emergency data actually enters the system (the review
- *   form, after generation). Fixing that wiring gap is an architectural
- *   change outside this closeout plan's scope (Rule 4) — it is documented
- *   here, and in this plan's SUMMARY, as a flag for a future plan rather
- *   than silently worked around.
+ *   `$data` array passed to `RamsComplianceUpgradeService::upgrade()` — so
+ *   GATE-12 is dormant at INITIAL AI-BUILD time via those two call sites
+ *   (`RamsBuilderService.php:297`, `:942`). This was confirmed empirically
+ *   during this plan's investigation: a throwaway probe test drove
+ *   `buildFromReview()` with `reviewedData['site_emergency']` set to a
+ *   banned urgent-care-keyword name and `cdm_ae_gate_enabled` forced true —
+ *   no exception was thrown, because `enforceEmergencyGate()` only ever
+ *   sees the empty array `$data['site_emergency'] ?? []` that
+ *   `RamsDataBuilderService::assemble()` produces at that stage. At initial
+ *   build time this is expected, not a gap: no engineer has entered an A&E
+ *   yet, so there is nothing to validate.
+ *
+ *   CORRECTED (2026-09-11 phase closeout): GATE-12 IS live and reachable on
+ *   the real Save-Review→download path. `RamsController.php:584` (and again
+ *   at `:701`) mirrors `$reviewedData['site_emergency']` into
+ *   `$generatedData['site_emergency']`, then calls
+ *   `RamsComplianceUpgradeService::upgrade($generatedData)` at `:603` (and
+ *   `:857`) — the exact array carrying the just-typed site-emergency value.
+ *   An earlier draft of this docblock characterised this as "entirely
+ *   outside `upgrade()`'s call graph" and "an architectural gap" requiring
+ *   a future plan to fix; that was wrong. The accurate statement is: GATE-12
+ *   is dormant only at initial AI-build time (nothing to validate yet) and
+ *   live on the review/download path (where the engineer actually types the
+ *   A&E in). No wiring fix is needed — `test_gate_throws_via_run_from_review()`
+ *   below still proves the gate via the shared `upgrade()` function directly
+ *   (mirroring what `RamsController` does), since driving the full HTTP
+ *   controller path is out of this unit/feature test's scope, not because
+ *   the controller path is unreachable.
  *
  * Given both findings, this file proves GATE-11/GATE-12 are genuine,
  * non-dead-code independent re-checks by driving PRODUCTION code paths as
