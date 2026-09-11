@@ -209,7 +209,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 29-06-PLAN.md — Dual-path gate proof + fixture regeneration + full-suite verification + live production checkpoint
+- [ ] 29-06-PLAN.md — Dual-path gate proof + fixture regeneration + full-suite verification + live production checkpoint. **Tasks 1-2 LANDED 2026-09-11** (`4a5edf1`, `d3dc28a`) — dual-path GATE-11/GATE-12 reachability proof, `tilda-21cq29531` fixtures regenerated, full suite green (2515 passed, 1 pre-existing unrelated failure). **Task 3 (live production verification + gate-arming, blocking human checkpoint) remains OPEN** — no VPS access this session; see `29-06-SUMMARY.md`.
 
 **UI hint**: yes (gate errors surface on the RAMS review screen; CDM/A&E fields may need review-form inputs)
 
