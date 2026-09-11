@@ -76,7 +76,28 @@ class RamsComplianceUpgradeService
             $ramsData = self::enforceFfp2AndConfinedSpaceGate($ramsData);
         }
         $ramsData = self::crossReferenceMethodStatementRisks($ramsData);
+        // Resolves site_emergency into site_emergency_resolved BEFORE the
+        // CDM step — unconditional, regardless of the GATE-11/GATE-12 flag
+        // below, so the resolved A&E value is always available to render
+        // sites (Plan 29-04).
+        $ramsData = self::resolveSiteEmergency($ramsData);
         $ramsData = self::addCdmDutyHolders($ramsData);
+        // GATE-11/GATE-12 — independent re-check of the CDM duty-holder
+        // placeholder (RULE-07) and the resolved site A&E plausibility
+        // (RULE-08/D-08), run back-to-back under ONE config check, mirroring
+        // GATE-06/GATE-07's shared-flag shape. Config-gated with its OWN
+        // flag (D-03 — never reuses RAMS_DISPLAY_LIFT_GATE or
+        // RAMS_PPE_CEILING_ELECTRICAL_GATE) so this milestone's
+        // live-validation posture can roll it back with a single .env edit
+        // (RAMS_CDM_AE_GATE) without touching the other gates. Ships
+        // DISARMED (defaults false) per D-03 — armed only after the
+        // Plan 29-05 backfill and a live regeneration verify clean. When the
+        // flag is false, neither method is ever called — upgrade() proceeds
+        // byte-identical to pre-GATE-11/GATE-12 behaviour.
+        if (config('rams_tier1.cdm_ae_gate_enabled', false)) {
+            $ramsData = self::enforceCdmGate($ramsData);
+            $ramsData = self::enforceEmergencyGate($ramsData);
+        }
         $ramsData = self::cleanTextArtifacts($ramsData);
 
         return $ramsData;
@@ -1087,24 +1108,143 @@ class RamsComplianceUpgradeService
     }
 
     // =========================================================================
-    // 11. CDM 2015 DUTY HOLDERS
+    // 11. CDM 2015 DUTY HOLDERS + SITE EMERGENCY (GATE-11/GATE-12)
     // =========================================================================
 
+    /**
+     * Phase 29 Plan 03 (RULE-07) — the restated Principal Designer note.
+     * Never the bare `'[To be confirmed]'` placeholder GATE-11 exists to
+     * catch. Shared between {@see self::addCdmDutyHolders()} and
+     * {@see \App\Services\DocxBuilderService::buildCdmSection()}'s
+     * defence-in-depth fallback so both call sites read one literal.
+     */
+    public const DEFAULT_PRINCIPAL_DESIGNER_NOTE = 'Not formally appointed at this stage — the client will confirm '
+        . 'Principal Designer arrangements before works commence if the wider project requires one '
+        . '(CDM 2015 Regulation 5).';
+
+    /**
+     * Phase 29 Plan 03 (RULE-07) — the restated Principal Contractor note.
+     * Conditional wording per `standards-and-legislation.md:32-34`: never
+     * asserts 21CAV unequivocally IS the Principal Contractor, and cites
+     * Regulation 15 (contractor duties) rather than Regulations 4/5.
+     */
+    public const DEFAULT_PRINCIPAL_CONTRACTOR_NOTE = 'If the client appoints a Principal Contractor, 21CAV works to '
+        . 'their Construction Phase Plan and site arrangements. If 21CAV is confirmed as sole contractor, 21CAV '
+        . 'prepares and implements the Construction Phase Plan under CDM 2015 Regulation 15.';
+
+    /**
+     * Restates the CDM 2015 duty-holder table per RULE-07
+     * (`standards-and-legislation.md:17-41`), applied UNCONDITIONALLY on
+     * every job. RESEARCH.md Finding 6 / Assumption A2: no deterministic
+     * "occupied premises" signal exists anywhere in this codebase to gate
+     * this wording on, so the restated position ships on every RAMS rather
+     * than being invented behind a signal that does not exist — stated here
+     * explicitly rather than buried, per Assumption A2's own instruction.
+     *
+     * `principal_designer`/`principal_contractor` never emit the bare
+     * `'[To be confirmed]'` placeholder GATE-11 exists to catch — see the
+     * two class constants above. `project_manager`/`site_supervisor` keep
+     * their existing `trim(...) ?: '[To be confirmed]'` fallback
+     * unchanged: that placeholder reflects genuinely unknown project data,
+     * not the RULE-07 settled position GATE-11 targets.
+     */
     private static function addCdmDutyHolders(array $data): array
     {
         $project = (array) ($data['project'] ?? []);
 
         $data['cdm_duty_holders'] = [
             'client'               => trim((string) ($project['client'] ?? '')) ?: '[Client Name]',
-            'principal_designer'   => '[To be confirmed]',
-            'principal_contractor' => '[To be confirmed]',
+            'principal_designer'   => self::DEFAULT_PRINCIPAL_DESIGNER_NOTE,
+            'principal_contractor' => self::DEFAULT_PRINCIPAL_CONTRACTOR_NOTE,
             'contractor'           => '21st Century AV Ltd',
             'subcontractor'        => '21st Century AV Ltd',
             'project_manager'      => trim((string) ($project['project_manager'] ?? '')) ?: '[To be confirmed]',
             'site_supervisor'      => trim((string) ($project['lead_engineer'] ?? '')) ?: '[To be confirmed]',
             'cdm_regulation'       => 'Construction (Design and Management) Regulations 2015',
-            'notification'         => 'F10 notification submitted by Principal Contractor where applicable',
+            // Verbatim from standards-and-legislation.md:23-28 — the
+            // anticipated-sole-contractor sentence. NEVER an unequivocal
+            // assertion that 21CAV IS the sole contractor.
+            'contractor_note'      => '21CAV is currently anticipated to be the sole contractor for the AV '
+                . 'installation scope. The client shall confirm whether the overall project involves, or is '
+                . 'likely to involve, more than one contractor before works commence.',
+            // Never asserts the Principal Contractor must notify HSE — the
+            // F10 duty is the Client's (may be submitted on the Client's
+            // behalf); notifiability is judged on the whole project, not
+            // 21CAV's single-visit scope.
+            'notification'         => 'Most single-visit AV installation works fall below the CDM 2015 '
+                . 'notifiable-project threshold. Where the wider project is notifiable, F10 notification is the '
+                . "Client's duty (it may be submitted on the Client's behalf) — notifiability is judged on the "
+                . "whole project, not 21CAV's scope alone.",
         ];
+
+        return $data;
+    }
+
+    /**
+     * GATE-11 (RULE-07) — independent re-check that the bare
+     * `'[To be confirmed]'` placeholder never survives
+     * {@see self::addCdmDutyHolders()}. Deliberately scoped to
+     * `principal_designer`/`principal_contractor` only —
+     * `project_manager`/`site_supervisor` legitimately carry a
+     * data-dependent placeholder and are out of GATE-11's scope (RESEARCH.md
+     * Integration Points). Mirrors GATE-06/GATE-07's throw-on-first-
+     * violation shape exactly.
+     */
+    private static function enforceCdmGate(array $data): array
+    {
+        $cdm = (array) ($data['cdm_duty_holders'] ?? []);
+
+        foreach (['principal_designer', 'principal_contractor'] as $field) {
+            if (($cdm[$field] ?? null) === '[To be confirmed]') {
+                throw new RamsGenerationException(sprintf(
+                    'CDM duty-holder field "%s" is still the raw "[To be confirmed]" placeholder '
+                    . '(GATE-11/RULE-07). This should never happen — addCdmDutyHolders() no longer emits this '
+                    . 'value. Investigate before regenerating, or set RAMS_CDM_AE_GATE=false to disable this '
+                    . 'check.',
+                    $field,
+                ));
+            }
+        }
+
+        return $data;
+    }
+
+    /**
+     * GATE-12 (RULE-08/D-08) — independent re-check of the resolved site
+     * A&E value via {@see SiteEmergencyResolver::classify()}, the single
+     * source of truth for this decision (never re-derived here). Throws on
+     * a named-but-implausible A&E; the D-05 hold-point line always passes
+     * clean (conservative-by-construction, inherited Phase 28 D-01).
+     */
+    private static function enforceEmergencyGate(array $data): array
+    {
+        $siteEmergency = (array) ($data['site_emergency'] ?? []);
+        $reason = SiteEmergencyResolver::classify($siteEmergency);
+
+        if ($reason !== null) {
+            throw new RamsGenerationException(sprintf(
+                'Site emergency A&E arrangement failed plausibility classification: "%s" (GATE-12/RULE-08). '
+                . 'Correct the nearest-hospital name/address before regenerating, or set '
+                . 'RAMS_CDM_AE_GATE=false to disable this check.',
+                $reason,
+            ));
+        }
+
+        return $data;
+    }
+
+    /**
+     * Resolves `site_emergency` into the D-05 two-branch value via
+     * {@see SiteEmergencyResolver::resolve()} and writes it to
+     * `site_emergency_resolved` (`verified`/`text` keys) — the value all
+     * five legacy render sites (Plan 29-04) read. Runs unconditionally,
+     * regardless of the GATE-11/GATE-12 flag, so the resolved value is
+     * always available.
+     */
+    private static function resolveSiteEmergency(array $data): array
+    {
+        $siteEmergency = (array) ($data['site_emergency'] ?? []);
+        $data['site_emergency_resolved'] = SiteEmergencyResolver::resolve($siteEmergency);
 
         return $data;
     }

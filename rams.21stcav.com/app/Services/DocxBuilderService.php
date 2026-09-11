@@ -1703,8 +1703,8 @@ class DocxBuilderService
 
         $rows = [
             ['Client',               $cdm['client']               ?? '[Client Name]'],
-            ['Principal Designer',   $cdm['principal_designer']   ?? '[To be confirmed]'],
-            ['Principal Contractor', $cdm['principal_contractor'] ?? '[To be confirmed]'],
+            ['Principal Designer',   $cdm['principal_designer']   ?? \App\Services\Rams\RamsComplianceUpgradeService::DEFAULT_PRINCIPAL_DESIGNER_NOTE],
+            ['Principal Contractor', $cdm['principal_contractor'] ?? \App\Services\Rams\RamsComplianceUpgradeService::DEFAULT_PRINCIPAL_CONTRACTOR_NOTE],
             ['Contractor',           $cdm['contractor']           ?? '21st Century AV Ltd'],
             ['Subcontractor',        $cdm['subcontractor']        ?? '21st Century AV Ltd'],
             ['Project Manager',      $cdm['project_manager']      ?? '[To be confirmed]'],
