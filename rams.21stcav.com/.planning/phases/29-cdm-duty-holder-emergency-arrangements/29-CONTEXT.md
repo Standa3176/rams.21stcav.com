@@ -31,8 +31,8 @@ left to the planner as constrained discretion (see Claude's Discretion) because
 
 ### A&E arrangements — what the document says
 
-- **D-05: When no verified 24/7 A&E is recorded, the document prints the house-rule
-  hold-point line — it never guesses a hospital name.**
+- **D-05:** When no verified 24/7 A&E is recorded, the document prints the house-rule
+  hold-point line — it never guesses a hospital name.
 
   `house-rules.md` §"Emergency arrangements" is explicit and **contradicts ROADMAP
   criterion 2 as written**:
@@ -54,7 +54,7 @@ left to the planner as constrained discretion (see Claude's Discretion) because
   **Planner action:** restate ROADMAP Phase 29 criterion 2 to match D-06 before planning
   against it. Do not plan to the criterion as currently written.
 
-- **D-06: RULE-08 is restated to a two-branch requirement.** New wording:
+- **D-06:** RULE-08 is restated to a two-branch requirement. New wording:
 
   > *Where a 24/7 Emergency Department is verified for the site, it is named with full
   > address and postcode, and route/travel time are confirmed at induction. Where it is
@@ -65,8 +65,8 @@ left to the planner as constrained discretion (see Claude's Discretion) because
   `.planning/REQUIREMENTS.md:88` with a **RESTATED 2026-09-11** note in the same style as
   RULE-07's restatement at `:87`.
 
-- **D-07: Section 7.0 is the single source of A&E truth. The Welfare First Aid bullet
-  defers to it.**
+- **D-07:** Section 7.0 is the single source of A&E truth. The Welfare First Aid bullet
+  defers to it.
 
   A&E is currently stated in two disconnected places that can already contradict each
   other today: the Welfare First Aid bullet (hardcoded prose) and the section 7.0
@@ -79,7 +79,7 @@ left to the planner as constrained discretion (see Claude's Discretion) because
   sync. **The `'TBC'` fallback at `rams.blade.php:1976` is removed** — `'TBC'` is not one
   of the two permitted branches.
 
-- **D-08: GATE-12 is a plausibility check. No UK A&E dataset is introduced.**
+- **D-08:** GATE-12 is a plausibility check. No UK A&E dataset is introduced.
 
   This closes the scoping call ROADMAP criterion 3 explicitly required be made in
   planning. GATE-12 errors when:
@@ -104,8 +104,11 @@ left to the planner as constrained discretion (see Claude's Discretion) because
 
 ### Fix site & live production rows
 
-- **D-01: The A&E line becomes data-driven, and ALL THREE legacy sites plus the composer
-  layer are fixed.**
+- **D-01:** The A&E line becomes data-driven, and ALL legacy render sites plus the composer
+  layer are fixed. **Count corrected 2026-09-11: 29-RESEARCH.md found FIVE render sites, not the
+  three tabulated below** — it identified a second independent `'TBC'` fallback at
+  `rams-v2.blade.php:2066`. Treat 29-RESEARCH.md’s site map as authoritative over the table here;
+  the decision (fix every site plus the composer layer) is unchanged.
 
   The A&E sentence is a hardcoded literal in three separate templates, entirely
   disconnected from the `site_emergency.nearest_hospital` data that section 7.0 already
@@ -131,8 +134,8 @@ left to the planner as constrained discretion (see Claude's Discretion) because
   plus `expected-docx-v1.xml.norm` / `expected-docx-v2.xml.norm`.
   `resources/views.backup-260430/` is a backup tree — **do not edit**.
 
-- **D-02: Live production rows get a measure-first checkpoint + an idempotent backfill
-  migration — the Phase 28-07 shape.**
+- **D-02:** Live production rows get a measure-first checkpoint + an idempotent backfill
+  migration — the Phase 28-07 shape.
 
   A code-only fix does **not** reach existing documents. There are two CDM sources and the
   persisted one wins: engineer-editable `reviewed_data['cdm']` (`cdmRows`) and the
@@ -151,8 +154,8 @@ left to the planner as constrained discretion (see Claude's Discretion) because
   reaches every existing document on its next render. The asymmetry is deliberate; do not
   write a backfill for it.
 
-- **D-03: GATE-11/GATE-12 ship DISARMED. The flag is flipped in `.env` after the backfill
-  and a live regeneration verify clean.**
+- **D-03:** GATE-11/GATE-12 ship DISARMED. The flag is flipped in `.env` after the backfill
+  and a live regeneration verify clean.
 
   New dedicated flag (e.g. `RAMS_CDM_AE_GATE`) defaults **false** in `config/rams_tier1.php`.
   Deploy code → run backfill → verify a live regeneration → flip true as a separate
@@ -167,7 +170,7 @@ left to the planner as constrained discretion (see Claude's Discretion) because
   reuse or share `RAMS_DISPLAY_LIFT_GATE` (GATE-09) or `RAMS_PPE_CEILING_ELECTRICAL_GATE`
   (GATE-06/07), so one gate's rollback can never accidentally disarm another's.
 
-- **D-04: The CDM carry-forward copies only non-placeholder values.**
+- **D-04:** The CDM carry-forward copies only non-placeholder values.
 
   `RamsDisplayPatchService.php:417-430` auto-carries `cdm` and `site_emergency` forward
   from a prior completed RAMS on the same project — so one document's `[To be confirmed]`
