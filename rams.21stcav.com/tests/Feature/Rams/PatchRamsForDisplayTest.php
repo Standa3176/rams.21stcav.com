@@ -293,4 +293,144 @@ class PatchRamsForDisplayTest extends TestCase
         $this->assertSame([['item' => 'Custom decommission']],   $rd['decommissioning']);
         $this->assertSame([['system' => 'Custom system']],       $rd['commissioning_criteria']);
     }
+
+    // ── Phase 29 Plan 05 (D-04) — carry-forward placeholder guard ──────────
+
+    private function completedPriorRams(int $ownerId, int $projectId, array $reviewedData): RamsDocument
+    {
+        return RamsDocument::create([
+            'user_id'        => $ownerId,
+            'project_id'     => $projectId,
+            'project_name'   => 'prior', 'client_name' => 'prior', 'site_address' => 'prior', 'project_ref' => 'prior',
+            'ai_provider'    => 'claude', 'ai_model' => 'claude-sonnet',
+            'filename'       => 'prior.docx',
+            'status'         => RamsDocument::STATUS_COMPLETED,
+            'generated_data' => ['project' => []],
+            'reviewed_data'  => $reviewedData,
+            'form_data'      => [],
+            'updated_at'     => now()->subHour(),
+        ]);
+    }
+
+    private function newAwaitingRams(int $ownerId, int $projectId): RamsDocument
+    {
+        return RamsDocument::create([
+            'user_id'        => $ownerId,
+            'project_id'     => $projectId,
+            'project_name'   => 'new', 'client_name' => 'new', 'site_address' => 'new', 'project_ref' => 'new',
+            'ai_provider'    => 'claude', 'ai_model' => 'claude-sonnet',
+            'filename'       => 'new.docx',
+            'status'         => RamsDocument::STATUS_AWAITING_REVIEW,
+            'generated_data' => ['project' => []],
+            'reviewed_data'  => [],
+            'form_data'      => [],
+        ]);
+    }
+
+    public function test_carry_forward_drops_a_placeholder_pd_pc_cdm_row(): void
+    {
+        $owner   = User::factory()->create();
+        $project = $this->baseProject($owner);
+
+        $this->completedPriorRams($owner->id, $project->id, [
+            'cdm' => [
+                ['role' => 'Client', 'organisation' => 'Acme Ltd', 'name' => '', 'contact' => ''],
+                ['role' => 'Principal Contractor', 'organisation' => '', 'name' => 'Not formally appointed — [To be confirmed]', 'contact' => ''],
+            ],
+        ]);
+
+        $rams = $this->newAwaitingRams($owner->id, $project->id);
+
+        $this->invokePatch($rams);
+
+        $rd = $rams->reviewed_data;
+        $roles = array_column($rd['cdm'] ?? [], 'role');
+        $this->assertContains('Client', $roles);
+        $this->assertNotContains('Principal Contractor', $roles);
+    }
+
+    public function test_carry_forward_propagates_a_real_pd_pc_cdm_row(): void
+    {
+        $owner   = User::factory()->create();
+        $project = $this->baseProject($owner);
+
+        $this->completedPriorRams($owner->id, $project->id, [
+            'cdm' => [
+                ['role' => 'Principal Contractor', 'organisation' => 'ABC Construction Ltd', 'name' => 'Jane Smith, ABC Construction Ltd', 'contact' => '07700 900000'],
+            ],
+        ]);
+
+        $rams = $this->newAwaitingRams($owner->id, $project->id);
+
+        $this->invokePatch($rams);
+
+        $rd = $rams->reviewed_data;
+        $rows = collect($rd['cdm'] ?? [])->keyBy('role');
+        $this->assertSame('Jane Smith, ABC Construction Ltd', $rows['Principal Contractor']['name']);
+    }
+
+    public function test_carry_forward_skips_site_emergency_when_nearest_hospital_is_blank(): void
+    {
+        $owner   = User::factory()->create();
+        $project = $this->baseProject($owner);
+
+        $this->completedPriorRams($owner->id, $project->id, [
+            'site_emergency' => [
+                'nearest_hospital' => '',
+                'fire_wardens'     => 'Bob, Carol',
+            ],
+        ]);
+
+        $rams = $this->newAwaitingRams($owner->id, $project->id);
+
+        $this->invokePatch($rams);
+
+        $rd = $rams->reviewed_data;
+        $this->assertTrue(empty($rd['site_emergency']));
+    }
+
+    public function test_carry_forward_skips_site_emergency_when_nearest_hospital_is_hold_point(): void
+    {
+        $owner   = User::factory()->create();
+        $project = $this->baseProject($owner);
+
+        $this->completedPriorRams($owner->id, $project->id, [
+            'site_emergency' => [
+                'nearest_hospital' => 'Nearest A&E — to be confirmed at induction (must be a 24/7 Emergency Department)',
+                'fire_wardens'      => 'Bob, Carol',
+            ],
+        ]);
+
+        $rams = $this->newAwaitingRams($owner->id, $project->id);
+
+        $this->invokePatch($rams);
+
+        $rd = $rams->reviewed_data;
+        $this->assertTrue(empty($rd['site_emergency']));
+    }
+
+    public function test_carry_forward_propagates_full_site_emergency_when_nearest_hospital_is_verified(): void
+    {
+        $owner   = User::factory()->create();
+        $project = $this->baseProject($owner);
+
+        $this->completedPriorRams($owner->id, $project->id, [
+            'site_emergency' => [
+                'nearest_hospital' => 'St George\'s Hospital',
+                'hospital_address' => 'Blackshaw Road, London SW17 0QT',
+                'fire_wardens'      => 'Bob, Carol',
+                'defibrillator'     => 'Main reception',
+            ],
+        ]);
+
+        $rams = $this->newAwaitingRams($owner->id, $project->id);
+
+        $this->invokePatch($rams);
+
+        $rd = $rams->reviewed_data;
+        $this->assertSame('St George\'s Hospital', $rd['site_emergency']['nearest_hospital']);
+        $this->assertSame('Blackshaw Road, London SW17 0QT', $rd['site_emergency']['hospital_address']);
+        $this->assertSame('Bob, Carol', $rd['site_emergency']['fire_wardens']);
+        $this->assertSame('Main reception', $rd['site_emergency']['defibrillator']);
+    }
 }

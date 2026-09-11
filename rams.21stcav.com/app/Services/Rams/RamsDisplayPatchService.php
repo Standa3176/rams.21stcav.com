@@ -423,15 +423,88 @@ class RamsDisplayPatchService
                 ->first();
             if ($prior) {
                 $priorRd = $prior->reviewed_data ?? [];
-                if (empty($rd['site_emergency']) && ! empty($priorRd['site_emergency'])) {
+
+                // Phase 29 Plan 05 (D-04): a blank/hold-point A&E must not
+                // propagate — skip the WHOLE site_emergency block (fire
+                // wardens, defibrillator, etc. carry their own genuinely
+                // useful values, but only alongside a verified A&E; the
+                // render pipeline's fixed default fills the gap instead).
+                if (
+                    empty($rd['site_emergency'])
+                    && ! empty($priorRd['site_emergency'])
+                    && ! self::isPlaceholderNearestHospital($priorRd['site_emergency'])
+                ) {
                     $rd['site_emergency'] = $priorRd['site_emergency'];
                 }
+
+                // Phase 29 Plan 05 (D-04): drop any Principal Designer/
+                // Principal Contractor row still carrying the RULE-07
+                // placeholder before carrying `cdm` forward, so a fixed
+                // default (RamsComplianceUpgradeService::addCdmDutyHolders())
+                // can fill in instead of an older document's placeholder
+                // reseeding itself indefinitely.
                 if (empty($rd['cdm']) && ! empty($priorRd['cdm'])) {
-                    $rd['cdm'] = $priorRd['cdm'];
+                    $rd['cdm'] = self::carryForwardEligibleCdmRows((array) $priorRd['cdm']);
                 }
             }
         }
 
         $rams->reviewed_data = $rd; // transient
+    }
+
+    /**
+     * Phase 29 Plan 05 (D-04) — filters a prior document's `reviewed_data
+     * ['cdm']` list before carry-forward, dropping any Principal Designer/
+     * Principal Contractor row whose `name` still contains the RULE-07
+     * placeholder substring `'To be confirmed'` (case-sensitive, matching
+     * the exact string `addCdmDutyHolders()` and the Plan 29-05 backfill
+     * migration both use). Rows for any other role, or PD/PC rows with a
+     * real typed value, still carry forward as before.
+     *
+     * @param  array<int, array<string, mixed>>  $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private static function carryForwardEligibleCdmRows(array $rows): array
+    {
+        return array_values(array_filter($rows, function ($row) {
+            if (! is_array($row)) {
+                return true;
+            }
+
+            $role = strtolower(trim((string) ($row['role'] ?? '')));
+            $name = (string) ($row['name'] ?? '');
+
+            if (! in_array($role, ['principal designer', 'principal contractor'], true)) {
+                return true;
+            }
+
+            return ! str_contains($name, 'To be confirmed');
+        }));
+    }
+
+    /**
+     * Phase 29 Plan 05 (D-04) — true when the prior document's
+     * `nearest_hospital` is blank or equals the D-05 hold-point line
+     * (verbatim copy of {@see SiteEmergencyResolver::HOLD_POINT} — that
+     * constant is private, and this codebase's convention, per
+     * `SiteEmergencyResolverTest.php`, is to copy the literal rather than
+     * widen the resolver's public surface for a single caller).
+     *
+     * Deliberately does NOT call {@see SiteEmergencyResolver::classify()}:
+     * classify() returns `null` (clean) for a blank name too, since a blank
+     * name is legitimate hold-point output — but "legitimate output" and
+     * "worth carrying forward to a new document" are different questions.
+     * This helper answers the carry-forward question only.
+     *
+     * @param  array<string, mixed>  $siteEmergency
+     */
+    private static function isPlaceholderNearestHospital(array $siteEmergency): bool
+    {
+        // Verbatim from SiteEmergencyResolver::HOLD_POINT.
+        $holdPoint = 'Nearest A&E — to be confirmed at induction (must be a 24/7 Emergency Department)';
+
+        $nearestHospital = trim((string) ($siteEmergency['nearest_hospital'] ?? ''));
+
+        return $nearestHospital === '' || $nearestHospital === $holdPoint;
     }
 }
