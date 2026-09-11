@@ -3,7 +3,7 @@ phase: 29
 slug: cdm-duty-holder-emergency-arrangements
 status: draft
 nyquist_compliant: false
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-09-11
 ---
 
@@ -47,8 +47,8 @@ created: 2026-09-11
 
 ## Wave 0 Requirements
 
-- [ ] Measure production row count carrying `[To be confirmed]` in `generated_data.cdm_duty_holders` (and `reviewed_data.cdm`) — read-only, per CONTEXT.md D-02 measure-first rule
-- [ ] Confirm the effective `RAMS_UNIFIED_COMPOSER` value in production via `config()`, not by reading `.env` — research could not verify it
+- [x] Measure production row count carrying `[To be confirmed]` in `generated_data.cdm_duty_holders` (and `reviewed_data.cdm`) — read-only, per CONTEXT.md D-02 measure-first rule — 54 total, 46 with placeholder (85%), see `29-MEASUREMENT.md`
+- [x] Confirm the effective `RAMS_UNIFIED_COMPOSER` value in production via `config()`, not by reading `.env` — research could not verify it — measured `false`, see `29-MEASUREMENT.md`
 - [x] Confirm full-suite runtime to set the feedback-latency budget above — 531.45s measured, see `29-MEASUREMENT.md`
 
 ---
