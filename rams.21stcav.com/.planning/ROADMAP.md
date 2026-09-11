@@ -188,7 +188,16 @@ Plans:
   3. GATE-11 errors when the CDM duty-holder table is left as "[To be confirmed]" on an occupied-premises job; GATE-12 errors when the named A&E does not resolve to a real, currently-open A&E — **scoping flag**: no UK A&E open/closed dataset exists in this codebase today, and site-level A&E storage is explicitly out of scope for v3.1 (see Out of Scope above), so phase planning must pick an approach (curated static list, plausibility check, or explicit narrower scope) rather than assume a live lookup exists
   4. Regenerating a live occupied-premises project shows a stated CDM position and a real named A&E with address, not either placeholder — verified against production data, not just a fixture
 
-**Plans**: TBD
+**Plans**: 6 plans across 4 waves
+
+Plans:
+- [ ] 29-01-PLAN.md — Measurement checkpoint (production CDM count, live composer state, suite runtime) + RULE-08/criterion-2 restatement (D-06)
+- [ ] 29-02-PLAN.md — SiteEmergencyResolver (RULE-08 branch + GATE-12 classifier) + disarmed gate config flag + EmergencyComposer/DTO wiring
+- [ ] 29-03-PLAN.md — RULE-07 CDM wording restatement + DOCX CDM fallback fix + GATE-11/GATE-12 wired into upgrade()
+- [ ] 29-04-PLAN.md — All 5 A&E/Welfare render sites fixed (both blades + DocxBuilderService) + regression test
+- [ ] 29-05-PLAN.md — Idempotent CDM placeholder backfill migration + carry-forward guard (D-04)
+- [ ] 29-06-PLAN.md — Dual-path gate proof + fixture regeneration + full-suite verification + live production checkpoint
+
 **UI hint**: yes (gate errors surface on the RAMS review screen; CDM/A&E fields may need review-form inputs)
 
 ### Phase 30: Structural Validation Gates
