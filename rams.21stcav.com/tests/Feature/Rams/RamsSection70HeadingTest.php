@@ -74,7 +74,16 @@ class RamsSection70HeadingTest extends TestCase
         ];
 
         $html = view('pdf.rams', [
-            'data' => $this->baseData(['site_emergency' => $siteEmerg]),
+            // Phase 29 (RULE-08/D-01/D-07): the Section 7.0 A&E row now reads
+            // $data['site_emergency_resolved']['text'], the value
+            // RamsComplianceUpgradeService::resolveSiteEmergency() normally
+            // writes during upgrade(). This test renders the blade directly
+            // (not through the full upgrade() pipeline), so replicate just
+            // that one step via the same shared resolver.
+            'data' => array_merge(
+                $this->baseData(['site_emergency' => $siteEmerg]),
+                ['site_emergency_resolved' => \App\Services\Rams\SiteEmergencyResolver::resolve($siteEmerg)],
+            ),
             'rams' => $this->ramsStub(),
         ])->render();
 

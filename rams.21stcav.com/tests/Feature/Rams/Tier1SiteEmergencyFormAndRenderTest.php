@@ -62,6 +62,18 @@ class Tier1SiteEmergencyFormAndRenderTest extends TestCase
 
     private function renderWith(array $data, array $reviewedData = []): string
     {
+        // Phase 29 (RULE-08/D-01/D-07): the Section 7.0 A&E row now reads
+        // $data['site_emergency_resolved']['text'] — the value
+        // RamsComplianceUpgradeService::resolveSiteEmergency() normally
+        // writes during upgrade(). This test renders the blade directly
+        // (not through the full upgrade() pipeline), so replicate just that
+        // one step here via the same shared resolver, matching real
+        // pipeline behaviour without pulling in the rest of upgrade()'s
+        // unrelated Tier-1 steps.
+        $data['site_emergency_resolved'] = \App\Services\Rams\SiteEmergencyResolver::resolve(
+            $data['site_emergency'] ?? []
+        );
+
         return view('pdf.rams', [
             'data' => $data,
             'rams' => $this->ramsStub($reviewedData),
