@@ -195,7 +195,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 29-01-PLAN.md — Measurement checkpoint (production CDM count, live composer state, suite runtime) + RULE-08/criterion-2 restatement (D-06)
+- [x] 29-01-PLAN.md — Measurement checkpoint (production CDM count, live composer state, suite runtime) + RULE-08/criterion-2 restatement (D-06)
 - [ ] 29-02-PLAN.md — SiteEmergencyResolver (RULE-08 branch + GATE-12 classifier) + disarmed gate config flag + EmergencyComposer/DTO wiring
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -625,7 +625,7 @@ Plans:
 | 26. Hazard Library Structural Inversion | v3.0 | 8/8 | Code complete — open: 26-06 Task 3 live deploy checkpoint, HAZ-02 live re-verification | - |
 | 27. Manual-Handling & Display-Lift House Rules | v3.0 | 4/5 | In Progress|  |
 | 28. PPE, Ceiling & Electrical Boundary House Rules | v3.0 | 8/8 | Complete   | 2026-09-07 |
-| 29. CDM Duty-Holder & Emergency Arrangements | v3.0 | 0/0 | Not started | - |
+| 29. CDM Duty-Holder & Emergency Arrangements | v3.0 | 1/6 | In Progress|  |
 | 30. Structural Validation Gates | v3.0 | 0/0 | Not started | - |
 | 31. Standards/COSHH Scoping & Padding Gates | v3.0 | 0/0 | Not started | - |
 | 999.1. v2.0 Engineering-Grade AV Drawings (incl. floor plans + DXF) | Backlog | 0/0 | Backlog | - |

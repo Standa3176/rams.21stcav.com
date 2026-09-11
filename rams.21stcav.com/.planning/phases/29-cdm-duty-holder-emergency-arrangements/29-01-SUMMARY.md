@@ -37,7 +37,9 @@ key-decisions:
 patterns-established:
   - "Measure-first production checkpoint via read-only tinker commands run by the human operator as stcav (never root), pasted back for the executor to record — not run by the agent itself"
 
-requirements-completed: [RULE-08]
+requirements-completed: []  # RULE-08's WORDING is restated (D-06); the requirement itself is NOT
+  # implemented by this plan and stays "Pending" in REQUIREMENTS.md — the resolver, GATE-12,
+  # and render-site fixes land in Plans 29-02/29-04. Do not mark RULE-08 complete until then.
 
 # Metrics
 duration: 22min
