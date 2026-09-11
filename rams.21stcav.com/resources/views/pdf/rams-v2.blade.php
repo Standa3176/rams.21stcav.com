@@ -2018,7 +2018,7 @@ p { margin: 3pt 0; }
     <li><strong>Toilets:</strong> Engineers will use welfare facilities provided or indicated by the site/client representative.{{ $welfareNotes ? '' : ' Location to be confirmed at site induction.' }}</li>
     <li><strong>Washing facilities:</strong> Adequate washing facilities with hot and cold water to be made available on site.</li>
     <li><strong>Rest area:</strong> Engineers will use designated rest areas as directed by the site manager. No eating or drinking in work areas.</li>
-    <li><strong>First Aid:</strong> At least one engineer on site will hold a current First Aid at Work or Emergency First Aid at Work certificate. First aid kit carried at all times. Nearest hospital A&amp;E to be identified at site induction.</li>
+    <li><strong>First Aid:</strong> At least one engineer on site will hold a current First Aid at Work or Emergency First Aid at Work certificate. First aid kit carried at all times. Nearest A&amp;E — see Section 7.0.</li>
     <li><strong>Drinking water:</strong> Engineers to carry their own supply; confirm availability of potable water with site contact.</li>
 </ul>
 @if($welfareNotes)
@@ -2063,7 +2063,7 @@ p { margin: 3pt 0; }
     <tr>
         <td class="e-lbl">Nearest A&amp;E Hospital</td>
         <td class="e-val" colspan="3">
-            {{ $emergencyDto->nearestHospital ?: 'TBC' }}
+            {{ $emergencyDto->nearestHospitalResolvedText }}
             @if($hospitalAddress !== '')
                 <br><span style="font-size:8pt; color:#555;">{{ $hospitalAddress }}</span>
             @endif
