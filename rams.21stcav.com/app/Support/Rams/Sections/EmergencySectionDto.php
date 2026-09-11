@@ -57,6 +57,14 @@ final readonly class EmergencySectionDto
         public array  $accidentProcedure     = [],
         public array  $fireProcedure         = [],
         public array  $riddorMatrix          = [],
+        // Phase 29 Plan 02 (RULE-08, D-05) — the resolved two-branch A&E
+        // value from App\Services\Rams\SiteEmergencyResolver::resolve(),
+        // populated by EmergencyComposer alongside the raw $nearestHospital
+        // above. `$nearestHospital` is NOT removed or renamed — it stays as
+        // the raw unresolved value for any caller that still reads it
+        // directly.
+        public bool   $nearestHospitalVerified     = false,
+        public string $nearestHospitalResolvedText = '',
     ) {}
 
     public static function fromArray(array $data): self
@@ -100,6 +108,8 @@ final readonly class EmergencySectionDto
             accidentProcedure:     $stringList($data['accident_procedure'] ?? []),
             fireProcedure:         $stringList($data['fire_procedure']     ?? []),
             riddorMatrix:          $matrix,
+            nearestHospitalVerified:     (bool) ($data['nearest_hospital_verified'] ?? false),
+            nearestHospitalResolvedText: (string) ($data['nearest_hospital_resolved_text'] ?? ''),
         );
     }
 

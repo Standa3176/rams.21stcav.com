@@ -99,6 +99,42 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | CDM duty-holder / emergency-arrangements gate kill-switch (Phase 29,
+    | GATE-11/GATE-12)
+    |--------------------------------------------------------------------------
+    |
+    | Gates ONLY RamsComplianceUpgradeService::enforceCdmGate() and
+    | ::enforceEmergencyGate() (added in Plan 29-03) — the independent
+    | throwing re-checks of the CDM duty-holder table (RULE-07) and the
+    | site_emergency A&E branch (RULE-08, via
+    | App\Services\Rams\SiteEmergencyResolver::classify()). When false,
+    | neither method is called — upgrade() proceeds byte-identical to
+    | pre-GATE-11/12 behaviour, no redeploy required.
+    |
+    | A NEW, INDEPENDENT flag per D-03 — deliberately never reuses
+    | RAMS_DISPLAY_LIFT_GATE (GATE-09) or RAMS_PPE_CEILING_ELECTRICAL_GATE
+    | (GATE-06/07), so one gate's rollback can never accidentally disarm
+    | another's.
+    |
+    | UNLIKE the two precedents above, this flag's default is FALSE — a
+    | deliberate divergence (29-CONTEXT.md D-03, 29-RESEARCH.md Pitfall 5):
+    | "Copy-pasting the `env('RAMS_..._GATE', true)` pattern from
+    | GATE-06/07/09 verbatim for GATE-11/12 would arm the gate by default on
+    | next deploy, before the CDM backfill has run — reproducing the exact
+    | 'content gate defaulting ON is a deploy-order trap' failure Phase 28's
+    | own retrospective explicitly warns against." GATE-06/07/09 could
+    | default `true` because the corpus was already measured clean at ship
+    | time; GATE-11/12's corpus (46/54 production rows still carrying the
+    | CDM placeholder, per 29-MEASUREMENT.md) has not been. Deploy order:
+    | ship code (this flag stays false) -> run the Plan 29-05 backfill ->
+    | verify a live regeneration -> flip `RAMS_CDM_AE_GATE=true` as a
+    | separate one-line `.env` change.
+    |
+    */
+    'cdm_ae_gate_enabled' => env('RAMS_CDM_AE_GATE', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Baseline COSHH inventory
     |--------------------------------------------------------------------------
     |

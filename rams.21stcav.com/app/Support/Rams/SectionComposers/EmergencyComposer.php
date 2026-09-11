@@ -3,6 +3,7 @@
 namespace App\Support\Rams\SectionComposers;
 
 use App\Models\RamsDocument;
+use App\Services\Rams\SiteEmergencyResolver;
 use App\Support\Rams\Sections\EmergencySectionDto;
 
 /**
@@ -18,6 +19,12 @@ use App\Support\Rams\Sections\EmergencySectionDto;
  * Reads from generated_data.site_emergency first as an override hatch
  * (matches rams.blade.php:1956), then reviewed_data.site_emergency, then
  * empty defaults.
+ *
+ * Phase 29 Plan 02 (RULE-08, D-05): also calls
+ * SiteEmergencyResolver::resolve() once to populate the DTO's
+ * nearestHospitalVerified/nearestHospitalResolvedText fields with the
+ * two-branch A&E value — so the composer path never re-derives the
+ * verified-vs-hold-point decision independently.
  */
 final class EmergencyComposer
 {
@@ -27,6 +34,7 @@ final class EmergencyComposer
         $gd = $record->generated_data ?? [];
 
         $siteEmerg = (array) ($gd['site_emergency'] ?? ($rd['site_emergency'] ?? []));
+        $resolved = SiteEmergencyResolver::resolve($siteEmerg);
 
         $stringList = static function (mixed $v): array {
             if ($v === null || $v === '') {
@@ -59,6 +67,8 @@ final class EmergencyComposer
             'accident_procedure'          => $stringList($rd['accident_procedure'] ?? []),
             'fire_procedure'              => $stringList($rd['fire_procedure']     ?? []),
             'riddor_matrix'               => (array) ($rd['riddor_matrix']         ?? []),
+            'nearest_hospital_verified'      => $resolved['verified'],
+            'nearest_hospital_resolved_text' => $resolved['text'],
         ]);
     }
 }
