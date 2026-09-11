@@ -2146,7 +2146,13 @@ class DocxBuilderService
             ['Toilets:',           'Engineers will use welfare facilities provided or indicated by the site/client representative.' . $toiletSuffix],
             ['Washing facilities:', 'Adequate washing facilities with hot and cold water to be made available on site.'],
             ['Rest area:',          'Engineers will use designated rest areas as directed by the site manager. No eating or drinking in work areas.'],
-            ['First Aid:',          'At least one engineer on site will hold a current First Aid at Work or Emergency First Aid at Work certificate. First aid kit carried at all times. Nearest hospital A&E to be identified at site induction.'],
+            // Phase 29 (RULE-08/D-01/D-07): the PDF blades point this sentence at
+            // "Section 7.0", a real rendered A&E table. The DOCX builder has no
+            // Section 7.0-equivalent A&E table anywhere in this file (confirmed by
+            // grep — nearest_hospital/site_emergency never appear outside this one
+            // bullet), so the DOCX pointer instead references the CDM 2015 Duty
+            // Holders section, the nearest section that DOES exist in this document.
+            ['First Aid:',          'At least one engineer on site will hold a current First Aid at Work or Emergency First Aid at Work certificate. First aid kit carried at all times. Nearest A&E — see CDM 2015 — Duty Holders section.'],
             ['Drinking water:',     'Engineers to carry their own supply; confirm availability of potable water with site contact.'],
         ];
         foreach ($items as [$head, $body]) {
