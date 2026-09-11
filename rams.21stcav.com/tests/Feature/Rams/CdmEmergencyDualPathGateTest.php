@@ -19,12 +19,13 @@ use Tests\TestCase;
  * `buildFromReview()`/`runFromReview()`), not just from the Plan 29-03
  * reflection-only unit tests in `CdmEmergencyGateTest`.
  *
- * ── Why this file's shape differs from the FFP2 precedent ─────────────────
+ * ── Why this file's shape differs from the Ffp2ConfinedSpaceDualPathGateTest
+ * precedent ─────────────────────────────────────────────────────────────────
  *
- * The FFP2 dual-path test can drive a genuine violation all the way through
- * `buildFromForm()`/`buildFromReview()` because the violating text
+ * That precedent's dual-path test can drive a genuine violation all the way
+ * through `buildFromForm()`/`buildFromReview()` because the violating text
  * (a hazard control line) is real user-shaped input that flows unmodified
- * through the pipeline into the FFP2 gate check. GATE-11/GATE-12 do not have
+ * through the pipeline into that gate's check. GATE-11/GATE-12 do not have
  * that property, for two DIFFERENT, independently-verified reasons — both
  * investigated empirically (not just by reading the source) before writing
  * this file:
