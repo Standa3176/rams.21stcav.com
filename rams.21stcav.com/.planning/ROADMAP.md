@@ -140,6 +140,7 @@ Plans:
 
 **Plans**: 8 plans, 5 waves (27-06, 27-07 added mid-execution in Wave 3; 27-08 added in Wave 5 after live verification)
 Plans:
+
 - [x] 27-01-PLAN.md — DisplayLiftPolicy (D-03 single shared source: bands, independent violatesPolicy() re-check, RULE-03 statement, seeder-facing summary) + unit tests. Wave 1.
 - [x] 27-02-PLAN.md — RULE-02 ladder replacement + RULE-12 branch-order fix in suggestHandlingMethod(); RULE-03 decommission-scope scan in deriveMaterialHandling(); HazardTemplateSeeder re-sourced from DisplayLiftPolicy. Wave 2 — depends on 27-01. **LANDED 2026-08-26** (RULE-12's weight-derivation clause deliberately deferred — see 27-02-SUMMARY.md).
 - [x] 27-03-PLAN.md — GATE-09: enforceDisplayLiftGate() wired into upgrade(), RAMS_DISPLAY_LIFT_GATE env flag, dual-path proof (runFromReview/runPipeline), structural guard against divergent bands. Wave 3 — depends on 27-02.
@@ -148,6 +149,7 @@ Plans:
 - [x] 27-07-PLAN.md — **Added mid-execution** (Wave 3, depends on 27-01/27-02/27-03/27-04/27-06) to close the last two GATE-09 bypass paths 27-06 found but did not fix: mirrors material_handling in RamsController::updateAndDownload() before upgrade(), and re-points the live PDF template at generated_data['material_handling'] (gated) with a reviewed_data fallback for pre-phase documents. **LANDED 2026-08-26** (see 27-07-SUMMARY.md).
 - [x] 27-05-PLAN.md — Live deploy + reseed + 21CQ30960 regeneration verification (ROADMAP success criterion 4) + rollback-flag smoke test. Wave 4 — depends on 27-02, 27-03, 27-04, 27-06, 27-07. **EXECUTED MANUALLY 2026-08-26** (human checkpoints, no SUMMARY by design): deployed as `stcav`, kill-switch rollback proven, 21CQ30960 regenerated (RAMS 100/102) — see 27-VERIFICATION.md.
 - [x] 27-08-PLAN.md — **Added Wave 5** after live verification found the hazard library never reached a RAMS regenerated from existing reviewed data (27-VERIFICATION.md Blocker 1). Three-tier control precedence in reviewedToRisk() gated on a new `controls_reviewed` marker mirroring `score_reviewed`, plus `ControlTextRuleViolations` and a backfill migration. **LANDED + VERIFIED LIVE 2026-08-26** — 60 documents / 438 hazard rows backfilled, `over 20 kg` now clean on RAMS 102 (see 27-08-SUMMARY.md).
+
 **UI hint**: yes (gate errors surface on the RAMS review screen)
 
 ### Phase 28: PPE, Ceiling & Electrical Boundary House Rules
@@ -191,11 +193,22 @@ Plans:
 **Plans**: 6 plans across 4 waves
 
 Plans:
+**Wave 1**
+
 - [ ] 29-01-PLAN.md — Measurement checkpoint (production CDM count, live composer state, suite runtime) + RULE-08/criterion-2 restatement (D-06)
 - [ ] 29-02-PLAN.md — SiteEmergencyResolver (RULE-08 branch + GATE-12 classifier) + disarmed gate config flag + EmergencyComposer/DTO wiring
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 29-03-PLAN.md — RULE-07 CDM wording restatement + DOCX CDM fallback fix + GATE-11/GATE-12 wired into upgrade()
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 29-04-PLAN.md — All 5 A&E/Welfare render sites fixed (both blades + DocxBuilderService) + regression test
 - [ ] 29-05-PLAN.md — Idempotent CDM placeholder backfill migration + carry-forward guard (D-04)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 29-06-PLAN.md — Dual-path gate proof + fixture regeneration + full-suite verification + live production checkpoint
 
 **UI hint**: yes (gate errors surface on the RAMS review screen; CDM/A&E fields may need review-form inputs)
