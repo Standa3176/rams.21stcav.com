@@ -4,7 +4,7 @@ milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
 status: executing
 stopped_at: Completed 29-03-PLAN.md
-last_updated: "2026-09-11T20:45:59.363Z"
+last_updated: "2026-09-11T21:07:37.984Z"
 last_activity: 2026-09-11
 progress:
   total_phases: 9
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-04-30)
 ## Current Position
 
 Phase: 29 (CDM Duty-Holder & Emergency Arrangements) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Milestone: v2.0 (Engineering-Grade AV Drawings) — IN PROGRESS. Phases 17, 18, 20, 21, 22, 22.1, 23 all COMPLETE on disk; Phase 24 IN PROGRESS (Plans 01-08 of the original 9 landed; UAT on that output found 2 gaps, spawning 3 gap-closure plans 24-10/11/12 — all 3 now landed, plus original Plan 24-09 still open); Phase 25 remains unplanned. (Phase 999.1 = deferred backlog.)
 Active work: Phase 24 (Stencil Curation UI + Quote-Import Auto-Stub) — gap-closure Plan 24-12 (corrected CONTEXT.md's D-11 and D-17 decision text to match the code fixed by 24-10/24-11, docs-only) shipped 2026-08-14. All 3 UAT gap-closure plans are now complete. Next up: original Plan 24-09 (bounded top-10 curation, human-checkpoint, `autonomous: no`, out of autonomous-executor scope by design) — the only remaining Phase 24 plan.
 Reconciliation: 2026-08-09 — STATE synced to disk truth. Earlier STATE claimed "PAUSED at Phase 23 sub-plan 1", but Phase 23 shipped 7/7 plans on 2026-05-15 (commit 23-07). ROADMAP checkboxes for Phases 22 + 23 corrected to [x] in the same pass.
@@ -352,6 +352,7 @@ Zero behavioural regressions across all 5 screens — every form field, every ro
 | Phase 29 P01 | 22min | 3 tasks | 4 files |
 | Phase 29 P02 | 45min | 2 tasks | 7 files |
 | Phase 29 P03 | 35min | 2 tasks | 4 files |
+| Phase 29 P04 | 55min | 3 tasks | 8 files |
 
 ## Accumulated Context
 

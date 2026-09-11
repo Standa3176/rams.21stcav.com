@@ -204,7 +204,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 29-04-PLAN.md — All 5 A&E/Welfare render sites fixed (both blades + DocxBuilderService) + regression test
+- [x] 29-04-PLAN.md — All 5 A&E/Welfare render sites fixed (both blades + DocxBuilderService) + regression test
 - [ ] 29-05-PLAN.md — Idempotent CDM placeholder backfill migration + carry-forward guard (D-04)
 
 **Wave 4** *(blocked on Wave 3 completion)*
@@ -625,7 +625,7 @@ Plans:
 | 26. Hazard Library Structural Inversion | v3.0 | 8/8 | Code complete — open: 26-06 Task 3 live deploy checkpoint, HAZ-02 live re-verification | - |
 | 27. Manual-Handling & Display-Lift House Rules | v3.0 | 4/5 | In Progress|  |
 | 28. PPE, Ceiling & Electrical Boundary House Rules | v3.0 | 8/8 | Complete   | 2026-09-07 |
-| 29. CDM Duty-Holder & Emergency Arrangements | v3.0 | 3/6 | In Progress|  |
+| 29. CDM Duty-Holder & Emergency Arrangements | v3.0 | 4/6 | In Progress|  |
 | 30. Structural Validation Gates | v3.0 | 0/0 | Not started | - |
 | 31. Standards/COSHH Scoping & Padding Gates | v3.0 | 0/0 | Not started | - |
 | 999.1. v2.0 Engineering-Grade AV Drawings (incl. floor plans + DXF) | Backlog | 0/0 | Backlog | - |
