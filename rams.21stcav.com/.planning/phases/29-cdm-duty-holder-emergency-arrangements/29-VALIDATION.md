@@ -21,7 +21,7 @@ created: 2026-09-11
 | **Config file** | `phpunit.xml` |
 | **Quick run command** | `php artisan test --filter=<TestName>` |
 | **Full suite command** | `php artisan test` |
-| **Estimated runtime** | TBD — planner to measure in Wave 0 |
+| **Estimated runtime** | **531.45s (~8m 51s) measured** — `php artisan test`, 2026-09-11, 2455 passed / 1 pre-existing unrelated failure (`QueueRecoverCommandTest`, see `29-MEASUREMENT.md`) |
 
 ---
 
@@ -30,7 +30,8 @@ created: 2026-09-11
 - **After every task commit:** Run `php artisan test --filter=<TestName>`
 - **After every plan wave:** Run `php artisan test`
 - **Before `/gsd:verify-work`:** Full suite must be green
-- **Max feedback latency:** TBD — planner to set from measured runtime
+- **Max feedback latency:** **~1063s (~18 minutes)** — 2x the measured 531.45s full-suite
+  runtime (worst case: one extra full run plus overhead), per 29-MEASUREMENT.md
 
 ---
 
@@ -48,7 +49,7 @@ created: 2026-09-11
 
 - [ ] Measure production row count carrying `[To be confirmed]` in `generated_data.cdm_duty_holders` (and `reviewed_data.cdm`) — read-only, per CONTEXT.md D-02 measure-first rule
 - [ ] Confirm the effective `RAMS_UNIFIED_COMPOSER` value in production via `config()`, not by reading `.env` — research could not verify it
-- [ ] Confirm full-suite runtime to set the feedback-latency budget above
+- [x] Confirm full-suite runtime to set the feedback-latency budget above — 531.45s measured, see `29-MEASUREMENT.md`
 
 ---
 
