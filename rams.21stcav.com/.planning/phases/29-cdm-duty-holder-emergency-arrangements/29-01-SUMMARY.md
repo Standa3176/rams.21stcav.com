@@ -102,3 +102,7 @@ None - no external service configuration required. The production measurement wa
 ---
 *Phase: 29-cdm-duty-holder-emergency-arrangements*
 *Completed: 2026-09-11*
+
+## Self-Check: PASSED
+
+All 5 claimed files found on disk; all 4 claimed commits (`e5d4b6d`, `f1e7d44`, `e35bec4`, `8882afa`) found in git log.
