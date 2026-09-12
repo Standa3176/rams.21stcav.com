@@ -2058,8 +2058,11 @@ p { margin: 3pt 0; }
     ], fn ($v) => trim((string) $v) !== ''));
 @endphp
 <div class="sec-subheading">7.0 Site-Specific Emergency Details</div>
-@if($hasSiteEmerg)
 <table class="emerg-table" style="margin-bottom: 10pt;">
+    {{-- 29-11 (D-05 gap closure): the A&E row is defined for the empty
+         site_emergency case by design and must always render — unlike the
+         six rows below, which have no defined empty-case value and stay
+         gated behind $hasSiteEmerg. --}}
     <tr>
         <td class="e-lbl">Nearest A&amp;E Hospital</td>
         <td class="e-val" colspan="3">
@@ -2069,6 +2072,7 @@ p { margin: 3pt 0; }
             @endif
         </td>
     </tr>
+    @if($hasSiteEmerg)
     <tr>
         <td class="e-lbl">Fire Assembly Point</td>
         <td class="e-val" colspan="3">{{ $emergencyDto->fireAssemblyPoint ?: 'TBC' }}</td>
@@ -2098,13 +2102,14 @@ p { margin: 3pt 0; }
         <td class="e-lbl">Fire Extinguisher Class Available</td>
         <td class="e-val" colspan="3">{{ $emergencyDto->fireExtinguisherClass ?: 'TBC — confirm at site induction' }}</td>
     </tr>
+    @endif
 </table>
-@else
-<div style="border: 2pt solid #c00; background: #ffecec; padding: 8pt; margin: 6pt 0 12pt 0; color: #900; font-weight: 700; text-align: center;">
-    TBC AT SITE INDUCTION — MUST BE COMPLETED BEFORE WORKS COMMENCE.<br>
-    <span style="font-weight: normal; font-size: 8.5pt;">Nearest hospital, fire assembly point, fire warden, first aider, and defibrillator location have not been captured in the review form.</span>
+@unless($hasSiteEmerg)
+<div style="border: 1pt solid #d9a441; background: #fdf6e3; padding: 8pt; margin: 6pt 0 12pt 0; color: #7a5a00; text-align: center;">
+    <span style="font-weight: 700;">Confirm at site induction:</span>
+    <span style="font-weight: normal; font-size: 8.5pt;"> fire assembly point, fire warden, first aider, defibrillator location, electrical isolation switch and fire extinguisher class have not been captured in the review form.</span>
 </div>
-@endif
+@endunless
 
 {{-- 7.1 Emergency Contact Numbers --}}
 <div class="sec-subheading">7.1 Emergency Contact Numbers</div>
