@@ -62,6 +62,30 @@ class SiteEmergencyResolverTest extends TestCase
         ]));
     }
 
+    public function test_classify_passes_hold_point_literal_with_blank_address(): void
+    {
+        // CR-01 repro (29-VERIFICATION.md gap 1): a PM copy-pastes the
+        // HOLD_POINT sentence itself back into nearest_hospital. classify()
+        // must recognise this as the sanctioned hold-point output, not fall
+        // through to the missing_address_or_postcode check.
+        $this->assertNull(SiteEmergencyResolver::classify([
+            'nearest_hospital' => self::HOLD_POINT,
+            'hospital_address' => '',
+        ]));
+    }
+
+    public function test_classify_passes_hold_point_literal_regardless_of_address(): void
+    {
+        // The HOLD_POINT literal is clean regardless of what (if anything)
+        // is in hospital_address — a PM could paste it into either field
+        // independently, and the class must never narrow the clean path
+        // based on unrelated fields.
+        $this->assertNull(SiteEmergencyResolver::classify([
+            'nearest_hospital' => self::HOLD_POINT,
+            'hospital_address' => 'some address',
+        ]));
+    }
+
     public function test_classify_flags_banned_string(): void
     {
         $this->assertSame('banned_string', SiteEmergencyResolver::classify([
