@@ -209,7 +209,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 29-06-PLAN.md — Dual-path gate proof + fixture regeneration + full-suite verification + live production checkpoint. **Tasks 1-2 LANDED 2026-09-11** (`4a5edf1`, `d3dc28a`) — dual-path GATE-11/GATE-12 reachability proof, `tilda-21cq29531` fixtures regenerated, full suite green (2515 passed, 1 pre-existing unrelated failure). **Task 3 PARTIALLY COMPLETE (2026-09-11):** deploy + Plan 29-05 backfill migration verified live on production (46/54 rows backfilled, matches 29-01 measurement exactly — see `29-MEASUREMENT.md`). **Visual PDF/DOCX document inspection is still OUTSTANDING** — success criterion 4 below is NOT yet met; see `29-06-SUMMARY.md`.
+- [x] 29-06-PLAN.md — Dual-path gate proof + fixture regeneration + full-suite verification + live production checkpoint. **Tasks 1-2 LANDED 2026-09-11** (`4a5edf1`, `d3dc28a`) — dual-path GATE-11/GATE-12 reachability proof, `tilda-21cq29531` fixtures regenerated, full suite green (2515 passed, 1 pre-existing unrelated failure). **Task 3 PARTIALLY COMPLETE (2026-09-11):** deploy + Plan 29-05 backfill migration verified live on production (46/54 rows backfilled, matches 29-01 measurement exactly — see `29-MEASUREMENT.md`). **Visual PDF/DOCX document inspection is still OUTSTANDING** — success criterion 4 below is NOT yet met; see `29-06-SUMMARY.md`.
 
 **UI hint**: yes (gate errors surface on the RAMS review screen; CDM/A&E fields may need review-form inputs)
 
@@ -625,7 +625,7 @@ Plans:
 | 26. Hazard Library Structural Inversion | v3.0 | 8/8 | Code complete — open: 26-06 Task 3 live deploy checkpoint, HAZ-02 live re-verification | - |
 | 27. Manual-Handling & Display-Lift House Rules | v3.0 | 4/5 | In Progress|  |
 | 28. PPE, Ceiling & Electrical Boundary House Rules | v3.0 | 8/8 | Complete   | 2026-09-07 |
-| 29. CDM Duty-Holder & Emergency Arrangements | v3.0 | 5/6 | In Progress|  |
+| 29. CDM Duty-Holder & Emergency Arrangements | v3.0 | 7/9 | In Progress|  |
 | 30. Structural Validation Gates | v3.0 | 0/0 | Not started | - |
 | 31. Standards/COSHH Scoping & Padding Gates | v3.0 | 0/0 | Not started | - |
 | 999.1. v2.0 Engineering-Grade AV Drawings (incl. floor plans + DXF) | Backlog | 0/0 | Backlog | - |
