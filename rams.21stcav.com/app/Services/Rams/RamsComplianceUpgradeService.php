@@ -1133,6 +1133,19 @@ class RamsComplianceUpgradeService
         . 'prepares and implements the Construction Phase Plan under CDM 2015 Regulation 15.';
 
     /**
+     * Phase 29 Plan 10 (RULE-07) — verbatim from
+     * `standards-and-legislation.md:23-28`, the anticipated-sole-contractor
+     * sentence. NEVER an unequivocal assertion that 21CAV IS the sole
+     * contractor. Shared between {@see self::addCdmDutyHolders()} and the
+     * render-site fallbacks added in Plan 29-11/29-12, plus the
+     * `2026_09_12_120000_backfill_cdm_contractor_note` migration, so all
+     * three read one literal instead of duplicating it.
+     */
+    public const DEFAULT_CONTRACTOR_NOTE = '21CAV is currently anticipated to be the sole contractor for the AV '
+        . 'installation scope. The client shall confirm whether the overall project involves, or is '
+        . 'likely to involve, more than one contractor before works commence.';
+
+    /**
      * Restates the CDM 2015 duty-holder table per RULE-07
      * (`standards-and-legislation.md:17-41`), applied UNCONDITIONALLY on
      * every job. RESEARCH.md Finding 6 / Assumption A2: no deterministic
@@ -1161,12 +1174,7 @@ class RamsComplianceUpgradeService
             'project_manager'      => trim((string) ($project['project_manager'] ?? '')) ?: '[To be confirmed]',
             'site_supervisor'      => trim((string) ($project['lead_engineer'] ?? '')) ?: '[To be confirmed]',
             'cdm_regulation'       => 'Construction (Design and Management) Regulations 2015',
-            // Verbatim from standards-and-legislation.md:23-28 — the
-            // anticipated-sole-contractor sentence. NEVER an unequivocal
-            // assertion that 21CAV IS the sole contractor.
-            'contractor_note'      => '21CAV is currently anticipated to be the sole contractor for the AV '
-                . 'installation scope. The client shall confirm whether the overall project involves, or is '
-                . 'likely to involve, more than one contractor before works commence.',
+            'contractor_note'      => self::DEFAULT_CONTRACTOR_NOTE,
             // Never asserts the Principal Contractor must notify HSE — the
             // F10 duty is the Client's (may be submitted on the Client's
             // behalf); notifiability is judged on the whole project, not
