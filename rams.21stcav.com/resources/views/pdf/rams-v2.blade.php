@@ -1912,6 +1912,7 @@ p { margin: 3pt 0; }
     @endforeach
     </tbody>
 </table>
+<p class="body-para">{{ $data['cdm_duty_holders']['contractor_note'] ?? \App\Services\Rams\RamsComplianceUpgradeService::DEFAULT_CONTRACTOR_NOTE }}</p>
 
 {{-- ════════════════════════════════════════════════════════════════════════
      COSHH ASSESSMENT

@@ -351,6 +351,67 @@ class SiteEmergencyRenderSitesRegressionTest extends TestCase
     }
 
     // ══════════════════════════════════════════════════════════════════════
+    // 29-11 gap closure (29-UAT.md Gap 2): a WHOLLY EMPTY site_emergency (no
+    // fields at all — not even the OTHER_SITE_EMERGENCY_FIELDS 8) must still
+    // show the D-05 hold-point line, never a blank table and never "TBC".
+    // Uses a brand-new empty array, deliberately NOT OTHER_SITE_EMERGENCY_FIELDS,
+    // because that fixture is exactly what let the wholly-empty case escape
+    // detection in the first place (29-UAT.md Gap 2 root cause).
+    // ══════════════════════════════════════════════════════════════════════
+
+    public function test_wholly_empty_site_emergency_v1_blade_shows_holdpoint_not_blank_no_tbc(): void
+    {
+        config(['rams.unified_composer' => false]);
+
+        ['v1' => $html, 'data' => $data] = $this->renderBothBladesWith([]);
+
+        $this->assertStringNotContainsString(self::BANNED_STRING, $html);
+        $this->assertFalse($data['site_emergency_resolved']['verified'] ?? true);
+
+        $cell = $this->extractNearestAeCell($html);
+        $this->assertNotSame('', $cell, 'A&E cell must never be blank for a wholly empty site_emergency.');
+        $this->assertStringNotContainsString('TBC', $cell, 'A&E cell must never fall back to the literal TBC value.');
+        $this->assertStringContainsString(
+            'to be confirmed at induction (must be a 24/7 Emergency Department)',
+            $cell,
+        );
+
+        // The whole rendered Section 7.0 output, not just the A&E cell, must
+        // never contain "TBC" — the reworded empty-state banner must not
+        // reintroduce it.
+        $sectionStart = strpos($html, '7.0 Site-Specific Emergency Details');
+        $sectionEnd = strpos($html, '7.1 Emergency Contact Numbers');
+        $this->assertNotFalse($sectionStart);
+        $this->assertNotFalse($sectionEnd);
+        $section = substr($html, $sectionStart, $sectionEnd - $sectionStart);
+        $this->assertStringNotContainsString('TBC', $section, 'No render of Section 7.0 may contain the literal substring "TBC".');
+    }
+
+    public function test_wholly_empty_site_emergency_v2_blade_shows_holdpoint_not_blank_no_tbc(): void
+    {
+        config(['rams.unified_composer' => true]);
+
+        ['v2' => $html] = $this->renderBothBladesWith([]);
+
+        $this->assertStringNotContainsString(self::BANNED_STRING, $html);
+
+        $cell = $this->extractNearestAeCell($html);
+        $this->assertNotSame('', $cell, 'A&E cell must never be blank for a wholly empty site_emergency.');
+        $this->assertStringNotContainsString('TBC', $cell, 'A&E cell must never fall back to the literal TBC value.');
+        $this->assertStringContainsString(
+            'to be confirmed at induction (must be a 24/7 Emergency Department)',
+            $cell,
+        );
+
+        $sectionStart = strpos($html, '7.0 Site-Specific Emergency Details');
+        $sectionEnd = strpos($html, '7.1 Emergency Contact Numbers');
+        $this->assertNotFalse($sectionStart);
+        $this->assertNotFalse($sectionEnd);
+        $section = substr($html, $sectionStart, $sectionEnd - $sectionStart);
+        $this->assertStringNotContainsString('TBC', $section, 'No render of Section 7.0 may contain the literal substring "TBC".');
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
     // DocxBuilderService — site #5. Composer-state-independent
     // (buildWelfareArrangements() is shared by both build() branches), so
     // one composer state is sufficient per 29-04-PLAN.md Task 3's action.
