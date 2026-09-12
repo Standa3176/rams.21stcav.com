@@ -16,7 +16,7 @@ use InvalidArgumentException;
  * Usage:
  *
  *   $theme = app(\App\Support\Rams\RamsTheme::class);
- *   $blue  = $theme->palette('brand_blue');       // '2E74B5' (bare hex)
+ *   $blue  = $theme->palette('brand_blue');       // '1B7A7A' (bare hex)
  *   $font  = $theme->font('body');                // 'Poppins'
  *   $body  = $theme->size('body');                // 10
  *   $mt    = $theme->spacing('section_break_twips'); // 240

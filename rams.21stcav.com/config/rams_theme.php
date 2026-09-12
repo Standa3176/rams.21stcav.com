@@ -28,7 +28,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | PhpWord expects colours as 6-digit uppercase hex without a '#' prefix
-    | (`'2E74B5'`). DomPDF/CSS expects them with a '#' prefix. The typed
+    | (e.g. `'1B7A7A'`). DomPDF/CSS expects them with a '#' prefix. The typed
     | accessor RamsTheme::palette($key) returns the bare hex — Blade sites
     | that need CSS syntax prepend '#' themselves so both renderers can
     | share one source of truth.
@@ -39,12 +39,12 @@ return [
     |
     */
     'palette' => [
-        'brand_blue'      => '2E74B5',   // H1/H2 headings + accents (was TEAL)
-        'brand_blue_dark' => '1F4D78',   // H3 sub-headings
-        'brand_blue_tint' => 'DEEBF7',   // Alt-row shading (very light blue)
-        'alt_row'         => 'DEEBF7',   // Explicit alias for zebra-row context
+        'brand_blue'      => '1B7A7A',   // 21CAV brand teal — H1/H2 headings + accents (corrected 2026-09-12, see 29-UAT.md gap 4)
+        'brand_blue_dark' => '1A1A2E',   // 21CAV brand navy — H3 sub-headings (collapsed to same navy as dark_text; no intermediate brand shade exists)
+        'brand_blue_tint' => 'F4FBFB',   // 21CAV brand pale-teal tint — Alt-row shading (corrected 2026-09-12, see 29-UAT.md gap 4)
+        'alt_row'         => 'F4FBFB',   // Explicit alias for zebra-row context
         'white'           => 'FFFFFF',
-        'dark_text'       => '333333',   // DocxBuilderService DARK_GREY
+        'dark_text'       => '1A1A2E',   // 21CAV brand navy — DocxBuilderService DARK_GREY (corrected 2026-09-12, see 29-UAT.md gap 4)
         'text_muted'      => '666666',   // DocxBuilderService MID_GREY
         'border'          => 'CCCCCC',   // Table border grey (tableStyle)
         'warning_amber'   => 'FFF3CD',   // Risk MED band

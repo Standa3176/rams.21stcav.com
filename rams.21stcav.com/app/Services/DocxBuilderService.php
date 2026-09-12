@@ -42,18 +42,17 @@ class DocxBuilderService
     ) {}
 
     // ─── Brand colours ────────────────────────────────────────────────────────
-    // 260725-rd1 — palette shift from teal → brand blue to match the hand-crafted
-    // "21CQ29531-05-OPS Tilda RAMs Rev1.1.docx" reference. The `TEAL` constant
-    // name is preserved to avoid a ~30-site mass rename (cosmetic follow-up);
-    // its VALUE is now brand blue `2E74B5`. New BRAND_BLUE_* constants are
-    // available for callers that want to be explicit about the palette shift.
-    private const TEAL             = '2E74B5';   // (was 007B8A — now brand blue; kept for compat)
-    private const BRAND_BLUE       = '2E74B5';   // H1/H2 headings + accents
-    private const BRAND_BLUE_DARK  = '1F4D78';   // H3 sub-headings
-    private const BRAND_BLUE_TINT  = 'DEEBF7';   // Alt-row shading (very light blue)
-    private const DARK_GREY        = '333333';
+    // 260725-rd1 shifted this palette from teal to Microsoft Word's stock
+    // "Blue, Accent 1" defaults to match a hand-crafted reference document.
+    // That shift was itself the defect: 29-UAT.md Gap 4
+    // (2026-09-12) found the DOCX rendering Word's stock blue theme instead
+    // of 21CAV's brand palette, which the PDF renderer already used
+    // correctly. Corrected here to match resources/views/pdf/rams.blade.php's
+    // actual brand values: #1B7A7A teal, #F4FBFB pale-teal tint, #1A1A2E navy.
+    private const TEAL             = '1B7A7A';   // 21CAV brand teal — corrected 2026-09-12, see 29-UAT.md gap 4
+    private const DARK_GREY        = '1A1A2E';   // 21CAV brand navy — corrected 2026-09-12, see 29-UAT.md gap 4
     private const MID_GREY         = '666666';
-    private const ROW_ALT          = 'DEEBF7';   // was F0FBFC (light teal) — 260725-rd1
+    private const ROW_ALT          = 'F4FBFB';   // 21CAV brand pale-teal tint — corrected 2026-09-12, see 29-UAT.md gap 4
     private const WHITE            = 'FFFFFF';
     private const RISK_GREEN       = 'D4EDDA';
     private const RISK_AMBER       = 'FFF3CD';

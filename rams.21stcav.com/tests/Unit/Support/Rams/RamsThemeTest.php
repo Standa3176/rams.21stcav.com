@@ -23,9 +23,9 @@ class RamsThemeTest extends TestCase
     public function test_palette_returns_hex_for_known_key(): void
     {
         $theme = app(RamsTheme::class);
-        $this->assertSame('2E74B5', $theme->palette('brand_blue'));
+        $this->assertSame('1B7A7A', $theme->palette('brand_blue'));
         $this->assertSame('FFFFFF', $theme->palette('white'));
-        $this->assertSame('DEEBF7', $theme->palette('alt_row'));
+        $this->assertSame('F4FBFB', $theme->palette('alt_row'));
     }
 
     public function test_palette_throws_on_unknown_key(): void
