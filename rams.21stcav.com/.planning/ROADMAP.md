@@ -211,6 +211,11 @@ Plans:
 
 - [x] 29-06-PLAN.md — Dual-path gate proof + fixture regeneration + full-suite verification + live production checkpoint. **Tasks 1-2 LANDED 2026-09-11** (`4a5edf1`, `d3dc28a`) — dual-path GATE-11/GATE-12 reachability proof, `tilda-21cq29531` fixtures regenerated, full suite green (2515 passed, 1 pre-existing unrelated failure). **Task 3 PARTIALLY COMPLETE (2026-09-11):** deploy + Plan 29-05 backfill migration verified live on production (46/54 rows backfilled, matches 29-01 measurement exactly — see `29-MEASUREMENT.md`). **Visual PDF/DOCX document inspection is still OUTSTANDING** — success criterion 4 below is NOT yet met; see `29-06-SUMMARY.md`.
 
+**Gap closure** *(spawned by 29-UAT.md live document verification — not part of the original 6-plan/4-wave plan above)*
+
+- [x] 29-09-PLAN.md — Gap-closure (WR-01): `rams.blade.php` Section 7.0 A&E cell falls back to `SiteEmergencyResolver::resolve()` when `site_emergency_resolved` is absent (the `RamsRegenerateSnapshotsCommand` upgrade()-bypass path), instead of rendering blank. Requirements: RULE-08.
+- [x] 29-10-PLAN.md — Gap-closure (Gap 3, data half): `RamsComplianceUpgradeService::DEFAULT_CONTRACTOR_NOTE` constant extracted from `addCdmDutyHolders()`'s inline RULE-07 sentence, for Plan 29-11/29-12 to reference; idempotent (not yet run) `array_key_exists()`-guarded backfill migration written for the 46 rows whose `generated_data.cdm_duty_holders` predates the `contractor_note` key. Requirements: RULE-07.
+
 **UI hint**: yes (gate errors surface on the RAMS review screen; CDM/A&E fields may need review-form inputs)
 
 ### Phase 30: Structural Validation Gates
