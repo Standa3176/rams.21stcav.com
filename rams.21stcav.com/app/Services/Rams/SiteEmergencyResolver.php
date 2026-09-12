@@ -101,11 +101,15 @@ final class SiteEmergencyResolver
         $rawName = (string) ($siteEmergency['nearest_hospital'] ?? '');
         $name = trim($rawName);
 
-        // No named A&E at all -> the hold-point branch. Always legitimate
-        // output, never flagged (D-08 conservative-by-construction) — this
-        // is checked BEFORE the keyword/address checks below, which only
-        // apply once a name has actually been given.
-        if ($name === '') {
+        // No named A&E at all -> the hold-point branch. Also covers a PM
+        // copy-pasting the HOLD_POINT sentence itself back into
+        // nearest_hospital (CR-01, 29-VERIFICATION.md gap 1) — that literal
+        // is the app's own sanctioned output, never a defect, regardless of
+        // hospital_address. Both cases are always legitimate output, never
+        // flagged (D-08 conservative-by-construction) — this is checked
+        // BEFORE the keyword/address checks below, which only apply once a
+        // genuinely different name has actually been given.
+        if ($name === '' || $name === self::HOLD_POINT) {
             return null;
         }
 
