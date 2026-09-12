@@ -157,6 +157,82 @@ class SiteEmergencyRenderSitesRegressionTest extends TestCase
         ];
     }
 
+    /**
+     * Build a real, persisted RamsDocument with `generated_data['site_emergency']`
+     * set to the given data state, run it through `RamsDisplayPatchService::patch()`
+     * ONLY (mirroring `RamsRegenerateSnapshotsCommand`'s render path, which never
+     * calls `RamsComplianceUpgradeService::upgrade()`), and render `pdf.rams`
+     * directly against the resulting `generated_data` — which will have NO
+     * `site_emergency_resolved` key at all, reproducing the real bypass this
+     * gap-closure plan exists to fix (29-VERIFICATION.md gap 3 / 29-REVIEW.md
+     * WR-01).
+     *
+     * @return array{v1: string, data: array}
+     */
+    private function renderV1WithoutUpgrade(array $siteEmergency): array
+    {
+        $owner = User::factory()->create();
+        $project = Project::factory()->for($owner, 'owner')->create();
+
+        $rams = RamsDocument::create([
+            'user_id'        => $owner->id,
+            'project_id'     => $project->id,
+            'project_ref'    => '21CQ00000-01-OPS',
+            'project_name'   => 'Site Emergency No-Upgrade Regression Test',
+            'client_name'    => 'Regression Test Ltd',
+            'site_address'   => '1 Regression Street, London',
+            'ai_provider'    => 'claude',
+            'ai_model'       => 'claude-sonnet-4-6',
+            'filename'       => 'rams-site-emergency-no-upgrade-regression.docx',
+            'status'         => RamsDocument::STATUS_COMPLETED,
+            'form_data'      => [],
+            'reviewed_data'  => [
+                'site_emergency' => $siteEmergency,
+            ],
+            'generated_data' => [
+                'project' => [
+                    'name'            => 'Site Emergency No-Upgrade Regression Test',
+                    'ref'             => '21CQ00000-01-OPS',
+                    'client'          => 'Regression Test Ltd',
+                    'site_address'    => '1 Regression Street, London',
+                    'doc_author'      => 'Sonny',
+                    'revision'        => 'Rev 1.0',
+                    'document_status' => 'For Issue',
+                    'working_hours'   => 'Monday–Friday, 09:00–17:30',
+                ],
+                'team'             => [
+                    ['role' => 'Project Manager', 'name' => 'Sonny'],
+                ],
+                'hazards'          => [],
+                'method_statement' => ['phases' => []],
+                'site_emergency'   => $siteEmergency,
+            ],
+        ]);
+        $rams->refresh();
+
+        // Mirrors RamsRegenerateSnapshotsCommand's actual render path: patch()
+        // only, deliberately WITHOUT RamsComplianceUpgradeService::upgrade() —
+        // so generated_data never gets a site_emergency_resolved key.
+        app(RamsDisplayPatchService::class)->patch($rams);
+        $rams->refresh();
+
+        $this->assertArrayNotHasKey(
+            'site_emergency_resolved',
+            $rams->generated_data ?? [],
+            'Test setup invariant broken: patch() must not populate site_emergency_resolved (that is upgrade()\'s job) — otherwise this test would not reproduce the real bypass.',
+        );
+
+        $htmlV1 = view('pdf.rams', [
+            'rams' => $rams,
+            'data' => $rams->generated_data ?? [],
+        ])->render();
+
+        return [
+            'v1'   => $htmlV1,
+            'data' => $rams->generated_data ?? [],
+        ];
+    }
+
     /** Extract the "Nearest A&E Hospital" table cell's raw inner text from a rendered blade. */
     private function extractNearestAeCell(string $html): string
     {
@@ -323,5 +399,45 @@ class SiteEmergencyRenderSitesRegressionTest extends TestCase
 
         $this->assertStringNotContainsString(self::BANNED_STRING, $xml);
         $this->assertStringContainsString('Nearest A&amp;E', $xml, 'DOCX Welfare bullet must carry the Section-pointer text.');
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 29-09 gap closure (29-VERIFICATION.md gap 3 / 29-REVIEW.md WR-01):
+    // pdf.rams rendered WITHOUT upgrade() — the real RamsRegenerateSnapshotsCommand
+    // bypass path — must never render a blank A&E cell.
+    // ══════════════════════════════════════════════════════════════════════
+
+    public function test_no_upgrade_hold_point_state_shows_holdpoint_not_blank(): void
+    {
+        ['v1' => $html] = $this->renderV1WithoutUpgrade(self::OTHER_SITE_EMERGENCY_FIELDS);
+
+        $this->assertStringNotContainsString(self::BANNED_STRING, $html);
+
+        $cell = $this->extractNearestAeCell($html);
+        $this->assertNotSame('', $cell, 'A&E cell must never be blank when site_emergency_resolved is absent.');
+        $this->assertStringNotContainsString('TBC', $cell, 'A&E cell must never fall back to the literal TBC value.');
+        $this->assertStringContainsString(
+            'to be confirmed at induction (must be a 24/7 Emergency Department)',
+            $cell,
+        );
+    }
+
+    public function test_no_upgrade_verified_state_shows_named_hospital_not_blank(): void
+    {
+        $siteEmergency = array_merge(self::OTHER_SITE_EMERGENCY_FIELDS, [
+            'nearest_hospital' => 'Queen Elizabeth Hospital',
+            'hospital_address' => '123 Mindelsohn Way, Birmingham, B15 2GW',
+        ]);
+
+        ['v1' => $html] = $this->renderV1WithoutUpgrade($siteEmergency);
+
+        $this->assertStringNotContainsString(self::BANNED_STRING, $html);
+
+        $cell = $this->extractNearestAeCell($html);
+        $this->assertNotSame('', $cell, 'A&E cell must never be blank when site_emergency_resolved is absent.');
+        $this->assertStringNotContainsString('TBC', $cell);
+        $this->assertStringNotContainsString('to be confirmed at induction', $cell, 'Verified branch must not show the hold-point line.');
+        $this->assertStringContainsString('Queen Elizabeth Hospital', $cell);
+        $this->assertStringContainsString('Route and travel time confirmed at induction.', $cell);
     }
 }

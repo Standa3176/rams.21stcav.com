@@ -1980,7 +1980,7 @@ p { margin: 3pt 0; }
     <tr>
         <td class="e-lbl">Nearest A&amp;E Hospital</td>
         <td class="e-val" colspan="3">
-            {{ $data['site_emergency_resolved']['text'] ?? '' }}
+            {{ $data['site_emergency_resolved']['text'] ?? \App\Services\Rams\SiteEmergencyResolver::resolve($siteEmerg)['text'] }}
             @if(! empty($siteEmerg['hospital_address'] ?? ''))
                 <br><span style="font-size:8pt; color:#555;">{{ $siteEmerg['hospital_address'] ?? '' }}</span>
             @endif
