@@ -69,7 +69,7 @@ and are listed for traceability, not rework.
 - [x] **GATE-08**: Access-equipment contradiction — something excluded in one section and required as a control in another. *(Shipped 260817-r5e — podium steps.)*
 - [x] **GATE-09**: Display lift that does not conform to RULE-02's bands → error. Specifically: **4 or more operatives at any size** → error; **2 operatives for a display above 90″** → error; **1 operative for a display 55″ or larger** → error. 1 operative below 55″ is **correct output, not a defect**. An unresolvable display size is **not** an error (it takes the 2-operative band silently — see 27-CONTEXT.md D-05). *(Amended 2026-08-25 alongside RULE-02; originally read "anything other than two-operative → error".)* *(Plan 27-06, 2026-08-26: coverage extended to engineer-typed `material_handling.large_items` rows — Plan 27-03's original gate could only ever check policy-derived items, which are conformant by construction and can never violate the bands. See 27-06-SUMMARY.md.)* *(Plan 27-07, 2026-08-26: closed the last two bypass paths — `RamsController::updateAndDownload()`'s Save Review route now mirrors `material_handling` before `upgrade()` so the gate can see it, and the live PDF template now reads the gated `generated_data['material_handling']` source (reviewed_data fallback for pre-phase documents only). GATE-09 now covers all three generation entry points plus the live PDF render. See 27-07-SUMMARY.md and deferred-items.md.)*
 - [ ] **GATE-10**: COSHH and standards padding — cross-check every COSHH substance and cited standard against the activity list. Named offenders: BS EN 60849, BS 8492, HSG 47, laser safety on a job with no laser, soldering flux with no soldering.
-- [ ] **GATE-11**: CDM duty-holder table left as "[To be confirmed]" on an occupied-premises job → error. There is a settled position.
+- [x] **GATE-11**: CDM duty-holder table left as "[To be confirmed]" on an occupied-premises job → error. There is a settled position.
 - [ ] **GATE-12**: Named A&E must be a real A&E. A subcontractor RAMS once named a hospital whose A&E closed in 2014.
 - [ ] **GATE-13**: Hot-works contradiction — a RAMS asserting "No hot works of any kind included in this scope" while also requiring a hot-works permit, or listing solder/flux in COSHH, is self-contradictory and must error. Same contradiction class as the shipped GATE-08. *(Found 2026-08-25 in 21CQ30960: RA18 says no hot works, §6.8 requires a hot-works permit for soldering, and COSHH carries Tin/Lead solder and rosin flux — three sections disagreeing.)*
 - [ ] **GATE-14**: Missing risk references — every method step must cite the hazards its own text implies. GATE-03 (shipped) checks that cited references *resolve*; nothing checks that a step is *missing* a reference it plainly needs. *(Found 2026-08-25 in 21CQ30960: Step 4 "Display & Mount Installation" cites RA11/12/13/21 but omits RA01 Working at Height and RA02 Manual Handling, on a step entirely about lifting displays onto wall mounts.)*
@@ -161,7 +161,7 @@ Deliberately excluded to keep the document-quality core shippable:
 | GATE-08 | — | Shipped (260817-r5e) |
 | GATE-09 | Phase 27 | Complete |
 | GATE-10 | Phase 31 | Pending |
-| GATE-11 | Phase 29 | Pending |
+| GATE-11 | Phase 29 | Complete |
 | GATE-12 | Phase 29 | Pending |
 | GATE-13 | Phase 30 | Pending (added 2026-08-25) |
 | GATE-14 | Phase 30 | Pending (added 2026-08-25) |
