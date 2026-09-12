@@ -2,175 +2,187 @@
 phase: 29-cdm-duty-holder-emergency-arrangements
 verified: 2026-09-12T00:00:00Z
 status: gaps_found
-score: 7/8 must-haves verified
+score: 7/8 must-haves verified (all 4 UAT gaps closed; ROADMAP criterion 4 still unmet)
 overrides_applied: 0
 re_verification:
   previous_status: gaps_found
-  previous_score: 4/8
+  previous_score: 7/8 (prior cycle) — this is the SECOND re-verification, following the UAT-driven gap-closure cycle (Plans 29-10..29-14)
   gaps_closed:
-    - "GATE-12's plausibility classifier never flags the D-05 hold-point line as a defect (CR-01)"
-    - "The backfill never overwrites a row where an engineer already typed a real duty-holder name in reviewed_data['cdm'] (CR-02)"
-    - "All five render sites read the SAME resolved value — rams.blade.php now self-sufficient (WR-01)"
+    - "UAT Gap 2 (WR-01 regression): DOCX carried no A&E info at all — closed by 29-12 (`ee31074`), new Section 7.0 block + Welfare bullet repointed"
+    - "UAT Gap 4: Section 7.0 A&E row never rendered when site_emergency wholly empty (hold-point line unreachable) — closed by 29-11 (`d50b4bc`), row moved outside $hasSiteEmerg guard on both PDF blades"
+    - "UAT Gap 5 (RULE-07): verbatim anticipated-sole-contractor sentence absent from rendered output — closed by 29-10 (`df4b31c`, constant) + 29-11 (`63d0f66`, PDF) + 29-12 (DOCX, folded into `ee31074`)"
+    - "UAT Gap 6: DOCX used Word-default blue (2E74B5/DEEBF7/333333) instead of brand palette — closed by 29-13 (`0469c88`), both DocxBuilderService.php and config/rams_theme.php"
   gaps_remaining:
-    - "A live occupied-premises project regeneration is manually verified against production data by visual PDF/DOCX inspection (ROADMAP criterion 4)"
+    - "ROADMAP criterion 4: a live occupied-premises project regeneration, verified against production data (not just a fixture), after THIS cycle's fixes are deployed — still not performed. This code has not even been deployed yet (local branch `feat/worksheet-classifier-universal` is 110 commits ahead of `origin/...`; `master` is untouched)."
+    - "The Plan 29-10 contractor_note backfill migration (`2026_09_12_120000_backfill_cdm_contractor_note`) has not been run against production."
+    - "The 29-UAT.md human_verification item (CDM table Client row — confirm client name shown, client not shown as Principal Designer) remains open; no plan in this cycle touched it."
   regressions: []
 gaps:
-  - truth: "A live occupied-premises project regeneration is manually verified against production data, not just fixtures (ROADMAP criterion 4)"
+  - truth: "A live occupied-premises project regeneration, reflecting THIS gap-closure cycle's fixes, is manually verified against production data (ROADMAP criterion 4)"
     status: failed
-    reason: "Deploy (429fdfd..38eb41d) and the Plan 29-05 backfill migration (46/54 rows, exactly matching the 29-01 measurement) both ran and were verified live on production 2026-09-11. The visual-inspection half — opening a regenerated live project's PDF and DOCX and confirming the CDM wording, Section 7.0 A&E row, and Welfare bullet pointer — has still NOT been performed. 29-06-SUMMARY.md and 29-MEASUREMENT.md both explicitly record this as outstanding, and none of Plans 29-07/29-08/29-09 (the gap-closure plans) touched this step — they fixed code defects (CR-01, CR-02, WR-01), not the live-verification task."
+    reason: "The four UAT-reported defects are genuinely fixed in the codebase (confirmed by direct code inspection and independent full-suite test execution: 349/349 RAMS tests pass, 6/6 snapshot tests pass). But none of this has been deployed — `git branch -vv` shows the working branch is 110 commits ahead of its remote with no push, and `master` (the deploy source per this project's own conventions) is untouched. The original 2026-09-12 UAT was run against a PRE-fix production deploy, which is exactly what produced these four gaps. No plan in 29-10 through 29-14 performed a deploy or a fresh live-document visual check. Criterion 4's own wording — 'verified against production data, not just a fixture' — cannot be satisfied by local test-suite and code-reading evidence alone, however thorough."
     artifacts: []
     missing:
-      - "Open a regenerated live occupied-premises project's PDF and DOCX on rams.21stcav.com and visually confirm: (1) CDM 2015 Duty Holders never shows '[To be confirmed]' for PD/PC, (2) Section 7.0 A&E row shows a verified name+address or the exact hold-point line, never 'TBC' or the banned string, (3) the Welfare First Aid bullet points to Section 7.0"
+      - "Deploy this branch's commits (df4b31c..9f2194a) to production"
+      - "Run `php artisan migrate --force` on the VPS for the 2026_09_12_120000_backfill_cdm_contractor_note migration"
+      - "Regenerate a live occupied-premises RAMS (ideally the same RAMS 103 / 21CQ30949-01-OPS used in the original UAT) and open both the PDF and DOCX to confirm: Section 7.0 A&E row present with either a verified name+address or the exact hold-point line (never blank, never 'TBC', never the banned passive string); DOCX carries the same A&E info and a Section 7.0 block; DOCX uses brand teal/navy, not Word-default blue; CDM table carries the verbatim RULE-07 sentence"
+      - "Resolve the still-open human_verification item: CDM table Client row shows the client's name and the client is not shown as Principal Designer"
 human_verification:
-  - test: "Open a regenerated live occupied-premises project's PDF and DOCX on rams.21stcav.com"
-    expected: "CDM 2015 Duty Holders table states the anticipated-sole-contractor position (never '[To be confirmed]' for Principal Designer/Principal Contractor); Section 7.0's Nearest A&E row shows either a verified name+address+postcode or the exact hold-point line (never 'TBC', never 'to be identified at site induction'); the Welfare First Aid bullet points to Section 7.0 rather than repeating A&E text"
-    why_human: "Requires opening a real rendered document on the live VPS and reading it — not verifiable by grep/test; this is ROADMAP Phase 29 success criterion 4's own explicit 'verified against production data, not just a fixture' requirement, and is recorded by the phase's own SUMMARY.md as not yet performed"
+  - test: "Open a regenerated, POST-deploy live occupied-premises project's PDF and DOCX on rams.21stcav.com"
+    expected: "Section 7.0 Nearest A&E row shows either a verified name+address+postcode or the exact hold-point line, in both PDF and DOCX, never 'TBC', never the banned passive string; DOCX Welfare First Aid bullet points to Section 7.0; DOCX uses 21CAV brand teal/navy, not Word-default blue; CDM 2015 Duty Holders section states the verbatim RULE-07 anticipated-sole-contractor sentence in both documents"
+    why_human: "Requires opening a rendered document on the live VPS after deploy and reading it — ROADMAP Phase 29 criterion 4's own explicit 'verified against production data, not just a fixture' wording. Nothing in this gap-closure cycle deployed the fix or re-ran this check; local test-suite passes are necessary but not sufficient evidence for this criterion."
+  - test: "CDM duty-holder table — Client row"
+    expected: "The Client row shows the client's name (e.g. Gardner Leader LLP); the client is NOT shown as Principal Designer and the Client row is not blank"
+    why_human: "Carried over unresolved from the original 29-UAT.md — `pdftotext -layout` scrambles the wrapped multi-line CDM cells so it cannot be settled programmatically. No plan in this gap-closure cycle (29-10..29-14) touched this item."
 ---
 
-# Phase 29: CDM Duty-Holder & Emergency Arrangements Verification Report (Re-Verification)
+# Phase 29: CDM Duty-Holder & Emergency Arrangements Verification Report (Second Re-Verification, post-UAT gap closure)
 
 **Phase Goal:** Replace the unconditional CDM duty-holder placeholder and the hardcoded "to be identified at site induction" A&E line with the settled positions, and ship GATE-11/GATE-12 so a RAMS can no longer go out the door with either placeholder.
 **Verified:** 2026-09-12
 **Status:** gaps_found
-**Re-verification:** Yes — after gap closure (Plans 29-07, 29-08, 29-09)
+**Re-verification:** Yes — second cycle, after 29-UAT.md (4 gaps + 1 human_verification item found on a live production document) and Plans 29-10 through 29-14 (gap closure)
 
 ## Goal Achievement
 
-### Gap Closure — Direct Code Verification
+### UAT Gap Closure — Direct Code Verification
 
-All three code-defect gaps from the prior VERIFICATION.md were re-checked directly against the live codebase, not against SUMMARY.md claims.
+All four UAT-reported code defects were re-checked directly against the live codebase, not against SUMMARY.md claims.
 
-**Gap 1 (CR-01, `SiteEmergencyResolver::classify()` false-positive on HOLD_POINT) — CLOSED, confirmed.**
-`app/Services/Rams/SiteEmergencyResolver.php:108` now reads `if ($name === '' || $name === self::HOLD_POINT) { return null; }`. Direct `tinker` invocation performed independently of the test suite:
+**UAT Gap 2 / prior VERIFICATION.md "Gap 1" (DOCX regression — no A&E info at all) — CLOSED, confirmed.**
+`app/Services/DocxBuilderService.php:1544` `buildEmergencyProcedures()` now takes a `RamsDocument $record` parameter and renders a real "7.0 Site-Specific Emergency Details" block (line 1568 onward) with a "Nearest A&E Hospital" row (`:1592`) reading the same `SiteEmergencyResolver`-resolved value the PDF uses. The Welfare First Aid bullet (`:2216`) now reads "...Nearest A&E — see Section 7.0." — a real target section now exists.
 
-```
-classify(['nearest_hospital' => HOLD_POINT literal, 'hospital_address' => ''])       → NULL
-classify(['nearest_hospital' => 'St Thomas Urgent Care', 'hospital_address' => '1 Road']) → 'urgent_care_keyword'
-classify(['nearest_hospital' => 'Real Hospital', 'hospital_address' => ''])           → 'missing_address_or_postcode'
-```
+**UAT Gap 4 / prior VERIFICATION.md "Gap 2" (hold-point line unreachable when site_emergency empty) — CLOSED, confirmed.**
+`resources/views/pdf/rams.blade.php:1985-1990`: the Nearest A&E Hospital `<tr>` is now OUTSIDE the `@if($hasSiteEmerg)` gate (which starts at `:1993`), and reads `$data['site_emergency_resolved']['text'] ?? SiteEmergencyResolver::resolve($siteEmerg)['text']` unconditionally. `resources/views/pdf/rams-v2.blade.php:2067-2073` mirrors this exactly (A&E row before the `@if($hasSiteEmerg)` at `:2076`). Read the empty-state banner too: it was reworded from a red "TBC AT SITE INDUCTION — MUST BE COMPLETED..." hard-stop to an amber informational note naming only the genuinely-unconfirmed fields (fire assembly point, fire warden, etc.) — the literal "TBC" no longer appears in Section 7.0's banner.
 
-The HOLD_POINT literal now passes clean, and — critically — no previously-flagged defect (urgent-care keyword, missing address) became a false negative as a side effect of widening the early-return. The fix is additive-only, as claimed.
+**UAT Gap 5 / prior VERIFICATION.md "Gap 3" (RULE-07 verbatim sentence absent) — CLOSED, confirmed.**
+`app/Services/Rams/RamsComplianceUpgradeService.php:1144-1146` — `public const DEFAULT_CONTRACTOR_NOTE` holds the sentence byte-for-byte matching `standards-and-legislation.md:23-28`: *"21CAV is currently anticipated to be the sole contractor for the AV installation scope. The client shall confirm whether the overall project involves, or is likely to involve, more than one contractor before works commence."* Both PDF blades render it (`rams.blade.php:1854`, `rams-v2.blade.php:1915`), with a `?? DEFAULT_CONTRACTOR_NOTE` fallback for older documents. DOCX renders it too (`DocxBuilderService.php:1783`, inside `buildCdmSection()`).
 
-**Gap 2 (CR-02, loose substring guard in migration) — CLOSED, confirmed.**
-`database/migrations/2026_09_11_180000_backfill_cdm_duty_holder_placeholder.php` no longer contains `str_contains($name`. The `reviewed_data['cdm']` branch (`:210-215`) now uses `in_array($name, self::NAME_EXACT_VARIANTS, true)` against an enumerated allowlist (`'To be confirmed'`, `'[To be confirmed]'`, `:94-99`) — a genuine PM-authored sentence merely containing the substring (e.g. "PD to be confirmed once client appoints one") no longer matches. The `generated_data['cdm_duty_holders']` branch (already exact-literal) is untouched.
-
-**Gap 3 (WR-01, `rams.blade.php` blank A&E fallback) — CLOSED, confirmed.**
-`resources/views/pdf/rams.blade.php:1983` now reads:
-```php
-{{ $data['site_emergency_resolved']['text'] ?? \App\Services\Rams\SiteEmergencyResolver::resolve($siteEmerg)['text'] }}
-```
-A missing `site_emergency_resolved` key now degrades to the resolver's hold-point/verified text instead of blank output. `grep -n "site_emergency\['nearest_hospital'\] ="` against the file returns zero matches, confirming the fallback is read-only and does not write back into `$siteEmerg`, `$data`, or the model — matching the plan's stated acceptance criterion.
-
-**Gap 4 (ROADMAP criterion 4, live visual PDF/DOCX inspection) — STILL NOT DONE.**
-None of Plans 29-07/29-08/29-09 touched this item; all three were scoped as targeted code-defect fixes. `29-06-SUMMARY.md` and `29-MEASUREMENT.md` both still record the visual-inspection step as outstanding, and no later plan or summary in this phase claims it was performed. This gap **remains open** and is not marked passed.
+**UAT Gap 6 / prior VERIFICATION.md "Gap 4" (DOCX used Word-default blue) — CLOSED, confirmed.**
+`app/Services/DocxBuilderService.php:52-55`: `TEAL = '1B7A7A'`, `DARK_GREY = '1A1A2E'`, `ROW_ALT = 'F4FBFB'` — brand teal/navy/pale-teal, not the prior `2E74B5`/`333333`/`DEEBF7` Word defaults. `config/rams_theme.php:42-47` carries the identical corrected palette, so the dormant unified-composer path (`DocxBuilderServiceV2`) inherits the fix too, not just the legacy renderer.
 
 ### Regression Check
 
-Full RAMS suite re-run directly (not taken from SUMMARY claims): `php artisan test tests/Unit/Support/Rams tests/Feature/Rams` → **328 passed, 1517 assertions, 63.87s**. Matches 29-09-SUMMARY.md's reported count exactly. No regressions found.
+Full RAMS suite re-run directly (not taken from SUMMARY claims):
+
+```
+php artisan test tests/Unit/Support/Rams tests/Feature/Rams
+Tests: 349 passed (1604 assertions), Duration: 76.69s
+```
+
+Snapshot group (`tilda-21cq29531` golden fixtures, regenerated by Plan 29-14 and reviewed line-by-line against a diff-first discipline per 29-14-SUMMARY.md):
+
+```
+php artisan test --group snapshot
+Tests: 6 passed (25 assertions) — DocxSnapshotTest (3), PdfSnapshotTest (3)
+```
+
+Both figures match the SUMMARY.md claims exactly and were reproduced independently in this verification, not trusted from the summary. No regressions found.
 
 ### Observable Truths
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | RULE-08 restated (two-branch, verified-or-hold-point wording) recorded in REQUIREMENTS.md with a RESTATED note | ✓ VERIFIED | `.planning/REQUIREMENTS.md:88` — unchanged from prior verification, re-confirmed present |
-| 2 | ROADMAP Phase 29 criterion 2 states the D-05 verified-or-hold-point position, no "by default" named-A&E claim | ✓ VERIFIED | `.planning/ROADMAP.md:189` — unchanged, re-confirmed present |
-| 3 | CDM duty-holder table replaces the unconditional `[To be confirmed]` for PD/PC with restated wording on every job | ✓ VERIFIED | `RamsComplianceUpgradeService::addCdmDutyHolders()` unchanged since prior verification; full suite green |
-| 4 | The banned passive string and the `'TBC'` A&E fallback are structurally gone from every real render site, and no render site independently re-derives the branch (D-01) | ✓ VERIFIED (caveat resolved) | Banned string/`'TBC'` confirmed gone (unchanged). The prior reachability caveat (rams.blade.php's blank-fallback bypass via `RamsRegenerateSnapshotsCommand`) is now closed by Gap 3's fix — the blade always resolves through `SiteEmergencyResolver`, directly or via the upstream key |
-| 5 | GATE-12's plausibility classifier never flags the D-05 hold-point line as a defect (D-08 conservative-by-construction) | ✓ VERIFIED | Direct `tinker` invocation confirms `classify()` on the HOLD_POINT literal returns `null`; regression tests added; no side-effect false negatives introduced |
-| 6 | The backfill never overwrites a row where an engineer already typed a real duty-holder name (D-02) | ✓ VERIFIED | `reviewed_data['cdm']` branch confirmed using exact-literal `in_array()` against an enumerated allowlist, not `str_contains()` |
-| 7 | All five render sites read the SAME resolved value — none re-derives the verified-vs-hold-point branch independently (D-01) | ✓ VERIFIED | `rams.blade.php` now falls back to `SiteEmergencyResolver::resolve()` directly rather than blank; `rams-v2.blade.php`/`DocxBuilderService` unchanged and already correct; fallback confirmed read-only (no write-back) |
-| 8 | Both gates disarmed by default; a live occupied-premises regeneration is manually verified against production data, not just a fixture (ROADMAP criterion 4) | ✗ FAILED (partially met) | Disarm confirmed: `config/rams_tier1.php:134` — `env('RAMS_CDM_AE_GATE', false)`. Deploy + backfill verified live 2026-09-11. Visual PDF/DOCX inspection — explicitly required by criterion 4's "not just a fixture" wording — still NOT performed |
+| 1 | DOCX renderer conveys nearest-A&E information via a real Section 7.0 block, mirroring the PDF | ✓ VERIFIED | `DocxBuilderService.php:1544-1600` (`buildEmergencyProcedures()`), regression test `DocxEmergencySectionRegressionTest` (7/7 pass) |
+| 2 | Section 7.0's Nearest A&E row renders the D-05 hold-point line unconditionally, even with a wholly empty `site_emergency` | ✓ VERIFIED | `rams.blade.php:1985-1990` and `rams-v2.blade.php:2067-2073` both moved the A&E row outside `$hasSiteEmerg`; `SiteEmergencyRenderSitesRegressionTest` wholly-empty presence tests added and passing |
+| 3 | CDM duty-holder output states RULE-07's verbatim anticipated-sole-contractor sentence, in both PDF and DOCX | ✓ VERIFIED | `RamsComplianceUpgradeService::DEFAULT_CONTRACTOR_NOTE` (`:1144`) is byte-identical to `standards-and-legislation.md:23-28`; rendered in `rams.blade.php:1854`, `rams-v2.blade.php:1915`, `DocxBuilderService.php:1783` |
+| 4 | DOCX renderer uses 21CAV brand colours matching the PDF, not Word defaults | ✓ VERIFIED | `DocxBuilderService.php:52-55` (`1B7A7A`/`1A1A2E`/`F4FBFB`); `config/rams_theme.php:42-47` matches; `DocxBrandColourRegressionTest` asserts absence of `2E74B5`/`DEEBF7`/`333333` and presence of brand hex on a real built DOCX |
+| 5 | GATE-11/GATE-12 remain correctly disarmed and structurally unaffected by the render-only fixes | ✓ VERIFIED | `config/rams_tier1.php:134` unchanged (`env('RAMS_CDM_AE_GATE', false)`); `CdmEmergencyGateTest` + `CdmEmergencyDualPathGateTest` 15/15 pass, 36 assertions |
+| 6 | Full RAMS regression suite is green after all four gap-closure fixes, including the snapshot goldens | ✓ VERIFIED | Reproduced independently: 349/349 (1604 assertions), 6/6 snapshot tests (25 assertions) |
+| 7 | The Plan 29-10 contractor_note backfill migration has been run against production, reaching the 46 pre-existing rows | ✗ FAILED | Migration file exists and is test-proven (6/6 in `BackfillCdmContractorNoteMigrationTest`) but 29-14-SUMMARY.md explicitly records it was NOT run against production, and no deploy occurred this cycle to make running it possible yet |
+| 8 | A live occupied-premises project regeneration, reflecting this cycle's fixes, is manually verified against production data, not just a fixture (ROADMAP criterion 4) | ✗ FAILED | No deploy occurred this cycle (`git branch -vv`: working branch 110 commits ahead of remote, `master` untouched); the original UAT's live check was against the PRE-fix deploy. No fresh live visual check has been performed against the fixed code |
 
-**Score:** 7/8 truths verified (up from 4/8). Only the live visual-verification half of criterion 4 remains outstanding.
+**Score:** 6/8 truths fully verified this cycle; the remaining 2 are the same class of gap as the prior cycle's criterion-4 finding — a live, deployed, human-observed check that no agent has yet performed.
 
 ### ROADMAP Success Criteria — Explicit Ruling
 
 | # | Criterion | Status | Evidence |
 |---|-----------|--------|----------|
-| 1 | CDM duty-holder defaults state the settled sole-Contractor position on every job | ✓ MET | `addCdmDutyHolders()` unconditional application, forbidden-statement-free wording, 13-test `CdmDutyHolderWordingTest` green |
-| 2 | Emergency Procedures A&E line replaced by verified-name-or-hold-point resolver, never a guessed name (restated per D-05/D-06) | ✓ MET | `SiteEmergencyResolver::resolve()` two-branch logic; all five render sites confirmed delegating (Gap 3 closure removes the last independent-derivation risk); verified against the **restated** wording, per the orchestrator's instruction that criterion 2 was deliberately rewritten this phase |
-| 3 | GATE-11 errors on `[To be confirmed]` surviving to an occupied-premises job; GATE-12 errors on an implausible named A&E | ✓ MET (code-complete, correctly disarmed) | `enforceCdmGate()`/`enforceEmergencyGate()` both implemented, both reachable on the real Save-Review → download path (`CdmEmergencyDualPathGateTest`, 3 tests/13 assertions), CR-01's false-positive risk now closed so arming will not misfire on the gate's own sanctioned output. Shipping disarmed is this phase's own intended end-state (D-03) — "errors when armed" is proven by test, not by production enforcement, which is deliberately deferred |
-| 4 | Regenerating a live occupied-premises project shows the stated CDM position and correct A&E, verified against production data, not just a fixture | ✗ NOT MET | Deploy + backfill (the data half) verified live 2026-09-11, exactly matching the 46/54 measurement. The visual open-and-read half of this criterion has not been performed by anyone in this phase to date |
+| 1 | CDM duty-holder defaults state the settled sole-Contractor position on every job | ✓ MET | Unchanged from prior verification; RULE-07 sentence now also verified verbatim-exact at the constant level this cycle |
+| 2 | Emergency Procedures A&E line replaced by verified-name-or-hold-point resolver, never a guessed name (restated per D-05/D-06) | ✓ MET | All five render sites (both PDF blades, DOCX legacy + unified paths) now confirmed rendering the resolver's two-branch value unconditionally; the DOCX regression (UAT Gap 2) that had reopened this criterion is closed |
+| 3 | GATE-11 errors on `[To be confirmed]` surviving to an occupied-premises job; GATE-12 errors on an implausible named A&E | ✓ MET (code-complete, correctly disarmed) | Unchanged from prior verification — both gates implemented, tested, reachable, shipped disarmed by design (D-03); REQUIREMENTS.md already correctly shows both Pending |
+| 4 | Regenerating a live occupied-premises project shows the stated CDM position and correct A&E, verified against production data, not just a fixture | ✗ NOT MET | The fixes are code-complete and test-proven locally, but this cycle did not deploy them or perform a fresh live-document check. The 2026-09-12 UAT that found these four gaps was itself the live check for the PRE-fix code — that check has not been repeated against the FIXED code |
 
-**3 of 4 ROADMAP criteria are fully met. Criterion 4 remains unmet** — this is a real, unresolved gap, not a documentation lag; it requires a human to open documents on the live VPS, something no agent in this phase's history has yet done.
+**3 of 4 ROADMAP criteria are met. Criterion 4 remains unmet for the second consecutive verification cycle** — not because the underlying defects persist (they don't — all four UAT gaps are genuinely closed in the codebase), but because "verified against production data, not just a fixture" requires a deploy + a human eyeball that has still not happened.
 
-### Requirement-Status Inconsistency — Ruling
+### Requirement-Status Ruling (carried forward)
 
-**Question:** GATE-11 was marked `[x]` Complete in REQUIREMENTS.md (by 29-08's executor) while GATE-12 was left `[ ]` Pending (by 29-07's executor, reasoning arming is still outstanding). Both gates are implemented, tested, and shipped disarmed. Which is correct?
+The prior verification's correction to REQUIREMENTS.md — GATE-11 changed from `[x]` Complete to `[ ]` Pending to match GATE-12 (both gated by the identical `cdm_ae_gate_enabled` flag, which defaults `false`) — is already in place and unchanged by this cycle's plans (confirmed: `git log --oneline -3 -- config/rams_tier1.php` shows the last touch was `90967f4`, Plan 29-02, predating this gap-closure cycle). No further correction needed; the ruling stands.
 
-**Finding:** `RamsComplianceUpgradeService::upgrade()` gates BOTH `enforceCdmGate()` (GATE-11) and `enforceEmergencyGate()` (GATE-12) behind the **exact same single config flag** — `config('rams_tier1.cdm_ae_gate_enabled', false)` (`:97-99`). There is no way for GATE-11 to be in a more "armed" or "complete" state than GATE-12; they are switched by one boolean, together, and that boolean defaults `false`.
-
-**Precedent check:** GATE-06/07 (`ffp2_confined_space_gate_enabled`) and GATE-09 (`display_lift_gate_enabled`) were marked `[x]` Complete in REQUIREMENTS.md, and their flags default `true` (`config/rams_tier1.php:74,98`) — i.e., this project's own established convention is that a gate earns "Complete" status once it is **armed and enforcing in production**, not merely code-complete-and-tested-but-disarmed. GATE-11/GATE-12's shared flag (`:134`) defaults `false` — deliberately, per D-03, pending the still-outstanding visual verification.
-
-**Ruling: GATE-12's `[ ]` Pending status is correct. GATE-11's `[x]` Complete status was wrong** — it does not match this project's own precedent for what "Complete" means for a gate requirement, and it cannot be more complete than GATE-12 given they share one flag. This is not a case where "ship disarmed" satisfies the requirement's own "errors when..." wording for GATE-11 but not GATE-12 — the wording and the flag are identical for both.
-
-**Correction applied to REQUIREMENTS.md** (this verification, both files):
-- Line 72: GATE-11 checkbox changed `[x]` → `[ ]`, with an inline note explaining the correction, the shared-flag finding, and the precedent reasoning.
-- Line 164 (traceability table): GATE-11 status changed `Complete` → `Pending (corrected 2026-09-12 — code-complete, disarmed; shares `cdm_ae_gate_enabled` flag with GATE-12)`.
-
-RULE-07/RULE-08 (`[x]` Complete, lines 87-88, 174-175) are unaffected by this ruling — they are wording requirements verified structurally in the rendered output regardless of gate arming state, and were not part of the requirement-status question.
+RULE-07/RULE-08 remain `[x]` Complete (REQUIREMENTS.md `:87-88`) — correctly so. Both are wording requirements, independent of gate-arming state, and this cycle's fixes made their "single source of truth, never re-derived" design guarantee hold across all five render sites for the first time (the DOCX renderer previously had no Section 7.0 at all).
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `app/Services/Rams/SiteEmergencyResolver.php` | `resolve()`/`classify()` per D-05/D-08, no false-positive on own output | ✓ VERIFIED | CR-01 fix confirmed live via direct invocation; 17 unit tests including 2 new HOLD_POINT-literal regression cases |
-| `database/migrations/2026_09_11_180000_backfill_cdm_duty_holder_placeholder.php` | Idempotent, dual-column, exact-literal-guarded backfill | ✓ VERIFIED | CR-02 fix confirmed — `reviewed_data['cdm']` now exact-literal-enumerated, not substring; `generated_data` branch unchanged (already correct); already ran live 2026-09-11 (46/54 rows, matches measurement) |
-| `resources/views/pdf/rams.blade.php` | Self-sufficient A&E cell, never blank, never independently re-derived | ✓ VERIFIED | WR-01 fix confirmed — fallback to `SiteEmergencyResolver::resolve()` on missing upstream key, read-only, no write-back |
-| `config/rams_tier1.php` | `cdm_ae_gate_enabled` disarmed, own flag, shared by GATE-11+GATE-12 | ✓ VERIFIED | `:134` — `env('RAMS_CDM_AE_GATE', false)`; confirmed both `enforceCdmGate()` and `enforceEmergencyGate()` gated by this one key |
-| `.planning/REQUIREMENTS.md` | Internally consistent GATE-11/GATE-12 status | ✓ CORRECTED THIS VERIFICATION | GATE-11 changed from `[x]` Complete to `[ ]` Pending in both the checklist (line 72) and traceability table (line 164), reconciling it with GATE-12's already-correct Pending status |
+| `app/Services/DocxBuilderService.php` | Section 7.0 block, Welfare bullet pointer, contractor_note paragraph, brand colours | ✓ VERIFIED | All four confirmed present at cited line numbers; `buildEmergencyProcedures()` signature change (4th param `$record`) confirmed wired through the one call site (`:356`) |
+| `resources/views/pdf/rams.blade.php` | A&E row unconditional, contractor_note paragraph | ✓ VERIFIED | `:1854` (contractor_note), `:1985-1990` (unconditional A&E row) |
+| `resources/views/pdf/rams-v2.blade.php` | Same two fixes, mirrored via DTO | ✓ VERIFIED | `:1915` (contractor_note), `:2067-2073` (unconditional A&E row) |
+| `app/Services/Rams/RamsComplianceUpgradeService.php` | `DEFAULT_CONTRACTOR_NOTE` constant, verbatim RULE-07 sentence | ✓ VERIFIED | `:1144-1146`, byte-identical to source doc |
+| `config/rams_theme.php` | Brand palette (not Word defaults) | ✓ VERIFIED | `:42-47` |
+| `database/migrations/2026_09_12_120000_backfill_cdm_contractor_note.php` | Idempotent, exact-key-presence-guarded backfill | ✓ VERIFIED (code) / ✗ NOT RUN (production) | 6/6 tests pass; confirmed NOT executed against production per 29-14-SUMMARY.md and this verification's own inability to find any deploy/migrate evidence |
+| `tests/Fixtures/rams/tilda-21cq29531/*` (4 golden files) | Regenerated to reflect all four fixes | ✓ VERIFIED | Diff reviewed line-by-line per 29-14-SUMMARY.md's stated methodology; snapshot suite passes byte-for-byte against the new goldens |
 
 ### Requirements Coverage
 
 | Requirement | Description | Status | Evidence |
 |-------------|-------------|--------|----------|
-| RULE-07 | CDM duty-holder anticipated-sole-contractor wording | ✓ SATISFIED | Unchanged from prior verification — wording forbidden-statement-free, code + backfill implemented, tested, deployed |
-| RULE-08 | Two-branch verified-or-hold-point A&E wording | ✓ SATISFIED (upgraded from PARTIAL) | Prior verification recommended not closing RULE-08 unconditionally until CR-01/WR-01 fixed — both are now fixed and confirmed; the "single source of truth, never re-derived" design guarantee now holds structurally |
-| GATE-11 | CDM placeholder-survival throwing re-check | ✗ BLOCKED (status corrected this verification) | Code-complete, tested, deployed, but disarmed — see Requirement-Status Inconsistency ruling above. REQUIREMENTS.md corrected from `[x]` to `[ ]` to match |
-| GATE-12 | A&E plausibility throwing re-check | ✗ BLOCKED | Code-complete, tested, deployed, disarmed; CR-01's false-positive risk (which would have misfired the moment the gate is armed) is now closed |
+| RULE-07 | CDM duty-holder anticipated-sole-contractor wording | ✓ SATISFIED | Verbatim sentence now confirmed rendering in both PDF blades and DOCX; previously only partially reaching output (PDF empty-data path was fine, but the sentence's exact wording had not been independently verified byte-for-byte until this cycle) |
+| RULE-08 | Two-branch verified-or-hold-point A&E wording | ✓ SATISFIED | Now holds across ALL FIVE render sites including DOCX, closing the exact regression (DOCX Gap) that the prior verification's clean pass had not caught because it predated the live UAT |
+| GATE-11 | CDM placeholder-survival throwing re-check | ✗ BLOCKED (disarmed by design) | Unchanged — code-complete, tested, deployed-to-local-test-DB only, disarmed pending criterion 4 |
+| GATE-12 | A&E plausibility throwing re-check | ✗ BLOCKED (disarmed by design) | Unchanged — same status as GATE-11 |
 
 ### Anti-Patterns Found
 
-No new anti-patterns introduced by Plans 29-07/29-08/29-09. The two prior BLOCKER-level anti-patterns (CR-01, CR-02) are resolved. The two prior WARNING-level items:
+No `TBD`/`FIXME`/`XXX` markers found in any file touched by Plans 29-10 through 29-14. No new anti-patterns introduced. One pre-existing WARNING carried forward unchanged and out of this cycle's scope:
 
 | File | Line | Pattern | Severity | Status |
 |------|------|---------|----------|--------|
-| `app/Services/DocxBuilderService.php` | 1706-1707 | `??` fallback doc-commented as "defence-in-depth" but does not guard the known-bad `'[To be confirmed]'` literal already persisted pre-Phase-29 (WR-02) | ⚠️ Warning | Unchanged — out of scope for Plans 29-07/29-08/29-09, not part of the four re-verified gaps, no active defect today since the backfill migration already ran live |
+| `app/Services/DocxBuilderService.php` | 1706-1707 | `??` fallback doc-commented as "defence-in-depth" but does not guard the known-bad `'[To be confirmed]'` literal already persisted pre-Phase-29 (WR-02) | ⚠️ Warning | Unchanged — not part of this cycle's four UAT gaps |
 
-No `TBD`/`FIXME`/`XXX` markers found in any file touched by the gap-closure plans.
+One documented (not fixed, correctly out-of-scope) coverage gap: the `tilda-21cq29531` fixture's `generated_data` has no `cdm_duty_holders` key, so the DOCX contractor_note paragraph never renders for that specific golden — 29-14-SUMMARY.md flagged this transparently rather than silently accepting it, and correctly notes `DocxEmergencySectionRegressionTest` independently proves the DOCX contractor_note path elsewhere. Confirmed by inspecting the test: it builds a real document with `cdm_duty_holders` populated and asserts the sentence renders. Not a gap.
 
 ### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
-| `classify()` passes the HOLD_POINT literal clean (blank address) | Direct `tinker` invocation | `NULL` | ✓ PASS |
-| `classify()` still flags urgent-care keyword (no regression) | Direct `tinker` invocation | `'urgent_care_keyword'` | ✓ PASS |
-| `classify()` still flags missing address for a genuine hospital (no regression) | Direct `tinker` invocation | `'missing_address_or_postcode'` | ✓ PASS |
-| Migration's `reviewed_data['cdm']` guard is exact-literal, not substring | `grep -n "str_contains(\$name\|NAME_EXACT_VARIANTS\|in_array(trim"` | 0 `str_contains($name` matches; `NAME_EXACT_VARIANTS`/`in_array` present | ✓ PASS |
-| `rams.blade.php` A&E cell has no write-back into `$siteEmerg` | `grep -n "site_emergency\['nearest_hospital'\] ="` | 0 matches | ✓ PASS |
-| Full RAMS test suite green after all three gap-closure fixes | `php artisan test tests/Unit/Support/Rams tests/Feature/Rams` | 328 passed, 1517 assertions | ✓ PASS |
+| DOCX Section 7.0 block exists in source | `grep -n "Site-Specific Emergency" app/Services/DocxBuilderService.php` | Match at `:1568` | ✓ PASS |
+| Welfare bullet points to Section 7.0, not CDM section | `grep -n "see Section 7.0" app/Services/DocxBuilderService.php` | Match at `:2216` | ✓ PASS |
+| A&E row outside `$hasSiteEmerg` guard on both PDF blades | Manual read of `rams.blade.php:1976-1993`, `rams-v2.blade.php:2048-2076` | Row precedes `@if($hasSiteEmerg)` in both | ✓ PASS |
+| RULE-07 constant byte-matches source doc | Manual diff of `DEFAULT_CONTRACTOR_NOTE` vs `standards-and-legislation.md:23-28` | Identical | ✓ PASS |
+| DOCX brand hex present, Word-default hex absent | `grep -n "TEAL\s*=\|DARK_GREY\s*=\|ROW_ALT\s*=" app/Services/DocxBuilderService.php` | `1B7A7A`/`1A1A2E`/`F4FBFB` | ✓ PASS |
+| Full RAMS test suite green | `php artisan test tests/Unit/Support/Rams tests/Feature/Rams` | 349 passed, 1604 assertions, 76.69s | ✓ PASS |
+| Snapshot fixtures regenerated and passing | `php artisan test --group snapshot` | 6 passed, 25 assertions | ✓ PASS |
+| Code deployed to production | `git branch -vv` | Working branch 110 commits ahead of remote; `master` untouched | ✗ FAIL (not deployed) |
+| Contractor-note backfill run against production | Search for any `migrate --force` invocation or VPS session log in this cycle's SUMMARY.md files | None found; 29-14-SUMMARY.md explicitly states it was not run | ✗ FAIL (not run) |
 
 ### Probe Execution
 
-No conventional `scripts/*/tests/probe-*.sh` probes declared for this phase. Test-suite execution (above) substitutes, run directly by this verifier, not taken from SUMMARY claims.
+No conventional `scripts/*/tests/probe-*.sh` probes declared for this phase. Test-suite + snapshot-suite execution (above) substitutes, run directly by this verifier, not taken from SUMMARY claims.
 
 ### Human Verification Required
 
-### 1. Live occupied-premises project — visual CDM/A&E check on rams.21stcav.com
+### 1. Live, POST-DEPLOY occupied-premises project — visual CDM/A&E/DOCX-colour check on rams.21stcav.com
 
-**Test:** Regenerate a real occupied-premises project's RAMS (Save Review or full regenerate) on the live VPS and open both the PDF and DOCX downloads.
-**Expected:** (1) CDM 2015 — Duty Holders states the anticipated-sole-contractor position, never "[To be confirmed]" for Principal Designer/Principal Contractor. (2) Section 7.0's Nearest A&E row shows either a verified name+address+postcode or the exact hold-point line, never "TBC", never "to be identified at site induction". (3) The Welfare Arrangements First Aid bullet points to Section 7.0 rather than repeating A&E text.
-**Why human:** This is ROADMAP Phase 29 success criterion 4's own explicit "verified against production data, not just a fixture" requirement — it requires opening a rendered document and reading it, not something a grep or automated test can substitute for. This step has still not been performed by any plan in this phase, gap-closure included.
+**Test:** Deploy this cycle's commits, run the contractor_note backfill migration, then regenerate a real occupied-premises project's RAMS on the live VPS and open both PDF and DOCX downloads.
+**Expected:** Section 7.0 Nearest A&E row present in BOTH documents with a verified name+address or the exact hold-point line — never blank, never "TBC", never the banned passive string. DOCX Welfare bullet points to Section 7.0. DOCX uses brand teal/navy, not Word-default blue. CDM 2015 Duty Holders states the verbatim RULE-07 sentence in both documents.
+**Why human:** ROADMAP Phase 29 criterion 4's own explicit "verified against production data, not just a fixture" wording. This exact check (against the pre-fix code) is what produced the four UAT gaps closed in this cycle — it has not been repeated against the fixed code, because the fixed code has not been deployed.
+
+### 2. CDM duty-holder table — Client row
+
+**Test:** Open the rendered PDF's CDM 2015 Duty Holders table and read the Client row.
+**Expected:** Shows the client's name (e.g. Gardner Leader LLP); the client is NOT shown as Principal Designer; the Client row is not blank.
+**Why human:** Carried over unresolved from 29-UAT.md — `pdftotext -layout` scrambles the wrapped multi-line CDM cells so it cannot be settled programmatically. No plan in this gap-closure cycle touched it.
 
 ### Gaps Summary
 
-All three code-review-identified BLOCKER defects (CR-01, CR-02, WR-01) from 29-REVIEW.md, and the corresponding gaps in the prior VERIFICATION.md, are now confirmed CLOSED by direct inspection of the live codebase and independent re-execution of both targeted checks (tinker invocation, grep) and the full 328-test RAMS suite — not by trusting SUMMARY.md's claims. No regressions were introduced by the fixes.
+All four UAT-reported defects (DOCX A&E regression, PDF hold-point unreachable, RULE-07 sentence absent, DOCX Word-blue colours) are genuinely CLOSED — confirmed by direct inspection of the current codebase (not SUMMARY.md claims) and by independently re-running both the full 349-test RAMS suite and the 6-test snapshot suite, both green. This is real, substantive progress: the phase's core defects (unconditional CDM placeholder, hardcoded A&E line) no longer exist anywhere in the render pipeline, across all five render sites, in either format.
 
-3 of 4 ROADMAP success criteria are now fully met (criteria 1-3). The 4th — a live, human, visual inspection of a regenerated occupied-premises project's PDF and DOCX — remains genuinely outstanding. This is not a documentation gap; no agent in this phase's full history (Plans 29-01 through 29-09) has performed it. It requires a human to open rams.21stcav.com, regenerate a real project, and read the output.
+However, ROADMAP criterion 4 — "verified against production data, not just a fixture" — is UNMET for the second consecutive verification cycle, and for a materially different reason than before: this cycle did not deploy the fixes at all. The working branch is 110 commits ahead of its remote with no push, `master` is untouched, the contractor_note backfill migration has not been run against production, and no live document has been regenerated or read since these fixes landed. The phase goal ("...so a RAMS can no longer go out the door with either placeholder") cannot be considered achieved in production until the fix is actually in production and a human has confirmed it there — the exact discipline that surfaced these four gaps in the first place.
 
-Separately, this verification found and corrected a requirement-status inconsistency: GATE-11 was marked Complete in REQUIREMENTS.md despite sharing its enforcement flag, byte-for-byte, with GATE-12 (marked Pending) — both gates are switched by the identical `cdm_ae_gate_enabled` config key, which defaults `false`. Per this project's own established precedent (GATE-06/07/09 earn "Complete" only once armed by default), GATE-11 cannot be more complete than GATE-12. REQUIREMENTS.md has been corrected so GATE-11 now reads `[ ]` Pending, consistent with GATE-12 and with the project's precedent.
+The one pre-existing human_verification item (CDM table Client row) also remains open; no plan in this cycle addressed it.
 
-**Recommendation:** This phase cannot be closed until the outstanding human visual verification (Task 3 of Plan 29-06, restated above) is performed. Once it passes, `RAMS_CDM_AE_GATE=true` can be armed in production per D-03, and GATE-11/GATE-12 can both then be marked Complete in REQUIREMENTS.md together.
+**Recommendation:** This phase cannot be closed until (1) this branch's commits are deployed to production, (2) the contractor_note backfill migration is run against production, (3) a human regenerates a real occupied-premises project and visually confirms all four fixes on the live PDF and DOCX, and (4) the Client-row human_verification item is resolved. Once all four pass, `RAMS_CDM_AE_GATE=true` can be armed per D-03, and GATE-11/GATE-12 can both be marked Complete in REQUIREMENTS.md together.
 
 ---
 
