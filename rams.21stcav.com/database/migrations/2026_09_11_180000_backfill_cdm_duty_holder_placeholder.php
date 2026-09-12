@@ -47,11 +47,12 @@ use Illuminate\Support\Facades\DB;
  * the phrase would not equal the bare literal and is left untouched).
  *
  * `reviewed_data['cdm'][*]['name']` is patched only when the row's `role`
- * matches PD/PC AND its `name` field contains the substring `'To be
- * confirmed'` — the review form captures free text, so an exact-literal
- * guard would miss legitimate seeded-default variants; the role scope
- * (PD/PC only) is what keeps this from ever touching an engineer's real
- * typed content for any other role.
+ * matches PD/PC AND its trimmed `name` field is EXACTLY one of the
+ * enumerated seeded-default variants (`'To be confirmed'` or `'[To be
+ * confirmed]'`) — never a substring match, so a genuine PM-authored
+ * sentence that merely contains the phrase (e.g. "PD to be confirmed once
+ * client appoints one") is left untouched. The role scope (PD/PC only) is
+ * additional defence-in-depth on top of the exact-match guard.
  *
  * Both columns are checked and patched independently per row, mirroring the
  * 28-07 precedent's per-column independence. Running `up()` twice produces
@@ -82,13 +83,18 @@ return new class extends Migration
     private const RAW_PLACEHOLDER = '[To be confirmed]';
 
     /**
-     * Substring guard target for `reviewed_data['cdm'][*]['name']` free
-     * text — matches RamsComplianceUpgradeService's own
-     * `project_manager`/`site_supervisor` placeholder phrase without the
-     * surrounding brackets, since an engineer's free-text field may embed
-     * it inside a longer seeded-default sentence.
+     * Exact-match guard targets for `reviewed_data['cdm'][*]['name']` free
+     * text (trimmed before comparison). A substring check here would wholly
+     * replace a genuine PM-authored sentence such as "PD to be confirmed
+     * once client appoints one" — enumerated instead, matching the
+     * `generated_data['cdm_duty_holders']` branch's exact-literal
+     * discipline. Both the bracketed form (`RAW_PLACEHOLDER`) and the bare
+     * form are seeded-default variants known to have been persisted.
      */
-    private const NAME_SUBSTRING = 'To be confirmed';
+    private const NAME_EXACT_VARIANTS = [
+        'To be confirmed',
+        '[To be confirmed]',
+    ];
 
     private const PD_ROLE = 'principal designer';
 
@@ -189,8 +195,9 @@ return new class extends Migration
             }
         }
 
-        // reviewed_data['cdm'] — list-of-rows shape, substring guard scoped
-        // to PD/PC roles only (case-insensitive role match).
+        // reviewed_data['cdm'] — list-of-rows shape, exact-literal guard
+        // (enumerated variants) scoped to PD/PC roles only (case-insensitive
+        // role match).
         if (isset($data['cdm']) && is_array($data['cdm'])) {
             foreach ($data['cdm'] as $i => $cdmRow) {
                 if (! is_array($cdmRow)) {
@@ -198,12 +205,12 @@ return new class extends Migration
                 }
 
                 $role = strtolower(trim((string) ($cdmRow['role'] ?? '')));
-                $name = (string) ($cdmRow['name'] ?? '');
+                $name = trim((string) ($cdmRow['name'] ?? ''));
 
-                if ($role === self::PD_ROLE && str_contains($name, self::NAME_SUBSTRING)) {
+                if ($role === self::PD_ROLE && in_array($name, self::NAME_EXACT_VARIANTS, true)) {
                     $data['cdm'][$i]['name'] = RamsComplianceUpgradeService::DEFAULT_PRINCIPAL_DESIGNER_NOTE;
                     $reviewedChanged = true;
-                } elseif ($role === self::PC_ROLE && str_contains($name, self::NAME_SUBSTRING)) {
+                } elseif ($role === self::PC_ROLE && in_array($name, self::NAME_EXACT_VARIANTS, true)) {
                     $data['cdm'][$i]['name'] = RamsComplianceUpgradeService::DEFAULT_PRINCIPAL_CONTRACTOR_NOTE;
                     $reviewedChanged = true;
                 }

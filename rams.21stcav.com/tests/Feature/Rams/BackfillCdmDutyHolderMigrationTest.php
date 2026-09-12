@@ -163,6 +163,30 @@ class BackfillCdmDutyHolderMigrationTest extends TestCase
         );
     }
 
+    public function test_backfill_never_overwrites_a_pm_authored_sentence_containing_the_substring(): void
+    {
+        $doc = RamsDocument::factory()->create([
+            'reviewed_data' => [
+                'cdm' => [
+                    ['role' => 'Principal Designer', 'organisation' => '', 'name' => 'PD to be confirmed once client appoints one', 'contact' => ''],
+                    ['role' => 'Principal Contractor', 'organisation' => '', 'name' => 'Contact details to be confirmed — Alex Carter is acting PD', 'contact' => ''],
+                ],
+            ],
+        ]);
+
+        $before = DB::table('rams_documents')->where('id', $doc->id)->first();
+
+        $this->runMigration();
+
+        $after = DB::table('rams_documents')->where('id', $doc->id)->first();
+
+        $this->assertSame(
+            $before->reviewed_data,
+            $after->reviewed_data,
+            'a PM-authored sentence merely containing "To be confirmed" must survive byte-identical, not be replaced by boilerplate',
+        );
+    }
+
     public function test_down_is_a_documented_no_op(): void
     {
         $migration = require base_path(self::MIGRATION_PATH);
