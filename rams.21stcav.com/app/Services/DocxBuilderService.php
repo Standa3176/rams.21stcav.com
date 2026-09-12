@@ -354,7 +354,7 @@ class DocxBuilderService
         $this->buildCoshhAssessment($phpWord, $data);
         $this->buildEnvironmentalManagement($phpWord, $data);
         $this->buildWelfareArrangements($phpWord, $data);
-        $this->buildEmergencyProcedures($phpWord, $data, $formData);
+        $this->buildEmergencyProcedures($phpWord, $data, $formData, $record);
         $this->buildDocumentSignOff($phpWord, $data);
         // ── D12 — Appendix A Toolbox Talk Record at the end ──────────────
         $this->buildAppendixA($phpWord, $data);
@@ -1542,7 +1542,7 @@ class DocxBuilderService
     // SECTION 7 — Emergency Procedures
     // =========================================================================
 
-    private function buildEmergencyProcedures(PhpWord $phpWord, array $data, array $formData): void
+    private function buildEmergencyProcedures(PhpWord $phpWord, array $data, array $formData, RamsDocument $record): void
     {
         $section = $phpWord->addSection($this->portraitStyle() + ['breakType' => 'nextPage']);
         $this->attachFooter($section);
@@ -1560,6 +1560,55 @@ class DocxBuilderService
         $white   = ['bgColor' => self::WHITE];
         $alt     = ['bgColor' => self::ROW_ALT];
         $colW    = (int)(self::W_PORT / 2); // 4933
+
+        // ── 7.0 Site-Specific Emergency Details ──────────────────────────────
+        // Phase 29 Plan 12 (29-UAT.md Gap 1 regression fix): mirrors the PDF's
+        // Section 7.0 block (rams.blade.php:1975-2021). Reads the same
+        // SiteEmergencyResolver-resolved value the PDF uses — never re-derived.
+        // Read-only: never writes back into $siteEmerg/$data/$record (T-29-12-02).
+        $section->addText('7.0 Site-Specific Emergency Details', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 60]);
+
+        $siteEmerg = (array) ($data['site_emergency'] ?? ($record->reviewed_data['site_emergency'] ?? []));
+        $resolvedText = $data['site_emergency_resolved']['text']
+            ?? \App\Services\Rams\SiteEmergencyResolver::resolve($siteEmerg)['text'];
+        $hospitalAddress = (string) ($siteEmerg['hospital_address'] ?? '');
+
+        $fireWardenName    = trim((string) ($siteEmerg['fire_warden_name'] ?? ''));
+        $fireWardenContact = trim((string) ($siteEmerg['fire_warden_contact'] ?? ''));
+        $fireWarden = $fireWardenName !== ''
+            ? ($fireWardenContact !== '' ? "{$fireWardenName} ({$fireWardenContact})" : $fireWardenName)
+            : 'TBC';
+
+        $firstAiderName    = trim((string) ($siteEmerg['first_aider_name'] ?? ''));
+        $firstAiderContact = trim((string) ($siteEmerg['first_aider_contact'] ?? ''));
+        $firstAider = $firstAiderName !== ''
+            ? ($firstAiderContact !== '' ? "{$firstAiderName} ({$firstAiderContact})" : $firstAiderName)
+            : 'TBC';
+
+        $emergTable = $section->addTable($this->tableStyle());
+        $emergLf    = $this->font(9, bold: true);
+        $emergVf    = $this->font(9);
+
+        $emergRows = [
+            ['Nearest A&E Hospital', $resolvedText, $hospitalAddress],
+            ['Fire Assembly Point', (string) ($siteEmerg['fire_assembly_point'] ?? '') ?: 'TBC', null],
+            ['Fire Warden', $fireWarden, null],
+            ['First Aider', $firstAider, null],
+            ['Nearest Defibrillator', (string) ($siteEmerg['defibrillator_location'] ?? '') ?: 'TBC — confirm at site induction', null],
+        ];
+
+        foreach ($emergRows as $i => [$label, $value, $addressLine]) {
+            $bg  = ($i % 2 === 0) ? $alt : $white;
+            $row = $emergTable->addRow(400);
+            $row->addCell(3400, $bg)->addText($label, $emergLf);
+            $valueCell = $row->addCell(6466, $bg);
+            $valueCell->addText($this->t($value), $emergVf);
+            if (! empty($addressLine)) {
+                $valueCell->addText($this->t($addressLine), $this->font(8, colour: self::MID_GREY));
+            }
+        }
+
+        $section->addTextBreak(1);
 
         // ── 7.1 Emergency Contact Numbers ────────────────────────────────────
         $section->addText('7.1 Emergency Contact Numbers', $this->font(10, bold: true, colour: self::TEAL), ['spaceBefore' => 80, 'spaceAfter' => 60]);
@@ -1723,6 +1772,21 @@ class DocxBuilderService
             $section->addTextBreak(1);
             $section->addText(
                 $this->t($notification),
+                $this->font(8, italic: true, colour: self::MID_GREY),
+                ['spaceBefore' => 60],
+            );
+        }
+
+        // Phase 29 Plan 12 (29-UAT.md Gap 3, RULE-07): render the verbatim
+        // anticipated-sole-contractor sentence the CDM pipeline already
+        // computes but never displayed in the DOCX.
+        $contractorNote = trim((string) (
+            $cdm['contractor_note'] ?? \App\Services\Rams\RamsComplianceUpgradeService::DEFAULT_CONTRACTOR_NOTE
+        ));
+        if ($contractorNote !== '') {
+            $section->addTextBreak(1);
+            $section->addText(
+                $this->t($contractorNote),
                 $this->font(8, italic: true, colour: self::MID_GREY),
                 ['spaceBefore' => 60],
             );
@@ -2146,13 +2210,11 @@ class DocxBuilderService
             ['Toilets:',           'Engineers will use welfare facilities provided or indicated by the site/client representative.' . $toiletSuffix],
             ['Washing facilities:', 'Adequate washing facilities with hot and cold water to be made available on site.'],
             ['Rest area:',          'Engineers will use designated rest areas as directed by the site manager. No eating or drinking in work areas.'],
-            // Phase 29 (RULE-08/D-01/D-07): the PDF blades point this sentence at
-            // "Section 7.0", a real rendered A&E table. The DOCX builder has no
-            // Section 7.0-equivalent A&E table anywhere in this file (confirmed by
-            // grep — nearest_hospital/site_emergency never appear outside this one
-            // bullet), so the DOCX pointer instead references the CDM 2015 Duty
-            // Holders section, the nearest section that DOES exist in this document.
-            ['First Aid:',          'At least one engineer on site will hold a current First Aid at Work or Emergency First Aid at Work certificate. First aid kit carried at all times. Nearest A&E — see CDM 2015 — Duty Holders section.'],
+            // Phase 29 Plan 12 (29-UAT.md Gap 1 regression fix): the DOCX now
+            // renders a real Section 7.0 A&E table (buildEmergencyProcedures()),
+            // matching the PDF blade — the bullet points at it directly,
+            // matching rams.blade.php:1960's exact wording.
+            ['First Aid:',          'At least one engineer on site will hold a current First Aid at Work or Emergency First Aid at Work certificate. First aid kit carried at all times. Nearest A&E — see Section 7.0.'],
             ['Drinking water:',     'Engineers to carry their own supply; confirm availability of potable water with site contact.'],
         ];
         foreach ($items as [$head, $body]) {
