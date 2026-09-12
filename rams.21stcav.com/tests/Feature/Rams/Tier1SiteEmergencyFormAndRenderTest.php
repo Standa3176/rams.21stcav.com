@@ -175,18 +175,37 @@ class Tier1SiteEmergencyFormAndRenderTest extends TestCase
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // 3. PDF renders red warning banner when site_emergency is empty
+    // 3. PDF renders the D-05 hold-point A&E row + amber informational note
+    //    when site_emergency is empty (29-11 gap closure, 29-UAT.md Gap 2 —
+    //    supersedes the pre-Phase-29 red "TBC AT SITE INDUCTION" banner,
+    //    which made the whole Section 7.0 table unreachable and left the
+    //    literal string "TBC" in rendered output).
     // ══════════════════════════════════════════════════════════════════════════
 
     public function test_pdf_renders_warning_banner_when_site_emergency_empty(): void
     {
-        // No site_emergency key at all → banner path
+        // No site_emergency key at all → the A&E row still renders (it is
+        // defined for the empty case by design), amber note covers the rest.
         $html = $this->renderWith($this->baseData());
 
         $this->assertStringContainsString('7.0 Site-Specific Emergency Details', $html);
-        $this->assertStringContainsString('TBC AT SITE INDUCTION', $html);
-        $this->assertStringContainsString('border: 2pt solid #c00', $html);
+
+        // Scope the "no TBC" assertion to Section 7.0 only — an unrelated
+        // "TBC at site induction" client-contact fallback exists elsewhere
+        // in the document header and is out of this plan's scope.
+        $sectionStart = strpos($html, '7.0 Site-Specific Emergency Details');
+        $sectionEnd = strpos($html, '7.1 Emergency Contact Numbers');
+        $this->assertNotFalse($sectionStart);
+        $this->assertNotFalse($sectionEnd);
+        $section = substr($html, $sectionStart, $sectionEnd - $sectionStart);
+
+        $this->assertStringNotContainsString('TBC', $section);
+        $this->assertStringContainsString(
+            'to be confirmed at induction (must be a 24/7 Emergency Department)',
+            $section,
+        );
+        $this->assertStringContainsString('border: 1pt solid #d9a441', $section);
         // Populated-table content markers must NOT appear.
-        $this->assertStringNotContainsString('Royal Berkshire', $html);
+        $this->assertStringNotContainsString('Royal Berkshire', $section);
     }
 }

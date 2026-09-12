@@ -107,9 +107,24 @@ class RamsSection70HeadingTest extends TestCase
         // Heading MUST still render — this is the regression lock
         $this->assertStringContainsString('7.0 Site-Specific Emergency Details', $html);
         $this->assertStringContainsString('sec-subheading', $html);
-        // Amber warning banner branch active
-        $this->assertStringContainsString('TBC AT SITE INDUCTION', $html);
-        $this->assertStringContainsString('border: 2pt solid #c00', $html);
+
+        // 29-11 (D-05 gap closure): the A&E row renders the hold-point line
+        // unconditionally; the reworded amber note covers the remaining
+        // fields, and "TBC" must never appear within Section 7.0. Scoped to
+        // Section 7.0 only — an unrelated "TBC at site induction"
+        // client-contact fallback exists elsewhere in the document header.
+        $sectionStart = strpos($html, '7.0 Site-Specific Emergency Details');
+        $sectionEnd = strpos($html, '7.1 Emergency Contact Numbers');
+        $this->assertNotFalse($sectionStart);
+        $this->assertNotFalse($sectionEnd);
+        $section = substr($html, $sectionStart, $sectionEnd - $sectionStart);
+
+        $this->assertStringNotContainsString('TBC', $section);
+        $this->assertStringContainsString(
+            'to be confirmed at induction (must be a 24/7 Emergency Department)',
+            $section,
+        );
+        $this->assertStringContainsString('border: 1pt solid #d9a441', $section);
     }
 
     public function test_heading_renders_when_emergency_all_keys_present_but_blank(): void
@@ -137,7 +152,20 @@ class RamsSection70HeadingTest extends TestCase
 
         // Heading MUST render regardless of populated/empty branch
         $this->assertStringContainsString('7.0 Site-Specific Emergency Details', $html);
-        // array_filter reduces all-blank to empty → warning banner branch fires
-        $this->assertStringContainsString('TBC AT SITE INDUCTION', $html);
+
+        // array_filter reduces all-blank to empty → the A&E row still shows
+        // the hold-point line (unconditional) and "TBC" never appears within
+        // Section 7.0 (scoped — see note in the sibling test above).
+        $sectionStart = strpos($html, '7.0 Site-Specific Emergency Details');
+        $sectionEnd = strpos($html, '7.1 Emergency Contact Numbers');
+        $this->assertNotFalse($sectionStart);
+        $this->assertNotFalse($sectionEnd);
+        $section = substr($html, $sectionStart, $sectionEnd - $sectionStart);
+
+        $this->assertStringNotContainsString('TBC', $section);
+        $this->assertStringContainsString(
+            'to be confirmed at induction (must be a 24/7 Emergency Department)',
+            $section,
+        );
     }
 }
