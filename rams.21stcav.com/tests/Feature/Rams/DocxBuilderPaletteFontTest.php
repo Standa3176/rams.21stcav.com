@@ -14,12 +14,15 @@ use Tests\TestCase;
 /**
  * Quick task 260725-rd1 — RAMS DOCX palette + font shift.
  *
- * Guards the design-parity change from teal `#007B8A` → brand blue
- * `#2E74B5`, alt-row shading from light teal `#F0FBFC` → light blue
- * `#DEEBF7`, and body font Arial → Poppins.
- *
- * The reference for the shift is `21CQ29531-05-OPS Tilda RAMs Rev1.1.docx`
- * — see .planning/quick/260725-rd1-tier1-rams-design-and-content-parity/.
+ * Originally guarded the design-parity change from teal `#007B8A` → brand
+ * blue `#2E74B5` (reference: `21CQ29531-05-OPS Tilda RAMs Rev1.1.docx`, see
+ * .planning/quick/260725-rd1-tier1-rams-design-and-content-parity/). That
+ * shift to Word's stock "Blue, Accent 1" defaults was itself the defect
+ * found by 29-UAT.md Gap 4/6 (2026-09-12): the DOCX no longer matched the
+ * PDF's actual 21CAV brand palette. Plan 29-13 corrects the palette to
+ * `#1B7A7A` teal / `#F4FBFB` pale-teal tint, so this test now guards those
+ * corrected brand values instead. Body font (Arial → Poppins) is unrelated
+ * to the colour defect and remains unchanged.
  */
 class DocxBuilderPaletteFontTest extends TestCase
 {
@@ -85,31 +88,32 @@ class DocxBuilderPaletteFontTest extends TestCase
         return $xml;
     }
 
-    public function test_palette_uses_brand_blue_not_legacy_teal(): void
+    public function test_palette_uses_brand_teal_not_word_default_blue(): void
     {
         $xml = $this->renderDocumentXml();
 
-        // Legacy teal must be gone everywhere in the rendered document.
-        $this->assertStringNotContainsStringIgnoringCase('007B8A', $xml,
-            '260725-rd1: legacy teal 007B8A still present in the docx palette.');
+        // Word's stock "Blue, Accent 1" default must be gone everywhere in
+        // the rendered document (29-UAT.md gap 4/6 — corrected 2026-09-12).
+        $this->assertStringNotContainsStringIgnoringCase('2E74B5', $xml,
+            '29-13: Word default blue 2E74B5 still present in the docx palette.');
 
-        // Brand blue must appear at least once (in headings + accent borders).
-        $this->assertStringContainsStringIgnoringCase('2E74B5', $xml,
-            '260725-rd1: brand blue 2E74B5 not applied to headings/accents.');
+        // 21CAV brand teal must appear at least once (in headings + accent borders).
+        $this->assertStringContainsStringIgnoringCase('1B7A7A', $xml,
+            '29-13: brand teal 1B7A7A not applied to headings/accents.');
     }
 
-    public function test_alt_row_shading_uses_light_blue_not_light_teal(): void
+    public function test_alt_row_shading_uses_brand_pale_teal_not_word_default_blue(): void
     {
         $xml = $this->renderDocumentXml();
 
-        // Old light-teal alt-row must be gone.
-        $this->assertStringNotContainsStringIgnoringCase('F0FBFC', $xml,
-            '260725-rd1: legacy light-teal alt-row F0FBFC still present in the docx.');
+        // Word's stock light-blue alt-row must be gone (29-UAT.md gap 4/6).
+        $this->assertStringNotContainsStringIgnoringCase('DEEBF7', $xml,
+            '29-13: Word default light-blue alt-row DEEBF7 still present in the docx.');
 
-        // New light-blue alt-row must be present (baseline fixture uses several
-        // alt-shaded tables: Company Information, Sign-Off, etc.).
-        $this->assertStringContainsStringIgnoringCase('DEEBF7', $xml,
-            '260725-rd1: light-blue alt-row DEEBF7 not applied to tables.');
+        // 21CAV brand pale-teal tint must be present (baseline fixture uses
+        // several alt-shaded tables: Company Information, Sign-Off, etc.).
+        $this->assertStringContainsStringIgnoringCase('F4FBFB', $xml,
+            '29-13: brand pale-teal tint F4FBFB not applied to tables.');
     }
 
     public function test_body_font_is_poppins_not_arial(): void
