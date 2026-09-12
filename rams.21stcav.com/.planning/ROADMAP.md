@@ -215,6 +215,9 @@ Plans:
 
 - [x] 29-09-PLAN.md — Gap-closure (WR-01): `rams.blade.php` Section 7.0 A&E cell falls back to `SiteEmergencyResolver::resolve()` when `site_emergency_resolved` is absent (the `RamsRegenerateSnapshotsCommand` upgrade()-bypass path), instead of rendering blank. Requirements: RULE-08.
 - [x] 29-10-PLAN.md — Gap-closure (Gap 3, data half): `RamsComplianceUpgradeService::DEFAULT_CONTRACTOR_NOTE` constant extracted from `addCdmDutyHolders()`'s inline RULE-07 sentence, for Plan 29-11/29-12 to reference; idempotent (not yet run) `array_key_exists()`-guarded backfill migration written for the 46 rows whose `generated_data.cdm_duty_holders` predates the `contractor_note` key. Requirements: RULE-07.
+- [x] 29-11-PLAN.md — Gap-closure (Gap 2 + PDF half of Gap 3): Section 7.0's Nearest A&E row renders unconditionally on both PDF blades (D-05 hold-point line shows even for a wholly empty `site_emergency`); CDM Duty Holders section carries the RULE-07 verbatim `contractor_note` sentence. Requirements: RULE-07, RULE-08.
+- [x] 29-12-PLAN.md — Gap-closure (Gap 1 + DOCX half of Gap 3): DOCX regression fixed — new "7.0 Site-Specific Emergency Details" block in `DocxBuilderService` mirrors the PDF's resolver-backed A&E row instead of leaving the Word RAMS with no nearest-A&E information; DOCX CDM section carries the RULE-07 `contractor_note` paragraph. Requirements: RULE-07, RULE-08.
+- [x] 29-13-PLAN.md — Gap-closure (Gap 4/6): DOCX brand-colour correction — `DocxBuilderService` and `config/rams_theme.php` corrected from Microsoft Word's stock "Blue, Accent 1" defaults (2E74B5/DEEBF7/333333) to 21CAV's actual brand palette (1B7A7A teal/F4FBFB pale-teal tint/1A1A2E navy), matching the PDF. Requirements: RULE-07, RULE-08.
 
 **UI hint**: yes (gate errors surface on the RAMS review screen; CDM/A&E fields may need review-form inputs)
 
