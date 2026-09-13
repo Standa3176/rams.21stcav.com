@@ -57,24 +57,28 @@ use Tests\TestCase;
  *
  * ── Scope note, deliberate (D-04 partial-by-design) ──────────────────────
  *
- * This file can only assert independence against gates that EXIST at this
- * wave (30-06): the structural trio (GATE-01/02/04, one shared flag,
- * `structural_gates_enabled`) and the three previously-shipped gates
+ * At wave 3 (Plan 30-06) this file could only assert independence against
+ * gates that existed then: the structural trio (GATE-01/02/04, one shared
+ * flag, `structural_gates_enabled`) and the three previously-shipped gates
  * (`display_lift_gate_enabled`, `ffp2_confined_space_gate_enabled`,
  * `cdm_ae_gate_enabled`). `RamsComplianceUpgradeService::enforceHotWorksGate()`
- * (GATE-13, Plan 30-07, wave 4) and `::enforceMissingRiskRefGate()`
- * (GATE-14, Plan 30-08, wave 5) DO NOT EXIST YET as of this file's
- * authoring — writing an assertion against either now would either fatal
- * (method doesn't exist) or, worse, pass VACUOUSLY against a stub, proving
- * nothing. D-04's operative clause — that GATE-14 "MUST be killable
- * without disarming the structural trio" — has its reciprocal half (arming
- * GATE-13/GATE-14 must not arm the structural trio, and vice versa) OWNED
- * BY PLANS 30-07 AND 30-08, each of which is expected to EXTEND THIS SAME
- * FILE in its own wave, adding the missing legs of the matrix. A reader at
- * wave 3 (this plan) should see the proof as partial BY DESIGN, not by
- * omission — REQUIREMENTS.md:72 records the status ambiguity that GATE-11
- * and GATE-12 sharing one flag produced; this test (and its 30-07/30-08
- * extensions) is what stops Phase 30 repeating it.
+ * (GATE-13, Plan 30-07, wave 4) DID NOT EXIST YET at that authoring time —
+ * writing an assertion against it then would have either fatal'd (method
+ * didn't exist) or, worse, passed VACUOUSLY against a stub, proving
+ * nothing.
+ *
+ * Plan 30-07 (wave 4, THIS EXTENSION) now owns and adds the GATE-13 half of
+ * the D-04 independence matrix below — see
+ * "GATE-13 flag-independence (Plan 30-07)". `::enforceMissingRiskRefGate()`
+ * (GATE-14, Plan 30-08, wave 5) STILL DOES NOT EXIST as of this extension
+ * — its own reciprocal half remains owned by Plan 30-08, which is expected
+ * to extend this same file again in its own wave. D-04's operative clause
+ * — that GATE-14 "MUST be killable without disarming the structural trio"
+ * — is not yet fully executable; the GATE-13 leg below is. A reader at
+ * wave 4 (this plan) should see the remaining GATE-14 gap as partial BY
+ * DESIGN, not by omission — REQUIREMENTS.md:72 records the status
+ * ambiguity that GATE-11 and GATE-12 sharing one flag produced; this test
+ * (and its Plan 30-08 extension) is what stops Phase 30 repeating it.
  *
  * ── Byte-identity scope, honestly stated ─────────────────────────────────
  *
@@ -92,10 +96,13 @@ use Tests\TestCase;
  * @see App\Services\Rams\RamsComplianceUpgradeService::enforceOrphanControlGate()
  * @see App\Services\Rams\RamsComplianceUpgradeService::enforceAreaCoverageGate()
  * @see App\Services\Rams\RamsComplianceUpgradeService::enforceResidualScoreGate()
+ * @see App\Services\Rams\RamsComplianceUpgradeService::enforceHotWorksGate()
  * @see tests/Feature/Rams/CdmEmergencyDualPathGateTest.php
  * @see tests/Unit/Services/Rams/StructuralGatesTest.php
+ * @see tests/Unit/Services/Rams/HotWorksGateTest.php
  * @see .planning/phases/30-structural-validation-gates/30-CONTEXT.md
  * @see .planning/phases/30-structural-validation-gates/30-06-PLAN.md
+ * @see .planning/phases/30-structural-validation-gates/30-07-PLAN.md
  */
 class StructuralGatesDisarmedTest extends TestCase
 {
@@ -353,5 +360,83 @@ class StructuralGatesDisarmedTest extends TestCase
 
         $this->assertIsArray($result);
         $this->assertSame([], $result['compliance_warnings']);
+    }
+
+    // ── GATE-13 flag-independence (Plan 30-07) ──────────────────────────────
+    //
+    // D-04's operative clause made executable rather than merely asserted:
+    // a document violating GATE-01, GATE-02, GATE-04 AND GATE-13
+    // simultaneously throws ONLY the message of whichever gate's flag is
+    // armed — arming the hot-works gate never wakes the structural trio,
+    // and arming the structural trio never wakes the hot-works gate.
+    //
+    // The GATE-14 leg of this same matrix (`missing_risk_ref_gate_enabled`)
+    // is intentionally NOT asserted here: `enforceMissingRiskRefGate()`
+    // does not exist yet (Plan 30-08, wave 5). Asserting anything about it
+    // now would either fatal or pass vacuously against a stub — this file's
+    // documented scope-note precedent (see class docblock) applies
+    // identically to this new leg. Plan 30-08 re-runs this file and adds
+    // the missing bullet when the method exists.
+
+    /**
+     * `tripleViolatingDocument()` (GATE-01/02/04) plus a GATE-13
+     * contradiction: a hazard asserting "no hot works" alongside a
+     * `coshh_baseline` entry naming a solder product. Deliberately uses the
+     * COSHH half, not the permit half, so this fixture never needs to
+     * touch `permit_and_isolation` (which `addPermitAndIsolation()` would
+     * otherwise populate with its own conditional, non-contradictory
+     * line — irrelevant here since this fixture is fed directly to
+     * `upgrade()` via a hand-built array, not built by invoking that
+     * method first).
+     */
+    private function allFiveViolatingDocument(): array
+    {
+        $doc = $this->tripleViolatingDocument();
+
+        // A clean (non-error, non-warn) hazard row so this addition does
+        // not introduce a SECOND, unrelated GATE-04 violation — pre/post
+        // scores identical, and post_severity is not below pre_severity.
+        $doc['hazards'][] = [
+            'hazard' => 'No hot works will be undertaken on this site.',
+            'pre_likelihood' => 1,
+            'pre_severity' => 1,
+            'post_likelihood' => 1,
+            'post_severity' => 1,
+        ];
+
+        $doc['coshh_baseline'] = [
+            ['product' => 'Tin/Lead (Sn/Pb) Solder — 60/40 or 63/37'],
+        ];
+
+        return $doc;
+    }
+
+    public function test_arming_only_hot_works_gate_throws_gate_13_and_leaves_the_structural_trio_dormant(): void
+    {
+        $this->allPhase30FlagsFalse();
+        config(['rams_tier1.hot_works_gate_enabled' => true]);
+
+        try {
+            RamsComplianceUpgradeService::upgrade($this->allFiveViolatingDocument());
+            $this->fail('Expected RamsGenerationException (GATE-13) was not thrown.');
+        } catch (RamsGenerationException $e) {
+            $this->assertMatchesRegularExpression('/GATE-13/', $e->getMessage());
+            $this->assertDoesNotMatchRegularExpression('/GATE-01|GATE-02|GATE-04/', $e->getMessage());
+        }
+    }
+
+    public function test_arming_only_structural_gates_throws_a_structural_message_and_leaves_hot_works_gate_dormant(): void
+    {
+        config(['rams_tier1.structural_gates_enabled' => true]);
+        config(['rams_tier1.hot_works_gate_enabled' => false]);
+        config(['rams_tier1.missing_risk_ref_gate_enabled' => false]);
+
+        try {
+            RamsComplianceUpgradeService::upgrade($this->allFiveViolatingDocument());
+            $this->fail('Expected RamsGenerationException (a structural gate) was not thrown.');
+        } catch (RamsGenerationException $e) {
+            $this->assertMatchesRegularExpression('/GATE-01|GATE-02|GATE-04/', $e->getMessage());
+            $this->assertDoesNotMatchRegularExpression('/GATE-13/', $e->getMessage());
+        }
     }
 }

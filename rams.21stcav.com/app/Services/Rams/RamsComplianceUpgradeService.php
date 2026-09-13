@@ -132,6 +132,22 @@ class RamsComplianceUpgradeService
             $ramsData = self::enforceAreaCoverageGate($ramsData);
             $ramsData = self::enforceResidualScoreGate($ramsData);
         }
+        // GATE-13 — independent re-check of the hot-works contradiction
+        // (RA18-shaped "no hot works" assertion vs. an unconditional
+        // hot-works permit requirement OR solder/flux listed in COSHH).
+        // Its OWN flag (D-04) — never reuses RAMS_STRUCTURAL_GATES,
+        // RAMS_MISSING_RISK_REF_GATE, or any previously-shipped gate flag —
+        // because GATE-13 flips a full PHASE later than the rest (D-02):
+        // both halves would false-positive corpus-wide today
+        // (config/rams_tier1.php:198-231, RESEARCH.md Finding 5). Ships
+        // DISARMED (defaults false); Phase 31 flips RAMS_HOT_WORKS_GATE
+        // once RULE-05/GATE-10 make coshh_baseline job-conditional. When
+        // false, enforceHotWorksGate() is never called — upgrade()
+        // proceeds byte-identical to pre-GATE-13 behaviour, no redeploy
+        // required.
+        if (config('rams_tier1.hot_works_gate_enabled', false)) {
+            $ramsData = self::enforceHotWorksGate($ramsData);
+        }
         $ramsData = self::cleanTextArtifacts($ramsData);
 
         return $ramsData;
@@ -2350,6 +2366,201 @@ class RamsComplianceUpgradeService
         }
 
         return $data;
+    }
+
+    /**
+     * GATE-13 (CONTEXT.md D-02, RESEARCH.md Finding 5) — independent
+     * cross-reference of the RA18-shaped hot-works contradiction: a
+     * document asserting "no hot works" while ALSO carrying an
+     * unconditional hot-works permit requirement, or listing a solder/flux
+     * substance in COSHH.
+     *
+     * Ships WHOLE but DISARMED behind its own `RAMS_HOT_WORKS_GATE` flag
+     * (D-04 — a new, independent flag; never reuses `RAMS_STRUCTURAL_GATES`
+     * or `RAMS_MISSING_RISK_REF_GATE`, because this gate flips a full PHASE
+     * later than the rest, per D-02). Both halves would false-positive
+     * corpus-wide if armed today:
+     *   - the COSHH half: `Tier1RamsDefaultsService::
+     *     injectDefaultsIntoRamsData()` sets `$data['coshh_baseline']`
+     *     UNCONDITIONALLY (`:81`) from a baseline carrying Tin/Lead Solder
+     *     and Rosin Flux (`config/rams_tier1.php` `coshh_products`) — live
+     *     on sites 3-6, dormant on sites 1-2 because
+     *     `injectDefaultsIntoRamsData()` runs AFTER `upgrade()` on the two
+     *     `RamsBuilderService` call sites (RESEARCH.md Finding 1);
+     *   - the permit half: {@see self::addPermitAndIsolation()} emits its
+     *     hot-works-permit rule line UNCONDITIONALLY, on every document,
+     *     inside `upgrade()` itself — live on ALL SIX call sites.
+     * Phase 31 (RULE-05/GATE-10) makes `coshh_baseline` job-conditional,
+     * the prerequisite for arming `RAMS_HOT_WORKS_GATE=true`. Nothing in
+     * this plan arms it.
+     *
+     * Step order matters (T-30-16, the widest false-positive exposure in
+     * the phase): the absence assertion is detected FIRST via
+     * {@see ControlTextRuleViolations}'s negation-aware `hot_works_assertion`
+     * detector, scanning `exclusions`, every hazard name and control line,
+     * and every method-statement step. If no assertion is found anywhere,
+     * this method returns `$data` UNCHANGED immediately — this is what
+     * keeps the gate silent on the overwhelming majority of documents that
+     * never mention hot works at all.
+     *
+     * Only once an assertion is found does the permit half run: it scans
+     * `permit_and_isolation.rules` for a hot-works/solder/heat-shrink
+     * permit requirement and classifies it as conditional or unconditional
+     * via {@see self::permitRuleIsUnconditionalHotWorksRequirement()}.
+     * Conditional wording ("if soldering...", "permit required if...") is
+     * treated as NON-contradictory — this is the ONLY thing standing
+     * between this gate and a 100% corpus false-positive rate, because
+     * `addPermitAndIsolation()` ships that exact conditional line on every
+     * document. `HotWorksGateTest`'s regression test builds its input by
+     * invoking `addPermitAndIsolation([])` directly and asserts identity —
+     * if this gate's own fixture ever had to delete `permit_and_isolation`
+     * to get a clean pass, the gate is wrong (RESEARCH.md Pitfall 4).
+     *
+     * The COSHH half then scans `coshh_baseline` entries' `product` field
+     * for "solder"/"flux" (case-insensitive substring — conservative
+     * enough not to need GHS-code parsing, since every solder/flux entry
+     * in `coshh_products` names the substance in its product string).
+     *
+     * Known bypass, recorded here for Phase 31's arming task, NOT closed
+     * by this plan (out of scope — GATE-13 ships disarmed regardless):
+     * `pdf/rams.blade.php:407-409` and `pdf/rams-v2.blade.php:463-465`
+     * derive a 'Hot Works Permit' row IN THE BLADE from
+     * `preg_match('/(solder|heat shrink|hot work)/', $scopeBlob)`. That
+     * derivation is invisible to `upgrade()`, so a document can display a
+     * hot-works permit requirement this gate never sees.
+     */
+    private static function enforceHotWorksGate(array $data): array
+    {
+        if (! self::documentAssertsNoHotWorks($data)) {
+            return $data;
+        }
+
+        $permitRules = (array) ($data['permit_and_isolation']['rules'] ?? []);
+        foreach ($permitRules as $rule) {
+            $ruleText = (string) $rule;
+
+            if (self::permitRuleIsUnconditionalHotWorksRequirement($ruleText)) {
+                throw new RamsGenerationException(sprintf(
+                    'Hot-works contradiction — this RAMS states no hot works while also requiring '
+                    . 'a hot-works permit (GATE-13): "%s". Resolve the contradiction before issuing, '
+                    . 'or set RAMS_HOT_WORKS_GATE=false to disable this check.',
+                    $ruleText,
+                ));
+            }
+        }
+
+        $coshhBaseline = (array) ($data['coshh_baseline'] ?? []);
+        foreach ($coshhBaseline as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+
+            $product = (string) ($entry['product'] ?? '');
+
+            if ($product === '') {
+                continue;
+            }
+
+            if (stripos($product, 'solder') !== false || stripos($product, 'flux') !== false) {
+                throw new RamsGenerationException(sprintf(
+                    'Hot-works contradiction — this RAMS states no hot works while also listing '
+                    . '"%s" in COSHH (GATE-13). Resolve the contradiction before issuing, or set '
+                    . 'RAMS_HOT_WORKS_GATE=false to disable this check.',
+                    $product,
+                ));
+            }
+        }
+
+        return $data;
+    }
+
+    /**
+     * GATE-13 — true when a "no hot works" absence assertion is found
+     * anywhere in the document's free text: `exclusions`, every hazard's
+     * name and control lines, and every method-statement step. Delegates
+     * classification entirely to
+     * {@see ControlTextRuleViolations::detect()}'s `hot_works_assertion`
+     * key (Plan 30-07 Task 1) — never a second, bespoke regex here, per
+     * this class's established discipline of routing all free-text
+     * rule-detection through that one registry. Conservative by
+     * construction: an absent `exclusions`/`hazards`/`method_statement`
+     * key contributes nothing and never throws.
+     */
+    private static function documentAssertsNoHotWorks(array $data): bool
+    {
+        $lines = [];
+
+        foreach ((array) ($data['exclusions'] ?? []) as $line) {
+            $lines[] = (string) $line;
+        }
+
+        foreach ((array) ($data['hazards'] ?? []) as $hazard) {
+            if (! is_array($hazard)) {
+                continue;
+            }
+
+            $lines[] = (string) ($hazard['hazard'] ?? '');
+
+            foreach ((array) ($hazard['controls'] ?? []) as $control) {
+                $lines[] = (string) $control;
+            }
+        }
+
+        $phases = (array) ($data['method_statement']['phases'] ?? []);
+        foreach ($phases as $phase) {
+            if (! is_array($phase)) {
+                continue;
+            }
+
+            foreach ((array) ($phase['steps'] ?? []) as $step) {
+                $lines[] = (string) $step;
+            }
+        }
+
+        foreach ($lines as $line) {
+            if (trim($line) === '') {
+                continue;
+            }
+
+            if (ControlTextRuleViolations::detect($line) === 'hot_works_assertion') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * GATE-13's permit-half discriminator (T-30-16). A `permit_and_isolation`
+     * rule line is treated as an UNCONDITIONAL hot-works permit requirement
+     * only when it BOTH mentions hot works (or soldering/heat-shrink) AND
+     * requires a permit, AND carries none of the conditional markers below.
+     * `addPermitAndIsolation()`'s own shipped line — "Hot works permit
+     * required IF soldering or heat-shrink operations are performed on
+     * site" — carries `'if '`, so this returns `false` for it; that is the
+     * entire point of this method existing rather than a bare "mentions
+     * hot works and permit" check.
+     */
+    private static function permitRuleIsUnconditionalHotWorksRequirement(string $rule): bool
+    {
+        $lower = strtolower($rule);
+
+        $mentionsHotWorks = str_contains($lower, 'hot work')
+            || str_contains($lower, 'solder')
+            || str_contains($lower, 'heat-shrink')
+            || str_contains($lower, 'heat shrink');
+
+        if (! $mentionsHotWorks || ! str_contains($lower, 'permit')) {
+            return false;
+        }
+
+        foreach (['if ', 'where ', 'should ', 'when ', 'may be required'] as $conditionalMarker) {
+            if (str_contains($lower, $conditionalMarker)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     // =========================================================================
