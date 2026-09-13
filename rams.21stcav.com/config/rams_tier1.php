@@ -135,6 +135,197 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Structural gates kill-switch (Phase 30, GATE-01/GATE-02/GATE-04)
+    |--------------------------------------------------------------------------
+    |
+    | Gates ONLY RamsComplianceUpgradeService::enforceOrphanControlGate()
+    | (GATE-01 — a method step / hazard control referencing a document,
+    | permit or hold point with no supporting hazard row AND no supporting
+    | client-responsibility entry), ::enforceAreaCoverageGate() (GATE-02 —
+    | every area/room has at least one method step), and
+    | ::enforceResidualScoreGate() (GATE-04 — residual score never exceeds
+    | initial score; a residual SEVERITY reduction is flagged via
+    | compliance_warnings for human review, not thrown). When false, none
+    | of the three methods is ever called — upgrade() proceeds
+    | byte-identical to pre-Phase-30 behaviour, no redeploy required.
+    |
+    | These three are dispatched under ONE flag (not three) because D-04
+    | judged their failure mode identical — a false positive on legitimate
+    | output — so they can only ever be usefully flipped together; three
+    | extra config blocks would buy no rollback granularity. A NEW,
+    | INDEPENDENT flag — deliberately never reuses RAMS_DISPLAY_LIFT_GATE,
+    | RAMS_PPE_CEILING_ELECTRICAL_GATE or RAMS_CDM_AE_GATE, so a rollback
+    | of one gate generation can never accidentally disarm another's.
+    |
+    | Ships DISARMED (defaults false) per D-03: unlike GATE-06/07/09 (which
+    | could default true because the corpus was already measured clean at
+    | ship time), Phase 30's corpus has not been measured. Deploy order:
+    | ship code (this flag stays false) -> verify a live regeneration ->
+    | flip RAMS_STRUCTURAL_GATES=true as a separate one-line .env change.
+    |
+    */
+    'structural_gates_enabled' => env('RAMS_STRUCTURAL_GATES', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Missing risk reference gate kill-switch (Phase 30, GATE-14)
+    |--------------------------------------------------------------------------
+    |
+    | Gates ONLY RamsComplianceUpgradeService::enforceMissingRiskRefGate()
+    | (GATE-14 — a method step failing to cite hazards its own text plainly
+    | implies, per the missing_risk_implications map below). When false,
+    | the method is never called — upgrade() proceeds byte-identical to
+    | pre-GATE-14 behaviour, no redeploy required.
+    |
+    | Deliberately its OWN flag, separate from RAMS_STRUCTURAL_GATES, per
+    | D-04: GATE-14 infers a missing hazard citation from a deterministic
+    | keyword-implication map rather than re-checking an already-derived
+    | value, which is a distinct failure mode (bad hazard inference) from
+    | the structural trio's orphan/coverage/score checks — it MUST be
+    | killable without disarming GATE-01/02/04. A NEW, INDEPENDENT flag —
+    | never reuses RAMS_DISPLAY_LIFT_GATE, RAMS_PPE_CEILING_ELECTRICAL_GATE,
+    | RAMS_CDM_AE_GATE or RAMS_STRUCTURAL_GATES.
+    |
+    | Ships DISARMED (defaults false) per D-03 — same measured-corpus
+    | rationale as RAMS_STRUCTURAL_GATES above. Deploy order: ship code
+    | (stays false) -> verify a live regeneration -> flip
+    | RAMS_MISSING_RISK_REF_GATE=true as a separate one-line .env change.
+    |
+    */
+    'missing_risk_ref_gate_enabled' => env('RAMS_MISSING_RISK_REF_GATE', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Hot-works contradiction gate kill-switch (Phase 30, GATE-13)
+    |--------------------------------------------------------------------------
+    |
+    | Gates ONLY RamsComplianceUpgradeService::enforceHotWorksGate()
+    | (GATE-13 — a document asserting "no hot works" while a hot-works
+    | permit is required, per addPermitAndIsolation()'s rule text at
+    | ~:939, or solder/flux is listed in COSHH). When false, the method is
+    | never called — upgrade() proceeds byte-identical to pre-GATE-13
+    | behaviour, no redeploy required.
+    |
+    | A NEW, INDEPENDENT flag per D-04 — never reuses
+    | RAMS_DISPLAY_LIFT_GATE, RAMS_PPE_CEILING_ELECTRICAL_GATE,
+    | RAMS_CDM_AE_GATE, RAMS_STRUCTURAL_GATES or
+    | RAMS_MISSING_RISK_REF_GATE, because GATE-13 flips a full phase LATER
+    | than the rest (see D-02 below) — a single phase-wide flag is
+    | impossible here.
+    |
+    | D-02: GATE-13 ships WHOLE but DISARMED in Phase 30, and is flipped on
+    | only in Phase 31. Its COSHH half cannot fire correctly today:
+    | Tier1RamsDefaultsService::injectDefaultsIntoRamsData() sets
+    | $data['coshh_baseline'] UNCONDITIONALLY (:81, docblock :34 says
+    | "ALWAYS set") from this file's coshh_products baseline, which carries
+    | Tin/Lead Solder (:162 below) and Rosin Flux (:173 below). Every
+    | generated RAMS therefore already lists solder and flux, so an armed
+    | GATE-13 would error on any document also asserting "no hot works" —
+    | the common case. The permit half is equally unready:
+    | addPermitAndIsolation() emits its hot-works-permit rule line on every
+    | document unconditionally (~:939 below). Phase 31 (GATE-10/RULE-05)
+    | makes the COSHH table job-conditional, which is the prerequisite for
+    | arming this flag. Deploy order: ship code (stays false through
+    | Phase 30) -> Phase 31 makes coshh_baseline job-conditional -> verify
+    | a live regeneration -> flip RAMS_HOT_WORKS_GATE=true as a separate
+    | one-line .env change.
+    |
+    */
+    'hot_works_gate_enabled' => env('RAMS_HOT_WORKS_GATE', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | GATE-01 orphan-control trigger vocabulary (Phase 30, D-06/D-07)
+    |--------------------------------------------------------------------------
+    |
+    | Data, not code, so the trigger vocabulary is tunable without a
+    | deploy — a gate's false-positive rate can only be learned from the
+    | live corpus, and D-03 means that learning happens post-deploy. Each
+    | row's `phrase` is literal lowercase text a method step or hazard
+    | control may contain (a reference to a document, permit or hold
+    | point); `signal` is the key GATE-01 checks on the hazard side via
+    | App\Services\Rams\StructuralGateVocabulary (which reuses
+    | HazardIncludeWhenResolver's TIER2/TIER3 const maps, D-07 — do not
+    | invent a second, parallel vocabulary); `label` is human wording for
+    | the error message. Every `signal` value below MUST already exist as
+    | a key in HazardIncludeWhenResolver's const maps — enforced by
+    | tests/Unit/Services/Rams/StructuralGateConfigTest.php.
+    |
+    | GATE-01 errors when EITHER the hazard row OR the client-responsibility
+    | entry is missing for a triggered phrase — both are required support
+    | (D-05). The asbestos row is the canonical PORTING-NOTES example: a
+    | step mentioning "asbestos register" with no Asbestos-Containing
+    | Materials hazard row and no matching client-responsibility entry is
+    | an orphan control.
+    |
+    */
+    'structural_gate_triggers' => [
+
+        ['phrase' => 'asbestos register', 'signal' => 'asbestos', 'label' => 'asbestos register'],
+        ['phrase' => 'asbestos survey', 'signal' => 'asbestos', 'label' => 'asbestos survey'],
+        ['phrase' => 'refurbishment and demolition survey', 'signal' => 'asbestos', 'label' => 'refurbishment and demolition (R&D) survey'],
+        ['phrase' => 'pre-2000', 'signal' => 'asbestos', 'label' => 'pre-2000 building age reference'],
+        ['phrase' => 'pre 2000', 'signal' => 'asbestos', 'label' => 'pre-2000 building age reference'],
+        ['phrase' => 'age unknown', 'signal' => 'asbestos', 'label' => 'building age unknown reference'],
+        ['phrase' => 'built before 2000', 'signal' => 'asbestos', 'label' => 'built-before-2000 building age reference'],
+        // Permit-to-work is issued in this business's own wording for
+        // ceiling void / riser / restricted-area access
+        // (addPermitAndIsolation() rule text) — ceiling_void_access is the
+        // closest existing signal, not a purpose-built "permit" signal.
+        ['phrase' => 'permit to work', 'signal' => 'ceiling_void_access', 'label' => 'permit to work'],
+        // Isolation certificate / hot-works permit both concern electrical
+        // isolation controls in addPermitAndIsolation()'s own rule text —
+        // mains_connection is the closest existing signal.
+        ['phrase' => 'isolation certificate', 'signal' => 'mains_connection', 'label' => 'isolation certificate'],
+        ['phrase' => 'hot-works permit', 'signal' => 'mains_connection', 'label' => 'hot-works permit'],
+        ['phrase' => 'hold point', 'signal' => 'occupied_premises', 'label' => 'hold point'],
+
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | GATE-14 missing-risk implication map (Phase 30, D-06/D-07)
+    |--------------------------------------------------------------------------
+    |
+    | Explicitly NOT crossReferenceMethodStatementRisks()'s $keywordRiskMap
+    | (RamsComplianceUpgradeService.php ~:1015-1027) — that map is the exact
+    | code responsible for the defect GATE-14 exists to catch (it is
+    | intersection-based: a keyword must appear in BOTH the step text AND
+    | the hazard name, so implied-but-unworded hazards are silently
+    | dropped). Reusing it here would be the "a gate must never re-derive
+    | the thing it is checking" anti-pattern the enforceDisplayLiftGate()
+    | docblock (~:1268-1276) warns against.
+    |
+    | Each row's `phrase` is step-action text (lowercase substring match
+    | against the combined method-statement phase text); `signal` is the
+    | HazardIncludeWhenResolver signal key GATE-14 checks for on the
+    | hazard side, via the same App\Services\Rams\StructuralGateVocabulary
+    | helper GATE-01 uses (D-07 — one shared vocabulary); `label` is human
+    | wording for the warning message. Every `signal` value below MUST
+    | already exist as a key in HazardIncludeWhenResolver's const maps —
+    | enforced by tests/Unit/Services/Rams/StructuralGateConfigTest.php.
+    |
+    | GATE-14 only fires when the implied hazard is PRESENT in the
+    | register but not cited by the step (a citation gap) — never when the
+    | hazard is absent entirely (that is GATE-01/HAZ territory, not a
+    | missing citation). See StructuralGateVocabulary /
+    | enforceMissingRiskRefGate() for that safety property.
+    |
+    */
+    'missing_risk_implications' => [
+
+        ['phrase' => 'wall mount', 'signal' => 'mounting_above_reach', 'label' => 'working at height (wall mount)'],
+        ['phrase' => 'onto the bracket', 'signal' => 'mounting_above_reach', 'label' => 'working at height (bracket fixing)'],
+        ['phrase' => 'lift the display', 'signal' => 'mounting_above_reach', 'label' => 'working at height (display lift)'],
+        ['phrase' => 'above 2m', 'signal' => 'mounting_above_reach', 'label' => 'working at height (above 2m)'],
+        ['phrase' => 'stepladder', 'signal' => 'mounting_above_reach', 'label' => 'working at height (stepladder)'],
+        ['phrase' => 'podium', 'signal' => 'mounting_above_reach', 'label' => 'working at height (podium steps)'],
+        ['phrase' => 'ceiling void', 'signal' => 'ceiling_void_access', 'label' => 'ceiling void access'],
+
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Baseline COSHH inventory
     |--------------------------------------------------------------------------
     |
