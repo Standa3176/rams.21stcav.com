@@ -134,3 +134,12 @@ None - no external service configuration required. The three new `.env` flags ar
 ---
 *Phase: 30-structural-validation-gates*
 *Completed: 2026-09-13*
+
+## Self-Check: PASSED
+
+All 9 files created/modified by this plan verified present on disk (`config/rams_tier1.php`,
+`.env.example`, `app/Services/Rams/StructuralGateVocabulary.php`,
+`app/Services/Rams/HazardIncludeWhenResolver.php`,
+`app/Services/Rams/RamsComplianceUpgradeService.php`, the three new test files, and the modified
+`HazardResolutionPathGuardTest.php`). All 4 commit hashes (`7c05d63`, `0a308fe`, `b9d916e`,
+`692de39`) confirmed present in `git log --oneline --all`.
