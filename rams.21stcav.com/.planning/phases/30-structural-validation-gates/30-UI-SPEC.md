@@ -1,10 +1,11 @@
 ---
 phase: 30
 slug: structural-validation-gates
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-09-13
+reviewed_at: 2026-09-13
 ---
 
 # Phase 30 — UI Design Contract
@@ -199,8 +200,10 @@ this warning is explicitly not dismissible.
   `role="alert"` — assertive is for blocking errors.
 - The `⚠` glyph is the established warning mark in this codebase
   (`components/stale-banner.blade.php`). No icon library to pull from.
-- Count badge, if used, is `.badge-warning` (`layouts/app.blade.php:1029`) — same
-  `--warning-light` / `#92400E` pair, so it cannot drift from the panel.
+- Count badge, if used, is `.badge-warning` (`layouts/app.blade.php:1029`). **Note: it does
+  NOT share the panel's background.** `.badge-warning` uses `var(--warning-light)` `#FEF3C7`;
+  `.alert-warning` uses a literal `#FFFBEB`. Only the `#92400E` text colour is common to both.
+  Do not assume the two backgrounds match — corrected 2026-09-13 during UI-SPEC verification.
 
 ### Empty state — the most important state in this phase
 
@@ -239,10 +242,10 @@ Consequences the copy must respect:
 ## Surface 2 — Inline Hazard Row Marker
 
 **Location:** the Hazard Register table in the hazards tab, `review.blade.php:1184-1218` — the
-`<tr>` at `:1203` that already carries `{{ $hazardRowChanged ? 'diff-modified' : '' }}`.
+`<tr>` at `:1202` that already carries `{{ $hazardRowChanged ? 'diff-modified' : '' }}`.
 
 **Idiom:** reuse the existing left-rail treatment. `.diff-modified` is defined in the page's own
-inline `<style>` at `review.blade.php:420-423`:
+inline `<style>` at `review.blade.php:423-425`:
 
 ```
 border-left: 3px solid var(--warning) !important;
@@ -257,10 +260,22 @@ background: color-mix(in oklab, var(--warning) 6%, var(--surface)) !important;
   3px left rail + 6% `color-mix` tint** so the two treatments are visually consistent rather than
   competing. Do not invent a different rail width, a different tint percentage, or a border on
   another edge.
+- **The rail alone does NOT distinguish flagged from edited — a `⚠` glyph carries that.**
+  Render `⚠` immediately before the hazard name in the hazard-name cell of any gate-flagged row,
+  and never on a merely diff-modified row. `⚠` is the established warning mark in this codebase
+  (`components/stale-banner.blade.php`), so this introduces no new vocabulary. Give it
+  `aria-hidden="true"` and rely on the row `title` for assistive text, so the glyph is decorative
+  rather than a second, unlabelled control.
+
+  *Rationale (added 2026-09-13, UI-SPEC verification Dimension 2 FLAG):* since `.gate-flagged`
+  deliberately reuses `.diff-modified`'s exact rail and tint, an edited row and a flagged row are
+  otherwise pixel-identical, which makes the precedence rule below visually inert. The glyph is
+  the minimum differentiator that stays inside the existing idiom.
 - A row can be both diff-modified and gate-flagged. When both apply, the gate flag wins the rail
   (it is the safety signal); a class-order or explicit-precedence decision is the executor's, but
   it must be deliberate and commented — `.diff-modified` uses `!important`, so naive class
-  stacking will silently resolve by source order.
+  stacking will silently resolve by source order. Note the rails are identical, so this precedence
+  is not observable on its own — the `⚠` glyph above is what makes the combined state legible.
 - Add `title="{gate} — {message}"` on the flagged row so the reason is reachable without leaving
   the table.
 - Matching key: `hazard_index` from the warning entry against `$hIdx` in the `@foreach` at
