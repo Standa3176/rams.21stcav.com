@@ -243,7 +243,7 @@ Plans:
 - [x] 30-03-PLAN.md - GATE-01 (orphan controls; fires when EITHER support is missing, per D-05) and GATE-02 (area/method-step coverage; zero areas passes vacuously), behind RAMS_STRUCTURAL_GATES.
 - [x] 30-04-PLAN.md - Warn surface per the approved 30-UI-SPEC: review-screen summary panel plus hazard-row marker, and the assertion that warning text never reaches a PDF or DOCX.
 - [x] 30-05-PLAN.md - Documentation corrections (goal line says five gates per D-01; criterion 1 corrected per D-05; new criteria for GATE-13 and GATE-14) and 30-MEASUREMENT.md, the read-only corpus measurement and arming runbook.
-- [ ] 30-06-PLAN.md - GATE-04, the phase's only two-tier gate: error on residual score exceeding initial, warn on residual severity below initial; plus the byte-identical-when-disarmed and flag-independence proofs.
+- [x] 30-06-PLAN.md - GATE-04, the phase's only two-tier gate: error on residual score exceeding initial, warn on residual severity below initial; plus the byte-identical-when-disarmed and flag-independence proofs.
 - [ ] 30-07-PLAN.md - GATE-13 hot-works contradiction, built whole and shipped disarmed per D-02, including the regression proving it does not fire on addPermitAndIsolation()'s own conditional permit line.
 - [ ] 30-08-PLAN.md - GATE-14 missing risk references, WARN tier (the risks line is app-generated), with a static source guard proving it does not re-derive $keywordRiskMap.
 - [ ] 30-09-PLAN.md - The two 21CQ30960 fixtures (defect-bearing plus clean), snapshot wiring in both snapshot test files, ROADMAP criterion 4 proven automatically, and the phase gate.

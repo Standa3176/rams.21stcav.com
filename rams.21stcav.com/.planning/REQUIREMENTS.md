@@ -62,7 +62,7 @@ and are listed for traceability, not rework.
 - [x] **GATE-01**: Orphan controls — every method step or hazard control referencing a document, permit or hold point has a matching hazard row AND a matching `clientReqs` entry. Canonical failure: "review the asbestos register" with no asbestos hazard behind it.
 - [x] **GATE-02**: Every area has at least one method step.
 - [x] **GATE-03**: Every method step has exactly one `risks` line, and every RA reference resolves to a hazard that exists. *(Shipped 260817-r5e — includes the index-vs-id dangling-reference fix.)*
-- [ ] **GATE-04**: Residual score ≤ initial score on every hazard, and residual severity normally unchanged. Flag `s2 < s1` for human review rather than accepting it — controls reduce likelihood, not severity.
+- [x] **GATE-04**: Residual score ≤ initial score on every hazard, and residual severity normally unchanged. Flag `s2 < s1` for human review rather than accepting it — controls reduce likelihood, not severity.
 - [ ] **GATE-05**: Uniform-scoring detection — if most hazards share the same initial score, the register was assembled from the library rather than the job. Warn.
 - [x] **GATE-06**: FFP2 anywhere → error. House rule is FFP3 with face-fit testing. *(Closed 2026-09-06, Plan 28-06: `RamsComplianceUpgradeService::enforceFfp2AndConfinedSpaceGate()` throws `RamsGenerationException` on any surviving hazard-control FFP2 text (via `ControlTextRuleViolations::detect()`) or literal `FFP2` token in `$data['ppe']`/`$data['ppe_matrix']`, config-gated by the independent `RAMS_PPE_CEILING_ELECTRICAL_GATE` flag. Reachable and caught with a friendly redirect on all 3 HTTP-reachable `upgrade()` call sites, including the previously-unguarded `downloadPdf()` path. Proven via reflection, a real Save-Review HTTP POST, and both `runPipeline()`/`runFromReview()` entry points. See `28-06-SUMMARY.md`.)*
 - [x] **GATE-07**: "Confined space" applied to a ceiling void, comms room or riser → error. Not confined spaces under the 1997 Regulations. *(Closed 2026-09-06, Plan 28-06: the same gate's hazard-NAME check — unconditional per hazard, not nested inside any template-resolution branch — throws on a hazard named "Confined Space"/"Confined Spaces"/"Confined Space Entry", none of which `LegacyHazardNameFoldMap` folds and none of which reach Plan 28-01's tier-1 auto-correction (`RamsBuilderService::reviewedToRisk()` skips its `detectAll()` call entirely for an unmatched name). This was the one surface no other mechanism in the phase scanned. See `28-06-SUMMARY.md`.)*
@@ -154,7 +154,7 @@ Deliberately excluded to keep the document-quality core shippable:
 | GATE-01 | Phase 30 | Complete |
 | GATE-02 | Phase 30 | Complete |
 | GATE-03 | — | Shipped (260817-r5e) |
-| GATE-04 | Phase 30 | Pending |
+| GATE-04 | Phase 30 | Complete |
 | GATE-05 | Phase 31 | Pending |
 | GATE-06 | Phase 28 | Complete |
 | GATE-07 | Phase 28 | Complete |
