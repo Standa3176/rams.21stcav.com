@@ -234,7 +234,18 @@ Plans:
   3. GATE-04 flags (does not silently accept) any hazard where residual severity is lower than initial severity, and errors when residual score exceeds initial score on any hazard
   4. Running all three gates against a real regenerated project (21CQ30960) with the Phase 26 hazard set passes clean — no false positives against legitimate, correctly-scoped output
 
-**Plans**: TBD
+**Plans**: 9 plans
+Plans:
+- [ ] 30-01-PLAN.md - Foundation: three disarmed kill-switch flags (D-04), the config-resident GATE-01 trigger vocabulary and GATE-14 implication map (D-06), the shared StructuralGateVocabulary matching helper (D-07/D-08), and the compliance_warnings advisory channel.
+- [ ] 30-02-PLAN.md - Data reachability: mirror client_responsibilities_expanded and a gate-private area list into the pipeline array at all three upgrade() entry points, with a dual-path non-vacuity proof. Without this GATE-01/02 report clean on every document.
+- [ ] 30-03-PLAN.md - GATE-01 (orphan controls; fires when EITHER support is missing, per D-05) and GATE-02 (area/method-step coverage; zero areas passes vacuously), behind RAMS_STRUCTURAL_GATES.
+- [ ] 30-04-PLAN.md - Warn surface per the approved 30-UI-SPEC: review-screen summary panel plus hazard-row marker, and the assertion that warning text never reaches a PDF or DOCX.
+- [ ] 30-05-PLAN.md - Documentation corrections (goal line says five gates per D-01; criterion 1 corrected per D-05; new criteria for GATE-13 and GATE-14) and 30-MEASUREMENT.md, the read-only corpus measurement and arming runbook.
+- [ ] 30-06-PLAN.md - GATE-04, the phase's only two-tier gate: error on residual score exceeding initial, warn on residual severity below initial; plus the byte-identical-when-disarmed and flag-independence proofs.
+- [ ] 30-07-PLAN.md - GATE-13 hot-works contradiction, built whole and shipped disarmed per D-02, including the regression proving it does not fire on addPermitAndIsolation()'s own conditional permit line.
+- [ ] 30-08-PLAN.md - GATE-14 missing risk references, WARN tier (the risks line is app-generated), with a static source guard proving it does not re-derive $keywordRiskMap.
+- [ ] 30-09-PLAN.md - The two 21CQ30960 fixtures (defect-bearing plus clean), snapshot wiring in both snapshot test files, ROADMAP criterion 4 proven automatically, and the phase gate.
+
 **UI hint**: yes (gate errors/warnings surface on the RAMS review screen)
 
 ### Phase 31: Standards/COSHH Scoping & Padding Gates
