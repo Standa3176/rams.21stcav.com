@@ -44,8 +44,16 @@ class HazardIncludeWhenResolver
     /**
      * Tier-2 signal keys satisfied by an EquipmentClassifierService activity
      * key being present in the job's captured `activities` signal.
+     *
+     * Widened from `private` to `public` by Phase 30 Plan 01 (D-07) — a
+     * visibility change only, no logic change — so
+     * {@see \App\Services\Rams\StructuralGateVocabulary} can reuse this
+     * const map directly rather than building a second, parallel
+     * hazard-matching vocabulary. Never call {@see self::resolve()} from a
+     * gate; that method queries `HazardTemplate` Eloquent models and would
+     * break `RamsComplianceUpgradeService`'s "No AI. No database." invariant.
      */
-    private const TIER2_ACTIVITY_SIGNALS = [
+    public const TIER2_ACTIVITY_SIGNALS = [
         'mounting_above_reach' => ['ceiling_works'],
         'display_mount_or_rack' => ['display_installation', 'av_rack', 'ceiling_works'],
         'ceiling_void_access' => ['ceiling_works'],
@@ -56,7 +64,7 @@ class HazardIncludeWhenResolver
      * Tier-2 signal keys satisfied by a fixed-vocabulary keyword match
      * against the (lowercased) scope narrative.
      */
-    private const TIER2_KEYWORD_SIGNALS = [
+    public const TIER2_KEYWORD_SIGNALS = [
         'mounting_above_reach' => [
             'above standing reach',
             'overhead mount',
@@ -104,7 +112,7 @@ class HazardIncludeWhenResolver
      * (see class docblock). This exists solely so Plan 26-05's review-screen
      * UI can pre-tick/order the confirmation candidates sensibly.
      */
-    private const TIER3_KEYWORD_PRECHECK = [
+    public const TIER3_KEYWORD_PRECHECK = [
         'occupied_premises' => [
             'occupied',
             'live building',
