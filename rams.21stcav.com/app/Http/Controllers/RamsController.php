@@ -593,6 +593,24 @@ class RamsController extends Controller
         // (Plan 27-06). See deferred-items.md item 1.
         $generatedData['material_handling'] = $reviewedData['material_handling'] ?? [];
 
+        // Also mirror client_responsibilities_expanded and a gate-private area
+        // list into generated_data (Plan 30-02, GATE-01/GATE-02 coverage-gap
+        // closure — 30-RESEARCH.md Findings 1-3). Without these mirrors,
+        // client_responsibilities_expanded stays trapped in $reviewedData
+        // (RamsController.php:522-536) and no usable area enumeration exists
+        // in the pipeline array at all, so GATE-01's client-responsibility
+        // half and GATE-02 would always see an empty array on the Save
+        // Review path — the exact path an engineer uses — and report clean
+        // on every real document. Mirrored under the gate-private
+        // `areas_for_gate` key, NOT `room_overviews`, deliberately: setting
+        // `room_overviews` would wake the long-dormant `ensurePerRoomBullets()`
+        // AI path (RamsComplianceUpgradeService.php:165-168).
+        $generatedData['client_responsibilities_expanded'] = $reviewedData['client_responsibilities_expanded'] ?? [];
+        $generatedData['areas_for_gate'] = array_values(array_filter(array_map(
+            static fn ($r) => is_array($r) ? trim((string) ($r['room'] ?? '')) : '',
+            (array) ($reviewedData['room_overviews'] ?? []),
+        ), static fn (string $s): bool => $s !== ''));
+
         // ── Apply Tier 1 compliance upgrade before persist + render ────────
         // A RamsGenerationException here means GATE-09 (or another Tier 1
         // rule) rejected data the engineer just typed on this exact request.

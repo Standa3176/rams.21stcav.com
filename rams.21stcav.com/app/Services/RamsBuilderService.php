@@ -293,6 +293,22 @@ class RamsBuilderService
         // upgrade(), exactly like scope_items above.
         $data['material_handling'] = (array) ($reviewedData['material_handling'] ?? $data['material_handling'] ?? []);
 
+        // Plan 30-02 (GATE-01/GATE-02 coverage-gap closure) — mirror
+        // reviewed_data['client_responsibilities_expanded'] and a gate-private
+        // area list onto the pipeline array, symmetric with material_handling
+        // above. Without these, GATE-01's client-responsibility half and
+        // GATE-02 always see an empty array on this path and report clean on
+        // every real document (30-RESEARCH.md Findings 1-3). Source of truth
+        // on THIS path is $reviewedData['room_overviews'], confirmed populated
+        // at :162-196 above. Mirrored under the gate-private `areas_for_gate`
+        // key, NOT `room_overviews`, so the long-dormant `ensurePerRoomBullets()`
+        // AI path stays dormant.
+        $data['client_responsibilities_expanded'] = $reviewedData['client_responsibilities_expanded'] ?? [];
+        $data['areas_for_gate'] = array_values(array_filter(array_map(
+            static fn ($r) => is_array($r) ? trim((string) ($r['room'] ?? '')) : '',
+            (array) ($reviewedData['room_overviews'] ?? []),
+        ), static fn (string $s): bool => $s !== ''));
+
         // ── Tier 1 compliance upgrade (PPE matrix, CDM, risk colour key, etc.) ─
         $data = RamsComplianceUpgradeService::upgrade($data);
 
@@ -937,6 +953,26 @@ class RamsBuilderService
         // both real generation entry points symmetric for GATE-09's engineer-
         // row re-check.
         $data['material_handling'] = (array) ($formData['material_handling'] ?? $data['material_handling'] ?? []);
+
+        // Plan 30-02 (GATE-01/GATE-02 coverage-gap closure) — mirror
+        // client_responsibilities_expanded and a gate-private area list onto
+        // the pipeline array, matching runFromReview()'s equivalent mirror
+        // above, keeping both real generation entry points symmetric.
+        // runPipeline() has no $formData equivalent of room_overviews or
+        // client_responsibilities_expanded (those are review-screen-only
+        // inputs), so both are sourced from $record->reviewed_data — written
+        // by ExtractQuoteJob.php:257 before the build. On a form-only initial
+        // build no quote was extracted, so reviewed_data['room_overviews'] is
+        // legitimately absent and areas_for_gate is correctly []; that is not
+        // a bug (30-02-PLAN.md interfaces note). Mirrored under the
+        // gate-private `areas_for_gate` key, NOT `room_overviews`, so the
+        // long-dormant `ensurePerRoomBullets()` AI path stays dormant.
+        $recordReviewedData = (array) ($record->reviewed_data ?? []);
+        $data['client_responsibilities_expanded'] = $recordReviewedData['client_responsibilities_expanded'] ?? [];
+        $data['areas_for_gate'] = array_values(array_filter(array_map(
+            static fn ($r) => is_array($r) ? trim((string) ($r['room'] ?? '')) : '',
+            (array) ($recordReviewedData['room_overviews'] ?? []),
+        ), static fn (string $s): bool => $s !== ''));
 
         // ── Tier 1 compliance upgrade (PPE matrix, CDM, risk colour key, etc.) ─
         $data = RamsComplianceUpgradeService::upgrade($data);
