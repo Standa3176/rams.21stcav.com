@@ -111,6 +111,25 @@ class RamsComplianceUpgradeService
             $ramsData = self::enforceCdmGate($ramsData);
             $ramsData = self::enforceEmergencyGate($ramsData);
         }
+        // GATE-01/GATE-02(/GATE-04, Plan 30-06) — independent re-checks of
+        // orphan controls (a method step / hazard control referencing a
+        // document, permit or hold point with no supporting hazard row and
+        // no supporting client-responsibility entry) and area/method-step
+        // coverage. Dispatched under ONE flag (D-04 — see
+        // config/rams_tier1.php:138-167 for the full rationale): all three
+        // structural gates share the same false-positive failure mode, so
+        // they can only ever be usefully rolled back together. A NEW,
+        // INDEPENDENT flag — never reuses RAMS_DISPLAY_LIFT_GATE,
+        // RAMS_PPE_CEILING_ELECTRICAL_GATE or RAMS_CDM_AE_GATE, so a
+        // rollback of one gate generation can never accidentally disarm
+        // another's. Ships DISARMED (defaults false) per D-03 — Phase 30's
+        // corpus has not been measured clean, unlike GATE-06/07/09. When
+        // false, none of the gated methods is ever called — upgrade()
+        // proceeds byte-identical to pre-Phase-30 behaviour, no redeploy
+        // required. GATE-04's call joins this same block in Plan 30-06.
+        if (config('rams_tier1.structural_gates_enabled', false)) {
+            $ramsData = self::enforceOrphanControlGate($ramsData);
+        }
         $ramsData = self::cleanTextArtifacts($ramsData);
 
         return $ramsData;
@@ -1939,12 +1958,12 @@ class RamsComplianceUpgradeService
     // 13. STRUCTURAL GATES (Phase 30) — GATE-01/02/04/13/14
     // =========================================================================
     //
-    // Placement note for plans 30-03 (GATE-01/02), 30-06 (GATE-04), 30-07
-    // (GATE-13) and 30-08 (GATE-14), which add their gate methods and
-    // upgrade() dispatch blocks here: GATE-13 reads permit_and_isolation
-    // (written by addPermitAndIsolation() at ~:939) and GATE-14 reads
-    // associated_risks (written by crossReferenceMethodStatementRisks() at
-    // ~:1001-1092), so all new dispatch blocks belong AFTER the
+    // Placement note for plans 30-06 (GATE-04), 30-07 (GATE-13) and 30-08
+    // (GATE-14), which add their gate methods and join the dispatch block
+    // below: GATE-13 reads permit_and_isolation (written by
+    // addPermitAndIsolation() at ~:939) and GATE-14 reads associated_risks
+    // (written by crossReferenceMethodStatementRisks() at ~:1001-1092), so
+    // all new dispatch blocks belong AFTER the
     // crossReferenceMethodStatementRisks()/resolveSiteEmergency()/
     // addCdmDutyHolders()/GATE-11-12 sequence above (upgrade() ~:78-100)
     // and BEFORE cleanTextArtifacts() below. Each new gate follows the
@@ -1956,6 +1975,152 @@ class RamsComplianceUpgradeService
     // warn half, which push onto $ramsData['compliance_warnings']
     // (initialised unconditionally at the top of upgrade()) instead of
     // throwing.
+
+    /**
+     * GATE-01 (PORTING-NOTES.md:66-68) — independent re-check that every
+     * method step or hazard control line referencing a document, permit or
+     * hold point (the `structural_gate_triggers` config vocabulary) has BOTH
+     * a supporting hazard row and a supporting client-responsibility entry.
+     * The canonical failure is a step reading "review the asbestos register"
+     * with no Asbestos-Containing Materials hazard row and no matching
+     * client-responsibility entry behind it.
+     *
+     * D-05: fires when EITHER support is missing, not only when both are —
+     * this is the correct reading of the PORTING-NOTES source ("must have a
+     * matching hazard row *and* a matching clientReqs entry"; missing either
+     * conjunct fails the check). ROADMAP criterion 1 states this backwards;
+     * Plan 30-05 corrects the doc, this method implements the correct
+     * behaviour. The thrown message always names WHICH support is absent —
+     * an engineer who has added the hazard but not the client responsibility
+     * must be told that, not told both are missing.
+     *
+     * This gate is independent of the code that produced the text it
+     * checks: it never re-derives a hazard or a client-responsibility entry
+     * itself, it only asks whether one already exists that supports a
+     * trigger phrase already present in the document, via the single shared
+     * {@see StructuralGateVocabulary} matcher (D-07/D-08) — never a second,
+     * parallel vocabulary.
+     *
+     * Conservative by construction (pattern S3): an unknown signal, an
+     * absent `method_statement`, an absent `hazards` key, or an absent
+     * `client_responsibilities`/`client_responsibilities_expanded` — each is
+     * a skip or a "no support found", never a throw of its own and never a
+     * false positive from a matching failure. Does not call the Phase 26
+     * hazard-library resolver's dynamic resolve-from-database method —
+     * that method queries Eloquent and would break this class's
+     * "Deterministic. No AI. No database." docblock invariant (:18); all
+     * signal matching goes through {@see StructuralGateVocabulary}'s
+     * const-map-backed helpers instead (D-07).
+     */
+    private static function enforceOrphanControlGate(array $data): array
+    {
+        $triggers = (array) config('rams_tier1.structural_gate_triggers', []);
+
+        if (empty($triggers)) {
+            return $data;
+        }
+
+        $haystack = self::orphanControlHaystack($data);
+
+        if ($haystack === '') {
+            return $data;
+        }
+
+        $hazards = (array) ($data['hazards'] ?? []);
+        $clientReqStrings = StructuralGateVocabulary::flattenClientResponsibilities($data);
+
+        foreach ($triggers as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $phrase = mb_strtolower(trim((string) ($row['phrase'] ?? '')));
+            $signal = (string) ($row['signal'] ?? '');
+            $label = (string) ($row['label'] ?? $phrase);
+
+            if ($phrase === '' || $signal === '') {
+                continue;
+            }
+
+            if (! str_contains($haystack, $phrase)) {
+                continue;
+            }
+
+            $hasHazard = StructuralGateVocabulary::signalMatchesHazards($signal, $hazards);
+            $hasClientReq = StructuralGateVocabulary::signalMatchesClientReqs($signal, $clientReqStrings);
+
+            if ($hasHazard && $hasClientReq) {
+                continue;
+            }
+
+            [$missingDescription, $missingAction] = match (true) {
+                ! $hasHazard && ! $hasClientReq => [
+                    'no supporting hazard row and no client-responsibility entry',
+                    'the hazard and the client responsibility',
+                ],
+                ! $hasHazard => [
+                    'no supporting hazard row (a client-responsibility entry is already present)',
+                    'the hazard',
+                ],
+                default => [
+                    'no client-responsibility entry (a supporting hazard row is already present)',
+                    'the client responsibility',
+                ],
+            };
+
+            throw new RamsGenerationException(sprintf(
+                'Orphan control — "%s" references %s but the RAMS has %s (GATE-01). Add %s, or remove '
+                . 'the reference, or set RAMS_STRUCTURAL_GATES=false to disable this check.',
+                $phrase,
+                $label,
+                $missingDescription,
+                $missingAction,
+            ));
+        }
+
+        return $data;
+    }
+
+    /**
+     * The combined free text GATE-01 scans for a trigger phrase: every
+     * method-statement phase title and step, plus every surviving hazard
+     * control line (REQUIREMENTS.md:62 — "a method step / hazard control
+     * referencing…"). Case-folded once here so every caller in this gate
+     * compares like-for-like. Never throws — a missing/malformed
+     * `method_statement` or `hazards` key simply contributes nothing.
+     */
+    private static function orphanControlHaystack(array $data): string
+    {
+        $parts = [];
+
+        $phases = (array) ($data['method_statement']['phases'] ?? []);
+        foreach ($phases as $phase) {
+            if (! is_array($phase)) {
+                continue;
+            }
+
+            $parts[] = (string) ($phase['title'] ?? '');
+
+            foreach ((array) ($phase['steps'] ?? []) as $step) {
+                $parts[] = (string) $step;
+            }
+        }
+
+        $hazards = (array) ($data['hazards'] ?? []);
+        foreach ($hazards as $hazard) {
+            if (! is_array($hazard)) {
+                continue;
+            }
+
+            foreach ((array) ($hazard['controls'] ?? []) as $control) {
+                $parts[] = (string) $control;
+            }
+        }
+
+        $parts = array_filter($parts, static fn ($p) => trim((string) $p) !== '');
+
+        return mb_strtolower(implode(' | ', $parts));
+    }
 
     // =========================================================================
     // 14. TEXT HYGIENE — deterministic cleanup of known artifacts
