@@ -86,6 +86,15 @@ final class ControlTextRuleViolations
         'size_conditional_lift' => 'detectSizeConditionalLift',
         'ffp2'                  => 'detectFfp2',
         'confined_space'        => 'detectConfinedSpace',
+        // Phase 30 Plan 07 (GATE-13) — appended LAST, deliberately. This
+        // entry's domain (a "no hot works" absence assertion) never
+        // overlaps the phrasing any of the four detectors above match
+        // (kg thresholds, screen-size team counts, FFP2, confined-space
+        // labels), so registry order between this entry and the others
+        // never actually matters — appended rather than inserted to keep
+        // this diff a pure addition against the four already-shipped
+        // entries above.
+        'hot_works_assertion'  => 'detectHotWorksAssertion',
     ];
 
     /**
@@ -122,6 +131,90 @@ final class ControlTextRuleViolations
         'is classified as a confined space',
         'acop l101',
         ' l101',
+    ];
+
+    /**
+     * Phase 30 Plan 07 (GATE-13, RESEARCH.md Finding 5) — phrases that mean
+     * a hot-works mention is CONDITIONAL, procedural, or otherwise does NOT
+     * assert absence. Checked first; a match short-circuits
+     * {@see self::detectHotWorksAssertion()} to clean regardless of
+     * anything else in the line. This is the mirror image of
+     * {@see self::CONFINED_SPACE_NEGATIONS}: there the negation list denies
+     * an affirmative LABEL; here it denies an absence ASSERTION, because
+     * the label GATE-13 is hunting for is "hot works do not happen here",
+     * and a sentence describing how hot works are PERMITTED is the
+     * opposite of that.
+     *
+     * T-30-16 (the widest false-positive exposure in the phase): the
+     * app's OWN unconditional permit line —
+     * `addPermitAndIsolation()`'s "Hot works permit required if soldering
+     * or heat-shrink operations are performed on site" — must round-trip
+     * to clean. `'permit required if'` and `'if soldering'` both match it.
+     *
+     * @var list<string>
+     */
+    private const HOT_WORKS_NEGATIONS = [
+        'permit required if',
+        'if soldering',
+        'if heat-shrink',
+        'if heat shrink',
+        'if hot work',
+        'carried out under permit',
+        'under a permit',
+        'under permit',
+        'should hot works be required',
+        'where hot works are required',
+        'when hot works are required',
+    ];
+
+    /**
+     * Phase 30 Plan 07 (GATE-13) — phrases that affirmatively assert the
+     * ABSENCE of hot works on a site ("no hot works will be undertaken").
+     * A match here (checked after {@see self::HOT_WORKS_NEGATIONS} finds
+     * nothing) is the RA18-shaped "no hot works" assertion GATE-13
+     * cross-references against the permit and COSHH halves of the
+     * document. Deliberately NARROW — each phrase pairs "no hot works" (or
+     * "no soldering") with an explicit verb ("will be", "are to be", "not
+     * required", "excluded") rather than matching the bare substring "no
+     * hot works" alone.
+     *
+     * This narrowness is load-bearing, not incidental: `HazardTemplateSeeder`
+     * ships "No hot works of any kind included in this scope." as a
+     * standing control line on the always-included "Fire and evacuation"
+     * hazard (`database/seeders/HazardTemplateSeeder.php:370`) — i.e. on
+     * every generated RAMS. None of the phrases below match that sentence
+     * (it contains neither "will be"/"are to be"/"shall be" adjacent to
+     * "no hot works" nor "not required"/"excluded"), so this detector does
+     * NOT flag it — {@see self::detect()} is also called by
+     * `RamsBuilderService::reviewedToRisk()`'s Tier-1 house-rule-violation
+     * replacement path (27-08-PLAN.md), and a match there FORCES a
+     * reviewed hazard's controls back to the template text. Unlike
+     * `kg_threshold`/`ffp2`/`confined_space`, an absence assertion is not
+     * itself a house-rule violation — it is informational text GATE-13
+     * cross-references, never text that should be silently overwritten —
+     * so this detector is written to never fire on the app's own standing
+     * boilerplate. `ControlTextRuleViolationsTest::
+     * test_no_seeded_library_control_is_ever_flagged` proves this
+     * boundary; do not widen these phrases to bare "no hot works" without
+     * re-reading that test first.
+     *
+     * @var list<string>
+     */
+    private const HOT_WORKS_ABSENCE_ASSERTIONS = [
+        'no hot works will be',
+        'no hot works are to be',
+        'no hot works shall be',
+        'no hot works are being',
+        'hot works will not be',
+        'hot works shall not be',
+        'hot works are not required',
+        'hot works are not permitted',
+        'hot works are not undertaken',
+        'hot works not required',
+        'hot works excluded',
+        'no soldering will be undertaken',
+        'no soldering or heat-shrink',
+        'soldering will not be undertaken',
     ];
 
     /**
@@ -312,6 +405,36 @@ final class ControlTextRuleViolations
         }
 
         return str_contains($normalised, 'confined space');
+    }
+
+    /**
+     * GATE-13 — see {@see self::HOT_WORKS_NEGATIONS} and
+     * {@see self::HOT_WORKS_ABSENCE_ASSERTIONS} for the full rationale.
+     * Negation-first, case-folded substring matching, mirroring
+     * {@see self::detectConfinedSpace()}'s shape exactly. Conservative by
+     * construction (T-27-08-01): a line this method cannot confidently
+     * classify — including every one of the app's own seeded/generated
+     * hot-works sentences except the true absence assertions the
+     * `HOT_WORKS_ABSENCE_ASSERTIONS` phrases were written against — is
+     * clean (`false`), never a guess.
+     */
+    private static function detectHotWorksAssertion(string $control): bool
+    {
+        $lower = strtolower($control);
+
+        foreach (self::HOT_WORKS_NEGATIONS as $phrase) {
+            if (str_contains($lower, $phrase)) {
+                return false;
+            }
+        }
+
+        foreach (self::HOT_WORKS_ABSENCE_ASSERTIONS as $phrase) {
+            if (str_contains($lower, $phrase)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // =========================================================================

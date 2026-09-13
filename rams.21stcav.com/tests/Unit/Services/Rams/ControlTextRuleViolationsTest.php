@@ -270,6 +270,89 @@ class ControlTextRuleViolationsTest extends TestCase
         );
     }
 
+    // ── hot_works_assertion (GATE-13, Phase 30 Plan 07) ──────────────────────
+
+    public function test_detects_a_narrative_no_hot_works_absence_assertion(): void
+    {
+        $this->assertSame(
+            'hot_works_assertion',
+            ControlTextRuleViolations::detect('No hot works will be undertaken on this site.'),
+        );
+    }
+
+    public function test_detects_hot_works_absence_assertion_variants(): void
+    {
+        foreach ([
+            'No hot works are to be carried out at any point during this project.',
+            'Hot works will not be undertaken by any operative on this contract.',
+            'Hot works are not required for this scope of works.',
+            'No soldering will be undertaken on site.',
+        ] as $control) {
+            $this->assertSame(
+                'hot_works_assertion',
+                ControlTextRuleViolations::detect($control),
+                "Expected a hot_works_assertion violation in: {$control}",
+            );
+        }
+    }
+
+    public function test_hot_works_permit_under_conditional_wording_is_not_flagged(): void
+    {
+        $this->assertNull(
+            ControlTextRuleViolations::detect('Hot works will be carried out under permit.'),
+        );
+    }
+
+    public function test_addPermitAndIsolations_own_conditional_line_is_never_flagged(): void
+    {
+        // T-30-16 — the app's OWN unconditional-sounding-but-actually-
+        // conditional permit line from
+        // RamsComplianceUpgradeService::addPermitAndIsolation() ships on
+        // EVERY document. This is the load-bearing regression proof: if
+        // this ever starts matching, GATE-13 (Plan 30-07) fires
+        // corpus-wide the moment it is armed.
+        $this->assertNull(
+            ControlTextRuleViolations::detect(
+                'Hot works permit required if soldering or heat-shrink operations are performed on site',
+            ),
+        );
+    }
+
+    public function test_ambiguous_hot_works_mention_is_not_flagged(): void
+    {
+        // Cannot confidently classify — T-27-08-01's conservative-by-
+        // construction contract: a miss, never a guess.
+        foreach ([
+            'The team briefly discussed hot works scheduling for next month.',
+            'Hot works were not scheduled for today.',
+        ] as $control) {
+            $this->assertNull(
+                ControlTextRuleViolations::detect($control),
+                "Ambiguous hot-works mention must not be flagged: {$control}",
+            );
+        }
+    }
+
+    public function test_seeded_fire_and_evacuation_no_hot_works_scope_line_is_never_flagged(): void
+    {
+        // database/seeders/HazardTemplateSeeder.php:370 — "No hot works of
+        // any kind included in this scope." ships on EVERY generated RAMS
+        // (the "Fire and evacuation" hazard is tier-1 "always"-included).
+        // This sentence IS a genuine "no hot works" statement in plain
+        // English, but this detector must NOT flag it: {@see
+        // self::detect()} feeds RamsBuilderService::reviewedToRisk()'s
+        // Tier-1 house-rule-violation replacement path, which FORCES a
+        // matched hazard's reviewed controls back to the template text —
+        // appropriate for an actual rule violation (kg_threshold, ffp2,
+        // confined_space), never appropriate for a scope-exclusion
+        // statement that is not itself a violation of anything. See
+        // HOT_WORKS_ABSENCE_ASSERTIONS's docblock for the narrowness this
+        // proves.
+        $this->assertNull(
+            ControlTextRuleViolations::detect('No hot works of any kind included in this scope.'),
+        );
+    }
+
     // ── SELF-CHECKS — the app must never reject its own output ───────────────
 
     public function test_no_seeded_library_control_is_ever_flagged(): void
