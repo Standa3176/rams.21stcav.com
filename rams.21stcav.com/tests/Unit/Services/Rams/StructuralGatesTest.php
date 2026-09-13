@@ -241,6 +241,222 @@ class StructuralGatesTest extends TestCase
         $this->assertSame($data, $result);
     }
 
+    // ── GATE-04: enforceResidualScoreGate() ─────────────────────────────────
+
+    public function test_enforceResidualScoreGate_throws_when_residual_score_exceeds_initial(): void
+    {
+        $this->expectException(RamsGenerationException::class);
+        $this->expectExceptionMessageMatches('/Working at height.*RA01.*residual score of 8 against an initial score of 6.*GATE-04/s');
+
+        $this->invokePrivateStatic('enforceResidualScoreGate', [[
+            'hazards' => [
+                [
+                    'hazard' => 'Working at height',
+                    'pre_likelihood' => 2,
+                    'pre_severity' => 3,
+                    'post_likelihood' => 4,
+                    'post_severity' => 2,
+                ],
+            ],
+        ]]);
+    }
+
+    public function test_enforceResidualScoreGate_error_names_row_by_index_not_by_id(): void
+    {
+        // Two rows: the first is clean, the second violates. The RA## label
+        // must be "RA02" (row index 1, +1, zero-padded) — NOT derived from
+        // any 'id' key on the hazard row (RamsComplianceUpgradeService.php
+        // :1000-1006's documented 260817-r5e correction: row position, not
+        // $h['id']).
+        $this->expectException(RamsGenerationException::class);
+        $this->expectExceptionMessageMatches('/RA02/');
+
+        $this->invokePrivateStatic('enforceResidualScoreGate', [[
+            'hazards' => [
+                [
+                    'id' => 'zzz-not-the-label-source',
+                    'hazard' => 'Manual handling',
+                    'pre_likelihood' => 3,
+                    'pre_severity' => 3,
+                    'post_likelihood' => 1,
+                    'post_severity' => 1,
+                ],
+                [
+                    'id' => 'aaa-also-not-the-label-source',
+                    'hazard' => 'Electrical connection to mains supply',
+                    'pre_likelihood' => 2,
+                    'pre_severity' => 3,
+                    'post_likelihood' => 4,
+                    'post_severity' => 2,
+                ],
+            ],
+        ]]);
+    }
+
+    public function test_enforceResidualScoreGate_warns_and_does_not_throw_when_residual_severity_below_initial(): void
+    {
+        $result = $this->invokePrivateStatic('enforceResidualScoreGate', [[
+            'hazards' => [
+                [
+                    'hazard' => 'Working at height for display installation (up to 3m)',
+                    'pre_likelihood' => 3,
+                    'pre_severity' => 4,
+                    'post_likelihood' => 1,
+                    'post_severity' => 3,
+                ],
+            ],
+        ]]);
+
+        $this->assertCount(1, $result['compliance_warnings']);
+        $this->assertSame('GATE-04', $result['compliance_warnings'][0]['gate']);
+        $this->assertSame(0, $result['compliance_warnings'][0]['hazard_index']);
+        $this->assertSame(
+            'Working at height for display installation (up to 3m)',
+            $result['compliance_warnings'][0]['hazard'],
+        );
+        $this->assertMatchesRegularExpression(
+            '/residual severity 3 is lower than initial severity 4/',
+            $result['compliance_warnings'][0]['message'],
+        );
+    }
+
+    public function test_enforceResidualScoreGate_runs_the_committed_tilda_fixture_hazard_set(): void
+    {
+        // Non-vacuity fixture per RESEARCH Finding 4 — the committed golden
+        // record's hazard set is REAL, intended, previously-issued output
+        // (WorkingAtHeightResidualScoreTest asserts hazard 0's 1x3 residual
+        // through the live DOCX path). Direct inspection of the fixture
+        // (all three rows) shows EVERY row's post_severity is below its
+        // pre_severity — 3<4, 2<3, 3<5 — so the gate correctly warns on all
+        // three, not "exactly one" as an earlier reading of the fixture
+        // assumed before this test was written against the real data. Zero
+        // rows error: no row's residual score (post_l*post_s) exceeds its
+        // initial score (pre_l*pre_s) — 3<=12, 4<=12, 3<=15.
+        $fixture = json_decode(
+            file_get_contents(base_path('tests/Fixtures/rams/tilda-21cq29531/record.json')),
+            true,
+        );
+        $hazards = $fixture['rams']['generated_data']['hazards'];
+
+        $result = $this->invokePrivateStatic('enforceResidualScoreGate', [[
+            'hazards' => $hazards,
+        ]]);
+
+        $this->assertCount(3, $result['compliance_warnings']);
+        $this->assertSame([0, 1, 2], array_column($result['compliance_warnings'], 'hazard_index'));
+        $this->assertSame(
+            'Working at height for display installation (up to 3m)',
+            $result['compliance_warnings'][0]['hazard'],
+        );
+    }
+
+    public function test_enforceResidualScoreGate_skips_row_missing_pre_scores_instead_of_defaulting(): void
+    {
+        // T-30-14: a row with NO pre_likelihood/pre_severity keys at all
+        // must be skipped — never scored against the `?? 1` default, which
+        // would manufacture a false "residual exceeds initial" violation
+        // (post 2x2=4 > a phantom 1x1=1 default).
+        $result = $this->invokePrivateStatic('enforceResidualScoreGate', [[
+            'hazards' => [
+                [
+                    'hazard' => 'Incomplete row, no pre-scores at all',
+                    'post_likelihood' => 2,
+                    'post_severity' => 2,
+                ],
+            ],
+        ]]);
+
+        $this->assertSame([], $result['compliance_warnings']);
+    }
+
+    public function test_enforceResidualScoreGate_skips_row_missing_only_pre_severity(): void
+    {
+        $result = $this->invokePrivateStatic('enforceResidualScoreGate', [[
+            'hazards' => [
+                [
+                    'hazard' => 'Incomplete row, pre_likelihood only',
+                    'pre_likelihood' => 3,
+                    'post_likelihood' => 5,
+                    'post_severity' => 5,
+                ],
+            ],
+        ]]);
+
+        $this->assertSame([], $result['compliance_warnings']);
+    }
+
+    public function test_enforceResidualScoreGate_clean_hazard_set_returns_data_with_empty_warnings(): void
+    {
+        // Genuinely clean: post_score (3) < pre_score (9) AND
+        // post_severity (3) is NOT below pre_severity (3) — neither tier
+        // fires.
+        $data = [
+            'hazards' => [
+                [
+                    'hazard' => 'Manual handling',
+                    'pre_likelihood' => 3,
+                    'pre_severity' => 3,
+                    'post_likelihood' => 1,
+                    'post_severity' => 3,
+                ],
+            ],
+        ];
+
+        $result = $this->invokePrivateStatic('enforceResidualScoreGate', [$data]);
+
+        $this->assertSame([], $result['compliance_warnings']);
+    }
+
+    public function test_enforceResidualScoreGate_no_hazards_key_returns_data_unchanged(): void
+    {
+        $data = ['compliance_warnings' => []];
+
+        $result = $this->invokePrivateStatic('enforceResidualScoreGate', [$data]);
+
+        $this->assertSame($data, $result);
+    }
+
+    public function test_enforceResidualScoreGate_a_preceding_warn_row_does_not_suppress_a_later_error(): void
+    {
+        // A warn-tier row (row 0) followed by an error-tier row (row 1):
+        // the warn tier must not short-circuit or otherwise interfere with
+        // the error tier's own scan of the remaining rows. Note:
+        // RamsGenerationException (app/Exceptions/RamsGenerationException.php)
+        // carries no payload, so the warnings collected during THIS
+        // throwing call are necessarily discarded along with the rest of
+        // the function's local state when it throws (a throw never
+        // returns $data) — the plan's "collect every row's warnings before
+        // throwing" instruction is an internal-ordering/intent decision
+        // (do a full scan, do not stop early at the first error), not an
+        // externally observable persistence guarantee. That guarantee is
+        // proven instead by test_enforceResidualScoreGate_
+        // warns_and_does_not_throw_when_residual_severity_below_initial()
+        // and the Tilda fixture test above, both of which exercise the
+        // warn tier on a CLEAN (non-throwing) hazard set where $data really
+        // is returned.
+        $this->expectException(RamsGenerationException::class);
+        $this->expectExceptionMessageMatches('/Error-tier row.*RA02.*GATE-04/s');
+
+        $this->invokePrivateStatic('enforceResidualScoreGate', [[
+            'hazards' => [
+                [
+                    'hazard' => 'Warn-tier row',
+                    'pre_likelihood' => 3,
+                    'pre_severity' => 4,
+                    'post_likelihood' => 1,
+                    'post_severity' => 3,
+                ],
+                [
+                    'hazard' => 'Error-tier row',
+                    'pre_likelihood' => 2,
+                    'pre_severity' => 3,
+                    'post_likelihood' => 4,
+                    'post_severity' => 2,
+                ],
+            ],
+        ]]);
+    }
+
     // ── Dispatch / flag wiring via the real upgrade() entry point ───────────
 
     public function test_upgrade_gate_inert_when_flag_disarmed(): void
@@ -298,5 +514,45 @@ class StructuralGatesTest extends TestCase
             'hazards' => [],
             'client_responsibilities' => [],
         ]);
+    }
+
+    public function test_upgrade_throws_via_public_entry_point_when_flag_enabled_and_residual_score_exceeds_initial(): void
+    {
+        config(['rams_tier1.structural_gates_enabled' => true]);
+
+        $this->expectException(RamsGenerationException::class);
+        $this->expectExceptionMessageMatches('/GATE-04/');
+
+        RamsComplianceUpgradeService::upgrade([
+            'hazards' => [
+                [
+                    'hazard' => 'Working at height',
+                    'pre_likelihood' => 2,
+                    'pre_severity' => 3,
+                    'post_likelihood' => 4,
+                    'post_severity' => 2,
+                ],
+            ],
+        ]);
+    }
+
+    public function test_upgrade_gate_04_warns_but_does_not_throw_via_public_entry_point_when_flag_enabled(): void
+    {
+        config(['rams_tier1.structural_gates_enabled' => true]);
+
+        $result = RamsComplianceUpgradeService::upgrade([
+            'hazards' => [
+                [
+                    'hazard' => 'Working at height for display installation (up to 3m)',
+                    'pre_likelihood' => 3,
+                    'pre_severity' => 4,
+                    'post_likelihood' => 1,
+                    'post_severity' => 3,
+                ],
+            ],
+        ]);
+
+        $this->assertCount(1, $result['compliance_warnings']);
+        $this->assertSame('GATE-04', $result['compliance_warnings'][0]['gate']);
     }
 }

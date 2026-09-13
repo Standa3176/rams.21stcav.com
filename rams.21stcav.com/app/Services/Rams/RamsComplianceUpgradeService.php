@@ -126,10 +126,11 @@ class RamsComplianceUpgradeService
         // corpus has not been measured clean, unlike GATE-06/07/09. When
         // false, none of the gated methods is ever called — upgrade()
         // proceeds byte-identical to pre-Phase-30 behaviour, no redeploy
-        // required. GATE-04's call joins this same block in Plan 30-06.
+        // required. GATE-04's call joined this same block in Plan 30-06.
         if (config('rams_tier1.structural_gates_enabled', false)) {
             $ramsData = self::enforceOrphanControlGate($ramsData);
             $ramsData = self::enforceAreaCoverageGate($ramsData);
+            $ramsData = self::enforceResidualScoreGate($ramsData);
         }
         $ramsData = self::cleanTextArtifacts($ramsData);
 
@@ -1959,8 +1960,10 @@ class RamsComplianceUpgradeService
     // 13. STRUCTURAL GATES (Phase 30) — GATE-01/02/04/13/14
     // =========================================================================
     //
-    // Placement note for plans 30-06 (GATE-04), 30-07 (GATE-13) and 30-08
-    // (GATE-14), which add their gate methods and join the dispatch block
+    // GATE-04 (enforceResidualScoreGate()) landed in Plan 30-06, below
+    // enforceAreaCoverageGate(). Placement note for plans 30-07 (GATE-13)
+    // and 30-08 (GATE-14), which add their gate methods and join the
+    // dispatch block
     // below: GATE-13 reads permit_and_isolation (written by
     // addPermitAndIsolation() at ~:939) and GATE-14 reads associated_risks
     // (written by crossReferenceMethodStatementRisks() at ~:1001-1092), so
@@ -2203,6 +2206,147 @@ class RamsComplianceUpgradeService
                     $area,
                 ));
             }
+        }
+
+        return $data;
+    }
+
+    /**
+     * GATE-04 (REQUIREMENTS.md:65, ROADMAP criterion 3) — the phase's only
+     * TWO-TIER gate. Independently re-checks each hazard row's own
+     * pre-control vs post-control scoring:
+     *
+     *   ERROR tier: throws when `post_likelihood * post_severity >
+     *   pre_likelihood * pre_severity` — a residual (post-control) risk
+     *   score that exceeds the initial (pre-control) score is a document
+     *   that overstates the effect of its own controls. Throws on the
+     *   FIRST such row (pattern S2), naming the hazard and the `RA##` label
+     *   built from ROW INDEX + 1, zero-padded to two digits — NOT
+     *   `$h['id']` (the 260817-r5e correction recorded at :1000-1006 and
+     *   mirrored in `DocxBuilderService.php:1221`; the rendered document's
+     *   reference label is row position, not any stored identifier).
+     *
+     *   WARN tier: appends a `compliance_warnings` entry — and NEVER
+     *   throws, on any input, ever — when `post_severity < pre_severity`.
+     *   T-30-15: controls conventionally reduce LIKELIHOOD, not severity
+     *   (removing a hazard's mechanism of harm rather than shrinking the
+     *   harm itself is unusual, though not impossible), so this is
+     *   "flag for human review", explicitly NOT "silently accept" and
+     *   explicitly NOT "reject". Proof this must never error: the
+     *   COMMITTED `tests/Fixtures/rams/tilda-21cq29531/record.json` golden
+     *   fixture's hazard 0 ("Working at height for display installation
+     *   (up to 3m)") is pre 3x4=12, post 1x3=3 — residual severity 3 below
+     *   initial severity 4 — and that is CORRECT, INTENDED HAZ-03 output
+     *   ({@see \Tests\Feature\Rams\WorkingAtHeightResidualScoreTest}
+     *   asserts this exact residual through the live DOCX path). An
+     *   erroring `s2 < s1` branch would block the golden fixture and fail
+     *   that test. Direct inspection of the fixture shows all three of its
+     *   hazard rows trip this branch (severities 3<4, 2<3, 3<5) — this
+     *   gate's own test drives the warn-path assertion from the real
+     *   committed fixture data rather than a hand-authored count.
+     *
+     * Collects ALL warn entries in one pass (the warn tier does not stop
+     * at the first violation, since the review panel lists every finding),
+     * and commits them to `$data['compliance_warnings']` BEFORE checking
+     * for an error-tier violation, so a document with both an error and
+     * warnings has its warnings already written into `$data` at the moment
+     * the throw fires — a deliberate ordering choice, even though
+     * {@see \App\Exceptions\RamsGenerationException} itself carries no
+     * payload and this call's own local warnings are necessarily discarded
+     * along with the rest of its state when it throws (a throw never
+     * returns `$data`); a CLEAN hazard set (no error) is the case this
+     * ordering actually preserves, and it is proven by
+     * `StructuralGatesTest`'s Tilda-fixture and single-warn-row tests,
+     * both of which never throw.
+     *
+     * T-30-14: presence of `pre_likelihood`/`pre_severity` is checked with
+     * `array_key_exists()` BEFORE any default is applied. A row missing
+     * either key is SKIPPED entirely — neither warned nor errored — rather
+     * than being scored against the `?? 1` default the normaliser and the
+     * Blade template both use elsewhere
+     * (`RamsDataBuilderService.php:440-457`, `pdf/rams.blade.php:1326-1333`).
+     * Scoring an incomplete row against that default would manufacture a
+     * false "residual exceeds initial" violation out of missing data, not
+     * a real one — the conservative-skip precedent is
+     * {@see self::enforceDisplayLiftGate()}'s null `continue` (:1322-1329)
+     * and `parseStatedTeamSize()`'s null-skips (:1289-1295). Both scores
+     * that ARE present are clamped `max(1, min(5, (int) …))`, identical to
+     * the normaliser/Blade clamp, so this gate scores rows exactly as the
+     * issued document displays them.
+     */
+    private static function enforceResidualScoreGate(array $data): array
+    {
+        $hazards = array_values((array) ($data['hazards'] ?? []));
+
+        if (empty($hazards)) {
+            return $data;
+        }
+
+        $warnings = (array) ($data['compliance_warnings'] ?? []);
+        $firstViolationIndex = null;
+        $firstViolationHazardName = '';
+        $firstViolationPreScore = 0;
+        $firstViolationPostScore = 0;
+
+        foreach ($hazards as $index => $hazard) {
+            if (! is_array($hazard)) {
+                continue;
+            }
+
+            // T-30-14 — presence BEFORE default. A row missing either key
+            // is skipped, never scored against the `?? 1` default.
+            if (! array_key_exists('pre_likelihood', $hazard) || ! array_key_exists('pre_severity', $hazard)) {
+                continue;
+            }
+
+            $preLikelihood = max(1, min(5, (int) $hazard['pre_likelihood']));
+            $preSeverity = max(1, min(5, (int) $hazard['pre_severity']));
+            $postLikelihood = max(1, min(5, (int) ($hazard['post_likelihood'] ?? 1)));
+            $postSeverity = max(1, min(5, (int) ($hazard['post_severity'] ?? 1)));
+
+            $preScore = $preLikelihood * $preSeverity;
+            $postScore = $postLikelihood * $postSeverity;
+            $hazardName = (string) ($hazard['hazard'] ?? '');
+
+            if ($postSeverity < $preSeverity) {
+                $warnings[] = [
+                    'gate' => 'GATE-04',
+                    'hazard_index' => $index,
+                    'hazard' => $hazardName,
+                    'message' => sprintf(
+                        'GATE-04 — %s: residual severity %d is lower than initial severity %d. '
+                        . 'Controls reduce likelihood, not severity — confirm this is intended.',
+                        $hazardName,
+                        $postSeverity,
+                        $preSeverity,
+                    ),
+                ];
+            }
+
+            if ($firstViolationIndex === null && $postScore > $preScore) {
+                $firstViolationIndex = $index;
+                $firstViolationHazardName = $hazardName;
+                $firstViolationPreScore = $preScore;
+                $firstViolationPostScore = $postScore;
+            }
+        }
+
+        // Commit warnings from every row before checking the error tier —
+        // see docblock for what this ordering does and does not guarantee.
+        $data['compliance_warnings'] = $warnings;
+
+        if ($firstViolationIndex !== null) {
+            $raLabel = 'RA' . str_pad((string) ($firstViolationIndex + 1), 2, '0', STR_PAD_LEFT);
+
+            throw new RamsGenerationException(sprintf(
+                'Hazard "%s" (%s) has a residual score of %d against an initial score of %d '
+                . '(GATE-04). Residual risk cannot exceed initial risk — correct the post-control '
+                . 'scoring, or set RAMS_STRUCTURAL_GATES=false to disable this check.',
+                $firstViolationHazardName,
+                $raLabel,
+                $firstViolationPostScore,
+                $firstViolationPreScore,
+            ));
         }
 
         return $data;
