@@ -129,6 +129,7 @@ class RamsComplianceUpgradeService
         // required. GATE-04's call joins this same block in Plan 30-06.
         if (config('rams_tier1.structural_gates_enabled', false)) {
             $ramsData = self::enforceOrphanControlGate($ramsData);
+            $ramsData = self::enforceAreaCoverageGate($ramsData);
         }
         $ramsData = self::cleanTextArtifacts($ramsData);
 
@@ -2120,6 +2121,91 @@ class RamsComplianceUpgradeService
         $parts = array_filter($parts, static fn ($p) => trim((string) $p) !== '');
 
         return mb_strtolower(implode(' | ', $parts));
+    }
+
+    /**
+     * GATE-02 (PORTING-NOTES.md:69) — independent re-check that every named
+     * area appears in at least one method-statement phase title or step.
+     * Method-statement phases carry NO area/room key
+     * (RamsDataBuilderService.php:500), so this match is necessarily
+     * name-based against phase titles and step text — there is no
+     * structured area->phase link to re-check instead.
+     *
+     * **Passes vacuously on zero areas** — deliberate, not an oversight
+     * (RESEARCH Finding 3 point 2): `buildQuoteSummary()` legitimately
+     * returns `[]` and `ManualRamsCreationTest` exercises a form-only path
+     * with no room list at all. Erroring on an empty area list would reject
+     * every manual RAMS, which is legal output.
+     *
+     * Matching is case-folded and whitespace-trimmed via
+     * {@see StructuralGateVocabulary::flattenAreas()}, which reads the
+     * gate-private `areas_for_gate` mirror (Plan 30-02) first, falling back
+     * to `$data['rooms']`.
+     *
+     * Known false-positive risk, accepted and documented (not fixed here):
+     * a generic room name ("AV Rack", "Room 1") can match unrelated step
+     * text and mask a real coverage gap. This is the specific reason D-03
+     * ships `RAMS_STRUCTURAL_GATES` disarmed pending the corpus measurement
+     * Plan 30-05 documents — conservative by construction, prefer a miss to
+     * a false positive.
+     *
+     * Matching-order property (not a defect, no code change follows from
+     * it): `cleanTextArtifacts()` runs LAST in `upgrade()` (:114) and
+     * rewrites phase titles and steps, so this gate matches PRE-typo-fix
+     * text while the issued document shows POST-fix text. The ordering is
+     * forced — GATE-14 must read the `associated_risks` written earlier in
+     * the pipeline, so all three new Phase 30 dispatch blocks sit after it —
+     * and today's typo map makes divergence very unlikely.
+     */
+    private static function enforceAreaCoverageGate(array $data): array
+    {
+        $areas = StructuralGateVocabulary::flattenAreas($data);
+
+        if (empty($areas)) {
+            return $data;
+        }
+
+        $phases = (array) ($data['method_statement']['phases'] ?? []);
+
+        $stepHaystack = [];
+        foreach ($phases as $phase) {
+            if (! is_array($phase)) {
+                continue;
+            }
+
+            $stepHaystack[] = mb_strtolower(trim((string) ($phase['title'] ?? '')));
+
+            foreach ((array) ($phase['steps'] ?? []) as $step) {
+                $stepHaystack[] = mb_strtolower(trim((string) $step));
+            }
+        }
+
+        foreach ($areas as $area) {
+            $needle = mb_strtolower(trim($area));
+
+            if ($needle === '') {
+                continue;
+            }
+
+            $covered = false;
+            foreach ($stepHaystack as $text) {
+                if ($text !== '' && str_contains($text, $needle)) {
+                    $covered = true;
+                    break;
+                }
+            }
+
+            if (! $covered) {
+                throw new RamsGenerationException(sprintf(
+                    'Area "%s" has no method steps (GATE-02). Add at least one method step for this '
+                    . 'area, or remove the area, or set RAMS_STRUCTURAL_GATES=false to disable this '
+                    . 'check.',
+                    $area,
+                ));
+            }
+        }
+
+        return $data;
     }
 
     // =========================================================================

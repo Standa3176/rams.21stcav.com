@@ -171,6 +171,76 @@ class StructuralGatesTest extends TestCase
         $this->assertSame($data, $result);
     }
 
+    // ── GATE-02: enforceAreaCoverageGate() ───────────────────────────────────
+
+    public function test_enforceAreaCoverageGate_throws_on_uncovered_area(): void
+    {
+        $this->expectException(RamsGenerationException::class);
+        $this->expectExceptionMessageMatches('/Boardroom 2.*GATE-02/s');
+
+        $this->invokePrivateStatic('enforceAreaCoverageGate', [[
+            'areas_for_gate' => ['Boardroom 2'],
+            'method_statement' => [
+                'phases' => [
+                    ['title' => 'Install Displays', 'steps' => ['Mount the display in Reception.']],
+                ],
+            ],
+        ]]);
+    }
+
+    public function test_enforceAreaCoverageGate_does_not_throw_when_every_area_covered(): void
+    {
+        $data = [
+            'areas_for_gate' => ['Boardroom 2', 'Reception'],
+            'method_statement' => [
+                'phases' => [
+                    ['title' => 'Install Displays', 'steps' => ['Mount the display in Boardroom 2 and Reception.']],
+                ],
+            ],
+        ];
+
+        $result = $this->invokePrivateStatic('enforceAreaCoverageGate', [$data]);
+
+        $this->assertSame($data, $result);
+    }
+
+    public function test_enforceAreaCoverageGate_passes_vacuously_on_zero_areas(): void
+    {
+        $data = [
+            'areas_for_gate' => [],
+            'method_statement' => ['phases' => []],
+        ];
+
+        $result = $this->invokePrivateStatic('enforceAreaCoverageGate', [$data]);
+
+        $this->assertSame($data, $result);
+    }
+
+    public function test_enforceAreaCoverageGate_passes_when_method_statement_absent_and_areas_empty(): void
+    {
+        $data = [];
+
+        $result = $this->invokePrivateStatic('enforceAreaCoverageGate', [$data]);
+
+        $this->assertSame($data, $result);
+    }
+
+    public function test_enforceAreaCoverageGate_matching_is_case_folded_and_trimmed(): void
+    {
+        $data = [
+            'areas_for_gate' => ['  Boardroom 2  '],
+            'method_statement' => [
+                'phases' => [
+                    ['title' => 'Install Displays', 'steps' => ['Mount the display in BOARDROOM 2.']],
+                ],
+            ],
+        ];
+
+        $result = $this->invokePrivateStatic('enforceAreaCoverageGate', [$data]);
+
+        $this->assertSame($data, $result);
+    }
+
     // ── Dispatch / flag wiring via the real upgrade() entry point ───────────
 
     public function test_upgrade_gate_inert_when_flag_disarmed(): void
@@ -211,4 +281,22 @@ class StructuralGatesTest extends TestCase
         ]);
     }
 
+    public function test_upgrade_throws_via_public_entry_point_when_flag_enabled_and_area_uncovered(): void
+    {
+        config(['rams_tier1.structural_gates_enabled' => true]);
+
+        $this->expectException(RamsGenerationException::class);
+        $this->expectExceptionMessageMatches('/GATE-02/');
+
+        RamsComplianceUpgradeService::upgrade([
+            'areas_for_gate' => ['Boardroom 2'],
+            'method_statement' => [
+                'phases' => [
+                    ['title' => 'Install Displays', 'steps' => ['Mount the display in Reception.']],
+                ],
+            ],
+            'hazards' => [],
+            'client_responsibilities' => [],
+        ]);
+    }
 }
