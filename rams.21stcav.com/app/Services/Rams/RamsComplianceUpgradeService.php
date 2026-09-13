@@ -132,6 +132,24 @@ class RamsComplianceUpgradeService
             $ramsData = self::enforceAreaCoverageGate($ramsData);
             $ramsData = self::enforceResidualScoreGate($ramsData);
         }
+        // GATE-14 — independent, WARN-TIER (never throws) re-check that a
+        // method step cites the hazards its own text implies, via the
+        // config-resident rams_tier1.missing_risk_implications map — NEVER
+        // $keywordRiskMap (crossReferenceMethodStatementRisks() above),
+        // which is the exact intersection-based code responsible for the
+        // canonical defect this gate exists to catch (see
+        // enforceMissingRiskRefGate()'s docblock for the full reasoning).
+        // Its OWN flag (D-04) — never reuses RAMS_STRUCTURAL_GATES or
+        // RAMS_HOT_WORKS_GATE, because bad-hazard-inference is a distinct
+        // failure mode from the structural trio's orphan/coverage/score
+        // checks and from GATE-13's contradiction check, and GATE-14 MUST
+        // be killable without disarming either. Ships DISARMED (defaults
+        // false) per D-03. When false, enforceMissingRiskRefGate() is never
+        // called — upgrade() proceeds byte-identical to pre-GATE-14
+        // behaviour, no redeploy required.
+        if (config('rams_tier1.missing_risk_ref_gate_enabled', false)) {
+            $ramsData = self::enforceMissingRiskRefGate($ramsData);
+        }
         // GATE-13 — independent re-check of the hot-works contradiction
         // (RA18-shaped "no hot works" assertion vs. an unconditional
         // hot-works permit requirement OR solder/flux listed in COSHH).
@@ -1977,24 +1995,23 @@ class RamsComplianceUpgradeService
     // =========================================================================
     //
     // GATE-04 (enforceResidualScoreGate()) landed in Plan 30-06, below
-    // enforceAreaCoverageGate(). Placement note for plans 30-07 (GATE-13)
-    // and 30-08 (GATE-14), which add their gate methods and join the
-    // dispatch block
-    // below: GATE-13 reads permit_and_isolation (written by
-    // addPermitAndIsolation() at ~:939) and GATE-14 reads associated_risks
-    // (written by crossReferenceMethodStatementRisks() at ~:1001-1092), so
-    // all new dispatch blocks belong AFTER the
+    // enforceAreaCoverageGate(). GATE-13 (enforceHotWorksGate()) landed in
+    // Plan 30-07. GATE-14 (enforceMissingRiskRefGate()) landed in Plan
+    // 30-08, below permitRuleIsUnconditionalHotWorksRequirement() — its
+    // dispatch block sits between the structural trio's and GATE-13's
+    // because it reads associated_risks (written by
+    // crossReferenceMethodStatementRisks() at ~:1041-1143), so, like every
+    // gate in this section, it belongs AFTER the
     // crossReferenceMethodStatementRisks()/resolveSiteEmergency()/
     // addCdmDutyHolders()/GATE-11-12 sequence above (upgrade() ~:78-100)
-    // and BEFORE cleanTextArtifacts() below. Each new gate follows the
-    // shape established by enforceCdmGate() (:1201+): private static
-    // function, reads its input defensively via (array)($data['key'] ??
-    // []), returns $data unchanged on the clean path, throws
-    // RamsGenerationException naming the offending item and its kill
-    // switch on the first violation (S2) — except GATE-14 and GATE-04's
-    // warn half, which push onto $ramsData['compliance_warnings']
-    // (initialised unconditionally at the top of upgrade()) instead of
-    // throwing.
+    // and BEFORE cleanTextArtifacts() below. Each gate follows the shape
+    // established by enforceCdmGate() (:1201+): private static function,
+    // reads its input defensively via (array)($data['key'] ?? []), returns
+    // $data unchanged on the clean path, throws RamsGenerationException
+    // naming the offending item and its kill switch on the first violation
+    // (S2) — except GATE-14 (WARN TIER, never throws) and GATE-04's warn
+    // half, which push onto $ramsData['compliance_warnings'] (initialised
+    // unconditionally at the top of upgrade()) instead of throwing.
 
     /**
      * GATE-01 (PORTING-NOTES.md:66-68) — independent re-check that every
@@ -2561,6 +2578,196 @@ class RamsComplianceUpgradeService
         }
 
         return true;
+    }
+
+    /**
+     * GATE-14 (CONTEXT.md D-04, RESEARCH.md Finding 7) — WARN tier, NEVER
+     * throws. `crossReferenceMethodStatementRisks()` (`:1041-1143`) already
+     * STRIPS the model's own "Associated Risks:" line and RECOMPUTES
+     * `$phase['associated_risks']` deterministically from a hard-coded
+     * `$keywordRiskMap` (`:1065-1077`) — so a method step's cited hazards are
+     * this app's own output, not the AI's, and a GATE-14 violation is a
+     * defect report against that derivation, not against anything an
+     * engineer can edit on the review screen (the app overwrites
+     * `associated_risks_label` on the very next `upgrade()` run regardless
+     * of what the engineer types). A blocking error here would be
+     * unactionable — T-30-18 — so this gate only ever appends to
+     * `$data['compliance_warnings']` and returns `$data`; it has no throw
+     * statement at all.
+     *
+     * T-30-01 — this method is a genuinely INDEPENDENT re-check. It never
+     * references `$keywordRiskMap` and never calls
+     * {@see self::crossReferenceMethodStatementRisks()} — re-running the
+     * exact code that produced the defect and comparing its own output to
+     * itself would not be a true independent check, the same "gate must
+     * never re-derive the thing it is checking" anti-pattern
+     * {@see self::enforceDisplayLiftGate()}'s docblock (`:1320-1327`) warns
+     * against. Instead it reads the config-resident
+     * `rams_tier1.missing_risk_implications` map (step-action phrase ->
+     * hazard-side signal), shipped by Plan 30-01 specifically so this gate
+     * would have a vocabulary that is NOT the intersection-based map
+     * responsible for the canonical defect (Step 4 "Display & Mount
+     * Installation" omitting RA01/RA02 because `$keywordRiskMap` requires
+     * the literal keyword on BOTH the step text AND the hazard name, which
+     * an implied-but-unworded hazard never satisfies). Hazard-side
+     * resolution goes through the shared {@see StructuralGateVocabulary}
+     * helper (D-07 — one vocabulary, never a second parallel one), the same
+     * class GATE-01 uses. `MissingRiskRefGateSourceGuardTest` proves this
+     * independence statically, at the scope of this method's own source,
+     * not just this file's.
+     *
+     * T-30-19 — only warns when the implied hazard ACTUALLY EXISTS in the
+     * register and is not already cited. An implied hazard that is entirely
+     * ABSENT from the register is GATE-01/HAZ territory (demanding the
+     * engineer add a hazard is scope invention this gate must never do);
+     * skipped via {@see self::findHazardIndexForSignal()} returning `null`.
+     * An implied hazard already present in `$phase['associated_risks']` is
+     * not a citation gap; skipped via the `$citedIds` check. Conservative by
+     * construction throughout (pattern S3): an absent `method_statement`,
+     * an absent `hazards` key, an empty
+     * `rams_tier1.missing_risk_implications` map, a non-array phase, or an
+     * unmatched phrase — each is a skip, never a false positive.
+     *
+     * Collects EVERY violation across every phase (no first-violation
+     * short-circuit — there is no throw to short-circuit toward, and the
+     * review panel lists every finding), de-duplicating so a phase whose
+     * text matches two DIFFERENT implication rows resolving to the SAME
+     * uncited hazard produces exactly ONE warning for that hazard, not one
+     * per matching phrase.
+     *
+     * Ordering property, recorded not defective: this method reads
+     * `$phase['associated_risks']`/step text as written by
+     * `crossReferenceMethodStatementRisks()` (`upgrade()`'s dispatch at
+     * `:92`), which runs BEFORE `cleanTextArtifacts()` (`upgrade()`'s
+     * dispatch at `:145`) rewrites phase titles/steps for known typos
+     * (`:2613-2616`). GATE-14 therefore matches PRE-typo-fix step text while
+     * the issued document shows POST-fix text. This ordering is forced —
+     * GATE-14 must read the `associated_risks` `crossReferenceMethodStatementRisks()`
+     * writes — and today's typo map is narrow enough (whole-word technical
+     * misspellings only) that divergence between the two text states is
+     * very unlikely in practice. No code change follows from this note.
+     */
+    private static function enforceMissingRiskRefGate(array $data): array
+    {
+        $hazards = array_values((array) ($data['hazards'] ?? []));
+        $phases = (array) ($data['method_statement']['phases'] ?? []);
+        $implications = (array) config('rams_tier1.missing_risk_implications', []);
+
+        if (empty($hazards) || empty($phases) || empty($implications)) {
+            return $data;
+        }
+
+        $warnings = (array) ($data['compliance_warnings'] ?? []);
+
+        foreach ($phases as $phase) {
+            if (! is_array($phase)) {
+                continue;
+            }
+
+            $title = strtolower((string) ($phase['title'] ?? ''));
+            $stepsText = strtolower(implode(' ', (array) ($phase['steps'] ?? [])));
+            $combined = trim($title . ' ' . $stepsText);
+
+            if ($combined === '') {
+                continue;
+            }
+
+            $citedIds = array_map('intval', (array) ($phase['associated_risks'] ?? []));
+            $warnedHazardIndexes = [];
+
+            foreach ($implications as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+
+                $phrase = strtolower((string) ($row['phrase'] ?? ''));
+                $signal = (string) ($row['signal'] ?? '');
+
+                if ($phrase === '' || $signal === '' || ! str_contains($combined, $phrase)) {
+                    continue;
+                }
+
+                $hazardIndex = self::findHazardIndexForSignal($signal, $hazards);
+
+                // T-30-19 — the implied hazard is absent from the register
+                // entirely. GATE-01/HAZ territory, not a citation gap.
+                if ($hazardIndex === null) {
+                    continue;
+                }
+
+                if (in_array($hazardIndex + 1, $citedIds, true)) {
+                    continue; // already cited — no gap
+                }
+
+                if (in_array($hazardIndex, $warnedHazardIndexes, true)) {
+                    continue; // this phase already warned for this hazard
+                }
+
+                $warnedHazardIndexes[] = $hazardIndex;
+
+                $hazardName = (string) ($hazards[$hazardIndex]['hazard'] ?? (string) ($row['label'] ?? $signal));
+                $raLabel = 'RA' . str_pad((string) ($hazardIndex + 1), 2, '0', STR_PAD_LEFT);
+
+                $warnings[] = [
+                    'gate' => 'GATE-14',
+                    'hazard_index' => $hazardIndex,
+                    'step_title' => (string) ($phase['title'] ?? ''),
+                    'hazard' => $hazardName,
+                    'message' => sprintf(
+                        'GATE-14 — method step "%s" does not cite %s (%s), which its own text implies. '
+                        . 'This reference is derived automatically and cannot be corrected by editing the '
+                        . 'step\'s risks line — that line is overwritten on the next regeneration. Review '
+                        . 'this step before issuing, or set RAMS_MISSING_RISK_REF_GATE=false to disable '
+                        . 'this check.',
+                        (string) ($phase['title'] ?? ''),
+                        $raLabel,
+                        $hazardName,
+                    ),
+                ];
+            }
+        }
+
+        $data['compliance_warnings'] = $warnings;
+
+        return $data;
+    }
+
+    /**
+     * GATE-14's hazard-side resolver. Finds the FIRST hazard row whose own
+     * `hazard` text contains one of `$signal`'s phrases (via
+     * {@see StructuralGateVocabulary::phrasesForSignal()} — never
+     * `$keywordRiskMap`). Returns the row's array index (NOT `id`, matching
+     * the 260817-r5e RA## = row-position + 1 convention this whole class
+     * uses), or `null` when no row matches — the "implied hazard is absent"
+     * case GATE-14 must never treat as a citation gap. Conservative by
+     * construction: an unknown signal, a malformed row, or an empty
+     * register all resolve to `null`, never a throw.
+     */
+    private static function findHazardIndexForSignal(string $signal, array $hazards): ?int
+    {
+        $phrases = StructuralGateVocabulary::phrasesForSignal($signal);
+
+        if (empty($phrases)) {
+            return null;
+        }
+
+        foreach (array_values($hazards) as $index => $hazard) {
+            $text = is_array($hazard)
+                ? strtolower((string) ($hazard['hazard'] ?? ''))
+                : (is_string($hazard) ? strtolower($hazard) : '');
+
+            if ($text === '') {
+                continue;
+            }
+
+            foreach ($phrases as $phrase) {
+                if ($phrase !== '' && str_contains($text, strtolower($phrase))) {
+                    return $index;
+                }
+            }
+        }
+
+        return null;
     }
 
     // =========================================================================
