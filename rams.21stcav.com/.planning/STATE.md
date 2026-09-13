@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
 status: verifying
-stopped_at: Phase 30 Plan 01 LANDED (structural-gate foundation — flags, StructuralGateVocabulary, compliance_warnings channel); Plan 02 next
-last_updated: "2026-09-13T18:40:41.636Z"
+stopped_at: Phase 30 planned — 9 plans, 6 waves, verified
+last_updated: "2026-09-13T18:57:10.960Z"
 last_activity: 2026-09-13
 progress:
   total_phases: 9
@@ -19,9 +19,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-30)
 
 **Core value:** One dataset powers every document.
-**Current focus:** Phase 29 — CDM Duty-Holder & Emergency Arrangements
+**Current focus:** Phase 30 — Structural Validation Gates (Plan 02 of 9 landed)
 
 ## Current Position
+
+Phase: 30 (Structural Validation Gates) — EXECUTING. Plan 01 (foundation: three disarmed flags, GATE-01/GATE-14 config vocabularies, `StructuralGateVocabulary` helper, `compliance_warnings` channel — commits `7c05d63`/`0a308fe`/`b9d916e`) and Plan 02 (data-reachability mirrors: `client_responsibilities_expanded` + gate-private `areas_for_gate` mirrored onto the pipeline array at all three real generation entry points immediately before `RamsComplianceUpgradeService::upgrade()`, closing 30-RESEARCH.md Finding 1 — without these, GATE-01/GATE-02 would report clean on every real document. `StructuralGatesDualPathTest` (6 tests) proves reachability per entry point; the delete-one-line-watch-it-fail non-vacuity procedure was actually run for all three mirror sites, not merely described — each deletion confirmed to fail its named test, each restoration confirmed via `git diff` empty. Full Rams suite: 780 passed. Commits `dd7ebd8` (Task 1), `213276c` (Task 2), `373ac36` (docs). See `30-02-SUMMARY.md`.) are both landed. Plans 03-09 (GATE-01/02/04/13/14 gate bodies, snapshot fixture, UI, arming runbook) remain.
+
+---
+
+### Prior phase history (Phase 29 and earlier — preserved for context)
 
 Phase: 29 (CDM Duty-Holder & Emergency Arrangements) — EXECUTING, phase closeout in progress (NOT complete)
 Plan: 6 of 6 — Tasks 1-2 LANDED 2026-09-11, Task 3 PARTIALLY COMPLETE. Note: this STATE.md file's narrative log had not been updated for Plans 29-01 through 29-05 prior to the earlier session (all 5 are landed on disk per their own SUMMARY.md files and git history — `.planning/phases/29-cdm-duty-holder-emergency-arrangements/29-0{1..5}-SUMMARY.md`) — that pre-existing staleness is out of this plan's scope to backfill; see each plan's own SUMMARY for detail. Plan 29-06 Tasks 1-2: `CdmEmergencyDualPathGateTest.php` proves GATE-11/GATE-12 are genuine independent re-checks reachable from real generation code, not just Plan 29-03's reflection-only unit tests. Regenerated all four `tilda-21cq29531` golden fixtures (`php artisan rams:regenerate-snapshots tilda-21cq29531 --force`), diff-reviewed line-by-line before accepting (T-29-06-01 mitigation). Full suite: 2515 passed, 1 pre-existing unrelated failure (`QueueRecoverCommandTest`), 6 skipped. Snapshot group: 6 passed. Commits `4a5edf1` (Task 1), `d3dc28a` (Task 2), `7449ef8` (docs), `38eb41d` (FFP2 docblock fix).

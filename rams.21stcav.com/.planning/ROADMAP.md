@@ -237,7 +237,7 @@ Plans:
 **Plans**: 9 plans
 Plans:
 - [x] 30-01-PLAN.md - Foundation: three disarmed kill-switch flags (D-04), the config-resident GATE-01 trigger vocabulary and GATE-14 implication map (D-06), the shared StructuralGateVocabulary matching helper (D-07/D-08), and the compliance_warnings advisory channel.
-- [ ] 30-02-PLAN.md - Data reachability: mirror client_responsibilities_expanded and a gate-private area list into the pipeline array at all three upgrade() entry points, with a dual-path non-vacuity proof. Without this GATE-01/02 report clean on every document.
+- [x] 30-02-PLAN.md - Data reachability: mirror client_responsibilities_expanded and a gate-private area list into the pipeline array at all three upgrade() entry points, with a dual-path non-vacuity proof. Without this GATE-01/02 report clean on every document.
 - [ ] 30-03-PLAN.md - GATE-01 (orphan controls; fires when EITHER support is missing, per D-05) and GATE-02 (area/method-step coverage; zero areas passes vacuously), behind RAMS_STRUCTURAL_GATES.
 - [ ] 30-04-PLAN.md - Warn surface per the approved 30-UI-SPEC: review-screen summary panel plus hazard-row marker, and the assertion that warning text never reaches a PDF or DOCX.
 - [ ] 30-05-PLAN.md - Documentation corrections (goal line says five gates per D-01; criterion 1 corrected per D-05; new criteria for GATE-13 and GATE-14) and 30-MEASUREMENT.md, the read-only corpus measurement and arming runbook.
@@ -646,6 +646,6 @@ Plans:
 | 27. Manual-Handling & Display-Lift House Rules | v3.0 | 4/5 | In Progress|  |
 | 28. PPE, Ceiling & Electrical Boundary House Rules | v3.0 | 8/8 | Complete   | 2026-09-07 |
 | 29. CDM Duty-Holder & Emergency Arrangements | v3.0 | 12/14 | In Progress|  |
-| 30. Structural Validation Gates | v3.0 | 1/9 | In Progress|  |
+| 30. Structural Validation Gates | v3.0 | 2/9 | In Progress|  |
 | 31. Standards/COSHH Scoping & Padding Gates | v3.0 | 0/0 | Not started | - |
 | 999.1. v2.0 Engineering-Grade AV Drawings (incl. floor plans + DXF) | Backlog | 0/0 | Backlog | - |
