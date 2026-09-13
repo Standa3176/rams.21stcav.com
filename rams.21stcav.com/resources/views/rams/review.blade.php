@@ -397,6 +397,27 @@
         <div class="alert alert-error">{{ session('error') }}</div>
     @endif
 
+    {{-- ── Phase 30 GATE-04/GATE-14 advisory warnings — Surface 1 (30-UI-SPEC.md).
+         Single source of truth: generated_data['compliance_warnings'], written
+         wholesale by RamsComplianceUpgradeService::upgrade(). Advisory only —
+         never blocks Save Changes or download. Renders NOTHING when empty so a
+         disarmed/clean document is byte-identical to its pre-Phase-30 render;
+         must never claim "all checks passed" or name a gate that did not run. --}}
+    @php
+        $complianceWarnings = $rams->generated_data['compliance_warnings'] ?? [];
+    @endphp
+    @if (!empty($complianceWarnings))
+        <div class="alert alert-warning" role="status">
+            <strong>⚠ {{ count($complianceWarnings) }} item{{ count($complianceWarnings) === 1 ? '' : 's' }} flagged for review</strong>
+            <p style="font-size: var(--fs-small); margin:4px 0 0;">These do not block the document. Check each one before issuing.</p>
+            <ul style="margin:8px 0 0; padding-left:1.25rem; display:flex; flex-direction:column; gap:8px;">
+                @foreach ($complianceWarnings as $warning)
+                    <li>{{ $warning['gate'] ?? '' }} — {{ $warning['hazard'] ?? ($warning['step_title'] ?? '') }}: {{ $warning['message'] ?? '' }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     {{-- ── Hidden regen form, submitted by JS when user confirms regen prompt --}}
     <form id="rams-regen-after-save" method="POST" action="{{ route('rams.regenerate', $rams) }}" style="display:none;">
         @csrf
@@ -433,6 +454,25 @@
             background: color-mix(in oklab, var(--danger) 6%, var(--surface)) !important;
             text-decoration: line-through;
             opacity: .7;
+        }
+        /* Phase 30 structural-gate advisory warnings — Surface 2 (30-UI-SPEC.md).
+           Deliberately reuses .diff-modified's exact 3px rail + 6% tint so the
+           two read as the same visual family. Because the rails are
+           pixel-identical, the ⚠ glyph rendered in the hazard-name cell (never
+           the rail alone) is what makes a flagged row legible and distinguishes
+           it from a merely edited row. When a row is both diff-modified and
+           gate-flagged, this rule must win the rail (safety signal takes
+           precedence over the diff signal) — it is declared after
+           .diff-modified so source order resolves the !important tie
+           explicitly, not by accident. This CSS rule is always present
+           (mirrors .diff-modified/.diff-added always being present); it is
+           this class actually being applied to a <tr> element, not the
+           selector's mere presence in this stylesheet, that signals a live
+           flag — never name a specific gate ID here so the stylesheet
+           itself can't be read as a coverage claim. */
+        .gate-flagged {
+            border-left: 3px solid var(--warning) !important;
+            background: color-mix(in oklab, var(--warning) 6%, var(--surface)) !important;
         }
     </style>
 
@@ -1198,9 +1238,14 @@
                             $pre  = (int)($h['pre_likelihood']  ?? 1) * (int)($h['pre_severity']  ?? 1);
                             $post = (int)($h['post_likelihood'] ?? 1) * (int)($h['post_severity'] ?? 1);
                             $hazardRowChanged = !empty(RamsDiffService::fieldChangesUnder($diff, "hazards.{$hIdx}"));
+                            // Phase 30 Surface 2 — match this row against compliance_warnings by
+                            // hazard_index. Never guess a row: only an exact index match flags it.
+                            $hazardGateWarning = collect($complianceWarnings)
+                                ->first(fn($w) => ($w['hazard_index'] ?? null) === $hIdx);
                         @endphp
-                        <tr class="{{ $hazardRowChanged ? 'diff-modified' : '' }}">
-                            <td>{{ $h['hazard'] ?? '—' }}</td>
+                        <tr class="{{ $hazardGateWarning ? 'gate-flagged' : ($hazardRowChanged ? 'diff-modified' : '') }}"
+                            @if ($hazardGateWarning) title="{{ $hazardGateWarning['gate'] ?? '' }} — {{ $hazardGateWarning['message'] ?? '' }}" @endif>
+                            <td>@if ($hazardGateWarning)<span aria-hidden="true">⚠ </span>@endif{{ $h['hazard'] ?? '—' }}</td>
                             <td style="text-align:center;">
                                 <span class="badge" style="background:{{ $pre <= 6 ? '#D4EDDA' : ($pre <= 9 ? '#FFF3CD' : ($pre <= 14 ? '#FFD0A0' : '#FFDEDE')) }}; color:#333;">
                                     {{ $pre }}
