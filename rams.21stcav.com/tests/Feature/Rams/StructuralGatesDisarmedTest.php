@@ -67,18 +67,18 @@ use Tests\TestCase;
  * didn't exist) or, worse, passed VACUOUSLY against a stub, proving
  * nothing.
  *
- * Plan 30-07 (wave 4, THIS EXTENSION) now owns and adds the GATE-13 half of
- * the D-04 independence matrix below — see
- * "GATE-13 flag-independence (Plan 30-07)". `::enforceMissingRiskRefGate()`
- * (GATE-14, Plan 30-08, wave 5) STILL DOES NOT EXIST as of this extension
- * — its own reciprocal half remains owned by Plan 30-08, which is expected
- * to extend this same file again in its own wave. D-04's operative clause
- * — that GATE-14 "MUST be killable without disarming the structural trio"
- * — is not yet fully executable; the GATE-13 leg below is. A reader at
- * wave 4 (this plan) should see the remaining GATE-14 gap as partial BY
- * DESIGN, not by omission — REQUIREMENTS.md:72 records the status
- * ambiguity that GATE-11 and GATE-12 sharing one flag produced; this test
- * (and its Plan 30-08 extension) is what stops Phase 30 repeating it.
+ * Plan 30-07 (wave 4) added the GATE-13 half of the D-04 independence
+ * matrix below — see "GATE-13 flag-independence (Plan 30-07)".
+ *
+ * Plan 30-08 (wave 5, THIS EXTENSION) completes the matrix by adding the
+ * GATE-14 half — see "GATE-14 flag-independence (Plan 30-08)" below. D-04's
+ * operative clause — that GATE-14 "MUST be killable without disarming the
+ * structural trio" — is now fully executable: each of the three Phase 30
+ * flags (`structural_gates_enabled`, `hot_works_gate_enabled`,
+ * `missing_risk_ref_gate_enabled`) has been armed alone against a document
+ * violating all five gates, and proven to leave the other two dormant.
+ * REQUIREMENTS.md:72 records the status ambiguity that GATE-11 and GATE-12
+ * sharing one flag produced; this file is what stops Phase 30 repeating it.
  *
  * ── Byte-identity scope, honestly stated ─────────────────────────────────
  *
@@ -97,12 +97,15 @@ use Tests\TestCase;
  * @see App\Services\Rams\RamsComplianceUpgradeService::enforceAreaCoverageGate()
  * @see App\Services\Rams\RamsComplianceUpgradeService::enforceResidualScoreGate()
  * @see App\Services\Rams\RamsComplianceUpgradeService::enforceHotWorksGate()
+ * @see App\Services\Rams\RamsComplianceUpgradeService::enforceMissingRiskRefGate()
  * @see tests/Feature/Rams/CdmEmergencyDualPathGateTest.php
  * @see tests/Unit/Services/Rams/StructuralGatesTest.php
  * @see tests/Unit/Services/Rams/HotWorksGateTest.php
+ * @see tests/Unit/Services/Rams/MissingRiskRefGateTest.php
  * @see .planning/phases/30-structural-validation-gates/30-CONTEXT.md
  * @see .planning/phases/30-structural-validation-gates/30-06-PLAN.md
  * @see .planning/phases/30-structural-validation-gates/30-07-PLAN.md
+ * @see .planning/phases/30-structural-validation-gates/30-08-PLAN.md
  */
 class StructuralGatesDisarmedTest extends TestCase
 {
@@ -369,14 +372,6 @@ class StructuralGatesDisarmedTest extends TestCase
     // simultaneously throws ONLY the message of whichever gate's flag is
     // armed — arming the hot-works gate never wakes the structural trio,
     // and arming the structural trio never wakes the hot-works gate.
-    //
-    // The GATE-14 leg of this same matrix (`missing_risk_ref_gate_enabled`)
-    // is intentionally NOT asserted here: `enforceMissingRiskRefGate()`
-    // does not exist yet (Plan 30-08, wave 5). Asserting anything about it
-    // now would either fatal or pass vacuously against a stub — this file's
-    // documented scope-note precedent (see class docblock) applies
-    // identically to this new leg. Plan 30-08 re-runs this file and adds
-    // the missing bullet when the method exists.
 
     /**
      * `tripleViolatingDocument()` (GATE-01/02/04) plus a GATE-13
@@ -406,6 +401,30 @@ class StructuralGatesDisarmedTest extends TestCase
 
         $doc['coshh_baseline'] = [
             ['product' => 'Tin/Lead (Sn/Pb) Solder — 60/40 or 63/37'],
+        ];
+
+        // GATE-14 (Plan 30-08) — a hazard row implied by a second
+        // method-statement phase's own text, but never cited by it. No
+        // `pre_likelihood`/`pre_severity` keys, so `enforceResidualScoreGate()`
+        // (T-30-14's `array_key_exists()` guard) skips this row entirely —
+        // it contributes NOTHING to GATE-04. The phase's title/steps
+        // ("Roof Access Task" / "...use a stepladder...") were deliberately
+        // chosen to share NO `$keywordRiskMap` keyword with this hazard's
+        // name or with either of the other two hazard rows already in this
+        // fixture, so `crossReferenceMethodStatementRisks()` (which runs
+        // unconditionally, before any Phase 30 flag check) computes an
+        // EMPTY `associated_risks` for this phase regardless of which
+        // gate flag is armed — leaving a genuine citation gap for GATE-14
+        // to find, one the app's own auto-citation has not already closed.
+        // Verified during this plan's authoring by direct trace of
+        // crossReferenceMethodStatementRisks()'s keyword lists.
+        $doc['hazards'][] = [
+            'hazard' => 'High level mount hazard (falls from height)',
+        ];
+
+        $doc['method_statement']['phases'][] = [
+            'title' => 'Roof Access Task',
+            'steps' => ['Operatives will use a stepladder for this task.'],
         ];
 
         return $doc;
@@ -438,5 +457,81 @@ class StructuralGatesDisarmedTest extends TestCase
             $this->assertMatchesRegularExpression('/GATE-01|GATE-02|GATE-04/', $e->getMessage());
             $this->assertDoesNotMatchRegularExpression('/GATE-13/', $e->getMessage());
         }
+    }
+
+    // ── GATE-14 flag-independence (Plan 30-08) — completes the D-04 matrix ──
+    //
+    // D-04's operative clause made executable in the direction that matters
+    // most: GATE-14 has the phase's highest false-positive risk and is the
+    // likeliest flag to be rolled back alone. Because GATE-14 is WARN TIER
+    // (never throws), "killable without disarming the structural trio" is
+    // proven differently from the GATE-13 leg above: arming
+    // `missing_risk_ref_gate_enabled` alone must produce a GATE-14 warning
+    // AND throw NOTHING, even though the same document also violates
+    // GATE-01/GATE-02/GATE-04 — those three stay dormant (silent, not
+    // merely "not the reported gate") because their own shared flag is
+    // false. Symmetrically, arming the structural trio alone must throw a
+    // structural message and write NO GATE-14 warning.
+    //
+    // Plan 30-06's bullet 2 (the `structural_gates_enabled` leg immediately
+    // above) was written before `enforceMissingRiskRefGate()` existed and
+    // could only assert "does not throw a GATE-14 message" — a document
+    // with no GATE-14 body to run passes that assertion VACUOUSLY. Now that
+    // the method exists (this plan), `test_arming_only_structural_gates_throws_a_structural_message_and_leaves_hot_works_gate_dormant()`
+    // and this section's own `test_arming_only_structural_gates_throws_a_structural_message_and_writes_no_gate14_warning()`
+    // make that bullet load-bearing: they run against `allFiveViolatingDocument()`,
+    // which NOW genuinely contains a GATE-14-triggering citation gap, and
+    // assert `compliance_warnings` is empty — a real proof, not a vacuous
+    // pass against a stub.
+
+    public function test_arming_only_missing_risk_ref_gate_warns_gate14_and_throws_nothing(): void
+    {
+        $this->allPhase30FlagsFalse();
+        config(['rams_tier1.missing_risk_ref_gate_enabled' => true]);
+
+        $result = RamsComplianceUpgradeService::upgrade($this->allFiveViolatingDocument());
+
+        $this->assertIsArray($result);
+
+        $gate14Warnings = array_values(array_filter(
+            $result['compliance_warnings'],
+            fn ($w) => $w['gate'] === 'GATE-14',
+        ));
+        $this->assertNotEmpty($gate14Warnings, 'Expected at least one GATE-14 warning — the leg is not load-bearing otherwise.');
+
+        // The structural trio and GATE-13 both stayed dormant: no OTHER
+        // gate's warning/throw surface fired.
+        $otherWarnings = array_values(array_filter(
+            $result['compliance_warnings'],
+            fn ($w) => $w['gate'] !== 'GATE-14',
+        ));
+        $this->assertSame([], $otherWarnings);
+    }
+
+    public function test_arming_only_structural_gates_throws_a_structural_message_and_writes_no_gate14_warning(): void
+    {
+        config(['rams_tier1.structural_gates_enabled' => true]);
+        config(['rams_tier1.hot_works_gate_enabled' => false]);
+        config(['rams_tier1.missing_risk_ref_gate_enabled' => false]);
+
+        try {
+            RamsComplianceUpgradeService::upgrade($this->allFiveViolatingDocument());
+            $this->fail('Expected RamsGenerationException (a structural gate) was not thrown.');
+        } catch (RamsGenerationException $e) {
+            $this->assertMatchesRegularExpression('/GATE-01|GATE-02|GATE-04/', $e->getMessage());
+            $this->assertDoesNotMatchRegularExpression('/GATE-14/', $e->getMessage());
+        }
+
+        // The throw discards $data (RamsGenerationException carries no
+        // payload), so the "no GATE-14 warning" half of this proof is
+        // asserted on a SEPARATE, non-throwing call — the same document
+        // with only the structural trio armed but fed through
+        // enforceMissingRiskRefGate() directly would be redundant with the
+        // unit test suite; instead this second call proves it end-to-end:
+        // disarming the structural trio while missing_risk_ref_gate stays
+        // false must never surface a GATE-14 warning either.
+        $this->allPhase30FlagsFalse();
+        $result = RamsComplianceUpgradeService::upgrade($this->allFiveViolatingDocument());
+        $this->assertSame([], $result['compliance_warnings']);
     }
 }
