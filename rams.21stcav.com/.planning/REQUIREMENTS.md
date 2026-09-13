@@ -59,8 +59,8 @@ recurring review defects; the notes argue they are far more reliable as code tha
 instructions to a model. **GATE-03 and GATE-08 already shipped** (quick task 260817-r5e)
 and are listed for traceability, not rework.
 
-- [ ] **GATE-01**: Orphan controls — every method step or hazard control referencing a document, permit or hold point has a matching hazard row AND a matching `clientReqs` entry. Canonical failure: "review the asbestos register" with no asbestos hazard behind it.
-- [ ] **GATE-02**: Every area has at least one method step.
+- [x] **GATE-01**: Orphan controls — every method step or hazard control referencing a document, permit or hold point has a matching hazard row AND a matching `clientReqs` entry. Canonical failure: "review the asbestos register" with no asbestos hazard behind it.
+- [x] **GATE-02**: Every area has at least one method step.
 - [x] **GATE-03**: Every method step has exactly one `risks` line, and every RA reference resolves to a hazard that exists. *(Shipped 260817-r5e — includes the index-vs-id dangling-reference fix.)*
 - [ ] **GATE-04**: Residual score ≤ initial score on every hazard, and residual severity normally unchanged. Flag `s2 < s1` for human review rather than accepting it — controls reduce likelihood, not severity.
 - [ ] **GATE-05**: Uniform-scoring detection — if most hazards share the same initial score, the register was assembled from the library rather than the job. Warn.
@@ -151,8 +151,8 @@ Deliberately excluded to keep the document-quality core shippable:
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| GATE-01 | Phase 30 | Pending |
-| GATE-02 | Phase 30 | Pending |
+| GATE-01 | Phase 30 | Complete |
+| GATE-02 | Phase 30 | Complete |
 | GATE-03 | — | Shipped (260817-r5e) |
 | GATE-04 | Phase 30 | Pending |
 | GATE-05 | Phase 31 | Pending |

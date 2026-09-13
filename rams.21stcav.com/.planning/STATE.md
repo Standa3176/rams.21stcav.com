@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Engineering-Grade AV Drawings
 status: verifying
-stopped_at: Phase 30 planned — 9 plans, 6 waves, verified
-last_updated: "2026-09-13T18:57:10.960Z"
+stopped_at: Phase 30 Plan 03 landed — GATE-01/GATE-02 gate bodies shipped disarmed
+last_updated: "2026-09-13T20:15:00.000Z"
 last_activity: 2026-09-13
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 39
-  completed_plans: 38
-  percent: 78
+  completed_plans: 39
+  percent: 79
 ---
 
 ## Project Reference
@@ -19,11 +19,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-30)
 
 **Core value:** One dataset powers every document.
-**Current focus:** Phase 30 — Structural Validation Gates (Plan 02 of 9 landed)
+**Current focus:** Phase 30 — Structural Validation Gates (Plan 03 of 9 landed)
 
 ## Current Position
 
-Phase: 30 (Structural Validation Gates) — EXECUTING. Plan 01 (foundation: three disarmed flags, GATE-01/GATE-14 config vocabularies, `StructuralGateVocabulary` helper, `compliance_warnings` channel — commits `7c05d63`/`0a308fe`/`b9d916e`) and Plan 02 (data-reachability mirrors: `client_responsibilities_expanded` + gate-private `areas_for_gate` mirrored onto the pipeline array at all three real generation entry points immediately before `RamsComplianceUpgradeService::upgrade()`, closing 30-RESEARCH.md Finding 1 — without these, GATE-01/GATE-02 would report clean on every real document. `StructuralGatesDualPathTest` (6 tests) proves reachability per entry point; the delete-one-line-watch-it-fail non-vacuity procedure was actually run for all three mirror sites, not merely described — each deletion confirmed to fail its named test, each restoration confirmed via `git diff` empty. Full Rams suite: 780 passed. Commits `dd7ebd8` (Task 1), `213276c` (Task 2), `373ac36` (docs). See `30-02-SUMMARY.md`.) are both landed. Plans 03-09 (GATE-01/02/04/13/14 gate bodies, snapshot fixture, UI, arming runbook) remain.
+Phase: 30 (Structural Validation Gates) — EXECUTING. Plan 01 (foundation: three disarmed flags, GATE-01/GATE-14 config vocabularies, `StructuralGateVocabulary` helper, `compliance_warnings` channel — commits `7c05d63`/`0a308fe`/`b9d916e`), Plan 02 (data-reachability mirrors: `client_responsibilities_expanded` + gate-private `areas_for_gate` mirrored onto the pipeline array at all three real generation entry points immediately before `RamsComplianceUpgradeService::upgrade()`, closing 30-RESEARCH.md Finding 1 — without these, GATE-01/GATE-02 would report clean on every real document. `StructuralGatesDualPathTest` (6 tests) proves reachability per entry point; the delete-one-line-watch-it-fail non-vacuity procedure was actually run for all three mirror sites, not merely described — each deletion confirmed to fail its named test, each restoration confirmed via `git diff` empty. Full Rams suite: 780 passed. Commits `dd7ebd8` (Task 1), `213276c` (Task 2), `373ac36` (docs). See `30-02-SUMMARY.md`.) and Plan 03 (GATE-01/GATE-02 gate bodies: `enforceOrphanControlGate()` throws when a trigger phrase like "asbestos register" has no supporting hazard row OR no supporting client-responsibility entry — D-05, fires on either missing, message names which; `enforceAreaCoverageGate()` throws when a named area has no method step, passing vacuously on zero areas. Both dispatched in one new block in `upgrade()` behind the already-shipped `rams_tier1.structural_gates_enabled`/`RAMS_STRUCTURAL_GATES` flag, default false — no new config surface. `StructuralGatesTest` (15 unit tests) proves every throw/no-throw boundary plus dispatch-flag wiring; `StructuralGatesSaveReviewGateTest` (4 feature tests), modeled on `DisplayLiftSaveReviewGateTest`, proves an armed gate's exception is caught and surfaced as a friendly redirect on the real Save Review HTTP route (not a 500), that the same violating payload succeeds disarmed, and that nothing persists when a gate throws. One Rule-1 fix: reworded a docblock phrase that collided with `HazardResolutionPathGuardTest`'s marker scan. Full Rams suite: 799 passed (was 780). Commits `322705a` (Task 1), `c589755` (Task 2), `71bbf63` (Task 3). See `30-03-SUMMARY.md`.) are now landed. Plans 04-09 (warn-surface UI, doc corrections + corpus measurement, GATE-04, GATE-13, GATE-14, snapshot fixtures + phase gate) remain.
 
 ---
 
