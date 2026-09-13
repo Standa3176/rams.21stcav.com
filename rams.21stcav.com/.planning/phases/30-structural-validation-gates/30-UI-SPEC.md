@@ -317,17 +317,27 @@ nine areas.
 | Warning panel heading (N items) | `⚠ {N} items flagged for review` |
 | Warning panel body | `These do not block the document. Check each one before issuing.` |
 | GATE-04 warning line | `GATE-04 — {hazard name}: residual severity {s2} is lower than initial severity {s1}. Controls reduce likelihood, not severity — confirm this is intended.` |
+| GATE-14 warning line | `GATE-14 — Method step "{step title}" does not cite {hazard ref} ({hazard name}), which its own text implies. This reference is computed automatically by the app's own cross-reference derivation, not typed by anyone — review the step before issuing; there is no field on this screen that fixes it directly.` |
 | Empty state | **No empty state.** The panel is absent when there are no warnings. See "Empty state" above. |
 | Error state (GATE-01) | `Orphan control — "{trigger phrase}" references {document/permit} but the RAMS has no supporting hazard row and no client-responsibility entry. Add the hazard and the client responsibility, or remove the reference.` |
 | Error state (GATE-02) | `Area "{area name}" has no method steps. Add at least one method step for this area, or remove the area.` |
 | Error state (GATE-04) | `Hazard "{hazard name}" has a residual score of {post} against an initial score of {pre}. Residual risk cannot exceed initial risk — correct the post-control scoring.` |
 | Error state (GATE-13) | `Hot-works contradiction — this RAMS states no hot works while also {requiring a hot-works permit / listing {substance} in COSHH}. Resolve the contradiction before issuing.` |
-| Error state (GATE-14) | `Method step "{step title}" does not cite {hazard ref} ({hazard name}), which its own text implies. Add the reference to the step's risks line.` |
 | Destructive confirmation | **None.** This phase introduces no destructive action. The existing confirm idiom, if one were ever needed, is `window.appConfirm()` / `data-confirm` (`review.blade.php:406`, `components/stale-banner.blade.php`). |
 
 **Tone rules:** state the contradiction, name the item, give the next action. No "Oops", no
 "Something went wrong", no exclamation marks beyond the `⚠` glyph. These messages are read by an
 engineer about to issue a safety document.
+
+**Correction (2026-09-13, Plan 30-05):** GATE-14 was originally specified in this table as an
+`Error state` instructing the reader to "Add the reference to the step's risks line" — a field
+that `crossReferenceMethodStatementRisks()` (`:991-1092`) overwrites on the next `upgrade()` run,
+making that instruction unactionable from any UI field. Research Finding 7 and the user's
+resulting decision (30-RESEARCH.md Open Question 1) settled GATE-14 as **warn tier**, implemented
+in Plan 30-08. This spec is corrected to match and remains `status: approved` — only the GATE-14
+row moved from the error group to the warning group and its copy now names the app's own
+cross-reference derivation as the cause. No other part of this spec changed; the warn surface
+itself (Surfaces 1 and 2) was already correct and is implemented as written by Plan 30-04.
 
 ---
 

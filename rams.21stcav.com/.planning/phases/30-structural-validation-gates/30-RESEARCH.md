@@ -593,26 +593,30 @@ Phase 30 is not a rename/refactor/migration phase — it adds gates and two mirr
 | A5 | GATE-14 may be better as warn-tier than error-tier | Finding 7 | Stated as an open decision for the planner, not a recommendation to implement |
 | A6 | The 21CQ30960 defects (RA18 / §6.8 / COSHH; Step 4 omissions) are accurately described in CONTEXT.md | Findings 5, 7 | Neither the document nor a fixture of it exists in the repo; all reasoning traces the *class* of defect through app code, which reproduces it — but the specific RA numbers are unverified here |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Is GATE-14 an error or a warning?**
+> Updated 2026-09-13, Plan 30-05. All four questions below were open at research time; each is
+> now resolved by a decision and the plan that carries it. Retained in full (not deleted) so a
+> future reader can see the reasoning, not just the outcome.
+
+1. **Is GATE-14 an error or a warning? — RESOLVED: WARN, by Plan 30-08.**
    - Known: `associated_risks` is app-generated (`:991-1092`), so a violation is a defect in `$keywordRiskMap`, not in anything the engineer can edit.
    - Unclear: whether `REQUIREMENTS.md:75`'s "must cite" implies a blocking error.
-   - Recommendation: planner decides explicitly and records it; the UI-SPEC warn channel makes warn-tier free to implement.
+   - **Resolution:** the user decided WARN tier, not error tier — a blocking error here would be unactionable from any review-screen field, since the engineer cannot edit `associated_risks` directly. Implemented in Plan 30-08 behind its own `RAMS_MISSING_RISK_REF_GATE` flag, using the existing `compliance_warnings` channel (Plan 30-01/30-04). `30-UI-SPEC.md` and `.planning/ROADMAP.md` (Phase 30 criterion 6) both corrected to match (Plan 30-05).
 
-2. **How is ROADMAP criterion 4 (21CQ30960 clean) proven?**
+2. **How is ROADMAP criterion 4 (21CQ30960 clean) proven? — RESOLVED: two authored fixtures, by Plan 30-09.**
    - Known: no 21CQ30960 fixture exists in `tests/Fixtures/`; only docblock mentions.
    - Unclear: whether the real record is reachable from the dev environment (the Tilda fixture's `_notes` says the real Tilda record was *not*, and was hand-crafted instead).
-   - Recommendation: either hand-craft a 21CQ30960 fixture reproducing both named defects (the Tilda precedent), or make criterion 4 a human/UAT item against the live document. Do not leave it implicit.
+   - **Resolution:** Plan 30-09 authors a defect-bearing 21CQ30960 fixture (reproducing the RA18/§6.8/COSHH contradiction and the Step 4 omission) and a clean counterpart, wires both into the snapshot test files, and proves criterion 4 automatically against the clean fixture rather than as a live-only UAT step. The human/UAT alternative this question raised was not taken.
 
-3. **What are the five gates' actual false-positive rates on the live corpus?**
+3. **What are the five gates' actual false-positive rates on the live corpus? — RESOLVED procedurally: `30-MEASUREMENT.md`, by Plan 30-05 (this plan).**
    - Known: unmeasurable from this machine (no DB, no `php` on the Bash PATH).
-   - Recommendation: a `30-MEASUREMENT.md` Wave 0 task, operator-run, read-only (`rams:refresh-compliance --dry-run` plus tinker selects), following `29-MEASUREMENT.md`'s exact format. This is the only thing that converts D-03's "flip after live verification" from an intention into a procedure.
+   - **Resolution:** `30-MEASUREMENT.md` is the read-only, per-gate tinker-based measurement pass (following `29-MEASUREMENT.md`'s exact format) that produces these numbers, plus the arming runbook that sequences measurement → corpus regeneration → verification → flag flip. The pass itself has not been run yet (all five gates ship disarmed) — this resolves the *procedure*, not the numbers, which remain unknown until an operator runs it live.
 
-4. **Does the Blade-side hot-works permit derivation (`pdf/rams.blade.php:407-409`) need closing?**
+4. **Does the Blade-side hot-works permit derivation (`pdf/rams.blade.php:407-409`) need closing? — RESOLVED: deliberately out of scope, carried forward.**
    - Known: a `'Hot Works Permit'` row can be derived in the Blade from a scope regex, invisible to `upgrade()`.
    - Unclear: whether that counts as "requiring a hot-works permit" for GATE-13's purposes.
-   - Recommendation: out of scope for Phase 30 (GATE-13 ships disarmed anyway); record it as a known bypass in the SUMMARY so Phase 31's arming task sees it.
+   - **Resolution:** out of scope for Phase 30 — GATE-13 ships disarmed regardless, so this bypass cannot cause a live false-positive or false-negative yet. Recorded as a known limitation in `30-MEASUREMENT.md` (limitation (b)) and must be revisited before or during Phase 31's GATE-13 arming task, not before.
 
 ## Sources
 
