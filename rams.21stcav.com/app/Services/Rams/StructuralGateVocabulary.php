@@ -7,7 +7,7 @@ namespace App\Services\Rams;
  * helper every Phase 30 structural gate (GATE-01, GATE-02, GATE-04, GATE-13,
  * GATE-14) uses. Judgement-only class: it owns no loop and throws nothing —
  * that stays on each gate method, per the established shipped pattern
- * (`DisplayLiftPolicy::violatesPolicy()`, `ControlTextRuleViolations::detect()`,
+ * (the display-lift policy's `violatesPolicy()`, `ControlTextRuleViolations::detect()`,
  * `SiteEmergencyResolver::classify()`).
  *
  * D-07 — hazard-side matching reuses Phase 26's signal vocabulary

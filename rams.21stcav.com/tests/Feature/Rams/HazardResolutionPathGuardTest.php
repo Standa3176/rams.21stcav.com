@@ -30,6 +30,15 @@ use Tests\TestCase;
  * the allow-list, so the allow-list stays limited to files that genuinely
  * call the hazard-resolution machinery, which is its stated purpose.
  *
+ * Phase 30 Plan 01 (D-07) added a 9th sanctioned caller,
+ * app/Services/Rams/StructuralGateVocabulary.php — it deliberately reuses
+ * HazardIncludeWhenResolver's TIER2/TIER3 CONST MAPS (never ::resolve(),
+ * which is what this guard exists to prevent bypassing) as the single
+ * shared hazard-signal vocabulary for the five Phase 30 gates, per D-07's
+ * "do not build a second, parallel hazard-matching vocabulary". This is a
+ * sanctioned extension of the allow-list's own stated purpose, not a
+ * bypass of it.
+ *
  * Scanned directory: app/ only. tests/ is excluded — test fixtures
  * legitimately reference these symbols constantly and are not a
  * generation path.
@@ -37,7 +46,7 @@ use Tests\TestCase;
 class HazardResolutionPathGuardTest extends TestCase
 {
     /**
-     * The 7 files that genuinely call the hazard-resolution machinery
+     * The 8 files that genuinely call the hazard-resolution machinery
      * (HazardTemplate::, ->resolveFromSeeds(), or HazardIncludeWhenResolver),
      * re-derived from a live repo grep at plan time — not hand-copied.
      */
@@ -49,6 +58,7 @@ class HazardResolutionPathGuardTest extends TestCase
         'app/Services/RamsBuilderService.php',
         'app/Services/Rams/HazardIncludeWhenResolver.php',
         'app/Services/RamsExtractionDraftBuilderService.php',
+        'app/Services/Rams/StructuralGateVocabulary.php',
     ];
 
     private const MARKERS = [
@@ -96,13 +106,13 @@ class HazardResolutionPathGuardTest extends TestCase
     }
 
     /**
-     * Sanity check that the allow-list itself is exactly 7 entries and
+     * Sanity check that the allow-list itself is exactly 8 entries and
      * every entry resolves to a real file — a typo in the constant would
      * otherwise silently widen what the guard permits.
      */
-    public function test_allow_list_has_seven_entries_and_all_resolve(): void
+    public function test_allow_list_has_eight_entries_and_all_resolve(): void
     {
-        $this->assertCount(7, self::ALLOWED_FILES);
+        $this->assertCount(8, self::ALLOWED_FILES);
 
         foreach (self::ALLOWED_FILES as $rel) {
             $this->assertFileExists(base_path($rel), "allow-listed path does not exist: {$rel}");

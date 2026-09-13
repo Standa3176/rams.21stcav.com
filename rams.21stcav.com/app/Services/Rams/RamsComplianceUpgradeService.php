@@ -35,6 +35,19 @@ class RamsComplianceUpgradeService
 
     public static function upgrade(array $ramsData): array
     {
+        // Phase 30 (UI-SPEC) — the compliance_warnings advisory channel.
+        // Written UNCONDITIONALLY here, before any gate runs, and
+        // overwritten WHOLESALE on every call (never appended to) —
+        // mirroring the resolveSiteEmergency() precedent below (:83-86,
+        // unconditional enrichment sitting beside a flag-gated throw). If
+        // this were only written inside a flag-gated block, a flag flip
+        // from true back to false would leave a stale persisted warnings
+        // array on every document — a disarmed gate still showing
+        // findings. GATE-04 (30-06) and GATE-14 (30-08) push their
+        // findings onto this array later in the pipeline; until those
+        // plans land it is always empty.
+        $ramsData['compliance_warnings'] = [];
+
         $ramsData = self::upgradeScopeOfWorks($ramsData);
         $ramsData = self::ensurePerRoomBullets($ramsData);
         $ramsData = self::addPpeMatrix($ramsData);
@@ -1923,7 +1936,29 @@ class RamsComplianceUpgradeService
     }
 
     // =========================================================================
-    // 13. TEXT HYGIENE — deterministic cleanup of known artifacts
+    // 13. STRUCTURAL GATES (Phase 30) — GATE-01/02/04/13/14
+    // =========================================================================
+    //
+    // Placement note for plans 30-03 (GATE-01/02), 30-06 (GATE-04), 30-07
+    // (GATE-13) and 30-08 (GATE-14), which add their gate methods and
+    // upgrade() dispatch blocks here: GATE-13 reads permit_and_isolation
+    // (written by addPermitAndIsolation() at ~:939) and GATE-14 reads
+    // associated_risks (written by crossReferenceMethodStatementRisks() at
+    // ~:1001-1092), so all new dispatch blocks belong AFTER the
+    // crossReferenceMethodStatementRisks()/resolveSiteEmergency()/
+    // addCdmDutyHolders()/GATE-11-12 sequence above (upgrade() ~:78-100)
+    // and BEFORE cleanTextArtifacts() below. Each new gate follows the
+    // shape established by enforceCdmGate() (:1201+): private static
+    // function, reads its input defensively via (array)($data['key'] ??
+    // []), returns $data unchanged on the clean path, throws
+    // RamsGenerationException naming the offending item and its kill
+    // switch on the first violation (S2) — except GATE-14 and GATE-04's
+    // warn half, which push onto $ramsData['compliance_warnings']
+    // (initialised unconditionally at the top of upgrade()) instead of
+    // throwing.
+
+    // =========================================================================
+    // 14. TEXT HYGIENE — deterministic cleanup of known artifacts
     // =========================================================================
 
     /**
