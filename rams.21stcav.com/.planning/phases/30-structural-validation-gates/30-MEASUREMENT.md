@@ -272,6 +272,40 @@ does nothing and the operator will believe a gate is armed when it is not.
 
 ---
 
+## Code-review findings that bear on arming (added 2026-09-14, close-out review gate)
+
+The Phase 30 close-out code review (`30-REVIEW.md`) produced one blocker and two warnings.
+The blocker is **fixed**; the two warnings are **open** and both are false-positive risks that
+only manifest once a flag flips, so they belong here rather than in a backlog.
+
+**CR-01 — FIXED (commit `f50b6de`), no action needed at arming.** `StructuralGateVocabulary::flattenAreas()`
+chained `$data['areas_for_gate'] ?? $data['rooms'] ?? null`. Because all three mirror sites always
+SET `areas_for_gate` (to `[]` when `room_overviews` is empty) and `??` coalesces only on null/unset,
+the fallback was dead code on every live document — GATE-02 passed **vacuously** whenever
+`room_overviews` was empty, even with real rooms present. Now a truthiness check. Two regression
+tests added using the production fixture shape; the fix was verified by reverting it and observing
+the new test go red. Had this shipped unfixed, the GATE-02 measurement below would have reported a
+falsely clean corpus and the arming decision would have rested on it.
+
+**WR-01 — OPEN. Re-check before flipping `RAMS_HOT_WORKS_GATE` (Phase 31).**
+GATE-13's `permitRuleIsUnconditionalHotWorksRequirement()` (`RamsComplianceUpgradeService.php:2574`)
+substring-matches conditional markers ("if" / "when" / "where") across the **whole** rule line,
+unscoped. An unrelated occurrence anywhere in the sentence silently suppresses detection of a
+genuinely unconditional permit requirement — a false **negative**, i.e. the gate goes quiet rather
+than noisy. Note this compounds with the already-recorded fact that GATE-13's permit half is
+architecturally unreachable through the real pipeline; between them, only the COSHH half carries
+real weight today.
+
+**WR-02 — OPEN. Resolve with the GATE-01 measurement below, before flipping `RAMS_STRUCTURAL_GATES`.**
+`config/rams_tier1.php:271-281` maps the "permit to work", "isolation certificate" and
+"hot-works permit" triggers onto the `ceiling_void_access` / `mains_connection` signals. The config
+comments themselves describe these as unrelated approximations. Once armed, a document mentioning a
+permit but carrying neither of those signals would throw a GATE-01 error it does not deserve. The
+GATE-01 measurement pass is exactly the evidence needed to either re-map or drop these three
+triggers — do not guess a replacement mapping ahead of that data.
+
+---
+
 ## Known limitations carried forward (for Phase 31's arming task and this plan's SUMMARY)
 
 **(a) `RamsController::review()` never calls `upgrade()`.** (`:307-326`). A document last saved
