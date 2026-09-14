@@ -151,6 +151,54 @@ class DocxSnapshotTest extends TestCase
     }
 
     // ══════════════════════════════════════════════════════════════════════
+    // 21CQ30960 — Phase 30 Plan 09, ROADMAP criterion 4 (CLEAN fixture only)
+    // ══════════════════════════════════════════════════════════════════════
+    //
+    // Fixture names are hardcoded string literals here — there is no data
+    // provider (30-PATTERNS.md). Only the CLEAN fixture is wired into the
+    // snapshot suite; the sibling `21cq30960-defects` fixture is a gate
+    // fixture only (StructuralGatesRealDocumentTest) and must never be
+    // snapshotted — capturing a golden from deliberately-broken output
+    // would permanently encode that breakage as "expected" (T-30-20).
+
+    public function test_legacy_docx_renderer_matches_golden_for_21cq30960(): void
+    {
+        [
+            'v1' => $xmlV1,
+        ] = $this->renderBothPipelines('21cq30960');
+
+        $this->assertGolden('21cq30960', 'v1', $xmlV1);
+    }
+
+    public function test_unified_docx_renderer_matches_golden_for_21cq30960(): void
+    {
+        [
+            'v2' => $xmlV2,
+        ] = $this->renderBothPipelines('21cq30960');
+
+        $this->assertGolden('21cq30960', 'v2', $xmlV2);
+    }
+
+    /**
+     * ROADMAP criterion 4's second half, T-30-02 — the compliance_warnings
+     * channel (Plan 30-04) must never leak into a generated DOCX. The clean
+     * fixture produces zero warnings by construction; this asserts that
+     * property survives the real DOCX render, on the real document shape.
+     */
+    public function test_21cq30960_rendered_docx_contains_no_compliance_warning_text(): void
+    {
+        [
+            'v1' => $xmlV1,
+            'v2' => $xmlV2,
+        ] = $this->renderBothPipelines('21cq30960');
+
+        foreach (['GATE-01', 'GATE-02', 'GATE-04', 'GATE-13', 'GATE-14', 'compliance_warnings'] as $needle) {
+            $this->assertStringNotContainsString($needle, $xmlV1, "Legacy DOCX leaked '{$needle}'.");
+            $this->assertStringNotContainsString($needle, $xmlV2, "Unified DOCX leaked '{$needle}'.");
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
     // Helpers
     // ══════════════════════════════════════════════════════════════════════
 

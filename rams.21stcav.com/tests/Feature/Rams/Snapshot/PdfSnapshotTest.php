@@ -244,4 +244,51 @@ class PdfSnapshotTest extends TestCase
             . "differ by the paletteCss <style> block (~800 bytes) + minor rewrites. A large "
             . "positive delta means new content leaked in — check the diff.");
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 21CQ30960 — Phase 30 Plan 09, ROADMAP criterion 4 (CLEAN fixture only)
+    // ══════════════════════════════════════════════════════════════════════
+    //
+    // Fixture names are hardcoded string literals here — there is no data
+    // provider (30-PATTERNS.md). Only the CLEAN fixture is wired into the
+    // snapshot suite; the sibling `21cq30960-defects` fixture is a gate
+    // fixture only (StructuralGatesRealDocumentTest) and must never be
+    // snapshotted — capturing a golden from deliberately-broken output
+    // would permanently encode that breakage as "expected" (T-30-20).
+
+    public function test_legacy_pdf_rams_blade_matches_golden_for_21cq30960(): void
+    {
+        [
+            'v1' => $htmlV1,
+        ] = $this->renderBothBlades('21cq30960');
+        $this->assertGolden('21cq30960', 'v1', $htmlV1);
+    }
+
+    public function test_unified_pdf_rams_v2_blade_matches_golden_for_21cq30960(): void
+    {
+        [
+            'v2' => $htmlV2,
+        ] = $this->renderBothBlades('21cq30960');
+        $this->assertGolden('21cq30960', 'v2', $htmlV2);
+    }
+
+    /**
+     * ROADMAP criterion 4's second half, T-30-02 — the compliance_warnings
+     * channel (Plan 30-04) must never leak into a rendered document. The
+     * clean fixture produces zero warnings by construction; this asserts
+     * that property survives the real render, on the real document shape,
+     * not merely in the advisory-channel unit tests.
+     */
+    public function test_21cq30960_rendered_html_contains_no_compliance_warning_text(): void
+    {
+        [
+            'v1' => $htmlV1,
+            'v2' => $htmlV2,
+        ] = $this->renderBothBlades('21cq30960');
+
+        foreach (['GATE-01', 'GATE-02', 'GATE-04', 'GATE-13', 'GATE-14', 'compliance_warnings'] as $needle) {
+            $this->assertStringNotContainsString($needle, $htmlV1, "Legacy pdf.rams leaked '{$needle}'.");
+            $this->assertStringNotContainsString($needle, $htmlV2, "Unified pdf.rams-v2 leaked '{$needle}'.");
+        }
+    }
 }
