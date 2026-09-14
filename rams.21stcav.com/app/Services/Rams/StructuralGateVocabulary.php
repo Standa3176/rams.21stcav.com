@@ -276,7 +276,18 @@ final class StructuralGateVocabulary
      * Area/room names for GATE-02. Reads the gate-private mirror key
      * `areas_for_gate` FIRST (written by Plan 30-02, immediately before
      * `upgrade()`, mirroring the established S4 pattern), falling back to
-     * `$data['rooms']` when the mirror is absent. Deliberately never reads
+     * `$data['rooms']` when the mirror is absent OR EMPTY.
+     *
+     * The empty case is load-bearing, not defensive padding (CR-01, code
+     * review 2026-09-14). All three live mirror sites — `RamsController.php`
+     * :609, `RamsBuilderService.php` :307 and :972 — always SET
+     * `areas_for_gate`, to `[]` when `room_overviews` is empty. A `??` chain
+     * coalesces only on null/unset, so it would return that `[]` and never
+     * reach `$data['rooms']`: GATE-02 would pass vacuously on every live
+     * document whose `room_overviews` happens to be empty, even with real
+     * rooms present. A gate that reports clean because it cannot see its
+     * data is the exact failure this phase exists to prevent, so the check
+     * is truthiness, not coalescing. Deliberately never reads
      * `$data['room_overviews']` — per RESEARCH Finding 3 / Assumption A2,
      * that key is the trigger for the long-dormant `ensurePerRoomBullets()`
      * AI path, and waking it is a behaviour change this phase does not
@@ -285,7 +296,9 @@ final class StructuralGateVocabulary
      */
     public static function flattenAreas(array $data): array
     {
-        $source = $data['areas_for_gate'] ?? $data['rooms'] ?? null;
+        $source = ! empty($data['areas_for_gate'])
+            ? $data['areas_for_gate']
+            : ($data['rooms'] ?? null);
 
         if (! is_array($source)) {
             return [];

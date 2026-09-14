@@ -171,6 +171,41 @@ class StructuralGateVocabularyTest extends TestCase
         $this->assertSame(['Studio 1', 'Studio 2'], $result);
     }
 
+    public function test_flatten_areas_falls_back_to_rooms_when_gate_mirror_is_present_but_empty(): void
+    {
+        // CR-01 regression (code review 2026-09-14). This fixture shape is the
+        // one PRODUCTION actually sends: all three mirror sites
+        // (RamsController.php:609, RamsBuilderService.php:307 and :972) always
+        // SET areas_for_gate, to [] when room_overviews is empty. They never
+        // omit the key, which is what
+        // test_flatten_areas_falls_back_to_rooms_when_no_gate_mirror above
+        // exercises.
+        //
+        // With a `??` chain this returned [] and GATE-02 passed vacuously
+        // despite real rooms being present — the "gate reports clean because
+        // it cannot see its data" failure the phase exists to prevent. If this
+        // test ever goes red, GATE-02 has gone blind on live documents; fix
+        // the source, do not relax the assertion.
+        $result = StructuralGateVocabulary::flattenAreas([
+            'areas_for_gate' => [],
+            'rooms' => ['Studio 1', 'Studio 2'],
+        ]);
+
+        $this->assertSame(['Studio 1', 'Studio 2'], $result);
+    }
+
+    public function test_flatten_areas_returns_empty_when_both_mirror_and_rooms_are_empty(): void
+    {
+        // The genuinely vacuous case stays vacuous: a manual/form-only RAMS
+        // with no rooms at all must still pass GATE-02 (ROADMAP criterion 2's
+        // "passes vacuously on zero areas"). The CR-01 fix must not turn this
+        // into a false positive.
+        $this->assertSame([], StructuralGateVocabulary::flattenAreas([
+            'areas_for_gate' => [],
+            'rooms' => [],
+        ]));
+    }
+
     public function test_flatten_areas_ignores_room_overviews_key(): void
     {
         // RESEARCH Finding 3 / Assumption A2 — room_overviews is the trigger
