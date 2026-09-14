@@ -246,7 +246,7 @@ Plans:
 - [x] 30-06-PLAN.md - GATE-04, the phase's only two-tier gate: error on residual score exceeding initial, warn on residual severity below initial; plus the byte-identical-when-disarmed and flag-independence proofs.
 - [x] 30-07-PLAN.md - GATE-13 hot-works contradiction, built whole and shipped disarmed per D-02, including the regression proving it does not fire on addPermitAndIsolation()'s own conditional permit line.
 - [x] 30-08-PLAN.md - GATE-14 missing risk references, WARN tier (the risks line is app-generated), with a static source guard proving it does not re-derive $keywordRiskMap.
-- [ ] 30-09-PLAN.md - The two 21CQ30960 fixtures (defect-bearing plus clean), snapshot wiring in both snapshot test files, ROADMAP criterion 4 proven automatically, and the phase gate.
+- [x] 30-09-PLAN.md - The two 21CQ30960 fixtures (defect-bearing plus clean), snapshot wiring in both snapshot test files, ROADMAP criterion 4 proven automatically, and the phase gate.
 
 **UI hint**: yes (gate errors/warnings surface on the RAMS review screen)
 
@@ -648,6 +648,6 @@ Plans:
 | 27. Manual-Handling & Display-Lift House Rules | v3.0 | 4/5 | In Progress|  |
 | 28. PPE, Ceiling & Electrical Boundary House Rules | v3.0 | 8/8 | Complete   | 2026-09-07 |
 | 29. CDM Duty-Holder & Emergency Arrangements | v3.0 | 12/14 | In Progress|  |
-| 30. Structural Validation Gates | v3.0 | 5/9 | In Progress|  |
+| 30. Structural Validation Gates | v3.0 | 9/9 | Complete   | 2026-09-14 |
 | 31. Standards/COSHH Scoping & Padding Gates | v3.0 | 0/0 | Not started | - |
 | 999.1. v2.0 Engineering-Grade AV Drawings (incl. floor plans + DXF) | Backlog | 0/0 | Backlog | - |
