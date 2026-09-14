@@ -1,0 +1,282 @@
+{
+    "_notes": "Fixture 21CQ30960 CLEAN — Phase 30 Plan 09 (ROADMAP criterion 4). Hand-crafted by the Plan 09 executor 2026-09-14 because the real record (VW Blakelands, project 21CQ30960) is not accessible from the dev environment, following the tilda-21cq29531 precedent (Phase 260726-rf3 Plan 03) for shape/style. This fixture and its sibling tests/Fixtures/rams/21cq30960-defects/record.json are the SAME project at two points in time: RAMS 97 (2026-08-25, pre-fix) carried the GATE-13/GATE-14 defects the defects fixture reproduces; this fixture is the POST-FIX regeneration ROADMAP criterion 4 requires — all five Phase 30 gates armed, zero warnings, zero errors, non-vacuous input throughout. Regeneration command: `php artisan rams:regenerate-snapshots 21cq30960 --force`. Deliberate content choices, all load-bearing for GATE non-vacuity (30-09-PLAN.md behaviour block): (1) GATE-01 — the 'asbestos register' trigger phrase appears in a First Fix step, fully supported by hazard[3] ('Asbestos-Containing Materials...') AND a client_responsibilities entry naming the asbestos register, so GATE-01 walks its full match-and-pass logic rather than trivially passing on an absent trigger; (2) GATE-02 — generated_data.areas_for_gate=['AV Rack'] is genuinely covered by the Second Fix step's 'Install AV rack...' text; (3) GATE-04 — every hazard row carries complete pre/post scores with post_severity == pre_severity throughout (only likelihood is reduced by controls, the conventional case), so no row trips GATE-04's warn tier and compliance_warnings is genuinely empty, not merely unpopulated; (4) no method-statement phase text contains any GATE-14 missing_risk_implications phrase ('wall mount', 'onto the bracket', 'lift the display', 'above 2m', 'stepladder', 'podium', 'ceiling void') and no hazard/exclusion/control text contains a 'no hot works' absence assertion, so GATE-13/GATE-14 pass because there is genuinely nothing to flag, not because the relevant data is absent from the document. client_responsibilities_expanded is fully populated (all four buckets plus one additional row) per the plan's explicit non-vacuity requirement.",
+    "project": {
+        "name": "VW Blakelands — Learning Centre AV Refresh",
+        "client_name": "Volkswagen Group UK (Blakelands Training Centre)",
+        "site_address": "Blakelands, Milton Keynes, Buckinghamshire, MK14 5EU",
+        "ref": "21CQ30960"
+    },
+    "rams": {
+        "project_ref": "21CQ30960",
+        "project_name": "VW Blakelands — Learning Centre AV Refresh",
+        "client_name": "Volkswagen Group UK (Blakelands Training Centre)",
+        "site_address": "Blakelands, Milton Keynes, Buckinghamshire, MK14 5EU",
+        "status": "completed",
+        "generated_data": {
+            "project": {
+                "name": "VW Blakelands — Learning Centre AV Refresh",
+                "client": "Volkswagen Group UK (Blakelands Training Centre)",
+                "site_address": "Blakelands, Milton Keynes, Buckinghamshire, MK14 5EU",
+                "ref": "21CQ30960",
+                "doc_author": "Simon Pittaway",
+                "project_manager": "Simon Pittaway",
+                "project_manager_phone": "01908 977770",
+                "lead_engineer": "Simon Pittaway",
+                "additional_engineers": "James Clarke, Peter Adams",
+                "programmer": "Ed Warfield",
+                "revision": "Rev 2.0",
+                "document_status": "For Issue",
+                "planned_start_date": "2026-09-21",
+                "planned_end_date": "2026-09-25",
+                "planned_start_time": "08:00",
+                "planned_end_time": "17:30",
+                "working_hours": "Monday to Friday, 08:00 to 17:30",
+                "client_contact_name": "Diane Foster",
+                "client_contact_email": "diane.foster@vwblakelands.co.uk",
+                "client_contact_phone": "07700 900044",
+                "site_vehicles": "AB12 CDE - Ford Transit\nEF34 GHI - VW Crafter"
+            },
+            "hazards": [
+                {
+                    "hazard": "Working at height for display installation (high level mount)",
+                    "persons_at_risk": ["Engineers", "Site staff below"],
+                    "pre_likelihood": 3,
+                    "pre_severity": 4,
+                    "controls": [
+                        "Class 1 stepladders EN131 rated only; 3-point contact maintained.",
+                        "Two-person team for bracket lifts.",
+                        "Working area cordoned; no personnel permitted below drop zone."
+                    ],
+                    "post_likelihood": 1,
+                    "post_severity": 4
+                },
+                {
+                    "hazard": "Manual handling of large-format displays (58 kg)",
+                    "persons_at_risk": ["Engineers"],
+                    "pre_likelihood": 4,
+                    "pre_severity": 3,
+                    "controls": [
+                        "Team lift (2 engineers minimum) for any item over 20 kg.",
+                        "Screen trolley used from vehicle to install location.",
+                        "Correct lifting technique briefed at toolbox talk."
+                    ],
+                    "post_likelihood": 2,
+                    "post_severity": 3
+                },
+                {
+                    "hazard": "Electrical connection to mains supply",
+                    "persons_at_risk": ["Engineers", "Client staff"],
+                    "pre_likelihood": 3,
+                    "pre_severity": 5,
+                    "controls": [
+                        "All engineers 18th Edition qualified.",
+                        "Isolation permit obtained before rack power-on.",
+                        "Test-before-touch on every circuit prior to termination."
+                    ],
+                    "post_likelihood": 1,
+                    "post_severity": 5
+                },
+                {
+                    "hazard": "Asbestos-Containing Materials (ACMs) risk during any ceiling tile disturbance",
+                    "persons_at_risk": ["Engineers"],
+                    "pre_likelihood": 2,
+                    "pre_severity": 3,
+                    "controls": [
+                        "No works to proceed above ceiling tiles until the asbestos register entry for this area is confirmed.",
+                        "Stop work and report to site management if suspect material is disturbed."
+                    ],
+                    "post_likelihood": 1,
+                    "post_severity": 3
+                }
+            ],
+            "team": [
+                {"role": "Project Manager", "name": "Simon Pittaway"},
+                {"role": "Lead Engineer", "name": "Simon Pittaway"},
+                {"role": "Engineer", "name": "James Clarke"},
+                {"role": "Engineer", "name": "Peter Adams"},
+                {"role": "Programmer", "name": "Ed Warfield"}
+            ],
+            "method_statement": {
+                "phases": [
+                    {
+                        "title": "Site Set-Up and Delivery",
+                        "steps": [
+                            "Sign in at reception; complete site induction with facilities team.",
+                            "Position vehicles per client's delivery-zone plan; deploy dust sheets.",
+                            "Establish welfare and rest area; agree comms channel with site contact."
+                        ],
+                        "associated_risks_label": "See RA02 (manual handling)"
+                    },
+                    {
+                        "title": "First Fix — Cable Pulls and Bracket Installation",
+                        "steps": [
+                            "Confirm receipt of the client's asbestos register before any ceiling tile work begins.",
+                            "Pull power and structured cabling to each device location.",
+                            "Install VESA brackets to walls (verify wall construction; use reinforcement plate if plasterboard)."
+                        ],
+                        "associated_risks_label": "See RA01 (working at height), RA02"
+                    },
+                    {
+                        "title": "Second Fix — Display and Rack Installation",
+                        "steps": [
+                            "Mount displays to brackets (2-engineer lift).",
+                            "Terminate structured cabling; label per site cable-schedule.",
+                            "Install AV rack; power-on with electrical isolation permit."
+                        ],
+                        "associated_risks_label": "See RA01, RA02, RA03 (electrical)"
+                    },
+                    {
+                        "title": "Commissioning and Handover",
+                        "steps": [
+                            "Configure Biamp DSP; upload Crestron control code.",
+                            "Verify every commissioning-criteria row (see §Commissioning Criteria).",
+                            "Walk client contact through system operation; sign off Section 8."
+                        ],
+                        "associated_risks_label": "See RA03"
+                    }
+                ]
+            },
+            "tools_and_equipment": [
+                "Insulated hand tools (screwdrivers, pliers, wire strippers)",
+                "Cordless drill 18V with masonry + wood bits",
+                "Class 1 stepladder EN131 rated",
+                "Multimeter and cable tester",
+                "HDMI test equipment / signal generator",
+                "Label maker and cable labels",
+                "PPE: safety footwear, safety glasses",
+                "Screen trolley for display transport",
+                "Laptop for DSP configuration and device testing",
+                "Dust sheets and cable ramps"
+            ],
+            "client_responsibilities": [
+                "Mains power outlets live at each equipment location.",
+                "Network drops (Cat6) active and PoE-enabled where applicable.",
+                "Training room booked out and empty on installation days.",
+                "Client IT contact available for VLAN cutover.",
+                "Site contact available throughout the working day.",
+                "Client to provide the current asbestos register for the building prior to any ceiling access."
+            ],
+            "client_responsibilities_expanded": {
+                "network_readiness": {
+                    "required": true,
+                    "notes": "Active, PoE-enabled Cat6 drops confirmed live at each device location before install starts."
+                },
+                "licences": {
+                    "required": false,
+                    "notes": ""
+                },
+                "access": {
+                    "required": true,
+                    "notes": "Training room and AV rack room booked out and empty for the full duration of installation days."
+                },
+                "power_validation": {
+                    "required": true,
+                    "notes": "Client facilities team to confirm mains sockets live and tested at each device location."
+                },
+                "additional": [
+                    {
+                        "item": "Site parking permits",
+                        "notes": "Client to issue two visitor parking permits for the delivery vehicles."
+                    }
+                ]
+            },
+            "areas_for_gate": ["AV Rack"],
+            "scope_items": {
+                "decommission": [
+                    {"item_name": "Legacy 55\" LCD display (2017 vintage)", "room": "Training Room", "qty": 1, "notes": "Decommission to client store."}
+                ],
+                "retained": [
+                    {"item_name": "Ceiling speakers (Bose FreeSpace)", "room": "Training Room", "qty": 4, "notes": "Retained; retest and rebalance during commissioning."}
+                ],
+                "new_install": [
+                    {"item_name": "Samsung QM86R 4K UHD display", "room": "Training Room", "qty": 2, "notes": "Front + rear wall."},
+                    {"item_name": "Biamp TesiraFORTÉ AVB VT4", "room": "AV Rack", "qty": 1, "notes": "DSP for room audio."},
+                    {"item_name": "Crestron NVX-352 encoder/decoder pair", "room": "AV Rack", "qty": 4, "notes": "AV-over-IP distribution."}
+                ]
+            },
+            "scope_of_works": "Refresh of the VW Blakelands Learning Centre training room AV. Decommission legacy display; install dual 4K displays, Biamp DSP, and Crestron NVX / control system. Retain existing ceiling speakers.",
+            "quote": {}
+        },
+        "reviewed_data": {
+            "programme": {
+                "planned_start_date": "2026-09-21",
+                "planned_end_date": "2026-09-25",
+                "planned_start_time": "08:00",
+                "planned_end_time": "17:30",
+                "welfare_notes": "Client welfare block available; toilets and kitchen accessible.",
+                "waste_removal_party": "21cav",
+                "waste_removal_notes": "21st Century AV to remove all packaging and legacy equipment.",
+                "site_vehicles": ["AB12 CDE - Ford Transit", "EF34 GHI - VW Crafter"]
+            },
+            "room_overviews": [
+                {
+                    "room": "Training Room",
+                    "overview": "Main training/learning centre room. Dual-wall displays, table-mounted control.",
+                    "works_summary": "- Decommission legacy 55\" LCD.\n- Install dual Samsung QM86R displays (front + rear wall).\n- Commission with Biamp DSP and Crestron control."
+                },
+                {
+                    "room": "AV Rack",
+                    "overview": "AV rack room adjacent to the training room. New DSP + NVX distribution.",
+                    "works_summary": "- Install Biamp TesiraFORTÉ VT4.\n- Install 4× Crestron NVX-352.\n- Terminate and label structured cabling."
+                }
+            ],
+            "site_emergency": {
+                "nearest_hospital": "Milton Keynes University Hospital",
+                "hospital_address": "Standing Way, Eaglestone, Milton Keynes MK6 5LD",
+                "fire_assembly_point": "North car park",
+                "fire_warden_name": "Michael Facilities",
+                "fire_warden_contact": "07700 900055",
+                "first_aider_name": "Sarah Reception",
+                "first_aider_contact": "07700 900066",
+                "defibrillator_location": "Main reception, ground floor",
+                "electrical_isolation_switch": "Sub-panel B, plant room",
+                "fire_extinguisher_class": "Class A + Class C (CO2) in AV rack"
+            },
+            "exclusions": [
+                "No structural works or core drilling.",
+                "No containment beyond surface trunking.",
+                "No decorative making-good after cable routes.",
+                "No IT network provision — client to provide active drops."
+            ],
+            "decommissioning": {
+                "enabled": true,
+                "labelling_procedure": "All decommissioned items labelled with 21CAV asset tag showing removal date + engineer initials.",
+                "storage_location": "Client-provided store cupboard, ground floor.",
+                "disposal_method": "Client retention (no disposal by 21CAV).",
+                "client_sign_off_required": true,
+                "steps": [
+                    "Power down and confirm de-energised.",
+                    "Photograph in-situ before removal for asset register.",
+                    "Disconnect and label cables at both ends.",
+                    "Transport to client store; obtain client signature."
+                ]
+            },
+            "cdm": [
+                {"role": "Client", "organisation": "Volkswagen Group UK", "name": "Diane Foster", "contact": "07700 900044"},
+                {"role": "Principal Designer", "organisation": "21st Century AV Ltd", "name": "Simon Pittaway", "contact": "01908 977770"},
+                {"role": "Principal Contractor", "organisation": "21st Century AV Ltd", "name": "Simon Pittaway", "contact": "01908 977770"},
+                {"role": "Sub-contractor", "organisation": "21st Century AV Ltd", "name": "Simon Pittaway", "contact": "01908 977770"}
+            ],
+            "commissioning_criteria": [
+                {"system": "Displays", "criterion": "Dual displays show 3840x2160@60Hz test pattern", "verification_method": "HDMI signal generator", "pass_condition": "Both displays lock and display test pattern without artefacts"},
+                {"system": "Control", "criterion": "Crestron control initiates presentation switching", "verification_method": "Manual walk-through of every button", "pass_condition": "All buttons respond within 500ms; no page-load errors"}
+            ],
+            "scope_traceability": [
+                {"quote_item": "QW-2044 — Samsung QM86R", "rams_activity": "First fix + mount + commission", "room": "Training Room", "notes": "Dual-wall install."}
+            ],
+            "permits_required": [
+                {"type": "Electrical Isolation Permit", "notes": "Required before rack power-on.", "required": true}
+            ],
+            "material_handling": {
+                "large_items": [
+                    {"item": "Samsung QM86R 4K display (86\")", "weight_kg": 58, "handling_method": "2-person team lift; screen trolley from vehicle to install."}
+                ],
+                "handling_notes": "Correct lifting technique briefed at toolbox talk. All items over 20 kg team-lifted."
+            }
+        },
+        "form_data": {
+            "working_hours": "Monday to Friday, 08:00 to 17:30",
+            "site_contact": "Diane Foster — Facilities Manager"
+        }
+    }
+}

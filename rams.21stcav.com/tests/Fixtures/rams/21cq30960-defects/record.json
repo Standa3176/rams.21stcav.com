@@ -1,0 +1,153 @@
+{
+    "_notes": "Fixture 21CQ30960 DEFECTS — Phase 30 Plan 09. The SAME project as tests/Fixtures/rams/21cq30960/record.json at an EARLIER point in time: this models RAMS 97's (2026-08-25) pre-fix shape, the professional review that produced GATE-13 and GATE-14 in the first place. Hand-crafted by the Plan 09 executor 2026-09-14 (the real pre-fix record is not accessible from the dev environment); modelled on the tilda-21cq29531 precedent for shape/style and on StructuralGatesDisarmedTest.php's allFiveViolatingDocument() for the keyword-collision-avoidance technique used to build a genuine, uncited-but-present GATE-14 gap. Regeneration is NOT applicable to this fixture — it is a GATE fixture only (fed directly to RamsComplianceUpgradeService::upgrade()), never wired into the snapshot suite (see 30-09-PLAN.md Task 2 — snapshotting deliberately-broken output would lock in the breakage as golden). Assumption A6 applied: the real document's RA numbering is unverified from this environment, so this fixture's hazard register is deliberately SMALL (4 rows, not the real document's full register implied by 'RA11/12/13/21') and renumbered RA01-RA04; the defect CLASS is reproduced faithfully, not the literal row positions. Two defects, reproduced as follows: GATE-13 (hot-works contradiction) — hazard[3] asserts 'No hot works will be undertaken on this site.' (an absence assertion) while generated_data.coshh_baseline lists Tin/Lead Solder and Rosin Flux — the COSHH half of GATE-13 fires on this. IMPORTANT CORRECTION recorded here (a Rule-1 finding during this plan's authoring, not assumed from the plan text): the PERMIT half of GATE-13 can NEVER be demonstrated through the real upgrade() pipeline, because RamsComplianceUpgradeService::addPermitAndIsolation() unconditionally OVERWRITES $data['permit_and_isolation'] with its own fixed, conditionally-worded rule set on every upgrade() call (':999-1013' — 'Hot works permit required IF soldering...') regardless of what this fixture supplies — this is the exact, already-documented D-02/config/rams_tier1.php:216-231 limitation ('The permit half is equally unready'), re-confirmed here rather than re-stated from the plan's illustrative prose. This fixture therefore carries no permit_and_isolation input of its own; GATE-13 fires via the COSHH half only, and the StructuralGatesRealDocumentTest assertion is written against that reality. GATE-14 (missing risk reference) — the 'Step 4 — Overhead Access and Fixing' phase's own text ('...use a stepladder to access the upper fixing points...') implies the mounting_above_reach signal, which resolves to hazard[0] ('Working at height — installation above standing reach', RA01) — present in the register but NOT cited in that phase's associated_risks (crossReferenceMethodStatementRisks() auto-cites only RA03/electrical for this phase; verified during authoring that no $keywordRiskMap keyword pair is shared between this phase's text and hazard[0]'s name, so the gap is genuine, not one the app's own auto-citation had already closed). Hazard[1] ('Manual handling of large-format displays (58 kg lift)', RA02) is ALSO present and ALSO uncited by this phase, reproducing the canonical Step-4 defect's second omission faithfully — but GATE-14 CANNOT detect it and will not warn on it: config/rams_tier1.php's missing_risk_implications map (Plan 30-01) defines only two signals (mounting_above_reach, ceiling_void_access); no manual_handling signal exists in StructuralGateVocabulary::SUPPORTED_SIGNALS or HazardIncludeWhenResolver's const maps. This is the corpus-fidelity gap Plan 30-08's SUMMARY already recorded for Phase 31/measurement, not something this plan fixes — RA02's uncited presence in this fixture is deliberate documentation of that gap, not a test failure to chase.",
+    "project": {
+        "name": "VW Blakelands — Learning Centre AV Refresh",
+        "client_name": "Volkswagen Group UK (Blakelands Training Centre)",
+        "site_address": "Blakelands, Milton Keynes, Buckinghamshire, MK14 5EU",
+        "ref": "21CQ30960"
+    },
+    "rams": {
+        "project_ref": "21CQ30960",
+        "project_name": "VW Blakelands — Learning Centre AV Refresh",
+        "client_name": "Volkswagen Group UK (Blakelands Training Centre)",
+        "site_address": "Blakelands, Milton Keynes, Buckinghamshire, MK14 5EU",
+        "status": "completed",
+        "generated_data": {
+            "project": {
+                "name": "VW Blakelands — Learning Centre AV Refresh",
+                "client": "Volkswagen Group UK (Blakelands Training Centre)",
+                "site_address": "Blakelands, Milton Keynes, Buckinghamshire, MK14 5EU",
+                "ref": "21CQ30960",
+                "doc_author": "Simon Pittaway",
+                "project_manager": "Simon Pittaway",
+                "revision": "Rev 1.0",
+                "document_status": "For Issue",
+                "planned_start_date": "2026-08-24",
+                "planned_end_date": "2026-08-28",
+                "planned_start_time": "08:00",
+                "planned_end_time": "17:30",
+                "working_hours": "Monday to Friday, 08:00 to 17:30",
+                "client_contact_name": "Diane Foster",
+                "client_contact_email": "diane.foster@vwblakelands.co.uk",
+                "client_contact_phone": "07700 900044"
+            },
+            "hazards": [
+                {
+                    "hazard": "Working at height — installation above standing reach",
+                    "persons_at_risk": ["Engineers"],
+                    "pre_likelihood": 3,
+                    "pre_severity": 4,
+                    "controls": [
+                        "Class 1 stepladders EN131 rated only; 3-point contact maintained."
+                    ],
+                    "post_likelihood": 1,
+                    "post_severity": 4
+                },
+                {
+                    "hazard": "Manual handling of large-format displays (58 kg lift)",
+                    "persons_at_risk": ["Engineers"],
+                    "pre_likelihood": 4,
+                    "pre_severity": 3,
+                    "controls": [
+                        "Team lift (2 engineers minimum) for any item over 20 kg."
+                    ],
+                    "post_likelihood": 2,
+                    "post_severity": 3
+                },
+                {
+                    "hazard": "Electrical connection to mains supply",
+                    "persons_at_risk": ["Engineers", "Client staff"],
+                    "pre_likelihood": 3,
+                    "pre_severity": 5,
+                    "controls": [
+                        "All engineers 18th Edition qualified.",
+                        "Test-before-touch on every circuit prior to termination."
+                    ],
+                    "post_likelihood": 1,
+                    "post_severity": 5
+                },
+                {
+                    "hazard": "No hot works will be undertaken on this site.",
+                    "persons_at_risk": ["Engineers"],
+                    "pre_likelihood": 1,
+                    "pre_severity": 1,
+                    "controls": [
+                        "Scope confirmed with client as connection-only; no soldering or heat-shrink work planned."
+                    ],
+                    "post_likelihood": 1,
+                    "post_severity": 1
+                }
+            ],
+            "method_statement": {
+                "phases": [
+                    {
+                        "title": "Site Set-Up and Delivery",
+                        "steps": [
+                            "Sign in at reception; complete site induction with facilities team.",
+                            "Position vehicles per client's delivery-zone plan."
+                        ]
+                    },
+                    {
+                        "title": "Step 4 — Overhead Access and Fixing",
+                        "steps": [
+                            "Operatives will use a stepladder to access the upper fixing points.",
+                            "Terminate structured cabling and connect mains power once isolated."
+                        ]
+                    },
+                    {
+                        "title": "Commissioning and Handover",
+                        "steps": [
+                            "Configure Biamp DSP; upload Crestron control code.",
+                            "Walk client contact through system operation; sign off Section 8."
+                        ]
+                    }
+                ]
+            },
+            "coshh_baseline": [
+                {
+                    "product": "Tin/Lead (Sn/Pb) Solder — 60/40 or 63/37",
+                    "typical_use": "Cable termination on legacy speaker circuits and control wiring.",
+                    "ghs_codes": ["H360", "H373"]
+                },
+                {
+                    "product": "Rosin (Colophony) Flux — solder flux",
+                    "typical_use": "Applied to solder joints to promote wetting and remove oxides.",
+                    "ghs_codes": ["H317"]
+                }
+            ],
+            "exclusions": [
+                "No structural works or core drilling.",
+                "No containment beyond surface trunking."
+            ],
+            "client_responsibilities": [
+                "Mains power outlets live at each equipment location.",
+                "Training room booked out and empty on installation days."
+            ],
+            "areas_for_gate": [],
+            "scope_of_works": "Refresh of the VW Blakelands Learning Centre training room AV (pre-fix RAMS 97 shape).",
+            "quote": {}
+        },
+        "reviewed_data": {
+            "programme": {
+                "planned_start_date": "2026-08-24",
+                "planned_end_date": "2026-08-28",
+                "planned_start_time": "08:00",
+                "planned_end_time": "17:30"
+            },
+            "room_overviews": [],
+            "site_emergency": {
+                "nearest_hospital": "Milton Keynes University Hospital",
+                "hospital_address": "Standing Way, Eaglestone, Milton Keynes MK6 5LD",
+                "fire_assembly_point": "North car park"
+            },
+            "exclusions": [
+                "No structural works or core drilling.",
+                "No containment beyond surface trunking."
+            ]
+        },
+        "form_data": {
+            "working_hours": "Monday to Friday, 08:00 to 17:30",
+            "site_contact": "Diane Foster — Facilities Manager"
+        }
+    }
+}
