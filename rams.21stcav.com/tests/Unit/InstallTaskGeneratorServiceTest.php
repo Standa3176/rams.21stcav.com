@@ -6,6 +6,7 @@ use App\Core\Modules\Projects\ProjectDataService;
 use App\Models\InstallProgramme;
 use App\Models\InstallTask;
 use App\Models\Project;
+use App\Models\ProjectPackage;
 use App\Services\InstallProgrammeService;
 use App\Services\InstallTaskGeneratorService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -233,6 +234,67 @@ class InstallTaskGeneratorServiceTest extends TestCase
         $generator->generate($programme);
 
         $this->assertDatabaseCount('jobs', 0);
+    }
+
+    /**
+     * End-to-end regression for 260917-r80: exercises the REAL ProjectDataService
+     * (not a Mockery double) so ProjectDataServiceTest's unit-level fix is proven
+     * at the boundary the bug was observed at — a regenerated install programme.
+     *
+     * Reproduces production package 165's shape: extracted_data['equipment'] holds
+     * the engineer-edited set (customer_supplied, 2 items), extracted_data['equipment_list']
+     * holds the stale pre-edit set (hardware, 3 items). Before the fix, _raw_equipment
+     * read equipment_list first, so the generator would have produced 3 'hardware' tasks
+     * instead of 2 'customer_supplied' tasks.
+     *
+     * @test
+     */
+    public function generate_reflects_edited_equipment_category_not_stale_equipment_list(): void
+    {
+        $project = Project::factory()->create();
+        $user    = \App\Models\User::factory()->create();
+
+        ProjectPackage::create([
+            'project_id' => $project->id,
+            'user_id'    => $user->id,
+            'extracted_data' => [
+                // Edited copy: engineer moved these to customer_supplied via package review.
+                'equipment' => [
+                    ['name' => 'Ceiling Speaker', 'quantity' => 1, 'category' => 'customer_supplied', 'area' => 'Boardroom'],
+                    ['name' => 'Wall Bracket',    'quantity' => 1, 'category' => 'customer_supplied', 'area' => 'Lobby'],
+                ],
+                // Stale copy: never refreshed by the save path.
+                'equipment_list' => [
+                    ['name' => 'Ceiling Speaker', 'quantity' => 1, 'category' => 'hardware', 'area' => 'Boardroom'],
+                    ['name' => 'Wall Bracket',    'quantity' => 1, 'category' => 'hardware', 'area' => 'Lobby'],
+                    ['name' => 'Extra Cable',     'quantity' => 1, 'category' => 'hardware', 'area' => 'Lobby'],
+                ],
+            ],
+            'equipment_list' => [],
+            'status'         => ProjectPackage::STATUS_REVIEWED,
+        ]);
+
+        // Real ProjectDataService — not a Mockery double — proves the fix at the
+        // generator boundary, not just inside ProjectDataService's own unit tests.
+        $pds       = app(ProjectDataService::class);
+        $generator = new InstallTaskGeneratorService($pds);
+
+        $programme = InstallProgramme::create([
+            'project_id'   => $project->id,
+            'generated_by' => null,
+            'status'       => InstallProgramme::STATUS_DRAFT,
+            'generated_at' => now(),
+        ]);
+
+        $generator->generate($programme);
+
+        $tasks = $programme->tasks()->get();
+
+        // Exactly the edited 2-item set, not the stale 3-item set.
+        $this->assertSame(2, $tasks->count());
+        foreach ($tasks as $task) {
+            $this->assertSame('customer_supplied', $task->equipment_category);
+        }
     }
 
     // ── InstallProgrammeService::activate() tests ─────────────────────────────
