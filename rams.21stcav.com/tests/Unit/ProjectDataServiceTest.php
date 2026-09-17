@@ -129,6 +129,98 @@ class ProjectDataServiceTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // 3a. Merge priority — _raw_equipment prefers edited 'equipment' over stale
+    //     'equipment_list' (260917-r80: package-edit save path only refreshes
+    //     extracted_data['equipment']; 'equipment_list' JSON key goes stale).
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Reproduces the production package-165 fixture: both keys present,
+     * 'equipment' holds the edited (smaller, reclassified) set and
+     * 'equipment_list' holds the stale pre-edit set. _raw_equipment must
+     * return the edited 'equipment' copy, not the stale 'equipment_list' one.
+     */
+    public function test_resolve_raw_equipment_prefers_equipment_over_stale_equipment_list(): void
+    {
+        $package                 = new \stdClass();
+        $package->reviewed_data  = null;
+        $package->extracted_data = [
+            // Edited copy: engineer moved these 2 items to customer_supplied.
+            'equipment' => [
+                ['name' => 'Ceiling Speaker', 'quantity' => 1, 'category' => 'customer_supplied', 'area' => 'Boardroom'],
+                ['name' => 'Wall Bracket',    'quantity' => 1, 'category' => 'customer_supplied', 'area' => 'Lobby'],
+            ],
+            // Stale copy: never touched by the save path, still shows pre-edit state.
+            'equipment_list' => [
+                ['name' => 'Ceiling Speaker', 'quantity' => 1, 'category' => 'hardware', 'area' => 'Boardroom'],
+                ['name' => 'Wall Bracket',    'quantity' => 1, 'category' => 'hardware', 'area' => 'Lobby'],
+                ['name' => 'Extra Cable',     'quantity' => 1, 'category' => 'hardware', 'area' => 'Lobby'],
+            ],
+        ];
+
+        $project = $this->makeProjectStub(latestPackage: $package, surveys: []);
+
+        $result = $this->service->resolve($project);
+
+        $this->assertCount(2, $result['_raw_equipment']);
+        foreach ($result['_raw_equipment'] as $item) {
+            $this->assertSame('customer_supplied', $item['category']);
+        }
+    }
+
+    /**
+     * reviewed_data must still win over both extracted_data keys when present
+     * — this fix only changes the extracted_data['equipment'] vs
+     * extracted_data['equipment_list'] tiebreak, not the reviewed_data tier.
+     */
+    public function test_resolve_raw_equipment_reviewed_data_still_wins_over_extracted(): void
+    {
+        $package                = new \stdClass();
+        $package->reviewed_data = [
+            'equipment' => [
+                ['name' => 'Reviewed Item', 'quantity' => 1, 'category' => 'hardware', 'area' => 'Boardroom'],
+            ],
+        ];
+        $package->extracted_data = [
+            'equipment'      => [['name' => 'Edited Item', 'quantity' => 1, 'category' => 'customer_supplied', 'area' => 'Lobby']],
+            'equipment_list' => [['name' => 'Stale Item',  'quantity' => 1, 'category' => 'hardware',          'area' => 'Lobby']],
+        ];
+
+        $project = $this->makeProjectStub(latestPackage: $package, surveys: []);
+
+        $result = $this->service->resolve($project);
+
+        $this->assertCount(1, $result['_raw_equipment']);
+        $this->assertSame('Reviewed Item', $result['_raw_equipment'][0]['name']);
+    }
+
+    /**
+     * No-op guard: when 'equipment' and 'equipment_list' are identical arrays
+     * (the fresh QuoteWerks-import shape, before any edit), _raw_equipment is
+     * unchanged regardless of which key wins — flipping the priority order
+     * must not affect unedited packages.
+     */
+    public function test_resolve_raw_equipment_unchanged_when_equipment_and_equipment_list_identical(): void
+    {
+        $sharedEquipment = [
+            ['name' => 'Sony Display', 'quantity' => 2, 'category' => 'hardware', 'area' => 'Boardroom'],
+        ];
+
+        $package                 = new \stdClass();
+        $package->reviewed_data  = null;
+        $package->extracted_data = [
+            'equipment'      => $sharedEquipment,
+            'equipment_list' => $sharedEquipment,
+        ];
+
+        $project = $this->makeProjectStub(latestPackage: $package, surveys: []);
+
+        $result = $this->service->resolve($project);
+
+        $this->assertSame($sharedEquipment, $result['_raw_equipment']);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // 4. Per-item annotation: data_source and confidence keys present
     // ─────────────────────────────────────────────────────────────────────────
 

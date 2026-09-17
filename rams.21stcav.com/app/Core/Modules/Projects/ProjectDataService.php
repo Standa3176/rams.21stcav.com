@@ -113,9 +113,15 @@ class ProjectDataService
 
         // Raw equipment list with area tags preserved (for room-level distribution
         // by downstream generators like WorksheetGeneratorService).
-        // Uses equipment_list > equipment > hardware_list in priority since
-        // equipment_list has the broadest coverage with area fields intact.
-        $rawEquipment = (array) ($source['equipment_list'] ?? $source['equipment'] ?? $source['hardware_list'] ?? []);
+        // 'equipment' and 'equipment_list' are written identically at import time
+        // (see QuoteWerksImportService::mapParsedShapeToExtractedData() / ExtractQuoteJob),
+        // but ProjectPackageReviewController::update()/approve() only ever refresh
+        // extracted_data['equipment'] on save — extracted_data['equipment_list'] is a
+        // write-once JSON key that goes stale the moment a package is edited. Reading
+        // 'equipment' first means edits actually take effect; 'equipment_list'/
+        // 'hardware_list' remain as fallbacks for packages that only carry those keys.
+        // Matches the priority resolveEquipment() already uses below. See 260917-r80.
+        $rawEquipment = (array) ($source['equipment'] ?? $source['equipment_list'] ?? $source['hardware_list'] ?? []);
 
         return [
             'project'        => $this->resolveProjectFields($project),
