@@ -44,7 +44,7 @@ source on 2026-09-19 by this agent, not taken on trust from `45-RESEARCH.md`.
 --teal-50:        var(--accent-50);
 ```
 
-`--accent-700: #1E5FE0` is declared at `:56`. The inline comment at `:64-66` states the aliases
+`--accent-700: #1E5FE0` is declared at `:56`. The inline comment at `:62-64` states the aliases
 exist so `.btn-teal` and every `--teal-*` reference "inherit the Jetbuilt look without renaming".
 `resources/views/surveys/show.blade.php` contains **72** occurrences of `teal` (verified by
 `grep -c`), confirming the dependency is load-bearing.
@@ -101,15 +101,25 @@ wins on source order at equal specificity.
 D-07 makes this page the origin of the v4.0 brand refresh. The set in § Token Set is therefore
 specified as a **reusable palette**, not page-local styles, and is split into **structural** and
 **accent** tiers so a later phase knows which tokens it may spend freely and which are rationed.
-Phases 46-51 import the same `resources/css/cockpit.css` (or a `@import` of a `_tokens.css`
-extracted from it at that time) and nest their own classes under `.cav-brand`. One file to change;
-no duplication; zero reach into existing pages.
+**Two files, decided 2026-09-19 after ui-checker.** An earlier draft put tokens and layout in one
+`cockpit.css` and deferred the split ("or a `@import` of a `_tokens.css` extracted from it at that
+time"). That deferral left D-07's inheritance as an intention rather than a mechanism: Phase 49's
+import-review page is a brand page but not the cockpit, so under one file it would have had to ship
+the whole cockpit layout to get the palette. Phase 45 therefore creates **both** files now:
+
+- **`resources/css/cav-tokens.css`** — the 21 `--cav-*` tokens declared on `.cav-brand`, and
+  nothing else. No layout, no component rules, no selectors beyond `.cav-brand`.
+- **`resources/css/cockpit.css`** — `@import`s `cav-tokens.css`, then all `.cav-cockpit` layout.
+
+Phases 46-51 import whichever they need: the token file alone for a brand page, the cockpit file
+for the cockpit. One file to change; no duplication; zero reach into existing pages. This costs
+one extra file now and removes a refactor from six later phases.
 
 ### Class-name collision — additional verified hazard
 
 The sketch uses single-letter and generic class names (`.t`, `.c`, `.s`, `.body`, `.bar`, `.note`,
 `.close`, `.btn`, `.step`, `.tag`) inside a document that, in production, inherits a 2,154-line
-global stylesheet. `grep` confirms `.btn` has **4** existing rules and `.card` **3** in
+global stylesheet. `grep` confirms `.btn` has **4** existing rules and `.card` **2** in
 `layouts/app.blade.php`. `.btn:focus-visible` at `:617` and `.btn` styling would fight the
 sketch's `.btn`.
 
@@ -156,7 +166,7 @@ accessibility floor, which is called out per row and justified in § Contrast Le
 | `--cav-teal-soft` | `#E6F4F7` | brand.js + sketch | Tag and chip backgrounds, step-numeral discs |
 | `--cav-ink` | `#1A1A1A` | brand.js + sketch | Body text, drawer titles, headings |
 | `--cav-mid` | `#555555` | sketch (brand.js `444444`) | Secondary prose; **the only secondary colour permitted on the page canvas** |
-| `--cav-light` | `#767676` | brand.js (sketch `#8A8A8A` — **overridden**) | Meta text, counts, section eyebrows, hollow-pip borders. **Only on white surfaces** |
+| `--cav-light` | `#767676` | brand.js (sketch `#8A8A8A` — **overridden**) | Meta text, counts, hollow-pip borders. **Only on white surfaces** (section eyebrows sit on the `#FAFAFA` canvas and use `--cav-mid` — see Typography) |
 | `--cav-bg` | `#FAFAFA` | sketch | Page canvas |
 | `--cav-surface` | `#FFFFFF` | sketch | Drawer and panel surfaces |
 | `--cav-rule` | `#ECECEC` | sketch | Decorative hairlines between rows inside a drawer |
@@ -233,7 +243,7 @@ is intended and consistent; do not add a third declared weight to compensate.
 
 **13px is a floor, not a preference.** The sketch's `.78rem` (12.5px) and `.7rem` (11.2px) meta text
 rounds **up** to 13px. Nothing on this page renders below 13px. The `.68rem` snag-group eyebrow
-(`cockpit-sections.html:140`) becomes 13px Meta at 600 uppercase.
+(`cockpit-sections.html:141`) becomes 13px Meta at 600 uppercase.
 
 Section eyebrows keep the sketch's treatment (head font, 600, uppercase-ish `letter-spacing: .04em`,
 `--cav-mid` on the canvas) but are marked up as real `<h2>` elements so the page is navigable by
@@ -306,8 +316,18 @@ square box says *a human asserted this*. Using a light there would claim a certa
 exist. The shape difference is the whole point — do not unify them.
 
 **Not-required deliverable** (sketch `.dw--na`): unticked box + chip reading "Not required" + body
-hint "Marked not required at import." Opacity **0.6** (sketch used 0.45, which drops
-`#767676` meta text below the contrast floor).
+hint "Marked not required at import."
+
+**Opacity rule, corrected 2026-09-19 after ui-checker.** An earlier draft set opacity **0.6** on
+the whole element, reasoning that the sketch's 0.45 dropped `#767676` meta text below the floor.
+That diagnosis was right and the fix was not: `#767676` at 0.6 over white blends to ~`#A4A4A4`
+(**2.49:1**) and at 0.7 to ~`#949494` (**3.03:1**) — both still FAIL AA. Changing the number did
+not fix the defect.
+
+**The rule is therefore: opacity may never be applied to an element containing small text.**
+Recede a not-required drawer by (a) opacity on its non-text marks only (box, rules, glyphs), and
+(b) switching its text to a declared token that passes on its own. Never both on one element, and
+never an opacity value that has to be multiplied out to know whether the text is legible.
 
 ### Where per-drawer state comes from
 
@@ -326,7 +346,7 @@ from existing model helpers, no new service and no new derivation source:
 | Programme | `InstallProgramme::isDraft()` / `isActive()` / `statusLabel()` (`:106-145`) |
 | Commissioning | `$programme->commissioningSignoff()->exists()` (`InstallProgramme.php:96-99`) |
 | Deliverable sections (RAMS, drawings, O&M, cable schedule) | `Project::deliverableState($key)` (`Project.php:447+`) |
-| Programming | **no derivation** — tick state only |
+| Programming | **no derivation** — tick state only. **Phase 45 renders the UNTICKED state only** (ruled 2026-09-19 after ui-checker): the tick needs somewhere to store who ticked it and when, and criterion 5 forbids new writes, so in this phase no data can ever make it ticked. The ticked presentation is specified above so Phase 46 inherits a settled contract — it must not be rendered in 45. |
 
 The mapping helper belongs in a Blade component or a thin view presenter, **not** in
 `ProjectHealthService`.
@@ -345,7 +365,7 @@ and it survives greyscale and colour-blindness because it is a line style, not a
 
 **Contract — a reconstructed visit row renders all four of these. None is optional.**
 
-1. **Chip** `Reconstructed` — 13px head font, 600, uppercase, `--cav-light` on `--cav-chip-bg`,
+1. **Chip** `Reconstructed` — 13px head font, 600, uppercase, `--cav-mid` on `--cav-chip-bg` (6.72:1; `--cav-light` would be 4.09:1 and FAIL AA — corrected 2026-09-19 after ui-checker),
    **1px dashed `--cav-inferred`** border, `--cav-radius-sm`. Sits first in the row's chip strip,
    before any `RAMS issued` / `Worksheet signed` tag.
 2. **Left edge** — the row carries a 2px **dashed** left border in `--cav-inferred`, inset by
@@ -392,8 +412,12 @@ The visit stays on the spine, visibly marked.
 3. **Strikethrough is scoped to the deliverable name only** — `line-through` on the wrapped
    record's title, never on the whole row. Striking the engineer's name and the date would make
    the surviving fact (someone went) harder to read, which is the opposite of D-04's intent.
-4. **Opacity floor 0.7.** Enough to recede, not enough to break the contrast ledger. (The sketch's
-   `.sg--done{opacity:.55}` and `.dw--na{opacity:.45}` both fail at 13px meta text.)
+4. **No opacity on this row.** Corrected 2026-09-19 after ui-checker: an earlier draft specified
+   an opacity floor of 0.7, claiming it would "recede without breaking the contrast ledger". It
+   does break it — `#767676` at 0.7 blends to ~`#949494` (**3.03:1**), failing AA for the very
+   meta text the row exists to preserve. A superseded visit is receded by the `line-through` on
+   the deliverable name and the chip, both of which are already specified. See the opacity rule
+   under Not-required deliverable.
 5. **Sub-line copy, verbatim:** **"Superseded {d M Y} — the visit still happened."**
 6. **Never gold, never counted as attention.** A superseded visit cannot be actioned on a
    read-only page, so it must not drive a drawer's pip to the attention state, and must not appear
@@ -425,7 +449,7 @@ Nothing here is dropped silently.
 **Consequence the executor must handle:** with every action stripped, drawer bodies get thin. The
 sketch's `.cav-hint` explainer paragraph therefore becomes **mandatory in every drawer body** in
 Phase 45 — one plain sentence saying what the section is and where its data comes from. The sketch
-already does this for the unbooked drawers (`cockpit-sections.html:237-239`, `:305-307`,
+already does this for the unbooked drawers (`cockpit-sections.html:237-239`, `:307-308`,
 `:352-353`); Phase 45 extends it to all of them. An open drawer must never be empty.
 
 The one navigation affordance that is permitted (it is a GET to an existing page):
@@ -471,12 +495,19 @@ Locked from `cockpit-sections.html`. Restated for the executor; not reopened.
 | **≤ 480px (phone)** | Gutter 16px. Masthead Display 22px, bevel 12px. **Summary becomes a two-row flex:** row 1 = pip + title + arrow; row 2 = count + status at Meta, indented to the title's left edge |
 | 320px | Minimum supported width. No horizontal scroll at 320px. The 52px date column and the pip are the only fixed widths; everything else flexes |
 
-**Deviation from the sketch, flagged.** `cockpit-sections.html:167` reads
+**Deviation from the sketch, flagged.** `cockpit-sections.html:160` reads
 `@media(max-width:480px){ .dw>summary{gap:10px;padding:14px 13px} .s,.c{display:none} }` — it
-**hides the status and count text on phones**. That cannot ship: it leaves the pip as the only
-state channel on the one device engineers and PMs actually use on site, which is exactly
-colour-only encoding. Sketch open question 3 already flags that phone width was checked at 560px
-but never on a handset. The two-row summary above preserves every state channel at 320px; it
+**hides the status and count text on phones**. That cannot ship, but the reason matters and an
+earlier draft of this spec got it wrong (corrected 2026-09-19 after ui-checker). The draft argued
+it "leaves the pip as the only state channel, which is exactly colour-only encoding" — that
+contradicts this spec's own State Vocabulary, where the pip carries **shape** as an independent
+channel, so pip-only is not colour-only.
+
+**The real reason is loss of disclosure.** Drawers are closed at rest, so the summary count slot is
+the only place a reconstructed or superseded visit is disclosed without the PM opening anything
+(§ Reconstructed requires exactly this). Hiding the count on phones means a PM reading the spine on
+site sees an inferred visit as an unqualified fact — the precise failure D-02 exists to prevent.
+Sketch open question 3 already flags that phone width was checked at 560px but never on a handset. The two-row summary above preserves every state channel at 320px; it
 changes reflow only, not hierarchy or visual direction.
 
 ---
@@ -526,12 +557,15 @@ where a sketch value failed the floor; each changes hue or line weight only, nev
 | `#01889F` teal | `#FFFFFF` surface | 4.18:1 | FAIL for normal text → **teal is fills/marks only**; PASS as a non-text mark (>3:1) |
 | `#FFFFFF` | `#01889F` teal | 4.18:1 | FAIL for 13-15px → **masthead fill is `#016E82`, not `#01889F`** (override) |
 | `#FFFFFF` | `#016E82` teal-dark | 5.91:1 | PASS AA — masthead h1 and sub-line both in white |
-| `#C5E6EE` (sketch masthead sub-line) | `#016E82` | ~4.0:1 | FAIL at 13px → **override: masthead sub-line is `#FFFFFF`** |
+| `#C5E6EE` (sketch masthead sub-line) | `#016E82` | 4.48:1 | FAIL at 13px → **override: masthead sub-line is `#FFFFFF`** |
 | `#016E82` | `#E6F4F7` teal-soft | 5.26:1 | PASS AA — tag text on tag background |
-| `#D4AF37` gold mark | `#FFFFFF` | 2.12:1 | FAIL the 3:1 non-text floor → **override: gold pip carries a 1.5px `#8A6D13` outline** (4.91:1); shape also carries the meaning |
-| `#767676` hollow-pip border | `#FFFFFF` | 4.54:1 | PASS — **override** of the sketch's `#D8D8D8` (1.5:1) and `#C4C4C4` (2.1:1) |
+| `#D4AF37` gold mark | `#FFFFFF` | 2.10:1 | FAIL the 3:1 non-text floor → **override: gold pip carries a 1.5px `#8A6D13` outline** (4.91:1); shape also carries the meaning |
+| `#767676` hollow-pip border | `#FFFFFF` | 4.54:1 | PASS — **override** of the sketch's `#D8D8D8` (1.43:1) and `#C4C4C4` (1.74:1) |
 | `#E0E0E0` drawer border | `#FAFAFA` | ~1.2:1 | Decorative. Acceptable: the drawer's affordance and state are carried by pip + text + arrow, not by its boundary (WCAG 1.4.11 not engaged) |
 | `#ECECEC` hairline | `#FFFFFF` | ~1.2:1 | Decorative row separator only |
+| `#555555` chip text (`--cav-mid`) | `#F3F3F3` chip bg | 6.72:1 | PASS AA — **added 2026-09-19**; this row was missing and the draft mandated `--cav-light` here, which is only 4.09:1 and FAILS. It carries the `Reconstructed` / `Superseded` words, the most load-bearing copy on the page |
+| `#767676` at opacity 0.6 (≈`#A4A4A4`) | `#FFFFFF` | 2.49:1 | FAIL → **added 2026-09-19**; why opacity may not be applied to small text |
+| `#767676` at opacity 0.7 (≈`#949494`) | `#FFFFFF` | 3.03:1 | FAIL → **added 2026-09-19**; same |
 
 ---
 
