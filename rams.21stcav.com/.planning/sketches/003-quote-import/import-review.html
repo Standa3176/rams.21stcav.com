@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>New project from QuoteWerks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --teal:#01889F; --teal-dark:#016e82; --teal-soft:#e6f4f7;
+  --gold:#D4AF37; --gold-soft:#faf4e4;
+  --ink:#1a1a1a; --mid:#555; --light:#8a8a8a;
+  --bg:#fafafa; --white:#fff; --rule:#ececec;
+  --head:'Verdana Pro',Verdana,'Trebuchet MS',sans-serif;
+  --body:'Poppins','Segoe UI',Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.65 var(--body)}
+h1,h2{font-family:var(--head);margin:0}
+.mast{background:var(--teal);color:#fff;padding:26px 0 34px;
+      clip-path:polygon(0 0,100% 0,100% calc(100% - 20px),0 100%)}
+.in{max-width:680px;margin:0 auto;padding:0 22px}
+.mast h1{font-size:1.5rem;font-weight:700}
+.mast .sub{font-size:.88rem;color:#c5e6ee;margin-top:3px}
+.page{max-width:680px;margin:-10px auto 0;padding:0 22px 90px}
+
+.card{background:var(--white);border:1px solid var(--rule);border-radius:3px;
+      padding:20px 22px;margin-bottom:12px}
+.card h2{font-size:1rem;font-weight:700;margin-bottom:3px}
+.card .lede{color:var(--light);font-size:.85rem;margin:0 0 15px}
+
+.fr{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #f4f4f4;
+    font-size:.9rem}
+.fr:first-of-type{border-top:0}
+.fr .k{width:130px;flex:none;color:var(--light);font-size:.85rem}
+.fr .v{flex:1 1 auto}
+.fr input,.fr select{width:100%;font:400 .9rem var(--body);padding:.45rem .6rem;
+      border:1px solid var(--rule);border-radius:2px;background:#fff;color:var(--ink)}
+
+/* the quote summary — the bit that catches bad imports */
+.qs{display:flex;gap:0;margin:4px 0 14px;border:1px solid var(--rule);border-radius:2px;
+    overflow:hidden}
+.qs div{flex:1 1 0;padding:11px 12px;border-left:1px solid var(--rule);text-align:center}
+.qs div:first-child{border-left:0}
+.qs b{display:block;font-family:var(--head);font-size:1.3rem;font-weight:700;line-height:1.2}
+.qs span{font-size:.74rem;color:var(--light)}
+.qs .hi b{color:var(--teal-dark)}
+
+.flag{background:var(--gold-soft);border-radius:2px;padding:12px 14px;font-size:.87rem;
+      color:#5e4d12;margin-bottom:14px}
+.flag b{font-family:var(--head)}
+.flag button{background:none;border:0;color:#8a6d13;font:600 .84rem var(--body);
+             cursor:pointer;text-decoration:underline;text-underline-offset:3px;padding:6px 0 0}
+
+/* deliverables checklist */
+.dl{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-top:1px solid #f4f4f4}
+.dl:first-of-type{border-top:0}
+.tick{width:19px;height:19px;border-radius:3px;border:1.5px solid #c9c9c9;background:#fff;
+      flex:none;display:grid;place-items:center;font-size:11px;color:#fff;cursor:pointer;margin-top:1px}
+.tick--on{background:var(--teal);border-color:var(--teal)}
+.dl .n{flex:1 1 auto}
+.dl .n b{font-weight:500;display:block}
+.dl .n small{color:var(--light);font-size:.8rem}
+.why{font-size:.72rem;padding:.1rem .45rem;border-radius:2px;background:var(--teal-soft);
+     color:var(--teal-dark);white-space:nowrap;margin-top:2px;flex:none}
+.why--none{background:#f3f3f3;color:var(--light)}
+
+.bar{display:flex;gap:10px;align-items:center;margin-top:22px}
+.btn{font-family:var(--head);font-size:.76rem;font-weight:700;letter-spacing:.02em;
+     text-transform:uppercase;border:0;padding:.6rem 1rem;cursor:pointer;border-radius:2px;
+     background:var(--teal);color:#fff}
+.btn--q{background:none;color:var(--teal);border:1px solid #cbe6ec}
+.bar .sp{flex:1 1 auto}
+.note{font-size:.78rem;color:var(--light);line-height:1.7;margin-top:22px}
+@media(max-width:480px){ .fr{flex-wrap:wrap} .fr .k{width:100%} .qs{flex-wrap:wrap} }
+</style>
+</head>
+<body>
+
+<header class="mast">
+  <div class="in">
+    <h1>New project from QuoteWerks</h1>
+    <div class="sub">Quote 21CQ30473 &nbsp;·&nbsp; revision 05 &nbsp;·&nbsp; Gardner Leader LLP</div>
+  </div>
+</header>
+
+<main class="page">
+
+  <div class="card">
+    <h2>Details</h2>
+    <p class="lede">Pulled from the quote. Change anything that is wrong.</p>
+    <div class="fr"><span class="k">Project name</span><span class="v"><input value="Gardner Leader LLP — Newbury"></span></div>
+    <div class="fr"><span class="k">Reference</span><span class="v"><input value="21CQ30473-05-OPS"></span></div>
+    <div class="fr"><span class="k">Client</span><span class="v"><input value="Gardner Leader LLP"></span></div>
+    <div class="fr"><span class="k">Site</span><span class="v"><input value="Newbury"></span></div>
+  </div>
+
+  <div class="card">
+    <h2>What is on the quote</h2>
+    <p class="lede">Check this before creating the project. Everything downstream is built from it.</p>
+
+    <div class="qs">
+      <div class="hi"><b>7</b><span>rooms</span></div>
+      <div class="hi"><b>16</b><span>hardware</span></div>
+      <div><b>36</b><span>client supplied</span></div>
+      <div><b>7</b><span>cables</span></div>
+      <div><b>20</b><span>labour &amp; other</span></div>
+    </div>
+
+    <div class="flag">
+      <b>36 of 79 lines are marked client supplied.</b> That is unusually high — worth a look before
+      you create the project, because install tasks and the asset register are built from it.
+      <button>Review the 79 lines</button>
+    </div>
+
+    <div class="fr"><span class="k">Works description</span>
+      <span class="v"><input value="Supply and install AV to 7 meeting spaces"></span></div>
+  </div>
+
+  <div class="card">
+    <h2>What this job needs</h2>
+    <p class="lede">Ticked from what is on the quote. Add or remove anything.</p>
+
+    <div class="dl"><span class="tick tick--on">✓</span>
+      <span class="n"><b>Cable schedule</b><small>7 cable lines on the quote</small></span>
+      <span class="why">from quote</span></div>
+
+    <div class="dl"><span class="tick tick--on">✓</span>
+      <span class="n"><b>Asset register</b><small>16 hardware lines</small></span>
+      <span class="why">from quote</span></div>
+
+    <div class="dl"><span class="tick tick--on">✓</span>
+      <span class="n"><b>O&amp;M manual</b><small>hardware is being installed</small></span>
+      <span class="why">from quote</span></div>
+
+    <div class="dl"><span class="tick tick--on">✓</span>
+      <span class="n"><b>RAMS</b><small>engineers are attending site</small></span>
+      <span class="why">from quote</span></div>
+
+    <div class="dl"><span class="tick tick--on">✓</span>
+      <span class="n"><b>Worksheets</b><small>install labour on the quote</small></span>
+      <span class="why">from quote</span></div>
+
+    <div class="dl"><span class="tick tick--on">✓</span>
+      <span class="n"><b>Site survey</b><small>7 rooms, engineers attending</small></span>
+      <span class="why">from quote</span></div>
+
+    <div class="dl"><span class="tick tick--on">✓</span>
+      <span class="n"><b>Commissioning</b><small>hardware to test and sign off</small></span>
+      <span class="why">from quote</span></div>
+
+    <div class="dl"><span class="tick tick--on">✓</span>
+      <span class="n"><b>Drawings</b><small>7 rooms — likely, but nothing on the quote says so</small></span>
+      <span class="why">assumed</span></div>
+
+    <div class="dl"><span class="tick"></span>
+      <span class="n"><b>Programming</b><small>no programming or configuration line found</small></span>
+      <span class="why why--none">not found</span></div>
+
+    <div class="dl"><span class="tick"></span>
+      <span class="n"><b>Snagging</b><small>added automatically when the first snag is raised</small></span>
+      <span class="why why--none">on demand</span></div>
+
+    <div class="bar">
+      <button class="btn">Create project</button>
+      <button class="btn btn--q">Back</button>
+      <span class="sp"></span>
+    </div>
+  </div>
+
+  <p class="note">
+    Everything is listed, ticked or not, so nothing is dropped without you seeing it. Where the
+    quote is clear the tick says “from quote”; where it is a guess it says “assumed”; where nothing
+    was found it stays unticked and says so.
+  </p>
+
+</main>
+</body>
+</html>

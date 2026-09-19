@@ -12,3 +12,4 @@ visits and data filed inside the drawer rather than scattered across separate pa
 |---|--------|-----------------|--------|
 | 001 | [project-drawers](001-project-drawers/) | Can the project page become one page of deliverable drawers with traffic lights? | _pending_ |
 | 002 | [install-cockpit](002-install-cockpit/) | Install programme as master drawer, typed engineer visits nested under it, brand-aligned | _pending_ |
+| 003 | [quote-import](003-quote-import/) | One import screen: check the quote, deliverables self-populate from its lines | _pending_ |
