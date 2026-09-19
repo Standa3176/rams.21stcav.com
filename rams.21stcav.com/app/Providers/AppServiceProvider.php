@@ -25,6 +25,8 @@ use App\Services\PdfTextExtractorService;
 use App\Services\WorkerMonitorService;
 use App\Support\Filesystem\WindowsSafeFilesystem;
 use App\Support\Rams\RamsTheme;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Queue\Events\Looping;
 use Illuminate\Queue\Events\WorkerStopping;
@@ -33,6 +35,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Smalot\PdfParser\Config;
 use Smalot\PdfParser\Parser;
@@ -182,5 +185,69 @@ class AppServiceProvider extends ServiceProvider
                 }
             }
         }
+
+        // ── Quick task 260919-fq8: per-token throttle keys for public worksheet
+        //    routes ─────────────────────────────────────────────────────────────
+        // Every public worksheet route used to key its `throttle:N,1` bucket on
+        // IP alone. Two engineers behind the same office NAT/site guest wifi
+        // shared a bucket, so one engineer's photo-upload burst could 429 a
+        // different engineer's worksheet. Keying on the {token} route param
+        // (proven pattern: service-contractor-creator's `pmv-engineer-*`
+        // limiters) gives every worksheet its own independent bucket. The
+        // `?: $request->ip()` fallback is load-bearing — without it a request
+        // that somehow reaches these routes with no token resolves to an empty
+        // string key, i.e. one shared unlimited bucket for every such request.
+        RateLimiter::for(
+            'worksheet-sign',
+            // Reconsidered during this task (was going to stay 10/min,
+            // unchanged from the old IP-based default, purely re-scoped to
+            // per-token). Raised to 30/min instead: per-token keying already
+            // removes the cross-engineer collision that caused the reported
+            // "signature didn't work" confusion on 2026-09-18, but an
+            // engineer alone can still exhaust a 10/min budget by tapping a
+            // stuck submit button mid-retry — which presents identically to
+            // that same incident, just self-inflicted instead of shared. The
+            // sibling SCC app's equivalent submit route (`pmv-engineer-
+            // submit`) runs at 30/min for the same reason. 30/min still
+            // leaves this the tightest write limiter in the block (well
+            // below the 60/min status-write budget) since a legitimate
+            // sign-off is a rare, deliberate action, not a polling loop.
+            fn (Request $request) => Limit::perMinute(30)
+                ->by((string) $request->route('token') ?: $request->ip())
+        );
+        // Ordinary photo mutation routes (upload/delete). Unchanged numeric
+        // budget from the old IP-based default, now scoped per-token.
+        RateLimiter::for(
+            'worksheet-photo-write',
+            fn (Request $request) => Limit::perMinute(30)
+                ->by((string) $request->route('token') ?: $request->ip())
+        );
+        // Halved from the blanket 30/min other photo-write routes get: this
+        // route triggers paid AI extraction (DeviceLabelPhotoService, called
+        // from uploadLabelPhoto() below) on every accepted upload, so a
+        // compromised/leaked token now has a bounded worst-case AI spend per
+        // minute. Deliberately keyed on token ONLY (no IP component) — a
+        // composite token+IP key would let an attacker rotating IPs get a
+        // fresh AI-cost budget on every new IP for the same token, which is
+        // worse for cost control than a token-only key that caps total spend
+        // no matter how many IPs are used.
+        RateLimiter::for(
+            'worksheet-label-photo-upload',
+            fn (Request $request) => Limit::perMinute(15)
+                ->by((string) $request->route('token') ?: $request->ip())
+        );
+        // Covers room-complete, survey-reviewed, label-photo confirm, and
+        // reference-file serve. Unchanged numeric budget, now per-token.
+        RateLimiter::for(
+            'worksheet-status-write',
+            fn (Request $request) => Limit::perMinute(60)
+                ->by((string) $request->route('token') ?: $request->ip())
+        );
+        // Covers survey-photo serve. Unchanged numeric budget, now per-token.
+        RateLimiter::for(
+            'worksheet-survey-photo-read',
+            fn (Request $request) => Limit::perMinute(120)
+                ->by((string) $request->route('token') ?: $request->ip())
+        );
     }
 }

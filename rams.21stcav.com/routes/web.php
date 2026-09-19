@@ -109,7 +109,7 @@ Route::get('survey/{token}/files/{file}', [PublicSurveyController::class, 'downl
 */
 
 Route::get('worksheet/{token}', [PublicWorksheetController::class, 'show'])->name('public-worksheet.show');
-Route::post('worksheet/{token}/sign', [PublicWorksheetController::class, 'sign'])->name('public-worksheet.sign')->middleware('throttle:10,1');
+Route::post('worksheet/{token}/sign', [PublicWorksheetController::class, 'sign'])->name('public-worksheet.sign')->middleware('throttle:worksheet-sign');
 
 // Photo upload/serve/delete on the public worksheet link. Engineers attach
 // photos per room before requesting client acceptance. UUID gate + per-photo
@@ -121,43 +121,43 @@ Route::post('worksheet/{token}/sign', [PublicWorksheetController::class, 'sign']
 // slash rejection. The where('.*') trick on a route param doesn't help here
 // because nginx/Apache strip %2F before Laravel sees the request.
 Route::post('worksheet/{token}/photos', [PublicWorksheetController::class, 'uploadPhoto'])
-    ->name('public-worksheet.photos.upload')->middleware('throttle:30,1');
+    ->name('public-worksheet.photos.upload')->middleware('throttle:worksheet-photo-write');
 Route::get('worksheet/{token}/photos/{photo}', [PublicWorksheetController::class, 'servePhoto'])
     ->name('public-worksheet.photos.serve');
 Route::delete('worksheet/{token}/photos/{photo}', [PublicWorksheetController::class, 'deletePhoto'])
-    ->name('public-worksheet.photos.delete')->middleware('throttle:30,1');
+    ->name('public-worksheet.photos.delete')->middleware('throttle:worksheet-photo-write');
 
 // Survey-reference photos + per-room review-confirmation gate (engineer cross-checks
 // survey findings before sign-off). Cross-project access prevented in the controller.
 Route::get('worksheet/{token}/survey-photos/{photo}', [PublicWorksheetController::class, 'serveSurveyPhoto'])
-    ->name('public-worksheet.survey-photos.serve')->middleware('throttle:120,1');
+    ->name('public-worksheet.survey-photos.serve')->middleware('throttle:worksheet-survey-photo-read');
 Route::post('worksheet/{token}/rooms/{roomName}/survey-reviewed', [PublicWorksheetController::class, 'markSurveyReviewed'])
-    ->name('public-worksheet.survey-reviewed')->middleware('throttle:60,1')
+    ->name('public-worksheet.survey-reviewed')->middleware('throttle:worksheet-status-write')
     ->where('roomName', '.*');
 
 // 260504-iy4 H1 — Mark Room Complete. Mirrors the survey-reviewed route shape;
 // writes to pre_install_confirmations['room_complete'][$roomName]. No server-side
 // gate enforcement — soft gate is frontend-only (engineers on flaky networks).
 Route::post('worksheet/{token}/rooms/{roomName}/complete', [PublicWorksheetController::class, 'markRoomComplete'])
-    ->name('public-worksheet.room-complete')->middleware('throttle:60,1')
+    ->name('public-worksheet.room-complete')->middleware('throttle:worksheet-status-write')
     ->where('roomName', '.*');
 
 // Device label photo capture (engineer takes photo of equipment label,
 // AI extracts part / serial / MAC, engineer confirms → writes to devices).
 // The server finds-or-creates the device row by (project, room, description).
 Route::post('worksheet/{token}/label-photo', [PublicWorksheetController::class, 'uploadLabelPhoto'])
-    ->name('public-worksheet.label-photo.upload')->middleware('throttle:30,1');
+    ->name('public-worksheet.label-photo.upload')->middleware('throttle:worksheet-label-photo-upload');
 Route::post('worksheet/{token}/label-photos/{photo}/confirm', [PublicWorksheetController::class, 'confirmLabelPhoto'])
-    ->name('public-worksheet.label-photo.confirm')->middleware('throttle:60,1');
+    ->name('public-worksheet.label-photo.confirm')->middleware('throttle:worksheet-status-write');
 Route::delete('worksheet/{token}/label-photos/{photo}', [PublicWorksheetController::class, 'deleteLabelPhoto'])
-    ->name('public-worksheet.label-photo.delete')->middleware('throttle:30,1');
+    ->name('public-worksheet.label-photo.delete')->middleware('throttle:worksheet-photo-write');
 
 // Engineer reference files — public download (quick task 260601-r4c).
 // Cross-tenant 403 guard lives in the controller (file->project_id must
 // match $worksheet->project_id) BEFORE any storage I/O. Implicit
 // route-model binding resolves {file} to App\Models\ProjectReferenceFile.
 Route::get('worksheet/{token}/files/{file}', [PublicWorksheetController::class, 'downloadReferenceFile'])
-    ->name('public-worksheet.files.serve')->middleware('throttle:60,1');
+    ->name('public-worksheet.files.serve')->middleware('throttle:worksheet-status-write');
 
 /*
 |--------------------------------------------------------------------------

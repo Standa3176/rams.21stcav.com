@@ -269,13 +269,18 @@ class PublicWorksheetSignoffTest extends TestCase
         $this->assertContains('Sig Two', $allNames);
     }
 
-    public function test_sign_route_is_throttled_to_10_per_minute(): void
+    public function test_sign_route_is_throttled_via_named_worksheet_sign_limiter(): void
     {
+        // Quick task 260919-fq8 — moved from a flat `throttle:10,1` (per-IP)
+        // to the named `worksheet-sign` limiter (per-token, 30/min). See
+        // AppServiceProvider::boot() for the limiter definition and
+        // PublicWorksheetThrottleKeyTest for bucket-isolation + registration
+        // coverage.
         $route = Route::getRoutes()->getByName('public-worksheet.sign');
         $this->assertNotNull($route, 'Route public-worksheet.sign must be registered.');
 
         $middleware = $route->gatherMiddleware();
-        $this->assertContains('throttle:10,1', $middleware);
+        $this->assertContains('throttle:worksheet-sign', $middleware);
     }
 
     public function test_admin_worksheet_show_page_exposes_public_link(): void
