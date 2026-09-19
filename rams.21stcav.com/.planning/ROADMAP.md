@@ -393,7 +393,7 @@ measures the D-06 behaviour-preservation baseline, which is only valid on a clea
 otherwise run concurrently with the measurement and corrupt it — every test in the subset uses
 `RefreshDatabase` — and that corrupted number is re-asserted as the gate by 45-04 and 45-08.
 
-- [ ] 45-01-PLAN.md — Mint VIS-01..VIS-10 into REQUIREMENTS.md; **MEASURE** the InstallProgramme behaviour-preservation baseline (the research doc's 161 was a static count, never executed). **Sole wave-1 plan — serialised so the baseline is measured on a clean tree.** Wave 1. Requirements: VIS-01..VIS-10.
+- [x] 45-01-PLAN.md — Mint VIS-01..VIS-10 into REQUIREMENTS.md; **MEASURE** the InstallProgramme behaviour-preservation baseline (the research doc's 161 was a static count, never executed). **Sole wave-1 plan — serialised so the baseline is measured on a clean tree.** Wave 1. Requirements: VIS-01..VIS-10.
 - [ ] 45-02-PLAN.md — `visits` table + `Visit` model + factory; `(source_type, source_id)` unique index, no FK to the wrapped record so a visit outlives it. Wave 2 (depends on 45-01). Requirements: VIS-01, VIS-08.
 - [ ] 45-03-PLAN.md — `config/cockpit.php` (defaults FALSE) + `@fontsource/poppins` + `cav-tokens.css` + `cockpit.css` + Vite input. `@fontsource/poppins` is **[VERIFIED]** by the completed Package Legitimacy Audit in 45-RESEARCH.md, so this plan is autonomous — no human gate. Wave 2 (depends on 45-01). Requirements: VIS-10, VIS-05.
 - [ ] 45-04-PLAN.md — The D-06 split: `install_records` durable parent + **nullable** FK on `install_programmes`; `install_tasks` do NOT move; baseline re-asserted; `QueryException` catch round the `firstOrCreate` because `createForProject()` is not transaction-wrapped. Wave 3. Requirements: VIS-09.
