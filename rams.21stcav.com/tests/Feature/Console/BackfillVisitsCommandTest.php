@@ -166,9 +166,12 @@ class BackfillVisitsCommandTest extends TestCase
 
         Carbon::setTestNow(Carbon::now()->addDay());
 
+        // One substring, not two: Mockery resolves a doWrite() call against the
+        // FIRST registered expectation that matches, so two separate
+        // expectsOutputToContain() assertions against the SAME summary line
+        // would leave the second one unsatisfied and fail for the wrong reason.
         $this->artisan('visits:backfill', ['--apply' => true])
-            ->expectsOutputToContain('already-wrapped: 2')
-            ->expectsOutputToContain('wrote: 0')
+            ->expectsOutputToContain('already-wrapped: 2  |  orphan-no-project: 0  |  wrote: 0')
             ->assertSuccessful();
 
         Carbon::setTestNow();
@@ -194,6 +197,27 @@ class BackfillVisitsCommandTest extends TestCase
             ->assertSuccessful();
 
         $this->assertSame(1, Visit::count());
+    }
+
+    /**
+     * Regression — Artisan resolves a command ONCE and reuses the instance for
+     * every invocation in the same process. Counters initialised as a property
+     * default therefore accumulate, and a second run's report reads
+     * "already-wrapped: 1 | wrote: 1" instead of "wrote: 0" — i.e. the
+     * idempotency report itself lies about having written.
+     */
+    public function test_the_summary_counters_are_reset_per_run_not_accumulated(): void
+    {
+        $project = Project::factory()->create();
+        $this->makeSurvey($project);
+
+        $this->artisan('visits:backfill', ['--apply' => true])
+            ->expectsOutputToContain('survey: 1  |  worksheet-signed: 0  |  worksheet-unsigned-skipped: 0  |  already-wrapped: 0  |  orphan-no-project: 0  |  wrote: 1')
+            ->assertSuccessful();
+
+        $this->artisan('visits:backfill', ['--apply' => true])
+            ->expectsOutputToContain('survey: 0  |  worksheet-signed: 0  |  worksheet-unsigned-skipped: 0  |  already-wrapped: 1  |  orphan-no-project: 0  |  wrote: 0')
+            ->assertSuccessful();
     }
 
     // -- D-04: superseded and soft-deleted sources are still wrapped --
