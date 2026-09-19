@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Variant B — Urgency-sorted · Project drawers</title>
+<style>
+  :root{
+    --paper:#F7F9FC; --surface:#FFFFFF; --border:#E2E8F0; --ink:#1F2937; --ink-mut:#6B7280;
+    --accent:#1E5FE0;
+    --ok-dot:#10B981; --warn-dot:#F59E0B; --err-dot:#EF4444;
+    --warn-bg:#FFFBEB; --warn-fg:#92400E; --warn-bd:#FDE68A;
+    --err-bg:#FEF2F2; --err-fg:#B91C1C; --err-bd:#FECACA;
+    --fs-display:28px; --fs-body:15px; --fs-small:13px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+       font:400 var(--fs-body)/1.55 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:20px 16px 64px}
+
+  .crumb{font-size:var(--fs-small);color:var(--ink-mut);margin-bottom:6px}
+  h1{font-size:var(--fs-display);font-weight:600;line-height:1.2;margin:0 0 2px}
+  .sub{color:var(--ink-mut);font-size:var(--fs-small);margin-bottom:6px}
+  .stage{display:inline-block;background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;
+         border-radius:999px;padding:.12rem .5rem;font-size:12px;font-weight:600;margin-left:8px}
+
+  /* one-line summary instead of a band */
+  .rollup{display:flex;align-items:center;gap:12px;font-size:var(--fs-small);
+          color:var(--ink-mut);margin:14px 0 18px;padding-bottom:14px;
+          border-bottom:1px solid var(--border)}
+  .pip{display:inline-flex;align-items:center;gap:5px}
+  .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .dot--ok{background:var(--ok-dot)} .dot--warn{background:var(--warn-dot)}
+  .dot--err{background:var(--err-dot)} .dot--idle{background:#CBD5E1}
+  .rollup b{color:var(--ink)}
+
+  .grp{font-size:12px;font-weight:600;color:var(--ink-mut);text-transform:uppercase;
+       letter-spacing:.04em;margin:20px 0 7px}
+  .grp:first-of-type{margin-top:0}
+
+  .drawer{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+          margin-bottom:8px;overflow:hidden}
+  /* urgency shows as a left rail, not a separate list */
+  .drawer--err{border-left:3px solid var(--err-dot)}
+  .drawer--warn{border-left:3px solid var(--warn-dot)}
+  .drawer__head{display:flex;align-items:center;gap:11px;padding:13px 15px;cursor:pointer;
+                user-select:none;width:100%;background:none;border:0;text-align:left;font:inherit}
+  .drawer__head:hover{background:#FAFBFD}
+  .drawer__name{font-weight:600;flex:1 1 auto;min-width:0}
+  .drawer__state{font-size:var(--fs-small);color:var(--ink-mut);white-space:nowrap}
+  .drawer__state--err{color:var(--err-fg);font-weight:600}
+  .drawer__state--warn{color:var(--warn-fg);font-weight:600}
+  .chev{color:#94A3B8;transition:transform .15s}
+  .drawer[open] .chev{transform:rotate(90deg)}
+  .drawer__body{padding:0 15px 15px;border-top:1px solid #F1F5F9}
+
+  .tick{width:16px;height:16px;border-radius:4px;border:1.5px solid #CBD5E1;flex:none;
+        display:grid;place-items:center;font-size:11px;color:#fff;background:#fff}
+  .tick--on{background:#64748B;border-color:#64748B}
+  .muted{opacity:.5}
+  .muted .drawer__name{font-weight:400}
+
+  .btn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:.4rem .75rem;
+       font:600 var(--fs-small) inherit;cursor:pointer;white-space:nowrap}
+
+  .meta{display:flex;flex-wrap:wrap;gap:14px;font-size:var(--fs-small);color:var(--ink-mut);
+        padding:12px 0 10px}
+  .meta b{color:var(--ink);font-weight:600}
+  .visit{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid #F1F5F9}
+  .visit__d{font-size:12px;color:var(--ink-mut);width:58px;flex:none;padding-top:2px}
+  .visit__t{font-weight:600;font-size:var(--fs-small)}
+  .visit__s{font-size:12px;color:var(--ink-mut)}
+  .thumbs{display:flex;gap:5px;margin-top:6px}
+  .thumb{width:38px;height:38px;border-radius:6px;background:#E2E8F0;flex:none;
+         display:grid;place-items:center;font-size:15px}
+  .alert{border-radius:8px;padding:9px 11px;font-size:var(--fs-small);margin:11px 0 0;
+         display:flex;gap:9px;align-items:center}
+  .alert--warn{background:var(--warn-bg);color:var(--warn-fg);border:1px solid var(--warn-bd)}
+  .alert--err{background:var(--err-bg);color:var(--err-fg);border:1px solid var(--err-bd)}
+  .alert span{flex:1 1 auto}
+  .snag{display:flex;gap:8px;padding:7px 0;border-top:1px solid #F1F5F9;font-size:var(--fs-small)}
+  .snag__n{color:var(--ink-mut);width:26px;flex:none}
+  .note{font-size:12px;color:var(--ink-mut);padding:10px 0 0;font-style:italic}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="crumb">Projects ›</div>
+  <h1>21CQ30473-05-OPS <span class="stage">Install</span></h1>
+  <div class="sub">Gardner Leader LLP · Newbury · PM Sonny Tanda</div>
+
+  <div class="rollup">
+    <span class="pip"><span class="dot dot--err"></span><b>1</b> blocked</span>
+    <span class="pip"><span class="dot dot--warn"></span><b>5</b> in progress</span>
+    <span class="pip"><span class="dot dot--ok"></span><b>1</b> done</span>
+    <span class="pip"><span class="dot dot--idle"></span><b>2</b> n/a</span>
+  </div>
+
+  <p class="grp">Blocked</p>
+
+  <details class="drawer drawer--err">
+    <summary class="drawer__head">
+      <span class="dot dot--err"></span>
+      <span class="drawer__name">Drawings</span>
+      <span class="drawer__state drawer__state--err">1 failed to generate</span>
+      <span class="chev">›</span>
+    </summary>
+    <div class="drawer__body">
+      <div class="meta"><span><b>4</b> drawings</span><span><b>3</b> approved</span><span><b>1</b> failed</span></div>
+      <div class="alert alert--err"><span>Rack elevation — generation failed 17 Sep. Nothing has retried since.</span><button class="btn">Retry</button></div>
+    </div>
+  </details>
+
+  <p class="grp">Waiting on someone</p>
+
+  <details class="drawer drawer--warn" open>
+    <summary class="drawer__head">
+      <span class="dot dot--warn"></span>
+      <span class="drawer__name">Worksheet</span>
+      <span class="drawer__state drawer__state--warn">Signed — needs accepting</span>
+      <span class="chev">›</span>
+    </summary>
+    <div class="drawer__body">
+      <div class="meta">
+        <span><b>2</b> visits</span><span><b>41</b> photos</span>
+        <span><b>18</b> serials captured</span><span><b>2</b> outstanding</span>
+      </div>
+
+      <div class="visit">
+        <div class="visit__d">17 Sep</div>
+        <div>
+          <div class="visit__t">Install day 1 — M. Okafor</div>
+          <div class="visit__s">5 of 7 rooms completed · 26 photos · 12 serials</div>
+          <div class="thumbs"><div class="thumb">🖼</div><div class="thumb">🖼</div><div class="thumb">+24</div></div>
+        </div>
+      </div>
+
+      <div class="visit">
+        <div class="visit__d">18 Sep</div>
+        <div>
+          <div class="visit__t">Install day 2 — M. Okafor · signed</div>
+          <div class="visit__s">7 of 7 rooms · 15 photos · 6 serials · client signature captured</div>
+          <div class="thumbs"><div class="thumb">✍️</div><div class="thumb">🖼</div><div class="thumb">+14</div></div>
+        </div>
+      </div>
+
+      <div class="alert alert--warn">
+        <span>Client signed 18 Sep with <b>2 outstanding items</b>. Not yet accepted by the office.</span>
+        <button class="btn">Accept</button>
+      </div>
+    </div>
+  </details>
+
+  <details class="drawer drawer--warn">
+    <summary class="drawer__head">
+      <span class="dot dot--warn"></span>
+      <span class="drawer__name">RAMS</span>
+      <span class="drawer__state drawer__state--warn">Awaiting review — 7 days</span>
+      <span class="chev">›</span>
+    </summary>
+    <div class="drawer__body"><div class="meta"><span>Generated <b>12 Sep</b></span><span>Rev <b>2</b></span></div></div>
+  </details>
+
+  <details class="drawer drawer--warn">
+    <summary class="drawer__head">
+      <span class="dot dot--warn"></span>
+      <span class="drawer__name">O&amp;M manual</span>
+      <span class="drawer__state drawer__state--warn">Awaiting review</span>
+      <span class="chev">›</span>
+    </summary>
+    <div class="drawer__body">
+      <div class="meta"><span><b>18</b> devices</span><span><b>18</b> serials from site</span></div>
+      <div class="note">Serials captured by the engineer on the worksheet feed straight in.</div>
+    </div>
+  </details>
+
+  <p class="grp">In progress</p>
+
+  <details class="drawer drawer--warn">
+    <summary class="drawer__head">
+      <span class="dot dot--warn"></span>
+      <span class="drawer__name">Install programme</span>
+      <span class="drawer__state">38 of 52 tasks</span>
+      <span class="chev">›</span>
+    </summary>
+    <div class="drawer__body"><div class="meta"><span><b>52</b> tasks</span><span><b>38</b> done</span><span><b>2</b> engineers</span></div></div>
+  </details>
+
+  <details class="drawer drawer--warn">
+    <summary class="drawer__head">
+      <span class="dot dot--warn"></span>
+      <span class="drawer__name">Snagging</span>
+      <span class="drawer__state">3 open</span>
+      <span class="chev">›</span>
+    </summary>
+    <div class="drawer__body">
+      <div class="snag"><span class="snag__n">1</span><span>Boardroom — trunking to be made good by others</span></div>
+      <div class="snag"><span class="snag__n">2</span><span>Reception — display awaiting client power</span></div>
+      <div class="snag"><span class="snag__n">3</span><span>Meeting 3 — HDMI plate loose</span></div>
+      <div class="note">Items 1 and 2 came from the engineer's worksheet sign-off.</div>
+    </div>
+  </details>
+
+  <p class="grp">Done</p>
+
+  <details class="drawer">
+    <summary class="drawer__head">
+      <span class="dot dot--ok"></span>
+      <span class="drawer__name">Site survey</span>
+      <span class="drawer__state">Completed 02 Sep</span>
+      <span class="chev">›</span>
+    </summary>
+    <div class="drawer__body">
+      <div class="meta"><span><b>1</b> visit</span><span><b>24</b> photos</span><span><b>7</b> rooms</span></div>
+      <div class="visit">
+        <div class="visit__d">02 Sep</div>
+        <div>
+          <div class="visit__t">Survey visit — J. Reilly</div>
+          <div class="visit__s">7 rooms surveyed · signed off on site</div>
+          <div class="thumbs"><div class="thumb">🖼</div><div class="thumb">🖼</div><div class="thumb">+22</div></div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <div class="drawer">
+    <div class="drawer__head">
+      <span class="tick tick--on">✓</span>
+      <span class="drawer__name">Programming</span>
+      <span class="drawer__state">Marked done — J. Reilly, 16 Sep</span>
+    </div>
+  </div>
+
+  <p class="grp">Not required</p>
+
+  <div class="drawer muted">
+    <div class="drawer__head">
+      <span class="tick"></span>
+      <span class="drawer__name">Cable schedule</span>
+      <span class="drawer__state">Not required</span>
+    </div>
+  </div>
+
+  <p class="note" style="margin-top:18px">
+    No separate alert panel — urgency is carried by order, grouping and a left rail, so nothing is
+    stated twice. Programming shows a tick rather than a light: nothing in the system can evidence it.
+  </p>
+
+</div>
+</body>
+</html>
