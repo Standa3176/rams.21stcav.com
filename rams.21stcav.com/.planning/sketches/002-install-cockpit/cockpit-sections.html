@@ -118,6 +118,11 @@ h1,h2{font-family:var(--head);margin:0}
 .ret{background:var(--teal-soft);padding:13px 15px;border-radius:2px;margin-bottom:20px;font-size:.89rem}
 .ret b{font-family:var(--head)}
 
+.close{margin-top:30px;padding-top:18px;border-top:1px solid var(--rule);text-align:center}
+.closebtn{background:none;border:0;color:var(--light);font:400 .84rem var(--body);
+          cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.closebtn:hover{color:#8a6d13}
+
 /* document lifecycle rows */
 .lf{display:flex;align-items:center;gap:11px;padding:9px 0;font-size:.89rem;
     border-top:1px solid #f4f4f4}
@@ -296,7 +301,58 @@ h1,h2{font-family:var(--head);margin:0}
     </div>
   </details>
 
+  <details class="dw">
+    <summary><span class="pip pip--wait"></span><span class="t">Commissioning</span>
+      <span class="c">not booked</span><span class="s">18 devices to test</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <p class="hint">A commissioning visit tests each installed device and returns a signed
+        results sheet. The list comes from the asset register, not from a task plan.</p>
+      <div class="bar"><button class="btn btn--q">Prepare a visit</button></div>
+    </div>
+  </details>
+
   <p class="sec" style="margin-top:36px">Documents — produced in the office</p>
+
+  <details class="dw">
+    <summary><span class="pip pip--done"></span><span class="t">RAMS</span>
+      <span class="c">4 documents</span><span class="s">All issued</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <p class="hint">One per visit, written for that visit's scope. Issued to the engineer with
+        the link and to the client on request.</p>
+      <div class="sg" onclick="openPan('rams')">
+        <span class="vd">15 Sep</span>
+        <span class="vt">Install — rack and rooms 1 to 3<small>rev 2 · issued to M. Okafor, P. Shah</small></span>
+        <span class="vs">Issued</span></div>
+      <div class="sg">
+        <span class="vd">16 Sep</span>
+        <span class="vt">Install — rooms 4 to 6<small>rev 1 · issued to M. Okafor</small></span>
+        <span class="vs">Issued</span></div>
+      <div class="sg">
+        <span class="vd">18 Sep</span>
+        <span class="vt">Install — room 7<small>rev 1 · issued to M. Okafor</small></span>
+        <span class="vs">Issued</span></div>
+      <div class="sg">
+        <span class="vd">02 Sep</span>
+        <span class="vt">Site survey<small>rev 1 · issued to J. Reilly</small></span>
+        <span class="vs">Issued</span></div>
+      <div class="bar"><button class="btn btn--q">Send a RAMS to the client</button></div>
+    </div>
+  </details>
+
+  <details class="dw">
+    <summary><span class="pip pip--done"></span><span class="t">Asset register</span>
+      <span class="c">18 devices</span><span class="s">18 serials captured</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <p class="hint">Built from the quote, completed by serials the engineers capture on site.
+        Feeds the O&amp;M and the commissioning list.</p>
+      <div class="docline"><span class="n">Boardroom</span><span class="v">5 devices · 5 serials</span></div>
+      <div class="docline"><span class="n">Meeting 1 to 3</span><span class="v">9 devices · 9 serials</span></div>
+      <div class="docline"><span class="n">Reception</span><span class="v">2 devices · 2 serials</span></div>
+      <div class="docline"><span class="n">Comms room</span><span class="v">2 devices · 2 serials</span></div>
+      <div class="bar"><button class="btn btn--q">Open register</button>
+        <button class="btn btn--q">Export CSV</button></div>
+    </div>
+  </details>
 
   <details class="dw">
     <summary><span class="pip pip--attn"></span><span class="t">Drawings</span>
@@ -318,6 +374,9 @@ h1,h2{font-family:var(--head);margin:0}
       <div class="lf"><span class="lf__d lf__d--on">✓</span><span class="n">Generated</span><span class="v">12 Sep</span></div>
       <div class="lf"><span class="lf__d lf__d--on">✓</span><span class="n">Reviewed</span><span class="v">Sonny Tanda, 19 Sep</span></div>
       <div class="lf"><span class="lf__d"></span><span class="n">Issued to client</span><span class="v">not sent</span></div>
+      <div class="fld" style="margin-top:12px">
+        <select><option>Full O&amp;M manual — 42 pages</option><option>Mini O&amp;M — key info only, 6 pages</option></select>
+      </div>
       <div class="bar"><button class="btn btn--gold">Issue to client</button>
         <button class="btn btn--q">Download</button></div>
     </div>
@@ -355,9 +414,29 @@ h1,h2{font-family:var(--head);margin:0}
     </div>
   </details>
 
+  <details class="dw" style="margin-top:36px">
+    <summary><span class="pip pip--done"></span><span class="t">Project details</span>
+      <span class="c">from quote 21CQ30473</span><span class="s">Imported 28 Aug</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <p class="hint">What the app believes about this job. Corrected at import, editable here.</p>
+      <div class="docline"><span class="n">Client</span><span class="v">Gardner Leader LLP</span></div>
+      <div class="docline"><span class="n">Site</span><span class="v">Newbury</span></div>
+      <div class="docline"><span class="n">Rooms</span><span class="v">7</span></div>
+      <div class="docline"><span class="n">Equipment lines</span><span class="v">79 · 36 client supplied</span></div>
+      <div class="docline"><span class="n">Quote revision</span><span class="v">05 · imported 28 Aug</span></div>
+      <div class="bar"><button class="btn btn--q">Edit details</button>
+        <button class="btn btn--q">Re-import from QuoteWerks</button></div>
+    </div>
+  </details>
+
+  <div class="close">
+    <button class="closebtn" onclick="openPan('close')">Close this project</button>
+  </div>
+
   <p class="note">
     Visits group by type, so a three-day install is one line until you open it. Each section is
     also the deliverable — there is no second list saying the same thing twice.
+    The install programme task planner is hidden for launch.
   </p>
 
 </main>
@@ -497,6 +576,60 @@ h1,h2{font-family:var(--head);margin:0}
       <div class="pk"><span class="n">1 engineer, half day</span><span class="v">£300</span></div></div>
   </div>
   <div class="pan__f"><button class="btn btn--q" onclick="closePan()">Close</button></div>
+</aside>
+
+<!-- RAMS for one visit -->
+<aside class="pan" id="pan-rams" aria-hidden="true">
+  <div class="pan__h"><button class="pan__x" onclick="closePan()">×</button>
+    <h2>RAMS — install visit</h2><div class="m">15 Sep &nbsp;·&nbsp; rack and rooms 1 to 3 &nbsp;·&nbsp; rev 2</div></div>
+  <div class="pan__b">
+    <div class="step"><h3><i>1</i>Scope it was written for</h3>
+      <div class="pk"><span class="n">Visit type</span><span class="v">Install</span></div>
+      <div class="pk"><span class="n">Rooms</span><span class="v">Boardroom, Meeting 1, Meeting 2</span></div>
+      <div class="pk"><span class="n">Works</span><span class="v">rack build, display mounting</span></div></div>
+    <div class="step"><h3><i>2</i>Lifecycle</h3>
+      <div class="lf"><span class="lf__d lf__d--on">✓</span><span class="n">Generated</span><span class="v">13 Sep</span></div>
+      <div class="lf"><span class="lf__d lf__d--on">✓</span><span class="n">Reviewed</span><span class="v">Sonny Tanda, 14 Sep</span></div>
+      <div class="lf"><span class="lf__d lf__d--on">✓</span><span class="n">Issued to engineers</span><span class="v">with the visit link, 14 Sep</span></div>
+      <div class="lf"><span class="lf__d"></span><span class="n">Issued to client</span><span class="v">not requested</span></div></div>
+    <div class="step"><h3><i>3</i>Revisions</h3>
+      <div class="exp"><i>rev 2</i><span>Working-at-height controls added after the survey flagged 3.2m ceilings</span></div>
+      <div class="exp"><i>rev 1</i><span>First generation, 13 Sep</span></div></div>
+  </div>
+  <div class="pan__f"><button class="btn btn--q">Download</button>
+    <button class="btn btn--q">Send to client</button></div>
+</aside>
+
+<!-- CLOSE PROJECT -->
+<aside class="pan" id="pan-close" aria-hidden="true">
+  <div class="pan__h"><button class="pan__x" onclick="closePan()">×</button>
+    <h2>Close this project</h2><div class="m">21CQ30473-05-OPS</div></div>
+  <div class="pan__b">
+    <div class="step"><h3><i>1</i>Why is it closing</h3>
+      <div class="fld"><select>
+        <option>Completed and handed over</option>
+        <option>Cancelled by the client</option>
+        <option selected>Superseded — now running under another project</option>
+        <option>Cancelled internally</option>
+        <option>On hold indefinitely</option></select></div></div>
+
+    <div class="step"><h3><i>2</i>Which project replaces it</h3>
+      <div class="fld"><select>
+        <option>Search for a project…</option>
+        <option selected>21CQ30612-01-OPS — Gardner Leader, phase 2</option></select></div>
+      <p style="margin:9px 0 0;font-size:.84rem;color:var(--mid)">
+        Both projects will link to each other, so anyone opening this one is sent to the live job.</p></div>
+
+    <div class="step"><h3><i>3</i>What happens to open work</h3>
+      <div class="exp"><i>3</i><span>Open snags — move to the replacement project</span></div>
+      <div class="exp"><i>1</i><span>Booked visit on 24 Sep — cancel it</span></div>
+      <div class="exp"><i>1</i><span>O&amp;M never issued — leave as is</span></div></div>
+
+    <div class="step"><h3><i>4</i>Note for the record</h3>
+      <div class="fld"><input type="text" placeholder="Optional — what happened"></div></div>
+  </div>
+  <div class="pan__f"><button class="btn btn--gold">Close project</button>
+    <button class="btn btn--q" onclick="closePan()">Cancel</button></div>
 </aside>
 
 <script>
