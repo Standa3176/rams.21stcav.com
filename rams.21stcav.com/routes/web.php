@@ -19,6 +19,7 @@ use App\Http\Controllers\HazardTemplateController;
 use App\Http\Controllers\InstallProgrammeController;
 use App\Http\Controllers\OmManualController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProjectCockpitController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectDrawingController;
 use App\Http\Controllers\ProjectPackageReviewController;
@@ -240,6 +241,16 @@ Route::middleware('auth')->group(function () {
     Route::post('projects/{project}/deliverables', [ProjectController::class, 'updateDeliverables'])->name('projects.deliverables.update');
     Route::post('projects/{project}/archive', [ProjectController::class, 'archive'])->name('projects.archive');
     Route::post('projects/{project}/reopen', [ProjectController::class, 'reopen'])->name('projects.reopen');
+
+    // ── Project cockpit (Phase 45, VIS-04/VIS-06/VIS-10) ──────────────────
+    // Registered UNCONDITIONALLY and gated inside the controller behind
+    // COCKPIT_ENABLED (config/cockpit.php, default false) — same shape as
+    // /spike/schematic-editor below. Wrapping this in `if (config(...))` would
+    // make route('projects.cockpit') throw whenever the flag is off.
+    // READ-ONLY: GET only. Phase 45 adds no write surface, so there is
+    // deliberately no POST/PATCH/DELETE counterpart to this route.
+    Route::get('projects/{project}/cockpit', [ProjectCockpitController::class, 'show'])
+        ->name('projects.cockpit');
 
     // ── Engineer reference files (quick task 260601-r4c) ──────────────────
     // Shared-workspace auth (per 260525-pyu/s8b) — any authed user. Routes
