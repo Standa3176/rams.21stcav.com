@@ -392,6 +392,214 @@ decisions in `.planning/sketches/002-install-cockpit/README.md`.
 
 ---
 
+### Phase 46: Visit Lifecycle
+
+**Goal**: A visit can be prepared, sent to whoever is attending, returned by them, and accepted by
+the PM — with its RAMS and worksheet scoped to that visit's type and rooms rather than to the whole
+project.
+
+**Depends on**: Phase 45 (the `Visit` record and the cockpit that displays it), Phase 44 (labour
+resources are who a visit is sent to).
+
+**Requirements**: Not yet minted. Mint VL-xx into `.planning/REQUIREMENTS.md` § v4.0 at planning time.
+
+**Success Criteria** (what must be TRUE):
+
+  1. A PM can prepare a visit — type, date, rooms in scope, assigned labour resources — and send it,
+     producing one engineer link whose content is driven by the visit's type
+  2. A RAMS and a worksheet generated for a visit cover **only that visit's type and rooms**, not the
+     whole project
+  3. A visit stays editable after sending; **scope locks once a return arrives**, and the lock is
+     visible rather than silent
+  4. The PM can accept a returned visit, and acceptance is recorded with who and when
+  5. Existing `/survey/{token}` and `/worksheet/{token}` links continue to work unchanged throughout
+
+**Open questions** (resolve at discuss-phase):
+
+  - Who may accept a visit — PM only, or any authenticated staff user? The app is a shared workspace
+    with no role model beyond `EnsureUserIsAdmin`.
+  - Does accepting every visit in a section auto-close that section's deliverable, or is closing a
+    separate deliberate act?
+  - What happens to a returned visit that the PM rejects — reopen the same visit, or open a fresh one?
+  - Does one visit produce one engineer link, or can a link be reissued (and does reissuing invalidate
+    the first)?
+
+**Plans**: Not yet planned
+
+**UI hint**: yes (prepare panel, send flow, return review — the cockpit's write half)
+
+---
+
+### Phase 47: Snagging
+
+**Goal**: Snags are tracked items with a life of their own, resolved through visits but not dependent
+on them — so an unresolved snag can never be lost in free text.
+
+**Depends on**: Phase 46 (a snag is resolved by a visit, and a not-fixed snag opens a new one).
+
+**Requirements**: Not yet minted. Mint SN-xx into `.planning/REQUIREMENTS.md` § v4.0 at planning time.
+
+**Success Criteria** (what must be TRUE):
+
+  1. A **snag item** is a distinct record from a **snag visit** — a snag may exist with no visit
+     attached, and one visit may resolve several snags
+  2. Each snag carries one of three outcomes: **fixed**, **not fixed**, **deferred**
+  3. A **not fixed** outcome requires the engineer to state the actions and parts needed. That closes
+     the visit and **opens a new snag linked to the original**, for the PM to action
+  4. Parts required are tracked per snag
+  5. A snag may sit with the client or a third party and never have a visit at all — that state is
+     representable and visible
+
+**Open questions** (resolve at discuss-phase):
+
+  - How is a snag raised — PM free text only, or can an engineer raise one from a visit return?
+    (User said "free text but give add another snag/issue" for PM entry on 2026-09-19.)
+  - Is the chain of linked snags shown as a thread, or does each new snag only point back one step?
+  - Does a deferred snag need a date or a reason, or is it simply parked?
+  - Does a project with open snags block deliverable closure anywhere?
+
+**Plans**: Not yet planned
+
+**UI hint**: yes (snag list, per-snag panel, engineer-side fix/not-fixed capture)
+
+---
+
+### Phase 48: Documents
+
+**Goal**: The PM generates client-facing documents from the cockpit, sends them, and confirms in-app
+that they went — so "has the client got the RAMS" is a question the system can answer.
+
+**Depends on**: Phase 46 (documents are per-visit artifacts), Phase 45 (the drawers they live in).
+
+**Requirements**: Not yet minted. Mint DOC-xx into `.planning/REQUIREMENTS.md` § v4.0 at planning time.
+
+**Success Criteria** (what must be TRUE):
+
+  1. A PM can generate a client-facing document from within its section drawer
+  2. The PM **confirms sent in-app**, and the system records **who sent it, when, and which revision**
+  3. A section cannot read as complete on the strength of a document that was generated but never
+     confirmed sent
+  4. O&M is offered as **full or mini**
+  5. Drawings are **uploaded** (produced in StarDrawer), not generated in-app, and carry the same
+     sent-confirmation treatment
+
+**Open questions** (resolve at discuss-phase):
+
+  - Does the app send the document itself (email from the system) or does the PM send it outside and
+    tick a box? The 2026-09-19 decision was "PM need to confirm sent in app", which implies the latter
+    but does not rule out the former.
+  - If a document is regenerated after being confirmed sent, does the confirmation clear?
+  - Who counts as "the client" — a stored contact on the project, or typed per send?
+
+**Plans**: Not yet planned
+
+**UI hint**: yes (generate/send panel per drawer, revision + sent-state display)
+
+---
+
+### Phase 49: Import Review + Self-populating Deliverables
+
+**Goal**: One screen at project creation that shows exactly what the QuoteWerks quote contains and
+which deliverables it implies — so nothing is dropped without the PM seeing it.
+
+**Depends on**: Nothing in v4.0 structurally, but should follow Phase 45 so it can adopt the
+`.cav-brand` tokens rather than establishing a second visual language.
+
+**Requirements**: Not yet minted. Mint IMP-xx into `.planning/REQUIREMENTS.md` § v4.0 at planning time.
+
+**Success Criteria** (what must be TRUE):
+
+  1. One import screen shows what the quote contains — rooms, hardware, client-supplied, cables,
+     labour — before the project is created
+  2. Deliverables are **ticked from the quote's lines** and each is labelled **from quote**,
+     **assumed**, or **not found**
+  3. **All nine deliverables are always shown**, ticked or not, so nothing is omitted silently
+  4. The equipment-line review opens in a **side panel**, not a separate page
+  5. An unusually high client-supplied proportion is surfaced before creation, because install tasks
+     and the asset register are built from that split
+
+**Open questions** (resolve at discuss-phase):
+
+  - Programming: the 2026-09-19 decision is that it appears only if on the quote or the PM selects it
+    at upload. Does the same conditional rule apply to any other deliverable?
+  - Can the PM correct an equipment line's classification (hardware vs client-supplied) on this screen,
+    or only after creation? Note the stale-key bug fixed in `ProjectDataService` — edits must reach the
+    generators.
+  - What happens if the quote cannot be parsed — block creation, or create with a warning?
+
+**Plans**: Not yet planned
+
+**UI hint**: yes (sketch 003 `.planning/sketches/003-quote-import/import-review.html` is the accepted design)
+
+---
+
+### Phase 50: Project Data Versioning
+
+**Goal**: Re-importing a later QuoteWerks revision replaces the current project data while keeping
+every superseded version viewable — so a PM can always see what the job used to be.
+
+**Depends on**: Phase 49 (the import path this re-runs), Phase 45 (D-04's superseded treatment is the
+precedent for how superseded data is shown).
+
+**Requirements**: Not yet minted. Mint VER-xx into `.planning/REQUIREMENTS.md` § v4.0 at planning time.
+
+**Success Criteria** (what must be TRUE):
+
+  1. Re-importing a later revision replaces **product, quantity and labour** data with the new
+  2. Superseded data is **archived and viewable**, never deleted
+  3. Room data removed by the new revision is archived; **images on removed rooms are retained against
+     the archived version**, not orphaned and not destroyed
+  4. There is a way to view the old data from the project
+  5. Data that is not sourced from the quote survives a re-import untouched
+
+**Open questions** (resolve at discuss-phase):
+
+  - Are visits, snags and sent-document records unaffected by a re-import? (The 2026-09-19 decision was
+     "old project data is archived and superceded. Other data remains" — needs a precise boundary.)
+  - Does a re-import invalidate documents already confirmed sent against the old revision?
+  - Is there a diff view (what changed between revisions) or only a view of each version?
+
+**Plans**: Not yet planned
+
+**UI hint**: yes (version history and archived-data view)
+
+---
+
+### Phase 51: Commissioning as a Visit Type
+
+**Goal**: Commissioning items derive per device from the asset register instead of from install
+programme tasks — which is what currently keeps the task planner hidden.
+
+**Depends on**: Phase 46 (commissioning becomes a visit type), Phase 49/50 (the asset register is
+built from quote data).
+
+**Requirements**: Not yet minted. Mint COM-xx into `.planning/REQUIREMENTS.md` § v4.0 at planning time.
+
+**Success Criteria** (what must be TRUE):
+
+  1. Commissioning items are derived **per device from the asset register**, not from `install_tasks`
+  2. `CommissioningItemGenerator` no longer reads programme tasks — confirmed in Phase 45 research to
+     do exactly that at `app/Services/CommissioningItemGenerator.php:93` and `:118`, with an
+     `install_task_id` FK
+  3. Existing commissioning records survive the change — the live `commissioning_items.install_task_id`
+     FK and the UNIQUE constraint on `commissioning_signoffs.install_programme_id` are migrated, not
+     broken
+  4. Commissioning runs as a visit type like any other
+  5. With commissioning re-sourced, the install programme task planner can be unhidden safely
+
+**Open questions** (resolve at discuss-phase):
+
+  - Does unhiding the task planner happen in this phase or a later one? Criterion 5 says it *can*, not
+    that it does.
+  - What happens to commissioning items already tied to a task that no longer drives them?
+  - Does every device in the asset register generate an item, or only some classes of device?
+
+**Plans**: Not yet planned
+
+**UI hint**: yes (commissioning drawer, per-device item list)
+
+---
+
 ## 🚧 v2.0 Engineering-Grade AV Drawings (Paused)
 
 **Status note (2026-08-23):** Paused mid-milestone in favour of v3.0. Phases 21, 22, 22.1 and 23 are complete on disk. Phase 24 has one open plan (24-09, a bounded human-checkpoint curation task, out of autonomous-executor scope by design). Phase 25 remains unplanned. Resume either after v3.0 ships or opportunistically between v3.0 phases.
