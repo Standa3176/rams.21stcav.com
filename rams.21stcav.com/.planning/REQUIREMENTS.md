@@ -15,9 +15,9 @@ recorded in `.planning/sketches/002-install-cockpit/README.md` (cockpit + panels
 `.planning/sketches/003-quote-import/README.md` (import review). The sketches are the
 **visual contract**; where an implementation and a sketch disagree, the sketch wins unless
 the user says otherwise.
-**Total requirements:** 5 defined so far (LR-01..LR-05, Phase 44). Phases 45–51 are
-outlined in the roadmap but their requirement IDs are **not yet minted** — each will be
-added here when its phase is planned.
+**Total requirements:** 15 defined so far (LR-01..LR-05, Phase 44; VIS-01..VIS-10, Phase 45).
+Phases 46–51 are outlined in the roadmap but their requirement IDs are **not yet minted** — each
+will be added here when its phase is planned.
 
 ### Why this milestone exists
 
@@ -53,6 +53,35 @@ for this milestone yet — and map 1:1 to the Phase 44 success criteria in `ROAD
 *User's own words on LR-04, quoted in the test docblock so the intent survives: "Client should
 only be given engineer name never phone or email — this is for PM only."*
 
+### Group VIS — Visit model + read-only cockpit (Phase 45)
+
+These ten were minted at planning time on 2026-09-19 and map to the Phase 45 success criteria in
+`ROADMAP.md`, with one deliberate narrowing recorded in VIS-02.
+
+- **VIS-01** — A `visits` table exists carrying a type (site survey / first fix / install /
+  programming / snag / commissioning), its project, its scheduled date, its assigned labour
+  resources, and its status.
+- **VIS-02** — Every existing `SiteSurvey` row, and every `Worksheet` row that has at least one
+  `WorksheetSignoff`, is wrapped by a backfilled visit. Nothing is deleted and no existing row is
+  rewritten. (Deliberately narrower than ROADMAP criterion 2 — per D-01, an unsigned worksheet is a
+  document, not an attendance. D-01 is authoritative over the criterion wording.)
+- **VIS-03** — Every live `/survey/{token}` and `/worksheet/{token}` link keeps working exactly as
+  it does today.
+- **VIS-04** — The cockpit page renders read-only behind a feature flag, on its own route, showing
+  the programme spine and its section drawers closed at rest.
+- **VIS-05** — The existing eleven-tab project page is untouched and remains the default. With the
+  flag off the application behaves exactly as it does today — proven by a test, not by inspection.
+- **VIS-06** — Traffic lights on the cockpit derive from data that already exists. This phase adds
+  no new engineer-facing capture and no new writes from any user-facing surface.
+- **VIS-07** — The backfill is a separate idempotent console command; re-running it creates no
+  duplicate visits.
+- **VIS-08** — A visit survives its wrapped record being superseded or soft-deleted, and the cockpit
+  marks it as superseded rather than hiding it.
+- **VIS-09** — A durable install record exists that is not replaced when the task list is
+  regenerated, and the existing programme generate / activate / archive behaviour is unchanged.
+- **VIS-10** — Brand tokens (teal `#01889F`, gold `#D4AF37`, Verdana headings, Poppins body) are
+  introduced as reusable tokens consumable by phases 46-51, without retoning any existing page.
+
 ### Out of scope for v4.0
 
 Each is **recorded in the admin Hidden Functions register**, not forgotten:
@@ -79,9 +108,19 @@ Each is **recorded in the admin Hidden Functions register**, not forgotten:
 | LR-03 | Phase 44 | Complete (Plan 44-03, 2026-09-19 — `<x-labour-resource-select>`, active-only, name-only) |
 | LR-04 | Phase 44 | Complete (Plan 44-04, 2026-09-19 — source-guard over 20 client-facing files + live HTTP render proof + non-vacuity meta-test) |
 | LR-05 | Phase 44 | Complete (Plan 44-04, 2026-09-19 — free-text `captured_by` paths untouched and asserted) |
+| VIS-01 | Phase 45 | Planned (Plan 45-02) |
+| VIS-02 | Phase 45 | Planned (Plan 45-05) |
+| VIS-03 | Phase 45 | Planned (Plans 45-05 + 45-08) |
+| VIS-04 | Phase 45 | Planned (Plans 45-06 + 45-07) |
+| VIS-05 | Phase 45 | Planned (Plan 45-08) |
+| VIS-06 | Phase 45 | Planned (Plans 45-06 + 45-07) |
+| VIS-07 | Phase 45 | Planned (Plan 45-05) |
+| VIS-08 | Phase 45 | Planned (Plans 45-02 + 45-05 + 45-07) |
+| VIS-09 | Phase 45 | Planned (Plan 45-04) |
+| VIS-10 | Phase 45 | Planned (Plans 45-03 + 45-06) |
 
-*Phases 45–51 have no requirement IDs yet. Mint them into this section as each phase is planned,
-following the LR-xx pattern.*
+*Phases 46–51 have no requirement IDs yet. Mint them into this section as each phase is planned,
+following the LR-xx / VIS-xx pattern.*
 
 ---
 
