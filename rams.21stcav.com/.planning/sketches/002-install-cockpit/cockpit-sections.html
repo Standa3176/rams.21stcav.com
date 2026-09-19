@@ -118,6 +118,20 @@ h1,h2{font-family:var(--head);margin:0}
 .ret{background:var(--teal-soft);padding:13px 15px;border-radius:2px;margin-bottom:20px;font-size:.89rem}
 .ret b{font-family:var(--head)}
 
+/* document lifecycle rows */
+.lf{display:flex;align-items:center;gap:11px;padding:9px 0;font-size:.89rem;
+    border-top:1px solid #f4f4f4}
+.lf:first-of-type{border-top:0}
+.lf .n{flex:1 1 auto}
+.lf .v{font-size:.78rem;color:var(--light)}
+.lf__d{width:15px;height:15px;border-radius:50%;border:1.5px solid #d2d2d2;flex:none;
+       display:grid;place-items:center;font-size:8px;color:#fff;background:#fff}
+.lf__d--on{background:var(--teal);border-color:var(--teal)}
+.docs{display:flex;gap:7px;flex-wrap:wrap;margin-top:5px}
+.tag{font-size:.7rem;padding:.1rem .4rem;border-radius:2px;background:var(--teal-soft);
+     color:var(--teal-dark);font-weight:500}
+.tag--no{background:#f3f3f3;color:var(--light)}
+
 /* snag items */
 .grp{font-family:var(--head);font-size:.68rem;font-weight:700;color:var(--light);
      letter-spacing:.05em;margin:14px 0 2px;padding-top:10px;border-top:1px solid #f4f4f4}
@@ -192,17 +206,20 @@ h1,h2{font-family:var(--head);margin:0}
     <div class="body">
       <div class="vz">
         <span class="vd">15 Sep</span>
-        <span class="vt">Marcus Okafor, Priya Shah<small>Rack build and first three rooms · £900</small></span>
+        <span class="vt">Marcus Okafor, Priya Shah<small>Rack build and first three rooms · £900</small>
+          <span class="docs"><span class="tag">RAMS issued</span><span class="tag">Worksheet signed</span></span></span>
         <span class="vs">Accepted</span>
       </div>
       <div class="vz">
         <span class="vd">16 Sep</span>
-        <span class="vt">Marcus Okafor<small>Rooms 4 to 6 · £450</small></span>
+        <span class="vt">Marcus Okafor<small>Rooms 4 to 6 · £450</small>
+          <span class="docs"><span class="tag">RAMS issued</span><span class="tag">Worksheet signed</span></span></span>
         <span class="vs">Accepted</span>
       </div>
       <div class="vz" onclick="openPan('inst')">
         <span class="vd">18 Sep</span>
-        <span class="vt">Marcus Okafor<small>Final room, client signed · 18 serials · £450</small></span>
+        <span class="vt">Marcus Okafor<small>Final room, client signed · 18 serials · £450</small>
+          <span class="docs"><span class="tag">RAMS issued</span><span class="tag">Worksheet signed</span></span></span>
         <span class="vs vs--attn">Needs accepting</span>
       </div>
       <button class="newv">+ Book another install visit</button>
@@ -282,15 +299,6 @@ h1,h2{font-family:var(--head);margin:0}
   <p class="sec" style="margin-top:36px">Documents — produced in the office</p>
 
   <details class="dw">
-    <summary><span class="pip pip--attn"></span><span class="t">RAMS</span>
-      <span class="c">rev 2</span><span class="s s--attn">Awaiting review</span><span class="arrow">›</span></summary>
-    <div class="body">
-      <p class="hint">Generated 12 Sep. Nobody has reviewed it for seven days.</p>
-      <div class="bar"><button class="btn">Review</button><button class="btn btn--q">Download</button></div>
-    </div>
-  </details>
-
-  <details class="dw">
     <summary><span class="pip pip--attn"></span><span class="t">Drawings</span>
       <span class="c">4 drawings</span><span class="s s--attn">1 failed</span><span class="arrow">›</span></summary>
     <div class="body">
@@ -304,10 +312,14 @@ h1,h2{font-family:var(--head);margin:0}
 
   <details class="dw">
     <summary><span class="pip pip--attn"></span><span class="t">O&amp;M manual</span>
-      <span class="c">18 devices</span><span class="s s--attn">Awaiting review</span><span class="arrow">›</span></summary>
+      <span class="c">18 devices</span><span class="s s--attn">Not issued</span><span class="arrow">›</span></summary>
     <div class="body">
       <p class="hint">All 18 serials came from the install visits and are already in the asset list.</p>
-      <div class="bar"><button class="btn">Review</button></div>
+      <div class="lf"><span class="lf__d lf__d--on">✓</span><span class="n">Generated</span><span class="v">12 Sep</span></div>
+      <div class="lf"><span class="lf__d lf__d--on">✓</span><span class="n">Reviewed</span><span class="v">Sonny Tanda, 19 Sep</span></div>
+      <div class="lf"><span class="lf__d"></span><span class="n">Issued to client</span><span class="v">not sent</span></div>
+      <div class="bar"><button class="btn btn--gold">Issue to client</button>
+        <button class="btn btn--q">Download</button></div>
     </div>
   </details>
 
@@ -356,19 +368,34 @@ h1,h2{font-family:var(--head);margin:0}
   <div class="pan__h"><button class="pan__x" onclick="closePan()">×</button>
     <h2>New programming visit</h2><div class="m">not yet assigned</div></div>
   <div class="pan__b">
-    <div class="step"><h3><i>1</i>What the engineer gets</h3>
+    <div class="step"><h3><i>1</i>Scope of this visit</h3>
+      <div class="fld"><select>
+        <option>All seven rooms</option>
+        <option selected>Boardroom, Meeting 1, Meeting 2</option>
+        <option>Choose rooms…</option></select></div>
+      <p style="margin:9px 0 0;font-size:.84rem;color:var(--mid)">
+        The RAMS and worksheet are written for this scope — three rooms, programming only. Not the
+        whole job.</p></div>
+
+    <div class="step"><h3><i>2</i>Documents for this visit</h3>
+      <div class="pk"><span class="chk">✓</span><span class="n">RAMS</span><span class="v">programming, 3 rooms</span></div>
+      <div class="pk"><span class="chk">✓</span><span class="n">Worksheet</span><span class="v">programming, 3 rooms</span></div>
+      <p style="margin:9px 0 0;font-size:.84rem;color:var(--mid)">
+        Both are generated for this visit when you send the link, and come back attached to it.</p></div>
+
+    <div class="step"><h3><i>3</i>Reference the engineer also gets</h3>
       <div class="pk"><span class="chk">✓</span><span class="n">Site map</span><span class="v">PDF</span></div>
       <div class="pk"><span class="chk">✓</span><span class="n">Connection schedule</span><span class="v">from cable schedule</span></div>
       <div class="pk"><span class="chk">✓</span><span class="n">Confirmed device list</span><span class="v">18 serials</span></div>
       <div class="pk"><span class="chk chk--off"></span><span class="n">Rack elevation</span><span class="v">failed to generate</span></div>
       <div class="pk"><span class="chk">✓</span><span class="n">Device credentials</span><span class="v">restricted</span></div>
       <button class="addlink">+ Attach another document</button></div>
-    <div class="step"><h3><i>2</i>What must come back</h3>
+    <div class="step"><h3><i>4</i>What must come back</h3>
       <div class="exp"><i>File</i><span>A copy of the programme</span></div>
       <div class="exp"><i>Form</i><span>Commissioning sign-off</span></div>
       <div class="exp"><i>Photos</i><span>The rack as left</span></div>
       <button class="addlink">+ Add a requirement</button></div>
-    <div class="step"><h3><i>3</i>Who and when</h3>
+    <div class="step"><h3><i>5</i>Who and when</h3>
       <div class="fld">
         <select><option>Choose engineer…</option><option>Jack Reilly</option><option>Marcus Okafor</option><option>Priya Shah</option></select>
         <input type="date" value="2026-09-24"></div></div>
