@@ -44,13 +44,36 @@
                 :unavailable="$health === null"
                 :items="$health !== null && $health->status !== 'green' ? [$health->reason] : []" />
 
-            {{-- The spine. Plan 45-07 fills each group with its drawers; the
-                 groups and their order are fixed here. --}}
-            <x-cockpit.section-group title="Visits — someone goes to site" />
+            @if ($isEmpty)
+                <h2 class="cav-attn__head">Nothing has been recorded on this job yet</h2>
 
-            <x-cockpit.section-group title="Documents — produced in the office" />
+                <p class="cav-note">
+                    This cockpit reads records the app already holds. When a site survey is
+                    submitted or a worksheet is signed on site, the visit appears here.
+                </p>
+            @endif
 
-            <x-cockpit.section-group title="Reference" />
+            {{-- The spine. Nine drawers, every one closed at rest — so the
+                 count slot on each summary is the only place a reconstructed
+                 or superseded visit is disclosed to a PM who opens nothing.
+                 The three groups and their order were fixed by Plan 45-06. --}}
+            <x-cockpit.section-group title="Visits — someone goes to site">
+                @foreach ($sections->where('group', \App\Support\Cockpit\CockpitSectionPresenter::GROUP_VISITS) as $section)
+                    @include('projects._cockpit-drawer', ['section' => $section])
+                @endforeach
+            </x-cockpit.section-group>
+
+            <x-cockpit.section-group title="Documents — produced in the office">
+                @foreach ($sections->where('group', \App\Support\Cockpit\CockpitSectionPresenter::GROUP_DOCUMENTS) as $section)
+                    @include('projects._cockpit-drawer', ['section' => $section])
+                @endforeach
+            </x-cockpit.section-group>
+
+            <x-cockpit.section-group title="Reference">
+                @foreach ($sections->where('group', \App\Support\Cockpit\CockpitSectionPresenter::GROUP_REFERENCE) as $section)
+                    @include('projects._cockpit-drawer', ['section' => $section])
+                @endforeach
+            </x-cockpit.section-group>
 
             <p class="cav-note">
                 Visits group by type, so a three-day install is one line until you open it. Each
