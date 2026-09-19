@@ -339,7 +339,7 @@ planning time — no formal requirement IDs existed yet for this milestone; see
 
 **Plans**: 4 plans, 3 waves
 
-- [ ] 44-01-PLAN.md — `labour_resources` schema + `LabourResource` model (roles json column, is_active, nullable user_id). Wave 1. Requirements: LR-01, LR-02.
+- [x] 44-01-PLAN.md — `labour_resources` schema + `LabourResource` model (roles json column, is_active, nullable user_id). Wave 1. Requirements: LR-01, LR-02.
 - [ ] 44-02-PLAN.md — Admin CRUD (`/admin/labour-resources`): add/edit/deactivate, no hard-delete. Wave 2 (parallel with 44-03). Requirements: LR-02.
 - [ ] 44-03-PLAN.md — PM-facing `<x-labour-resource-select>` multi-select component (active-only, name-only). Wave 2 (parallel with 44-02). Requirements: LR-03.
 - [ ] 44-04-PLAN.md — Privacy boundary proof: source-guard + real HTTP-render test that no client-facing surface renders email/phone. Wave 3 — depends on 44-01/44-02/44-03. Requirements: LR-04, LR-05.
