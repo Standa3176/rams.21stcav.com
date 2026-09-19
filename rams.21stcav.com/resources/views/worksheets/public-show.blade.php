@@ -1910,7 +1910,7 @@
             });
         }
 
-        function openLabelReview({ photoId, token, photoUrl, extracted }) {
+        function openLabelReview({ photoId, token, photoUrl, extracted, queued, onOverlayRemoved }) {
             // 260504-ktt: detect when AI extraction returned nothing usable so we
             // can prompt the engineer to type the values manually from the photo.
             const aiFailed = ['part_number','serial_number','mac_address','model','manufacturer']
@@ -1949,7 +1949,14 @@
             `;
             document.body.appendChild(overlay);
             const close = () => { overlay.remove(); window.location.reload(); };
-            overlay.querySelector('#lblCancel').onclick = () => overlay.remove();
+            overlay.querySelector('#lblCancel').onclick = () => {
+                overlay.remove();
+                onOverlayRemoved && onOverlayRemoved();
+                if (queued) {
+                    window.__lcQueueShift && window.__lcQueueShift();
+                    window.__lcMaybePrompt && window.__lcMaybePrompt();
+                }
+            };
             overlay.querySelector('#lblConfirm').onclick = async () => {
                 const fd = new FormData();
                 ['part_number','serial_number','mac_address','model','manufacturer'].forEach((k) => {
@@ -1967,7 +1974,18 @@
                         body: fd,
                     });
                     if (!resp.ok) { alert('Confirm failed.'); return; }
-                    close();
+                    if (queued) {
+                        overlay.remove();
+                        onOverlayRemoved && onOverlayRemoved();
+                        window.__lcQueueShift && window.__lcQueueShift();
+                        if (window.__lcQueueRead && window.__lcQueueRead().length > 0) {
+                            window.__lcMaybePrompt && window.__lcMaybePrompt();
+                        } else {
+                            window.location.reload();
+                        }
+                    } else {
+                        close();
+                    }
                 } catch (e) { alert('Network error.'); }
             };
         }
@@ -2380,7 +2398,7 @@
                 if (!('indexedDB' in window) || OfflineQueue.unavailable) return Promise.resolve();
                 return OfflineQueue.count().then(function (n) {
                     if (n === 0) return null;
-                    return OfflineQueue.drain({}).then(function (result) {
+                    return OfflineQueue.drain({ onSuccess: window.__lcHandleLabelUploadSuccess }).then(function (result) {
                         if (!result) return null;
                         if (result.successCount >= 1) {
                             showToast('✅ Uploaded ' + result.successCount + ' pending photo(s)', 'success');
@@ -2388,6 +2406,7 @@
                         if (result.hitMaxRetry >= 1) {
                             showToast('⚠ ' + result.hitMaxRetry + ' upload(s) failed after retries — tap the pending chip to review', 'warning', 6000);
                         }
+                        window.__lcMaybePrompt && window.__lcMaybePrompt();
                         return result;
                     });
                 });
@@ -2700,7 +2719,7 @@
             // Retry all.
             if (retryAll) {
                 retryAll.addEventListener('click', function () {
-                    window.OfflineQueue.drain({}).then(function (result) {
+                    window.OfflineQueue.drain({ onSuccess: window.__lcHandleLabelUploadSuccess }).then(function (result) {
                         if (!result) return;
                         if (result.successCount >= 1) {
                             (window.__wsShowToast || function(){})('✅ Uploaded ' + result.successCount + ' pending photo(s)', 'success');
@@ -2708,6 +2727,7 @@
                         if (result.hitMaxRetry >= 1) {
                             (window.__wsShowToast || function(){})('⚠ ' + result.hitMaxRetry + ' upload(s) failed after retries — tap the pending chip to review', 'warning', 6000);
                         }
+                        window.__lcMaybePrompt && window.__lcMaybePrompt();
                     });
                 });
             }
@@ -2726,7 +2746,7 @@
                     // retry is effectively the same as Retry all but the user
                     // explicitly chose this row. Keep behaviour identical for
                     // simplicity.
-                    window.OfflineQueue.drain({}).then(function (result) {
+                    window.OfflineQueue.drain({ onSuccess: window.__lcHandleLabelUploadSuccess }).then(function (result) {
                         if (!result) return;
                         if (result.successCount >= 1) {
                             (window.__wsShowToast || function(){})('✅ Uploaded ' + result.successCount + ' pending photo(s)', 'success');
@@ -2734,6 +2754,7 @@
                         if (result.hitMaxRetry >= 1) {
                             (window.__wsShowToast || function(){})('⚠ ' + result.hitMaxRetry + ' upload(s) failed after retries — tap the pending chip to review', 'warning', 6000);
                         }
+                        window.__lcMaybePrompt && window.__lcMaybePrompt();
                     });
                 }
             });
@@ -2754,6 +2775,108 @@
                 document.addEventListener('DOMContentLoaded', refreshChip);
             } else {
                 refreshChip();
+            }
+        })();
+    </script>
+
+    <script>
+        // ── 260919-f8e — confirm queued serial labels on reconnect ──
+        // Bridges OfflineQueue.drain()'s onSuccess callback to the existing
+        // AI-extraction confirm/edit modal (openLabelReview) so a label photo
+        // that finishes uploading after a reconnect (auto-drain / Retry all /
+        // per-item retry) is automatically surfaced for confirmation instead
+        // of relying solely on the engineer finding the amber "Review" badge
+        // in a collapsed Kit List drawer. Durable across an unrelated page
+        // reload via sessionStorage only — no IndexedDB schema change.
+        (function () {
+            'use strict';
+
+            function _lcQueueKey() {
+                return 'wsPendingLabelConfirms_' + {{ (int) $worksheet->id }};
+            }
+
+            function _lcQueueRead() {
+                try {
+                    var raw = sessionStorage.getItem(_lcQueueKey());
+                    if (!raw) return [];
+                    var arr = JSON.parse(raw);
+                    return Array.isArray(arr) ? arr : [];
+                } catch (e) {
+                    return [];
+                }
+            }
+
+            function _lcQueueWrite(arr) {
+                try {
+                    sessionStorage.setItem(_lcQueueKey(), JSON.stringify(arr));
+                } catch (e) { /* sessionStorage disabled — silently skip */ }
+            }
+
+            function _lcQueuePush(entry) {
+                var arr = _lcQueueRead();
+                var exists = arr.some(function (e) { return e.photoId === entry.photoId; });
+                if (exists) return;
+                arr.push(entry);
+                _lcQueueWrite(arr);
+            }
+
+            function _lcQueueShift() {
+                var arr = _lcQueueRead();
+                arr.shift();
+                _lcQueueWrite(arr);
+            }
+
+            let _lcModalOpen = false;
+
+            function _lcMaybePrompt() {
+                if (_lcModalOpen) return;
+                var arr = _lcQueueRead();
+                if (!arr.length) return;
+                var entry = arr[0];
+                _lcModalOpen = true;
+                openLabelReview({
+                    photoId: entry.photoId,
+                    token: entry.token,
+                    photoUrl: entry.photoUrl,
+                    extracted: entry.extracted || {},
+                    queued: true,
+                    onOverlayRemoved: function () { _lcModalOpen = false; },
+                });
+            }
+
+            // Exposed so openLabelReview (declared in an earlier, separate
+            // <script> tag's top-level scope) can advance the queue directly
+            // on Cancel/Confirm without reaching into this IIFE's closure.
+            window.__lcQueueRead = _lcQueueRead;
+            window.__lcQueueShift = _lcQueueShift;
+
+            window.__lcHandleLabelUploadSuccess = function (row, json) {
+                if (row && row.kind === 'label' && json && json.id) {
+                    _lcQueuePush({
+                        photoId: json.id,
+                        token: row.token,
+                        photoUrl: json.photo_url,
+                        extracted: json.ai_extracted || {},
+                    });
+                }
+            };
+
+            window.__lcMaybePrompt = function () {
+                var before = _lcQueueRead().length;
+                if (before && window.__wsShowToast && !_lcModalOpen) {
+                    window.__wsShowToast('Label photo(s) uploaded — confirm the serial reading (' + before + ')', 'info', 6000);
+                }
+                _lcMaybePrompt();
+            };
+
+            function _lcInit() {
+                window.__lcMaybePrompt();
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', _lcInit);
+            } else {
+                _lcInit();
             }
         })();
     </script>
