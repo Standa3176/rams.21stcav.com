@@ -82,6 +82,20 @@ All taken interactively with the user on 2026-09-19.
   plan, not as a nice-to-have. If the split cannot be made behaviour-preserving, stop and raise it
   rather than relaxing criterion 4.
 
+  **Refinement added 2026-09-19 after research (see `45-RESEARCH.md`).** "Visits hang off the
+  durable half" cannot be read literally, because a backfilled **survey** visit often predates any
+  install programme existing at all. The spine is therefore `visits.project_id` (NOT NULL), with a
+  **nullable** link to the durable install record for visits that belong to one. This does not
+  change the user's decision to do the split — it records that the project, not the install record,
+  is a visit's mandatory parent.
+
+  **Also from research, and binding:** the split must be **additive** — a new durable parent table
+  above `install_programmes`, with a **nullable** FK on `install_programmes`. `install_tasks` do NOT
+  move. Moving them would require re-pointing the live `commissioning_items.install_task_id` FK and
+  renegotiating the UNIQUE constraint on `commissioning_signoffs.install_programme_id`; that is
+  Phase 51's work and is NOT achievable behaviour-preservingly here. The FK must be nullable or
+  `InstallProgrammeFactory` breaks and the failure cascades across the whole programme test suite.
+
 ### Brand
 
 - **D-07:** The cockpit is built in **21CAV brand** — teal `#01889F`, gold `#D4AF37` accents,
@@ -145,7 +159,16 @@ All taken interactively with the user on 2026-09-19.
 - `app/Services/ProjectHealthService.php` — existing green/amber/red derivation
 - `config/rams_tier1.php` — the flag convention, and the armed-by-default doctrine comment at
   lines 115-133
-- The `21cav-brand` skill — the brand reference behind D-07 (palette, type scale, CSS variables)
+- `.planning/reference/21cav-rams-skill/scripts/brand.js` lines 7-28 — the **in-repo** brand token
+  source behind D-07, verified 2026-09-19: teal `#01889F`, teal-dark `#016E82`, gold `#D4AF37`,
+  Verdana headings, Poppins body. Use this, not the `21cav-brand` Claude skill — that skill is not
+  vendored into this repo, so a downstream agent cannot read it.
+
+  ⚠️ **`--teal-*` in this app already means BLUE.** `resources/views/layouts/app.blade.php:62-69`
+  aliases every `--teal-*` variable to navy/accent (`#1E5FE0` family) for backwards compatibility,
+  and 60+ classes depend on that. New brand tokens MUST use a fresh prefix and MUST be scoped to
+  the cockpit (the `@stack('styles')` seam at `:1322`) rather than added to that file's `:root`,
+  which would retone the entire app and violate criterion 4.
 
 </canonical_refs>
 
@@ -167,9 +190,19 @@ All taken interactively with the user on 2026-09-19.
   Any new code touching them must preserve that.
 - `LabourResource` (Phase 44) exists with `toClientSafeArray()` returning id + name only. Visits
   assign resources; **LR-04 still binds** — no client-facing visit surface may render a resource's
-  email or phone. `tests/Feature/Security/LabourResourceClientSurfacePrivacyTest.php` is a
-  source-guard over client-facing files and **will need the new cockpit and visit views added to
-  its file list**.
+  email or phone.
+
+  **Corrected 2026-09-19 after research.** An earlier draft of this file said the cockpit views
+  must be added to `tests/Feature/Security/LabourResourceClientSurfacePrivacyTest.php`. **That is
+  wrong and must not be done.** The cockpit is a staff-auth PM surface, and that test's docblock
+  (`:55-61`) explicitly forbids adding staff-auth surfaces to its scan: doing so "would misclassify
+  a staff-only surface as client-facing". The cockpit is exactly the surface LR-04 sanctions —
+  contact details *are* visible to the PM.
+
+  What does bind: the moment a phase adds a **client-facing** visit surface (an engineer or client
+  link outside the authenticated block, or a generated client document), that file goes into
+  `CLIENT_FACING_PATHS` (`:95-124`). Phase 45 is read-only and staff-only, so it adds none. Phase 46
+  onward will.
 
 ### Established patterns
 - Feature flags: `config/*.php` key reading `env('UPPER_SNAKE', false)`.
