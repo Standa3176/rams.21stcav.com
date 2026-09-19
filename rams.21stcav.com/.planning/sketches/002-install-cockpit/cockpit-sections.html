@@ -117,6 +117,27 @@ h1,h2{font-family:var(--head);margin:0}
 .addlink{background:none;border:0;color:var(--teal);font:500 .84rem var(--body);cursor:pointer;padding:8px 0 0}
 .ret{background:var(--teal-soft);padding:13px 15px;border-radius:2px;margin-bottom:20px;font-size:.89rem}
 .ret b{font-family:var(--head)}
+
+/* snag items */
+.grp{font-family:var(--head);font-size:.68rem;font-weight:700;color:var(--light);
+     letter-spacing:.05em;margin:14px 0 2px;padding-top:10px;border-top:1px solid #f4f4f4}
+.grp:first-child{margin-top:2px;padding-top:0;border-top:0}
+.sg{display:flex;align-items:center;gap:12px;padding:10px 0;font-size:.89rem;cursor:pointer;
+    border-top:1px solid #f8f8f8}
+.sg:hover .vt{color:var(--teal-dark)}
+.sg--done{opacity:.55}
+.sn{font-family:var(--head);font-size:.7rem;font-weight:700;color:#fff;background:var(--light);
+    width:20px;height:20px;border-radius:50%;display:grid;place-items:center;flex:none}
+.sg--done .sn{background:var(--teal)}
+.chain{font-size:.82rem;color:var(--mid);padding:8px 11px;background:#f6f6f6;border-radius:2px;
+       margin:10px 0}
+.oc{display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid #f4f4f4;
+    font-size:.89rem}
+.oc:first-of-type{border-top:0}
+.oc .n{flex:1 1 auto}
+.oc .r{font-size:.78rem;white-space:nowrap}
+.r--fix{color:var(--teal-dark)} .r--no{color:#8a6d13;font-weight:500} .r--def{color:var(--light)}
+
 @media(max-width:480px){ .dw>summary{gap:10px;padding:14px 13px} .s,.c{display:none} }
 </style>
 </head>
@@ -199,12 +220,62 @@ h1,h2{font-family:var(--head);margin:0}
   </details>
 
   <details class="dw">
-    <summary><span class="pip pip--wait"></span><span class="t">Snagging</span>
-      <span class="c">not booked</span><span class="s s--attn">2 open items</span><span class="arrow">›</span></summary>
+    <summary><span class="pip pip--attn"></span><span class="t">Snagging</span>
+      <span class="c">6 snags</span><span class="s s--attn">3 open</span><span class="arrow">›</span></summary>
     <div class="body">
-      <p class="hint">Two items carried from the 18 Sep install visit. Book once the client
-        confirms power.</p>
-      <div class="bar"><button class="btn btn--q">Book a visit</button></div>
+
+      <p class="grp">Open</p>
+      <div class="sg" onclick="openPan('snag')">
+        <span class="sn">3</span>
+        <span class="vt">Boardroom trunking to be made good<small>from install visit, 18 Sep · no parts needed</small></span>
+        <span class="vs vs--attn">By others</span>
+      </div>
+      <div class="sg">
+        <span class="sn">4</span>
+        <span class="vt">Reception display has no power<small>from install visit, 18 Sep · with the client</small></span>
+        <span class="vs vs--attn">Client to do</span>
+      </div>
+      <div class="sg">
+        <span class="sn">6</span>
+        <span class="vt">Meeting 2 — mic still not pairing<small>raised from snag 2, not fixed on 20 Sep</small></span>
+        <span class="vs vs--attn">Needs a visit</span>
+      </div>
+
+      <p class="grp">Scheduled</p>
+      <div class="sg">
+        <span class="sn">5</span>
+        <span class="vt">Meeting 3 HDMI plate loose<small>faceplate sent 20 Sep · on the 26 Sep visit</small></span>
+        <span class="vs">26 Sep</span>
+      </div>
+
+      <p class="grp">Resolved</p>
+      <div class="sg sg--done">
+        <span class="sn">1</span>
+        <span class="vt">Rack fan noise<small>fixed 20 Sep by M. Okafor</small></span>
+        <span class="vs">▣ Photo</span>
+      </div>
+      <div class="sg sg--done">
+        <span class="sn">2</span>
+        <span class="vt">Meeting 2 mic pairing<small>reported not fixed 20 Sep — raised snag 6</small></span>
+        <span class="vs">Reopened</span>
+      </div>
+
+      <p class="grp">Visits</p>
+      <div class="sg" onclick="openPan('snagvisit')">
+        <span class="vd">20 Sep</span>
+        <span class="vt">Marcus Okafor<small>3 snags · 1 fixed, 1 not fixed, 1 deferred · £300</small></span>
+        <span class="vs">Accepted</span>
+      </div>
+      <div class="sg">
+        <span class="vd">26 Sep</span>
+        <span class="vt">Not assigned<small>1 snag allocated · faceplate already on site</small></span>
+        <span class="vs vs--attn">No link sent</span>
+      </div>
+
+      <div class="bar">
+        <button class="btn btn--q">Add a snag</button>
+        <button class="btn">Book a visit</button>
+      </div>
     </div>
   </details>
 
@@ -344,6 +415,59 @@ h1,h2{font-family:var(--head);margin:0}
       <div class="exp"><i>Part</i><span>600mm interface plate for the Boardroom</span></div>
       <div class="exp"><i>Client</i><span>Power behind the Reception display</span></div>
       <div class="exp"><i>Urgent</i><span>Asbestos register covers floor 2 only</span></div></div>
+  </div>
+  <div class="pan__f"><button class="btn btn--q" onclick="closePan()">Close</button></div>
+</aside>
+
+<!-- ONE SNAG ITEM, with its chain -->
+<aside class="pan" id="pan-snag" aria-hidden="true">
+  <div class="pan__h"><button class="pan__x" onclick="closePan()">×</button>
+    <h2>Snag 3</h2><div class="m">Boardroom trunking to be made good</div></div>
+  <div class="pan__b">
+    <div class="step"><h3><i>1</i>Where it came from</h3>
+      <div class="pk"><span class="n">Raised on the install visit</span><span class="v">18 Sep</span></div>
+      <div class="pk"><span class="n">Reported by</span><span class="v">Marcus Okafor</span></div>
+      <div class="pk"><span class="n">Room</span><span class="v">Boardroom</span></div></div>
+
+    <div class="step"><h3><i>2</i>Parts</h3>
+      <div class="exp"><i>None</i><span>Trunking is being made good by the client's fit-out contractor.</span></div>
+      <button class="addlink">+ Order a part for this snag</button></div>
+
+    <div class="step"><h3><i>3</i>Who resolves it</h3>
+      <div class="fld">
+        <select><option>By others — client's contractor</option><option>Allocate to a snag visit…</option></select>
+      </div>
+      <p style="margin:10px 0 0;font-size:.85rem;color:var(--mid)">
+        Nothing is booked. This one is waiting on somebody else, so it sits open without a visit
+        until the client confirms it is done.</p></div>
+  </div>
+  <div class="pan__f"><button class="btn">Allocate to a visit</button>
+    <button class="btn btn--q">Mark resolved</button></div>
+</aside>
+
+<!-- A SNAG VISIT — several items, one outcome each -->
+<aside class="pan" id="pan-snagvisit" aria-hidden="true">
+  <div class="pan__h"><button class="pan__x" onclick="closePan()">×</button>
+    <h2>Snag visit</h2><div class="m">20 Sep &nbsp;·&nbsp; Marcus Okafor &nbsp;·&nbsp; 3 snags</div></div>
+  <div class="pan__b">
+    <div class="ret"><b>Returned 20 Sep.</b> One fixed, one not fixed, one deferred.</div>
+
+    <div class="step"><h3><i>1</i>What the engineer took</h3>
+      <div class="pk"><span class="chk">✓</span><span class="n">Replacement rack fan</span><span class="v">for snag 1</span></div>
+      <div class="pk"><span class="chk">✓</span><span class="n">HDMI faceplate</span><span class="v">for snag 5</span></div>
+      <div class="pk"><span class="chk">✓</span><span class="n">Site map and access note</span></div></div>
+
+    <div class="step"><h3><i>2</i>What came back, snag by snag</h3>
+      <div class="oc"><span class="sn">1</span><span class="n">Rack fan noise</span><span class="r r--fix">Fixed ▣</span></div>
+      <div class="oc"><span class="sn">2</span><span class="n">Meeting 2 mic pairing</span><span class="r r--no">Not fixed</span></div>
+      <div class="oc"><span class="sn">5</span><span class="n">Meeting 3 HDMI plate</span><span class="r r--def">Deferred — room in use</span></div>
+      <div class="chain">
+        Snag 2 came back unfixed, so <b>snag 6</b> was raised and linked to it. Snag 5 went back
+        to the open list and is now on the 26 Sep visit.
+      </div></div>
+
+    <div class="step"><h3><i>3</i>Cost</h3>
+      <div class="pk"><span class="n">1 engineer, half day</span><span class="v">£300</span></div></div>
   </div>
   <div class="pan__f"><button class="btn btn--q" onclick="closePan()">Close</button></div>
 </aside>
