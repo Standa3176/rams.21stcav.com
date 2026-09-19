@@ -371,6 +371,21 @@ class Project extends Model
         return $this->hasOne(InstallRecord::class);
     }
 
+    /**
+     * Phase 45 — every typed trip to site filed against this project, oldest
+     * first. A visit's MANDATORY parent is the project (45-CONTEXT.md D-06
+     * refinement), so this is the canonical set; InstallRecord::visits() is a
+     * legitimate subset of it.
+     *
+     * Ordered here rather than at the call site so the cockpit's drawers get
+     * date order without re-sorting, and so a superseded visit keeps its
+     * position (D-04) instead of being pushed to the end.
+     */
+    public function visits(): HasMany
+    {
+        return $this->hasMany(Visit::class)->orderBy('scheduled_date');
+    }
+
     public function installProgrammes(): HasMany
     {
         return $this->hasMany(InstallProgramme::class)->orderBy('created_at', 'desc');

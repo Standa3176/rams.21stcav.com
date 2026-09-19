@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\DTO\ProjectHealth;
 use App\Models\Project;
 use App\Services\ProjectHealthService;
+use App\Support\Cockpit\CockpitSectionPresenter;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 use Throwable;
@@ -31,8 +32,10 @@ use Throwable;
  */
 class ProjectCockpitController extends Controller
 {
-    public function __construct(private ProjectHealthService $health)
-    {
+    public function __construct(
+        private ProjectHealthService $health,
+        private CockpitSectionPresenter $sections,
+    ) {
     }
 
     public function show(Project $project): View
@@ -49,7 +52,22 @@ class ProjectCockpitController extends Controller
 
         $health = $this->assessQuietly($project);
 
-        return view('projects.cockpit', compact('project', 'health'));
+        // The spine's own relations. Eager-loaded AFTER assess() so the probe
+        // above still proves the health contract, and loaded here rather than
+        // derived here — the controller wires, the presenter derives.
+        $project->loadMissing([
+            'visits',
+            'worksheets',
+            'installProgrammes',
+            'drawings',
+            'omManuals',
+            'cableSchedules',
+        ]);
+
+        $sections = $this->sections->sections($project);
+        $isEmpty  = $this->sections->isEmpty($project);
+
+        return view('projects.cockpit', compact('project', 'health', 'sections', 'isEmpty'));
     }
 
     /**
