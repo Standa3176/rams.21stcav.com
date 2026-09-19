@@ -360,6 +360,17 @@ class Project extends Model
         return $this->hasMany(TrainingRecord::class);
     }
 
+    /**
+     * Phase 45 / D-06 — the project's ONE durable install record (unique index
+     * on install_records.project_id). Created lazily by
+     * InstallProgrammeService::createForProject(), so this is null for a
+     * project that has never had a programme generated.
+     */
+    public function installRecord(): HasOne
+    {
+        return $this->hasOne(InstallRecord::class);
+    }
+
     public function installProgrammes(): HasMany
     {
         return $this->hasMany(InstallProgramme::class)->orderBy('created_at', 'desc');

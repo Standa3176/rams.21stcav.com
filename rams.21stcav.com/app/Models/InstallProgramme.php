@@ -38,6 +38,11 @@ class InstallProgramme extends Model
 
     protected $fillable = [
         'project_id',
+        // Phase 45 / D-06 — the durable parent. Fillable so
+        // InstallProgrammeService::createForProject() can set it in its
+        // EXISTING single create([...]) call rather than needing a second
+        // write. Nullable at the DB level: see the migration docblock.
+        'install_record_id',
         'generated_by',
         'status',
         'generated_at',
@@ -66,6 +71,15 @@ class InstallProgramme extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    /**
+     * Phase 45 / D-06 — the durable install record this generation belongs to.
+     * Nullable: pre-Phase-45 rows are linked by `install-records:backfill`.
+     */
+    public function installRecord(): BelongsTo
+    {
+        return $this->belongsTo(InstallRecord::class);
     }
 
     public function generatedBy(): BelongsTo
