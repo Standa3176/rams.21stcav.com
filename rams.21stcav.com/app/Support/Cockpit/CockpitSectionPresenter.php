@@ -290,7 +290,9 @@ final class CockpitSectionPresenter
             rows: [
                 [
                     'name'  => 'Drawn',
-                    'value' => $this->plainCount($drawings->count(), 'drawing', 'drawings'),
+                    'value' => $drawings->isNotEmpty()
+                        ? $this->plainCount($drawings->count(), 'drawing', 'drawings')
+                        : 'Not drawn',
                     'done'  => $drawings->isNotEmpty(),
                 ],
                 [
