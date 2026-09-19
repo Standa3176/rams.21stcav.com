@@ -269,6 +269,78 @@ Plans:
 
 ---
 
+## 📋 v4.0 Project Cockpit (Planned)
+
+*"One page per project. Every trip to site is a visit. Nothing is said twice."*
+
+Replaces the eleven-tab project page with a single cockpit of section drawers, closed at rest.
+Each section is also its deliverable. Every attendance on site becomes a **typed visit** — site
+survey, first fix, install, programming, snag, commissioning — and the type drives both what the
+engineer's link contains and what must come back. RAMS and worksheets stop being project-level
+documents and become artifacts of the visit they were written for.
+
+**Design source of truth:** `.planning/sketches/002-install-cockpit/` (cockpit + panels) and
+`.planning/sketches/003-quote-import/` (import review). Decisions were taken interactively on
+2026-09-19; the sketch READMEs record what was chosen and why.
+
+**Phases:** 44–51. Continues from the v1.6 outline (40–43); 32–43 remain reserved for
+v1.4/v1.5/v1.6.
+
+### Deliberately out of scope for v4.0
+
+Each of these is **recorded in the admin Hidden Functions register**, not forgotten:
+
+- **Visit costs** — no cost/rate capture. Deferred by decision 2026-09-19.
+- **Install programme task planner** — the 52-task scheduler, week view, Gantt, field view and
+  task assignment are hidden for launch so the system ships simple. ⚠️ `CommissioningItemGenerator`
+  currently derives items from programme *tasks*; Phase 51 must re-source them from the asset
+  register before this is safe.
+- **In-app drawing generation** — schematics, rack builder, rack canvas editor, bound PDF.
+  Drawings are produced in StarDrawer and uploaded (Phase 48) while the in-app builder continues
+  separately.
+- **Project-level RAMS view** — RAMS becomes per-visit; a "every RAMS on this project" surface is
+  not rebuilt.
+
+### Phases
+
+- [ ] **Phase 44: Labour Resources** — one table with a role field (engineer / programmer / other), admin add + remove, PM-facing assignment dropdowns. Client-facing output may expose a name only, never email or phone.
+- [ ] **Phase 45: Visit Model + Read-only Cockpit** — a `visits` table wrapping existing `SiteSurvey` and `Worksheet` rows (backfilled, nothing deleted); the cockpit page behind a flag, read-only, alongside the existing project page.
+- [ ] **Phase 46: Visit Lifecycle** — prepare, send, return, accept. Per-visit RAMS and worksheet scoped to the visit's type and rooms. A visit stays editable after sending; scope locks once a return arrives.
+- [ ] **Phase 47: Snagging** — snag items separate from snag visits; three outcomes (fixed, not fixed, deferred); a not-fixed item requires the engineer to state actions and parts needed, closes the visit, and opens a new snag linked to the original. Parts tracked per snag. Snags may sit with the client or others and never have a visit.
+- [ ] **Phase 48: Documents** — generate client-facing documents; the PM sends them and confirms sent in-app, recording who, when and which revision. O&M offered as full or mini. Drawings uploaded from StarDrawer.
+- [ ] **Phase 49: Import Review + Self-populating Deliverables** — one import screen showing what the quote contains, with deliverables ticked from its lines and labelled *from quote* / *assumed* / *not found*. All nine always shown. The equipment-line review opens in a side panel.
+- [ ] **Phase 50: Project Data Versioning** — re-import a later QuoteWerks revision: product, quantity and labour replace the old; superseded data is archived and viewable; images on removed rooms are retained against the archived version.
+- [ ] **Phase 51: Commissioning as a Visit Type** — items derived per device from the asset register rather than from programme tasks, unblocking the hidden task planner.
+
+### Phase 44: Labour Resources
+
+**Goal**: A single labour-resource record with a role, maintained in admin, that the PM selects
+from anywhere work is assigned — and which can never leak an engineer's contact details into
+anything a client sees.
+
+**Depends on**: Nothing. Deliberately first because it is standalone and useful on its own.
+
+**Requirements**: Derived from the 2026-09-19 design decisions — see
+`.planning/sketches/002-install-cockpit/README.md`.
+
+**Success Criteria** (what must be TRUE):
+
+  1. One table holds every labour resource with a role field (engineer / programmer / other) — a
+     person may hold more than one role rather than appearing twice
+  2. An admin can add, edit and deactivate a resource; deactivating preserves history on past
+     visits rather than deleting the person
+  3. A PM can select one or more resources anywhere work is assigned, by name
+  4. **Contact details never reach a client-facing surface.** Email and phone are visible to the
+     PM and admin only. Proven by a test asserting that no client-facing document or page renders
+     a resource's email or phone, only the name
+  5. Existing engineer names already recorded as free text (`captured_by`, worksheet sign-offs)
+     still display correctly and are not broken by the new table
+
+**Plans**: TBD
+**UI hint**: yes (admin CRUD plus a PM-facing selector)
+
+---
+
 ## 🚧 v2.0 Engineering-Grade AV Drawings (Paused)
 
 **Status note (2026-08-23):** Paused mid-milestone in favour of v3.0. Phases 21, 22, 22.1 and 23 are complete on disk. Phase 24 has one open plan (24-09, a bounded human-checkpoint curation task, out of autonomous-executor scope by design). Phase 25 remains unplanned. Resume either after v3.0 ships or opportunistically between v3.0 phases.
