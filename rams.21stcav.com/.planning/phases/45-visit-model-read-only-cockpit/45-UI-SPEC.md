@@ -507,7 +507,12 @@ channel, so pip-only is not colour-only.
 the only place a reconstructed or superseded visit is disclosed without the PM opening anything
 (§ Reconstructed requires exactly this). Hiding the count on phones means a PM reading the spine on
 site sees an inferred visit as an unqualified fact — the precise failure D-02 exists to prevent.
-Sketch open question 3 already flags that phone width was checked at 560px but never on a handset. The two-row summary above preserves every state channel at 320px; it
+Sketch open question 3 already flags that phone width was checked at 560px but never on a handset.
+
+**Signed off by the user 2026-09-19.** This is the only deviation from the accepted layout in this
+contract, and it was put to the user explicitly with the alternatives (follow the sketch, or keep
+the count and drop the status). The user chose to keep the two-row summary. The deviation is
+therefore sanctioned, not merely flagged — do not "restore" the sketch's rule during implementation. The two-row summary above preserves every state channel at 320px; it
 changes reflow only, not hierarchy or visual direction.
 
 ---
