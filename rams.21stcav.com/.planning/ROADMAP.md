@@ -303,7 +303,7 @@ Each of these is **recorded in the admin Hidden Functions register**, not forgot
 
 ### Phases
 
-- [ ] **Phase 44: Labour Resources** — one table with a role field (engineer / programmer / other), admin add + remove, PM-facing assignment dropdowns. Client-facing output may expose a name only, never email or phone.
+- [x] **Phase 44: Labour Resources** — one table with a role field (engineer / programmer / other), admin add + remove, PM-facing assignment dropdowns. Client-facing output may expose a name only, never email or phone.
 - [ ] **Phase 45: Visit Model + Read-only Cockpit** — a `visits` table wrapping existing `SiteSurvey` and `Worksheet` rows (backfilled, nothing deleted); the cockpit page behind a flag, read-only, alongside the existing project page.
 - [ ] **Phase 46: Visit Lifecycle** — prepare, send, return, accept. Per-visit RAMS and worksheet scoped to the visit's type and rooms. A visit stays editable after sending; scope locks once a return arrives.
 - [ ] **Phase 47: Snagging** — snag items separate from snag visits; three outcomes (fixed, not fixed, deferred); a not-fixed item requires the engineer to state actions and parts needed, closes the visit, and opens a new snag linked to the original. Parts tracked per snag. Snags may sit with the client or others and never have a visit.

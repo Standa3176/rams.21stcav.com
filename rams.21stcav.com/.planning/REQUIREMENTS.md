@@ -1,7 +1,87 @@
 # RAMS Platform — Requirements
 
-> Current milestone: **v3.0 RAMS Skill Parity**. v2.0 requirements are preserved
-> below; v2.0 is **PARKED** (see MILESTONES.md), not cancelled.
+> Current milestone: **v4.0 Project Cockpit**. v3.0 requirements are preserved below and
+> remain live work (Phases 29-31 carry open gates). v2.0 is **PARKED** (see MILESTONES.md),
+> not cancelled.
+
+---
+
+## Milestone v4.0 Requirements
+
+**Milestone:** v4.0 Project Cockpit
+**Defined:** 2026-09-19
+**Source of truth:** the interactive design decisions taken with the user on 2026-09-19,
+recorded in `.planning/sketches/002-install-cockpit/README.md` (cockpit + panels) and
+`.planning/sketches/003-quote-import/README.md` (import review). The sketches are the
+**visual contract**; where an implementation and a sketch disagree, the sketch wins unless
+the user says otherwise.
+**Total requirements:** 5 defined so far (LR-01..LR-05, Phase 44). Phases 45–51 are
+outlined in the roadmap but their requirement IDs are **not yet minted** — each will be
+added here when its phase is planned.
+
+### Why this milestone exists
+
+The project page is eleven tabs. A PM cannot see the state of a job without visiting most
+of them, and the same fact is recorded in more than one place. Worse, the app is good at
+*collecting* structured information from engineers and bad at *turning it into work*:
+outstanding items are inert text, serials go unconfirmed, and survey returns generate no
+actions.
+
+v4.0 collapses the eleven tabs into one cockpit of section drawers, closed at rest, where
+each section **is** its deliverable. Every attendance on site becomes a typed visit, and the
+type drives both what the engineer's link contains and what must come back.
+
+### Group LR — Labour resources (Phase 44)
+
+These five were minted at planning time on 2026-09-19 — no formal requirement IDs existed
+for this milestone yet — and map 1:1 to the Phase 44 success criteria in `ROADMAP.md`.
+
+- **LR-01** — One table holds every labour resource with a role field (engineer / programmer /
+  other). A person may hold more than one role rather than appearing as two rows.
+- **LR-02** — An admin can add, edit and **deactivate** a resource. Deactivating preserves the
+  person on past visits rather than deleting them; there is no hard-delete path.
+- **LR-03** — A PM can select one or more resources, by name, anywhere work is assigned. The
+  selector is for the PM only — explicitly **not** on engineer-facing forms.
+- **LR-04** — **A client is never given an engineer's or programmer's phone or email. Name
+  only.** Contact details exist on the record for the PM's use and are visible to PM and admin
+  only. This is a hard rule, not a convention, and must be proven by a test asserting that no
+  client-facing document or page renders a resource's email or phone.
+- **LR-05** — Engineer names already recorded as free text (`captured_by` on device label
+  photos, worksheet sign-offs, survey returns) still display correctly and are not broken or
+  rewritten by the new table.
+
+*User's own words on LR-04, quoted in the test docblock so the intent survives: "Client should
+only be given engineer name never phone or email — this is for PM only."*
+
+### Out of scope for v4.0
+
+Each is **recorded in the admin Hidden Functions register**, not forgotten:
+
+- **Visit costs** — no cost or day-rate capture on labour resources or visits. Deferred by
+  explicit decision 2026-09-19 ("do not build yet").
+- **Install programme task planner** — the 52-task scheduler, week view, Gantt, field view and
+  task assignment are hidden for launch. ⚠️ `CommissioningItemGenerator` currently derives items
+  from programme *tasks*; Phase 51 must re-source them from the asset register before unhiding
+  is safe.
+- **In-app drawing generation** — drawings are produced in StarDrawer and uploaded (Phase 48).
+- **Project-level RAMS view** — RAMS becomes per-visit; an "every RAMS on this project" surface
+  is not rebuilt.
+- **Engineer logins** — labour resources are records, not accounts.
+- **Linking historical free-text engineer names to resource rows** — possible later, explicitly
+  not now (LR-05 requires only that they keep working).
+
+### Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| LR-01 | Phase 44 | Complete (Plan 44-01, 2026-09-19 — `labour_resources` table, `roles` json column) |
+| LR-02 | Phase 44 | Complete (Plans 44-01 + 44-02, 2026-09-19 — `is_active` flag; admin CRUD has no `destroy()` method or route by design) |
+| LR-03 | Phase 44 | Complete (Plan 44-03, 2026-09-19 — `<x-labour-resource-select>`, active-only, name-only) |
+| LR-04 | Phase 44 | Complete (Plan 44-04, 2026-09-19 — source-guard over 20 client-facing files + live HTTP render proof + non-vacuity meta-test) |
+| LR-05 | Phase 44 | Complete (Plan 44-04, 2026-09-19 — free-text `captured_by` paths untouched and asserted) |
+
+*Phases 45–51 have no requirement IDs yet. Mint them into this section as each phase is planned,
+following the LR-xx pattern.*
 
 ---
 
