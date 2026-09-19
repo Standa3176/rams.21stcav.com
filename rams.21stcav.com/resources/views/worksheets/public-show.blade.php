@@ -1468,6 +1468,7 @@
             let drawing = false;
             let dirty   = false;
             let lastX = 0, lastY = 0;
+            let lastWidth = 0;
 
             // 260504-q19 — central submit-state gate. Button is enabled only when
             // all three are true: signature drawn, at least one checkbox ticked,
@@ -1496,6 +1497,16 @@
                 ctx.lineCap     = 'round';
                 ctx.lineJoin    = 'round';
                 ctx.strokeStyle = '#0F172A';
+                lastWidth = rect.width;
+            }
+
+            // 260919-chb — write the current bitmap into the hidden input at the
+            // end of every completed stroke, so no intervening reset (this file's
+            // resize handler or any future one) can silently empty the field the
+            // submit handler relies on. No-op on a blank canvas.
+            function captureSignature() {
+                if (! dirty) return;
+                document.getElementById('signature_image').value = canvas.toDataURL('image/png');
             }
 
             function pointerPos(evt) {
@@ -1527,7 +1538,10 @@
                 }
             }
             function end(evt) {
-                if (drawing) evt.preventDefault();
+                if (drawing) {
+                    evt.preventDefault();
+                    captureSignature();
+                }
                 drawing = false;
             }
 
@@ -1567,13 +1581,43 @@
 
             // Defer initial resize so layout has settled.
             requestAnimationFrame(resizeCanvas);
+            // 260919-chb — `resize` fires on mobile for viewport-height-only
+            // changes (on-screen keyboard opening/closing, iOS Safari URL-bar
+            // collapse) far more often than for a genuine width change. Only the
+            // canvas's rendered CSS width actually invalidates the backing store,
+            // so gate on measured width to stop those height-only events from
+            // wiping a drawn signature (the Worksheet 22 / 21CQ30674-03-OPS bug).
             window.addEventListener('resize', () => {
-                // Reset on resize — drawing on resized canvas would be misaligned.
+                const newWidth = canvas.getBoundingClientRect().width;
+                const widthChanged = Math.abs(newWidth - lastWidth) > 1;
+                if (! widthChanged) return;
+
+                let snapshot = null;
+                if (dirty) {
+                    try {
+                        snapshot = canvas.toDataURL('image/png');
+                    } catch (e) {
+                        snapshot = null;
+                    }
+                }
+
                 resizeCanvas();
-                dirty = false;
-                window.__signoffSignatureDrawn = false;
-                window.refreshSignoffSubmitState();
-                document.getElementById('signature_image').value = '';
+
+                if (snapshot) {
+                    const img = new Image();
+                    img.onload = function () {
+                        const rect = canvas.getBoundingClientRect();
+                        ctx.drawImage(img, 0, 0, rect.width, rect.height);
+                        captureSignature();
+                    };
+                    img.src = snapshot;
+                    // Signature survived the resize — do not reset dirty/drawn state.
+                } else {
+                    dirty = false;
+                    window.__signoffSignatureDrawn = false;
+                    window.refreshSignoffSubmitState();
+                    document.getElementById('signature_image').value = '';
+                }
             });
 
             // Initial sync once DOM is ready (covers old() repopulation after a
