@@ -1576,7 +1576,65 @@
                     return false;
                 }
                 document.getElementById('signature_image').value = canvas.toDataURL('image/png');
-                return true;
+
+                // 260919-enb — "the job can be done offline, the job cannot be
+                // closed offline". Offline: refuse outright, touch nothing in
+                // OfflineQueue. Online: best-effort flush of any queued photos
+                // (bounded by a timeout so a hung fetch can never block the
+                // sign-off itself), then submit regardless of flush outcome.
+                if (! navigator.onLine) {
+                    alert('Signing off needs an internet connection. Please move somewhere with signal and try again — your photos and notes are already saved and will not be lost.');
+                    return false;
+                }
+
+                if (submit) submit.disabled = true;
+
+                const finishSubmit = function () {
+                    HTMLFormElement.prototype.submit.call(form);
+                };
+
+                // Re-check the real queue depth after the race settles rather
+                // than trusting drain()'s returned counts — a concurrent
+                // drain() (e.g. the 'online' auto-drain firing at the same
+                // moment) short-circuits with {successCount:0,failureCount:0,
+                // skipped:true} while the real work happens elsewhere, so the
+                // toast must reflect OfflineQueue.count(), not drain()'s result.
+                const warnIfOutstandingThenSubmit = function () {
+                    (window.OfflineQueue ? window.OfflineQueue.count() : Promise.resolve(0))
+                        .then(function (remaining) {
+                            if (remaining > 0 && window.__wsShowToast) {
+                                window.__wsShowToast(remaining + ' item(s) still uploading — continuing with sign-off', 'warning', 5000);
+                            }
+                        })
+                        .catch(function () { /* best-effort only */ })
+                        .then(finishSubmit);
+                };
+
+                try {
+                    if (! window.OfflineQueue) {
+                        finishSubmit();
+                        return false;
+                    }
+                    window.OfflineQueue.count().then(function (pending) {
+                        if (pending <= 0) {
+                            finishSubmit();
+                            return;
+                        }
+                        const drainWithTimeout = Promise.race([
+                            window.OfflineQueue.drain({}),
+                            new Promise(function (resolve) {
+                                setTimeout(function () { resolve({ timedOut: true }); }, 8000);
+                            }),
+                        ]);
+                        drainWithTimeout.then(warnIfOutstandingThenSubmit).catch(warnIfOutstandingThenSubmit);
+                    }).catch(function () {
+                        finishSubmit();
+                    });
+                } catch (e) {
+                    finishSubmit();
+                }
+
+                return false;
             };
 
             // Defer initial resize so layout has settled.
