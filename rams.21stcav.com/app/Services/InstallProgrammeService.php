@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Models\InstallProgramme;
+use App\Models\InstallRecord;
 use App\Models\Project;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -46,20 +48,43 @@ class InstallProgrammeService
     {
         $this->archiveExisting($project);
 
+        // Phase 45 / D-06 — resolve-or-create the project's ONE durable
+        // install record. This row is deliberately NEVER archived:
+        // archiveExisting() above operates on programmes only, so anything
+        // filed against the record (a Visit) survives every regenerate.
+        //
+        // The try/catch is NOT defensive decoration. createForProject() is not
+        // transaction-wrapped (there is no DB::transaction() anywhere in this
+        // method), and archiveExisting() has ALREADY run by this point. On the
+        // losing side of a concurrent double-generate, firstOrCreate's INSERT
+        // hits the unique index on install_records.project_id and throws — and
+        // an uncaught throw here would return to the caller with the previous
+        // programme archived and no new one created, leaving the project with
+        // no draft AND no active programme. The unique index guarantees no
+        // DUPLICATE row; the catch guarantees no FAILED regenerate. They are
+        // two different guarantees, and the index only provides the first.
+        try {
+            $record = InstallRecord::firstOrCreate(['project_id' => $project->id]);
+        } catch (QueryException $e) {
+            $record = InstallRecord::where('project_id', $project->id)->firstOrFail();
+        }
+
         $programme = InstallProgramme::create([
-            'project_id'   => $project->id,
-            'generated_by' => $user->id,
-            'status'       => InstallProgramme::STATUS_DRAFT,
-            'generated_at' => now(),
+            'project_id'        => $project->id,
+            'install_record_id' => $record->id,
+            'generated_by'      => $user->id,
+            'status'            => InstallProgramme::STATUS_DRAFT,
+            'generated_at'      => now(),
         ]);
 
         $programme->load('project');
         $this->generator->generate($programme);
 
         Log::info('InstallProgrammeService: programme created', [
-            'programme_id' => $programme->id,
-            'project_id'   => $project->id,
-            'user_id'      => $user->id,
+            'programme_id'      => $programme->id,
+            'install_record_id' => $record->id,
+            'project_id'        => $project->id,
+            'user_id'           => $user->id,
         ]);
 
         return $programme;
