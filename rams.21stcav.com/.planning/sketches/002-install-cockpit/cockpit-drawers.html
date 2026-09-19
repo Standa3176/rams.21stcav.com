@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Project cockpit — 21CQ30473-05-OPS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --teal:#01889F; --teal-dark:#016e82; --teal-soft:#e6f4f7;
+  --gold:#D4AF37; --gold-soft:#faf4e4;
+  --ink:#1a1a1a; --mid:#555; --light:#8a8a8a;
+  --bg:#fafafa; --white:#fff; --rule:#ececec;
+  --head:'Verdana Pro',Verdana,'Trebuchet MS',sans-serif;
+  --body:'Poppins','Segoe UI',Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.65 var(--body)}
+h1,h2{font-family:var(--head);margin:0}
+.in{max-width:680px;margin:0 auto;padding:0 22px}
+
+.mast{background:var(--teal);color:#fff;padding:30px 0 38px;
+      clip-path:polygon(0 0,100% 0,100% calc(100% - 22px),0 100%)}
+.mast h1{font-size:1.65rem;font-weight:700;line-height:1.2}
+.mast .sub{font-size:.9rem;color:#c5e6ee;margin-top:4px}
+
+.page{max-width:680px;margin:-14px auto 0;padding:0 22px 80px;position:relative}
+
+.attn{padding:16px 0 20px;border-bottom:1px solid var(--rule);margin-bottom:34px}
+.attn h2{font-size:1rem;font-weight:700;margin-bottom:3px}
+.attn p{margin:0;color:var(--mid);font-size:.9rem}
+.attn em{font-style:normal;border-bottom:2px solid var(--gold);padding-bottom:1px}
+
+.sec{font-family:var(--head);font-size:.78rem;font-weight:700;color:var(--light);
+     letter-spacing:.04em;margin:0 0 12px}
+
+.dw{background:var(--white);border:1px solid var(--rule);border-radius:3px;margin-bottom:7px}
+.dw>summary{display:flex;align-items:center;gap:13px;padding:15px 17px;cursor:pointer;
+            list-style:none;font-size:.95rem}
+.dw>summary::-webkit-details-marker{display:none}
+.dw>summary:hover{background:#fcfcfc}
+.dw[open]>summary{border-bottom:1px solid var(--rule)}
+
+.pip{width:8px;height:8px;border-radius:50%;flex:none}
+.pip--done{background:var(--teal)}
+.pip--attn{background:var(--gold)}
+.pip--wait{background:#d8d8d8}
+
+.d{font-family:var(--head);font-size:.8rem;font-weight:700;color:var(--light);width:52px;flex:none}
+.t{font-weight:500;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s{font-size:.82rem;color:var(--light);white-space:nowrap}
+.s--attn{color:#8a6d13;font-weight:500}
+.arrow{color:#c5c5c5;font-size:.8rem;transition:transform .18s;flex:none}
+.dw[open] .arrow{transform:rotate(90deg)}
+
+.body{padding:16px 17px 17px}
+.body p{margin:0 0 12px;color:var(--mid);font-size:.9rem}
+.facts{display:flex;gap:22px;flex-wrap:wrap;font-size:.82rem;color:var(--light);
+       padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid #f4f4f4}
+.facts b{display:block;font-family:var(--head);font-weight:700;font-size:1rem;color:var(--ink)}
+.thumbs{display:flex;gap:6px;margin-bottom:15px}
+.th{width:46px;height:46px;background:#e8eff1;display:grid;place-items:center;
+    color:var(--teal-dark);font-size:15px;border-radius:2px}
+.th--n{background:none;border:1px solid var(--rule);color:var(--light);font-size:.72rem}
+
+.raised{background:var(--gold-soft);padding:13px 15px;margin-bottom:15px;border-radius:2px}
+.raised h3{font-family:var(--head);font-size:.8rem;font-weight:700;margin:0 0 7px;color:#8a6d13}
+.raised ul{margin:0;padding:0;list-style:none}
+.raised li{padding:4px 0;font-size:.87rem;color:#5e4d12;display:flex;gap:9px}
+.raised li i{font-style:normal;color:#a8913f;flex:none}
+
+.bar{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.lk{font-size:.78rem;color:var(--light);flex:1 1 auto}
+.btn{font-family:var(--head);font-size:.74rem;font-weight:700;letter-spacing:.02em;
+     text-transform:uppercase;border:0;padding:.5rem .85rem;cursor:pointer;border-radius:2px;
+     background:var(--teal);color:#fff}
+.btn--gold{background:var(--gold);color:#3b3007}
+.btn--q{background:none;color:var(--teal);border:1px solid #cbe6ec}
+
+.add{width:100%;text-align:left;background:none;border:1px dashed #d5d5d5;color:var(--light);
+     padding:14px 17px;font:500 .9rem var(--body);cursor:pointer;border-radius:3px;margin-top:3px}
+.add:hover{color:var(--teal);border-color:#a8d6df}
+
+.row{display:flex;align-items:center;gap:12px;padding:10px 0;font-size:.9rem;
+     border-top:1px solid #f4f4f4}
+.row:first-child{border-top:0}
+.row .n{flex:1 1 auto}
+.row .v{font-size:.82rem;color:var(--light)}
+.row--na{opacity:.4}
+.bx{width:14px;height:14px;border:1.5px solid #c4c4c4;border-radius:2px;flex:none;
+    display:grid;place-items:center;font-size:9px;color:#fff;background:#fff}
+.bx--on{background:var(--teal);border-color:var(--teal)}
+.docline{display:flex;gap:12px;padding:9px 0;font-size:.89rem;border-top:1px solid #f4f4f4}
+.docline:first-child{border-top:0}
+.docline .n{flex:1 1 auto}
+.docline .v{font-size:.8rem;color:var(--light)}
+
+.note{margin-top:26px;font-size:.78rem;color:var(--light);line-height:1.7}
+
+/* ── side pop-out ───────────────────────────────────────── */
+.scrim{position:fixed;inset:0;background:rgba(15,30,35,.32);opacity:0;pointer-events:none;
+       transition:opacity .22s;z-index:40}
+.scrim.on{opacity:1;pointer-events:auto}
+.pan{position:fixed;top:0;right:0;bottom:0;width:min(440px,100%);background:var(--white);
+     z-index:50;transform:translateX(100%);transition:transform .24s cubic-bezier(.4,0,.2,1);
+     display:flex;flex-direction:column;box-shadow:-8px 0 30px rgba(0,0,0,.14)}
+.pan.on{transform:none}
+.pan__h{background:var(--teal);color:#fff;padding:20px 22px 18px;flex:none;position:relative}
+.pan__h h2{font-size:1.15rem;font-weight:700}
+.pan__h .m{font-size:.82rem;color:#bfe3eb;margin-top:2px}
+.pan__x{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.16);border:0;
+        color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:15px;line-height:1}
+.pan__b{padding:22px;overflow:auto;flex:1 1 auto}
+.pan__f{padding:16px 22px;border-top:1px solid var(--rule);flex:none;display:flex;gap:9px;
+        flex-wrap:wrap;background:#fcfcfc}
+
+.step{margin-bottom:26px}
+.step>h3{font-family:var(--head);font-size:.76rem;font-weight:700;color:var(--light);
+         letter-spacing:.04em;margin:0 0 9px;display:flex;align-items:center;gap:8px}
+.step>h3 i{font-style:normal;width:19px;height:19px;border-radius:50%;background:var(--teal-soft);
+           color:var(--teal-dark);display:grid;place-items:center;font-size:.7rem;flex:none}
+.pk{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #f4f4f4;font-size:.89rem}
+.pk:first-of-type{border-top:0}
+.pk .n{flex:1 1 auto}
+.pk .v{font-size:.78rem;color:var(--light)}
+.chk{width:15px;height:15px;border:1.5px solid var(--teal);border-radius:2px;background:var(--teal);
+     color:#fff;display:grid;place-items:center;font-size:9px;flex:none}
+.chk--off{background:#fff;border-color:#ccc}
+.exp{font-size:.89rem;color:var(--mid);display:flex;gap:9px;padding:7px 0}
+.exp i{font-style:normal;color:var(--teal);flex:none}
+.fld{display:flex;gap:9px;margin-top:4px}
+.fld select,.fld input{flex:1 1 auto;font:400 .88rem var(--body);padding:.5rem .6rem;
+       border:1px solid var(--rule);border-radius:2px;background:#fff;color:var(--ink)}
+.addlink{background:none;border:0;color:var(--teal);font:500 .84rem var(--body);cursor:pointer;padding:8px 0 0}
+.ret{background:var(--teal-soft);padding:13px 15px;border-radius:2px;margin-bottom:20px;font-size:.89rem}
+.ret b{font-family:var(--head)}
+
+@media(max-width:480px){
+  .d{width:46px;font-size:.74rem}
+  .dw>summary{gap:10px;padding:14px 13px}
+  .s{display:none}
+}
+</style>
+</head>
+<body>
+
+<header class="mast">
+  <div class="in">
+    <h1>Gardner Leader LLP</h1>
+    <div class="sub">21CQ30473-05-OPS &nbsp;·&nbsp; Install stage &nbsp;·&nbsp; Newbury</div>
+  </div>
+</header>
+
+<main class="page">
+
+  <section class="attn">
+    <h2>Three things need you</h2>
+    <p>An <em>install visit is signed but not accepted</em>, a rack elevation failed to generate,
+       and the programming visit has no engineer link yet.</p>
+  </section>
+
+  <p class="sec">Install programme</p>
+
+  <details class="dw">
+    <summary><span class="pip pip--done"></span><span class="d">02 Sep</span>
+      <span class="t">Site survey</span><span class="s">Jack Reilly</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <p>All seven rooms surveyed. Substrate and containment confirmed.</p>
+      <div class="facts"><span><b>7</b> rooms</span><span><b>24</b> photos</span><span><b>£300</b> cost</span></div>
+      <div class="thumbs"><div class="th">▣</div><div class="th">▣</div><div class="th th--n">+22</div></div>
+      <div class="raised">
+        <h3>Three actions came out of this survey</h3>
+        <ul>
+          <li><i>Part</i> Boardroom bracket will not fit a 90mm stud — 600mm interface plate needed</li>
+          <li><i>Client</i> Power required behind the Reception display before first fix</li>
+          <li><i>Urgent</i> Asbestos register covers floor 2 ceiling voids only</li>
+        </ul>
+      </div>
+      <div class="bar"><span class="lk">Link expired 03 Sep</span>
+        <button class="btn btn--q" onclick="openPan('survey')">Open visit</button></div>
+    </div>
+  </details>
+
+  <details class="dw">
+    <summary><span class="pip pip--done"></span><span class="d">17 Sep</span>
+      <span class="t">First fix</span><span class="s">Marcus Okafor</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <p>Containment and cable pulls to all rooms. Reception held — client power still outstanding.</p>
+      <div class="facts"><span><b>6/7</b> rooms</span><span><b>26</b> photos</span><span><b>£600</b> cost</span></div>
+      <div class="bar"><span class="lk">Link closed 17 Sep</span>
+        <button class="btn btn--q">Open visit</button></div>
+    </div>
+  </details>
+
+  <details class="dw">
+    <summary><span class="pip pip--attn"></span><span class="d">18 Sep</span>
+      <span class="t">Install</span><span class="s s--attn">Needs accepting</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <p>All seven rooms complete. Client signed on site with two items left open.</p>
+      <div class="facts"><span><b>7/7</b> rooms</span><span><b>41</b> photos</span><span><b>18</b> serials</span><span><b>£900</b> cost</span></div>
+      <div class="thumbs"><div class="th">✎</div><div class="th">▣</div><div class="th th--n">+39</div></div>
+      <div class="bar"><span class="lk">Signed by M. Halliday, 18 Sep</span>
+        <button class="btn btn--gold" onclick="openPan('inst')">Review and accept</button></div>
+    </div>
+  </details>
+
+  <details class="dw">
+    <summary><span class="pip pip--wait"></span><span class="d">24 Sep</span>
+      <span class="t">Programming</span><span class="s">No link sent</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <p>A programming visit builds its link from the room schedule and the confirmed serials.</p>
+      <div class="bar"><span class="lk">Not assigned</span>
+        <button class="btn" onclick="openPan('prog')">Prepare visit</button></div>
+    </div>
+  </details>
+
+  <details class="dw">
+    <summary><span class="pip pip--wait"></span><span class="d">—</span>
+      <span class="t">Snag</span><span class="s">2 open items</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <p>Carries the two items from the install visit. Book once the client confirms power.</p>
+      <div class="bar"><span class="lk">Not booked</span>
+        <button class="btn btn--q">Book visit</button></div>
+    </div>
+  </details>
+
+  <button class="add">+ Add a visit</button>
+
+  <p class="sec" style="margin-top:38px">Project</p>
+
+  <details class="dw">
+    <summary><span class="pip pip--done"></span><span class="d"></span>
+      <span class="t">Documents</span><span class="s">4 files</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <p>Attached to every link you send an engineer.</p>
+      <div class="docline"><span class="n">Site map</span><span class="v">28 Aug</span></div>
+      <div class="docline"><span class="n">Floor 2 asbestos register</span><span class="v">02 Sep</span></div>
+      <div class="docline"><span class="n">Cable schedule</span><span class="v">11 Sep</span></div>
+      <div class="docline"><span class="n">Rack elevation</span><span class="v">failed</span></div>
+      <div class="bar" style="margin-top:14px"><button class="btn btn--q">Add document</button></div>
+    </div>
+  </details>
+
+  <details class="dw">
+    <summary><span class="pip pip--attn"></span><span class="d"></span>
+      <span class="t">Deliverables</span><span class="s s--attn">4 still open</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <div class="row"><span class="pip pip--done"></span><span class="n">Site survey</span><span class="v">Signed off</span></div>
+      <div class="row"><span class="pip pip--attn"></span><span class="n">RAMS</span><span class="v">Awaiting review</span></div>
+      <div class="row"><span class="pip pip--attn"></span><span class="n">Worksheet</span><span class="v">Needs accepting</span></div>
+      <div class="row"><span class="pip pip--attn"></span><span class="n">Drawings</span><span class="v">1 of 4 failed</span></div>
+      <div class="row"><span class="pip pip--attn"></span><span class="n">O&amp;M manual</span><span class="v">Awaiting review</span></div>
+      <div class="row"><span class="pip pip--attn"></span><span class="n">Snagging</span><span class="v">2 open</span></div>
+      <div class="row"><span class="bx bx--on">✓</span><span class="n">Programming</span><span class="v">Marked done</span></div>
+      <div class="row row--na"><span class="bx"></span><span class="n">Cable schedule</span><span class="v">Not required</span></div>
+    </div>
+  </details>
+
+  <p class="note">
+    Everything is closed until you open it. Preparing, sending and reviewing a visit all happen in
+    a panel from the right, so you never leave this page.
+  </p>
+
+</main>
+
+<div class="scrim" id="scrim" onclick="closePan()"></div>
+
+<!-- PROGRAMMING — not yet sent -->
+<aside class="pan" id="pan-prog" aria-hidden="true">
+  <div class="pan__h">
+    <button class="pan__x" onclick="closePan()">×</button>
+    <h2>Programming visit</h2>
+    <div class="m">24 Sep &nbsp;·&nbsp; not yet assigned</div>
+  </div>
+  <div class="pan__b">
+    <div class="step">
+      <h3><i>1</i>What the engineer gets</h3>
+      <div class="pk"><span class="chk">✓</span><span class="n">Site map</span><span class="v">PDF</span></div>
+      <div class="pk"><span class="chk">✓</span><span class="n">Connection schedule</span><span class="v">from cable schedule</span></div>
+      <div class="pk"><span class="chk">✓</span><span class="n">Confirmed device list</span><span class="v">18 serials</span></div>
+      <div class="pk"><span class="chk chk--off"></span><span class="n">Rack elevation</span><span class="v">failed to generate</span></div>
+      <div class="pk"><span class="chk">✓</span><span class="n">Device credentials</span><span class="v">restricted</span></div>
+      <button class="addlink">+ Attach another document</button>
+    </div>
+    <div class="step">
+      <h3><i>2</i>What must come back</h3>
+      <div class="exp"><i>▸</i><span>A copy of the programme file</span></div>
+      <div class="exp"><i>▸</i><span>Commissioning sign-off</span></div>
+      <div class="exp"><i>▸</i><span>Photos of the rack as left</span></div>
+      <button class="addlink">+ Add a requirement</button>
+    </div>
+    <div class="step">
+      <h3><i>3</i>Who and when</h3>
+      <div class="fld">
+        <select><option>Choose engineer…</option><option>Jack Reilly</option><option>Marcus Okafor</option><option>Priya Shah</option></select>
+        <input type="date" value="2026-09-24">
+      </div>
+    </div>
+  </div>
+  <div class="pan__f">
+    <button class="btn">Send link</button>
+    <button class="btn btn--q" onclick="closePan()">Save as draft</button>
+  </div>
+</aside>
+
+<!-- INSTALL — returned, needs review -->
+<aside class="pan" id="pan-inst" aria-hidden="true">
+  <div class="pan__h">
+    <button class="pan__x" onclick="closePan()">×</button>
+    <h2>Install visit</h2>
+    <div class="m">18 Sep &nbsp;·&nbsp; Marcus Okafor</div>
+  </div>
+  <div class="pan__b">
+    <div class="ret"><b>Returned 18 Sep.</b> Signed on site by M. Halliday.</div>
+    <div class="step">
+      <h3><i>✓</i>What came back</h3>
+      <div class="pk"><span class="chk">✓</span><span class="n">All seven rooms completed</span></div>
+      <div class="pk"><span class="chk">✓</span><span class="n">41 photos</span><span class="v">view</span></div>
+      <div class="pk"><span class="chk">✓</span><span class="n">18 serials confirmed</span><span class="v">into O&amp;M</span></div>
+      <div class="pk"><span class="chk">✓</span><span class="n">Client signature</span><span class="v">view</span></div>
+    </div>
+    <div class="step">
+      <h3><i>!</i>Two items left open</h3>
+      <div class="exp"><i>▸</i><span>Boardroom trunking to be made good by others</span></div>
+      <div class="exp"><i>▸</i><span>Reception display still awaiting client power</span></div>
+      <button class="addlink">Raise these as a snag visit</button>
+    </div>
+    <div class="step">
+      <h3><i>3</i>Accepting this visit</h3>
+      <p style="margin:0;font-size:.87rem;color:var(--mid)">
+        Records who checked it, closes the worksheet deliverable and releases it into the handover
+        pack. The two open items stay with the snag visit.
+      </p>
+    </div>
+  </div>
+  <div class="pan__f">
+    <button class="btn btn--gold">Accept visit</button>
+    <button class="btn btn--q">Send back to engineer</button>
+  </div>
+</aside>
+
+<!-- SITE SURVEY — returned and accepted -->
+<aside class="pan" id="pan-survey" aria-hidden="true">
+  <div class="pan__h">
+    <button class="pan__x" onclick="closePan()">×</button>
+    <h2>Site survey visit</h2>
+    <div class="m">02 Sep &nbsp;·&nbsp; Jack Reilly</div>
+  </div>
+  <div class="pan__b">
+    <div class="ret"><b>Accepted 03 Sep</b> by Sonny Tanda.</div>
+    <div class="step">
+      <h3><i>1</i>What the engineer got</h3>
+      <div class="pk"><span class="chk">✓</span><span class="n">Site map</span></div>
+      <div class="pk"><span class="chk">✓</span><span class="n">Room schedule from the quote</span><span class="v">7 rooms</span></div>
+    </div>
+    <div class="step">
+      <h3><i>2</i>What came back</h3>
+      <div class="pk"><span class="chk">✓</span><span class="n">7 rooms measured</span></div>
+      <div class="pk"><span class="chk">✓</span><span class="n">24 photos</span><span class="v">view</span></div>
+      <div class="pk"><span class="chk">✓</span><span class="n">Substrate and containment</span></div>
+    </div>
+    <div class="step">
+      <h3><i>3</i>Actions raised</h3>
+      <div class="exp"><i>Part</i><span>600mm interface plate for the Boardroom</span></div>
+      <div class="exp"><i>Client</i><span>Power behind the Reception display</span></div>
+      <div class="exp"><i>Urgent</i><span>Asbestos register covers floor 2 only</span></div>
+    </div>
+  </div>
+  <div class="pan__f">
+    <button class="btn btn--q" onclick="closePan()">Close</button>
+  </div>
+</aside>
+
+<script>
+  function openPan(k){
+    document.getElementById('scrim').classList.add('on');
+    var p = document.getElementById('pan-' + k);
+    if(!p) return;
+    p.classList.add('on');
+    p.setAttribute('aria-hidden','false');
+    document.body.style.overflow = 'hidden';
+  }
+  function closePan(){
+    document.getElementById('scrim').classList.remove('on');
+    document.querySelectorAll('.pan').forEach(function(p){
+      p.classList.remove('on');
+      p.setAttribute('aria-hidden','true');
+    });
+    document.body.style.overflow = '';
+  }
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closePan(); });
+</script>
+</body>
+</html>
