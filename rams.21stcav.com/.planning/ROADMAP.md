@@ -387,16 +387,20 @@ Kept for decision history; see `45-CONTEXT.md` for the answers. Do not treat the
     cockpit starts a brand-aligned refresh or it is retokened to match. A half-branded app is worse
     than either.
 
-**Plans**: 8 plans, 5 waves
+**Plans**: 8 plans, 6 waves. **45-01 is the sole wave-1 plan, deliberately serialised**: its Task 2
+measures the D-06 behaviour-preservation baseline, which is only valid on a clean tree with no Phase
+45 code applied. 45-02 (the `visits` migration) and 45-03 (`npm install` + `npm run build`) would
+otherwise run concurrently with the measurement and corrupt it — every test in the subset uses
+`RefreshDatabase` — and that corrupted number is re-asserted as the gate by 45-04 and 45-08.
 
-- [ ] 45-01-PLAN.md — Mint VIS-01..VIS-10 into REQUIREMENTS.md; **MEASURE** the InstallProgramme behaviour-preservation baseline (the research doc's 161 was a static count, never executed). Wave 1. Requirements: VIS-01..VIS-10.
-- [ ] 45-02-PLAN.md — `visits` table + `Visit` model + factory; `(source_type, source_id)` unique index, no FK to the wrapped record so a visit outlives it. Wave 1. Requirements: VIS-01, VIS-08.
-- [ ] 45-03-PLAN.md — `config/cockpit.php` (defaults FALSE) + `@fontsource/poppins` + `cav-tokens.css` + `cockpit.css` + Vite input. Wave 1. Requirements: VIS-10, VIS-05.
-- [ ] 45-04-PLAN.md — The D-06 split: `install_records` durable parent + **nullable** FK on `install_programmes`; `install_tasks` do NOT move; baseline re-asserted. Wave 2. Requirements: VIS-09.
-- [ ] 45-05-PLAN.md — `visits:backfill`, idempotent and dry-run by default; one visit per survey and per SIGNED worksheet; public token routes proven unaffected. Wave 2. Requirements: VIS-02, VIS-03, VIS-07, VIS-08.
-- [ ] 45-06-PLAN.md — Cockpit route + flag-gated read-only controller + page shell + state primitives (pip, tick-box, chip, tag, hint). Wave 3. Requirements: VIS-04, VIS-06, VIS-10.
-- [ ] 45-07-PLAN.md — The spine: nine drawers closed at rest, visit rows, reconstructed and superseded treatments, read-only fence test. Wave 4. Requirements: VIS-04, VIS-06, VIS-08.
-- [ ] 45-08-PLAN.md — Flag-off behaviour proof (404, zero markup, layout byte-identical) + whole-phase gate re-run + greyscale/320px human check. Wave 5. Requirements: VIS-05, VIS-03, VIS-09.
+- [ ] 45-01-PLAN.md — Mint VIS-01..VIS-10 into REQUIREMENTS.md; **MEASURE** the InstallProgramme behaviour-preservation baseline (the research doc's 161 was a static count, never executed). **Sole wave-1 plan — serialised so the baseline is measured on a clean tree.** Wave 1. Requirements: VIS-01..VIS-10.
+- [ ] 45-02-PLAN.md — `visits` table + `Visit` model + factory; `(source_type, source_id)` unique index, no FK to the wrapped record so a visit outlives it. Wave 2 (depends on 45-01). Requirements: VIS-01, VIS-08.
+- [ ] 45-03-PLAN.md — `config/cockpit.php` (defaults FALSE) + `@fontsource/poppins` + `cav-tokens.css` + `cockpit.css` + Vite input. `@fontsource/poppins` is **[VERIFIED]** by the completed Package Legitimacy Audit in 45-RESEARCH.md, so this plan is autonomous — no human gate. Wave 2 (depends on 45-01). Requirements: VIS-10, VIS-05.
+- [ ] 45-04-PLAN.md — The D-06 split: `install_records` durable parent + **nullable** FK on `install_programmes`; `install_tasks` do NOT move; baseline re-asserted; `QueryException` catch round the `firstOrCreate` because `createForProject()` is not transaction-wrapped. Wave 3. Requirements: VIS-09.
+- [ ] 45-05-PLAN.md — `visits:backfill`, idempotent and dry-run by default; one visit per survey and per SIGNED worksheet; public token routes proven unaffected. Wave 3. Requirements: VIS-02, VIS-03, VIS-07, VIS-08.
+- [ ] 45-06-PLAN.md — Cockpit route + flag-gated read-only controller + page shell + state primitives (pip, tick-box, chip, tag, hint). Wave 4. Requirements: VIS-04, VIS-06, VIS-10.
+- [ ] 45-07-PLAN.md — The spine: nine drawers closed at rest, visit rows, reconstructed and superseded treatments, read-only fence test **scoped to the `cav-brand cav-cockpit` subtree** (the shared app layout's logout form, search input, buttons and `@vite`/Alpine scripts are out of scope by recorded decision), plus a five-table row-count invariance proof for criterion 5. Wave 5. Requirements: VIS-04, VIS-06, VIS-08.
+- [ ] 45-08-PLAN.md — Flag-off behaviour proof (404, zero markup, layout byte-identical) + whole-phase gate re-run + greyscale/320px human check. **The phase's only human checkpoint.** Wave 6. Requirements: VIS-05, VIS-03, VIS-09.
 
 **UI hint**: yes (new read-only page, flag-gated)
 
