@@ -356,9 +356,9 @@ flag is turned on.
 
 **Depends on**: Phase 44 (labour resources are assigned to visits).
 
-**Requirements**: To be minted (VIS-xx) at planning time and written into
-`.planning/REQUIREMENTS.md` § v4.0 — no formal IDs exist yet. Derived from the 2026-09-19 design
-decisions in `.planning/sketches/002-install-cockpit/README.md`.
+**Requirements**: VIS-01..VIS-10, minted at planning time (2026-09-19) into
+`.planning/REQUIREMENTS.md` § Milestone v4.0 › Group VIS. Derived from the 2026-09-19 design
+decisions in `.planning/sketches/002-install-cockpit/README.md`, narrowed by 45-CONTEXT.md D-01.
 
 **Success Criteria** (what must be TRUE):
 
@@ -375,7 +375,8 @@ decisions in `.planning/sketches/002-install-cockpit/README.md`.
   5. Traffic lights on the cockpit are derived from data that already exists; this phase adds no
      new engineer-facing capture and no new writes
 
-**Open questions carried from the sketch** (resolve at discuss-phase, not here):
+**Open questions carried from the sketch — ALL THREE NOW RESOLVED** at discuss-phase 2026-09-19.
+Kept for decision history; see `45-CONTEXT.md` for the answers. Do not treat these as open:
 
   - Does the typed-visit model hold for every type, or do survey and install diverge too far to
     share one record?
@@ -386,7 +387,16 @@ decisions in `.planning/sketches/002-install-cockpit/README.md`.
     cockpit starts a brand-aligned refresh or it is retokened to match. A half-branded app is worse
     than either.
 
-**Plans**: Not yet planned
+**Plans**: 8 plans, 5 waves
+
+- [ ] 45-01-PLAN.md — Mint VIS-01..VIS-10 into REQUIREMENTS.md; **MEASURE** the InstallProgramme behaviour-preservation baseline (the research doc's 161 was a static count, never executed). Wave 1. Requirements: VIS-01..VIS-10.
+- [ ] 45-02-PLAN.md — `visits` table + `Visit` model + factory; `(source_type, source_id)` unique index, no FK to the wrapped record so a visit outlives it. Wave 1. Requirements: VIS-01, VIS-08.
+- [ ] 45-03-PLAN.md — `config/cockpit.php` (defaults FALSE) + `@fontsource/poppins` + `cav-tokens.css` + `cockpit.css` + Vite input. Wave 1. Requirements: VIS-10, VIS-05.
+- [ ] 45-04-PLAN.md — The D-06 split: `install_records` durable parent + **nullable** FK on `install_programmes`; `install_tasks` do NOT move; baseline re-asserted. Wave 2. Requirements: VIS-09.
+- [ ] 45-05-PLAN.md — `visits:backfill`, idempotent and dry-run by default; one visit per survey and per SIGNED worksheet; public token routes proven unaffected. Wave 2. Requirements: VIS-02, VIS-03, VIS-07, VIS-08.
+- [ ] 45-06-PLAN.md — Cockpit route + flag-gated read-only controller + page shell + state primitives (pip, tick-box, chip, tag, hint). Wave 3. Requirements: VIS-04, VIS-06, VIS-10.
+- [ ] 45-07-PLAN.md — The spine: nine drawers closed at rest, visit rows, reconstructed and superseded treatments, read-only fence test. Wave 4. Requirements: VIS-04, VIS-06, VIS-08.
+- [ ] 45-08-PLAN.md — Flag-off behaviour proof (404, zero markup, layout byte-identical) + whole-phase gate re-run + greyscale/320px human check. Wave 5. Requirements: VIS-05, VIS-03, VIS-09.
 
 **UI hint**: yes (new read-only page, flag-gated)
 
