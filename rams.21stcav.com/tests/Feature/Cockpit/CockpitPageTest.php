@@ -200,10 +200,10 @@ class CockpitPageTest extends TestCase
 
         $html = $this->cockpitSubtree($this->renderCockpit($project));
 
-        $this->assertStringContainsString(
-            "This job's summary could not be read just now. The sections below are still accurate.",
-            $html
-        );
+        // The contract's copy, carried across the attention line's required
+        // <h2> + one-paragraph structure rather than as one run of text.
+        $this->assertStringContainsString("This job's summary could not be read just now", $html);
+        $this->assertStringContainsString('The sections below are still accurate.', $html);
         $this->assertStringContainsString('Visits — someone goes to site', $html);
         $this->assertStringContainsString('Cockpit Test Job', $html);
     }
