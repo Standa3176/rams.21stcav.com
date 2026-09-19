@@ -320,8 +320,9 @@ anything a client sees.
 
 **Depends on**: Nothing. Deliberately first because it is standalone and useful on its own.
 
-**Requirements**: Derived from the 2026-09-19 design decisions — see
-`.planning/sketches/002-install-cockpit/README.md`.
+**Requirements**: Derived from the 2026-09-19 design decisions (LR-01..LR-05, minted at
+planning time — no formal requirement IDs existed yet for this milestone; see
+`.planning/sketches/002-install-cockpit/README.md`) mapping 1:1 to the five success criteria below.
 
 **Success Criteria** (what must be TRUE):
 
@@ -336,7 +337,13 @@ anything a client sees.
   5. Existing engineer names already recorded as free text (`captured_by`, worksheet sign-offs)
      still display correctly and are not broken by the new table
 
-**Plans**: TBD
+**Plans**: 4 plans, 3 waves
+
+- [ ] 44-01-PLAN.md — `labour_resources` schema + `LabourResource` model (roles json column, is_active, nullable user_id). Wave 1. Requirements: LR-01, LR-02.
+- [ ] 44-02-PLAN.md — Admin CRUD (`/admin/labour-resources`): add/edit/deactivate, no hard-delete. Wave 2 (parallel with 44-03). Requirements: LR-02.
+- [ ] 44-03-PLAN.md — PM-facing `<x-labour-resource-select>` multi-select component (active-only, name-only). Wave 2 (parallel with 44-02). Requirements: LR-03.
+- [ ] 44-04-PLAN.md — Privacy boundary proof: source-guard + real HTTP-render test that no client-facing surface renders email/phone. Wave 3 — depends on 44-01/44-02/44-03. Requirements: LR-04, LR-05.
+
 **UI hint**: yes (admin CRUD plus a PM-facing selector)
 
 ---
