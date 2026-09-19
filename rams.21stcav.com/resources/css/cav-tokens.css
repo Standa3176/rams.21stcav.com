@@ -1,0 +1,183 @@
+/* ════════════════════════════════════════════════════════════════════════
+   21CAV brand tokens — the `--cav-*` palette
+   Phase 45 · VIS-05 · 45-UI-SPEC.md § Token Set · 45-CONTEXT.md D-07
+   ════════════════════════════════════════════════════════════════════════
+
+   WHY THE `--cav-` PREFIX IS MANDATORY
+   ------------------------------------
+   Every obvious name is already taken in this app, and every one of them
+   already means the BLUE palette. resources/views/layouts/app.blade.php:65-71
+   aliases the whole `--teal-*` family onto the navy/accent family:
+
+       --teal-700: var(--accent-700);   -- #1E5FE0 electric blue
+       --teal-600: var(--accent-600);   -- #2E7BFF
+
+   with `--accent-700: #1E5FE0` declared at :56, and 72 occurrences of `teal`
+   in resources/views/surveys/show.blade.php depending on that aliasing.
+   `tailwind.config.js:60` likewise maps `brand.teal` to `#2E7BFF`, a blue —
+   which is why cockpit markup uses NO Tailwind colour utilities at all.
+   `--brand-*`, `--accent-*`, `--nav-*`, `--ink-*` and `--paper*` are taken on
+   the same basis. `--cav-` was verified free: zero hits across the layout,
+   resources/css/app.css and tailwind.config.js.
+
+   WHY THIS IS ITS OWN FILE (UI-SPEC Constraint 3)
+   ----------------------------------------------
+   These tokens are declared on `.cav-brand`, NEVER on `:root` — putting them
+   on `:root`, or adding them to the layout's own `:root` at
+   app.blade.php:33, would retone every authenticated page (all 2,154 lines of
+   that layout are inherited by all of them) and break ROADMAP criterion 4.
+   Scoping to a class means a page opts in.
+
+   D-07 makes the cockpit the origin of the v4.0 brand refresh, so phases
+   46-51 inherit this palette. They import THIS file to get the colours, and
+   `cockpit.css` only if they also want the cockpit's layout: Phase 49's
+   import-review page is a brand page but not the cockpit, so a single
+   combined file would have forced it to ship the cockpit layout just to get
+   the palette. Two files is what makes D-07's inheritance a mechanism rather
+   than an intention.
+
+   RULES FOR THIS FILE
+   -------------------
+   - `.cav-brand` is the ONLY selector permitted here. No layout, no component
+     rules, no media queries, no `:root`.
+   - The tiers are load-bearing: STRUCTURAL may be spent freely; ACCENT is
+     rationed to the three uses enumerated in UI-SPEC § Color.
+   - Values come from .planning/reference/21cav-rams-skill/scripts/brand.js:7-28
+     reconciled with the sketch's `:root`
+     (.planning/sketches/002-install-cockpit/cockpit-sections.html:11-18).
+     The sketch wins on disagreement EXCEPT where a value fails the
+     accessibility floor; every such override is marked OVERRIDE below and
+     carries a row in UI-SPEC § Contrast Ledger. Do not "restore" a sketch
+     value that is marked OVERRIDE.
+   - No token outside this file may be introduced by a cockpit view. A one-off
+     hex in a Blade file is a contract violation.
+   ════════════════════════════════════════════════════════════════════════ */
+
+.cav-brand {
+    /* ── Structural tier — spend freely ──────────────────────────────── */
+
+    /* Fills and marks ONLY: done-pips, ticked boxes, 2px section rules, tag
+       backgrounds. NEVER text — #01889F on white is 4.18:1 and fails AA for
+       normal-size type (it passes the 3:1 non-text floor as a mark). */
+    --cav-teal: #01889F;
+
+    /* The masthead fill, and EVERY piece of teal text: links, hovered visit
+       titles, tag text, step numerals. 5.91:1 on white. */
+    --cav-teal-dark: #016E82;
+
+    /* Tag and chip backgrounds, step-numeral discs. Teal-dark on this is
+       5.26:1. */
+    --cav-teal-soft: #E6F4F7;
+
+    /* Body text, drawer titles, headings. ~16:1 on the canvas. */
+    --cav-ink: #1A1A1A;
+
+    /* Secondary prose, and the ONLY secondary colour permitted on the page
+       canvas (~7.1:1 on #FAFAFA). Also the chip text colour — 6.72:1 on
+       --cav-chip-bg, where --cav-light would be 4.09:1 and FAIL AA. */
+    --cav-mid: #555555;
+
+    /* Meta text, counts, hollow-pip borders. WHITE SURFACES ONLY: 4.54:1 on
+       #FFFFFF passes, but only ~4.4:1 on the #FAFAFA canvas, which fails —
+       section eyebrows sit on the canvas and use --cav-mid instead.
+       OVERRIDE of the sketch's #8A8A8A; value from brand.js. */
+    --cav-light: #767676;
+
+    /* Page canvas. */
+    --cav-bg: #FAFAFA;
+
+    /* Drawer and panel surfaces. */
+    --cav-surface: #FFFFFF;
+
+    /* Decorative hairlines between rows inside a drawer. */
+    --cav-rule: #ECECEC;
+
+    /* Drawer outer border, chip borders. Decorative (~1.2:1): a drawer's
+       affordance and state are carried by pip + text + arrow, not by its
+       boundary, so WCAG 1.4.11 is not engaged. */
+    --cav-border: #E0E0E0;
+
+    /* Masthead, section eyebrows, dates, chips. OS fonts — nothing to load.
+       Verdana ships 400/700 only, so a heading at 600 resolves to Verdana
+       Bold; that is intended, do not add a third declared weight. */
+    --cav-font-head: 'Verdana Pro', Verdana, 'Trebuchet MS', 'DejaVu Sans', sans-serif;
+
+    /* Everything else. Poppins is SELF-HOSTED via @fontsource/poppins,
+       imported from cockpit.css — never a Google Fonts <link> (this app's
+       self-host doctrine is recorded at resources/css/app.css:1-6). If the
+       package is ever absent the page degrades onto Segoe UI / Arial, which
+       is the declared fallback. */
+    --cav-font-body: 'Poppins', 'Segoe UI', Arial, sans-serif;
+
+    /* Drawer corners. */
+    --cav-radius: 3px;
+
+    /* Chips, tags, boxes. */
+    --cav-radius-sm: 2px;
+
+    /* Focus-ring colour, 2px with 2px offset. 5.9:1 on white, comfortably
+       over the 3:1 non-text floor. Mirrors the app's own precedent at
+       layouts/app.blade.php:617, in brand colour. */
+    --cav-focus: #016E82;
+
+    /* ── Accent tier — rationed ──────────────────────────────────────────
+       Gold means SOMEONE MUST ACT. Exhaustively, in Phase 45: the 2px
+       underline under the named waiting item in the attention line; the
+       attention diamond-pip on a drawer summary; attention status text.
+       Nothing else. Gold never means "reconstructed" or "superseded" — those
+       need qualification, not action, and conflating them would spend the 10%
+       budget on facts that cannot be acted on and train the PM to ignore
+       gold. No gold buttons exist in Phase 45. */
+
+    /* NON-TEXT MARKS ONLY. #D4AF37 on white is 2.10:1 — it fails even the
+       3:1 non-text floor on its own, hence the mandatory 1.5px
+       --cav-gold-ink outline on any gold pip (OVERRIDE), with shape carrying
+       the meaning as well. */
+    --cav-gold: #D4AF37;
+
+    /* Reserved for phases 46+. UNUSED in Phase 45. Sketch value; brand.js has
+       #F5EDD6. */
+    --cav-gold-soft: #FAF4E4;
+
+    /* EVERY piece of attention text (weight 600), and the 1.5px outline on a
+       gold pip. 4.91:1 on white. Gold is never a text colour and never a text
+       background — gold-bearing text is this. */
+    --cav-gold-ink: #8A6D13;
+
+    /* ── Neutral-state tier ──────────────────────────────────────────── */
+
+    /* Hollow-pip and unticked-box border. OVERRIDE of the sketch's #D8D8D8
+       (1.43:1) and #C4C4C4 (1.74:1), both of which fail the 3:1 non-text
+       floor; #767676 on white is 4.54:1. */
+    --cav-wait: #767676;
+
+    /* The dashed border that means "inferred, not recorded". Dashed appears
+       NOWHERE else in the cockpit, so it reads as a qualifier rather than as
+       decoration, and it survives greyscale and colour-blindness because it
+       is a line style, not a hue. */
+    --cav-inferred: #C9C9C9;
+
+    /* Reconstructed / superseded / not-required chip backgrounds. Chip text
+       is --cav-mid (6.72:1) — NOT --cav-light, which is 4.09:1 here and
+       fails. These chips carry the most load-bearing copy on the page. */
+    --cav-chip-bg: #F3F3F3;
+
+    /* Reserved for phases 46+. UNUSED in Phase 45 — the cockpit is read-only,
+       so no destructive action exists. */
+    --cav-destructive: #B3261E;
+
+    /* ── Spacing scale — all multiples of 4 ──────────────────────────────
+       The sketch's odd values (22, 17, 13, 11, 7) are normalised to the
+       nearest 4-step: at most 2px of movement, no layout consequence.
+       Non-spacing dimensions (8px pip, 16px tick box, 52px date column, 1px
+       hairline / 2px rule, 680px column, 24px|12px bevel, 44px minimum
+       target) are literals in cockpit.css and are deliberately NOT rounded
+       onto this scale. */
+    --cav-s1: 4px;   /* inline glyph gaps, title/sub-line gap              */
+    --cav-s2: 8px;   /* drawer-to-drawer gap, chip gaps                    */
+    --cav-s3: 12px;  /* summary row gap, visit-row vertical padding        */
+    --cav-s4: 16px;  /* drawer inner padding, drawer body padding          */
+    --cav-s5: 24px;  /* page gutter, masthead vertical padding             */
+    --cav-s6: 32px;  /* section-group break, attention-block bottom margin */
+    --cav-s7: 48px;  /* page bottom padding above the fold-out             */
+}

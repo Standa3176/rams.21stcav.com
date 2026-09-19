@@ -1,0 +1,729 @@
+/* ════════════════════════════════════════════════════════════════════════
+   Read-only project cockpit — layout
+   Phase 45 · VIS-05 · 45-UI-SPEC.md (§ Layout Contract, § Typography,
+   § State Vocabulary, § Responsive Contract, § Accessibility Contract)
+   ════════════════════════════════════════════════════════════════════════
+
+   Per-page bundle. Loaded ONLY on the cockpit route, which is itself gated
+   behind COCKPIT_ENABLED (config/cockpit.php). Pushed to @stack('styles')
+   (layouts/app.blade.php:1322 — the last thing in <head>), so it lands after
+   the layout's own :root at :33 and can never affect a page that does not
+   push it.
+
+   FIVE RULES THIS FILE OBEYS, ALL OF THEM VERIFIED CONSTRAINTS
+   -----------------------------------------------------------
+   1. Every class is `cav-`-prefixed. The sketch's single-letter and generic
+      names (.t .c .s .body .bar .note .close .btn .tag .step) would collide
+      with a 2,154-line global layout in production: `.btn` already has 4
+      rules and `.card` 2 in layouts/app.blade.php, and `.btn:focus-visible`
+      at :617 would fight ours. No single-letter names, no bare .btn / .card /
+      .body / .close.
+   2. No Tailwind colour, type or spacing utilities anywhere in the cockpit.
+      They resolve to the BLUE palette (tailwind.config.js:60 maps
+      brand.teal to #2E7BFF).
+   3. Colour is never the only channel. The four states differ by SHAPE —
+      filled circle, outlined diamond, hollow circle, 16px rounded square —
+      so a greyscale screenshot still distinguishes all four.
+   4. Opacity is NEVER applied to an element containing small text. #767676 at
+      0.6 blends to ~#A4A4A4 (2.49:1) and at 0.7 to ~#949494 (3.03:1); both
+      FAIL AA. A receded drawer gets opacity on its non-text marks only, and
+      a declared token for its text.
+   5. Nothing renders below 13px, and no interactive target is under 44px.
+
+   Read-only fence: this file deliberately carries NO styles for buttons,
+   form controls, side pop-out panels, scrims, "add"/"issue"/"upload"
+   affordances or clickable rows. Those are write surfaces owned by phases
+   46-51, and a row that looks clickable but is not is worse than one that
+   looks inert — hence no cursor:pointer and no hover colour shift on rows.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Self-hosted Poppins, exactly the two declared weights (400 regular, 600
+   semibold). NOT Google Fonts: the sketch's <link> at
+   cockpit-sections.html:7-9 is a prototype convenience, and
+   resources/css/app.css:1-6 records this app's deliberate self-host
+   doctrine. Do not add a third weight — Verdana ships 400/700 only, so a
+   heading at 600 resolving to Verdana Bold is intended. */
+@import '@fontsource/poppins/400.css';
+@import '@fontsource/poppins/600.css';
+
+/* The brand palette. Separate file so phases 46-51 can adopt the tokens
+   without inheriting any of the layout below (UI-SPEC Constraint 3). */
+@import './cav-tokens.css';
+
+/* ── Page shell ─────────────────────────────────────────────────────────
+   Scoped under .cav-cockpit so nothing here can reach an existing page.
+   .cav-cockpit is expected to carry .cav-brand too (that is where the tokens
+   resolve from). */
+
+.cav-cockpit,
+.cav-cockpit *,
+.cav-cockpit *::before,
+.cav-cockpit *::after {
+    box-sizing: border-box;
+}
+
+.cav-cockpit {
+    background: var(--cav-bg);
+    color: var(--cav-ink);
+    font: 400 15px/1.65 var(--cav-font-body);
+}
+
+/* The single reading column. 680px is LOCKED by the layout contract: the
+   spine is one column and widening it would break the hierarchy, so there is
+   no multi-column rule at any width. */
+.cav-cockpit .cav-in {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 0 var(--cav-s5);
+}
+
+.cav-cockpit .cav-page {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 0 var(--cav-s5) var(--cav-s7);
+}
+
+/* ── Masthead ───────────────────────────────────────────────────────────
+   Fill is --cav-teal-dark #016E82, NOT --cav-teal #01889F: white on #01889F
+   is 4.18:1 and fails AA at 13-15px, white on #016E82 is 5.91:1 (override,
+   Contrast Ledger). Sub-line is #FFFFFF, not the sketch's #C5E6EE (4.48:1 at
+   13px — override). */
+.cav-cockpit .cav-mast {
+    background: var(--cav-teal-dark);
+    color: #fff;
+    padding: var(--cav-s5) 0 var(--cav-s6);
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 24px), 0 100%);
+}
+
+.cav-cockpit .cav-mast__name {
+    margin: 0;
+    font-family: var(--cav-font-head);
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.cav-cockpit .cav-mast__sub {
+    margin-top: var(--cav-s1);
+    font-size: 13px;
+    line-height: 1.45;
+    color: #fff;
+}
+
+/* ── Attention line ─────────────────────────────────────────────────────
+   One heading plus one paragraph. Not a panel, not a list, not a card, and
+   it never duplicates the spine below it. The waiting item is named inline
+   in <em> with a 2px gold bottom border — one of exactly three permitted
+   gold uses in Phase 45. */
+.cav-cockpit .cav-attn {
+    padding: var(--cav-s4) 0 var(--cav-s5);
+    border-bottom: 1px solid var(--cav-rule);
+    margin-bottom: var(--cav-s6);
+}
+
+.cav-cockpit .cav-attn__head {
+    margin: 0 0 var(--cav-s1);
+    font-family: var(--cav-font-head);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.cav-cockpit .cav-attn p {
+    margin: 0;
+    color: var(--cav-mid);
+    font-size: 15px;
+    line-height: 1.65;
+}
+
+.cav-cockpit .cav-attn em {
+    font-style: normal;
+    border-bottom: 2px solid var(--cav-gold);
+    padding-bottom: 1px;
+}
+
+/* ── Section-group eyebrow ──────────────────────────────────────────────
+   A real <h2> so the page is navigable by heading (h1 project name -> h2
+   attention -> h2 per group). --cav-mid, not --cav-light: eyebrows sit on the
+   #FAFAFA canvas where --cav-light is only ~4.4:1 and fails. 13px floor —
+   the sketch's .68rem/.78rem round UP. */
+.cav-cockpit .cav-sec {
+    margin: 0 0 var(--cav-s3);
+    font-family: var(--cav-font-head);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+    color: var(--cav-mid);
+    letter-spacing: .04em;
+}
+
+.cav-cockpit .cav-group + .cav-group {
+    margin-top: var(--cav-s6);
+}
+
+/* ── Section drawer — one line at rest ──────────────────────────────────
+   Native <details>/<summary>: focusable and operable with Enter/Space with
+   zero JS, and open/closed state is announced natively — do NOT hand-write
+   aria-expanded, and never add tabindex="-1" or pointer-events tricks.
+   No drawer ships the `open` attribute, including Install (the sketch shows
+   it open only to demonstrate its contents). Simplicity at rest is the
+   brief. */
+.cav-cockpit .cav-drawer {
+    background: var(--cav-surface);
+    border: 1px solid var(--cav-border);
+    border-radius: var(--cav-radius);
+    margin-bottom: var(--cav-s2);
+}
+
+/* 16px padding + a 15px line-height computes to ~48px, clearing the 44px
+   minimum target. Do not reduce the padding without re-checking that. */
+.cav-cockpit .cav-drawer > summary {
+    display: flex;
+    align-items: center;
+    gap: var(--cav-s3);
+    padding: var(--cav-s4);
+    cursor: pointer;
+    list-style: none;
+    font-size: 15px;
+    line-height: 1.65;
+    min-height: 44px;
+}
+
+.cav-cockpit .cav-drawer > summary::-webkit-details-marker {
+    display: none;
+}
+
+.cav-cockpit .cav-drawer > summary:hover {
+    background: #fcfcfc;
+}
+
+.cav-cockpit .cav-drawer[open] > summary {
+    border-bottom: 1px solid var(--cav-rule);
+}
+
+.cav-cockpit .cav-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-weight: 600;
+    color: var(--cav-ink);
+}
+
+.cav-cockpit .cav-count,
+.cav-cockpit .cav-status {
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--cav-light);
+    white-space: nowrap;
+}
+
+/* Attention text: gold-ink at 600. Gold itself is never a text colour. */
+.cav-cockpit .cav-status--attn {
+    color: var(--cav-gold-ink);
+    font-weight: 600;
+}
+
+.cav-cockpit .cav-arrow {
+    flex: none;
+    color: var(--cav-light);
+    font-size: 13px;
+    transition: transform .18s;
+}
+
+.cav-cockpit .cav-drawer[open] .cav-arrow {
+    transform: rotate(90deg);
+}
+
+/* ── The four state marks ───────────────────────────────────────────────
+   Shape is an independent channel from colour, and each mark is accompanied
+   by visible status text plus role="img" + aria-label in the markup. All
+   four survive greyscale. Pips appear on a drawer <summary> ONLY — visit
+   rows carry status text and chips, never a pip. */
+.cav-cockpit .cav-pip {
+    width: 8px;
+    height: 8px;
+    flex: none;
+    border-radius: 50%;
+}
+
+/* Done — solid filled circle. */
+.cav-cockpit .cav-pip--done {
+    background: var(--cav-teal);
+}
+
+/* Attention — diamond: an 8px square rotated 45deg, so the SHAPE differs
+   from both circles. The 1.5px gold-ink outline is mandatory: #D4AF37 on
+   white is 2.10:1 and fails even the 3:1 non-text floor on its own
+   (override). */
+.cav-cockpit .cav-pip--attn {
+    background: var(--cav-gold);
+    border: 1.5px solid var(--cav-gold-ink);
+    border-radius: 0;
+    transform: rotate(45deg);
+}
+
+/* Waiting — hollow circle. #767676 border, not the sketch's #D8D8D8
+   (1.43:1) or #C4C4C4 (1.74:1) (override). */
+.cav-cockpit .cav-pip--wait {
+    background: var(--cav-surface);
+    border: 1.5px solid var(--cav-wait);
+}
+
+/* ── The hand-ticked box — a square, categorically NOT a light ──────────
+   A circle says the system knows; a square says a human asserted this.
+   Nothing in this codebase can evidence programming
+   (ProjectHealthService.php:105-107), so using a light there would claim a
+   certainty that does not exist. Do not unify the shapes.
+   Phase 45 renders the UNTICKED state only — the tick needs somewhere to
+   store who ticked it and when, and criterion 5 forbids new writes. The
+   ticked presentation is specified here so Phase 46 inherits a settled
+   contract. */
+.cav-cockpit .cav-tick {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border: 1.5px solid var(--cav-wait);
+    border-radius: var(--cav-radius-sm);
+    background: var(--cav-surface);
+    font-size: 10px;
+    line-height: 1;
+    color: var(--cav-surface);
+}
+
+.cav-cockpit .cav-tick--on {
+    background: var(--cav-teal);
+    border-color: var(--cav-teal);
+    color: #fff;
+}
+
+/* Not-required drawer. THE OPACITY RULE: recede the marks, never the text.
+   The sketch's `.dw--na{opacity:.45}` on the whole element would drop its
+   meta text far below the contrast floor, and no opacity value fixes that
+   (0.6 -> 2.49:1, 0.7 -> 3.03:1, both FAIL). So: opacity on non-text marks
+   only, and the text switches to a declared token that passes on its own. */
+.cav-cockpit .cav-drawer--na .cav-pip,
+.cav-cockpit .cav-drawer--na .cav-tick,
+.cav-cockpit .cav-drawer--na .cav-arrow {
+    opacity: .5;
+}
+
+.cav-cockpit .cav-drawer--na .cav-title {
+    font-weight: 400;
+    color: var(--cav-mid);
+}
+
+.cav-cockpit .cav-drawer--na .cav-count,
+.cav-cockpit .cav-drawer--na .cav-status {
+    color: var(--cav-light);
+}
+
+/* ── Drawer body ────────────────────────────────────────────────────────
+   With every write affordance stripped by the read-only fence, bodies get
+   thin — so .cav-hint is MANDATORY in every drawer: one plain sentence
+   saying what the section is and where its data comes from. An open drawer
+   must never be empty. */
+.cav-cockpit .cav-drawer__body {
+    padding: var(--cav-s1) var(--cav-s4) var(--cav-s4);
+}
+
+.cav-cockpit .cav-hint {
+    margin: 0;
+    padding: var(--cav-s3) 0 var(--cav-s1);
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--cav-mid);
+}
+
+/* ── Visit row — static, by design ──────────────────────────────────────
+   No cursor:pointer, no hover colour shift, no tabindex. Rows become
+   openable in Phase 46; until then they must not advertise it. */
+.cav-cockpit .cav-visit {
+    display: flex;
+    align-items: baseline;
+    gap: var(--cav-s3);
+    padding: var(--cav-s3) 0;
+    border-top: 1px solid var(--cav-rule);
+    font-size: 15px;
+    line-height: 1.65;
+}
+
+.cav-cockpit .cav-visit:first-child {
+    border-top: 0;
+}
+
+/* 52px fixed — one of only two fixed widths on the page (the other is the
+   8px pip), so there is no horizontal scroll at 320px. */
+.cav-cockpit .cav-visit__date {
+    width: 52px;
+    flex: none;
+    font-family: var(--cav-font-head);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+    color: var(--cav-light);
+}
+
+.cav-cockpit .cav-visit__main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.cav-cockpit .cav-visit__sub {
+    display: block;
+    margin-top: var(--cav-s1);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.45;
+    color: var(--cav-light);
+}
+
+.cav-cockpit .cav-visit__status {
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--cav-light);
+    white-space: nowrap;
+}
+
+.cav-cockpit .cav-visit__status--attn {
+    color: var(--cav-gold-ink);
+    font-weight: 600;
+}
+
+/* ── Reconstructed (backfilled) visits — D-02 ───────────────────────────
+   DASHED MEANS INFERRED. Solid borders and rules mean recorded; a dashed
+   border appears nowhere else in the cockpit, so it reads as a qualifier
+   rather than decoration, and it survives greyscale and colour-blindness
+   because it is a line style, not a hue. No gold (not actionable) and no
+   teal (not confirmed) — reconstructed rows sit in the neutral tier. */
+.cav-cockpit .cav-visit--reconstructed {
+    border-left: 2px dashed var(--cav-inferred);
+    padding-left: var(--cav-s3);
+    margin-left: var(--cav-s1);
+}
+
+/* The inferred type word, with aria-describedby pointing at the sub-line
+   that explains it. Worksheet-derived visits only — a survey-derived
+   visit's type is not in doubt, only its provenance. */
+.cav-cockpit .cav-inferred-type {
+    text-decoration: underline dotted currentColor;
+    text-underline-offset: 2px;
+}
+
+/* ── Superseded visits — D-04 ───────────────────────────────────────────
+   The trip to site happened; superseding the paperwork does not un-happen
+   it. Strikethrough is scoped to the DELIVERABLE NAME only — striking the
+   engineer and the date would make the surviving fact (someone went) harder
+   to read, the opposite of D-04's intent. And no opacity on this row: 0.7
+   would take its meta text to 3.03:1 and fail. */
+.cav-cockpit .cav-superseded-name {
+    text-decoration: line-through;
+}
+
+/* ── Chips — readable words, not badges-as-icons ────────────────────────
+   Text is --cav-mid (6.72:1 on --cav-chip-bg); --cav-light would be 4.09:1
+   and FAIL, and these chips carry the most load-bearing copy on the page.
+   Dashed border = Reconstructed (an inference about the visit); solid =
+   Superseded (a recorded fact about the paperwork). A row may legitimately
+   carry both, Reconstructed first. */
+.cav-cockpit .cav-chip {
+    display: inline-block;
+    padding: 1px 6px;
+    border: 1px solid var(--cav-border);
+    border-radius: var(--cav-radius-sm);
+    background: var(--cav-chip-bg);
+    color: var(--cav-mid);
+    font-family: var(--cav-font-head);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.cav-cockpit .cav-chip--reconstructed {
+    border-style: dashed;
+    border-color: var(--cav-inferred);
+}
+
+.cav-cockpit .cav-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--cav-s2);
+    margin-top: var(--cav-s1);
+}
+
+/* ── Tags — teal-soft "RAMS issued" / "Worksheet signed" ───────────────
+   Teal-dark text on teal-soft is 5.26:1. */
+.cav-cockpit .cav-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: var(--cav-radius-sm);
+    background: var(--cav-teal-soft);
+    color: var(--cav-teal-dark);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+}
+
+/* ── Document rows and lifecycle rows ──────────────────────────────────
+   The O&M full-vs-mini <select> in the sketch is rendered as static text
+   here; there is no form control of any kind on this page. */
+.cav-cockpit .cav-doc {
+    display: flex;
+    gap: var(--cav-s3);
+    padding: var(--cav-s3) 0;
+    border-top: 1px solid var(--cav-rule);
+    font-size: 15px;
+    line-height: 1.65;
+}
+
+.cav-cockpit .cav-doc:first-child {
+    border-top: 0;
+}
+
+.cav-cockpit .cav-doc__name {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.cav-cockpit .cav-doc__value {
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--cav-light);
+    white-space: nowrap;
+}
+
+/* uploaded -> sent -> issued. The discs reuse the Done and Waiting shapes
+   so the vocabulary stays consistent. */
+.cav-cockpit .cav-life {
+    display: flex;
+    align-items: center;
+    gap: var(--cav-s3);
+    padding: var(--cav-s3) 0;
+    border-top: 1px solid var(--cav-rule);
+    font-size: 15px;
+    line-height: 1.65;
+}
+
+.cav-cockpit .cav-life:first-of-type {
+    border-top: 0;
+}
+
+.cav-cockpit .cav-life__name {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.cav-cockpit .cav-life__value {
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--cav-light);
+    white-space: nowrap;
+}
+
+.cav-cockpit .cav-life__disc {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border: 1.5px solid var(--cav-wait);
+    border-radius: 50%;
+    background: var(--cav-surface);
+    font-size: 9px;
+    line-height: 1;
+    color: var(--cav-surface);
+}
+
+.cav-cockpit .cav-life__disc--on {
+    background: var(--cav-teal);
+    border-color: var(--cav-teal);
+    color: #fff;
+}
+
+/* ── Snag rows ─────────────────────────────────────────────────────────
+   Also static in Phase 45. The sketch's `.sg--done{opacity:.55}` is NOT
+   reproduced — see the opacity rule; a resolved snag is receded by its
+   numeral going teal and by its outcome text, both of which are text
+   channels that pass on their own. */
+.cav-cockpit .cav-snag-group {
+    margin: var(--cav-s3) 0 0;
+    padding-top: var(--cav-s3);
+    border-top: 1px solid var(--cav-rule);
+    font-family: var(--cav-font-head);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--cav-mid);
+}
+
+.cav-cockpit .cav-snag-group:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+}
+
+.cav-cockpit .cav-snag {
+    display: flex;
+    align-items: center;
+    gap: var(--cav-s3);
+    padding: var(--cav-s3) 0;
+    border-top: 1px solid var(--cav-rule);
+    font-size: 15px;
+    line-height: 1.65;
+}
+
+.cav-cockpit .cav-snag__num {
+    width: 20px;
+    height: 20px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--cav-light);
+    color: #fff;
+    font-family: var(--cav-font-head);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.cav-cockpit .cav-snag--done .cav-snag__num {
+    background: var(--cav-teal);
+}
+
+.cav-cockpit .cav-snag__name {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.cav-cockpit .cav-snag__outcome {
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--cav-light);
+    white-space: nowrap;
+}
+
+/* ── Footnote and the one permitted navigation affordance ──────────────
+   "Open the full project page" is a GET to an existing page. The eleven-tab
+   page remains the default (criterion 4); the cockpit must offer a way
+   back. --cav-light is legible here only because this text sits on a white
+   surface — see the token comment. */
+.cav-cockpit .cav-note {
+    margin-top: var(--cav-s6);
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--cav-mid);
+}
+
+.cav-cockpit .cav-link {
+    color: var(--cav-teal-dark);
+    text-underline-offset: 3px;
+}
+
+/* ── Focus — visible, always ────────────────────────────────────────────
+   Mirrors the app's own precedent (layouts/app.blade.php:617) in brand
+   colour. #016E82 on white is 5.9:1, comfortably over the 3:1 non-text
+   floor. NEVER `outline: none` without a replacement. */
+.cav-cockpit .cav-drawer > summary:focus-visible,
+.cav-cockpit a:focus-visible {
+    outline: 2px solid var(--cav-focus);
+    outline-offset: 2px;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────
+   No multi-column layout at any width: the spine is a reading column. */
+@media (max-width: 680px) {
+    .cav-cockpit .cav-in,
+    .cav-cockpit .cav-page {
+        padding-left: var(--cav-s5);
+        padding-right: var(--cav-s5);
+    }
+}
+
+/* Phone. THE SUMMARY BECOMES A TWO-ROW FLEX: row 1 = pip + title + arrow,
+   row 2 = count + status at Meta, indented to the title's left edge.
+
+   The sketch's `@media(max-width:480px){ .s,.c{display:none} }` is
+   DELIBERATELY NOT REPRODUCED, and this deviation is signed off by the user
+   2026-09-19 — do not "restore" it. Drawers are closed at rest, so the count
+   slot is the only place a reconstructed or superseded visit is disclosed
+   without the PM opening anything (§ Reconstructed requires exactly that).
+   Hiding it means a PM reading the spine on site sees an inferred visit as
+   an unqualified fact — the precise failure D-02 exists to prevent. This
+   changes reflow only, not hierarchy or visual direction, and preserves
+   every state channel down to 320px. */
+@media (max-width: 480px) {
+    .cav-cockpit .cav-in,
+    .cav-cockpit .cav-page {
+        padding-left: var(--cav-s4);
+        padding-right: var(--cav-s4);
+    }
+
+    .cav-cockpit .cav-mast {
+        clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), 0 100%);
+    }
+
+    .cav-cockpit .cav-mast__name {
+        font-size: 22px;
+    }
+
+    /* Two explicit rows. Each of the five children is placed by hand, so
+       count and status occupy their own cells and can never overlap. The
+       title column is minmax(0,1fr) so it wraps rather than forcing
+       horizontal scroll at 320px. */
+    .cav-cockpit .cav-drawer > summary {
+        display: grid;
+        grid-template-columns: 16px minmax(0, 1fr) auto;
+        grid-template-rows: auto auto;
+        align-items: center;
+        gap: var(--cav-s1) var(--cav-s3);
+        padding: var(--cav-s4) var(--cav-s3);
+    }
+
+    /* Row 1 — pip + title + arrow. */
+    .cav-cockpit .cav-drawer > summary > .cav-pip,
+    .cav-cockpit .cav-drawer > summary > .cav-tick {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .cav-cockpit .cav-drawer > summary > .cav-title {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .cav-cockpit .cav-drawer > summary > .cav-arrow {
+        grid-column: 3;
+        grid-row: 1;
+        justify-self: end;
+    }
+
+    /* Row 2 — count and status, BOTH kept, indented to the title's left
+       edge. Neither is ever hidden (see the note above). */
+    .cav-cockpit .cav-drawer > summary > .cav-count {
+        grid-column: 2;
+        grid-row: 2;
+        justify-self: start;
+        white-space: normal;
+    }
+
+    .cav-cockpit .cav-drawer > summary > .cav-status {
+        grid-column: 3;
+        grid-row: 2;
+        justify-self: end;
+        white-space: normal;
+    }
+}
+
+/* ── Reduced motion ────────────────────────────────────────────────────
+   Disables the arrow's transform transition, following the existing block
+   at resources/css/app.css:41. */
+@media (prefers-reduced-motion: reduce) {
+    .cav-cockpit .cav-arrow {
+        transition: none;
+    }
+}
