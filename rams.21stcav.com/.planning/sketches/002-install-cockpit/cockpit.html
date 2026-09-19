@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Project cockpit — 21CQ30473-05-OPS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --teal:#01889F; --teal-dark:#016e82; --teal-light:#e6f4f7;
+  --gold:#D4AF37; --gold-light:#f5edd6;
+  --text-dark:#1a1a1a; --text-mid:#444; --text-light:#767676;
+  --bg:#f8f8f8; --white:#fff; --rule:#e0e0e0;
+  --head:'Verdana Pro',Verdana,'Trebuchet MS',sans-serif;
+  --body:'Poppins','Segoe UI',Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text-dark);
+     font:400 15px/1.6 var(--body)}
+h1,h2,h3{font-family:var(--head);margin:0}
+
+/* ── masthead, angled per brand ─────────────────────────── */
+.mast{background:var(--teal);color:#fff;padding:26px 0 46px;
+      clip-path:polygon(0 0,100% 0,100% calc(100% - 26px),0 100%)}
+.in{max-width:920px;margin:0 auto;padding:0 22px}
+.mast h1{font-size:1.9rem;font-weight:700;letter-spacing:-.01em;line-height:1.15}
+.mast .client{font-size:.95rem;color:#cdeaf1;margin-top:3px}
+.mast .rail{display:flex;gap:26px;margin-top:20px;flex-wrap:wrap}
+.mast .rail div{border-left:2px solid var(--gold);padding-left:11px}
+.mast .rail dt{font-size:.72rem;color:#a9d8e3;letter-spacing:.02em}
+.mast .rail dd{margin:1px 0 0;font-family:var(--head);font-weight:700;font-size:1.05rem}
+
+.page{max-width:920px;margin:-22px auto 0;padding:0 22px 70px;position:relative}
+
+/* ── attention, folded in not bolted on ─────────────────── */
+.attn{background:var(--white);border-left:4px solid var(--gold);
+      padding:15px 18px;margin-bottom:34px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+.attn h2{font-size:.95rem;font-weight:700;margin-bottom:9px}
+.attn p{margin:0;font-size:.9rem;color:var(--text-mid)}
+.attn ul{margin:9px 0 0;padding:0;list-style:none}
+.attn li{padding:6px 0;border-top:1px solid #f0f0f0;font-size:.9rem;
+         display:flex;gap:12px;align-items:baseline}
+.attn li b{font-weight:500;flex:1 1 auto}
+.attn li span{color:var(--text-light);font-size:.82rem}
+
+h2.sec{font-size:1.15rem;font-weight:700;margin-bottom:4px}
+p.lede{color:var(--text-light);font-size:.88rem;margin:0 0 18px}
+
+/* ── the spine: visits as stations on the programme ─────── */
+.spine{position:relative;padding-left:30px}
+.spine::before{content:'';position:absolute;left:7px;top:8px;bottom:26px;
+               width:2px;background:linear-gradient(var(--teal),#bcdfe7)}
+.visit{position:relative;background:var(--white);padding:15px 18px;margin-bottom:11px;
+       box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.visit::before{content:'';position:absolute;left:-30px;top:20px;width:16px;height:16px;
+               border-radius:50%;background:var(--white);border:3px solid var(--teal)}
+.visit--done::before{background:var(--teal)}
+.visit--attn::before{border-color:var(--gold);background:var(--gold)}
+.visit--todo::before{border-color:#c9c9c9}
+.visit--todo{background:#fcfcfc;box-shadow:none;border:1px dashed var(--rule)}
+
+.vtop{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.vdate{font-family:var(--head);font-weight:700;font-size:.85rem;color:var(--teal);
+       min-width:56px}
+.visit--todo .vdate{color:var(--text-light)}
+.vtype{font-family:var(--head);font-weight:700;font-size:1.02rem;flex:1 1 auto}
+.veng{font-size:.85rem;color:var(--text-mid)}
+.vstate{font-size:.78rem;font-weight:500;padding:.1rem .5rem;border-radius:2px;
+        background:var(--teal-light);color:var(--teal-dark)}
+.vstate--attn{background:var(--gold-light);color:#7a6318}
+.vstate--idle{background:#f0f0f0;color:var(--text-light)}
+
+.vbody{margin-top:10px;font-size:.88rem;color:var(--text-mid)}
+.vfacts{display:flex;gap:20px;flex-wrap:wrap;margin-top:9px;font-size:.82rem;
+        color:var(--text-light)}
+.vfacts b{color:var(--text-dark);font-family:var(--head);font-weight:700}
+.thumbs{display:flex;gap:5px;margin-top:11px}
+.th{width:44px;height:44px;background:#dfe9ec;display:grid;place-items:center;
+    font-size:16px;color:var(--teal-dark)}
+.th--more{background:none;border:1px dashed var(--rule);font-size:.72rem;color:var(--text-light)}
+
+.raised{margin-top:12px;padding:10px 12px;background:var(--gold-light);font-size:.85rem}
+.raised h4{margin:0 0 5px;font-family:var(--head);font-size:.82rem;font-weight:700;color:#7a6318}
+.raised ol{margin:0;padding-left:17px;color:#5c4b12}
+.raised li{margin:2px 0}
+
+.link{margin-top:11px;padding-top:10px;border-top:1px solid #f0f0f0;
+      display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:.82rem;
+      color:var(--text-light)}
+.link code{background:#f4f4f4;padding:.1rem .35rem;font-size:.76rem;color:var(--text-mid)}
+
+.btn{font-family:var(--head);font-weight:700;font-size:.76rem;letter-spacing:.02em;
+     text-transform:uppercase;border:0;padding:.45rem .8rem;cursor:pointer;
+     background:var(--teal);color:#fff}
+.btn--gold{background:var(--gold);color:#3d3208}
+.btn--quiet{background:none;color:var(--teal);border:1px solid #bcdfe7}
+.add{margin-left:-30px;margin-top:4px}
+.add .btn{background:none;color:var(--teal);border:1px dashed #9fd0da;width:100%;
+          padding:.7rem;text-align:left;padding-left:31px}
+
+/* ── documents shelf ────────────────────────────────────── */
+.shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px}
+.doc{background:var(--white);padding:13px;box-shadow:0 1px 4px rgba(0,0,0,.05);
+     border-top:3px solid var(--teal)}
+.doc--add{background:none;border:1px dashed var(--rule);border-top:1px dashed var(--rule);
+          display:grid;place-items:center;color:var(--text-light);font-size:.85rem;
+          min-height:76px;cursor:pointer}
+.doc h4{font-family:var(--head);font-size:.85rem;font-weight:700;margin:0 0 2px}
+.doc p{margin:0;font-size:.76rem;color:var(--text-light)}
+
+/* ── deliverables strip ─────────────────────────────────── */
+.dlv{background:var(--white);box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.dlv-row{display:flex;align-items:center;gap:12px;padding:11px 16px;
+         border-top:1px solid #f2f2f2;font-size:.9rem}
+.dlv-row:first-child{border-top:0}
+.pip{width:9px;height:9px;border-radius:50%;flex:none}
+.pip--ok{background:var(--teal)} .pip--attn{background:var(--gold)}
+.pip--err{background:#c0392b} .pip--idle{background:#d5d5d5}
+.dlv-name{flex:1 1 auto;font-weight:500}
+.dlv-state{color:var(--text-light);font-size:.82rem}
+.dlv-row--na{opacity:.45}
+.box{width:15px;height:15px;border:1.5px solid #bbb;flex:none;display:grid;
+     place-items:center;font-size:10px;background:#fff;color:#fff}
+.box--on{background:var(--teal);border-color:var(--teal)}
+
+.foot{margin-top:30px;font-size:.78rem;color:var(--text-light);font-style:italic}
+@media (max-width:560px){
+  .mast h1{font-size:1.45rem}
+  .spine{padding-left:22px}
+  .visit::before{left:-22px;width:13px;height:13px}
+  .add{margin-left:-22px}
+}
+</style>
+</head>
+<body>
+
+<header class="mast">
+  <div class="in">
+    <h1>Gardner Leader LLP</h1>
+    <div class="client">21CQ30473-05-OPS &nbsp;|&nbsp; Newbury &nbsp;|&nbsp; Sonny Tanda</div>
+    <dl class="rail">
+      <div><dt>Stage</dt><dd>Install</dd></div>
+      <div><dt>Visits</dt><dd>3 of 5</dd></div>
+      <div><dt>Rooms</dt><dd>7</dd></div>
+      <div><dt>Cost to date</dt><dd>£1,800</dd></div>
+    </dl>
+  </div>
+</header>
+
+<main class="page">
+
+  <section class="attn">
+    <h2>Three things are waiting on you</h2>
+    <ul>
+      <li><b>Install visit signed but not accepted</b> <span>18 Sep, 2 items outstanding</span></li>
+      <li><b>Rack elevation failed to generate</b> <span>17 Sep, not retried</span></li>
+      <li><b>Programming visit has no engineer link</b> <span>booked for 24 Sep</span></li>
+    </ul>
+  </section>
+
+  <h2 class="sec">Install programme</h2>
+  <p class="lede">Every visit to site, the link the engineer worked from, and what came back.</p>
+
+  <div class="spine">
+
+    <!-- SITE SURVEY -->
+    <article class="visit visit--done">
+      <div class="vtop">
+        <span class="vdate">02 Sep</span>
+        <span class="vtype">Site survey</span>
+        <span class="veng">Jack Reilly</span>
+        <span class="vstate">Returned</span>
+      </div>
+      <div class="vbody">All seven rooms surveyed. Substrate and containment confirmed.</div>
+      <div class="vfacts"><span><b>7</b> rooms</span><span><b>24</b> photos</span><span><b>£300</b></span><span><b>1</b> engineer</span></div>
+      <div class="thumbs"><div class="th">▣</div><div class="th">▣</div><div class="th">▣</div><div class="th th--more">+21</div></div>
+
+      <div class="raised">
+        <h4>Three actions came out of this survey</h4>
+        <ol>
+          <li>Part change — Boardroom bracket will not fit 90mm stud; 600mm interface plate needed</li>
+          <li>Client to do — power required behind Reception display before first fix</li>
+          <li>Urgent for engineers — asbestos register covers ceiling voids on floor 2 only</li>
+        </ol>
+      </div>
+
+      <div class="link">
+        <code>/survey/9f2c…a71</code> expired 03 Sep
+        <button class="btn btn--quiet">View return</button>
+      </div>
+    </article>
+
+    <!-- FIRST FIX -->
+    <article class="visit visit--done">
+      <div class="vtop">
+        <span class="vdate">17 Sep</span>
+        <span class="vtype">First fix</span>
+        <span class="veng">Marcus Okafor</span>
+        <span class="vstate">Returned</span>
+      </div>
+      <div class="vbody">Containment and cable pulls to all rooms. Reception held — client power still outstanding.</div>
+      <div class="vfacts"><span><b>6</b> of 7 rooms</span><span><b>26</b> photos</span><span><b>£600</b></span><span><b>2</b> engineers</span></div>
+      <div class="thumbs"><div class="th">▣</div><div class="th">▣</div><div class="th th--more">+24</div></div>
+      <div class="link"><code>/worksheet/4b81…9c2</code> closed 17 Sep <button class="btn btn--quiet">View return</button></div>
+    </article>
+
+    <!-- INSTALL — needs attention -->
+    <article class="visit visit--attn">
+      <div class="vtop">
+        <span class="vdate">18 Sep</span>
+        <span class="vtype">Install</span>
+        <span class="veng">Marcus Okafor</span>
+        <span class="vstate vstate--attn">Signed, not accepted</span>
+      </div>
+      <div class="vbody">All seven rooms complete. Client signed on site with two items left open.</div>
+      <div class="vfacts"><span><b>7</b> of 7 rooms</span><span><b>41</b> photos</span><span><b>18</b> serials</span><span><b>£900</b></span></div>
+      <div class="thumbs"><div class="th">✎</div><div class="th">▣</div><div class="th">▣</div><div class="th th--more">+38</div></div>
+
+      <div class="raised">
+        <h4>Two items left open by the engineer</h4>
+        <ol>
+          <li>Boardroom trunking to be made good by others</li>
+          <li>Reception display still awaiting client power</li>
+        </ol>
+      </div>
+
+      <div class="link">
+        <code>/worksheet/7d10…e44</code> signed by M. Halliday, 18 Sep
+        <button class="btn btn--gold">Accept visit</button>
+        <button class="btn btn--quiet">View return</button>
+      </div>
+    </article>
+
+    <!-- PROGRAMMING — booked, no link -->
+    <article class="visit visit--todo">
+      <div class="vtop">
+        <span class="vdate">24 Sep</span>
+        <span class="vtype">Programming</span>
+        <span class="veng">Not assigned</span>
+        <span class="vstate vstate--idle">No link sent</span>
+      </div>
+      <div class="vbody">A programming visit builds its link from the room schedule and the confirmed serials.</div>
+      <div class="link"><button class="btn">Assign and send link</button></div>
+    </article>
+
+    <!-- SNAG — unplanned -->
+    <article class="visit visit--todo">
+      <div class="vtop">
+        <span class="vdate">—</span>
+        <span class="vtype">Snag</span>
+        <span class="veng">Not booked</span>
+        <span class="vstate vstate--idle">2 open items</span>
+      </div>
+      <div class="vbody">Carries the two items from the install visit. Book when the client confirms power.</div>
+      <div class="link"><button class="btn btn--quiet">Book visit</button></div>
+    </article>
+
+    <div class="add"><button class="btn">+ Add a visit</button></div>
+  </div>
+
+  <h2 class="sec" style="margin-top:38px">Documents</h2>
+  <p class="lede">Anything an engineer might need on site. Attached to every link you send.</p>
+  <div class="shelf">
+    <div class="doc"><h4>Site map</h4><p>PDF · added 28 Aug</p></div>
+    <div class="doc"><h4>Rack elevation</h4><p>Failed to generate</p></div>
+    <div class="doc"><h4>Floor 2 asbestos register</h4><p>PDF · added 02 Sep</p></div>
+    <div class="doc"><h4>Cable schedule</h4><p>XLSX · added 11 Sep</p></div>
+    <div class="doc doc--add">+ Add document</div>
+  </div>
+
+  <h2 class="sec" style="margin-top:38px">Deliverables</h2>
+  <p class="lede">What this job owes the client, and whether it is closeable.</p>
+  <div class="dlv">
+    <div class="dlv-row"><span class="pip pip--ok"></span><span class="dlv-name">Site survey</span><span class="dlv-state">Signed off 02 Sep</span></div>
+    <div class="dlv-row"><span class="pip pip--attn"></span><span class="dlv-name">RAMS</span><span class="dlv-state">Awaiting review, 7 days</span></div>
+    <div class="dlv-row"><span class="pip pip--attn"></span><span class="dlv-name">Worksheet</span><span class="dlv-state">Signed, needs accepting</span></div>
+    <div class="dlv-row"><span class="pip pip--err"></span><span class="dlv-name">Drawings</span><span class="dlv-state">1 of 4 failed</span></div>
+    <div class="dlv-row"><span class="pip pip--attn"></span><span class="dlv-name">O&amp;M manual</span><span class="dlv-state">18 serials in, awaiting review</span></div>
+    <div class="dlv-row"><span class="pip pip--attn"></span><span class="dlv-name">Snagging</span><span class="dlv-state">2 open</span></div>
+    <div class="dlv-row"><span class="box box--on">✓</span><span class="dlv-name">Programming</span><span class="dlv-state">Marked done by hand</span></div>
+    <div class="dlv-row dlv-row--na"><span class="box"></span><span class="dlv-name">Cable schedule</span><span class="dlv-state">Not required</span></div>
+  </div>
+
+  <p class="foot">
+    Programming carries a box rather than a light. Nothing in the system can evidence it, so a light
+    would imply a certainty we do not have.
+  </p>
+
+</main>
+</body>
+</html>
