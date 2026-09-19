@@ -348,6 +348,50 @@ planning time — no formal requirement IDs existed yet for this milestone; see
 
 ---
 
+### Phase 45: Visit Model + Read-only Cockpit
+
+**Goal**: One typed `Visit` record that wraps every existing trip to site, and a cockpit page that
+reads it — both shipped alongside the current project page, changing nothing a user sees until a
+flag is turned on.
+
+**Depends on**: Phase 44 (labour resources are assigned to visits).
+
+**Requirements**: To be minted (VIS-xx) at planning time and written into
+`.planning/REQUIREMENTS.md` § v4.0 — no formal IDs exist yet. Derived from the 2026-09-19 design
+decisions in `.planning/sketches/002-install-cockpit/README.md`.
+
+**Success Criteria** (what must be TRUE):
+
+  1. A `visits` table exists carrying a **type** (site survey / first fix / install / programming /
+     snag / commissioning), its project, its scheduled date, its assigned labour resources, and its
+     status
+  2. Every existing `SiteSurvey` and `Worksheet` row is **wrapped** by a backfilled visit. Nothing
+     is deleted, no existing row is rewritten, and every live `/survey/{token}` and
+     `/worksheet/{token}` link keeps working exactly as it does today
+  3. The cockpit page renders **read-only** behind a feature flag, on its own route, showing the
+     programme spine and its section drawers closed at rest
+  4. The existing eleven-tab project page is **untouched and remains the default**. With the flag
+     off, the application behaves exactly as it does today — proven by a test, not by inspection
+  5. Traffic lights on the cockpit are derived from data that already exists; this phase adds no
+     new engineer-facing capture and no new writes
+
+**Open questions carried from the sketch** (resolve at discuss-phase, not here):
+
+  - Does the typed-visit model hold for every type, or do survey and install diverge too far to
+    share one record?
+  - `InstallProgramme` cannot be the master as it stands — `archiveExisting()` + `createForProject()`
+    replace the whole record on every regenerate, which would orphan visits filed under it. Does
+    Phase 45 split the durable record from the regenerable task list, or does Phase 46?
+  - Brand: the cockpit sketch is 21CAV teal/Verdana; the live app is `#1E5FE0`/Inter. Either the
+    cockpit starts a brand-aligned refresh or it is retokened to match. A half-branded app is worse
+    than either.
+
+**Plans**: Not yet planned
+
+**UI hint**: yes (new read-only page, flag-gated)
+
+---
+
 ## 🚧 v2.0 Engineering-Grade AV Drawings (Paused)
 
 **Status note (2026-08-23):** Paused mid-milestone in favour of v3.0. Phases 21, 22, 22.1 and 23 are complete on disk. Phase 24 has one open plan (24-09, a bounded human-checkpoint curation task, out of autonomous-executor scope by design). Phase 25 remains unplanned. Resume either after v3.0 ships or opportunistically between v3.0 phases.
