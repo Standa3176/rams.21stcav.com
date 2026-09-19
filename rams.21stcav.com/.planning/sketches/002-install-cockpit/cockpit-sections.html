@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Project cockpit — sections</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --teal:#01889F; --teal-dark:#016e82; --teal-soft:#e6f4f7;
+  --gold:#D4AF37; --gold-soft:#faf4e4;
+  --ink:#1a1a1a; --mid:#555; --light:#8a8a8a;
+  --bg:#fafafa; --white:#fff; --rule:#ececec;
+  --head:'Verdana Pro',Verdana,'Trebuchet MS',sans-serif;
+  --body:'Poppins','Segoe UI',Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.65 var(--body)}
+h1,h2{font-family:var(--head);margin:0}
+.in{max-width:680px;margin:0 auto;padding:0 22px}
+
+.mast{background:var(--teal);color:#fff;padding:30px 0 38px;
+      clip-path:polygon(0 0,100% 0,100% calc(100% - 22px),0 100%)}
+.mast h1{font-size:1.65rem;font-weight:700;line-height:1.2}
+.mast .sub{font-size:.9rem;color:#c5e6ee;margin-top:4px}
+.page{max-width:680px;margin:-14px auto 0;padding:0 22px 80px}
+
+.attn{padding:16px 0 20px;border-bottom:1px solid var(--rule);margin-bottom:34px}
+.attn h2{font-size:1rem;font-weight:700;margin-bottom:3px}
+.attn p{margin:0;color:var(--mid);font-size:.9rem}
+.attn em{font-style:normal;border-bottom:2px solid var(--gold);padding-bottom:1px}
+
+.sec{font-family:var(--head);font-size:.78rem;font-weight:700;color:var(--light);
+     letter-spacing:.04em;margin:0 0 12px}
+
+/* section drawer — one line at rest */
+.dw{background:var(--white);border:1px solid var(--rule);border-radius:3px;margin-bottom:7px}
+.dw>summary{display:flex;align-items:center;gap:13px;padding:15px 17px;cursor:pointer;
+            list-style:none;font-size:.95rem}
+.dw>summary::-webkit-details-marker{display:none}
+.dw>summary:hover{background:#fcfcfc}
+.dw[open]>summary{border-bottom:1px solid var(--rule)}
+.pip{width:8px;height:8px;border-radius:50%;flex:none}
+.pip--done{background:var(--teal)} .pip--attn{background:var(--gold)} .pip--wait{background:#d8d8d8}
+.t{font-weight:500;flex:1 1 auto;min-width:0}
+.c{font-size:.82rem;color:var(--light);white-space:nowrap}
+.s{font-size:.82rem;color:var(--light);white-space:nowrap}
+.s--attn{color:#8a6d13;font-weight:500}
+.arrow{color:#c5c5c5;font-size:.8rem;transition:transform .18s;flex:none}
+.dw[open] .arrow{transform:rotate(90deg)}
+.bx{width:14px;height:14px;border:1.5px solid #c4c4c4;border-radius:2px;flex:none;
+    display:grid;place-items:center;font-size:9px;color:#fff;background:#fff}
+.bx--on{background:var(--teal);border-color:var(--teal)}
+.dw--na{opacity:.45}
+
+/* visits filed inside a section */
+.body{padding:6px 17px 15px}
+.vz{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid #f4f4f4;
+    font-size:.89rem;cursor:pointer}
+.vz:first-child{border-top:0}
+.vz:hover .vt{color:var(--teal-dark)}
+.vd{font-family:var(--head);font-size:.78rem;font-weight:700;color:var(--light);width:50px;flex:none}
+.vt{flex:1 1 auto;min-width:0}
+.vt small{display:block;color:var(--light);font-size:.78rem;font-weight:400}
+.vs{font-size:.78rem;color:var(--light);white-space:nowrap}
+.vs--attn{color:#8a6d13;font-weight:500}
+.newv{background:none;border:0;color:var(--teal);font:500 .84rem var(--body);cursor:pointer;
+      padding:11px 0 2px;border-top:1px solid #f4f4f4;width:100%;text-align:left}
+.hint{font-size:.85rem;color:var(--mid);padding:10px 0 4px;margin:0}
+.bar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding-top:12px}
+.btn{font-family:var(--head);font-size:.74rem;font-weight:700;letter-spacing:.02em;
+     text-transform:uppercase;border:0;padding:.5rem .85rem;cursor:pointer;border-radius:2px;
+     background:var(--teal);color:#fff}
+.btn--gold{background:var(--gold);color:#3b3007}
+.btn--q{background:none;color:var(--teal);border:1px solid #cbe6ec}
+.docline{display:flex;gap:12px;padding:10px 0;font-size:.89rem;border-top:1px solid #f4f4f4}
+.docline:first-child{border-top:0}
+.docline .n{flex:1 1 auto}
+.docline .v{font-size:.8rem;color:var(--light)}
+.note{margin-top:26px;font-size:.78rem;color:var(--light);line-height:1.7}
+
+/* side pop-out */
+.scrim{position:fixed;inset:0;background:rgba(15,30,35,.32);opacity:0;pointer-events:none;
+       transition:opacity .22s;z-index:40}
+.scrim.on{opacity:1;pointer-events:auto}
+.pan{position:fixed;top:0;right:0;bottom:0;width:min(440px,100%);background:var(--white);
+     z-index:50;transform:translateX(100%);transition:transform .24s cubic-bezier(.4,0,.2,1);
+     display:flex;flex-direction:column;box-shadow:-8px 0 30px rgba(0,0,0,.14)}
+.pan.on{transform:none}
+.pan__h{background:var(--teal);color:#fff;padding:20px 22px 18px;flex:none;position:relative}
+.pan__h h2{font-size:1.15rem;font-weight:700}
+.pan__h .m{font-size:.82rem;color:#bfe3eb;margin-top:2px}
+.pan__x{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.16);border:0;
+        color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:15px;line-height:1}
+.pan__b{padding:22px;overflow:auto;flex:1 1 auto}
+.pan__f{padding:16px 22px;border-top:1px solid var(--rule);flex:none;display:flex;gap:9px;
+        flex-wrap:wrap;background:#fcfcfc}
+.step{margin-bottom:26px}
+.step>h3{font-family:var(--head);font-size:.76rem;font-weight:700;color:var(--light);
+         letter-spacing:.04em;margin:0 0 9px;display:flex;align-items:center;gap:8px}
+.step>h3 i{font-style:normal;width:19px;height:19px;border-radius:50%;background:var(--teal-soft);
+           color:var(--teal-dark);display:grid;place-items:center;font-size:.7rem;flex:none}
+.pk{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #f4f4f4;font-size:.89rem}
+.pk:first-of-type{border-top:0}
+.pk .n{flex:1 1 auto}
+.pk .v{font-size:.78rem;color:var(--light)}
+.chk{width:15px;height:15px;border:1.5px solid var(--teal);border-radius:2px;background:var(--teal);
+     color:#fff;display:grid;place-items:center;font-size:9px;flex:none}
+.chk--off{background:#fff;border-color:#ccc}
+.exp{font-size:.89rem;color:var(--mid);display:flex;gap:9px;padding:7px 0}
+.exp i{font-style:normal;color:var(--teal);flex:none;min-width:38px}
+.fld{display:flex;gap:9px;margin-top:4px}
+.fld select,.fld input{flex:1 1 auto;font:400 .88rem var(--body);padding:.5rem .6rem;
+       border:1px solid var(--rule);border-radius:2px;background:#fff}
+.addlink{background:none;border:0;color:var(--teal);font:500 .84rem var(--body);cursor:pointer;padding:8px 0 0}
+.ret{background:var(--teal-soft);padding:13px 15px;border-radius:2px;margin-bottom:20px;font-size:.89rem}
+.ret b{font-family:var(--head)}
+@media(max-width:480px){ .dw>summary{gap:10px;padding:14px 13px} .s,.c{display:none} }
+</style>
+</head>
+<body>
+
+<header class="mast">
+  <div class="in">
+    <h1>Gardner Leader LLP</h1>
+    <div class="sub">21CQ30473-05-OPS &nbsp;·&nbsp; Install stage &nbsp;·&nbsp; Newbury</div>
+  </div>
+</header>
+
+<main class="page">
+
+  <section class="attn">
+    <h2>Three things need you</h2>
+    <p>An <em>install visit is signed but not accepted</em>, a rack elevation failed to generate,
+       and the programming visit has no engineer link yet.</p>
+  </section>
+
+  <p class="sec">Visits — someone goes to site</p>
+
+  <details class="dw">
+    <summary><span class="pip pip--done"></span><span class="t">Site survey</span>
+      <span class="c">1 visit</span><span class="s">Accepted</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <div class="vz" onclick="openPan('survey')">
+        <span class="vd">02 Sep</span>
+        <span class="vt">Jack Reilly<small>7 rooms · 24 photos · 3 actions raised</small></span>
+        <span class="vs">Accepted</span>
+      </div>
+      <button class="newv">+ Book another survey visit</button>
+    </div>
+  </details>
+
+  <details class="dw">
+    <summary><span class="pip pip--done"></span><span class="t">First fix</span>
+      <span class="c">1 visit</span><span class="s">Accepted</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <div class="vz">
+        <span class="vd">17 Sep</span>
+        <span class="vt">Marcus Okafor<small>6 of 7 rooms · 26 photos · £600</small></span>
+        <span class="vs">Accepted</span>
+      </div>
+      <button class="newv">+ Book another first fix visit</button>
+    </div>
+  </details>
+
+  <details class="dw" open>
+    <summary><span class="pip pip--attn"></span><span class="t">Install</span>
+      <span class="c">3 visits</span><span class="s s--attn">1 needs accepting</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <div class="vz">
+        <span class="vd">15 Sep</span>
+        <span class="vt">Marcus Okafor, Priya Shah<small>Rack build and first three rooms · £900</small></span>
+        <span class="vs">Accepted</span>
+      </div>
+      <div class="vz">
+        <span class="vd">16 Sep</span>
+        <span class="vt">Marcus Okafor<small>Rooms 4 to 6 · £450</small></span>
+        <span class="vs">Accepted</span>
+      </div>
+      <div class="vz" onclick="openPan('inst')">
+        <span class="vd">18 Sep</span>
+        <span class="vt">Marcus Okafor<small>Final room, client signed · 18 serials · £450</small></span>
+        <span class="vs vs--attn">Needs accepting</span>
+      </div>
+      <button class="newv">+ Book another install visit</button>
+    </div>
+  </details>
+
+  <details class="dw">
+    <summary><span class="pip pip--wait"></span><span class="t">Programming</span>
+      <span class="c">not booked</span><span class="s">No link sent</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <p class="hint">A programming visit sends connection docs and credentials, and expects the
+        programme file and a sign-off back.</p>
+      <div class="bar"><button class="btn" onclick="openPan('prog')">Prepare a visit</button></div>
+    </div>
+  </details>
+
+  <details class="dw">
+    <summary><span class="pip pip--wait"></span><span class="t">Snagging</span>
+      <span class="c">not booked</span><span class="s s--attn">2 open items</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <p class="hint">Two items carried from the 18 Sep install visit. Book once the client
+        confirms power.</p>
+      <div class="bar"><button class="btn btn--q">Book a visit</button></div>
+    </div>
+  </details>
+
+  <p class="sec" style="margin-top:36px">Documents — produced in the office</p>
+
+  <details class="dw">
+    <summary><span class="pip pip--attn"></span><span class="t">RAMS</span>
+      <span class="c">rev 2</span><span class="s s--attn">Awaiting review</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <p class="hint">Generated 12 Sep. Nobody has reviewed it for seven days.</p>
+      <div class="bar"><button class="btn">Review</button><button class="btn btn--q">Download</button></div>
+    </div>
+  </details>
+
+  <details class="dw">
+    <summary><span class="pip pip--attn"></span><span class="t">Drawings</span>
+      <span class="c">4 drawings</span><span class="s s--attn">1 failed</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <div class="docline"><span class="n">Schematic — floor 1</span><span class="v">Approved</span></div>
+      <div class="docline"><span class="n">Schematic — floor 2</span><span class="v">Approved</span></div>
+      <div class="docline"><span class="n">Floor plan</span><span class="v">Approved</span></div>
+      <div class="docline"><span class="n">Rack elevation</span><span class="v">Failed 17 Sep</span></div>
+      <div class="bar"><button class="btn btn--gold">Retry rack elevation</button></div>
+    </div>
+  </details>
+
+  <details class="dw">
+    <summary><span class="pip pip--attn"></span><span class="t">O&amp;M manual</span>
+      <span class="c">18 devices</span><span class="s s--attn">Awaiting review</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <p class="hint">All 18 serials came from the install visits and are already in the asset list.</p>
+      <div class="bar"><button class="btn">Review</button></div>
+    </div>
+  </details>
+
+  <details class="dw dw--na">
+    <summary><span class="bx"></span><span class="t">Cable schedule</span>
+      <span class="c"></span><span class="s">Not required</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <p class="hint">Marked not required at import — no cable lines on the quote.</p>
+      <div class="bar"><button class="btn btn--q">Add anyway</button></div>
+    </div>
+  </details>
+
+  <details class="dw">
+    <summary><span class="bx bx--on">✓</span><span class="t">Programming sign-off</span>
+      <span class="c"></span><span class="s">Marked done</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <p class="hint">Nothing in the system can evidence this one, so it is a box you tick by hand.
+        Ticked by Jack Reilly on 16 Sep.</p>
+    </div>
+  </details>
+
+  <p class="sec" style="margin-top:36px">Reference</p>
+
+  <details class="dw">
+    <summary><span class="pip pip--done"></span><span class="t">Documents for engineers</span>
+      <span class="c">4 files</span><span class="s">Attached to every link</span><span class="arrow">›</span></summary>
+    <div class="body">
+      <div class="docline"><span class="n">Site map</span><span class="v">28 Aug</span></div>
+      <div class="docline"><span class="n">Floor 2 asbestos register</span><span class="v">02 Sep</span></div>
+      <div class="docline"><span class="n">Client site rules</span><span class="v">28 Aug</span></div>
+      <div class="docline"><span class="n">Parking and access note</span><span class="v">01 Sep</span></div>
+      <div class="bar"><button class="btn btn--q">Add document</button></div>
+    </div>
+  </details>
+
+  <p class="note">
+    Visits group by type, so a three-day install is one line until you open it. Each section is
+    also the deliverable — there is no second list saying the same thing twice.
+  </p>
+
+</main>
+
+<div class="scrim" id="scrim" onclick="closePan()"></div>
+
+<aside class="pan" id="pan-prog" aria-hidden="true">
+  <div class="pan__h"><button class="pan__x" onclick="closePan()">×</button>
+    <h2>New programming visit</h2><div class="m">not yet assigned</div></div>
+  <div class="pan__b">
+    <div class="step"><h3><i>1</i>What the engineer gets</h3>
+      <div class="pk"><span class="chk">✓</span><span class="n">Site map</span><span class="v">PDF</span></div>
+      <div class="pk"><span class="chk">✓</span><span class="n">Connection schedule</span><span class="v">from cable schedule</span></div>
+      <div class="pk"><span class="chk">✓</span><span class="n">Confirmed device list</span><span class="v">18 serials</span></div>
+      <div class="pk"><span class="chk chk--off"></span><span class="n">Rack elevation</span><span class="v">failed to generate</span></div>
+      <div class="pk"><span class="chk">✓</span><span class="n">Device credentials</span><span class="v">restricted</span></div>
+      <button class="addlink">+ Attach another document</button></div>
+    <div class="step"><h3><i>2</i>What must come back</h3>
+      <div class="exp"><i>File</i><span>A copy of the programme</span></div>
+      <div class="exp"><i>Form</i><span>Commissioning sign-off</span></div>
+      <div class="exp"><i>Photos</i><span>The rack as left</span></div>
+      <button class="addlink">+ Add a requirement</button></div>
+    <div class="step"><h3><i>3</i>Who and when</h3>
+      <div class="fld">
+        <select><option>Choose engineer…</option><option>Jack Reilly</option><option>Marcus Okafor</option><option>Priya Shah</option></select>
+        <input type="date" value="2026-09-24"></div></div>
+  </div>
+  <div class="pan__f"><button class="btn">Send link</button>
+    <button class="btn btn--q" onclick="closePan()">Save as draft</button></div>
+</aside>
+
+<aside class="pan" id="pan-inst" aria-hidden="true">
+  <div class="pan__h"><button class="pan__x" onclick="closePan()">×</button>
+    <h2>Install visit</h2><div class="m">18 Sep &nbsp;·&nbsp; Marcus Okafor &nbsp;·&nbsp; third of three</div></div>
+  <div class="pan__b">
+    <div class="ret"><b>Returned 18 Sep.</b> Signed on site by M. Halliday.</div>
+    <div class="step"><h3><i>✓</i>What came back</h3>
+      <div class="pk"><span class="chk">✓</span><span class="n">Final room completed</span></div>
+      <div class="pk"><span class="chk">✓</span><span class="n">15 photos</span><span class="v">view</span></div>
+      <div class="pk"><span class="chk">✓</span><span class="n">18 serials confirmed</span><span class="v">into O&amp;M</span></div>
+      <div class="pk"><span class="chk">✓</span><span class="n">Client signature</span><span class="v">view</span></div></div>
+    <div class="step"><h3><i>!</i>Two items left open</h3>
+      <div class="exp"><i>Snag</i><span>Boardroom trunking to be made good by others</span></div>
+      <div class="exp"><i>Client</i><span>Reception display still awaiting power</span></div>
+      <button class="addlink">Send these to the snagging section</button></div>
+    <div class="step"><h3><i>3</i>Accepting this visit</h3>
+      <p style="margin:0;font-size:.87rem;color:var(--mid)">
+        Records who checked it. With all three install visits accepted, the Install section closes
+        and releases into the handover pack.</p></div>
+  </div>
+  <div class="pan__f"><button class="btn btn--gold">Accept visit</button>
+    <button class="btn btn--q">Send back to engineer</button></div>
+</aside>
+
+<aside class="pan" id="pan-survey" aria-hidden="true">
+  <div class="pan__h"><button class="pan__x" onclick="closePan()">×</button>
+    <h2>Site survey visit</h2><div class="m">02 Sep &nbsp;·&nbsp; Jack Reilly</div></div>
+  <div class="pan__b">
+    <div class="ret"><b>Accepted 03 Sep</b> by Sonny Tanda.</div>
+    <div class="step"><h3><i>1</i>What the engineer got</h3>
+      <div class="pk"><span class="chk">✓</span><span class="n">Site map</span></div>
+      <div class="pk"><span class="chk">✓</span><span class="n">Room schedule from the quote</span><span class="v">7 rooms</span></div></div>
+    <div class="step"><h3><i>2</i>What came back</h3>
+      <div class="pk"><span class="chk">✓</span><span class="n">7 rooms measured</span></div>
+      <div class="pk"><span class="chk">✓</span><span class="n">24 photos</span><span class="v">view</span></div></div>
+    <div class="step"><h3><i>3</i>Actions raised</h3>
+      <div class="exp"><i>Part</i><span>600mm interface plate for the Boardroom</span></div>
+      <div class="exp"><i>Client</i><span>Power behind the Reception display</span></div>
+      <div class="exp"><i>Urgent</i><span>Asbestos register covers floor 2 only</span></div></div>
+  </div>
+  <div class="pan__f"><button class="btn btn--q" onclick="closePan()">Close</button></div>
+</aside>
+
+<script>
+  function openPan(k){
+    var p=document.getElementById('pan-'+k); if(!p) return;
+    document.getElementById('scrim').classList.add('on');
+    p.classList.add('on'); p.setAttribute('aria-hidden','false');
+    document.body.style.overflow='hidden';
+  }
+  function closePan(){
+    document.getElementById('scrim').classList.remove('on');
+    document.querySelectorAll('.pan').forEach(function(p){
+      p.classList.remove('on'); p.setAttribute('aria-hidden','true');});
+    document.body.style.overflow='';
+  }
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closePan();});
+</script>
+</body>
+</html>
