@@ -10,6 +10,7 @@ use App\Models\Project;
 use App\Models\ProjectDeliverable;
 use App\Models\RamsDocument;
 use App\Models\Visit;
+use App\Models\Worksheet;
 use App\Support\Cockpit\CockpitModulePresenter;
 use App\Support\Cockpit\CockpitSectionPresenter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -199,6 +200,128 @@ class CockpitModulePresenterTest extends TestCase
         Visit::factory()->create(['project_id' => $project->id, 'type' => Visit::TYPE_SITE_SURVEY]);
 
         $this->assertSame('2 visits', $this->row($project->fresh(), 'site_survey')['count']);
+    }
+
+    // -- The at-rest disclosure, D-02 and D-04 -------------------------------
+
+    /**
+     * THE COUNT PHRASE IS THE PAGE'S AT-REST DISCLOSURE SLOT.
+     *
+     * Sketch 004 deleted the accordion, and with it the <summary> that used to
+     * carry "3 visits · 2 reconstructed". With the panel closed a module row
+     * now shows a chip and this phrase and nothing else, so if the phrase
+     * omits the qualifier a PM who opens nothing is shown an INFERRED visit as
+     * though it were recorded fact. That is the failure D-02 exists to
+     * prevent, so these four tests are load-bearing, not cosmetic.
+     */
+    public function test_a_single_reconstructed_visit_is_disclosed_in_the_count_phrase(): void
+    {
+        $project   = $this->project();
+        $worksheet = Worksheet::factory()->create(['project_id' => $project->id]);
+
+        Visit::factory()->backfilledFromWorksheet($worksheet)->create([
+            'project_id'     => $project->id,
+            'scheduled_date' => '2026-09-02',
+        ]);
+
+        // Singular drops the numeral — a lone qualifier reads as a word, not a
+        // sum, exactly as the section count has always phrased it.
+        $this->assertSame('1 visit · reconstructed', $this->row($project->fresh(), 'worksheet')['count']);
+    }
+
+    public function test_several_reconstructed_visits_are_counted_in_the_count_phrase(): void
+    {
+        $project = $this->project();
+
+        // A unique index on (source_type, source_id) means one source backs at
+        // most one visit — reconstruct from two worksheets, not one twice.
+        foreach (range(1, 2) as $n) {
+            $worksheet = Worksheet::factory()->create(['project_id' => $project->id]);
+
+            Visit::factory()->backfilledFromWorksheet($worksheet)->create([
+                'project_id'     => $project->id,
+                'scheduled_date' => '2026-09-0'.$n,
+            ]);
+        }
+
+        Visit::factory()->create(['project_id' => $project->id, 'scheduled_date' => '2026-09-04']);
+
+        $this->assertSame('3 visits · 2 reconstructed', $this->row($project->fresh(), 'worksheet')['count']);
+    }
+
+    public function test_a_superseded_visit_is_disclosed_in_the_count_phrase(): void
+    {
+        $project = $this->project();
+
+        $this->supersededVisit($project, '2026-09-02');
+
+        Visit::factory()->create(['project_id' => $project->id, 'scheduled_date' => '2026-09-03']);
+
+        // Singular drops the numeral, plural carries it — the same rule the
+        // reconstructed qualifier has always followed.
+        $this->assertSame('2 visits · superseded', $this->row($project->fresh(), 'worksheet')['count']);
+
+        $this->supersededVisit($project, '2026-09-04');
+
+        $this->assertSame('3 visits · 2 superseded', $this->row($project->fresh(), 'worksheet')['count']);
+    }
+
+    public function test_a_module_carrying_both_qualifiers_discloses_both_reconstructed_first(): void
+    {
+        $project   = $this->project();
+        $worksheet = Worksheet::factory()->create(['project_id' => $project->id]);
+        $goneId    = $worksheet->id;
+        $worksheet->delete();
+
+        // One visit that is BOTH reconstructed and superseded: its source was
+        // inferred from a worksheet that has since been soft-deleted.
+        Visit::factory()->backfilledFromWorksheet()->create([
+            'project_id'     => $project->id,
+            'scheduled_date' => '2026-09-02',
+            'source_id'      => $goneId,
+        ]);
+
+        $this->assertSame(
+            '1 visit · reconstructed · superseded',
+            $this->row($project->fresh(), 'worksheet')['count'],
+            'Reconstructed is named first, as it is in the chip strip.'
+        );
+    }
+
+    /**
+     * The words are NOT written twice. The row and the section read the same
+     * method, so the two can never drift into disagreeing about one project.
+     */
+    public function test_the_row_and_the_section_agree_about_the_same_visits(): void
+    {
+        $project   = $this->project();
+        $worksheet = Worksheet::factory()->create(['project_id' => $project->id]);
+
+        Visit::factory()->backfilledFromWorksheet($worksheet)->create([
+            'project_id'     => $project->id,
+            'scheduled_date' => '2026-09-02',
+        ]);
+
+        $fresh   = $project->fresh();
+        $row     = $this->row($fresh, 'worksheet');
+        $section = $row['section'];
+
+        $this->assertSame($section['count'], $row['count']);
+    }
+
+    private function supersededVisit(Project $project, string $date): Visit
+    {
+        $worksheet = Worksheet::factory()->create(['project_id' => $project->id]);
+        $goneId    = $worksheet->id;
+        $worksheet->delete();
+
+        return Visit::factory()->create([
+            'project_id'     => $project->id,
+            'type'           => Visit::TYPE_INSTALL,
+            'scheduled_date' => $date,
+            'source_type'    => Visit::SOURCE_WORKSHEET,
+            'source_id'      => $goneId,
+        ]);
     }
 
     public function test_first_fix_and_install_counts_both_of_its_visit_types(): void

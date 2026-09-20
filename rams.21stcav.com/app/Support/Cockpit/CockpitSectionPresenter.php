@@ -472,8 +472,39 @@ final class CockpitSectionPresenter
             return 'none yet';
         }
 
-        $total = $visits->count();
-        $parts = [$total === 1 ? '1 visit' : $total.' visits'];
+        $total  = $visits->count();
+        $phrase = $total === 1 ? '1 visit' : $total.' visits';
+
+        $qualifiers = self::visitQualifiers($visits);
+
+        return $qualifiers === '' ? $phrase : $phrase.' · '.$qualifiers;
+    }
+
+    /**
+     * THE AT-REST QUALIFIER PHRASE — D-02 and D-04, in one place.
+     *
+     *   "reconstructed" · "2 reconstructed" · "1 superseded"
+     *   "2 reconstructed · 1 superseded" when a module carries both
+     *   singular drops the numeral, so a lone one reads as a word not a sum
+     *
+     * PUBLIC AND STATIC BECAUSE CockpitModulePresenter NEEDS THE SAME WORDS.
+     * Sketch 004 replaced the accordion, and with it the <summary> slot this
+     * phrase used to live in. The new at-rest slot is the module row's count
+     * phrase, which Plan 45-10 built by re-counting visits and therefore
+     * printed a bare "1 visit" — dropping the disclosure. A PM who opens
+     * nothing must still learn that a visit is inferred (D-02) or superseded
+     * (D-04); Plan 45-13 restored that by having the module presenter call
+     * THIS method rather than write a second copy of these rules, so the two
+     * presenters can never disagree about the same visits.
+     *
+     * Returns the empty string when no visit carries a qualifier, so the
+     * caller appends nothing rather than a dangling separator.
+     *
+     * @param  Collection<int, Visit>  $visits
+     */
+    public static function visitQualifiers(Collection $visits): string
+    {
+        $parts = [];
 
         $reconstructed = $visits->filter(fn (Visit $visit) => $visit->isBackfilled())->count();
         $superseded    = $visits->filter(fn (Visit $visit) => $visit->isSuperseded())->count();

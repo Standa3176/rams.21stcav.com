@@ -282,7 +282,7 @@ final class CockpitModulePresenter
         }
 
         return match ($definition['count_mode']) {
-            self::COUNT_VISITS    => $this->phrase($this->visitsFromSection($section), 'visit', 'visits'),
+            self::COUNT_VISITS    => $this->visitPhrase($section),
             self::COUNT_TASKS     => $this->phrase($this->taskCount($project), 'task', 'tasks'),
             self::COUNT_DOCUMENTS => $this->phrase($this->documentCount($project, $definition), 'document', 'documents'),
             default               => '',
@@ -294,17 +294,40 @@ final class CockpitModulePresenter
         return $n === 1 ? '1 '.$singular : $n.' '.$plural;
     }
 
-    // -- Sources -------------------------------------------------------------
-
     /**
+     * THE ROW'S COUNT PHRASE IS THE PAGE'S AT-REST DISCLOSURE SLOT.
+     *
+     *   "1 visit · reconstructed" · "3 visits · 2 reconstructed"
+     *   "2 visits · 1 superseded"
+     *
+     * With the panel closed a module row shows a chip and this phrase, and
+     * nothing else. Sketch 004 deleted the accordion <summary> that used to
+     * carry the qualifier, so without it a PM who opens nothing would be shown
+     * an INFERRED visit as though it were a recorded fact — the precise
+     * failure D-02 exists to prevent — and a superseded visit (D-04) would be
+     * counted as though it still stood.
+     *
+     * The wording is NOT re-derived here. It comes from
+     * CockpitSectionPresenter::visitQualifiers(), the same method the section
+     * count uses, so the row and the panel can never disagree about the same
+     * visits. This class's rule holds: it translates, it does not form a
+     * second opinion.
+     *
      * @param  array<string, mixed>  $section
      */
-    private function visitsFromSection(array $section): int
+    private function visitPhrase(array $section): string
     {
         $visits = $section['visits'] ?? null;
+        $visits = $visits instanceof Collection ? $visits : collect();
 
-        return $visits instanceof Collection ? $visits->count() : 0;
+        $phrase = $this->phrase($visits->count(), 'visit', 'visits');
+
+        $qualifiers = CockpitSectionPresenter::visitQualifiers($visits);
+
+        return $qualifiers === '' ? $phrase : $phrase.' · '.$qualifiers;
     }
+
+    // -- Sources -------------------------------------------------------------
 
     /**
      * @param  array<string, mixed>  $definition
