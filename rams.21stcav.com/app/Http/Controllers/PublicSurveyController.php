@@ -161,7 +161,7 @@ class PublicSurveyController extends Controller
         return view('public-survey.show', [
             'survey'               => $survey,
             'token'                => $token,
-            'readonly'             => $survey->isSubmitted(),
+            'readonly'             => $survey->isLockedForEngineer(),
             'kitByArea'            => $kitByArea,
             'solutionTypesByRoom'  => $solutionTypesByRoom,
             'plannedWorksByRoom'   => $plannedWorksByRoom,
@@ -224,7 +224,7 @@ class PublicSurveyController extends Controller
     {
         $survey = $this->resolveSurvey($token);
 
-        abort_if($survey->isSubmitted(), 403, 'This survey has already been submitted.');
+        abort_if($survey->isLockedForEngineer(), 403, 'This survey has already been submitted.');
 
         $data = $this->validatePublicSurvey($request, false, $survey);
 
@@ -256,7 +256,7 @@ class PublicSurveyController extends Controller
     {
         $survey = $this->resolveSurvey($token);
 
-        abort_if($survey->isSubmitted(), 403, 'This survey has already been submitted.');
+        abort_if($survey->isLockedForEngineer(), 403, 'This survey has already been submitted.');
 
         $data = $this->validatePublicSurvey($request, true, $survey);
 
@@ -302,7 +302,7 @@ class PublicSurveyController extends Controller
         $survey = $this->resolveSurvey($token);
 
         abort_unless($room->site_survey_id === $survey->id, 403);
-        abort_if($survey->isSubmitted(), 403, 'This survey has already been submitted.');
+        abort_if($survey->isLockedForEngineer(), 403, 'This survey has already been submitted.');
 
         // ── Pre-install check gate (D-05) ─────────────────────────────────────
         // Block completion if any generated questions are unanswered.
@@ -382,7 +382,7 @@ class PublicSurveyController extends Controller
         $survey = $this->resolveSurvey($token);
 
         abort_unless($room->site_survey_id === $survey->id, 403);
-        abort_if($survey->isSubmitted(), 403, 'This survey has already been submitted.');
+        abort_if($survey->isLockedForEngineer(), 403, 'This survey has already been submitted.');
 
         $room->update(['is_completed' => false, 'completed_at' => null]);
 
@@ -411,7 +411,7 @@ class PublicSurveyController extends Controller
         $survey = $this->resolveSurvey($token);
 
         abort_unless($room->site_survey_id === $survey->id, 403);
-        abort_if($survey->isSubmitted(), 403, 'This survey has already been submitted.');
+        abort_if($survey->isLockedForEngineer(), 403, 'This survey has already been submitted.');
 
         // Scope question to room — prevents engineers guessing other rooms' question IDs.
         // Returns 403 (not 404) so the ID existence is not leaked.
@@ -465,7 +465,7 @@ class PublicSurveyController extends Controller
         $survey = $this->resolveSurvey($token);
 
         abort_unless($room->site_survey_id === $survey->id, 403);
-        abort_if($survey->isSubmitted(), 403, 'This survey has already been submitted.');
+        abort_if($survey->isLockedForEngineer(), 403, 'This survey has already been submitted.');
 
         $request->validate([
             'photo'    => ['required', 'file', 'image', 'max:10240'],  // 10 MB
@@ -506,7 +506,7 @@ class PublicSurveyController extends Controller
         $survey = $this->resolveSurvey($token);
 
         abort_unless($photo->room->site_survey_id === $survey->id, 403);
-        abort_if($survey->isSubmitted(), 403, 'This survey has already been submitted.');
+        abort_if($survey->isLockedForEngineer(), 403, 'This survey has already been submitted.');
 
         $data = $request->validate([
             'caption' => ['nullable', 'string', 'max:200'],

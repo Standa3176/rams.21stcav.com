@@ -92,7 +92,7 @@ class SurveyController extends Controller
             'survey'               => $survey,
             'token'                => $token,
             'rooms'                => $rooms,
-            'readonly'             => $survey->isSubmitted(),
+            'readonly'             => $survey->isLockedForEngineer(),
             'engineerFeedbackSite' => $engineerFeedbackSite,
         ]);
     }
@@ -110,7 +110,7 @@ class SurveyController extends Controller
     {
         $survey = $this->resolveSurvey($token);
 
-        if ($survey->isSubmitted()) {
+        if ($survey->isLockedForEngineer()) {
             return response()->json(['error' => 'Survey already submitted.'], 403);
         }
 

@@ -124,6 +124,47 @@ class SiteSurvey extends Model
         return $this->submitted_at !== null;
     }
 
+    /**
+     * Is the engineer's form closed to further editing?
+     *
+     * ── D-02, QUOTED VERBATIM ───────────────────────────────────────────────
+     *
+     *   "Send back — rejects the return and reopens the engineer link for more
+     *    information, rather than accepting something incomplete."
+     *
+     *   "Add an office note — the PM annotates the return WITHOUT CHANGING WHAT
+     *    THE ENGINEER SAID. The engineer's record stays intact; the office view
+     *    sits alongside it. Do NOT let an office note overwrite or edit
+     *    engineer-captured data."
+     *
+     * Submitted, AND the office has not asked for more information since.
+     *
+     * THE REOPENING IS DERIVED, NEVER STORED, and `submitted_at` IS NEVER
+     * CLEARED. The obvious implementation of "send back" — null out
+     * `submitted_at` so the form reopens — is precisely the violation the
+     * second quote forbids: `submitted_at` is the engineer's own record of
+     * when they said "I am done", and an office action must not rewrite it.
+     * Instead `VisitReworkState` compares `sent_back_at` against that very
+     * timestamp, so resubmitting relocks the form by itself with no flag to
+     * clear and no engineer record touched. See `VisitReworkState` for the
+     * full argument.
+     *
+     * ── DO NOT RETARGET `isSubmitted()` AT THIS ─────────────────────────────
+     *
+     * `isSubmitted()` above is UNCHANGED and still means "was submitted". The
+     * PDF generator, the submitted-notification path and the project-health
+     * service all mean that by it, and none of them mean "closed to editing".
+     * This method is the engineer-facing gate only.
+     */
+    public function isLockedForEngineer(): bool
+    {
+        if (! $this->isSubmitted()) {
+            return false;
+        }
+
+        return ! \App\Support\Visits\VisitReworkState::isReopened($this);
+    }
+
     // ─── Token helpers ────────────────────────────────────────────────────────
 
     /**
