@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Models;
 
+use App\Models\Project;
 use App\Models\Snag;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
@@ -97,7 +98,12 @@ class SnagTest extends TestCase
      */
     public function test_a_snag_may_exist_with_no_visit_attached(): void
     {
-        $snag = Snag::factory()->create(['visit_id' => null]);
+        $snag = Snag::create([
+            'project_id' => Project::factory()->create()->id,
+            'visit_id'   => null,
+            'title'      => 'Trunking not made good in the comms room',
+            'status'     => Snag::STATUS_OPEN,
+        ]);
 
         $this->assertNull($snag->fresh()->visit_id);
         $this->assertNull($snag->fresh()->visit);
