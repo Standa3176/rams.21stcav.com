@@ -108,7 +108,10 @@ class SurveyCarryForwardOnEngineerLinkTest extends TestCase
         $response->assertOk();
         $this->assertGuest();
 
-        // Ten labels.
+        // Ten labels. Asserted WITH escaping, because the labels print through
+        // an escaped echo like every value does — "Surveyor's notes" reaches the
+        // engineer as `Surveyor&#039;s notes`, which is the correct output and
+        // renders as an apostrophe.
         foreach ([
             'Parking arrangements',
             'Site access notes',
@@ -120,7 +123,7 @@ class SurveyCarryForwardOnEngineerLinkTest extends TestCase
             'Health and safety',
             "Surveyor's notes",
         ] as $label) {
-            $response->assertSee($label, escape: false);
+            $response->assertSee($label);
         }
 
         // Ten values — the four that never carried before are the point.

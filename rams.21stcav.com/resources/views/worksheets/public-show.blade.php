@@ -577,30 +577,26 @@
             $efByRoom = [];
             $photosByRoom = [];
             $roomsRequiringReview = [];
-            $siteLogistics = [];
+            $carryForward = [];
             if ($worksheet->project_id && class_exists(\App\Models\SiteSurvey::class)) {
                 $survey = \App\Models\SiteSurvey::with(['rooms', 'rooms.photos'])
                     ->where('project_id', $worksheet->project_id)
                     ->latest('id')
                     ->first();
                 if ($survey) {
-                    // ── Site-level logistics (260504-gho) — single inline lookup
-                    //    reuses $survey already loaded for the per-room drawer
-                    //    so this is zero-net DB cost.
-                    $siteLogistics = [
-                        'comms_room_access_status' => (string) ($survey->comms_room_access_status ?? ''),
-                        'comms_room_access_notes'  => (string) ($survey->comms_room_access_notes  ?? ''),
-                        'parking_restraints'       => (string) ($survey->parking_restraints       ?? ''),
-                        'distance_from_base_miles' => $survey->distance_from_base_miles,
-                        'distance_from_base_notes' => (string) ($survey->distance_from_base_notes ?? ''),
-                        'site_access_notes'        => (string) ($survey->site_access_notes        ?? ''),
-                        'delivery_routes'          => (string) ($survey->delivery_routes          ?? ''),
-                    ];
-                    $hasSiteLogistics = false;
-                    foreach ($siteLogistics as $v) {
-                        if ($v !== '' && $v !== null) { $hasSiteLogistics = true; break; }
-                    }
-                    if (! $hasSiteLogistics) $siteLogistics = [];
+                    // ── Site-level carry-forward (Phase 46, D-01) — widened from the
+                    //    seven inline keys of 260504-gho to the ten fields D-01 names.
+                    //    The four added are the safety ones a surveyor records and an
+                    //    installing engineer was never shown: access_constraints,
+                    //    site_risks, h_and_s_notes, general_notes.
+                    //
+                    //    Derivation lives in App\Support\Visits\SurveyCarryForward so
+                    //    the labels and the comms-room status map have ONE definition.
+                    //    $survey is passed in rather than re-resolved, so the page
+                    //    still makes exactly one survey query (T-46-03-05) — and it is
+                    //    still a READ of the survey record on every request, never a
+                    //    copy (D-01). `office_review_notes` is excluded by name there.
+                    $carryForward = \App\Support\Visits\SurveyCarryForward::forSurvey($survey);
 
                     foreach ($survey->rooms as $r) {
                         $key = strtolower(trim((string) ($r->room_name ?? '')));
@@ -642,10 +638,9 @@
                     }
                 }
             }
-            $commsRoomLabels = [
-                'yes' => 'Permission required', 'no' => 'Free access',
-                'outsourced' => 'Outsourced facilities team', 'unknown' => 'Status unknown',
-            ];
+            // $commsRoomLabels moved to App\Support\Visits\SurveyCarryForward::COMMS_ROOM_LABELS
+            // (Phase 46, Plan 46-03) — moved rather than copied, because two maps
+            // would disagree the first time a status is added.
 
             $methodLabels = [
                 'ladder' => 'Ladder', 'podium' => 'Podium steps', 'tower' => 'Access tower',
@@ -696,59 +691,43 @@
                 'token'          => $token,
             ])
 
-            {{-- ── SITE LOGISTICS — project-level drawer (260504-gho) ──────────────
-                 Engineers arriving on site need parking / comms-room access /
-                 depot distance / delivery routes ONCE per visit, NOT per room.
-                 Defensive: $siteLogistics === [] when survey missing or all 7
-                 columns are NULL — drawer renders nothing for legacy projects. --}}
-            @if(! empty($siteLogistics))
+            {{-- ── SITE LOGISTICS — project-level drawer (260504-gho; widened by
+                 Phase 46 Plan 46-03 to D-01's ten fields) ──────────────────────
+                 Engineers arriving on site need parking / access / constraints /
+                 delivery routes / comms-room access / depot distance ONCE per
+                 visit, NOT per room — and they need the surveyor's site risks,
+                 H&S notes and general notes, which until Phase 46 never left the
+                 survey record.
+
+                 ONE DRAWER, DELIBERATELY. The user rejected an earlier, busier
+                 design with the words "I want to make it look simple and less
+                 scary", and this page is read on a phone, on site. Four more
+                 fields do not earn a second drawer or a second tap.
+
+                 Every value below is engineer free text on an unauthenticated,
+                 client-signed page: it renders through an ESCAPED echo, and an
+                 unescaped raw echo is forbidden here (T-46-03-02). A test pins
+                 the raw-echo count in this file at one — the pre-existing
+                 $skipRestoreAttr literal — so a new one fails red.
+
+                 Defensive: $carryForward === [] when the survey is missing or
+                 every carried column is NULL — the drawer renders nothing at
+                 all for legacy projects. No empty drawer, no "not recorded"
+                 placeholder: tapping a drawer to find nothing is worse than no
+                 drawer. --}}
+            @if(! empty($carryForward))
                 <details class="room-drawer teal" style="margin-bottom:1rem;">
                     <summary>
                         <span>📋 Site Logistics — Arrival Info</span>
                         <span class="chev">▾</span>
                     </summary>
                     <div class="room-drawer-body">
-                        @if(! empty($siteLogistics['parking_restraints']))
+                        @foreach($carryForward as $cf)
                             <div style="margin-bottom:.65rem;">
-                                <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#2E7BFF;margin-bottom:.3rem;">Parking arrangements</div>
-                                <div style="font-size:.88rem;color:#374151;white-space:pre-wrap;">{{ $siteLogistics['parking_restraints'] }}</div>
+                                <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#2E7BFF;margin-bottom:.3rem;">{{ $cf['label'] }}</div>
+                                <div style="font-size:.88rem;color:#374151;white-space:pre-wrap;">{{ $cf['value'] }}</div>
                             </div>
-                        @endif
-                        @if(! empty($siteLogistics['site_access_notes']))
-                            <div style="margin-bottom:.65rem;">
-                                <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#2E7BFF;margin-bottom:.3rem;">Site access notes</div>
-                                <div style="font-size:.88rem;color:#374151;white-space:pre-wrap;">{{ $siteLogistics['site_access_notes'] }}</div>
-                            </div>
-                        @endif
-                        @if(! empty($siteLogistics['delivery_routes']))
-                            <div style="margin-bottom:.65rem;">
-                                <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#2E7BFF;margin-bottom:.3rem;">Delivery routes</div>
-                                <div style="font-size:.88rem;color:#374151;white-space:pre-wrap;">{{ $siteLogistics['delivery_routes'] }}</div>
-                            </div>
-                        @endif
-                        @if(! empty($siteLogistics['comms_room_access_status']) || ! empty($siteLogistics['comms_room_access_notes']))
-                            @php
-                                $statusLabel = $commsRoomLabels[$siteLogistics['comms_room_access_status'] ?? ''] ?? '';
-                                $parts = array_filter([$statusLabel, $siteLogistics['comms_room_access_notes'] ?? '']);
-                            @endphp
-                            <div style="margin-bottom:.65rem;">
-                                <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#2E7BFF;margin-bottom:.3rem;">Comms room access</div>
-                                <div style="font-size:.88rem;color:#374151;">{{ implode(' — ', $parts) }}</div>
-                            </div>
-                        @endif
-                        @if(! empty($siteLogistics['distance_from_base_miles']) || ! empty($siteLogistics['distance_from_base_notes']))
-                            @php
-                                $parts = array_filter([
-                                    ! empty($siteLogistics['distance_from_base_miles'])
-                                        ? $siteLogistics['distance_from_base_miles'] . ' miles from depot' : '',
-                                    $siteLogistics['distance_from_base_notes'] ?? '',
-                                ]);
-                            @endphp
-                            <div style="margin-bottom:.65rem;">
-                                <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#2E7BFF;margin-bottom:.3rem;">Distance from depot</div>
-                                <div style="font-size:.88rem;color:#374151;">{{ implode(' — ', $parts) }}</div>
-                            </div>
-                        @endif
+                        @endforeach
                     </div>
                 </details>
             @endif
