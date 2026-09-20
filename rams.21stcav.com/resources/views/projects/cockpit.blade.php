@@ -152,7 +152,10 @@
                         :progress="$progress"
                         :files="$panelFiles"
                         :notes="$panelNotes"
-                        :activity="$activity" />
+                        :activity="$activity"
+                        :action="$action"
+                        :rooms="$quickActionRooms"
+                        :people="$quickActionPeople" />
                 @endif
             </div>
 

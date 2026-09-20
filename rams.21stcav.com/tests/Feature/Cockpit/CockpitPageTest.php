@@ -168,24 +168,53 @@ class CockpitPageTest extends TestCase
         }
     }
 
-    public function test_no_write_route_exists_for_the_cockpit(): void
+    /**
+     * RETIRED IN PART BY PLAN 46-04, NEVER DELETED.
+     *
+     * Phase 45 asserted that EVERY cockpit route was GET-only. Phase 46 ships
+     * the cockpit's first write, so what is asserted now is the thing that
+     * still matters and is stronger than a count: THE READ ROUTE IS STILL
+     * GET-ONLY AND STILL THE ONLY GET, and every other cockpit route is a POST
+     * on a DIFFERENT controller. ProjectCockpitController's docblock forbids a
+     * POST reaching it, and the forbidding is the point - a reader can still
+     * tell from that class alone that rendering the page writes nothing.
+     */
+    public function test_the_cockpit_read_route_is_still_get_only_and_every_write_is_a_post_elsewhere(): void
     {
-        $checked = 0;
+        $gets   = 0;
+        $writes = 0;
 
         foreach (app('router')->getRoutes() as $route) {
             if (! str_contains($route->uri(), 'cockpit')) {
                 continue;
             }
 
-            $checked++;
-            $this->assertSame(
-                ['GET', 'HEAD'],
-                array_values(array_diff($route->methods(), ['OPTIONS'])),
-                "Cockpit route {$route->uri()} must be GET-only."
+            $verbs = array_values(array_diff($route->methods(), ['OPTIONS']));
+
+            if ($verbs === ['GET', 'HEAD']) {
+                $gets++;
+
+                $this->assertStringContainsString(
+                    'ProjectCockpitController',
+                    (string) $route->getActionName(),
+                    "Cockpit GET {$route->uri()} must be served by the READ controller."
+                );
+
+                continue;
+            }
+
+            $writes++;
+
+            $this->assertSame(['POST'], $verbs, "Cockpit write {$route->uri()} must be a plain form POST.");
+            $this->assertStringContainsString(
+                'ProjectCockpitActionController',
+                (string) $route->getActionName(),
+                "Cockpit write {$route->uri()} must NOT point at the read controller."
             );
         }
 
-        $this->assertSame(1, $checked, 'Exactly one cockpit route must exist.');
+        $this->assertSame(1, $gets, 'Exactly one cockpit GET route must exist.');
+        $this->assertSame(1, $writes, 'Plan 46-04 registers exactly one write route; 46-05 adds its own.');
     }
 
     // ── Plan 45-11, Task 2 — the page: masthead, KPIs, stage chip, modules ─
@@ -677,15 +706,25 @@ class CockpitPageTest extends TestCase
         $project = $this->projectWithInstallVisits();
         $html    = $this->renderPanel($project, 'worksheet');
 
-        foreach (['<button', '<form', '<input', '<select', '<textarea', '<script'] as $forbidden) {
+        // RETIRED IN PART BY PLAN 46-04. `<form`, `<input`, `<button` and
+        // `<textarea` were lifted BY NAME in CockpitReadOnlyFenceTest because
+        // Phase 46 ships a plain form POST here; `<select` and `<script` stay
+        // banned, and this local list is kept in step with the canonical one
+        // rather than deleted.
+        foreach (['<select', '<script'] as $forbidden) {
             $this->assertStringNotContainsString($forbidden, $html);
         }
 
+        // ALL NINE STAY. Alpine was available and was ruled out again: every
+        // write is a real form POST and every piece of state is server-rendered
+        // from the query string.
         foreach (['x-data', 'x-show', 'x-init', 'x-if', 'x-text', 'x-on:', '@click', 'wire:', 'onclick'] as $handler) {
             $this->assertStringNotContainsString($handler, $html, "{$handler} is script inside the cockpit region.");
         }
 
-        foreach (['Create visit', 'Add note', 'Upload files', 'Quick actions'] as $deferred) {
+        // `Create visit` SHIPPED (Plan 46-04) and `Add note` ships in 46-05.
+        // These four are still Phase 48.
+        foreach (['Upload files', 'Add document', 'Download', 'Issue to client'] as $deferred) {
             $this->assertStringNotContainsString($deferred, $html, "\"{$deferred}\" is a Phase 46/48 write.");
         }
     }

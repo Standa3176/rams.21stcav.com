@@ -341,7 +341,11 @@ class CockpitPanelTest extends TestCase
             foreach (self::THREE_TABS as $tab) {
                 $html = $this->panel($project, $module, $tab);
 
-                foreach (['<button', '<form', '<input', '<select', '<textarea', '<script'] as $forbidden) {
+                // RETIRED IN PART BY PLAN 46-04, in step with the canonical
+                // list in CockpitReadOnlyFenceTest: `<form`, `<input`,
+                // `<button` and `<textarea` were lifted BY NAME for the Quick
+                // actions form. `<select` and `<script` stay banned.
+                foreach (['<select', '<script'] as $forbidden) {
                     $this->assertStringNotContainsString($forbidden, $html, "{$forbidden} in {$module}/{$tab}.");
                 }
 
@@ -349,7 +353,10 @@ class CockpitPanelTest extends TestCase
                     $this->assertStringNotContainsString($handler, $html, "{$handler} is script inside the region.");
                 }
 
-                foreach (['Download', 'Create visit', 'Add note', 'Upload files', 'Quick actions', 'Add document', 'Open register'] as $banned) {
+                // `Create visit` SHIPPED in Plan 46-04 and `Add note` ships in
+                // 46-05; both were lifted from DEFERRED_AFFORDANCES by name.
+                // Everything else here is still Phase 48.
+                foreach (['Download', 'Upload files', 'Add document', 'Open register'] as $banned) {
                     $this->assertStringNotContainsString($banned, $html, "\"{$banned}\" is deferred write copy.");
                 }
             }

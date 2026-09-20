@@ -29,9 +29,16 @@
     ── WHAT IS NOT HERE ─────────────────────────────────────────────────────
 
     The design image draws a Quick actions block (Create visit · Add note ·
-    Upload files) and a "…" overflow on each activity row. Those are WRITES,
-    owned by Phase 46 and Phase 48, and none of them is rendered — not even
-    disabled, because a disabled control is still an offer.
+    Upload files) and a "…" overflow on each activity row. PHASE 46 SHIPS THE
+    FIRST OF THOSE and nothing else: `x-cockpit.quick-actions` renders at the
+    bottom of the OVERVIEW body, on five module keys, one control each. Upload
+    files stays Phase 48 and the "…" overflow is still nobody's — neither is
+    rendered, not even disabled, because a disabled control is still an offer.
+
+    The Quick actions block is a plain form POST, so the paragraph above about
+    handler attributes is UNCHANGED: Phase 46 retired `<form`, `<input`,
+    `<button` and `<textarea` from the fence's forbidden markup, and retired
+    NONE of the nine banned handler attributes.
 
     The Files and Notes tabs and the Recent activity feed were filled by Plan
     45-12 from records the app already holds. Nothing in them writes, and the
@@ -45,6 +52,12 @@
     'files'    => null,
     'notes'    => null,
     'activity' => null,
+    // Phase 46 — Quick actions. `action` is the panel's THIRD piece of URL
+    // state, resolved by membership in ProjectCockpitController exactly as
+    // `module` and `tab` are, so an unknown value discloses nothing.
+    'action'   => null,
+    'rooms'    => [],
+    'people'   => [],
 ])
 
 @php
@@ -196,6 +209,16 @@
                     <x-cockpit.hint>Nothing has been recorded against this project yet.</x-cockpit.hint>
                 @endif
             </div>
+
+            {{-- Quick actions sit at the BOTTOM of Overview, where sketch 004
+                 draws them (D-15). The Files and Notes tabs carry none — one
+                 place to act, not three. --}}
+            <x-cockpit.quick-actions
+                :project="$project"
+                :module="$module"
+                :action="$action"
+                :rooms="$rooms"
+                :people="$people" />
         @elseif ($tab === 'files')
             {{-- D-13 — the project's document library for this module. Every
                  document it holds, in one place. A document whose type has no

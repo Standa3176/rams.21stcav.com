@@ -1286,6 +1286,142 @@
     color: var(--cav-light);
 }
 
+/* ── Quick actions (Phase 46, Plan 46-04) ───────────────────────
+   The panel's only write surface, at the bottom of the Overview body.
+
+   NOTHING HERE TAKES ITS OWN `position`. `.cav-module` is `position:
+   relative` and `.cav-module__open::after` is `inset: 0`; giving a control
+   in this block a position, or leaning on the row's, silently collapses the
+   module row's click target onto the chevron with nothing else failing.
+   Quick actions live inside the PANEL, never inside a row.
+
+   Every colour is a `--cav-*` token on `.cav-brand`. No hex reaches this
+   file or the Blade beside it — CockpitPageTest asserts both. */
+.cav-cockpit .cav-qa {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cav-s3);
+    margin-top: var(--cav-s4);
+    padding-top: var(--cav-s4);
+    border-top: 1px solid var(--cav-rule);
+}
+
+/* ONE control per module, so this is a single button-shaped thing rather
+   than a toolbar. It reads as an offer, not as a wall. */
+.cav-cockpit .cav-qa__control {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--cav-s2);
+    padding: var(--cav-s2) var(--cav-s4);
+    border: 1px solid var(--cav-teal-dark);
+    border-radius: var(--cav-radius-sm);
+    background: var(--cav-teal-dark);
+    color: var(--cav-surface);
+    font-family: var(--cav-font-body);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.cav-cockpit .cav-qa__control:hover {
+    background: var(--cav-teal);
+    border-color: var(--cav-teal);
+}
+
+.cav-cockpit .cav-qa__control:focus-visible,
+.cav-cockpit .cav-qa__cancel:focus-visible,
+.cav-cockpit .cav-qa__input:focus-visible {
+    outline: 2px solid var(--cav-focus);
+    outline-offset: 2px;
+}
+
+.cav-cockpit .cav-qa__cancel {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--cav-mid);
+    text-decoration: underline;
+}
+
+.cav-cockpit .cav-qa__form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cav-s3);
+}
+
+.cav-cockpit .cav-qa__row {
+    display: flex;
+    align-items: center;
+    gap: var(--cav-s4);
+}
+
+.cav-cockpit .cav-qa__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cav-s1);
+}
+
+.cav-cockpit .cav-qa__label,
+.cav-cockpit .cav-qa__legend {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cav-mid);
+}
+
+.cav-cockpit .cav-qa__input {
+    max-width: 220px;
+    padding: var(--cav-s2) var(--cav-s3);
+    border: 1px solid var(--cav-border);
+    border-radius: var(--cav-radius-sm);
+    background: var(--cav-surface);
+    color: var(--cav-ink);
+    font-family: var(--cav-font-body);
+    font-size: 13px;
+}
+
+.cav-cockpit .cav-qa__set {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--cav-s2) var(--cav-s4);
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+/* The legend sits on its own line above the options, so a long room list
+   wraps under its own heading rather than around it. */
+.cav-cockpit .cav-qa__legend {
+    flex: 1 0 100%;
+    padding: 0;
+}
+
+.cav-cockpit .cav-qa__opt {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--cav-s2);
+    font-size: 13px;
+    color: var(--cav-ink);
+}
+
+/* Errors are INSIDE the form, beside the field that failed, because the
+   form is re-disclosed by the redirect that carries them. */
+.cav-cockpit .cav-qa__errors {
+    margin: 0;
+    padding-left: var(--cav-s4);
+    list-style: disc;
+}
+
+.cav-cockpit .cav-qa__error {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--cav-destructive);
+}
+
 /* ── Responsive ─────────────────────────────────────────────────────────
    Two breakpoints, both collapsing rather than hiding. NOTHING IS HIDDEN AT
    ANY WIDTH: the count phrase and the status chip are the only places a

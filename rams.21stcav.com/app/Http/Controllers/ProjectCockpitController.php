@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\DTO\ProjectHealth;
+use App\Models\LabourResource;
 use App\Models\Project;
+use App\Models\SiteSurvey;
 use App\Services\ProjectHealthService;
 use App\Support\Cockpit\CockpitHeaderPresenter;
 use App\Support\Cockpit\CockpitModulePresenter;
@@ -53,6 +55,19 @@ class ProjectCockpitController extends Controller
      * @var array<int, string>
      */
     public const TABS = ['overview', 'files', 'notes'];
+
+    /**
+     * The panel's THIRD piece of URL state (Phase 46, Plan 46-04).
+     *
+     * `?action=create-visit` discloses the Quick actions form. It is resolved
+     * by MEMBERSHIP against this list, exactly as `?module=` and `?tab=` are,
+     * so an unrecognised value discloses nothing and is never echoed. This is
+     * the only edit Phase 46 makes to this controller, and it ADDS NO WRITE:
+     * the cockpit's writes live in ProjectCockpitActionController.
+     *
+     * @var array<int, string>
+     */
+    public const ACTIONS = ['create-visit'];
 
     public function __construct(
         private ProjectHealthService $health,
@@ -108,6 +123,15 @@ class ProjectCockpitController extends Controller
         $panelNotes = $moduleKey === null ? collect() : $this->panelPresenter->notes($project, $moduleKey);
         $activity   = $this->panelPresenter->activity($project);
 
+        // Quick actions (Plan 46-04). The form's two option lists are read
+        // HERE rather than in Blade, on the same rule as everything else on
+        // this page. Both are READS: deriving them writes nothing, which
+        // CockpitReadOnlyFenceTest's GET row-count tests still prove.
+        $action = $this->resolveAction($request);
+
+        $quickActionRooms  = $action === null ? [] : $this->roomNames($project);
+        $quickActionPeople = $action === null ? [] : $this->activePeople();
+
         $masthead   = $this->headerPresenter->masthead($project);
         $kpis       = $this->headerPresenter->kpis($project, $health);
         $stageChips = $this->headerPresenter->stageChips($project);
@@ -127,6 +151,9 @@ class ProjectCockpitController extends Controller
             'panelFiles',
             'panelNotes',
             'activity',
+            'action',
+            'quickActionRooms',
+            'quickActionPeople',
         ));
     }
 
@@ -164,6 +191,69 @@ class ProjectCockpitController extends Controller
         }
 
         return in_array($submitted, self::TABS, true) ? $submitted : self::TABS[0];
+    }
+
+    /**
+     * The disclosed Quick action, or null.
+     *
+     * Membership again, never validate(): a stale `?action=` bookmark is not an
+     * error worth showing a PM, and a redirect-with-error-bag is a write-shaped
+     * behaviour that belongs on the POST, not here.
+     */
+    private function resolveAction(Request $request): ?string
+    {
+        $submitted = $request->query('action');
+
+        if (! is_string($submitted)) {
+            return null;
+        }
+
+        return in_array($submitted, self::ACTIONS, true) ? $submitted : null;
+    }
+
+    /**
+     * The project's survey room names, for the "Rooms in scope" checkboxes
+     * (D-05). Read from the live survey the engineer link is built on, so the
+     * rooms a PM ticks are rooms that exist.
+     *
+     * @return array<int, string>
+     */
+    private function roomNames(Project $project): array
+    {
+        $survey = SiteSurvey::where('project_id', $project->id)
+            ->whereNull('superseded_at')
+            ->whereIn('status', ['draft', 'completed'])
+            ->with('rooms')
+            ->first();
+
+        if ($survey === null) {
+            return [];
+        }
+
+        return $survey->rooms
+            ->pluck('room_name')
+            ->filter(fn ($name) => is_string($name) && trim($name) !== '')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * ACTIVE labour resources, NAME ONLY (LR-04).
+     *
+     * The cockpit is staff-auth, so contact details would be sanctioned here —
+     * but this control needs only names, so only names are read. Inactive
+     * people are not offered: assigning one would be assigning somebody who
+     * has left.
+     *
+     * @return array<int, array{id: int, name: string}>
+     */
+    private function activePeople(): array
+    {
+        return LabourResource::active()
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (LabourResource $r) => ['id' => $r->id, 'name' => (string) $r->name])
+            ->all();
     }
 
     /**
