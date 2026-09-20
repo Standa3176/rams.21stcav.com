@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Services\ProjectHealthService;
 use App\Support\Cockpit\CockpitHeaderPresenter;
 use App\Support\Cockpit\CockpitModulePresenter;
+use App\Support\Cockpit\CockpitPanelPresenter;
 use App\Support\Cockpit\CockpitSectionPresenter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -58,6 +59,7 @@ class ProjectCockpitController extends Controller
         private CockpitSectionPresenter $sections,
         private CockpitModulePresenter $modulePresenter,
         private CockpitHeaderPresenter $headerPresenter,
+        private CockpitPanelPresenter $panelPresenter,
     ) {
     }
 
@@ -98,6 +100,14 @@ class ProjectCockpitController extends Controller
         $openModule = $moduleKey === null ? null : $modules->firstWhere('key', $moduleKey);
         $progress   = $moduleKey === null ? null : $this->modulePresenter->progress($project, $moduleKey);
 
+        // The panel's three bodies. Derived HERE rather than in Blade, on the
+        // same rule as everything else on this page: the controller wires, the
+        // presenter derives, the view draws. The feed is project-wide and
+        // takes no module — see CockpitPanelPresenter's docblock.
+        $panelFiles = $moduleKey === null ? collect() : $this->panelPresenter->files($project, $moduleKey);
+        $panelNotes = $moduleKey === null ? collect() : $this->panelPresenter->notes($project, $moduleKey);
+        $activity   = $this->panelPresenter->activity($project);
+
         $masthead   = $this->headerPresenter->masthead($project);
         $kpis       = $this->headerPresenter->kpis($project, $health);
         $stageChips = $this->headerPresenter->stageChips($project);
@@ -114,6 +124,9 @@ class ProjectCockpitController extends Controller
             'openModule',
             'tab',
             'progress',
+            'panelFiles',
+            'panelNotes',
+            'activity',
         ));
     }
 

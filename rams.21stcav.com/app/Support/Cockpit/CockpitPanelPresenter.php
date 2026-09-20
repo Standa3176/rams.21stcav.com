@@ -5,6 +5,7 @@ namespace App\Support\Cockpit;
 use App\Models\Project;
 use App\Models\ProjectActivityLog;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 
@@ -220,7 +221,7 @@ final class CockpitPanelPresenter
             ->values()
             ->map(fn (Model $document): array => [
                 'name'        => $this->documentName($document, $definition),
-                'produced_at' => $document->created_at,
+                'produced_at' => $this->asDate($document->created_at),
                 'status'      => $this->statusLabel($document->status ?? null),
                 'route'       => $this->viewRoute($project, $document, $definition),
             ])
@@ -249,7 +250,7 @@ final class CockpitPanelPresenter
                     $notes->push([
                         'text'   => $text,
                         'source' => $field['label'],
-                        'at'     => $record->created_at,
+                        'at'     => $this->asDate($record->created_at),
                     ]);
                 }
             }
@@ -269,7 +270,7 @@ final class CockpitPanelPresenter
             $notes->push([
                 'text'   => $text,
                 'source' => $entry->actor_name,
-                'at'     => $entry->created_at,
+                'at'     => $this->asDate($entry->created_at),
             ]);
         }
 
@@ -301,13 +302,42 @@ final class CockpitPanelPresenter
                     'initials' => $this->initials($actor),
                     'actor'    => $actor,
                     'phrase'   => $this->phrase($entry),
-                    'at'       => $entry->created_at,
+                    'at'       => $this->asDate($entry->created_at),
                 ];
             })
             ->values();
     }
 
     // ── Derivation ───────────────────────────────────────────────────────
+
+    /**
+     * A timestamp as a Carbon instance, whatever the model handed over.
+     *
+     * NOT defensive padding — MEASURED: these models declare their own
+     * `$casts` arrays and several of them do not list `created_at`, so the
+     * attribute arrives as a raw string and `->format()` on it is a fatal
+     * that blanks the whole page. Normalising here keeps the one date format
+     * the design specifies ("14 Aug 2026") in one place, rather than making
+     * every Blade guess at the type it was given.
+     */
+    private function asDate(mixed $value): ?Carbon
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return Carbon::instance($value);
+        }
+
+        try {
+            return Carbon::parse((string) $value);
+        } catch (\Throwable) {
+            // An unparseable timestamp is not worth a 500 on a read-only
+            // page: the row renders with "Date not recorded".
+            return null;
+        }
+    }
 
     /**
      * @return Collection<int, ProjectActivityLog>

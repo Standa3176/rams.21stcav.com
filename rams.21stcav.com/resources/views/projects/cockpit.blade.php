@@ -132,7 +132,10 @@
                         :project="$project"
                         :module="$openModule"
                         :tab="$tab"
-                        :progress="$progress" />
+                        :progress="$progress"
+                        :files="$panelFiles"
+                        :notes="$panelNotes"
+                        :activity="$activity" />
                 @endif
             </div>
 

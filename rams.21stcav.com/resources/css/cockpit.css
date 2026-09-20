@@ -980,6 +980,166 @@
     outline-offset: 2px;
 }
 
+/* ── File row — the project's document library (D-13) ──────────────────
+   A row is INFORMATION first and a link second: name, produced date and
+   status always render, and the "View" anchor is present only when the
+   presenter resolved a real GET route. A row with no link is not a degraded
+   control, it is a complete record of a document that cannot yet be opened
+   from here — so nothing in these rules styles the unlinked row as disabled
+   or faded. No cursor:pointer and no hover lift on the row itself either:
+   the row is not clickable, only its anchor is. */
+.cav-cockpit .cav-file {
+    display: flex;
+    align-items: center;
+    gap: var(--cav-s3);
+    padding: var(--cav-s3) 0;
+    border-bottom: 1px solid var(--cav-rule);
+}
+
+.cav-cockpit .cav-file:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.cav-cockpit .cav-file__ident {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cav-s1);
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+/* Filenames are user-supplied and can be very long. They WRAP rather than
+   truncate: an ellipsis would hide which of two similarly-named documents
+   this row is, which is the one thing the library exists to tell a PM. */
+.cav-cockpit .cav-file__name {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+    color: var(--cav-ink);
+    overflow-wrap: anywhere;
+}
+
+.cav-cockpit .cav-file__meta {
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--cav-light);
+}
+
+.cav-cockpit .cav-file__view {
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.45;
+    color: var(--cav-teal-dark);
+    text-decoration: underline;
+}
+
+.cav-cockpit .cav-file__view:focus-visible {
+    outline: 2px solid var(--cav-focus);
+    outline-offset: 2px;
+}
+
+/* ── Panel note ────────────────────────────────────────────────────────
+   A module's own recorded notes, plus the project's logged ones. Never the
+   project-level notes field, which would print the same paragraph under all
+   nine modules.
+
+   PREFIXED `cav-pnote` BECAUSE `cav-note` IS ALREADY TAKEN by the page
+   footnote above (the block carrying "Open full project"). Reusing it would
+   have put a border and padding on that footnote by accident, and would have
+   made the next edit to either one reach both. */
+.cav-cockpit .cav-pnote {
+    padding: var(--cav-s3) 0;
+    border-bottom: 1px solid var(--cav-rule);
+}
+
+.cav-cockpit .cav-pnote:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.cav-cockpit .cav-pnote__text {
+    margin: 0 0 var(--cav-s1);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--cav-ink);
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
+.cav-cockpit .cav-pnote__meta {
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--cav-light);
+}
+
+/* ── Recent activity (D-14) ────────────────────────────────────────────
+   A plain list: the feed is a record, not a control surface. The design's
+   "…" overflow on each row is a menu trigger and belongs to Phase 46/48, so
+   there is no rule here for one. */
+.cav-cockpit .cav-acts {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.cav-cockpit .cav-act {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--cav-s3);
+    padding: var(--cav-s3) 0;
+    border-bottom: 1px solid var(--cav-rule);
+}
+
+.cav-cockpit .cav-act:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+/* Initials, not a photo: User has no avatar column, and initials are what
+   the design draws in the circle anyway. aria-hidden in the markup, because
+   the actor's name is printed right beside it. */
+.cav-cockpit .cav-act__avatar {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--cav-teal-soft);
+    color: var(--cav-teal-dark);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.cav-cockpit .cav-act__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cav-s1);
+    min-width: 0;
+}
+
+.cav-cockpit .cav-act__line {
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--cav-mid);
+    overflow-wrap: anywhere;
+}
+
+.cav-cockpit .cav-act__actor {
+    font-weight: 600;
+    color: var(--cav-ink);
+}
+
+.cav-cockpit .cav-act__at {
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--cav-light);
+}
+
 /* ── Responsive ─────────────────────────────────────────────────────────
    Two breakpoints, both collapsing rather than hiding. NOTHING IS HIDDEN AT
    ANY WIDTH: the count phrase and the status chip are the only places a

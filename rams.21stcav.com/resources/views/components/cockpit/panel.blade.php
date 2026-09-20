@@ -33,10 +33,19 @@
     owned by Phase 46 and Phase 48, and none of them is rendered — not even
     disabled, because a disabled control is still an offer.
 
-    The Files and Notes tabs carry one honest line in this plan. Plan 45-12
-    fills them, along with the Recent activity feed.
+    The Files and Notes tabs and the Recent activity feed were filled by Plan
+    45-12 from records the app already holds. Nothing in them writes, and the
+    only link copy they use is "View".
 --}}
-@props(['project', 'module', 'tab' => 'overview', 'progress' => null])
+@props([
+    'project',
+    'module',
+    'tab'      => 'overview',
+    'progress' => null,
+    'files'    => null,
+    'notes'    => null,
+    'activity' => null,
+])
 
 @php
     $tabs = [
@@ -55,6 +64,17 @@
     $ringRadius        = 26;
     $ringCircumference = 2 * M_PI * $ringRadius;
     $ringArc           = $progress === null ? 0.0 : $ringCircumference * ($progress['percent'] / 100);
+
+    $files    = $files ?? collect();
+    $notes    = $notes ?? collect();
+    $activity = $activity ?? collect();
+
+    // Whether this module HAS a document library at all, read from the
+    // presenter's own key list rather than a second copy of it here. Three
+    // modules (install programme, programming, snagging) have no document
+    // relation anywhere in this codebase, and "holds no documents" is a
+    // different sentence from "none produced yet" — the first is permanent.
+    $hasLibrary = in_array($module['key'], \App\Support\Cockpit\CockpitPanelPresenter::documentModules(), true);
 
     $ringSentence = $progress === null
         ? null
@@ -133,9 +153,73 @@
             @else
                 <x-cockpit.hint>{{ $module['title'] }} has nothing recorded against it yet.</x-cockpit.hint>
             @endif
+
+            {{-- Recent activity (D-14). Project-wide on purpose: the log has
+                 no module column, so the same feed renders under every
+                 module rather than a filtered one that would silently drop
+                 every entry carrying no metadata hint. --}}
+            <div class="cav-panel__card">
+                <span class="cav-panel__card-head">Recent activity</span>
+
+                @if ($activity->isNotEmpty())
+                    <ul class="cav-acts">
+                        @foreach ($activity as $entry)
+                            <x-cockpit.activity-row
+                                :initials="$entry['initials']"
+                                :actor="$entry['actor']"
+                                :phrase="$entry['phrase']"
+                                :at="$entry['at']" />
+                        @endforeach
+                    </ul>
+                @else
+                    <x-cockpit.hint>Nothing has been recorded against this project yet.</x-cockpit.hint>
+                @endif
+            </div>
+        @elseif ($tab === 'files')
+            {{-- D-13 — the project's document library for this module. Every
+                 document it holds, in one place. A document whose type has no
+                 resolvable GET route is listed WITHOUT a link rather than
+                 omitted: a missing row is a worse failure than a plain one. --}}
+            @if ($files->isNotEmpty())
+                <div class="cav-panel__card">
+                    <span class="cav-panel__card-head">Documents</span>
+
+                    @foreach ($files as $file)
+                        <x-cockpit.file-row
+                            :name="$file['name']"
+                            :produced="$file['produced_at']"
+                            :status="$file['status']"
+                            :route="$file['route']" />
+                    @endforeach
+                </div>
+            @elseif ($hasLibrary)
+                <x-cockpit.hint>No {{ $module['title'] }} documents have been produced yet.</x-cockpit.hint>
+            @else
+                <x-cockpit.hint>{{ $module['title'] }} holds no documents.</x-cockpit.hint>
+            @endif
         @else
-            {{-- One honest line, and no "coming soon" furniture around it. --}}
-            <x-cockpit.hint>Files and notes arrive in the next plan.</x-cockpit.hint>
+            {{-- Notes the module itself recorded, plus the project's logged
+                 notes. Never Project::notes, which is a project-level field
+                 and would print the same paragraph under all nine modules. --}}
+            @if ($notes->isNotEmpty())
+                <div class="cav-panel__card">
+                    <span class="cav-panel__card-head">Notes</span>
+
+                    @foreach ($notes as $note)
+                        {{-- `cav-pnote`, not `cav-note`: that class is already
+                             taken by the page footnote that carries the
+                             "Open full project" link, and two unrelated
+                             things sharing a class is how a later styling
+                             edit reaches something it was not aimed at. --}}
+                        <div class="cav-pnote">
+                            <p class="cav-pnote__text">{{ $note['text'] }}</p>
+                            <span class="cav-pnote__meta">{{ $note['source'] }}{{ $note['at'] ? ' · '.$note['at']->format('d M Y') : '' }}</span>
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <x-cockpit.hint>{{ $module['title'] }} has no notes recorded.</x-cockpit.hint>
+            @endif
         @endif
     </div>
 </aside>

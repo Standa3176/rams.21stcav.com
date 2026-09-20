@@ -597,14 +597,28 @@ class CockpitPageTest extends TestCase
         $this->assertStringNotContainsString('visits completed', $html);
     }
 
-    public function test_the_files_and_notes_tabs_say_plainly_that_they_arrive_next(): void
+    /**
+     * RE-POINTED BY PLAN 45-12, NOT DELETED. This test previously asserted
+     * 45-11's one-line stub ("Files and notes arrive in the next plan"), which
+     * 45-12 replaced with the real Files and Notes tabs. The coverage it
+     * actually carries — both tabs render a body, and neither draws the
+     * Overview ring — is kept and re-pointed at the shipped copy. The stub
+     * sentence is asserted ABSENT so it cannot creep back.
+     */
+    public function test_the_files_and_notes_tabs_render_their_own_bodies(): void
     {
         $project = $this->projectWithInstallVisits();
 
-        foreach (['files', 'notes'] as $tab) {
+        $expected = [
+            'files' => 'No First fix and install documents have been produced yet.',
+            'notes' => 'First fix and install has no notes recorded.',
+        ];
+
+        foreach ($expected as $tab => $sentence) {
             $html = $this->renderPanel($project, 'worksheet', $tab);
 
-            $this->assertStringContainsString('Files and notes arrive in the next plan', $html);
+            $this->assertStringContainsString($sentence, $html);
+            $this->assertStringNotContainsString('Files and notes arrive in the next plan', $html);
             $this->assertStringNotContainsString('cav-ring', $html, 'The ring belongs to Overview.');
         }
     }

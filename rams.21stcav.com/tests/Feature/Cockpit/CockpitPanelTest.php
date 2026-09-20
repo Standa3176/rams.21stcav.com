@@ -161,14 +161,14 @@ class CockpitPanelTest extends TestCase
     public function test_a_document_with_no_route_renders_as_a_plain_row(): void
     {
         $html = $this->blade(
-            '<x-cockpit.file-row :name="$name" :produced_at="$produced_at" :status="$status" :route="$route" />',
+            '<x-cockpit.file-row :name="$name" :produced="$produced" :status="$status" :route="$route" />',
             [
-                'name'        => 'unlinkable.pdf',
-                'produced_at' => now(),
-                'status'      => 'On file',
-                'route'       => null,
+                'name'     => 'unlinkable.pdf',
+                'produced' => now(),
+                'status'   => 'On file',
+                'route'    => null,
             ]
-        )->toString();
+        )->__toString();
 
         $this->assertStringContainsString('unlinkable.pdf', $html);
         $this->assertStringNotContainsString('<a ', $html);
@@ -210,7 +210,7 @@ class CockpitPanelTest extends TestCase
         $html = $this->panel($project, 'site_survey', 'notes');
 
         $this->assertStringContainsString('Lift booked for Tuesday.', $html);
-        $this->assertSame(1, $this->countByClass($html, 'cav-note'));
+        $this->assertSame(1, $this->countByClass($html, 'cav-pnote'));
     }
 
     public function test_a_module_with_no_notes_says_so_in_one_sentence(): void
@@ -218,7 +218,7 @@ class CockpitPanelTest extends TestCase
         $html = $this->panel($this->project(), 'rams', 'notes');
 
         $this->assertStringContainsString('RAMS has no notes recorded.', $html);
-        $this->assertSame(0, $this->countByClass($html, 'cav-note'));
+        $this->assertSame(0, $this->countByClass($html, 'cav-pnote'));
     }
 
     // ── Recent activity (D-14) ───────────────────────────────────────────
@@ -227,7 +227,10 @@ class CockpitPanelTest extends TestCase
     {
         $project = $this->project();
 
-        $this->log($project, ['description' => 'imported the QuoteWerks package', 'created_at' => now()->subDays(2)]);
+        // 14 Aug 2026 16:11 is the design's own timestamp; the other entry is
+        // deliberately OLDER than it, so "newest first" is a real ordering
+        // assertion rather than one satisfied by insertion order.
+        $this->log($project, ['description' => 'imported the QuoteWerks package', 'created_at' => '2026-08-01 09:00:00']);
         $this->log($project, ['description' => 'approved the RAMS', 'created_at' => '2026-08-14 16:11:00']);
 
         $html = $this->panel($project, 'rams');
@@ -359,12 +362,41 @@ class CockpitPanelTest extends TestCase
      */
     public function test_no_cockpit_view_uses_unescaped_output(): void
     {
+        // ONE NAMED EXCLUSION, and it is not a loophole. attention.blade.php
+        // predates this plan, assembles its sentence in PHP and echoes it
+        // unescaped; Plan 45-11 rendered it unreachable (the health summary
+        // moved into the Overall status KPI card) and left its deletion to
+        // 45-13. It is excluded BY NAME so the exclusion is visible and has to
+        // be deleted on purpose, rather than by widening this assertion.
+        $legacy = ['attention.blade.php'];
+
         $views = glob(resource_path('views/components/cockpit/*.blade.php'));
 
         $this->assertNotEmpty($views);
+        $this->assertCount(1, $legacy, 'The exclusion list grows only by a deliberate edit.');
 
         foreach ($views as $view) {
+            if (in_array(basename($view), $legacy, true)) {
+                continue;
+            }
+
             $this->assertStringNotContainsString('{!!', file_get_contents($view), basename($view).' uses unescaped output.');
+        }
+    }
+
+    /**
+     * The excluded legacy component must stay UNREACHABLE — an exclusion is
+     * only acceptable while nothing renders it.
+     */
+    public function test_the_excluded_legacy_component_is_rendered_by_nothing(): void
+    {
+        $views = array_merge(
+            glob(resource_path('views/components/cockpit/*.blade.php')),
+            glob(resource_path('views/projects/*.blade.php'))
+        );
+
+        foreach ($views as $view) {
+            $this->assertStringNotContainsString('x-cockpit.attention', file_get_contents($view), basename($view).' renders it.');
         }
     }
 
