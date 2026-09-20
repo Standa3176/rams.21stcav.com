@@ -115,16 +115,16 @@ Each is **recorded in the admin Hidden Functions register**, not forgotten:
 | LR-03 | Phase 44 | Complete (Plan 44-03, 2026-09-19 — `<x-labour-resource-select>`, active-only, name-only) |
 | LR-04 | Phase 44 | Complete (Plan 44-04, 2026-09-19 — source-guard over 20 client-facing files + live HTTP render proof + non-vacuity meta-test) |
 | LR-05 | Phase 44 | Complete (Plan 44-04, 2026-09-19 — free-text `captured_by` paths untouched and asserted) |
-| VIS-01 | Phase 45 | Planned (Plan 45-02) |
-| VIS-02 | Phase 45 | Planned (Plan 45-05) |
-| VIS-03 | Phase 45 | Planned (Plans 45-05 + 45-08) |
-| VIS-04 | Phase 45 | Planned (Plans 45-06 + 45-07) |
-| VIS-05 | Phase 45 | Planned (Plan 45-08) |
-| VIS-06 | Phase 45 | Planned (Plans 45-06 + 45-07) |
-| VIS-07 | Phase 45 | Planned (Plan 45-05) |
-| VIS-08 | Phase 45 | Planned (Plans 45-02 + 45-05 + 45-07) |
-| VIS-09 | Phase 45 | Planned (Plan 45-04) |
-| VIS-10 | Phase 45 | Planned (Plans 45-03 + 45-06); palette retargeted by Plan 45-09 (D-08) |
+| VIS-01 | Phase 45 | Complete (Plan 45-02, 2026-09-19 — `visits` table + `Visit` model + factory; `(source_type, source_id)` unique, no FK so a visit outlives its source) |
+| VIS-02 | Phase 45 | Complete (Plan 45-05, 2026-09-19 — `visits:backfill`, one visit per survey and per SIGNED worksheet per D-01; nothing deleted, nothing rewritten) |
+| VIS-03 | Phase 45 | Complete (Plans 45-05 + 45-08, 2026-09-19 — `/survey/{token}` and `/worksheet/{token}` render 200 with both access tokens byte-identical afterwards) |
+| VIS-04 | Phase 45 | Built and test-proven (Plans 45-06 + 45-07, **replaced by** 45-10 + 45-11 + 45-12 + 45-13, 2026-09-20 — nine module rows, URL-driven side panel, nothing open at rest per D-09). **Awaiting the 45-14 human check** — the design comparison against sketch 004 is not self-approvable. |
+| VIS-05 | Phase 45 | Complete (Plan 45-08, 2026-09-19, re-run by 45-14 2026-09-20 — flag-off 404 incl. `?module=`/`?tab=`, eleven-tab page byte-identical, dashboard unchanged, three sha256 pins held) |
+| VIS-06 | Phase 45 | Complete (Plans 45-06 + 45-07, carried by 45-10 + 45-13, 2026-09-20 — state derives from existing data; the read-only fence bans 18 deferred affordances and 9 handler attributes across every open panel, and a five-table row-count invariance test proves rendering writes nothing) |
+| VIS-07 | Phase 45 | Complete (Plan 45-05, 2026-09-19 — dry-run by default; a second `--apply` creates nothing) |
+| VIS-08 | Phase 45 | Complete (Plans 45-02 + 45-05 + 45-07, carried by 45-12 + 45-13, 2026-09-20 — a force-deleted source still renders; superseded is disclosed in the module row's at-rest count phrase, not hidden) |
+| VIS-09 | Phase 45 | Complete (Plan 45-04, 2026-09-19 — `install_records` durable parent + nullable FK; D-06 baseline 159 passed / 0 failed re-measured at 45-08 and again at 45-14) |
+| VIS-10 | Phase 45 | Mechanism complete (Plans 45-03 + 45-06, **retargeted to the app's blue and Inter** by Plan 45-09 per D-08, 2026-09-20 — tokens stay scoped to `.cav-brand`; `layouts/app.blade.php`, `app.css` and `tailwind.config.js` all still hash to their pre-phase `4abd2b24` values). **Awaiting the 45-14 human check** — greyscale distinctness and the 320px count slot are the two properties no test can settle. |
 
 *Phases 46–51 have no requirement IDs yet. Mint them into this section as each phase is planned,
 following the LR-xx / VIS-xx pattern.*

@@ -1,11 +1,31 @@
 # Phase 45 — Flag-Off Proof and Whole-Phase Gate Re-run (MEASURED)
 
 **Status:** MEASURED, not asserted. Executed 2026-09-19 by Plan 45-08, Tasks 1 and 2.
+**Amended 2026-09-20 by Plan 45-14** — the whole-phase gate was re-run against the **rebuilt**
+page (sketch 004, D-08..D-16, Plans 45-09..45-13). Nothing in 45-08's reasoning is withdrawn:
+§ 5 (the flag-off `install_records` write and why criterion 5 still holds) and § 4's ruling that
+the 404-body assertion is vacuous both stand unchanged. The new measurements are § 9; the two
+flag-state facts that changed since 45-08 are recorded in § 0.
 **Purpose:** ROADMAP criterion 4 says the application "behaves exactly as it does today with the
 flag off — proven by a test, not by inspection". This document records that proof, the end-of-phase
 re-run of the D-06 baseline, and the two pieces of reasoning that exist nowhere in code.
 
-**The flag state at the time of every measurement below:** `COCKPIT_ENABLED` is **absent from
+## 0. Two things that changed after 45-08 — read these before § 1-§ 7
+
+1. **`COCKPIT_ENABLED` is now `true`.** It was set in the live `.env` on **2026-09-20** and is
+   also `true` in this checkout's `.env`. Every § 1-§ 7 measurement below was taken with the
+   flag **absent**; the § 9 re-run was taken with it **present and true**, and the flag-off
+   tests still pass because they flip `cockpit.enabled` to `false` in-process rather than
+   reading `.env`. The rollback in § 7 is therefore now a real one-line revert, not a no-op:
+   remove the line, `config:clear`.
+2. **The page § 1-§ 7 measured has been replaced.** The teal accordion is deleted. The live
+   design contract is `.planning/sketches/004-delivery-cockpit/README.md`. The **server is
+   still serving the old page** — the rebuild is committed locally and not pushed — so the
+   human check in § 8 is to be done **locally**, before any redeploy.
+
+---
+
+**The flag state at the time of every § 1-§ 7 measurement:** `COCKPIT_ENABLED` is **absent from
 `.env`**, so `config('cockpit.enabled')` resolves to its literal default `false`
 (`config/cockpit.php:43`). It was never flipped during this phase. Tests that need the cockpit ON
 flip it in-process with `config(['cockpit.enabled' => true])`.
@@ -229,18 +249,55 @@ and no data deletion is needed, because the `visits` rows are inert with the fla
 ## 8. Open — the human checkpoint (Task 3)
 
 Two properties of the flag-**on** cockpit cannot be settled by any automated check, and
-`45-UI-SPEC.md` § Open Items 3 and 4 flag both as formally open. They are the phase's **only**
+`45-UI-SPEC-v1-superseded.md` § Open Items 3 and 4 flag both as formally open (that file was the
+unlabelled `45-UI-SPEC.md` until Plan 45-14 deleted the duplicate). They are the phase's **only**
 human gate and remain **OPEN** at the time of writing:
 
-1. **Greyscale state distinctness** — all four states (filled circle = done, outlined diamond =
-   attention, hollow circle = waiting, square box = hand-ticked/unticked) must stay distinguishable
-   with colour removed. If any two are confusable, colour is doing work it must not do.
+1. **Greyscale state distinctness** — ***amended 2026-09-20 (D-10).*** The four pip/tick-box states
+   this item was written about no longer exist: the pip and the hand-tick box were deleted in Plan
+   45-11. The property is unchanged and now applies to the **three module status chips** — `Not
+   started` (hollow ring), `In progress` (filled dot), `On file` (filled square). Each carries a
+   distinct glyph SHAPE and its state in WORDS as well as its colour
+   (`resources/views/components/cockpit/status-chip.blade.php`). Plus the provenance chips
+   (`Reconstructed` / `Superseded` / `Not required` / `Record unavailable`), which are a separate
+   vocabulary in a separate component by deliberate decision. If any two are confusable with colour
+   removed, colour is doing work it must not do.
 2. **The 320px count slot** — the count must remain visible at 320px. It is the only at-rest
    disclosure that a visit is reconstructed or superseded; hiding it would present an inferred
    visit as an unqualified fact. The sketch's `@media(max-width:480px){ .s,.c{display:none} }` must
    **not** be in effect (deviation signed off by the user on 2026-09-19).
+   ***Reinforced 2026-09-20:*** Plan 45-13 found this exact disclosure had been **lost** in the
+   rebuild — the module row had reverted to a bare `1 visit`. It was fixed in
+   `CockpitModulePresenter`, and the row now reads `1 visit · reconstructed` /
+   `3 visits · 2 superseded`. That is the string that must survive 320px. A regression that once
+   shipped is worth looking at twice.
 
-Steps are in `45-08-PLAN.md` Task 3. This document is to be updated with the observation once the
+3. **The design comparison itself** — does the rebuilt page match
+   `.planning/sketches/004-delivery-cockpit/delivery-cockpit.png`? No test can answer this, and the
+   page is the one a project is delivered from.
+
+### The differences from the design image that are DELIBERATE — not bugs
+
+Enumerated so the checker can tell a decision from a defect at a glance.
+
+| What the image shows | What the page shows | Why |
+|---|---|---|
+| Eight module rows | **Nine** — a Snagging row is added | **D-16.** The image showed eight rows but "1 of 9 complete". `Visit::TYPE_SNAG` already exists, so with eight rows a snag visit would sit in the database and appear on no screen. |
+| `Actions ▾` dropdown | absent | A write affordance. Phase 46/48. |
+| Quick actions tiles — Create visit / Add note / Upload files | absent | **D-15.** Writes: Phase 46 (visits, notes), Phase 48 (files). |
+| `…` overflow control on activity rows | absent | A menu trigger, i.e. a write entry point. |
+| Two stage chips | **one** | A project has exactly one `Project::status`. Two would mean inventing a second. |
+| Site contact with an email | name and phone only | `SiteSurvey` stores no contact email. `pm_email` is the PM's; labelling it "Site contact" would be a lie. |
+| "Proposed install date" | **"Planned start"** | No proposed-install-date field exists. The nearest real value is `InstallProgramme::planned_start_date`, which is a different fact and is labelled as itself. |
+| Programming row with a count | chip, **no count phrase** | No Programming model or storage exists. A count would be fabricated. |
+| Activity feed implied per-module | **project-wide** | `ProjectActivityLog` has no module column. |
+| A JS slide-in panel | a **full page load** (`?module=…&tab=…`) | Phase 45 ships zero JavaScript. The trade, accepted at planning time: bookmarkable panel state and a working browser Back button. |
+
+**Everything in the left-hand column is a decision with an owner.** Anything NOT in this table that
+differs from the image is a finding — report it.
+
+Steps are in `45-14-PLAN.md`'s checkpoint task, restated against the rebuilt page. `45-08-PLAN.md`
+Task 3 is the original wording and describes a page that no longer exists. This document is to be updated with the observation once the
 checkpoint is answered.
 
 ---

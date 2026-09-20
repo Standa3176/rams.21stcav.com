@@ -370,6 +370,11 @@ decisions in `.planning/sketches/002-install-cockpit/README.md`, narrowed by 45-
      `/worksheet/{token}` link keeps working exactly as it does today
   3. The cockpit page renders **read-only** behind a feature flag, on its own route, showing the
      programme spine and its section drawers closed at rest
+     *(2026-09-20, D-09: the form changed, the substance did not. The spine is now a list of
+     module rows and the drawer is a URL-driven right-hand side panel rather than an inline
+     `<details>` accordion. The property this criterion protects — read-only, flag-gated, its
+     own route, and nothing open until the PM opens it — is intact and is asserted by
+     `CockpitSpineTest::test_no_panel_element_exists_in_the_dom_at_rest`.)*
   4. The existing eleven-tab project page is **untouched and remains the default**. With the flag
      off, the application behaves exactly as it does today — proven by a test, not by inspection
   5. Traffic lights on the cockpit are derived from data that already exists; this phase adds no
@@ -387,7 +392,7 @@ Kept for decision history; see `45-CONTEXT.md` for the answers. Do not treat the
     cockpit starts a brand-aligned refresh or it is retokened to match. A half-branded app is worse
     than either.
 
-**Plans**: 8 plans, 6 waves. **45-01 is the sole wave-1 plan, deliberately serialised**: its Task 2
+**Plans**: 14 plans, 6 waves + a 6-wave replacement set. **45-01 is the sole wave-1 plan, deliberately serialised**: its Task 2
 measures the D-06 behaviour-preservation baseline, which is only valid on a clean tree with no Phase
 45 code applied. 45-02 (the `visits` migration) and 45-03 (`npm install` + `npm run build`) would
 otherwise run concurrently with the measurement and corrupt it — every test in the subset uses
@@ -400,7 +405,32 @@ otherwise run concurrently with the measurement and corrupt it — every test in
 - [x] 45-05-PLAN.md — `visits:backfill`, idempotent and dry-run by default; one visit per survey and per SIGNED worksheet; public token routes proven unaffected. Wave 3. Requirements: VIS-02, VIS-03, VIS-07, VIS-08.
 - [x] 45-06-PLAN.md — Cockpit route + flag-gated read-only controller + page shell + state primitives (pip, tick-box, chip, tag, hint). Wave 4. Requirements: VIS-04, VIS-06, VIS-10.
 - [x] 45-07-PLAN.md — The spine: nine drawers closed at rest, visit rows, reconstructed and superseded treatments, read-only fence test **scoped to the `cav-brand cav-cockpit` subtree** (the shared app layout's logout form, search input, buttons and `@vite`/Alpine scripts are out of scope by recorded decision), plus a five-table row-count invariance proof for criterion 5. Wave 5. Requirements: VIS-04, VIS-06, VIS-08.
-- [ ] 45-08-PLAN.md — Flag-off behaviour proof (404, zero markup, layout byte-identical) + whole-phase gate re-run + greyscale/320px human check. **The phase's only human checkpoint.** Wave 6. Requirements: VIS-05, VIS-03, VIS-09.
+- [x] 45-08-PLAN.md — Flag-off behaviour proof (404, zero markup, layout byte-identical) + whole-phase gate re-run + greyscale/320px human check. **The phase's only human checkpoint.** Wave 6. Requirements: VIS-05, VIS-03, VIS-09.
+
+**THE PAGE 45-06 AND 45-07 BUILT WAS REPLACED.** On **2026-09-20**, after the original eight plans
+had executed and shipped, the user supplied a new design (screenshot) and it was accepted as the
+v4.0 design contract: `.planning/sketches/004-delivery-cockpit/README.md`. It **supersedes sketch
+002** and **reverses D-07** — the cockpit uses the application's own blue and Inter inside the
+existing left nav, not a 21CAV teal/Verdana/Poppins refresh (**D-08**). The drawer became a
+URL-driven right-hand side panel with Overview / Files / Notes tabs (**D-09**); the traffic-light
+pip became a status chip plus a count (**D-10**); a ninth **Snagging** module row was added so that
+`Visit::TYPE_SNAG` reaches a screen (**D-16**). Plans **45-09..45-14** replace the page, not the
+model: the `visits` table, the backfill, the `install_records` split and the flag-off proof from
+45-01..45-08 are untouched. The original eight entries below are left exactly as they were — they
+are executed history, and the roadmap records what happened, not a tidy fiction about what was
+always intended. `45-UI-SPEC.md` (sketch-002 era) was deleted by 45-14; the labelled copy
+`45-UI-SPEC-v1-superseded.md` is retained for its still-correct constraint analysis.
+45-08's entry still calls itself "the phase's only human checkpoint" — that was true when it
+was written. Its visual check was left OPEN (`45-FLAG-OFF-PROOF.md` § 8) and is now answered
+against the replacement page, by 45-14. There is still exactly one human gate in Phase 45; it
+moved.
+
+- [x] 45-09-PLAN.md — Retarget the `.cav-*` token layer from teal/Verdana/Poppins to the app's blue and Inter (D-08, reversing D-07). CSS only — no Blade, no PHP — so the reversal is one auditable commit. Wave 1 (of the replacement set). Requirements: VIS-10.
+- [x] 45-10-PLAN.md — `CockpitModulePresenter` (nine module rows per D-10/D-11/D-16, status chip + count phrase) and `CockpitHeaderPresenter` (masthead facts, the three KPI cards of D-12, one stage chip). Pure PHP, unit-tested, no markup — so a fabricated denominator cannot reach a PM's screen. Wave 2. Requirements: VIS-04, VIS-06.
+- [x] 45-11-PLAN.md — The replacement page itself: masthead, KPI cards, stage chip, module list, and the side-panel shell with its **Overview** tab. Panel open/closed and tab state live entirely in the URL — zero JavaScript. The accordion, the pip and the hand-tick box are deleted. Wave 3. Requirements: VIS-04, VIS-10.
+- [x] 45-12-PLAN.md — The panel's **Files** tab as the project's document library (D-13 — the user's own example of what the panel is for), the **Notes** tab, and the **Recent activity** feed from the existing `ProjectActivityLog` (D-14). Read-only listing and viewing only; upload is Phase 48. Wave 4. Requirements: VIS-04, VIS-08.
+- [x] 45-13-PLAN.md — Reconcile the four cockpit test files with the rebuild: the read-only fence extended to 18 deferred affordances and 9 banned handler attributes across every open panel, 13 spine assertions retargeted and 2 retired with their subjects rehomed. **Found and fixed a real regression** — the module row had stopped disclosing `reconstructed` / `superseded` at rest (D-02/D-04). Wave 5. Requirements: VIS-04, VIS-06, VIS-08.
+- [ ] 45-14-PLAN.md — Whole-phase gate re-run (D-06 baseline, full suite, the three sha256 pins, `npm run build`), documentation close-out, and **the phase's only human checkpoint**: the design comparison, greyscale and 320px. **Blocking — not self-approvable.** Wave 6. Requirements: VIS-04, VIS-05, VIS-10.
 
 **UI hint**: yes (new read-only page, flag-gated)
 
