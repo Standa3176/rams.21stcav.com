@@ -489,7 +489,7 @@ Plans:
 - [x] 46-03-PLAN.md — **The survey → install carry-forward, read live (wave 1, D-01)**
 - [x] 46-04-PLAN.md — Quick actions: create a visit, generate a document; the fence retired per entry (wave 2)
 - [x] 46-05-PLAN.md — What the engineer sees: the link reopens, and the office says why (wave 2)
-- [ ] 46-06-PLAN.md — Accept and send back, with a visible scope lock (wave 3)
+- [x] 46-06-PLAN.md — Accept and send back, with a visible scope lock (wave 3)
 - [ ] 46-07-PLAN.md — Office note and raise a snag; the visit row reaches its four-control cap (wave 4)
 - [ ] 46-08-PLAN.md — End-to-end proof, fence re-proof, and the human check (wave 5)
 
