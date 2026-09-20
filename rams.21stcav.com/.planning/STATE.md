@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Project Cockpit
 status: executing
-stopped_at: Phase 46 (Visit Lifecycle) IN PROGRESS — 1 of 8 plans landed (46-03, the survey→install carry-forward). Phases 44 and 45 COMPLETE and deployed to rams.21stcav.com. The cockpit is live behind COCKPIT_ENABLED (currently true on the server) at /projects/{id}/cockpit. Next: 46-01 (visit lifecycle columns), 46-02 (minimal snags table), then waves 2-4 (write affordances) and 46-08 (end-to-end walk + human check).
-last_updated: "2026-09-20T00:00:00.000Z"
-last_activity: 2026-09-20
+stopped_at: Phase 46 (Visit Lifecycle) — ALL 8 PLANS LANDED; the phase is held at its HUMAN CHECKPOINT (Plan 46-08, Task 3) and is NOT complete until the user has judged the cockpit simple enough to use. Code state: the cockpit is writable (create visit, generate document, and the four PM acts on a returned visit), and the survey→install carry-forward is live. Gates at hand-back: D-06 baseline 2 skipped / 159 passed / 0 failed; cockpit suite 266 passed (201 Feature + 65 Unit); full suite 3118 passed with the ONE documented pre-existing QueueRecoverCommandTest failure; three sha256 pins all identical. VL-12 (per-visit document scoping) is NOT DELIVERED and stays a GAP.
+last_updated: "2026-09-21T00:00:00.000Z"
+last_activity: 2026-09-21
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 27
-  completed_plans: 19
+  completed_plans: 27
   percent: 25
 ---
 
@@ -71,17 +71,36 @@ Key facts a later agent needs:
   reconstructed install visit. Almost certainly the signature-capture bug fixed in the same deploy,
   not a true reflection of site visits.
 
-**Phase 46 — Visit Lifecycle: IN PROGRESS** (1 of 8 plans). D-01..D-06 in `46-CONTEXT.md`.
-46-03 landed the survey→install carry-forward: ten survey fields render on the unauthenticated
-engineer link, read live from the `SiteSurvey` record and never copied. Four of them —
-`access_constraints`, `site_risks`, `h_and_s_notes`, `general_notes` — had grep count **0** in that
-file before this plan. Those are the safety fields; the five that already carried were logistics.
-`office_review_notes` is excluded by name because the worksheet link is a page a client signs.
+**Phase 46 — Visit Lifecycle: ALL 8 PLANS LANDED, HELD AT THE HUMAN CHECKPOINT** (not complete).
+D-01..D-06 in `46-CONTEXT.md`. Plan 46-08 finished every automatable task and STOPPED at its
+`checkpoint:human-verify`. The phase closes when the user has answered two questions no test can
+settle: does the page still look simple, and is anything missing they expected to be able to do.
+
+What shipped, in order: 46-01 seven nullable lifecycle columns plus a six-state DERIVED state
+machine (no `returned_at`, no `scope_locked_at` — both read from the engineer's own record);
+46-02 a nine-column `snags` table fenced against Phase 47; 46-03 the survey→install carry-forward
+(ten survey fields on the unauthenticated engineer link, read live and never copied — four of them,
+`access_constraints`, `site_risks`, `h_and_s_notes`, `general_notes`, had grep count **0** in that
+file before; `office_review_notes` is excluded by name because the worksheet link is a page a client
+signs); 46-04 the cockpit's first write surface plus a PARTIAL, per-entry fence retirement;
+46-05 send-back reopening the engineer link by comparison, never by clearing `submitted_at`;
+46-06 Accept and Send back with a visible scope lock; 46-07 the office note (`visit_notes`,
+append-only) and the raised snag, reaching the four-control cap; 46-08 one end-to-end walk of the
+whole lifecycle across both auth boundaries.
 
 Open in Phase 46: **VL-12 NOT DELIVERED** (per-visit document scoping — the generators take a whole
 Project and the RAMS comes from an AI pipeline driven by the entire quote; D-05 captures
 `rooms_in_scope` and defers the generators). **D-06: no Edit control** — the visit row is capped at
 four (Accept, Send back, Add note, Raise a snag); a PM who needs a change sends it back.
+
+**Two defects logged and carried forward, NOT fixed** (`46-visit-lifecycle/deferred-items.md`):
+- **D-46-05-01 — live on the server now.** `GET /worksheet/{token}` returns **500** for a worksheet
+  whose `generated_data` has no rooms: `Undefined variable $signOffBlocked`, assigned inside the
+  populated-rooms branch at `public-show.blade.php:773` and read outside it at `:1359` / `:1441`.
+  Proven pre-existing by reverting the view to `HEAD` and re-running. **Worth a quick task.**
+- **D-46-06-01.** `Visit::wasSentBack()` is a strict `greaterThan` on second-resolution timestamps,
+  so a send-back issued in the same clock second as a resubmission reads as "not sent back" and the
+  engineer never sees the ask. One-second window; the fix is a 46-01 decision to revisit.
 
 **Server note:** something switched the deploy checkout's branch to `deploy-mrgagg` between two
 deploys on 2026-09-20, which caused a build against four-month-old code. Cause unfound. Check

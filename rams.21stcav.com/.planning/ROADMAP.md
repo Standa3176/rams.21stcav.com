@@ -491,7 +491,13 @@ Plans:
 - [x] 46-05-PLAN.md — What the engineer sees: the link reopens, and the office says why (wave 2)
 - [x] 46-06-PLAN.md — Accept and send back, with a visible scope lock (wave 3)
 - [x] 46-07-PLAN.md — Office note and raise a snag; the visit row reaches its four-control cap (wave 4)
-- [ ] 46-08-PLAN.md — End-to-end proof, fence re-proof, and the human check (wave 5)
+- [x] 46-08-PLAN.md — End-to-end proof, fence re-proof, and the human check (wave 5)
+
+> **Phase 46 is CODE-COMPLETE but HELD AT ITS HUMAN CHECKPOINT** (46-08, Task 3). All eight plans
+> landed and every gate is green, but the phase does not close until the user has judged the page
+> simple enough to use. **Criterion 2 is only half delivered** — `rooms_in_scope` is captured and
+> shown on the engineer link, but the RAMS and worksheet generators stay project-wide. That half is
+> recorded as **VL-12, NOT DELIVERED**.
 
 **UI hint**: yes (prepare panel, send flow, return review — the cockpit's write half)
 
