@@ -264,8 +264,13 @@ final class CockpitModulePresenter
             return null;
         }
 
+        // `isClosed()` (Phase 46), NOT a literal status comparison: a visit a
+        // PM accepted is finished too, and so is a Phase 45 backfilled one
+        // that was already complete when it was reconstructed. Comparing the
+        // stored column here would have made the ring go BACKWARDS the moment
+        // accepting became possible, while the panel said "accepted".
         $completed = $visits
-            ->filter(fn (Visit $visit): bool => $visit->status === Visit::STATUS_COMPLETED)
+            ->filter(fn (Visit $visit): bool => $visit->isClosed())
             ->count();
 
         return [

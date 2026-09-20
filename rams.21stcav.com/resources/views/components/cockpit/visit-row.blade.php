@@ -63,7 +63,9 @@
         $supersededOn = $source->getAttribute('superseded_at') ?? $source->getAttribute('deleted_at');
     }
 
-    $statusLabel = $visit->status === \App\Models\Visit::STATUS_COMPLETED ? 'Completed' : 'Planned';
+    // isClosed() (Phase 46) rather than a literal status comparison, for the
+    // same reason the progress ring uses it: an accepted visit is finished.
+    $statusLabel = $visit->isClosed() ? 'Completed' : 'Planned';
 @endphp
 
 <div class="cav-visit{{ $isReconstructed ? ' cav-visit--reconstructed' : '' }}">
