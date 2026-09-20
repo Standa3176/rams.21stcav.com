@@ -331,7 +331,11 @@ class CockpitPageTest extends TestCase
             );
         }
 
-        $this->assertSame(count($map), substr_count($html, 'Open drawer'));
+        // Counted by class, not by copy: each link carries the copy twice —
+        // once as its text and once in the aria-label that names which module
+        // it opens, so nine links legitimately produce eighteen matches.
+        $this->assertSame(count($map), $this->countByClass($html, 'cav-module__open'));
+        $this->assertStringContainsString('Open drawer', $html);
     }
 
     public function test_the_programming_row_renders_its_chip_and_no_count_phrase(): void

@@ -3,21 +3,38 @@
 @section('title', $project->name . ' — Cockpit')
 
 {{--
-    The read-only project cockpit — Phase 45 (VIS-04 / VIS-06 / VIS-10).
+    The delivery cockpit — Phase 45 (VIS-04 / VIS-06 / VIS-10), sketch 004.
+
+    This is the page a project is delivered from: masthead, three KPI cards,
+    one stage chip, the nine module rows, and a right-hand side panel.
 
     READ-ONLY. ROADMAP criteria 3 and 5: this page renders records the app
-    already holds and adds no new capture and no new writes. Nothing in the
-    `cav-brand cav-cockpit` subtree below is a form control or a <script>, and
-    none of the fifteen deferred affordances in 45-UI-SPEC.md § Read-only
-    Fence appears. The one permitted navigation affordance is the text link at
-    the foot of the page, which is a GET to a page that already exists.
+    already holds and adds no new capture and no new writes. The design image
+    draws an "Actions ▾" menu, a "…" overflow and three Quick action tiles
+    (Create visit / Add note / Upload files). NONE of them is rendered here,
+    not even disabled — a disabled control is still an offer, and those are
+    Phase 46 and Phase 48 writes. Nothing in the `cav-brand cav-cockpit`
+    subtree is a form control, a <script> or an Alpine directive.
+
+    THE SIDE PANEL'S STATE IS THE QUERY STRING, AND THERE IS NO JAVASCRIPT.
+    `?module=` opens, `?tab=` switches, and the close control is an anchor back
+    to the bare URL. The full ruling lives in the panel component's docblock.
+
+    THREE THINGS RENDERED HONESTLY RATHER THAN AS DRAWN — each settled in Plan
+    45-10 and each pinned by a test, so none of them is an oversight to be
+    "fixed" later:
+      - ONE stage chip, not two: a project has exactly one status.
+      - No site-contact email: `SiteSurvey` holds a name and a phone only.
+      - "Planned start", never "Proposed install date": a different fact.
 
     STYLING — the three constraints that are the point of this phase:
 
     1. layouts/app.blade.php is NOT touched. It is 2,154 lines and every
        authenticated page extends it, so a token added to its :root at :33
-       would retone the whole app and break criterion 4. Plan 45-08 asserts
-       that file is byte-identical to its pre-phase state.
+       would retone the whole app and break criterion 4. That file,
+       resources/css/app.css and tailwind.config.js are sha256-locked by
+       FlagOffBehaviourUnchangedTest. A mismatch there is a STOP, not a hash
+       to refresh.
     2. --teal-* already means BLUE here (the layout aliases the whole family
        onto the navy/accent palette at :65-71), and tailwind.config.js maps
        brand.teal to a blue too. So: only --cav-* tokens, and NO Tailwind
@@ -37,52 +54,79 @@
 
 @section('content')
     <div class="cav-brand cav-cockpit">
-        <x-cockpit.masthead :project="$project" />
-
         <div class="cav-page">
-            <x-cockpit.attention
-                :unavailable="$health === null"
-                :items="$health !== null && $health->status !== 'green' ? [$health->reason] : []" />
+            <x-cockpit.masthead :project="$project" :masthead="$masthead" />
 
-            @if ($isEmpty)
-                <h2 class="cav-attn__head">Nothing has been recorded on this job yet</h2>
+            {{-- D-12 — three cards, in the design's order. Every value comes
+                 from CockpitHeaderPresenter; the Blade layer only chooses the
+                 word for a status key it was given. --}}
+            @php
+                $overall      = $kpis['overall'];
+                $nextVisit    = $kpis['next_visit'];
+                $documents    = $kpis['documents'];
+                $statusLabels = ['green' => 'On track', 'amber' => 'Needs attention', 'red' => 'At risk'];
+                $statusValue  = $overall['status'] === null ? 'Not available' : ($statusLabels[$overall['status']] ?? 'Not available');
+                $statusIcon   = $overall['status'] === 'green' ? 'check' : 'flag';
+                $stageSub     = $overall['status'] === null
+                    ? $overall['reason']
+                    : ($overall['stage'] === null ? null : 'Stage: ' . $overall['stage']);
+            @endphp
 
-                <p class="cav-note">
-                    This cockpit reads records the app already holds. When a site survey is
-                    submitted or a worksheet is signed on site, the visit appears here.
-                </p>
+            <div class="cav-kpis">
+                <x-cockpit.kpi-card
+                    label="Overall status"
+                    :value="$statusValue"
+                    :sub="$stageSub"
+                    :icon="$statusIcon" />
+
+                <x-cockpit.kpi-card
+                    label="Next visit"
+                    :value="$nextVisit['label']"
+                    :sub="$nextVisit['type_label'] ?? null"
+                    icon="calendar" />
+
+                <x-cockpit.kpi-card
+                    label="Documents"
+                    :value="$documents['complete'] . ' of ' . $documents['total'] . ' complete'"
+                    :percent="$documents['percent']"
+                    icon="document" />
+            </div>
+
+            {{-- Exactly one chip. The design's second chip has no source. --}}
+            @if ($stageChips !== [])
+                <div class="cav-stage">
+                    @foreach ($stageChips as $chip)
+                        <span class="cav-stage__chip">{{ $chip['label'] }}</span>
+                    @endforeach
+                </div>
             @endif
 
-            {{-- The spine. Nine drawers, every one closed at rest — so the
-                 count slot on each summary is the only place a reconstructed
-                 or superseded visit is disclosed to a PM who opens nothing.
-                 The three groups and their order were fixed by Plan 45-06. --}}
-            <x-cockpit.section-group title="Visits — someone goes to site">
-                @foreach ($sections->where('group', \App\Support\Cockpit\CockpitSectionPresenter::GROUP_VISITS) as $section)
-                    @include('projects._cockpit-drawer', ['section' => $section])
-                @endforeach
-            </x-cockpit.section-group>
+            <div class="cav-layout">
+                <div class="cav-modules">
+                    <h2 class="cav-modules__head">Project modules</h2>
+                    <p class="cav-modules__sub">Plan and deliver the AV installation</p>
 
-            <x-cockpit.section-group title="Documents — produced in the office">
-                @foreach ($sections->where('group', \App\Support\Cockpit\CockpitSectionPresenter::GROUP_DOCUMENTS) as $section)
-                    @include('projects._cockpit-drawer', ['section' => $section])
-                @endforeach
-            </x-cockpit.section-group>
+                    @if ($isEmpty)
+                        <p class="cav-note">
+                            Nothing has been recorded on this job yet. This cockpit reads records the app
+                            already holds — when a site survey is submitted or a worksheet is signed on
+                            site, the visit appears here.
+                        </p>
+                    @endif
 
-            <x-cockpit.section-group title="Reference">
-                @foreach ($sections->where('group', \App\Support\Cockpit\CockpitSectionPresenter::GROUP_REFERENCE) as $section)
-                    @include('projects._cockpit-drawer', ['section' => $section])
-                @endforeach
-            </x-cockpit.section-group>
-
-            <p class="cav-note">
-                Visits group by type, so a three-day install is one line until you open it. Each
-                section is also the deliverable — there is no second list saying the same thing
-                twice.
-            </p>
+                    {{-- Nine rows because the presenter returns nine (D-16).
+                         Never a hardcoded list and never a hardcoded count. --}}
+                    @foreach ($modules as $module)
+                        <x-cockpit.module-row
+                            :project="$project"
+                            :module="$module"
+                            :active="$openModule !== null && $openModule['key'] === $module['key']" />
+                    @endforeach
+                </div>
+            </div>
 
             <p class="cav-note">
-                <a class="cav-link" href="{{ route('projects.show', $project) }}">Open the full project page</a>
+                <a class="cav-link" href="{{ route('projects.show', $project) }}">Open full project</a>
             </p>
         </div>
     </div>

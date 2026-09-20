@@ -108,8 +108,14 @@ class CockpitReadOnlyFenceTest extends TestCase
      * worse than a fence that fails. So this helper brackets the region at BOTH
      * ends before returning: it asserts the region is non-empty, that it
      * contains the masthead's project name (TOP bracket), and that it contains
-     * the "Open the full project page" link text (BOTTOM bracket — per 45-06
-     * that link is the last element in the page shell).
+     * the "Open full project" link text (BOTTOM bracket — that link is the
+     * last element in the page shell). The bracket string was RETARGETED by
+     * Plan 45-11 when sketch 004 shortened the link's copy from "Open the full
+     * project page"; it was re-proved in the same commit by deliberately
+     * truncating the extraction and watching this assertion go red. The
+     * bracket is not optional and neither end may be removed — retargeting a
+     * bracket to follow the markup is maintenance, deleting one is the
+     * vacuity this whole helper exists to prevent.
      *
      * Both brackets live INSIDE this helper, not in a sibling test. The reason
      * is specific: the masthead is the FIRST thing in the subtree, so an
@@ -144,12 +150,12 @@ class CockpitReadOnlyFenceTest extends TestCase
             'The extracted region does not contain the masthead project name, so it is not the cockpit.'
         );
 
-        // BOTTOM bracket — the last element in the page shell (45-06). Without
-        // this, a truncated extraction would still satisfy the top bracket.
+        // BOTTOM bracket — the last element in the page shell. Without this, a
+        // truncated extraction would still satisfy the top bracket.
         $this->assertStringContainsString(
-            'Open the full project page',
+            'Open full project',
             $region,
-            'The extracted region stops before the end of the page shell — it would leave the drawers unexamined.'
+            'The extracted region stops before the end of the page shell — it would leave the module rows unexamined.'
         );
 
         return $region;
@@ -276,7 +282,7 @@ class CockpitReadOnlyFenceTest extends TestCase
         $project = $this->populatedProject();
         $region  = $this->cockpitRegion($this->render($project));
 
-        $this->assertStringContainsString('Open the full project page', $region);
+        $this->assertStringContainsString('Open full project', $region);
         $this->assertStringContainsString(route('projects.show', $project), $region);
     }
 
