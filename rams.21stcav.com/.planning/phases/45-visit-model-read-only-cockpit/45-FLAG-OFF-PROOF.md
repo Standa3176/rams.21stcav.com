@@ -302,13 +302,83 @@ checkpoint is answered.
 
 ---
 
+## 9. The 45-14 whole-phase re-run — MEASURED 2026-09-20, against the REBUILT page
+
+Every number below was produced on the rebuilt cockpit (Plans 45-09..45-13), at a clean working
+tree, with `COCKPIT_ENABLED=true` present in `.env`.
+
+| Gate | Command | Result |
+|---|---|---|
+| **D-06 baseline** | the 12-path enumerated command from `45-BASELINE.md`, character-identical | **`2 skipped, 159 passed (396 assertions)`** — `>= 159 passed AND 0 failed` → **PASS**. Identical to 45-01, 45-04 and 45-08. |
+| **Cockpit suite** | `artisan test tests/Feature/Cockpit tests/Unit/Cockpit` | **`157 passed (1646 assertions)`**, 8 files, zero failures |
+| **Full suite** | `artisan test` | **`2934 passed (12345 assertions)`, 1 failed, 6 skipped, 679s** |
+| **Build** | `npm run build` (Bash — npm is blocked by PowerShell execution policy) | **`assets/cockpit-B6wRFpLO.css  16.12 kB`**, present in `public/build/manifest.json` under `resources/css/cockpit.css`. Clean. |
+| **The three sha256 pins** | `Get-FileHash -Algorithm SHA256` on the working tree, the same command 45-01 used | **all three identical to `45-BASELINE.md`** |
+
+The single full-suite failure is the **same pre-existing one named in § 2** —
+`QueueRecoverCommandTest > unhealthy queue runs restart and drain plan`, the full-suite-only
+memory-threshold interaction described in that test's own comment. It is not a Phase 45 finding and
+was not touched. Naming it here rather than absorbing it silently is the point: an unexplained red
+line in a close-out run is how a real regression gets waved through next time.
+
+Pass count moved from 2,832 (45-08) to 2,934 — the +102 are Plans 45-09..45-13's own tests.
+
+```
+9ED63C4C754F33832E12BB07A2C515AAC82AB656C5C9A1D35AED0174A7FF0557  resources/views/layouts/app.blade.php
+EDAD1982303B9FABF86A4B791BBF16436104251277CA79DBAEFB5603C8BE2133  resources/css/app.css
+73BB8AD6B7CDF4DC0B11C51661E3DBC7A274CABBCC226D1FF41B5E50938E74BB  tailwind.config.js
+```
+
+### The local database was EMPTY — a fixture was built for the human check
+
+`database/database.sqlite` held **0 projects, 0 users, 0 visits, 0 surveys**. A visual check against
+an empty database would have shown nine identical `Not started / 0 visits` rows and **would never
+have rendered the one thing § 8 item 2 exists to protect** — the reconstructed / superseded count
+phrase. So a fixture was seeded from the scratchpad (not a repo seeder, not committed):
+
+- **Project 3, "Riverside Media Suite"**, status `installing`
+- a submitted `SiteSurvey` (site contact **Marie Okafor**, `07700 900312`) so the masthead contact
+  line has real content
+- an `InstallProgramme` with `planned_start_date = 2026-09-08` so **"Planned start"** renders — the
+  label that is deliberately NOT "Proposed install date"
+- **five visits**: a survey visit reconstructed from the survey, an install visit reconstructed from
+  a signed worksheet, a **superseded** install visit (its worksheet soft-deleted), a future
+  commissioning visit so the "Next visit" KPI card has something to say, and a **snag** visit so the
+  D-16 ninth row has a reason to exist on screen
+- a worksheet that is **ready for signing but not signed** — the ONLY state in
+  `CockpitSectionPresenter` that yields pip `attention`, i.e. the `In progress` chip. Without it the
+  greyscale check would only ever have seen two of the three chips.
+- two RAMS documents, an O&M manual, a cable schedule, and four `ProjectActivityLog` entries
+
+Measured on the rendered page (HTTP 200, authenticated, via the real HTTP kernel):
+
+| Rendered | Count |
+|---|---|
+| `Not started` / `In progress` / `On file` chips | **4 / 1 / 4** — nine rows, all three chip variants on screen at once |
+| `Open drawer` controls | 18 (nine rows x aria-label + text) |
+| At-rest count phrases | **`1 visit · reconstructed`**, **`2 visits · reconstructed · superseded`**, `1 visit` |
+| `Planned start` | 1 |
+| `Marie Okafor` | 1 |
+| `Snagging` | 2 |
+| `?module=worksheet` / `&tab=files` / `?module=rams&tab=files` / `?module=site_survey&tab=notes` | all **200**, panel rendered |
+| the bare URL | 200, **no panel element in the DOM** |
+
+**The module key for "First fix and install" is `worksheet`, not `install`.** `?module=install` is
+not a module key: it renders the page with no panel open. Anyone writing checkpoint steps by
+guessing keys from the row titles will get a closed panel and report a bug that is not there.
+
+**To remove the fixture:** it is one project. `Project::find(3)` and its rows; or delete
+`database/database.sqlite` and re-migrate, since it held nothing else.
+
+---
+
 ## Provenance
 
 | Item | Value |
 |---|---|
-| Measured by | Plan 45-08, Tasks 1 and 2 |
-| Date | 2026-09-19 |
+| Measured by | Plan 45-08, Tasks 1 and 2 (§ 1-§ 7); Plan 45-14 (§ 0, § 8's amendments, § 9) |
+| Date | 2026-09-19, amended 2026-09-20 |
 | Baseline reference | `45-BASELINE.md` — HEAD `4abd2b24`, 159 passed / 2 skipped / 0 failed |
 | PHP binary | `%USERPROFILE%\.config\herd\bin\php84\php.exe` (PowerShell — mandatory) |
 | Build | `npm run build` via Bash (npm is blocked by PowerShell execution policy here) |
-| Flag state throughout | `COCKPIT_ENABLED` absent from `.env` → `false` |
+| Flag state | § 1-§ 7: `COCKPIT_ENABLED` absent from `.env` → `false`. § 9: present and `true`, in `.env` and in production since 2026-09-20. |
