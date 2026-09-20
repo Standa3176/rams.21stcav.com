@@ -6,6 +6,7 @@ use App\DTO\ProjectHealth;
 use App\Http\Controllers\ProjectCockpitController;
 use App\Models\Project;
 use App\Models\User;
+use App\Models\Visit;
 use App\Services\ProjectHealthService;
 use App\Support\Cockpit\CockpitModulePresenter;
 use Illuminate\Foundation\Testing\Concerns\InteractsWithViews;
@@ -446,6 +447,202 @@ class CockpitPageTest extends TestCase
             'views/components/cockpit/lifecycle-row.blade.php',
         ] as $path) {
             $this->assertFileExists(resource_path($path));
+        }
+    }
+
+    // ── Plan 45-11, Task 3 — the side panel and its Overview tab ─────────
+
+    private function renderPanel(Project $project, string $module, string $tab = 'overview'): string
+    {
+        config(['cockpit.enabled' => true]);
+
+        $url = route('projects.cockpit', ['project' => $project, 'module' => $module, 'tab' => $tab]);
+
+        return $this->cockpitSubtree(
+            $this->actingAs(User::factory()->create())->get($url)->assertOk()->getContent()
+        );
+    }
+
+    /**
+     * A project whose "First fix and install" module has two visits, one of
+     * them completed — so the Overview tab has a real 1-of-2 ring to draw.
+     */
+    private function projectWithInstallVisits(): Project
+    {
+        $project = $this->project();
+
+        Visit::factory()->create([
+            'project_id'     => $project->id,
+            'type'           => Visit::TYPE_INSTALL,
+            'title'          => 'Install day one',
+            'scheduled_date' => '2026-09-02',
+            'status'         => Visit::STATUS_COMPLETED,
+        ]);
+
+        Visit::factory()->create([
+            'project_id'     => $project->id,
+            'type'           => Visit::TYPE_INSTALL,
+            'title'          => 'Install day two',
+            'scheduled_date' => '2026-09-03',
+            'status'         => Visit::STATUS_PLANNED,
+        ]);
+
+        return $project;
+    }
+
+    /**
+     * D-09, read strictly. "Closed at rest" means ABSENT, not hidden: a
+     * hidden-but-present panel would need CSS or JS to hide it and would
+     * still be read out by a screen reader.
+     */
+    public function test_at_rest_there_is_no_panel_element_in_the_dom_at_all(): void
+    {
+        config(['cockpit.enabled' => true]);
+        $html = $this->cockpitSubtree($this->renderCockpit($this->project()));
+
+        $this->assertSame(0, $this->countByClass($html, 'cav-panel'));
+        $this->assertStringNotContainsString('cav-panel', $html);
+    }
+
+    public function test_the_panel_renders_its_header_tab_strip_and_close_link(): void
+    {
+        $project = $this->projectWithInstallVisits();
+        $html    = $this->renderPanel($project, 'worksheet');
+
+        $this->assertSame(1, $this->countByClass($html, 'cav-panel'));
+
+        // Header: the module's title, the project's identifier, its purpose.
+        $this->assertStringContainsString('First fix and install', $html);
+        $this->assertStringContainsString('Manage visits, tasks and evidence.', $html);
+
+        // Tab strip — three anchors, and a close control that is also an
+        // anchor, back to the bare cockpit URL.
+        $this->assertSame(3, $this->countByClass($html, 'cav-panel__tab'));
+        $this->assertStringContainsString('Overview', $html);
+        $this->assertStringContainsString('Files', $html);
+        $this->assertStringContainsString('Notes', $html);
+        $this->assertStringContainsString('href="'.e(route('projects.cockpit', $project)).'"', $html);
+    }
+
+    public function test_only_the_active_tab_carries_aria_current_and_nothing_carries_aria_expanded(): void
+    {
+        $project = $this->projectWithInstallVisits();
+
+        foreach (['overview', 'files', 'notes'] as $tab) {
+            $html = $this->renderPanel($project, 'worksheet', $tab);
+
+            $this->assertSame(1, substr_count($html, 'aria-current="page"'), "Exactly one active tab on {$tab}.");
+            $this->assertStringNotContainsString('aria-expanded', $html, 'Nothing here is a disclosure widget.');
+        }
+    }
+
+    /**
+     * A tab switch must never close the panel, so every tab anchor carries
+     * the current module forward.
+     */
+    public function test_each_tab_anchor_preserves_the_open_module(): void
+    {
+        $project = $this->projectWithInstallVisits();
+        $html    = $this->renderPanel($project, 'rams', 'files');
+
+        foreach (['overview', 'files', 'notes'] as $tab) {
+            $this->assertStringContainsString(
+                'href="'.e(route('projects.cockpit', ['project' => $project, 'module' => 'rams', 'tab' => $tab])).'"',
+                $html,
+                "The {$tab} tab must keep ?module=rams in its href."
+            );
+        }
+    }
+
+    public function test_the_overview_tab_draws_the_ring_and_lists_the_module_visits(): void
+    {
+        $project = $this->projectWithInstallVisits();
+        $html    = $this->renderPanel($project, 'worksheet');
+
+        $this->assertStringContainsString('cav-ring', $html);
+        $this->assertStringContainsString('50%', $html);
+        $this->assertStringContainsString('1 of 2 visits completed', $html);
+
+        // The ring is an <svg>, not a form control — and it is never the only
+        // channel: role="img" plus the same sentence as its aria-label.
+        $this->assertStringContainsString('role="img"', $html);
+        $this->assertStringContainsString('aria-label="1 of 2 visits completed"', $html);
+
+        // Visits render through the existing component, so the D-02 and D-04
+        // treatments still reach the panel.
+        $this->assertSame(2, $this->countByClass($html, 'cav-visit'));
+        $this->assertStringContainsString('Install day one', $html);
+        $this->assertStringContainsString('Install day two', $html);
+    }
+
+    /**
+     * A 0% ring on a module with nothing planned would read as "nothing
+     * done", when the truth is "nothing planned" — a different and less
+     * alarming fact. progress() returns null there, and the panel draws no
+     * ring at all.
+     */
+    public function test_a_module_with_no_visits_draws_no_ring(): void
+    {
+        $html = $this->renderPanel($this->project(), 'snagging');
+
+        $this->assertStringNotContainsString('cav-ring', $html);
+
+        // Asserted on the ring's own sentence rather than on "0%": the
+        // documents KPI above legitimately reads 0% on a bare project, and a
+        // whole-subtree search for that string would fail on it.
+        $this->assertStringNotContainsString('visits completed', $html);
+    }
+
+    public function test_the_files_and_notes_tabs_say_plainly_that_they_arrive_next(): void
+    {
+        $project = $this->projectWithInstallVisits();
+
+        foreach (['files', 'notes'] as $tab) {
+            $html = $this->renderPanel($project, 'worksheet', $tab);
+
+            $this->assertStringContainsString('Files and notes arrive in the next plan', $html);
+            $this->assertStringNotContainsString('cav-ring', $html, 'The ring belongs to Overview.');
+        }
+    }
+
+    /**
+     * THE NO-JAVASCRIPT RULING, ENFORCED. Alpine is loaded globally by the
+     * layout and is deliberately not used here: the fence bans handler
+     * attributes inside this region, and weakening a fence to fit a design is
+     * the failure the fence exists to catch.
+     */
+    public function test_the_panel_carries_no_handler_attribute_no_control_and_no_deferred_write_copy(): void
+    {
+        $project = $this->projectWithInstallVisits();
+        $html    = $this->renderPanel($project, 'worksheet');
+
+        foreach (['<button', '<form', '<input', '<select', '<textarea', '<script'] as $forbidden) {
+            $this->assertStringNotContainsString($forbidden, $html);
+        }
+
+        foreach (['x-data', 'x-show', 'x-init', 'x-if', 'x-text', 'x-on:', '@click', 'wire:', 'onclick'] as $handler) {
+            $this->assertStringNotContainsString($handler, $html, "{$handler} is script inside the cockpit region.");
+        }
+
+        foreach (['Create visit', 'Add note', 'Upload files', 'Quick actions'] as $deferred) {
+            $this->assertStringNotContainsString($deferred, $html, "\"{$deferred}\" is a Phase 46/48 write.");
+        }
+    }
+
+    /**
+     * Iterates the presenter's own keys, so a module added in a later phase is
+     * covered here automatically rather than being forgotten.
+     */
+    public function test_every_module_opens_on_every_tab(): void
+    {
+        $project = $this->projectWithInstallVisits();
+
+        foreach (array_keys(CockpitModulePresenter::moduleMap()) as $key) {
+            foreach (['overview', 'files', 'notes'] as $tab) {
+                $html = $this->renderPanel($project, $key, $tab);
+
+                $this->assertSame(1, $this->countByClass($html, 'cav-panel'), "{$key}/{$tab} must render one panel.");
+            }
         }
     }
 
