@@ -257,7 +257,14 @@ class CockpitModulePresenterTest extends TestCase
             'state'           => ProjectDeliverable::STATE_NOT_REQUIRED,
         ]);
 
-        $row = $this->row($project->fresh(), 'cable_schedule');
+        // `Project::deliverableState()` returns null unless `deliverables` is
+        // eager-loaded — its docblock at Project.php:481-484 makes that the
+        // caller's job, and ProjectCockpitController::show() does it. The test
+        // wires it the same way rather than making the presenter query.
+        $fresh = $project->fresh();
+        $fresh->loadMissing('deliverables');
+
+        $row = $this->presenter()->modules($fresh)->firstWhere('key', 'cable_schedule');
 
         $this->assertSame('not-started', $row['chip']);
         $this->assertSame('Not required', $row['count']);
