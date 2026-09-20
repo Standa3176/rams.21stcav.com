@@ -187,30 +187,25 @@ class CockpitPageTest extends TestCase
         $this->assertSame(1, $checked, 'Exactly one cockpit route must exist.');
     }
 
-    public function test_health_failure_degrades_only_the_attention_line(): void
+    // ── Plan 45-11, Task 2 — the page: masthead, KPIs, stage chip, modules ─
+
+    /**
+     * Count elements carrying an exact class, so `cav-module__title` can never
+     * be mistaken for a `cav-module` row. Counting in the DOM rather than
+     * trusting the presenter is the point: D-16 requires the documents
+     * denominator to equal the rows ACTUALLY RENDERED.
+     */
+    private function countByClass(string $html, string $class): int
     {
-        config(['cockpit.enabled' => true]);
-        $project = $this->project();
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$html);
+        libxml_clear_errors();
 
-        $this->app->instance(ProjectHealthService::class, new class extends ProjectHealthService
-        {
-            public function assess(Project $project): ProjectHealth
-            {
-                throw new \RuntimeException('health exploded');
-            }
-        });
-
-        $html = $this->cockpitSubtree($this->renderCockpit($project));
-
-        // The contract's copy, carried across the attention line's required
-        // <h2> + one-paragraph structure rather than as one run of text.
-        $this->assertStringContainsString("This job's summary could not be read just now", $html);
-        $this->assertStringContainsString('The sections below are still accurate.', $html);
-        $this->assertStringContainsString('Visits — someone goes to site', $html);
-        $this->assertStringContainsString('Cockpit Test Job', $html);
+        return (new \DOMXPath($dom))
+            ->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' {$class} ')]")
+            ->length;
     }
-
-    // ── Task 2 — page shell ──────────────────────────────────────────────
 
     public function test_page_root_carries_both_scope_classes_and_loads_cockpit_css(): void
     {
@@ -225,78 +220,161 @@ class CockpitPageTest extends TestCase
         );
     }
 
-    public function test_masthead_renders_the_name_and_sub_line(): void
+    public function test_masthead_renders_the_breadcrumb_one_h1_and_the_site_address(): void
     {
         config(['cockpit.enabled' => true]);
         $html = $this->cockpitSubtree($this->renderCockpit($this->project()));
 
         $this->assertStringContainsString('cav-mast', $html);
-        $this->assertStringContainsString('<h1', $html);
-        $this->assertStringContainsString('Q-451234', $html);
-        $this->assertStringContainsString('Installing', $html);
+        $this->assertStringContainsString('cav-crumbs', $html);
+        $this->assertStringContainsString(route('projects.index'), $html);
+        $this->assertSame(1, substr_count($html, '<h1'), 'Exactly one h1.');
+        $this->assertStringContainsString('Cockpit Test Job', $html);
         $this->assertStringContainsString('12 Example Street, Leeds', $html);
     }
 
-    public function test_the_three_section_group_headings_render_in_order(): void
+    /**
+     * The three facts the design asks for that have no source stay absent —
+     * 45-10 settled each one and this asserts the Blade layer did not quietly
+     * reinstate them.
+     */
+    public function test_the_masthead_invents_no_fact_it_has_no_source_for(): void
     {
         config(['cockpit.enabled' => true]);
         $html = $this->cockpitSubtree($this->renderCockpit($this->project()));
 
-        $visits    = strpos($html, 'Visits — someone goes to site');
-        $documents = strpos($html, 'Documents — produced in the office');
-        $reference = strpos($html, '>Reference<');
+        $this->assertStringNotContainsString('Proposed install', $html, 'Planned start is a different fact.');
+        $this->assertStringNotContainsString('Site contact:', $html, 'No survey, so no contact line at all.');
+        $this->assertStringNotContainsString('@example.com', $html, 'pm_email is never shown under a site-contact label.');
+    }
 
-        $this->assertNotFalse($visits);
+    public function test_three_kpi_cards_render_in_the_designed_order(): void
+    {
+        config(['cockpit.enabled' => true]);
+        $html = $this->cockpitSubtree($this->renderCockpit($this->project()));
+
+        $this->assertSame(3, $this->countByClass($html, 'cav-kpi'), 'Exactly three KPI cards (D-12).');
+
+        $overall   = strpos($html, 'Overall status');
+        $nextVisit = strpos($html, 'Next visit');
+        $documents = strpos($html, 'Documents');
+
+        $this->assertNotFalse($overall);
+        $this->assertNotFalse($nextVisit);
         $this->assertNotFalse($documents);
-        $this->assertNotFalse($reference);
-        $this->assertLessThan($documents, $visits);
-        $this->assertLessThan($reference, $documents);
+        $this->assertLessThan($nextVisit, $overall);
+        $this->assertLessThan($documents, $nextVisit);
+
+        // No visit is planned on a bare project, and that is said plainly.
+        $this->assertStringContainsString('None planned', $html);
     }
 
-    public function test_attention_line_renders_the_nothing_waiting_copy_without_a_gold_rule(): void
+    /**
+     * D-16, asserted in the DOM at both ends: the denominator is the number of
+     * module rows on the same page, never a literal 9.
+     */
+    public function test_the_documents_denominator_equals_the_rendered_module_row_count(): void
     {
         config(['cockpit.enabled' => true]);
-        // A fresh installing project with no stage timestamps assesses green.
         $html = $this->cockpitSubtree($this->renderCockpit($this->project()));
 
-        $this->assertStringContainsString('cav-attn', $html);
-        $this->assertStringContainsString('Nothing needs you on this job', $html);
-        $this->assertStringContainsString('Every section below is either complete or not yet due.', $html);
-        $this->assertStringNotContainsString('<em', $html);
+        $rows = $this->countByClass($html, 'cav-module');
+
+        $this->assertGreaterThan(0, $rows);
+        $this->assertMatchesRegularExpression(
+            '/\b\d+ of '.$rows.' complete\b/',
+            $html,
+            "The documents card's denominator must equal the {$rows} module rows rendered beside it."
+        );
     }
 
-    public function test_attention_line_names_a_single_waiting_item_in_a_gold_ruled_em(): void
+    public function test_exactly_one_stage_chip_renders(): void
     {
         config(['cockpit.enabled' => true]);
-
-        $this->app->instance(ProjectHealthService::class, new class extends ProjectHealthService
-        {
-            public function assess(Project $project): ProjectHealth
-            {
-                return new ProjectHealth('amber', 'RAMS awaiting review', false);
-            }
-        });
-
         $html = $this->cockpitSubtree($this->renderCockpit($this->project()));
 
-        $this->assertStringContainsString('One thing needs you', $html);
-        $this->assertStringContainsString('<em>RAMS awaiting review</em>', $html);
-        $this->assertStringNotContainsString('1 thing', $html);
+        $this->assertSame(
+            1,
+            $this->countByClass($html, 'cav-stage__chip'),
+            'A project has exactly one status, so it gets exactly one stage chip.'
+        );
+        $this->assertStringContainsString('Installation', $html);
     }
 
-    public function test_footer_note_and_the_single_navigation_link_render(): void
+    public function test_nine_module_rows_render_in_presenter_order_with_an_anchor_open_link(): void
     {
         config(['cockpit.enabled' => true]);
         $project = $this->project();
         $html    = $this->cockpitSubtree($this->renderCockpit($project));
 
-        $this->assertStringContainsString('Open the full project page', $html);
+        $map = CockpitModulePresenter::moduleMap();
+
+        $this->assertSame(count($map), $this->countByClass($html, 'cav-module'));
+
+        $cursor = -1;
+
+        foreach ($map as $key => $definition) {
+            $at = strpos($html, $definition['title'], $cursor + 1);
+
+            $this->assertNotFalse($at, "Module '{$key}' must render its title.");
+            $this->assertGreaterThan($cursor, $at, "Module '{$key}' is out of design order.");
+            $cursor = $at;
+
+            $this->assertStringContainsString($definition['description'], $html);
+
+            // The open affordance is an ANCHOR carrying the module in the query
+            // string — never a <button>, never a click handler.
+            $this->assertStringContainsString(
+                'href="'.e(route('projects.cockpit', ['project' => $project, 'module' => $key])).'"',
+                $html,
+                "Module '{$key}' must open through a plain <a href> carrying ?module={$key}."
+            );
+        }
+
+        $this->assertSame(count($map), substr_count($html, 'Open drawer'));
+    }
+
+    public function test_the_programming_row_renders_its_chip_and_no_count_phrase(): void
+    {
+        config(['cockpit.enabled' => true]);
+        $html = $this->cockpitSubtree($this->renderCockpit($this->project()));
+
+        $this->assertStringContainsString('Programming', $html);
+
+        // "0 files" would claim a file store that ProjectDeliverable.php:14-26
+        // says does not exist and forbids building.
+        $this->assertStringNotContainsString('0 files', $html);
+        $this->assertStringContainsString('Not started', $html);
+    }
+
+    /**
+     * The design image draws an "Actions" menu, a "…" overflow and three Quick
+     * action tiles. All are WRITES (Phase 46/48) and none is rendered here —
+     * not even as a disabled placeholder, which would still read as an offer.
+     */
+    public function test_the_write_affordances_drawn_in_the_design_are_not_rendered(): void
+    {
+        config(['cockpit.enabled' => true]);
+        $html = $this->cockpitSubtree($this->renderCockpit($this->project()));
+
+        foreach (['Actions', 'Quick actions', 'Create visit', 'Add note', 'Upload files'] as $deferred) {
+            $this->assertStringNotContainsString(
+                $deferred,
+                $html,
+                "\"{$deferred}\" is a Phase 46/48 write and must not appear in Phase 45."
+            );
+        }
+    }
+
+    public function test_the_last_element_is_the_single_open_full_project_link(): void
+    {
+        config(['cockpit.enabled' => true]);
+        $project = $this->project();
+        $html    = $this->cockpitSubtree($this->renderCockpit($project));
+
+        $this->assertStringContainsString('Open full project', $html);
         $this->assertStringContainsString(route('projects.show', $project), $html);
-        $this->assertStringContainsString(
-            'Visits group by type, so a three-day install is one line until you open it.',
-            $html
-        );
-        $this->assertStringNotContainsString('task planner', $html);
+        $this->assertSame(1, substr_count($html, 'Open full project'));
     }
 
     public function test_heading_order_is_one_h1_then_h2s_only(): void
@@ -307,189 +385,63 @@ class CockpitPageTest extends TestCase
         preg_match_all('/<h([1-6])\b/', $html, $m);
         $levels = $m[1];
 
-        $this->assertSame('1', $levels[0] ?? null, 'The first heading in the cockpit must be the h1 project name.');
+        $this->assertSame('1', $levels[0] ?? null, 'The first heading in the cockpit must be the h1.');
         $this->assertCount(1, array_filter($levels, fn ($l) => $l === '1'), 'Exactly one h1.');
-        $this->assertGreaterThanOrEqual(
-            4,
-            count(array_filter($levels, fn ($l) => $l === '2')),
-            'h2 for the attention line plus one per section group.'
-        );
         $this->assertSame([], array_values(array_diff($levels, ['1', '2'])), 'Only h1 and h2 appear in the cockpit subtree.');
     }
 
-    // ── Plan 45-11, Task 1 — the panel's state lives in the query string ──
-    //
-    // THE RULING, so it is readable from the test file that enforces it: the
-    // side panel opens, switches tab and closes through plain <a href> links
-    // and nothing else. Alpine is loaded globally by the layout and is ruled
-    // OUT inside the cockpit region — CockpitReadOnlyFenceTest bans handler
-    // attributes there, and weakening a fence to fit a design is the exact
-    // failure the fence exists to catch. Every assertion below therefore
-    // describes a GET that writes nothing.
-
     /**
-     * The view data, not the markup. Task 1 is the controller's contract;
-     * Tasks 2 and 3 assert what the Blade layer does with it.
-     *
-     * @return array<string, mixed>
+     * The health summary is one card, not the page. When it cannot be derived
+     * the module list below is still accurate, and the card says so rather
+     * than claiming "On track" — a null health and a healthy project are
+     * different facts.
      */
-    private function cockpitViewData(Project $project, array $query = []): array
+    public function test_health_failure_degrades_only_the_overall_status_card(): void
     {
         config(['cockpit.enabled' => true]);
 
-        $url = route('projects.cockpit', $project).($query === [] ? '' : '?'.http_build_query($query));
+        $this->app->instance(ProjectHealthService::class, new class extends ProjectHealthService
+        {
+            public function assess(Project $project): ProjectHealth
+            {
+                throw new \RuntimeException('health exploded');
+            }
+        });
 
-        $response = $this->actingAs(User::factory()->create())->get($url)->assertOk();
+        $html = $this->cockpitSubtree($this->renderCockpit($this->project()));
 
-        return $response->original->getData();
-    }
-
-    public function test_no_query_string_means_no_open_module(): void
-    {
-        $data = $this->cockpitViewData($this->project());
-
-        $this->assertNull($data['openModule'], 'The page at rest opens nothing (D-09).');
-        $this->assertSame('overview', $data['tab']);
-    }
-
-    public function test_a_valid_module_key_opens_that_module_on_overview(): void
-    {
-        $data = $this->cockpitViewData($this->project(), ['module' => 'worksheet']);
-
-        $this->assertIsArray($data['openModule']);
-        $this->assertSame('worksheet', $data['openModule']['key']);
-        $this->assertSame('First fix and install', $data['openModule']['title']);
-        $this->assertSame('overview', $data['tab']);
-    }
-
-    public function test_every_presenter_module_key_opens(): void
-    {
-        $project = $this->project();
-
-        foreach (array_keys(CockpitModulePresenter::moduleMap()) as $key) {
-            $data = $this->cockpitViewData($project, ['module' => $key]);
-
-            $this->assertIsArray($data['openModule'], "Module '{$key}' must open.");
-            $this->assertSame($key, $data['openModule']['key']);
-        }
+        $this->assertStringContainsString('The status summary could not be read.', $html);
+        $this->assertStringNotContainsString('On track', $html);
+        $this->assertSame(9, $this->countByClass($html, 'cav-module'), 'The module list still renders in full.');
     }
 
     /**
-     * Threat T-45-11-01 / T-45-11-02. An unknown key is a stale bookmark, not
-     * an error worth showing a PM: the page renders with the panel closed and
-     * the submitted value is never echoed. Membership, never validate() —
-     * a failed validate() redirects with a session error bag, which is a
-     * write-shaped behaviour on a read-only page.
+     * The accordion is not merely unused — it is GONE. A dead drawer component
+     * left on disk is an invitation for a later agent to render one beside the
+     * new design.
      */
-    public function test_a_hostile_or_unknown_module_value_is_ignored_and_never_echoed(): void
+    public function test_the_superseded_accordion_components_are_deleted(): void
     {
-        $project = $this->project();
-
-        $payloads = [
-            'unknown-module',
-            '<script>alert(1)</script>',
-            str_repeat('a', 5000),
-            '../../etc/passwd',
-            'WORKSHEET',
-        ];
-
-        foreach ($payloads as $payload) {
-            config(['cockpit.enabled' => true]);
-
-            $response = $this->actingAs(User::factory()->create())
-                ->get(route('projects.cockpit', $project).'?module='.urlencode($payload))
-                ->assertOk();
-
-            $this->assertNull(
-                $response->original->getData()['openModule'],
-                'An unrecognised module value must leave the panel closed.'
-            );
-
-            $this->assertStringNotContainsString(
-                $payload,
-                $response->getContent(),
-                'The submitted query value must never be echoed back into the page.'
-            );
-        }
-    }
-
-    public function test_the_tab_whitelist_falls_back_to_overview(): void
-    {
-        $project = $this->project();
-
-        foreach (['overview', 'files', 'notes'] as $tab) {
-            $this->assertSame($tab, $this->cockpitViewData($project, ['module' => 'rams', 'tab' => $tab])['tab']);
+        foreach ([
+            'views/projects/_cockpit-drawer.blade.php',
+            'views/components/cockpit/section-group.blade.php',
+            'views/components/cockpit/drawer.blade.php',
+            'views/components/cockpit/pip.blade.php',
+            'views/components/cockpit/tick-box.blade.php',
+        ] as $path) {
+            $this->assertFileDoesNotExist(resource_path($path), "{$path} is superseded by sketch 004 and must not exist.");
         }
 
-        foreach (['<script>', 'Overview', str_repeat('b', 5000), 'activity'] as $bogus) {
-            $this->assertSame(
-                'overview',
-                $this->cockpitViewData($project, ['module' => 'rams', 'tab' => $bogus])['tab'],
-                'An unrecognised tab falls back to Overview rather than erroring.'
-            );
-        }
-    }
-
-    public function test_a_tab_without_a_module_opens_nothing(): void
-    {
-        $data = $this->cockpitViewData($this->project(), ['tab' => 'files']);
-
-        $this->assertNull($data['openModule']);
-    }
-
-    public function test_the_controller_hands_the_view_both_presenters_output(): void
-    {
-        $data = $this->cockpitViewData($this->project(), ['module' => 'site_survey']);
-
-        $this->assertCount(9, $data['modules'], 'Nine module rows (D-16).');
-        $this->assertArrayHasKey('site_address', $data['masthead']);
-        $this->assertArrayHasKey('overall', $data['kpis']);
-        $this->assertArrayHasKey('next_visit', $data['kpis']);
-        $this->assertArrayHasKey('documents', $data['kpis']);
-        $this->assertCount(1, $data['stageChips'], 'Exactly one stage chip — a project has one status.');
-        $this->assertArrayHasKey('progress', $data);
-    }
-
-    public function test_the_flag_gate_still_404s_with_a_module_query(): void
-    {
-        config(['cockpit.enabled' => false]);
-
-        $this->actingAs(User::factory()->create())
-            ->get(route('projects.cockpit', $this->project()).'?module=worksheet')
-            ->assertNotFound();
-    }
-
-    /**
-     * Deliberately NOT merged with the flag-gate test above: actingAs() binds
-     * the user for the rest of the test, so a single method cannot assert both
-     * the authenticated and the unauthenticated case honestly.
-     */
-    public function test_the_auth_gate_still_rejects_an_unauthenticated_module_query(): void
-    {
-        config(['cockpit.enabled' => true]);
-
-        $response = $this->get(route('projects.cockpit', $this->project()).'?module=worksheet');
-
-        $this->assertContains($response->getStatusCode(), [302, 401, 403]);
-    }
-
-    public function test_opening_a_panel_changes_no_row_count(): void
-    {
-        $project = $this->project();
-
-        $tables = ['visits', 'install_records', 'install_programmes', 'site_surveys', 'worksheets'];
-        $before = [];
-
-        foreach ($tables as $table) {
-            $before[$table] = DB::table($table)->count();
-        }
-
-        foreach (array_keys(CockpitModulePresenter::moduleMap()) as $key) {
-            $this->cockpitViewData($project, ['module' => $key, 'tab' => 'files']);
-        }
-
-        foreach ($tables as $table) {
-            $this->assertSame($before[$table], DB::table($table)->count(), "`{$table}` moved — the cockpit writes nothing.");
+        // Kept deliberately — Plan 45-12's panel body consumes them, and
+        // visit-row carries the D-02 and D-04 treatments.
+        foreach ([
+            'views/components/cockpit/chip.blade.php',
+            'views/components/cockpit/hint.blade.php',
+            'views/components/cockpit/visit-row.blade.php',
+            'views/components/cockpit/doc-row.blade.php',
+            'views/components/cockpit/lifecycle-row.blade.php',
+        ] as $path) {
+            $this->assertFileExists(resource_path($path));
         }
     }
 
@@ -528,31 +480,33 @@ class CockpitPageTest extends TestCase
         }
     }
 
-    // ── Task 3 — the state primitives ────────────────────────────────────
+    // ── The state primitives ─────────────────────────────────────────────
 
-    public function test_pip_renders_all_three_states_with_shape_and_accessible_name(): void
+    public function test_status_chip_renders_its_three_variants_with_a_shape_channel(): void
     {
         foreach ([
-            ['done', 'cav-pip--done', 'Complete'],
-            ['attention', 'cav-pip--attn', 'Needs attention'],
-            ['waiting', 'cav-pip--wait', 'Not started'],
-        ] as [$state, $class, $label]) {
-            $html = (string) $this->blade('<x-cockpit.pip state="'.$state.'" />');
+            ['not-started', 'cav-schip--wait', 'Not started'],
+            ['in-progress', 'cav-schip--live', 'In progress'],
+            ['on-file', 'cav-schip--file', 'On file'],
+        ] as [$variant, $class, $label]) {
+            $html = (string) $this->blade('<x-cockpit.status-chip variant="'.$variant.'" />');
 
-            $this->assertStringContainsString($class, $html, "pip state {$state} must carry {$class}");
-            $this->assertStringContainsString('role="img"', $html);
-            $this->assertStringContainsString('aria-label="'.$label.'"', $html);
+            $this->assertStringContainsString($class, $html, "status chip {$variant} must carry {$class}");
+            $this->assertStringContainsString($label, $html);
+            // Colour is never the only channel: a glyph element rides with it.
+            $this->assertStringContainsString('cav-schip__glyph', $html);
         }
     }
 
-    public function test_tick_box_renders_unticked_by_default_and_is_a_square(): void
+    public function test_kpi_card_draws_its_bar_as_a_div_not_a_progress_element(): void
     {
-        $html = (string) $this->blade('<x-cockpit.tick-box />');
+        $html = (string) $this->blade('<x-cockpit.kpi-card label="Documents" value="1 of 9 complete" :percent="11" />');
 
-        $this->assertStringContainsString('cav-tick', $html);
-        $this->assertStringNotContainsString('cav-tick--on', $html);
-        $this->assertStringContainsString('aria-label="Not marked"', $html);
-        $this->assertStringNotContainsString('✓', $html);
+        $this->assertStringContainsString('cav-kpi__bar', $html);
+        $this->assertStringContainsString('11%', $html);
+        // <progress> is form-associated and would read as a control.
+        $this->assertStringNotContainsString('<progress', $html);
+        $this->assertStringNotContainsString('<input', $html);
     }
 
     public function test_chip_renders_its_four_variants(): void
