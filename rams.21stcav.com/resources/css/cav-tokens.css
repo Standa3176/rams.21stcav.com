@@ -248,4 +248,168 @@
     --cav-s5: 24px;  /* page gutter, masthead vertical padding             */
     --cav-s6: 32px;  /* section-group break                                */
     --cav-s7: 48px;  /* page bottom padding                                */
+
+    /* ── Module hue tier — added by Plan 45-15 ───────────────────────────
+       WHY THIS TIER EXISTS. Plan 45-09 derived every token above from the
+       application's own palette, by line number, and that was right — it is
+       why the cockpit matches the app instead of approximating it. But the
+       app has ONE accent, and sketch 004 draws NINE module rows each with its
+       own tinted icon tile. So the design's colour could not be built from the
+       app's palette alone. This tier closes that gap. It is a SPECIFICATION
+       addition, not a defect fix: the values below are sampled from sketch
+       004 and normalised onto the same 50/700 tint-and-ink shape the app's
+       own accent family already uses (--accent-100 / --accent-700).
+
+       WHAT A HUE MEANS, AND WHAT IT MUST NEVER MEAN.
+       A module's hue is IDENTITY and DECORATION. It says "this is the
+       drawings module", the same way its glyph and its title do. It NEVER
+       says anything about state. State lives in the status chip, which keeps
+       its own glyph SHAPE and spells its state in words, so a greyscale
+       render of this page is still completely readable and so is a
+       colour-blind reader's. If a later plan is ever tempted to tint a row by
+       its progress, that is the rule being broken — not extended.
+
+       THE KEY COMES FROM THE PRESENTER, NOT FROM BLADE.
+       `CockpitModulePresenter::MODULE_MAP` carries a `hue` key per module and
+       Blade renders `cav-hue--{key}`. Blade never chooses a colour and never
+       hardcodes the module list, so a tenth module added without a hue fails
+       the distinctness assertion in CockpitVisualTest rather than silently
+       sharing another module's colour.
+
+       CONTRAST LEDGER — every pairing computed, none eyeballed.
+       The glyph on a tile is a NON-TEXT mark (WCAG 1.4.11, floor 3:1). Every
+       pair below in fact clears the 4.5:1 TEXT floor as well, which is
+       deliberate headroom: it means a later plan may put a short label inside
+       a tile without recomputing. Ratios are sRGB relative luminance per WCAG
+       2.1, computed 2026-09-20:
+
+           survey       #1E5FE0 on #DCE9FF =  4.55:1
+           worksheet    #15803D on #DCFCE7 =  4.57:1
+           programme    #7E22CE on #F3E8FF =  5.92:1
+           rams         #0369A1 on #E0F2FE =  5.17:1
+           drawings     #047857 on #D1FAE5 =  4.84:1
+           om           #4338CA on #E0E7FF =  6.41:1
+           cable        #92400E on #FEF3C7 =  6.37:1
+           programming  #DCE9FF on #0F172A = 14.57:1  (INVERTED — dark tile)
+           snagging     #BE123C on #FFE4E6 =  5.24:1
+
+       Two of these reuse app values rather than inventing one: `survey` IS
+       the app's accent pair (--accent-700 on --accent-100) and `cable` IS the
+       app's own amber status-badge ink on --warning-light. The other seven
+       are new, and are recorded here because they have no line number in the
+       layout to cite.
+
+       PROGRAMMING IS INVERTED ON PURPOSE. Sketch 004 draws it as the one dark
+       navy tile with a light glyph. Its ink is therefore a TINT and its
+       background is --ink-900. Do not "normalise" it back to a pale tile —
+       the design uses it to close the list visually, and it is also the one
+       module with no file store at all (see CockpitModulePresenter), so the
+       page reading differently at that row is correct.
+
+       AMBER IS STILL RATIONED. `cable` uses the amber pair, but as a module
+       IDENTITY, not as the attention signal. The attention tier above
+       (--cav-gold / --cav-gold-ink) keeps its single stage-chip use and its
+       meaning "someone must act". Two things sharing a hex is not two things
+       sharing a meaning; the tokens are separate so a later change to one
+       cannot reach the other. */
+
+    --cav-hue-survey-bg: #DCE9FF;
+    --cav-hue-survey-fg: #1E5FE0;
+
+    --cav-hue-worksheet-bg: #DCFCE7;
+    --cav-hue-worksheet-fg: #15803D;
+
+    --cav-hue-programme-bg: #F3E8FF;
+    --cav-hue-programme-fg: #7E22CE;
+
+    --cav-hue-rams-bg: #E0F2FE;
+    --cav-hue-rams-fg: #0369A1;
+
+    --cav-hue-drawings-bg: #D1FAE5;
+    --cav-hue-drawings-fg: #047857;
+
+    --cav-hue-om-bg: #E0E7FF;
+    --cav-hue-om-fg: #4338CA;
+
+    --cav-hue-cable-bg: #FEF3C7;
+    --cav-hue-cable-fg: #92400E;
+
+    /* Inverted — see the ledger note above. */
+    --cav-hue-programming-bg: #0F172A;
+    --cav-hue-programming-fg: #DCE9FF;
+
+    --cav-hue-snagging-bg: #FFE4E6;
+    --cav-hue-snagging-fg: #BE123C;
+
+    /* ── Avatar hue tier — added by Plan 45-15 ───────────────────────────
+       D-14's activity feed draws a FILLED circle carrying a person's
+       initials. Those initials are TEXT, and small text at that (11px, weight
+       600), so the 4.5:1 text floor applies — not the 3:1 mark floor. Every
+       fill below is therefore dark enough to carry white:
+
+           #FFFFFF on #1E5FE0 = 5.57:1   (person 0)
+           #FFFFFF on #7E22CE = 6.98:1   (person 1)
+           #FFFFFF on #047857 = 5.48:1   (person 2)
+           #FFFFFF on #B45309 = 5.02:1   (person 3)
+           #FFFFFF on #BE123C = 6.29:1   (person 4)
+           #FFFFFF on #4338CA = 7.90:1   (person 5)
+
+       SIX, NOT FOUR. The plan's floor was four; six is used because the
+       assignment is `user_id % n` and a six-slot wheel collides noticeably
+       less on a feed that shows six entries at a time. The ink token is
+       declared once and shared, because it is the same white on all six and
+       six copies of #FFFFFF would be six places to get it wrong.
+
+       WHY user_id AND NOT A NAME HASH. A person must keep their colour across
+       renders and across pages, and a name hash changes the moment someone is
+       renamed. `CockpitPanelPresenter` supplies the INDEX; this file supplies
+       the colour; Blade renders `cav-av--{index}` and decides neither. A null
+       user (the log's "System" actor) takes slot 0 rather than a seventh
+       colour — it is not a person and does not need an identity.
+
+       THE AVATAR IS aria-hidden AND ALWAYS BESIDE THE PRINTED NAME, so its
+       hue is pure decoration: nothing is conveyed by it that is not also
+       written in words immediately to its right. */
+
+    --cav-av-ink: #FFFFFF;
+    --cav-av-0: #1E5FE0;
+    --cav-av-1: #7E22CE;
+    --cav-av-2: #047857;
+    --cav-av-3: #B45309;
+    --cav-av-4: #BE123C;
+    --cav-av-5: #4338CA;
+
+    /* ── Surface and elevation tier — added by Plan 45-15 ─────────────────
+       Sketch 004 renders white cards floating on a faint blue-grey canvas
+       with a barely-there shadow, not flat panels separated by borders alone.
+       --cav-bg, --cav-surface, --cav-border and --cav-rule above already
+       carry the canvas, the card, the outer border and the hairline; what was
+       missing is the elevation and the active-row tint. */
+
+    /* Card elevation. Deliberately almost invisible: it exists to lift a card
+       off the canvas, not to announce itself. Two stops, the tighter one
+       giving the edge definition a 1px border alone loses against a canvas
+       this pale. Shadows are non-text decoration and engage no contrast
+       floor. */
+    --cav-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 1px 1px rgba(15, 23, 42, .03);
+
+    /* The open module row's background. A tint this faint (#F2F7FF) is the
+       whole point: the row is MARKED, not selected furniture, and the left
+       accent bar does most of the work.
+
+       ⚠️ ONE PAIRING FAILS HERE AND IT IS RECORDED DELIBERATELY, because the
+       same class of mistake has already been made twice in this phase (the
+       4.09:1 chip text in 45-09, and the #767676-at-0.7 blend that opened the
+       whole rule):
+
+           --cav-ink   #0F172A on #F2F7FF = 16.60:1  PASS
+           --cav-mid   #334155 on #F2F7FF =  9.63:1  PASS
+           --cav-light #64748B on #F2F7FF =  4.42:1  FAIL (text floor 4.5:1)
+
+       So NOTHING inside an active row may use --cav-light. The row's count
+       phrase and description are --cav-mid, which is what they already were.
+       Do not "soften" either of them onto --cav-light without re-running the
+       numbers, and never reach for an opacity to do it — opacity on an
+       element containing small text is banned outright by the rules above. */
+    --cav-active-tint: #F2F7FF;
 }
