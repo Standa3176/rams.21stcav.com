@@ -87,12 +87,6 @@ final class VisitLinkIssuer
         return self::VISIT_MODULES[$moduleKey] ?? [];
     }
 
-    /** Every visit type any module may create — the validator's whole universe. */
-    public static function allTypes(): array
-    {
-        return array_merge(...array_values(self::VISIT_MODULES));
-    }
-
     /**
      * The project's live survey, or null.
      *
