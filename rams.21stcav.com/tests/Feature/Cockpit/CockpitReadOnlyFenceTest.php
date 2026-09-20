@@ -9,6 +9,7 @@ use App\Models\Visit;
 use App\Models\Worksheet;
 use App\Support\Cockpit\CockpitModulePresenter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -37,12 +38,26 @@ class CockpitReadOnlyFenceTest extends TestCase
      * @var array<int, string>
      */
     private const FORBIDDEN_MARKUP = [
-        '<form',
-        '<input',
-        '<select',
-        '<textarea',
-        '<button',
-        '<script',
+        // RETIRED IN PART BY PLAN 46-04 - six entries became two, per entry,
+        // each lifted because this phase ships the thing the entry banned:
+        //
+        //   '<form'     LIFTED (46-04, VL-01) - a write is a form POST. This is
+        //               the mechanism the phase chose over JavaScript.
+        //   '<input'    LIFTED (46-04, VL-01) - the CSRF hidden field, the date,
+        //               the room and resource checkboxes, the two radios.
+        //   '<button'   LIFTED (46-04, VL-01) - the submit control.
+        //   '<textarea' LIFTED (46-05, VL-06/VL-07) - the office note and the
+        //               send-back reason. Lifted HERE so 46-05 does not have to
+        //               edit the fence a second time, and named as such so the
+        //               entry is not lifted by a plan that does not use it.
+        //
+        // The two below are NOT leftovers. Each is a ruling:
+        '<select',   // STAYS BANNED. Nothing in this phase needs one - rooms and
+                     // resources are checkboxes and the visit type is two
+                     // radios. A select would be a new interaction pattern the
+                     // design does not draw.
+        '<script',   // STAYS BANNED. The cockpit ships no JavaScript of its own.
+                     // This is the phase's ruling, not an accident.
     ];
 
     /**
@@ -76,9 +91,24 @@ class CockpitReadOnlyFenceTest extends TestCase
         'Download'                 => 'Phase 48',
 
         // Sketch 004's Quick actions block — added by Plan 45-13 (D-15).
-        'Create visit'             => 'Phase 46',
-        'Add note'                 => 'Phase 46',
+        //
+        // LIFTED BY PLAN 46-04, by name, because this plan ships them:
+        //   'Create visit' => shipped by 46-04 itself (VL-01/VL-02/VL-03).
+        //   'Add note'     => shipped by Plan 46-05 (VL-06). Lifted here for
+        //                     the same reason as '<textarea', and named, so the
+        //                     fence is not edited twice for one decision.
+        //
+        // 'Upload files' STAYS: it is Phase 48 and this phase deliberately does
+        // not grow a second half (D-04).
         'Upload files'             => 'Phase 48',
+
+        // ADDED BY PLAN 46-04 — three strings this phase must not ship, so the
+        // fence keeps growing where the scope fence is. Phase 46 raises a snag;
+        // it does not manage one (D-03), and it does not send anything to a
+        // client (D-04).
+        'Assign parts'             => 'Phase 47',
+        'Close snag'               => 'Phase 47',
+        'Mark as sent'             => 'Phase 48',
     ];
 
     /**
@@ -93,9 +123,24 @@ class CockpitReadOnlyFenceTest extends TestCase
      * these strings inline inside CockpitPageTest; Plan 45-13 promotes them
      * here so the ruling lives in the fence.
      *
-     * When Phase 46 introduces writes it MAY retire this ban — deliberately,
-     * by an owner, by editing this list. Until then an Alpine directive inside
-     * the cockpit region is a fence breach.
+     * PHASE 46 CONSIDERED RETIRING THIS AND DECLINED. ALL NINE STAY BANNED.
+     *
+     * Plan 46-04 made the cockpit writable, which was the moment this ban was
+     * up for retirement — and it was re-taken rather than lapsing. Alpine is
+     * still loaded globally, so it was still available. It was ruled out again
+     * because every write here is a REAL FORM POST and every piece of state is
+     * server-rendered from the query string (`?module=`, `&tab=`,
+     * `&action=create-visit`).
+     *
+     * What that keeps is exactly what the query-string pattern bought in Phase
+     * 45: bookmarkable panel state, a working back button, and a page that
+     * still works with JavaScript off — on a phone, in a plant room, which is
+     * where a PM actually reads it. So a write phase STRENGTHENS the no-JS
+     * ruling instead of quietly dropping it.
+     *
+     * The next phase inherits a DECISION, not an omission. Retiring this list
+     * would mean deciding that the cockpit ships JavaScript, and that decision
+     * belongs to whoever writes the first line of it.
      *
      * @var array<int, string>
      */
@@ -122,6 +167,12 @@ class CockpitReadOnlyFenceTest extends TestCase
         'install_programmes',
         'site_surveys',
         'worksheets',
+        // GROWN 5 -> 7 BY PLAN 46-04. Both are now written by cockpit POSTs
+        // (`visits.store` logs one activity row; 46-07 raises a snag), which
+        // makes it MORE important, not less, that a GET leaves them exactly
+        // where they were.
+        'snags',
+        'project_activity_logs',
     ];
 
     /**
@@ -267,41 +318,178 @@ class CockpitReadOnlyFenceTest extends TestCase
 
     // -- The fence ----------------------------------------------------------
 
+    /**
+     * WIDENED BY PLAN 46-04 to cover every OPEN PANEL, not just the bare page.
+     *
+     * Phase 45's write affordances were all absent, so the bare page was enough
+     * to prove it. Phase 46 puts a form INSIDE the panel, so the panel is now
+     * the only place a banned control could appear — a bare-page-only assertion
+     * would have gone on passing while anything at all was added to a drawer.
+     *
+     * @return array<int, string> every region this fence judges
+     */
+    private function everyRegion(Project $project): array
+    {
+        $regions = [$this->cockpitRegion($this->render($project))];
+
+        foreach (array_keys(CockpitModulePresenter::moduleMap()) as $moduleKey) {
+            foreach (ProjectCockpitController::TABS as $tab) {
+                $regions[] = $this->cockpitRegion($this->render($project, ['module' => $moduleKey, 'tab' => $tab]));
+            }
+
+            // The Quick actions form, disclosed.
+            $regions[] = $this->cockpitRegion($this->render($project, ['module' => $moduleKey, 'action' => 'create-visit']));
+        }
+
+        return $regions;
+    }
+
     public function test_the_cockpit_region_contains_no_form_control_and_no_script(): void
     {
-        $region = $this->cockpitRegion($this->render($this->populatedProject()));
-
-        foreach (self::FORBIDDEN_MARKUP as $forbidden) {
-            $this->assertStringNotContainsString(
-                $forbidden,
-                $region,
-                "Read-only fence: {$forbidden} must not appear inside the cockpit. ".
-                'Phase 45 renders no write affordance and ships no JavaScript of its own.'
-            );
+        foreach ($this->everyRegion($this->populatedProject()) as $region) {
+            foreach (self::FORBIDDEN_MARKUP as $forbidden) {
+                $this->assertStringNotContainsString(
+                    $forbidden,
+                    $region,
+                    "Read-only fence: {$forbidden} must not appear inside the cockpit. ".
+                    'Four entries were lifted by Plan 46-04 BY NAME; these two are rulings.'
+                );
+            }
         }
     }
 
     public function test_none_of_the_deferred_affordances_appears(): void
     {
-        $region = $this->cockpitRegion($this->render($this->populatedProject()));
+        foreach ($this->everyRegion($this->populatedProject()) as $region) {
+            foreach (self::DEFERRED_AFFORDANCES as $copy => $owner) {
+                $this->assertStringNotContainsString(
+                    $copy,
+                    $region,
+                    "Read-only fence: \"{$copy}\" is deferred to {$owner} and must not appear yet."
+                );
+            }
+        }
+    }
 
-        foreach (self::DEFERRED_AFFORDANCES as $copy => $owner) {
-            $this->assertStringNotContainsString(
-                $copy,
-                $region,
-                "Read-only fence: \"{$copy}\" is deferred to {$owner} and must not appear in Phase 45."
+    // -- The write surface, fenced on its own terms (Plan 46-04) ----------
+
+    /**
+     * A WRITE IS A POST, AND A GET IS STILL INERT.
+     *
+     * The two GET row-count tests below were kept exactly as Phase 45 wrote
+     * them. This one is their counterpart: it proves the POST moves the tables
+     * it is supposed to move, and then proves that every GET on the page STILL
+     * moves nothing afterwards. Without the second half, a write surface could
+     * quietly make the read page write too.
+     */
+    public function test_a_write_is_a_post_and_a_get_is_still_inert(): void
+    {
+        Bus::fake();
+
+        $project = $this->populatedProject();
+
+        $before = [];
+
+        foreach (self::WRITE_SURFACE_TABLES as $table) {
+            $before[$table] = DB::table($table)->count();
+        }
+
+        $this->actingAs(User::factory()->create())
+            ->post(route('projects.cockpit.visits.store', $project), [
+                'module'     => 'worksheet',
+                'visit_type' => Visit::TYPE_INSTALL,
+            ])
+            ->assertRedirect();
+
+        $after = [];
+
+        foreach (self::WRITE_SURFACE_TABLES as $table) {
+            $after[$table] = DB::table($table)->count();
+        }
+
+        $this->assertSame($before['visits'] + 1, $after['visits']);
+        $this->assertSame($before['worksheets'] + 1, $after['worksheets']);
+        $this->assertSame($before['project_activity_logs'] + 1, $after['project_activity_logs']);
+
+        // Untouched by a create, and named so the list cannot quietly grow.
+        foreach (['install_records', 'install_programmes', 'site_surveys', 'snags'] as $table) {
+            $this->assertSame($before[$table], $after[$table], "A create moved `{$table}`.");
+        }
+
+        // Now every GET again — including the one that discloses the form.
+        $this->everyRegion($project);
+
+        foreach (self::WRITE_SURFACE_TABLES as $table) {
+            $this->assertSame(
+                $after[$table],
+                DB::table($table)->count(),
+                "A GET moved `{$table}` after the write surface existed."
             );
         }
+    }
+
+    /**
+     * EVERY FORM IN THE REGION CARRIES CSRF (T-46-04-01).
+     *
+     * A POST form without a token would 419 in production and pass a naive
+     * render test — the control would be there, look right, and never work.
+     * Asserted structurally in the DOM rather than by substring, so a `_token`
+     * belonging to a neighbouring form cannot satisfy it.
+     */
+    public function test_every_form_in_the_region_carries_a_csrf_token(): void
+    {
+        $project = $this->populatedProject();
+
+        $checked = 0;
+
+        foreach (array_keys(CockpitModulePresenter::moduleMap()) as $moduleKey) {
+            $region = $this->cockpitRegion($this->render($project, [
+                'module' => $moduleKey,
+                'action' => 'create-visit',
+            ]));
+
+            $dom = new \DOMDocument();
+            libxml_use_internal_errors(true);
+            $dom->loadHTML('<?xml encoding="utf-8" ?>'.$region);
+            libxml_clear_errors();
+
+            $xpath = new \DOMXPath($dom);
+
+            foreach ($xpath->query('//form') as $form) {
+                $checked++;
+
+                $this->assertSame(
+                    'POST',
+                    strtoupper((string) $form->getAttribute('method')),
+                    'Every form inside the cockpit is a POST; there is no GET form on this page.'
+                );
+
+                $this->assertSame(
+                    1,
+                    $xpath->query('.//input[@name="_token"]', $form)->length,
+                    "A form in {$moduleKey} carries no CSRF token and would 419 in production."
+                );
+            }
+        }
+
+        // Five module keys offer a Quick action, and two of them disclose a
+        // form under ?action=create-visit while three post their generator
+        // directly — so the region is never form-free, and this test can never
+        // pass vacuously.
+        $this->assertGreaterThanOrEqual(5, $checked, 'No form was examined — this test would pass vacuously.');
     }
 
     public function test_the_fence_enumerates_the_whole_deferred_set(): void
     {
         // MOVED DELIBERATELY, 15 -> 18, by Plan 45-13 when sketch 004's three
-        // Quick actions joined the list. This number is the anti-rot mechanism:
+        // Quick actions joined the list. MOVED AGAIN, 18 -> 19, by Plan 46-04:
+        // two were LIFTED because it ships them ('Create visit', 'Add note')
+        // and three were ADDED because it must not ship them ('Assign parts',
+        // 'Close snag', 'Mark as sent'). This number is the anti-rot mechanism:
         // it exists so that dropping an affordance is an edit somebody has to
         // make on purpose. It is never to be deleted to make a change fit.
         $this->assertCount(
-            18,
+            19,
             self::DEFERRED_AFFORDANCES,
             'Every affordance drawn in either sketch is enumerated; nothing is dropped silently.'
         );
@@ -311,8 +499,12 @@ class CockpitReadOnlyFenceTest extends TestCase
             $this->assertNotSame('', trim($owner));
         }
 
-        $this->assertCount(6, self::FORBIDDEN_MARKUP);
-        $this->assertCount(5, self::WRITE_SURFACE_TABLES);
+        // 6 -> 2 (Plan 46-04 lifted four by name), 5 -> 7 (two tables the
+        // cockpit's POSTs now write), and 9 -> 9: the handler ban was
+        // considered for retirement by the phase that could have retired it,
+        // and kept.
+        $this->assertCount(2, self::FORBIDDEN_MARKUP);
+        $this->assertCount(7, self::WRITE_SURFACE_TABLES);
         $this->assertCount(9, self::BANNED_HANDLER_ATTRIBUTES);
     }
 
