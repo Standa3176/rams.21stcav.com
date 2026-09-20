@@ -159,6 +159,62 @@
     height: 16px;
 }
 
+/* ── Tinted icon tile — Plan 45-15 ──────────────────────────────────────
+   Sketch 004 draws every module glyph, every KPI glyph and the panel header
+   glyph inside a soft rounded square in its own hue. ONE rule draws all of
+   them, because three copies would drift the first time the radius moved —
+   the per-component `.cav-module__icon`, `.cav-kpi__icon` and
+   `.cav-panel__icon` rules that used to carry a fixed teal tile were deleted
+   when this arrived, and those class names survive in the markup as hooks
+   only.
+
+   THE HUE IS INDIRECTED THROUGH TWO LOCAL CUSTOM PROPERTIES. A `.cav-hue--*`
+   class sets `--cav-tile-bg` and `--cav-tile-fg`; this rule consumes them.
+   That is what lets a single tile rule serve nine modules and three KPI
+   cards without nine copies of it, and it means an element carrying a tile
+   class but no hue class still renders — in the app's own accent — rather
+   than rendering transparent.
+
+   The glyph is `currentColor`, so it follows `--cav-tile-fg` with no second
+   declaration. Every hue pair clears 4.5:1, well over the 3:1 floor that
+   actually applies to a non-text mark; the ledger is in cav-tokens.css. */
+.cav-cockpit .cav-tile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex: none;
+    border-radius: var(--cav-radius);
+    background: var(--cav-tile-bg, var(--cav-teal-soft));
+    color: var(--cav-tile-fg, var(--cav-teal-dark));
+}
+
+/* The nine module hues. The KEY comes from CockpitModulePresenter, so this
+   list and that map are the two halves of one decision — CockpitVisualTest
+   asserts the nine are distinct, so a module added to the map without a hue,
+   or sharing another module's, is a red test rather than a quiet reuse. */
+.cav-cockpit .cav-hue--survey      { --cav-tile-bg: var(--cav-hue-survey-bg);      --cav-tile-fg: var(--cav-hue-survey-fg); }
+.cav-cockpit .cav-hue--worksheet   { --cav-tile-bg: var(--cav-hue-worksheet-bg);   --cav-tile-fg: var(--cav-hue-worksheet-fg); }
+.cav-cockpit .cav-hue--programme   { --cav-tile-bg: var(--cav-hue-programme-bg);   --cav-tile-fg: var(--cav-hue-programme-fg); }
+.cav-cockpit .cav-hue--rams        { --cav-tile-bg: var(--cav-hue-rams-bg);        --cav-tile-fg: var(--cav-hue-rams-fg); }
+.cav-cockpit .cav-hue--drawings    { --cav-tile-bg: var(--cav-hue-drawings-bg);    --cav-tile-fg: var(--cav-hue-drawings-fg); }
+.cav-cockpit .cav-hue--om          { --cav-tile-bg: var(--cav-hue-om-bg);          --cav-tile-fg: var(--cav-hue-om-fg); }
+.cav-cockpit .cav-hue--cable       { --cav-tile-bg: var(--cav-hue-cable-bg);       --cav-tile-fg: var(--cav-hue-cable-fg); }
+.cav-cockpit .cav-hue--programming { --cav-tile-bg: var(--cav-hue-programming-bg); --cav-tile-fg: var(--cav-hue-programming-fg); }
+.cav-cockpit .cav-hue--snagging    { --cav-tile-bg: var(--cav-hue-snagging-bg);    --cav-tile-fg: var(--cav-hue-snagging-fg); }
+
+/* The three KPI aliases. They BORROW module tokens rather than declaring a
+   parallel set — the design tints these tiles green, amber, blue and blue,
+   which the module palette already contains. Named semantically (`ok`,
+   `warn`, `date`, `doc`) so the page passes a key that means something,
+   and so a later change to the drawings module's green cannot silently
+   restyle the "On track" card without someone reading this line. */
+.cav-cockpit .cav-hue--ok   { --cav-tile-bg: var(--cav-hue-worksheet-bg); --cav-tile-fg: var(--cav-hue-worksheet-fg); }
+.cav-cockpit .cav-hue--warn { --cav-tile-bg: var(--cav-hue-cable-bg);     --cav-tile-fg: var(--cav-hue-cable-fg); }
+.cav-cockpit .cav-hue--date { --cav-tile-bg: var(--cav-hue-survey-bg);    --cav-tile-fg: var(--cav-hue-survey-fg); }
+.cav-cockpit .cav-hue--doc  { --cav-tile-bg: var(--cav-hue-rams-bg);      --cav-tile-fg: var(--cav-hue-rams-fg); }
+
 /* ── KPI cards — D-12 ───────────────────────────────────────────────────
    Three cards: Overall status (+ stage), Next visit (+ type), Documents
    n of m (+ bar and percentage). The bar is a <div>, never a <progress>:
@@ -179,18 +235,9 @@
     border: 1px solid var(--cav-border);
     border-radius: var(--cav-radius);
     background: var(--cav-surface);
-}
-
-.cav-cockpit .cav-kpi__icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    flex: none;
-    border-radius: var(--cav-radius-sm);
-    background: var(--cav-teal-soft);
-    color: var(--cav-teal-dark);
+    /* Sketch 004 floats its cards off the canvas. Barely-there on purpose —
+       see --cav-shadow's note in cav-tokens.css. */
+    box-shadow: var(--cav-shadow);
 }
 
 .cav-cockpit .cav-kpi__body {
@@ -239,11 +286,15 @@
     overflow: hidden;
 }
 
+/* --cav-teal-dark, not --cav-teal: at 6px tall against a very pale track the
+   brighter fill reads as washed out, and the design's bar is saturated. A bar
+   is a non-text mark (3:1 floor) and this is 5.57:1 on white, so the change
+   only ever increases the margin. */
 .cav-cockpit .cav-kpi__bar-fill {
     display: block;
     height: 100%;
     border-radius: 3px;
-    background: var(--cav-teal);
+    background: var(--cav-teal-dark);
 }
 
 .cav-cockpit .cav-kpi__pct {
@@ -266,14 +317,36 @@
 .cav-cockpit .cav-stage__chip {
     display: inline-block;
     padding: var(--cav-s1) var(--cav-s3);
-    border: 1px solid var(--cav-border);
+    border: 1px solid transparent;
     border-radius: 999px;
-    background: var(--cav-teal-soft);
-    color: var(--cav-teal-dark);
+    background: var(--cav-stage-bg, var(--cav-teal-soft));
+    color: var(--cav-stage-fg, var(--cav-teal-dark));
     font-size: 13px;
     font-weight: 600;
     line-height: 1.45;
 }
+
+/* TINTED BY THE PROJECT'S OWN STATUS KEY, which the header presenter already
+   returned — the page echoes the key, this file owns every value.
+
+   THE TINT IS NOT THE MESSAGE. The chip's text says the stage in words
+   ("Survey pending", "Installation"), which is the whole of its meaning; the
+   hue only stops a row of pills reading as undifferentiated grey furniture.
+   A status with no rule here falls back to the accent pair above rather than
+   losing its chip, so a tenth project status is a duller chip, never a
+   missing one.
+
+   Every pair is one of the module hues, and every one is TEXT at weight 600,
+   so the 4.5:1 floor applies and is met: 4.55 / 6.37 / 5.92 / 4.84 / 5.17 /
+   4.57 / 5.24:1 respectively — the ledger in cav-tokens.css. */
+.cav-cockpit .cav-stage__chip--quote_imported { --cav-stage-bg: var(--cav-chip-bg);           --cav-stage-fg: var(--cav-mid); }
+.cav-cockpit .cav-stage__chip--survey_pending { --cav-stage-bg: var(--cav-hue-cable-bg);      --cav-stage-fg: var(--cav-hue-cable-fg); }
+.cav-cockpit .cav-stage__chip--engineering    { --cav-stage-bg: var(--cav-hue-programme-bg);  --cav-stage-fg: var(--cav-hue-programme-fg); }
+.cav-cockpit .cav-stage__chip--installing     { --cav-stage-bg: var(--cav-hue-survey-bg);     --cav-stage-fg: var(--cav-hue-survey-fg); }
+.cav-cockpit .cav-stage__chip--commissioning  { --cav-stage-bg: var(--cav-hue-rams-bg);       --cav-stage-fg: var(--cav-hue-rams-fg); }
+.cav-cockpit .cav-stage__chip--handover       { --cav-stage-bg: var(--cav-hue-drawings-bg);   --cav-stage-fg: var(--cav-hue-drawings-fg); }
+.cav-cockpit .cav-stage__chip--completed      { --cav-stage-bg: var(--cav-hue-worksheet-bg);  --cav-stage-fg: var(--cav-hue-worksheet-fg); }
+.cav-cockpit .cav-stage__chip--archived       { --cav-stage-bg: var(--cav-chip-bg);           --cav-stage-fg: var(--cav-mid); }
 
 /* ── The two-column delivery layout ─────────────────────────────────────
    The module list and the side panel. The panel COLLAPSES BELOW the list
@@ -321,25 +394,22 @@
     border: 1px solid var(--cav-border);
     border-radius: var(--cav-radius);
     background: var(--cav-surface);
+    box-shadow: var(--cav-shadow);
     min-height: 44px;
 }
 
 /* The open module keeps a spine so the PM can see which panel they are
-   reading without the row pretending to be selected furniture. */
-.cav-cockpit .cav-module--active {
-    border-left: 3px solid var(--cav-teal);
-}
+   reading without the row pretending to be selected furniture. Plan 45-15
+   added the faint tint sketch 004 draws behind it, and thickened the spine
+   to 4px so the two read as one marker rather than two hints.
 
-.cav-cockpit .cav-module__icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    flex: none;
-    border-radius: var(--cav-radius-sm);
-    background: var(--cav-teal-soft);
-    color: var(--cav-teal-dark);
+   ⚠️ NOTHING INSIDE AN ACTIVE ROW MAY USE --cav-light: it is 4.42:1 on this
+   tint and FAILS the 4.5:1 text floor. The description and the count phrase
+   are --cav-mid (9.63:1), which is what they already were. Do not soften
+   either onto --cav-light, and never reach for an opacity to do it. */
+.cav-cockpit .cav-module--active {
+    border-left: 4px solid var(--cav-teal-dark);
+    background: var(--cav-active-tint);
 }
 
 .cav-cockpit .cav-module__text {
@@ -469,24 +539,13 @@
     border: 1px solid var(--cav-border);
     border-radius: var(--cav-radius);
     background: var(--cav-surface);
+    box-shadow: var(--cav-shadow);
 }
 
 .cav-cockpit .cav-panel__head {
     display: flex;
     align-items: flex-start;
     gap: var(--cav-s3);
-}
-
-.cav-cockpit .cav-panel__icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    flex: none;
-    border-radius: var(--cav-radius-sm);
-    background: var(--cav-teal-soft);
-    color: var(--cav-teal-dark);
 }
 
 .cav-cockpit .cav-panel__ident {
@@ -573,12 +632,17 @@
     margin-top: var(--cav-s4);
 }
 
+/* Sketch 004 draws these as WHITE cards inside the white panel, separated by
+   a hairline and a whisper of shadow rather than by a grey fill. The grey
+   fill was 45-09's reading of the same image and it made the panel look like
+   a settings pane; the design's panel reads as a stack of cards. */
 .cav-cockpit .cav-panel__card {
     padding: var(--cav-s4);
     margin-bottom: var(--cav-s3);
     border: 1px solid var(--cav-border);
     border-radius: var(--cav-radius);
-    background: var(--cav-bg);
+    background: var(--cav-surface);
+    box-shadow: var(--cav-shadow);
 }
 
 .cav-cockpit .cav-panel__card-head {
@@ -595,18 +659,39 @@
 /* ── Progress ring ────────────────────────────────────────────────
    Drawn ONLY when the module has visits. A 0% ring on a module with nothing
    planned would read as "nothing done" when the truth is "nothing planned".
-   The arc is --cav-teal, a non-text mark at 3.89:1; the percentage beside it
-   is --cav-ink, and the sentence under that states the same figure in
-   words. */
+   The arc is a non-text mark (3:1 floor); the percentage over it is
+   --cav-ink at 17.85:1, and the sentence beside it states the same figure in
+   words, so nothing is conveyed by arc length alone.
+
+   PLAN 45-15 moved the percentage INSIDE the ring, as sketch 004 draws it,
+   and gave the sentence a bar beneath. The number is real text absolutely
+   centred over the svg — not an <svg><text> — so it inherits the page font
+   and grows with the user's text-size setting instead of being baked into a
+   fixed viewBox. The arc is --cav-teal-dark for the same reason the KPI bar
+   is: at 7px on a very pale track the brighter accent reads washed out, and
+   the darker one only widens the contrast margin. */
 .cav-cockpit .cav-ring-row {
     display: flex;
     align-items: center;
     gap: var(--cav-s4);
 }
 
+/* The positioning context for the centred percentage. A span, so it adds no
+   semantics: everything the ring means is already in the aria-label and in
+   the sentence printed beside it. */
+.cav-cockpit .cav-ring-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 88px;
+    height: 88px;
+}
+
 .cav-cockpit .cav-ring {
-    width: 64px;
-    height: 64px;
+    width: 88px;
+    height: 88px;
     flex: none;
 }
 
@@ -615,21 +700,44 @@
 }
 
 .cav-cockpit .cav-ring__arc {
-    stroke: var(--cav-teal);
+    stroke: var(--cav-teal-dark);
 }
 
 .cav-cockpit .cav-ring-row__text {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    gap: var(--cav-s2);
     min-width: 0;
 }
 
+/* Centred over the ring. Absolute rather than a grid overlay so that a long
+   value ("100%") cannot push the svg out of shape. */
 .cav-cockpit .cav-ring-row__pct {
-    display: block;
+    position: absolute;
     font-family: var(--cav-font-head);
     font-size: 20px;
     font-weight: 600;
     line-height: 1.3;
     color: var(--cav-ink);
+}
+
+/* The same object as the documents KPI bar, and deliberately the same
+   dimensions: a <span>, never a <progress>, which is form-associated and
+   would read as a control on a page whose contract is that it offers none. */
+.cav-cockpit .cav-ring-row__meter {
+    display: block;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--cav-chip-bg);
+    overflow: hidden;
+}
+
+.cav-cockpit .cav-ring-row__meter-fill {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background: var(--cav-teal-dark);
 }
 
 .cav-cockpit .cav-ring-row__sub {
@@ -1076,12 +1184,25 @@
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background: var(--cav-teal-soft);
-    color: var(--cav-teal-dark);
+    background: var(--cav-avatar, var(--cav-av-0));
+    color: var(--cav-av-ink);
     font-size: 11px;
     font-weight: 600;
     line-height: 1;
 }
+
+/* SIX SLOTS, CHOSEN BY user_id IN THE PRESENTER — so a person keeps their
+   colour across renders and across projects. The initials inside are small
+   TEXT, so the 4.5:1 floor applies and not the 3:1 mark floor; white on
+   every fill below is 5.02:1 or better (ledger in cav-tokens.css).
+   Decorative: the circle is aria-hidden and the actor's name is printed
+   immediately beside it. */
+.cav-cockpit .cav-av--0 { --cav-avatar: var(--cav-av-0); }
+.cav-cockpit .cav-av--1 { --cav-avatar: var(--cav-av-1); }
+.cav-cockpit .cav-av--2 { --cav-avatar: var(--cav-av-2); }
+.cav-cockpit .cav-av--3 { --cav-avatar: var(--cav-av-3); }
+.cav-cockpit .cav-av--4 { --cav-avatar: var(--cav-av-4); }
+.cav-cockpit .cav-av--5 { --cav-avatar: var(--cav-av-5); }
 
 .cav-cockpit .cav-act__body {
     display: flex;

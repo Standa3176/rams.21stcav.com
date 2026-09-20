@@ -16,6 +16,13 @@
     cursor:pointer on the row, no tabindex, no whole-row hover shift. A row
     that looks clickable but is not is worse than one that looks inert.
 
+    THE TILE'S HUE IS A KEY FROM THE PRESENTER (Plan 45-15). `$module['hue']`
+    is read, never chosen: this file holds no module list and no colour, so a
+    module added without a hue fails CockpitVisualTest rather than quietly
+    rendering an untinted tile. The hue is IDENTITY, not state — progress is
+    the chip's job, and the chip keeps its own glyph shape and its state in
+    words so a greyscale render still reads.
+
     The count phrase is rendered only when the presenter produced one.
     Programming produces the empty string on purpose: it has no model,
     generator or storage type, so "0 files" would claim a file store exists.
@@ -23,7 +30,7 @@
 @props(['project', 'module', 'active' => false])
 
 <div {{ $attributes->merge(['class' => 'cav-module'.($active ? ' cav-module--active' : '')]) }}>
-    <span class="cav-module__icon" aria-hidden="true"><x-cockpit.icon :name="$module['icon']" /></span>
+    <x-cockpit.icon :name="$module['icon']" :tile="$module['hue']" class="cav-module__icon" />
 
     <span class="cav-module__text">
         <span class="cav-module__title">{{ $module['title'] }}</span>

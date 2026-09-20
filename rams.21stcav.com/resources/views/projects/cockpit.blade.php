@@ -67,6 +67,12 @@
                 $statusLabels = ['green' => 'On track', 'amber' => 'Needs attention', 'red' => 'At risk'];
                 $statusValue  = $overall['status'] === null ? 'Not available' : ($statusLabels[$overall['status']] ?? 'Not available');
                 $statusIcon   = $overall['status'] === 'green' ? 'check' : 'flag';
+                // A HUE KEY, not a colour — cockpit.css maps the three aliases
+                // onto the existing token pairs. Green when the project is on
+                // track, amber otherwise, which is DECORATION: the card states
+                // its status in words and changes its glyph shape too, so the
+                // tint is never the only channel.
+                $statusHue    = $overall['status'] === 'green' ? 'ok' : 'warn';
                 $stageSub     = $overall['status'] === null
                     ? $overall['reason']
                     : ($overall['stage'] === null ? null : 'Stage: ' . $overall['stage']);
@@ -77,26 +83,37 @@
                     label="Overall status"
                     :value="$statusValue"
                     :sub="$stageSub"
+                    :hue="$statusHue"
                     :icon="$statusIcon" />
 
                 <x-cockpit.kpi-card
                     label="Next visit"
                     :value="$nextVisit['label']"
                     :sub="$nextVisit['type_label'] ?? null"
+                    hue="date"
                     icon="calendar" />
 
                 <x-cockpit.kpi-card
                     label="Documents"
                     :value="$documents['complete'] . ' of ' . $documents['total'] . ' complete'"
                     :percent="$documents['percent']"
+                    hue="doc"
                     icon="document" />
             </div>
 
-            {{-- Exactly one chip. The design's second chip has no source. --}}
+            {{-- Exactly one chip. The design's second chip has no source.
+
+                 The chip is TINTED BY ITS KEY — the project status the
+                 presenter already returned — so the page matches the design's
+                 coloured pills rather than a grey one. The key is echoed as a
+                 modifier class and cockpit.css owns every value; no colour is
+                 named here. An unmapped status simply gets the default tint,
+                 never a missing chip. The label still says the stage in
+                 words, so the hue adds nothing the text does not. --}}
             @if ($stageChips !== [])
                 <div class="cav-stage">
                     @foreach ($stageChips as $chip)
-                        <span class="cav-stage__chip">{{ $chip['label'] }}</span>
+                        <span class="cav-stage__chip cav-stage__chip--{{ $chip['key'] }}">{{ $chip['label'] }}</span>
                     @endforeach
                 </div>
             @endif

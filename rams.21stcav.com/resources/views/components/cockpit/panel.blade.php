@@ -83,7 +83,10 @@
 
 <aside class="cav-panel" aria-label="{{ $module['title'] }} details">
     <div class="cav-panel__head">
-        <span class="cav-panel__icon" aria-hidden="true"><x-cockpit.icon :name="$module['icon']" /></span>
+        {{-- The same tinted tile the module row draws, in the same hue, so
+             the panel is visibly the row the PM just opened. The key comes
+             from the presenter; this file names no colour. --}}
+        <x-cockpit.icon :name="$module['icon']" :tile="$module['hue']" class="cav-panel__icon" />
 
         <span class="cav-panel__ident">
             <h2 class="cav-panel__title">{{ $module['title'] }}</h2>
@@ -118,6 +121,11 @@
                     <span class="cav-panel__card-head">Progress</span>
 
                     <div class="cav-ring-row">
+                        {{-- The percentage sits INSIDE the ring, as the design
+                             draws it. It is real text centred over the svg by
+                             CSS, not an <svg><text>, so it inherits the page's
+                             font and scales with the user's text size. --}}
+                        <span class="cav-ring-wrap">
                         {{-- An <svg> is neither a form control nor a script,
                              so the fence is untroubled. role="img" plus an
                              aria-label carrying the SAME sentence printed
@@ -131,9 +139,21 @@
                                     transform="rotate(-90 32 32)" />
                         </svg>
 
-                        <span class="cav-ring-row__text">
                             <span class="cav-ring-row__pct">{{ $progress['percent'] }}%</span>
+                        </span>
+
+                        <span class="cav-ring-row__text">
                             <span class="cav-ring-row__sub">{{ $ringSentence }}</span>
+
+                            {{-- The same bar the documents KPI card draws, on
+                                 the same terms: a <span>, never a <progress>,
+                                 which is form-associated and would read as a
+                                 control on a page that offers none. It carries
+                                 the same figure the sentence above states, so
+                                 nothing is conveyed by length alone. --}}
+                            <span class="cav-ring-row__meter" role="img" aria-label="{{ $progress['percent'] }}% complete">
+                                <span class="cav-ring-row__meter-fill" style="width: {{ (int) $progress['percent'] }}%"></span>
+                            </span>
                         </span>
                     </div>
                 </div>
@@ -168,6 +188,7 @@
                                 :initials="$entry['initials']"
                                 :actor="$entry['actor']"
                                 :phrase="$entry['phrase']"
+                                :hue="$entry['hue'] ?? 0"
                                 :at="$entry['at']" />
                         @endforeach
                     </ul>

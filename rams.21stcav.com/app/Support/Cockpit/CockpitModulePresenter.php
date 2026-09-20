@@ -52,6 +52,22 @@ use Illuminate\Support\Collection;
  *
  * `icon` is a KEY, never inline SVG and never a hex — the Blade layer owns the
  * glyph and the token layer owns the colour.
+ *
+ * `hue` (Plan 45-15) is a KEY on exactly the same terms. Sketch 004 gives each
+ * module its own tinted icon tile, and the hue has to be decided HERE rather
+ * than in Blade for two reasons. First, a colour in a template is a hex in a
+ * template, which `CockpitPageTest::test_cockpit_components_carry_no_raw_hex_colour()`
+ * fails outright. Second, deciding it in Blade would mean Blade holding a
+ * module list, and this class exists precisely so that the module list lives in
+ * one place — a tenth module would then render with no tile rather than failing
+ * loudly. `CockpitVisualTest` asserts the nine hues are DISTINCT over this map,
+ * so a module added without one, or sharing another's, is a red test.
+ *
+ * A HUE IS IDENTITY, NEVER STATE. It says which module a row is, the same way
+ * the glyph and the title do. Progress is the chip's job, and the chip carries
+ * a distinct glyph shape and spells its state in words, so the page survives
+ * greyscale. Tinting a row by its progress would break that and is not a future
+ * extension of this field.
  */
 final class CockpitModulePresenter
 {
@@ -101,6 +117,7 @@ final class CockpitModulePresenter
             'title'       => 'Site survey',
             'description' => 'Manage site surveys and outputs.',
             'icon'        => 'clipboard',
+            'hue'         => 'survey',
             'count_mode'  => self::COUNT_VISITS,
             'relation'    => null,
             'visit_types' => [Visit::TYPE_SITE_SURVEY],
@@ -109,6 +126,7 @@ final class CockpitModulePresenter
             'title'       => 'First fix and install',
             'description' => 'Manage visits, tasks and evidence.',
             'icon'        => 'wrench',
+            'hue'         => 'worksheet',
             'count_mode'  => self::COUNT_VISITS,
             'relation'    => null,
             'visit_types' => [Visit::TYPE_FIRST_FIX, Visit::TYPE_INSTALL],
@@ -117,6 +135,7 @@ final class CockpitModulePresenter
             'title'       => 'Programme and commissioning',
             'description' => 'Plan activities and capture test results.',
             'icon'        => 'calendar',
+            'hue'         => 'programme',
             'count_mode'  => self::COUNT_TASKS,
             'relation'    => null,
             'visit_types' => [Visit::TYPE_COMMISSIONING],
@@ -125,6 +144,7 @@ final class CockpitModulePresenter
             'title'       => 'RAMS',
             'description' => 'Method statements and risk assessments.',
             'icon'        => 'shield',
+            'hue'         => 'rams',
             'count_mode'  => self::COUNT_DOCUMENTS,
             'relation'    => 'ramsDocuments',
             'visit_types' => [],
@@ -133,6 +153,7 @@ final class CockpitModulePresenter
             'title'       => 'Drawings',
             'description' => 'Designs, elevations and connection diagrams.',
             'icon'        => 'ruler',
+            'hue'         => 'drawings',
             'count_mode'  => self::COUNT_DOCUMENTS,
             'relation'    => 'drawings',
             'visit_types' => [],
@@ -141,6 +162,7 @@ final class CockpitModulePresenter
             'title'       => 'O&M manual',
             'description' => 'Operation and maintenance documentation.',
             'icon'        => 'book',
+            'hue'         => 'om',
             'count_mode'  => self::COUNT_DOCUMENTS,
             'relation'    => 'omManuals',
             'visit_types' => [],
@@ -149,6 +171,7 @@ final class CockpitModulePresenter
             'title'       => 'Cable schedule',
             'description' => 'Cable schedules and infrastructure details.',
             'icon'        => 'cable',
+            'hue'         => 'cable',
             'count_mode'  => self::COUNT_DOCUMENTS,
             'relation'    => 'cableSchedules',
             'visit_types' => [],
@@ -157,6 +180,7 @@ final class CockpitModulePresenter
             'title'       => 'Programming',
             'description' => 'Control system programming files and notes.',
             'icon'        => 'gear',
+            'hue'         => 'programming',
             'count_mode'  => self::COUNT_NONE,
             'relation'    => null,
             'visit_types' => [Visit::TYPE_PROGRAMMING],
@@ -165,6 +189,7 @@ final class CockpitModulePresenter
             'title'       => 'Snagging',
             'description' => 'Return visits to clear outstanding snags.',
             'icon'        => 'flag',
+            'hue'         => 'snagging',
             'count_mode'  => self::COUNT_VISITS,
             'relation'    => null,
             'visit_types' => [Visit::TYPE_SNAG],
@@ -205,6 +230,7 @@ final class CockpitModulePresenter
                     'title'       => $definition['title'],
                     'description' => $definition['description'],
                     'icon'        => $definition['icon'],
+                    'hue'         => $definition['hue'],
                     'chip'        => $this->chip($section),
                     'count'       => $this->count($project, $definition, $section),
                     'section'     => $section,

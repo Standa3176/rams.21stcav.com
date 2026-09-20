@@ -14,18 +14,31 @@
     when their source has nothing to say. A card with no sub-line is a card
     about a fact with no second half; a 0% bar drawn in place of no bar would
     claim a measurement that was never taken.
+
+    THE TILE HUE IS A KEY, AND IT BORROWS THE MODULE PALETTE (Plan 45-15).
+    Sketch 004 tints these three tiles green, blue and blue. Rather than
+    declaring a parallel token set for three cards, `hue` takes one of the
+    semantic aliases cockpit.css maps onto the existing module tokens —
+    `ok` / `date` / `doc`. No colour is named here and none is named in the
+    page that calls it; both pass a key.
+
+    The hue is DECORATION. "Overall status" is stated in words in the card's
+    own value ("On track" / "Needs attention" / "At risk"), and the glyph
+    differs too (a ticked circle when green, a flag otherwise), so the card
+    never depends on its tint to be understood.
 --}}
 @props([
     'label',
     'value',
     'sub'     => null,
     'icon'    => null,
+    'hue'     => null,
     'percent' => null,
 ])
 
 <div {{ $attributes->merge(['class' => 'cav-kpi']) }}>
     @if (filled($icon))
-        <span class="cav-kpi__icon" aria-hidden="true"><x-cockpit.icon :name="$icon" /></span>
+        <x-cockpit.icon :name="$icon" :tile="$hue ?? 'survey'" class="cav-kpi__icon" />
     @endif
 
     <span class="cav-kpi__body">

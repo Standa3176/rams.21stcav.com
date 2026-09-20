@@ -16,8 +16,23 @@
 
     Stroke colour is `currentColor`, so a glyph inherits the --cav-* token
     already resolved on its container. There is no colour value in this file.
+
+    THE TINTED TILE (Plan 45-15). Sketch 004 draws every module glyph inside a
+    soft rounded square in that module's own hue, and the same treatment on the
+    three KPI cards and the panel header. `tile` takes a HUE KEY — never a
+    colour — and renders `cav-hue--{key}`, which cockpit.css resolves to a
+    token pair. The key arrives from `CockpitModulePresenter`, so this file
+    decides nothing about colour either; it decides only that a tile is a span
+    around the svg. Callers that want a bare glyph (the arrow on a link, the
+    close control) simply omit `tile` and get exactly what they got before.
+
+    The tile lives here rather than in each caller because the module row, the
+    panel header and the KPI card all draw the same object, and three copies of
+    it would drift the first time the radius changed. Extra classes merge onto
+    the TILE when there is one, so a caller's sizing class still lands on the
+    outer box.
 --}}
-@props(['name'])
+@props(['name', 'tile' => null])
 
 @php
     /**
@@ -49,10 +64,21 @@
 @endphp
 
 @if ($paths !== [])
-    <svg {{ $attributes->merge(['class' => 'cav-icon']) }} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-        @foreach ($paths as $path)
-            <path d="{{ $path }}" />
-        @endforeach
-    </svg>
+    @if (filled($tile))
+        <span {{ $attributes->merge(['class' => 'cav-tile cav-hue--'.$tile]) }} aria-hidden="true">
+            <svg class="cav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                @foreach ($paths as $path)
+                    <path d="{{ $path }}" />
+                @endforeach
+            </svg>
+        </span>
+    @else
+        <svg {{ $attributes->merge(['class' => 'cav-icon']) }} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            @foreach ($paths as $path)
+                <path d="{{ $path }}" />
+            @endforeach
+        </svg>
+    @endif
 @endif

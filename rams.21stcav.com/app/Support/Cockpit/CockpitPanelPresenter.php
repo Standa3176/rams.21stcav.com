@@ -56,6 +56,9 @@ use Illuminate\Support\Facades\Route;
  */
 final class CockpitPanelPresenter
 {
+    /** How many avatar colour slots cav-tokens.css declares (--cav-av-0..5). */
+    private const AVATAR_HUES = 6;
+
     /**
      * The document library, per module (D-13).
      *
@@ -285,7 +288,7 @@ final class CockpitPanelPresenter
      * Project-wide by design — see decision 1 in the class docblock. There is
      * deliberately no module parameter.
      *
-     * @return Collection<int, array{initials: string, actor: string, phrase: string, at: \Illuminate\Support\Carbon|null}>
+     * @return Collection<int, array{initials: string, actor: string, phrase: string, hue: int, at: \Illuminate\Support\Carbon|null}>
      */
     public function activity(Project $project, int $limit = 6): Collection
     {
@@ -302,6 +305,7 @@ final class CockpitPanelPresenter
                     'initials' => $this->initials($actor),
                     'actor'    => $actor,
                     'phrase'   => $this->phrase($entry),
+                    'hue'      => $this->avatarHue($entry->user_id),
                     'at'       => $this->asDate($entry->created_at),
                 ];
             })
@@ -414,6 +418,29 @@ final class CockpitPanelPresenter
      * The design draws avatars; `User` has no avatar column, and initials are
      * what the design actually renders inside the circle anyway.
      */
+    /**
+     * The avatar's colour SLOT — an index, never a colour (Plan 45-15).
+     *
+     * Sketch 004 draws each activity entry against a filled circle of the
+     * person's initials, in a colour that differs per person. This returns the
+     * slot; `cav-tokens.css` owns the six fills and Blade renders
+     * `cav-av--{n}`, so no layer below the stylesheet knows a hex.
+     *
+     * KEYED ON user_id, NOT ON THE NAME. A person must keep their colour
+     * across renders and across projects, and a name hash changes the moment
+     * someone is renamed or their display name is tidied. The modulus is
+     * stable for a given id forever.
+     *
+     * A null user is the log's "System" actor — not a person, and given slot 0
+     * rather than a colour of its own. Nothing depends on the distinction:
+     * the circle is aria-hidden and the actor's name is printed beside it, so
+     * the hue conveys nothing that is not already written in words.
+     */
+    private function avatarHue(?int $userId): int
+    {
+        return $userId === null ? 0 : $userId % self::AVATAR_HUES;
+    }
+
     private function initials(string $actor): string
     {
         $words = preg_split('/\s+/', trim($actor), -1, PREG_SPLIT_NO_EMPTY) ?: [];
