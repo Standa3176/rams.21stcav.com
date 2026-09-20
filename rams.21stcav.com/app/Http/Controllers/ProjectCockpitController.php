@@ -5,7 +5,10 @@ namespace App\Http\Controllers;
 use App\DTO\ProjectHealth;
 use App\Models\Project;
 use App\Services\ProjectHealthService;
+use App\Support\Cockpit\CockpitHeaderPresenter;
+use App\Support\Cockpit\CockpitModulePresenter;
 use App\Support\Cockpit\CockpitSectionPresenter;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 use Throwable;
@@ -29,16 +32,36 @@ use Throwable;
  *
  * Auth follows the shared-workspace convention (CommissioningController:50-51):
  * any authenticated user has full access. No role gate beyond that.
+ *
+ * THE SIDE PANEL'S STATE IS URL STATE (Plan 45-11). `?module=` and `?tab=`
+ * select which module's panel is open and which of its three tabs is showing.
+ * They are the only user-supplied input this page accepts, and they are
+ * resolved by MEMBERSHIP against CockpitModulePresenter's own module keys and
+ * the TABS constant below — never by validate(), whose redirect-with-error-bag
+ * is a write-shaped behaviour on a read-only page. An unrecognised value is a
+ * stale bookmark, not an error worth showing a PM: it falls back silently to
+ * the closed state and the page still renders 200. `show()` remains the only
+ * action, and a `?module=` request is a GET that writes nothing.
  */
 class ProjectCockpitController extends Controller
 {
+    /**
+     * The three tabs of the side panel (D-09). Anything else falls back to
+     * the first entry.
+     *
+     * @var array<int, string>
+     */
+    public const TABS = ['overview', 'files', 'notes'];
+
     public function __construct(
         private ProjectHealthService $health,
         private CockpitSectionPresenter $sections,
+        private CockpitModulePresenter $modulePresenter,
+        private CockpitHeaderPresenter $headerPresenter,
     ) {
     }
 
-    public function show(Project $project): View
+    public function show(Request $request, Project $project): View
     {
         abort_unless(config('cockpit.enabled'), 404);
         abort_unless(auth()->check(), 403);
@@ -62,12 +85,72 @@ class ProjectCockpitController extends Controller
             'drawings',
             'omManuals',
             'cableSchedules',
+            'activityLog',
         ]);
 
         $sections = $this->sections->sections($project);
         $isEmpty  = $this->sections->isEmpty($project);
 
-        return view('projects.cockpit', compact('project', 'health', 'sections', 'isEmpty'));
+        $modules = $this->modulePresenter->modules($project);
+
+        $moduleKey  = $this->resolveModuleKey($request);
+        $tab        = $this->resolveTab($request);
+        $openModule = $moduleKey === null ? null : $modules->firstWhere('key', $moduleKey);
+        $progress   = $moduleKey === null ? null : $this->modulePresenter->progress($project, $moduleKey);
+
+        $masthead   = $this->headerPresenter->masthead($project);
+        $kpis       = $this->headerPresenter->kpis($project, $health);
+        $stageChips = $this->headerPresenter->stageChips($project);
+
+        return view('projects.cockpit', compact(
+            'project',
+            'health',
+            'sections',
+            'isEmpty',
+            'modules',
+            'masthead',
+            'kpis',
+            'stageChips',
+            'openModule',
+            'tab',
+            'progress',
+        ));
+    }
+
+    /**
+     * The open module, or null.
+     *
+     * Whitelisted against CockpitModulePresenter::moduleMap() — the presenter's
+     * OWN keys, never a hand-maintained duplicate list, which would drift from
+     * the rows actually rendered the first time a module is added. Matching is
+     * exact and case-sensitive: `WORKSHEET` is not a module key, so it opens
+     * nothing rather than being helpfully corrected.
+     */
+    private function resolveModuleKey(Request $request): ?string
+    {
+        $submitted = $request->query('module');
+
+        if (! is_string($submitted)) {
+            return null;
+        }
+
+        return array_key_exists($submitted, CockpitModulePresenter::moduleMap()) ? $submitted : null;
+    }
+
+    /**
+     * The active tab. Resolved independently of the module: a `?tab=` with no
+     * `?module=` opens nothing, because the panel itself is only rendered when
+     * a module resolved.
+     */
+    private function resolveTab(Request $request): string
+    {
+        $submitted = $request->query('tab');
+
+        if (! is_string($submitted)) {
+            return self::TABS[0];
+        }
+
+        return in_array($submitted, self::TABS, true) ? $submitted : self::TABS[0];
     }
 
     /**
