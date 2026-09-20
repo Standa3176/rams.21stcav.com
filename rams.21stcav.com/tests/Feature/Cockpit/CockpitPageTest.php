@@ -545,9 +545,13 @@ class CockpitPageTest extends TestCase
         $project = $this->projectWithInstallVisits();
         $html    = $this->renderPanel($project, 'rams', 'files');
 
+        // Not e()'d: cockpitSubtree() decodes entities, so the ampersand
+        // between the two query parameters is a bare & by the time it is
+        // compared. Escaping here would compare &amp; against & and fail on
+        // a correct href.
         foreach (['overview', 'files', 'notes'] as $tab) {
             $this->assertStringContainsString(
-                'href="'.e(route('projects.cockpit', ['project' => $project, 'module' => 'rams', 'tab' => $tab])).'"',
+                'href="'.route('projects.cockpit', ['project' => $project, 'module' => 'rams', 'tab' => $tab]).'"',
                 $html,
                 "The {$tab} tab must keep ?module=rams in its href."
             );

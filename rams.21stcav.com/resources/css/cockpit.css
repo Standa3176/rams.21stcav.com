@@ -486,6 +486,192 @@
     padding-bottom: 1px;
 }
 
+/* ── Side panel ── D-09 ─────────────────────────────────────────
+   A column in the page grid, NOT an overlay. There is no scrim, no fixed
+   positioning and no transition, because there is no JavaScript to drive
+   any of them: the panel exists in the DOM only when ?module= resolved, and
+   it is absent — not hidden — at rest. sticky keeps it beside the module
+   list while a long list scrolls; it falls back to static below 1024px,
+   where it stacks under the list instead. */
+.cav-panel {
+    position: sticky;
+    top: var(--cav-s4);
+    min-width: 0;
+    padding: var(--cav-s4);
+    border: 1px solid var(--cav-border);
+    border-radius: var(--cav-radius);
+    background: var(--cav-surface);
+}
+
+.cav-cockpit .cav-panel__head {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--cav-s3);
+}
+
+.cav-cockpit .cav-panel__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex: none;
+    border-radius: var(--cav-radius-sm);
+    background: var(--cav-teal-soft);
+    color: var(--cav-teal-dark);
+}
+
+.cav-cockpit .cav-panel__ident {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.cav-cockpit .cav-panel__title {
+    margin: 0;
+    font-family: var(--cav-font-head);
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--cav-ink);
+}
+
+.cav-cockpit .cav-panel__ref {
+    display: block;
+    margin-top: var(--cav-s1);
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--cav-mid);
+}
+
+/* An anchor, not a button — 44px so it clears the minimum target. */
+.cav-cockpit .cav-panel__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    flex: none;
+    margin: -10px -10px 0 0;
+    border-radius: var(--cav-radius-sm);
+    color: var(--cav-mid);
+}
+
+.cav-cockpit .cav-panel__close:hover {
+    background: var(--cav-chip-bg);
+    color: var(--cav-ink);
+}
+
+.cav-cockpit .cav-panel__purpose {
+    margin: var(--cav-s3) 0 0;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--cav-mid);
+}
+
+/* The tab strip is NAVIGATION between three URLs, so it is three anchors
+   with a 2px underline on the active one. The active tab also carries
+   aria-current, and its weight changes — colour is not the only channel. */
+.cav-cockpit .cav-panel__tabs {
+    display: flex;
+    gap: var(--cav-s4);
+    margin-top: var(--cav-s4);
+    border-bottom: 1px solid var(--cav-rule);
+}
+
+.cav-cockpit .cav-panel__tab {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 var(--cav-s1);
+    border-bottom: 2px solid transparent;
+    color: var(--cav-mid);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+    text-decoration: none;
+}
+
+.cav-cockpit .cav-panel__tab:hover {
+    color: var(--cav-ink);
+}
+
+.cav-cockpit .cav-panel__tab--on {
+    border-bottom-color: var(--cav-teal-dark);
+    color: var(--cav-teal-dark);
+}
+
+.cav-cockpit .cav-panel__body {
+    margin-top: var(--cav-s4);
+}
+
+.cav-cockpit .cav-panel__card {
+    padding: var(--cav-s4);
+    margin-bottom: var(--cav-s3);
+    border: 1px solid var(--cav-border);
+    border-radius: var(--cav-radius);
+    background: var(--cav-bg);
+}
+
+.cav-cockpit .cav-panel__card-head {
+    display: block;
+    margin-bottom: var(--cav-s3);
+    font-family: var(--cav-font-head);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+    letter-spacing: .04em;
+    color: var(--cav-mid);
+}
+
+/* ── Progress ring ────────────────────────────────────────────────
+   Drawn ONLY when the module has visits. A 0% ring on a module with nothing
+   planned would read as "nothing done" when the truth is "nothing planned".
+   The arc is --cav-teal, a non-text mark at 3.89:1; the percentage beside it
+   is --cav-ink, and the sentence under that states the same figure in
+   words. */
+.cav-cockpit .cav-ring-row {
+    display: flex;
+    align-items: center;
+    gap: var(--cav-s4);
+}
+
+.cav-cockpit .cav-ring {
+    width: 64px;
+    height: 64px;
+    flex: none;
+}
+
+.cav-cockpit .cav-ring__track {
+    stroke: var(--cav-chip-bg);
+}
+
+.cav-cockpit .cav-ring__arc {
+    stroke: var(--cav-teal);
+}
+
+.cav-cockpit .cav-ring-row__text {
+    display: block;
+    min-width: 0;
+}
+
+.cav-cockpit .cav-ring-row__pct {
+    display: block;
+    font-family: var(--cav-font-head);
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--cav-ink);
+}
+
+.cav-cockpit .cav-ring-row__sub {
+    display: block;
+    margin-top: var(--cav-s1);
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--cav-mid);
+}
+
 /* ── Panel-body hint ───────────────────────────────────────────────
    One plain sentence saying what a section is and where its data comes
    from. Plan 45-12's panel body consumes this. */

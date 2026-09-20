@@ -123,6 +123,17 @@
                             :active="$openModule !== null && $openModule['key'] === $module['key']" />
                     @endforeach
                 </div>
+
+                {{-- Closed at rest means ABSENT (D-09). A hidden-but-present
+                     panel would need CSS or JS to hide it and would still be
+                     read out by a screen reader. --}}
+                @if ($openModule !== null)
+                    <x-cockpit.panel
+                        :project="$project"
+                        :module="$openModule"
+                        :tab="$tab"
+                        :progress="$progress" />
+                @endif
             </div>
 
             <p class="cav-note">
