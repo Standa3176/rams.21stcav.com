@@ -321,6 +321,190 @@ class CockpitVisitActionsTest extends TestCase
         $this->assertNull($visit->refresh()->accepted_at);
     }
 
+    // ── Task 2: Send back ────────────────────────────────────────────────
+
+    private function sendBack(Project $project, Visit $visit, array $payload = [], ?User $user = null)
+    {
+        return $this->actingAs($user ?? $this->user())
+            ->post(
+                route('projects.cockpit.visits.send-back', ['project' => $project, 'visit' => $visit]),
+                $payload + ['reason' => 'Photos of the comms room are missing.'],
+            );
+    }
+
+    public function test_sending_back_records_the_reason_and_when(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        $this->sendBack($project, $visit, ['reason' => 'The second floor rooms were not surveyed.'])
+            ->assertRedirect(route('projects.cockpit', ['project' => $project, 'module' => 'site_survey']))
+            ->assertSessionHas('success');
+
+        $visit->refresh();
+
+        $this->assertNotNull($visit->sent_back_at);
+        $this->assertSame('The second floor rooms were not surveyed.', $visit->send_back_reason);
+        $this->assertSame(Visit::STATE_SENT_BACK, $visit->state());
+    }
+
+    public function test_sending_back_never_clears_the_engineers_submission(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        $survey = SiteSurvey::findOrFail($visit->source_id);
+        $before = [
+            'submitted_at' => (string) $survey->getRawOriginal('submitted_at'),
+            'survey_data'  => (string) $survey->getRawOriginal('survey_data'),
+            'access_token' => (string) $survey->getRawOriginal('access_token'),
+            'updated_at'   => (string) $survey->getRawOriginal('updated_at'),
+        ];
+        $counts = $this->engineerTableCounts();
+
+        $this->sendBack($project, $visit);
+
+        $survey->refresh();
+
+        // THE D-02 VIOLATION THE WHOLE DESIGN AVOIDS. 46-05 derives the
+        // reopening as `sent_back_at > last submission`, so clearing
+        // `submitted_at` here would rewrite the engineer's own record to
+        // achieve something a comparison already achieves.
+        $this->assertSame($before['submitted_at'], (string) $survey->getRawOriginal('submitted_at'));
+        $this->assertSame($before['survey_data'], (string) $survey->getRawOriginal('survey_data'));
+        $this->assertSame($before['access_token'], (string) $survey->getRawOriginal('access_token'));
+        $this->assertSame($before['updated_at'], (string) $survey->getRawOriginal('updated_at'));
+        $this->assertSame($counts, $this->engineerTableCounts());
+        $this->assertNotNull($survey->submitted_at);
+    }
+
+    public function test_sending_back_does_not_rewrite_the_stored_status(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        $before = $visit->status;
+
+        $this->sendBack($project, $visit);
+
+        $this->assertSame($before, $visit->refresh()->status);
+        $this->assertNull($visit->accepted_at);
+    }
+
+    public function test_a_reason_is_required_and_is_bounded(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        $this->sendBack($project, $visit, ['reason' => ''])->assertSessionHasErrors('reason');
+        $this->assertNull($visit->refresh()->sent_back_at);
+
+        $this->sendBack($project, $visit, ['reason' => 'no'])->assertSessionHasErrors('reason');
+        $this->assertNull($visit->refresh()->sent_back_at);
+
+        $this->sendBack($project, $visit, ['reason' => str_repeat('a', 2001)])->assertSessionHasErrors('reason');
+        $this->assertNull($visit->refresh()->sent_back_at);
+    }
+
+    public function test_sending_back_logs_exactly_one_visit_sent_back_activity_row(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        $this->sendBack($project, $visit, [], $this->user('Dan Rowe'));
+
+        $rows = ProjectActivityLog::where('project_id', $project->id)
+            ->where('action', ProjectActivityLog::ACTION_VISIT_SENT_BACK)
+            ->get();
+
+        $this->assertCount(1, $rows);
+        $this->assertStringContainsString('Dan Rowe', $rows->first()->description);
+        $this->assertSame($visit->id, $rows->first()->metadata['visit_id'] ?? null);
+
+        // The PM's free text is NOT copied into the feed: it is a client-side
+        // surface read by the engineer, and one place to read the current ask
+        // from is the whole point of keeping one reason.
+        $this->assertStringNotContainsString('comms room', $rows->first()->description);
+    }
+
+    public function test_only_a_returned_visit_can_be_sent_back(): void
+    {
+        $project = $this->project();
+
+        $planned = Visit::factory()->planned()->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
+        $this->sendBack($project, $planned)->assertStatus(422);
+        $this->assertNull($planned->refresh()->sent_back_at);
+
+        $accepted = Visit::factory()->accepted()->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
+        $this->sendBack($project, $accepted)->assertStatus(422);
+        $this->assertNull($accepted->refresh()->sent_back_at);
+
+        // Already sent back: there is no second send-back to give.
+        $sentBack = Visit::factory()->sentBack()->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
+        $reason   = $sentBack->send_back_reason;
+        $this->sendBack($project, $sentBack)->assertStatus(422);
+        $this->assertSame($reason, $sentBack->refresh()->send_back_reason);
+    }
+
+    public function test_a_send_back_on_another_projects_visit_is_a_404(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($this->project());
+
+        $this->sendBack($project, $visit)->assertNotFound();
+
+        $this->assertNull($visit->refresh()->sent_back_at);
+    }
+
+    public function test_only_the_latest_reason_is_kept_across_a_resubmission(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+        $survey  = SiteSurvey::findOrFail($visit->source_id);
+
+        $this->sendBack($project, $visit, ['reason' => 'The first ask: comms room photos.']);
+
+        // The engineer resubmits — which relocks with NO flag to clear,
+        // because the reopening is a comparison, never a stored boolean.
+        $survey->forceFill(['submitted_at' => now()])->save();
+
+        $this->assertSame(Visit::STATE_RETURNED, $visit->refresh()->state());
+
+        $this->sendBack($project, $visit, ['reason' => 'The second ask: cable route photos.']);
+
+        $visit->refresh();
+
+        $this->assertSame('The second ask: cable route photos.', $visit->send_back_reason);
+        $this->assertSame(Visit::STATE_SENT_BACK, $visit->state());
+    }
+
+    public function test_a_hostile_reason_is_stored_and_rendered_escaped(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        $this->sendBack($project, $visit, ['reason' => '<script>alert(1)</script> please redo']);
+
+        $body = $this->actingAs($this->user())
+            ->get(route('projects.cockpit', ['project' => $project, 'module' => 'site_survey']))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $body);
+    }
+
+    public function test_an_anonymous_caller_cannot_send_back(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        $this->post(route('projects.cockpit.visits.send-back', ['project' => $project, 'visit' => $visit]), [
+            'reason' => 'Nope.',
+        ])->assertStatus(302);
+
+        $this->assertNull($visit->refresh()->sent_back_at);
+    }
+
     public function test_the_action_routes_are_gone_when_the_cockpit_flag_is_off(): void
     {
         config(['cockpit.enabled' => false]);
@@ -329,7 +513,11 @@ class CockpitVisitActionsTest extends TestCase
         $visit   = $this->returnedSurveyVisit($project);
 
         $this->accept($project, $visit)->assertNotFound();
+        $this->sendBack($project, $visit)->assertNotFound();
 
-        $this->assertNull($visit->refresh()->accepted_at);
+        $visit->refresh();
+
+        $this->assertNull($visit->accepted_at);
+        $this->assertNull($visit->sent_back_at);
     }
 }
