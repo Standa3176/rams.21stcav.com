@@ -79,8 +79,15 @@ These ten were minted at planning time on 2026-09-19 and map to the Phase 45 suc
   marks it as superseded rather than hiding it.
 - **VIS-09** — A durable install record exists that is not replaced when the task list is
   regenerated, and the existing programme generate / activate / archive behaviour is unchanged.
-- **VIS-10** — Brand tokens (teal `#01889F`, gold `#D4AF37`, Verdana headings, Poppins body) are
-  introduced as reusable tokens consumable by phases 46-51, without retoning any existing page.
+- **VIS-10** — Cockpit presentation tokens are introduced as reusable tokens consumable by
+  phases 46-51, declared under a **scoping class and never on the shared layout's root block**,
+  so that no existing page is retoned: `resources/views/layouts/app.blade.php`,
+  `resources/css/app.css` and `tailwind.config.js` stay **byte-identical** (asserted by sha256
+  in `tests/Feature/Cockpit/FlagOffBehaviourUnchangedTest.php` against pre-phase `4abd2b24`).
+  - *Amended 2026-09-20 by D-08 (sketch 004 accepted); the original teal/gold/Verdana/Poppins
+    palette is superseded, the scoping constraint is not. The requirement now states the
+    MECHANISM, not the palette — the tokens resolve to the app's own blue and Inter
+    (`resources/css/cav-tokens.css`, retargeted by Plan 45-09).*
 
 ### Out of scope for v4.0
 
@@ -117,7 +124,7 @@ Each is **recorded in the admin Hidden Functions register**, not forgotten:
 | VIS-07 | Phase 45 | Planned (Plan 45-05) |
 | VIS-08 | Phase 45 | Planned (Plans 45-02 + 45-05 + 45-07) |
 | VIS-09 | Phase 45 | Planned (Plan 45-04) |
-| VIS-10 | Phase 45 | Planned (Plans 45-03 + 45-06) |
+| VIS-10 | Phase 45 | Planned (Plans 45-03 + 45-06); palette retargeted by Plan 45-09 (D-08) |
 
 *Phases 46–51 have no requirement IDs yet. Mint them into this section as each phase is planned,
 following the LR-xx / VIS-xx pattern.*

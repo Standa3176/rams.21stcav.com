@@ -98,6 +98,10 @@ All taken interactively with the user on 2026-09-19.
 
 ### Brand
 
+> ⚠️ **D-07 is REVERSED by D-08 (2026-09-20).** It is kept below verbatim as the
+> record of what was decided and shipped in Plan 45-03, not as live guidance. Read
+> `## Decisions — sketch 004 (2026-09-20)` at the end of this block before acting on it.
+
 - **D-07:** The cockpit is built in **21CAV brand** — teal `#01889F`, gold `#D4AF37` accents,
   Verdana headings, Poppins body, angled `clip-path` masthead — as drawn in sketch 002. It starts a
   brand-aligned refresh rather than being retoned to the app's current `#1E5FE0` / Inter.
@@ -123,6 +127,48 @@ All taken interactively with the user on 2026-09-19.
 - Which traffic-light derivations to surface first, within criterion 5's limit that they come from
   data that already exists. `app/Services/ProjectHealthService.php` is the existing green/amber/red
   precedent and should be reused rather than reinvented.
+
+## Decisions — sketch 004 (2026-09-20)
+
+**D-01..D-06 still hold unchanged. D-07 is REVERSED by D-08.** The decisions below are copied
+verbatim from `.planning/sketches/004-delivery-cockpit/README.md`, the accepted v4.0 design
+contract, which supersedes sketch 002 and `45-UI-SPEC-v1-superseded.md`.
+
+- **D-08:** (REVERSES D-07) the cockpit uses the **app's existing blue and Inter**, inside the
+  existing left nav chrome — not the 21CAV teal/Verdana/Poppins refresh. The design the user
+  accepted is rendered in the app's own palette, and it sits inside the real application shell.
+  The `--cav-*` token set built in Plan 45-03 is **superseded for this page**. See "What happens
+  to the teal tokens" below.
+- **D-09:** the drawer is a **right side panel with tabs** — `Overview` / `Files` / `Notes`.
+  Not an inline `<details>` accordion. The "closed at rest" principle survives: nothing is open
+  until the PM opens it, and the page at rest is a quiet list of module rows.
+- **D-10:** module rows show a **status chip and a count**, not a traffic-light pip.
+  Observed states: `Not started` (grey), `In progress` (blue), `On file` (blue). Counts read
+  `0 visits` / `1 visit` / `1 document` / `0 tasks` / `0 files`.
+- **D-11:** (AMENDED by D-16) modules in this order: Site survey · First fix and install ·
+  Programme and commissioning · RAMS · Drawings · O&M manual · Cable schedule · Programming.
+  Commissioning is folded into "Programme and commissioning" rather than standing alone.
+  ⚠️ Phase 51 assumed commissioning becomes its own visit type — reconcile before planning 51.
+- **D-12:** three KPI cards above the module list: **Overall status** (+ stage), **Next visit**
+  (+ type), **Documents n of 9 complete** (+ progress bar and percentage).
+- **D-13:** the panel's **Files tab is the project's document library** — every created document
+  in one place, clickable and viewable. This is the user's explicit example of what the panel is
+  for.
+- **D-14:** a **Recent activity** feed in the panel — who did what, when, with avatars.
+- **D-15:** **Quick actions** in the panel — Create visit · Add note · Upload files. These are
+  WRITES and belong to Phase 46 (visits), Phase 47 (snags) and Phase 48 (documents). They are
+  **not** built in Phase 45.
+- **D-16:** (2026-09-20, user ruling) **NINE modules — a Snagging row is added** to the eight in
+  the design image. The design showed eight rows but a "1 of 9 complete" count; the unaccounted
+  ninth is snagging, and `ProjectDeliverable::ALL_KEYS` has nine entries.
+
+  The deciding argument was not the arithmetic. `Visit::TYPE_SNAG` already exists, so with eight
+  rows a snag visit would sit in the database and appear on no screen — the exact "collected but
+  never turned into work" failure this milestone exists to fix. Nine rows also preserve the
+  invariant that **every visit type reaches exactly one module row**, and give Phase 47 a home to
+  build into rather than forcing it to reopen this decision.
+
+  **The denominator must equal the rendered module count** — never a hardcoded 9.
 
 </decisions>
 
