@@ -72,6 +72,28 @@ Taken interactively with the user on 2026-09-20. The user's brief, verbatim:
   already exist — do not write new document generators. **Sending to the client and confirming
   sent stays Phase 48**, so this phase does not grow a second half.
 
+### Two decisions taken 2026-09-20, after planning surfaced them
+
+- **D-05:** **Per-visit document scoping is captured but NOT generated in this phase.** ROADMAP
+  criterion 2 asks that a visit's RAMS and worksheet cover only that visit's rooms and type. Both
+  generators (`RamsController::generateFromProject()`, `WorksheetController::generateFromProject()`)
+  take a `Project` and nothing else, and the RAMS is authored by an AI pipeline driven by the whole
+  quote — nobody has decided how a room-scoped RAMS should be written.
+
+  So this phase captures `rooms_in_scope` on the visit and renders it on the engineer's link, so an
+  engineer knows their scope. **The generators stay project-wide.** This is recorded as requirement
+  **VL-12, NOT DELIVERED** — an honest half, flagged in REQUIREMENTS.md and the ROADMAP rather than
+  quietly skipped. Re-scoping the generators wants its own phase and its own thinking.
+
+- **D-06:** **No "Edit visit" control. The visit row stays capped at four** — Accept, Send back, Add
+  note, Raise a snag. ROADMAP criterion 3 says a visit "stays editable after sending"; delivering
+  that literally would put a fifth control on every row and break the simplicity cap that the user's
+  own brief demands ("simple to use", and earlier: "I want to make it look simple and less scary").
+
+  A visit locks on return and says so visibly. A PM who needs a change **sends it back**, which
+  reopens the engineer link — one workflow rather than two overlapping ones with different
+  consequences for the engineer. Revisit if the lack actually bites in use.
+
 ### Claude's Discretion
 
 - **Who may accept a visit.** The app is a shared workspace: controllers carry
