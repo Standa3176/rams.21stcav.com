@@ -58,10 +58,22 @@ it in. The module list stays visible behind it, so a PM never loses their place.
 - **D-10:** module rows show a **status chip and a count**, not a traffic-light pip.
   Observed states: `Not started` (grey), `In progress` (blue), `On file` (blue). Counts read
   `0 visits` / `1 visit` / `1 document` / `0 tasks` / `0 files`.
-- **D-11:** **eight modules**, in this order: Site survey · First fix and install · Programme and
-  commissioning · RAMS · Drawings · O&M manual · Cable schedule · Programming. Commissioning is
-  folded into "Programme and commissioning" rather than standing alone.
+- **D-11 (AMENDED by D-16):** modules in this order: Site survey · First fix and install ·
+  Programme and commissioning · RAMS · Drawings · O&M manual · Cable schedule · Programming.
+  Commissioning is folded into "Programme and commissioning" rather than standing alone.
   ⚠️ Phase 51 assumed commissioning becomes its own visit type — reconcile before planning 51.
+
+- **D-16 (2026-09-20, user ruling):** **NINE modules — a Snagging row is added** to the eight in
+  the design image. The design showed eight rows but a "1 of 9 complete" count; the unaccounted
+  ninth is snagging, and `ProjectDeliverable::ALL_KEYS` has nine entries.
+
+  The deciding argument was not the arithmetic. `Visit::TYPE_SNAG` already exists, so with eight
+  rows a snag visit would sit in the database and appear on no screen — the exact "collected but
+  never turned into work" failure this milestone exists to fix. Nine rows also preserve the
+  invariant that **every visit type reaches exactly one module row**, and give Phase 47 a home to
+  build into rather than forcing it to reopen this decision.
+
+  **The denominator must equal the rendered module count** — never a hardcoded 9.
 - **D-12:** three KPI cards above the module list: **Overall status** (+ stage), **Next visit**
   (+ type), **Documents n of 9 complete** (+ progress bar and percentage).
 - **D-13:** the panel's **Files tab is the project's document library** — every created document
@@ -122,8 +134,8 @@ and `tailwind.config.js` must stay byte-identical, and there is a test asserting
 1. ~~Does the activity feed have a source today?~~ **ANSWERED 2026-09-20.** `ProjectActivityLog`
    already carries `project_id`, `user_id`, `action`, `description`, `metadata` and `created_at` —
    everything the feed renders. It is buildable read-only in Phase 45.
-2. "Documents 1 of 9 complete" — nine of what? The nine deliverables from sketch 003's import
-   review, or nine document types? Needs pinning before the KPI card can be built.
+2. ~~"Documents 1 of 9 complete" — nine of what?~~ **ANSWERED 2026-09-20 by D-16.** Nine module
+   rows including Snagging; the denominator is the rendered module count, computed not hardcoded.
 3. Does "Open full project" keep the existing eleven-tab page permanently, or is it a transitional
    escape hatch that disappears when the cockpit is complete?
 4. Stage chips ("Survey Pending", "Installation phase") — derived from what? No current field
