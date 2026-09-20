@@ -17,6 +17,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\RouteCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 /**
@@ -247,17 +248,24 @@ class CockpitPanelPresenterTest extends TestCase
 
     // ── notes() ───────────────────────────────────────────────────────────
 
-    public function test_notes_come_from_the_modules_own_note_field(): void
+    /**
+     * MEASURED, correcting the plan's assumption: `cable_schedules` has no
+     * `notes` column — the `notes` in that migration belongs to
+     * `cable_schedule_items`, a per-cable remark. So the cable schedule module
+     * has no own note field, and its Notes tab shows only note_added entries.
+     */
+    public function test_the_cable_schedule_has_no_own_note_field(): void
     {
         $project = $this->project();
 
-        $schedule = CableSchedule::factory()->create(['project_id' => $project->id]);
-        $schedule->forceFill(['notes' => 'Cores re-used from the old rack.'])->save();
+        CableSchedule::factory()->create(['project_id' => $project->id]);
 
-        $notes = $this->presenter()->notes($project->fresh(), 'cable_schedule');
+        $this->assertFalse(
+            Schema::hasColumn('cable_schedules', 'notes'),
+            'If a notes column is ever added to cable_schedules, map it in NOTE_FIELDS.'
+        );
 
-        $this->assertCount(1, $notes);
-        $this->assertSame('Cores re-used from the old rack.', $notes->first()['text']);
+        $this->assertTrue($this->presenter()->notes($project->fresh(), 'cable_schedule')->isEmpty());
     }
 
     public function test_the_install_programme_and_survey_note_fields_are_read(): void
@@ -293,10 +301,20 @@ class CockpitPanelPresenterTest extends TestCase
     {
         $project = $this->project(['notes' => 'PROJECT LEVEL NOTE TEXT']);
 
+        // Both modules that DO own a note field have a record with an empty
+        // one, so a fallback would have somewhere tempting to fire.
+        $this->survey($project, ['general_notes' => null]);
+        InstallProgramme::factory()->create(['project_id' => $project->id, 'notes' => null]);
+
+        $project = $project->fresh();
+
         foreach (self::NINE_MODULES as $module) {
-            foreach ($this->presenter()->notes($project, $module) as $note) {
-                $this->assertStringNotContainsString('PROJECT LEVEL NOTE TEXT', $note['text']);
-            }
+            $notes = $this->presenter()->notes($project, $module);
+
+            $this->assertTrue(
+                $notes->isEmpty(),
+                "{$module} has no notes of its own, so its tab must say so rather than borrow the project's."
+            );
         }
     }
 
