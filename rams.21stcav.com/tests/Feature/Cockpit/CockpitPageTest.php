@@ -7,8 +7,10 @@ use App\Http\Controllers\ProjectCockpitController;
 use App\Models\Project;
 use App\Models\User;
 use App\Services\ProjectHealthService;
+use App\Support\Cockpit\CockpitModulePresenter;
 use Illuminate\Foundation\Testing\Concerns\InteractsWithViews;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use ReflectionClass;
 use ReflectionMethod;
 use Tests\TestCase;
@@ -313,6 +315,182 @@ class CockpitPageTest extends TestCase
             'h2 for the attention line plus one per section group.'
         );
         $this->assertSame([], array_values(array_diff($levels, ['1', '2'])), 'Only h1 and h2 appear in the cockpit subtree.');
+    }
+
+    // ── Plan 45-11, Task 1 — the panel's state lives in the query string ──
+    //
+    // THE RULING, so it is readable from the test file that enforces it: the
+    // side panel opens, switches tab and closes through plain <a href> links
+    // and nothing else. Alpine is loaded globally by the layout and is ruled
+    // OUT inside the cockpit region — CockpitReadOnlyFenceTest bans handler
+    // attributes there, and weakening a fence to fit a design is the exact
+    // failure the fence exists to catch. Every assertion below therefore
+    // describes a GET that writes nothing.
+
+    /**
+     * The view data, not the markup. Task 1 is the controller's contract;
+     * Tasks 2 and 3 assert what the Blade layer does with it.
+     *
+     * @return array<string, mixed>
+     */
+    private function cockpitViewData(Project $project, array $query = []): array
+    {
+        config(['cockpit.enabled' => true]);
+
+        $url = route('projects.cockpit', $project).($query === [] ? '' : '?'.http_build_query($query));
+
+        $response = $this->actingAs(User::factory()->create())->get($url)->assertOk();
+
+        return $response->original->getData();
+    }
+
+    public function test_no_query_string_means_no_open_module(): void
+    {
+        $data = $this->cockpitViewData($this->project());
+
+        $this->assertNull($data['openModule'], 'The page at rest opens nothing (D-09).');
+        $this->assertSame('overview', $data['tab']);
+    }
+
+    public function test_a_valid_module_key_opens_that_module_on_overview(): void
+    {
+        $data = $this->cockpitViewData($this->project(), ['module' => 'worksheet']);
+
+        $this->assertIsArray($data['openModule']);
+        $this->assertSame('worksheet', $data['openModule']['key']);
+        $this->assertSame('First fix and install', $data['openModule']['title']);
+        $this->assertSame('overview', $data['tab']);
+    }
+
+    public function test_every_presenter_module_key_opens(): void
+    {
+        $project = $this->project();
+
+        foreach (array_keys(CockpitModulePresenter::moduleMap()) as $key) {
+            $data = $this->cockpitViewData($project, ['module' => $key]);
+
+            $this->assertIsArray($data['openModule'], "Module '{$key}' must open.");
+            $this->assertSame($key, $data['openModule']['key']);
+        }
+    }
+
+    /**
+     * Threat T-45-11-01 / T-45-11-02. An unknown key is a stale bookmark, not
+     * an error worth showing a PM: the page renders with the panel closed and
+     * the submitted value is never echoed. Membership, never validate() —
+     * a failed validate() redirects with a session error bag, which is a
+     * write-shaped behaviour on a read-only page.
+     */
+    public function test_a_hostile_or_unknown_module_value_is_ignored_and_never_echoed(): void
+    {
+        $project = $this->project();
+
+        $payloads = [
+            'unknown-module',
+            '<script>alert(1)</script>',
+            str_repeat('a', 5000),
+            '../../etc/passwd',
+            'WORKSHEET',
+        ];
+
+        foreach ($payloads as $payload) {
+            config(['cockpit.enabled' => true]);
+
+            $response = $this->actingAs(User::factory()->create())
+                ->get(route('projects.cockpit', $project).'?module='.urlencode($payload))
+                ->assertOk();
+
+            $this->assertNull(
+                $response->original->getData()['openModule'],
+                'An unrecognised module value must leave the panel closed.'
+            );
+
+            $this->assertStringNotContainsString(
+                $payload,
+                $response->getContent(),
+                'The submitted query value must never be echoed back into the page.'
+            );
+        }
+    }
+
+    public function test_the_tab_whitelist_falls_back_to_overview(): void
+    {
+        $project = $this->project();
+
+        foreach (['overview', 'files', 'notes'] as $tab) {
+            $this->assertSame($tab, $this->cockpitViewData($project, ['module' => 'rams', 'tab' => $tab])['tab']);
+        }
+
+        foreach (['<script>', 'Overview', str_repeat('b', 5000), 'activity'] as $bogus) {
+            $this->assertSame(
+                'overview',
+                $this->cockpitViewData($project, ['module' => 'rams', 'tab' => $bogus])['tab'],
+                'An unrecognised tab falls back to Overview rather than erroring.'
+            );
+        }
+    }
+
+    public function test_a_tab_without_a_module_opens_nothing(): void
+    {
+        $data = $this->cockpitViewData($this->project(), ['tab' => 'files']);
+
+        $this->assertNull($data['openModule']);
+    }
+
+    public function test_the_controller_hands_the_view_both_presenters_output(): void
+    {
+        $data = $this->cockpitViewData($this->project(), ['module' => 'site_survey']);
+
+        $this->assertCount(9, $data['modules'], 'Nine module rows (D-16).');
+        $this->assertArrayHasKey('site_address', $data['masthead']);
+        $this->assertArrayHasKey('overall', $data['kpis']);
+        $this->assertArrayHasKey('next_visit', $data['kpis']);
+        $this->assertArrayHasKey('documents', $data['kpis']);
+        $this->assertCount(1, $data['stageChips'], 'Exactly one stage chip — a project has one status.');
+        $this->assertArrayHasKey('progress', $data);
+    }
+
+    public function test_the_flag_gate_still_404s_with_a_module_query(): void
+    {
+        config(['cockpit.enabled' => false]);
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('projects.cockpit', $this->project()).'?module=worksheet')
+            ->assertNotFound();
+    }
+
+    /**
+     * Deliberately NOT merged with the flag-gate test above: actingAs() binds
+     * the user for the rest of the test, so a single method cannot assert both
+     * the authenticated and the unauthenticated case honestly.
+     */
+    public function test_the_auth_gate_still_rejects_an_unauthenticated_module_query(): void
+    {
+        config(['cockpit.enabled' => true]);
+
+        $response = $this->get(route('projects.cockpit', $this->project()).'?module=worksheet');
+
+        $this->assertContains($response->getStatusCode(), [302, 401, 403]);
+    }
+
+    public function test_opening_a_panel_changes_no_row_count(): void
+    {
+        $project = $this->project();
+
+        $tables = ['visits', 'install_records', 'install_programmes', 'site_surveys', 'worksheets'];
+        $before = [];
+
+        foreach ($tables as $table) {
+            $before[$table] = DB::table($table)->count();
+        }
+
+        foreach (array_keys(CockpitModulePresenter::moduleMap()) as $key) {
+            $this->cockpitViewData($project, ['module' => $key, 'tab' => 'files']);
+        }
+
+        foreach ($tables as $table) {
+            $this->assertSame($before[$table], DB::table($table)->count(), "`{$table}` moved — the cockpit writes nothing.");
+        }
     }
 
     // ── The read-only fence over this phase's own markup ─────────────────
