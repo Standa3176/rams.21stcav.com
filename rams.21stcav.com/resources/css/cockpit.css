@@ -454,38 +454,6 @@
     border-radius: 2px;
 }
 
-/* ── Attention line ─────────────────────────────────────────────────────
-   One heading plus one paragraph. Not a panel, not a list, not a card, and
-   it never duplicates the spine below it. The waiting item is named inline
-   in <em> with a 2px gold bottom border — one of exactly three permitted
-   gold uses in Phase 45. */
-.cav-cockpit .cav-attn {
-    padding: var(--cav-s4) 0 var(--cav-s5);
-    border-bottom: 1px solid var(--cav-rule);
-    margin-bottom: var(--cav-s6);
-}
-
-.cav-cockpit .cav-attn__head {
-    margin: 0 0 var(--cav-s1);
-    font-family: var(--cav-font-head);
-    font-size: 16px;
-    font-weight: 600;
-    line-height: 1.3;
-}
-
-.cav-cockpit .cav-attn p {
-    margin: 0;
-    color: var(--cav-mid);
-    font-size: 15px;
-    line-height: 1.65;
-}
-
-.cav-cockpit .cav-attn em {
-    font-style: normal;
-    border-bottom: 2px solid var(--cav-gold);
-    padding-bottom: 1px;
-}
-
 /* ── Side panel ── D-09 ─────────────────────────────────────────
    A column in the page grid, NOT an overlay. There is no scrim, no fixed
    positioning and no transition, because there is no JavaScript to drive

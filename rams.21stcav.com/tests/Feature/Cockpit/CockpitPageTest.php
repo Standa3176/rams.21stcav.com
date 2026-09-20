@@ -339,6 +339,16 @@ class CockpitPageTest extends TestCase
         $this->assertStringContainsString('Open drawer', $html);
     }
 
+    /**
+     * RETIRED HERE, REHOMED HERE: `test_a_tick_box_renders_unticked_and_is_a_square`
+     * (Plan 45-06). The tick-box component is deleted and sketch 004 draws no
+     * box, so the assertion had no subject. What it protected — NOTHING ON
+     * THIS PAGE CLAIMS A COMPLETION THIS PHASE CANNOT EVIDENCE — is this test:
+     * Programming has no model, table or relation anywhere in this codebase,
+     * so its row renders a chip and no count phrase at all. The same property
+     * is asserted from the other side in
+     * CockpitSpineTest::test_programming_claims_no_completion_it_cannot_evidence().
+     */
     public function test_the_programming_row_renders_its_chip_and_no_count_phrase(): void
     {
         config(['cockpit.enabled' => true]);
@@ -349,6 +359,8 @@ class CockpitPageTest extends TestCase
         // "0 files" would claim a file store that ProjectDeliverable.php:14-26
         // says does not exist and forbids building.
         $this->assertStringNotContainsString('0 files', $html);
+        $this->assertStringNotContainsString('cav-tick', $html);
+        $this->assertStringNotContainsString('Marked done by hand', $html);
         $this->assertStringContainsString('Not started', $html);
     }
 
@@ -417,7 +429,11 @@ class CockpitPageTest extends TestCase
 
         $this->assertStringContainsString('The status summary could not be read.', $html);
         $this->assertStringNotContainsString('On track', $html);
-        $this->assertSame(9, $this->countByClass($html, 'cav-module'), 'The module list still renders in full.');
+        $this->assertSame(
+            count(CockpitModulePresenter::moduleMap()),
+            $this->countByClass($html, 'cav-module'),
+            'The module list still renders in full.'
+        );
     }
 
     /**
@@ -433,6 +449,13 @@ class CockpitPageTest extends TestCase
             'views/components/cockpit/drawer.blade.php',
             'views/components/cockpit/pip.blade.php',
             'views/components/cockpit/tick-box.blade.php',
+
+            // Deleted by Plan 45-13. Plan 45-11 made it unreachable when the
+            // health summary moved into the Overall status KPI card, and it
+            // was the one cockpit view still using {!! !!}. An unrendered
+            // Blade file with unescaped output is a loaded gun for a later
+            // phase, so it went, and its .cav-attn rules went with it.
+            'views/components/cockpit/attention.blade.php',
         ] as $path) {
             $this->assertFileDoesNotExist(resource_path($path), "{$path} is superseded by sketch 004 and must not exist.");
         }
@@ -701,6 +724,14 @@ class CockpitPageTest extends TestCase
 
     // ── The state primitives ─────────────────────────────────────────────
 
+    /**
+     * RETIRED, REHOMED HERE: `test_the_pip_renders_all_three_states_with_shape_and_accessible_name`
+     * (Plan 45-06). The traffic-light pip component is deleted. Its real
+     * subject was never the pip: it was that STATE SURVIVES GREYSCALE because
+     * it is carried by shape and an accessible name, not by colour alone. The
+     * status chip is where module state lives now, so the property is asserted
+     * against its three variants here.
+     */
     public function test_status_chip_renders_its_three_variants_with_a_shape_channel(): void
     {
         foreach ([

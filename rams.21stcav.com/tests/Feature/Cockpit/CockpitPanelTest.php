@@ -362,34 +362,38 @@ class CockpitPanelTest extends TestCase
      */
     public function test_no_cockpit_view_uses_unescaped_output(): void
     {
-        // ONE NAMED EXCLUSION, and it is not a loophole. attention.blade.php
-        // predates this plan, assembles its sentence in PHP and echoes it
-        // unescaped; Plan 45-11 rendered it unreachable (the health summary
-        // moved into the Overall status KPI card) and left its deletion to
-        // 45-13. It is excluded BY NAME so the exclusion is visible and has to
-        // be deleted on purpose, rather than by widening this assertion.
-        $legacy = ['attention.blade.php'];
-
+        // NO EXCLUSIONS. Plan 45-12 excluded attention.blade.php by name — it
+        // predated that plan, assembled its sentence in PHP and echoed it with
+        // {!! !!}, and Plan 45-11 had already made it unreachable by folding
+        // the health summary into the Overall status KPI card. Plan 45-13
+        // DELETED it, so the exclusion went with it and this guard now covers
+        // every cockpit view without a carve-out. An unrendered Blade file
+        // carrying unescaped output is a loaded gun for a later phase: the
+        // next agent who needs an attention line would find it, render it, and
+        // inherit the {!! !!} along with it.
         $views = glob(resource_path('views/components/cockpit/*.blade.php'));
 
         $this->assertNotEmpty($views);
-        $this->assertCount(1, $legacy, 'The exclusion list grows only by a deliberate edit.');
 
         foreach ($views as $view) {
-            if (in_array(basename($view), $legacy, true)) {
-                continue;
-            }
-
             $this->assertStringNotContainsString('{!!', file_get_contents($view), basename($view).' uses unescaped output.');
         }
     }
 
     /**
-     * The excluded legacy component must stay UNREACHABLE — an exclusion is
-     * only acceptable while nothing renders it.
+     * Retargeted from `test_the_excluded_legacy_component_is_rendered_by_nothing`.
+     * Its subject was "the excluded component stays unreachable"; the component
+     * is now deleted, so the property is asserted in its stronger form — the
+     * file is gone AND nothing references it, which together mean it cannot
+     * come back by accident.
      */
-    public function test_the_excluded_legacy_component_is_rendered_by_nothing(): void
+    public function test_the_legacy_attention_component_is_deleted_and_referenced_by_nothing(): void
     {
+        $this->assertFileDoesNotExist(
+            resource_path('views/components/cockpit/attention.blade.php'),
+            'The attention line moved into the Overall status KPI card; the component is deleted.'
+        );
+
         $views = array_merge(
             glob(resource_path('views/components/cockpit/*.blade.php')),
             glob(resource_path('views/projects/*.blade.php'))
@@ -398,6 +402,10 @@ class CockpitPanelTest extends TestCase
         foreach ($views as $view) {
             $this->assertStringNotContainsString('x-cockpit.attention', file_get_contents($view), basename($view).' renders it.');
         }
+
+        // Its styles went with it — a rule with no markup is the other half of
+        // the same loaded gun.
+        $this->assertStringNotContainsString('cav-attn', file_get_contents(resource_path('css/cockpit.css')));
     }
 
     public function test_hostile_document_names_and_note_text_are_escaped(): void
