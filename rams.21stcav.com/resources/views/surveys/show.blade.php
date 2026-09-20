@@ -151,6 +151,17 @@
 
         </div>
 
+        {{-- ── OFFICE SEND-BACK BANNER (Phase 46, Plan 46-05) ────────────
+             The ENGINEER's own link, so the office's reason IS shown: they
+             are the person being asked. Renders nothing when the office has
+             not asked, or once the engineer has resubmitted. --}}
+        @include('partials._office-sendback-banner', [
+            'reopened' => $sendBack['reopened'] ?? false,
+            'at'       => $sendBack['at'] ?? null,
+            'reason'   => $sendBack['reason'] ?? null,
+            'rooms'    => [],
+        ])
+
         {{-- ── Engineer reference files (quick task 260601-r4c) ─────────
              Project-level uploaded artifacts visible to the engineer on the
              rooms-list screen, ABOVE Site Logistics. Drawer hides itself

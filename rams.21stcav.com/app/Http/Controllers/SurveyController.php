@@ -94,6 +94,11 @@ class SurveyController extends Controller
             'rooms'                => $rooms,
             'readonly'             => $survey->isLockedForEngineer(),
             'engineerFeedbackSite' => $engineerFeedbackSite,
+            // Plan 46-05 — the office send-back banner. This is the ENGINEER's
+            // own link, so the reason IS passed: they are the person being
+            // asked, and asking without saying what for is how a second
+            // incomplete return happens.
+            'sendBack'             => \App\Support\Visits\VisitReworkState::forSurvey($survey),
         ]);
     }
 

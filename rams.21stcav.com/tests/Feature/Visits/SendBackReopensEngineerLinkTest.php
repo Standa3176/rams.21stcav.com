@@ -441,4 +441,253 @@ class SendBackReopensEngineerLinkTest extends TestCase
         // ...and the model kept it, unchanged, for the PDF / notification paths.
         $this->assertTrue(method_exists(SiteSurvey::class, 'isSubmitted'));
     }
+
+    // --- Task 2: the banner - two audiences, two amounts of detail ---------
+
+    /**
+     * A worksheet on a real public token, with rooms so the page renders its
+     * body (the drawer and banner both live inside the populated branch).
+     */
+    private function worksheetLink(Project $project): Worksheet
+    {
+        return Worksheet::factory()->create([
+            'project_id'     => $project->id,
+            'generated_data' => ['rooms' => [[
+                'name'                      => 'Main Hall',
+                'is_surveyed'               => true,
+                'install_steps'             => '',
+                'cable_route_desc'          => '',
+                'power_outlet_count'        => 0,
+                'requires_additional_power' => false,
+                'network_port_count'        => 0,
+                'existing_cabling'          => '',
+                'equipment'                 => [],
+            ]]],
+        ]);
+    }
+
+    /** @test */
+    public function test_the_engineer_link_shows_the_office_reason(): void
+    {
+        ['survey' => $survey, 'project' => $project, 'token' => $token] = $this->submittedSurvey();
+        $this->sendBack($survey, $project, 'SENTINEL-REASON-COMMS-ROOM-PHOTOS-MISSING');
+
+        $body = $this->get("/survey/{$token}")->assertStatus(200)->getContent();
+
+        $this->assertStringContainsString('The office has asked for more information', $body);
+        $this->assertStringContainsString('SENTINEL-REASON-COMMS-ROOM-PHOTOS-MISSING', $body);
+    }
+
+    /**
+     * T-46-05-02 - the client signs this page and must NOT read the office's
+     * wording about its own engineer. Same sentinel, opposite expectation.
+     *
+     * @test
+     */
+    public function test_the_client_signed_worksheet_link_never_shows_the_office_reason(): void
+    {
+        $user      = User::factory()->create();
+        $project   = Project::factory()->create(['user_id' => $user->id]);
+        $worksheet = $this->worksheetLink($project);
+
+        Visit::factory()->create([
+            'project_id'       => $project->id,
+            'type'             => Visit::TYPE_INSTALL,
+            'source_type'      => Visit::SOURCE_WORKSHEET,
+            'source_id'        => $worksheet->id,
+            'sent_back_at'     => now()->subDay(),
+            'send_back_reason' => 'SENTINEL-REASON-OFFICE-ONLY-WORDING',
+        ]);
+
+        $body = $this->get(route('public-worksheet.show', ['token' => $worksheet->access_token]))
+            ->assertStatus(200)->getContent();
+
+        // The client IS told the visit is not finished...
+        $this->assertStringContainsString('The office has asked for more information', $body);
+        // ...but never reads the office's opinion of the return.
+        $this->assertStringNotContainsString('SENTINEL-REASON-OFFICE-ONLY-WORDING', $body);
+    }
+
+    /**
+     * T-46-05-03 - send_back_reason is PM free text on an unauthenticated
+     * page. Asserted on the RAW body: the payload must never appear
+     * unescaped, and the page must still render 200.
+     *
+     * @test
+     */
+    public function test_a_hostile_reason_is_escaped_on_the_engineer_link(): void
+    {
+        ['survey' => $survey, 'project' => $project, 'token' => $token] = $this->submittedSurvey();
+        $payload = '<script>alert(1)</script><img src=x onerror=alert(2)>';
+        $this->sendBack($survey, $project, $payload);
+
+        $body = $this->get("/survey/{$token}")->assertStatus(200)->getContent();
+
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $body);
+        $this->assertStringNotContainsString('<img src=x onerror=alert(2)>', $body);
+        // ...and it IS present, escaped, so the engineer still reads the ask.
+        $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $body);
+    }
+
+    /** @test */
+    public function test_the_banner_never_uses_unescaped_blade_output(): void
+    {
+        $partial = file_get_contents(resource_path('views/partials/_office-sendback-banner.blade.php'));
+
+        $this->assertStringNotContainsString('{!!', $partial, 'The banner renders PM free text on a client-signed page - unescaped output is forbidden.');
+    }
+
+    /** @test */
+    public function test_no_banner_renders_when_nothing_was_sent_back(): void
+    {
+        ['token' => $token] = $this->submittedSurvey();
+        $this->assertStringNotContainsString(
+            'The office has asked for more information',
+            $this->get("/survey/{$token}")->assertStatus(200)->getContent()
+        );
+
+        $user      = User::factory()->create();
+        $project   = Project::factory()->create(['user_id' => $user->id]);
+        $worksheet = $this->worksheetLink($project);
+        $this->assertStringNotContainsString(
+            'The office has asked for more information',
+            $this->get(route('public-worksheet.show', ['token' => $worksheet->access_token]))->assertStatus(200)->getContent()
+        );
+    }
+
+    /** @test */
+    public function test_the_banner_disappears_once_the_engineer_resubmits(): void
+    {
+        ['survey' => $survey, 'project' => $project, 'token' => $token] = $this->submittedSurvey();
+        $this->sendBack($survey, $project, 'SENTINEL-GONE-AFTER-RESUBMIT');
+
+        $this->assertStringContainsString('SENTINEL-GONE-AFTER-RESUBMIT', $this->get("/survey/{$token}")->getContent());
+
+        $survey->forceFill(['submitted_at' => now()])->save();
+
+        $body = $this->get("/survey/{$token}")->assertStatus(200)->getContent();
+        $this->assertStringNotContainsString('SENTINEL-GONE-AFTER-RESUBMIT', $body);
+        $this->assertStringNotContainsString('The office has asked for more information', $body);
+    }
+
+    /** @test */
+    public function test_rooms_in_scope_renders_on_the_worksheet_link(): void
+    {
+        $user      = User::factory()->create();
+        $project   = Project::factory()->create(['user_id' => $user->id]);
+        $worksheet = $this->worksheetLink($project);
+
+        Visit::factory()->create([
+            'project_id'     => $project->id,
+            'type'           => Visit::TYPE_INSTALL,
+            'source_type'    => Visit::SOURCE_WORKSHEET,
+            'source_id'      => $worksheet->id,
+            'sent_back_at'   => now()->subDay(),
+            'rooms_in_scope' => ['Main Hall', 'Breakout 2'],
+        ]);
+
+        $body = $this->get(route('public-worksheet.show', ['token' => $worksheet->access_token]))
+            ->assertStatus(200)->getContent();
+
+        $this->assertStringContainsString('Rooms in scope for this visit', $body);
+        $this->assertStringContainsString('Main Hall, Breakout 2', $body);
+    }
+
+    /**
+     * Plan 46-03 widened the ONE "Site Logistics" drawer. The banner is a
+     * separate element and must not have produced a second drawer or been
+     * merged into it.
+     *
+     * @test
+     */
+    public function test_the_carry_forward_drawer_still_renders_exactly_once(): void
+    {
+        $user    = User::factory()->create();
+        $project = Project::factory()->create(['user_id' => $user->id]);
+
+        // The 46-03 drawer only renders when the project has a survey
+        // carrying values - without one there would be nothing to count.
+        $survey = SiteSurvey::create([
+            'user_id'      => $user->id,
+            'project_id'   => $project->id,
+            'project_name' => 'Drawer Fixture',
+            'status'       => 'completed',
+        ]);
+        $survey->forceFill([
+            'site_risks'         => 'Live overhead cables in the plant room.',
+            'access_constraints' => 'Goods lift only.',
+        ])->save();
+
+        $worksheet = $this->worksheetLink($project);
+
+        Visit::factory()->create([
+            'project_id'       => $project->id,
+            'type'             => Visit::TYPE_INSTALL,
+            'source_type'      => Visit::SOURCE_WORKSHEET,
+            'source_id'        => $worksheet->id,
+            'sent_back_at'     => now()->subDay(),
+            'send_back_reason' => 'Anything.',
+        ]);
+
+        $body = $this->get(route('public-worksheet.show', ['token' => $worksheet->access_token]))
+            ->assertStatus(200)->getContent();
+
+        $this->assertSame(
+            1,
+            substr_count($body, 'Site Logistics &mdash; Arrival Info') + substr_count($body, 'Site Logistics — Arrival Info'),
+            'The 46-03 carry-forward drawer must still render exactly once - the banner is a separate element, not a second drawer.'
+        );
+        $this->assertStringContainsString('The office has asked for more information', $body);
+    }
+
+    /**
+     * VL-03 - rendering a banner rotates no token. Both engineer links must
+     * still work after the office has asked for more information.
+     *
+     * @test
+     */
+    public function test_rendering_the_banner_rotates_no_access_token(): void
+    {
+        ['survey' => $survey, 'project' => $project, 'token' => $token] = $this->submittedSurvey();
+        $this->sendBack($survey, $project);
+        $surveyTokenBefore = $survey->fresh()->access_token;
+
+        $this->get("/survey/{$token}")->assertStatus(200);
+        $this->assertSame($surveyTokenBefore, $survey->fresh()->access_token);
+
+        $worksheet = $this->worksheetLink($project);
+        Visit::factory()->create([
+            'project_id'   => $project->id,
+            'type'         => Visit::TYPE_INSTALL,
+            'source_type'  => Visit::SOURCE_WORKSHEET,
+            'source_id'    => $worksheet->id,
+            'sent_back_at' => now()->subDay(),
+        ]);
+        $wsTokenBefore = $worksheet->fresh()->access_token;
+
+        $this->get(route('public-worksheet.show', ['token' => $worksheet->access_token]))->assertStatus(200);
+        $this->assertSame($wsTokenBefore, $worksheet->fresh()->access_token);
+    }
+
+    /** @test */
+    public function test_both_links_still_return_200_for_the_pre_existing_cases(): void
+    {
+        // No visit at all - a survey link and a legacy worksheet link.
+        ['token' => $token] = $this->submittedSurvey();
+        $this->get("/survey/{$token}")->assertStatus(200);
+
+        $user    = User::factory()->create();
+        $project = Project::factory()->create(['user_id' => $user->id]);
+
+        $this->get(route('public-worksheet.show', ['token' => $this->worksheetLink($project)->access_token]))
+            ->assertStatus(200);
+
+        // NOTE: a worksheet with NO rooms at all is deliberately NOT asserted
+        // here. It 500s on `Undefined variable $signOffBlocked` - and it does
+        // so identically on the unmodified pre-46-05 view (verified by
+        // reverting the file to HEAD and re-running this case), so it is a
+        // PRE-EXISTING defect in the empty-rooms branch, not a regression from
+        // the banner. The banner include sits inside the populated branch and
+        // is never reached in that case. Recorded in deferred-items.md.
+    }
 }

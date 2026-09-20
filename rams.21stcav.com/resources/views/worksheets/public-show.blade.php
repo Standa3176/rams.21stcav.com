@@ -681,6 +681,21 @@
                  after the worksheet's snapshot timestamp. --}}
             @include('worksheets._stale-banner', ['worksheet' => $worksheet, 'variant' => 'public'])
 
+            {{-- ── OFFICE SEND-BACK BANNER (Phase 46, Plan 46-05) ─────────────
+                 A CLIENT signs this page, so `reason` is DELIBERATELY null:
+                 `send_back_reason` is the office's internal wording about its
+                 own engineer (threat T-46-05-02). The client learns the visit
+                 is not finished; they do not read the office's opinion of the
+                 return. DO NOT "fix" this by passing $sendBack['reason'].
+                 This is a separate, distinct element from the Site Logistics
+                 carry-forward drawer below (Plan 46-03) — do not merge them. --}}
+            @include('partials._office-sendback-banner', [
+                'reopened' => $sendBack['reopened'] ?? false,
+                'at'       => $sendBack['at'] ?? null,
+                'reason'   => null,
+                'rooms'    => $sendBack['rooms'] ?? [],
+            ])
+
             {{-- ── ENGINEER REFERENCE FILES (quick task 260601-r4c) ────────────
                  Project-level uploaded artifacts (site plans, CAD drawings,
                  cable schedules, method statements). Drawer is hidden when

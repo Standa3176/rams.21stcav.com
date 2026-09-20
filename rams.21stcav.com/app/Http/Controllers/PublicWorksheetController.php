@@ -62,6 +62,12 @@ class PublicWorksheetController extends Controller
             'token'          => $token,
             'latestSignoff'  => $worksheet->latestSignoff(),
             'photoCounts'    => $worksheet->photoCountsByRoom(),
+            // Plan 46-05 — the office send-back banner. This page is signed by
+            // the CLIENT, so the office's wording about its own engineer is
+            // DELIBERATELY withheld (threat T-46-05-02): the client learns the
+            // visit is not finished, not what the office thinks of the return.
+            // Do not "fix" the missing reason by passing it through.
+            'sendBack'       => \App\Support\Visits\VisitReworkState::forWorksheet($worksheet),
         ]);
     }
 

@@ -63,7 +63,7 @@ final class VisitReworkState
      * common case and must behave exactly as the app did before Plan 46-05:
      * a submitted survey stays locked forever.
      *
-     * @return array{reopened: bool, reason: ?string, at: ?Carbon}|null
+     * @return array{reopened: bool, reason: ?string, at: ?Carbon, rooms: array}|null
      */
     public static function forSource(string $sourceType, int $sourceId): ?array
     {
@@ -89,13 +89,17 @@ final class VisitReworkState
             // rather than lingering as "previously sent back" history.
             'reason'   => $reopened ? $visit->send_back_reason : null,
             'at'       => $reopened ? $visit->sent_back_at : null,
+            // D-05: the rooms the PM put in scope. INFORMATION, NOT A GATE —
+            // an engineer is never blocked from a room because this list is
+            // stale. Read from the same visit row, so no extra query.
+            'rooms'    => $reopened ? ($visit->rooms_in_scope ?? []) : [],
         ];
     }
 
     /**
      * The rework state of a site survey, or null when no visit wraps it.
      *
-     * @return array{reopened: bool, reason: ?string, at: ?Carbon}|null
+     * @return array{reopened: bool, reason: ?string, at: ?Carbon, rooms: array}|null
      */
     public static function forSurvey(?SiteSurvey $survey): ?array
     {
@@ -109,7 +113,7 @@ final class VisitReworkState
     /**
      * The rework state of a worksheet, or null when no visit wraps it.
      *
-     * @return array{reopened: bool, reason: ?string, at: ?Carbon}|null
+     * @return array{reopened: bool, reason: ?string, at: ?Carbon, rooms: array}|null
      */
     public static function forWorksheet(?Worksheet $worksheet): ?array
     {

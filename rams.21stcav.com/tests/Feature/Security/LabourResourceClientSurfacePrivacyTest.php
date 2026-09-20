@@ -104,6 +104,14 @@ class LabourResourceClientSurfacePrivacyTest extends TestCase
         'app/Http/Controllers/PublicWorksheetController.php',
         'resources/views/worksheets/public-show.blade.php',
 
+        // Shared partial included by BOTH public token views (Phase 46, Plan
+        // 46-05). Genuinely client-facing: `worksheets/public-show.blade.php`
+        // is the page a client opens and signs, and this partial renders
+        // inside it. Added here in the same commit that created it.
+        // It carries no actor name and must never reference LabourResource —
+        // an engineer's email or phone must not reach a client (LR-04).
+        'resources/views/partials/_office-sendback-banner.blade.php',
+
         // Generated client documents (44-CONTEXT.md canonical_refs).
         'resources/views/pdf/rams.blade.php',
         'resources/views/pdf/rams-v2.blade.php',
