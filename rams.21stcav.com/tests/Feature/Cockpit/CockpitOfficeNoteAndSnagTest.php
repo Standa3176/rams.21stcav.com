@@ -3,7 +3,9 @@
 namespace Tests\Feature\Cockpit;
 
 use App\Models\Project;
+use App\Models\ProjectActivityLog;
 use App\Models\SiteSurvey;
+use App\Models\Snag;
 use App\Models\User;
 use App\Models\Visit;
 use App\Models\VisitNote;
@@ -259,5 +261,386 @@ class CockpitOfficeNoteAndSnagTest extends TestCase
         foreach ($counts as $table => $count) {
             $this->assertSame($count, DB::table($table)->count(), "A note changed `{$table}`.");
         }
+    }
+
+    // ── Task 2: the two actions ──────────────────────────────────────────
+
+    private function note(Project $project, Visit $visit, array $payload = [], ?User $user = null)
+    {
+        return $this->actingAs($user ?? $this->user())
+            ->post(
+                route('projects.cockpit.visits.notes', ['project' => $project, 'visit' => $visit]),
+                $payload + ['body' => 'Cable route photo is missing for the second floor.'],
+            );
+    }
+
+    private function snag(Project $project, Visit $visit, array $payload = [], ?User $user = null)
+    {
+        return $this->actingAs($user ?? $this->user())
+            ->post(
+                route('projects.cockpit.visits.snags', ['project' => $project, 'visit' => $visit]),
+                $payload + ['title' => 'Trunking not made good in the comms room'],
+            );
+    }
+
+    public function test_adding_a_note_writes_one_note_and_one_activity_row(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+        $pm      = $this->user('Priya Mistry');
+
+        $this->note($project, $visit, ['body' => 'Please confirm the comms room key holder.'], $pm)
+            ->assertStatus(302);
+
+        $this->assertSame(1, VisitNote::count());
+
+        $note = VisitNote::first();
+
+        $this->assertSame('Please confirm the comms room key holder.', $note->body);
+        $this->assertSame($visit->id, $note->visit_id);
+        $this->assertSame($project->id, $note->project_id);
+        $this->assertSame($pm->id, $note->user_id);
+
+        $logs = ProjectActivityLog::where('action', ProjectActivityLog::ACTION_NOTE_ADDED)->get();
+
+        $this->assertCount(1, $logs);
+        $this->assertSame($pm->id, $logs->first()->user_id);
+        $this->assertSame($note->id, $logs->first()->metadata['visit_note_id'] ?? null);
+
+        // The PM's own words are NOT copied into the feed — the note lives in
+        // exactly one place, the same rule 46-06 applied to a send-back reason.
+        $this->assertStringNotContainsString('comms room key holder', (string) $logs->first()->description);
+    }
+
+    public function test_adding_a_note_through_the_endpoint_moves_nothing_the_engineer_captured(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        /** @var SiteSurvey $survey */
+        $survey = SiteSurvey::findOrFail($visit->source_id);
+
+        $before      = $this->engineerBytes($survey);
+        $visitBefore = [
+            'sent_at'    => (string) $visit->getRawOriginal('sent_at'),
+            'updated_at' => (string) $visit->getRawOriginal('updated_at'),
+        ];
+
+        $this->note($project, $visit)->assertStatus(302);
+
+        // THIS COMPARISON IS D-02, EXECUTABLE — AT THE HTTP BOUNDARY.
+        $this->assertSame($before, $this->engineerBytes($survey));
+        $this->assertSame('A pre-existing office review note.', $survey->refresh()->office_review_notes);
+
+        $visit->refresh();
+        $this->assertSame($visitBefore['sent_at'], (string) $visit->getRawOriginal('sent_at'));
+        $this->assertSame($visitBefore['updated_at'], (string) $visit->getRawOriginal('updated_at'));
+    }
+
+    public function test_a_note_body_is_required_and_bounded(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        $this->note($project, $visit, ['body' => ''])->assertSessionHasErrors('body');
+        $this->note($project, $visit, ['body' => 'no'])->assertSessionHasErrors('body');
+        $this->note($project, $visit, ['body' => str_repeat('a', 4001)])->assertSessionHasErrors('body');
+
+        $this->assertSame(0, VisitNote::count());
+    }
+
+    public function test_a_note_lands_the_pm_on_the_notes_tab_of_the_module_they_had_open(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        $target = (string) $this->note($project, $visit)->headers->get('Location');
+
+        $this->assertStringContainsString('module=site_survey', $target);
+        $this->assertStringContainsString('tab=notes', $target);
+    }
+
+    public function test_an_accepted_visit_may_still_be_annotated(): void
+    {
+        $project = $this->project();
+        $visit   = Visit::factory()->accepted()->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
+
+        $this->note($project, $visit)->assertStatus(302);
+
+        $this->assertSame(1, VisitNote::count());
+    }
+
+    public function test_a_planned_visit_cannot_be_annotated(): void
+    {
+        $project = $this->project();
+        $visit   = Visit::factory()->planned()->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
+
+        $this->note($project, $visit)->assertStatus(422);
+
+        $this->assertSame(0, VisitNote::count());
+    }
+
+    public function test_a_note_on_another_projects_visit_is_a_404_and_writes_nothing(): void
+    {
+        $mine    = $this->project();
+        $theirs  = $this->project();
+        $foreign = $this->returnedSurveyVisit($theirs);
+
+        $this->note($mine, $foreign)->assertNotFound();
+
+        $this->assertSame(0, VisitNote::count());
+        $this->assertSame(0, ProjectActivityLog::where('action', ProjectActivityLog::ACTION_NOTE_ADDED)->count());
+    }
+
+    public function test_an_anonymous_caller_can_neither_annotate_nor_raise(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        $this->post(route('projects.cockpit.visits.notes', ['project' => $project, 'visit' => $visit]), [
+            'body' => 'Not mine to write.',
+        ])->assertStatus(302);
+
+        $this->post(route('projects.cockpit.visits.snags', ['project' => $project, 'visit' => $visit]), [
+            'title' => 'Not mine to raise.',
+        ])->assertStatus(302);
+
+        $this->assertSame(0, VisitNote::count());
+        $this->assertSame(0, Snag::count());
+    }
+
+    public function test_raising_a_snag_creates_exactly_one_open_snag_linked_to_its_visit(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+        $pm      = $this->user('Priya Mistry');
+
+        $this->snag($project, $visit, [
+            'title'     => 'Trunking not made good in the comms room',
+            'detail'    => 'Second floor riser, above the door.',
+            'room_name' => 'Comms room',
+        ], $pm)->assertStatus(302);
+
+        $this->assertSame(1, Snag::count());
+
+        $snag = Snag::first();
+
+        $this->assertSame('Trunking not made good in the comms room', $snag->title);
+        $this->assertSame('Second floor riser, above the door.', $snag->detail);
+        $this->assertSame('Comms room', $snag->room_name);
+        $this->assertSame(Snag::STATUS_OPEN, $snag->status);
+        $this->assertSame($visit->id, $snag->visit_id);
+        $this->assertSame($project->id, $snag->project_id);
+        $this->assertSame($pm->id, $snag->raised_by_user_id);
+
+        $logs = ProjectActivityLog::where('action', ProjectActivityLog::ACTION_SNAG_RAISED)->get();
+
+        $this->assertCount(1, $logs);
+        $this->assertSame($snag->id, $logs->first()->metadata['snag_id'] ?? null);
+        $this->assertSame($visit->id, $logs->first()->metadata['visit_id'] ?? null);
+    }
+
+    /**
+     * D-03 AT THE HTTP BOUNDARY. 46-02 fenced the SCHEMA against the five
+     * Phase 47 fields; this fences the REQUEST, so a posted field is never
+     * the thing that makes somebody add the column.
+     */
+    public function test_the_phase_47_fields_are_ignored_when_a_snag_is_raised(): void
+    {
+        $phase47 = [
+            'outcome'        => 'fixed',
+            'parts'          => 'One 2m length of trunking',
+            'parent_snag_id' => 99,
+            'assigned_to'    => 42,
+            'cost'           => 250.00,
+            'resolved_at'    => '2026-09-20 10:00:00',
+            'status'         => 'closed',
+        ];
+
+        foreach ($phase47 as $field => $value) {
+            $project = $this->project();
+            $visit   = $this->returnedSurveyVisit($project);
+
+            $this->snag($project, $visit, [$field => $value])->assertStatus(302);
+
+            $snag       = Snag::where('project_id', $project->id)->firstOrFail();
+            $attributes = $snag->getAttributes();
+
+            // A raised snag is always open — posting `status` does not change it.
+            $this->assertSame(Snag::STATUS_OPEN, $snag->status, "Posting `{$field}` changed the snag's status.");
+
+            if ($field !== 'status') {
+                $this->assertArrayNotHasKey(
+                    $field,
+                    $attributes,
+                    "Posting `{$field}` reached the snag record — D-03 says Phase 47 owns it."
+                );
+            }
+        }
+
+        // And the schema fence 46-02 set is still exactly where it was.
+        foreach (['outcome', 'parts', 'parent_snag_id', 'resolved_at', 'assigned_to', 'cost'] as $column) {
+            $this->assertFalse(Schema::hasColumn('snags', $column), "A Phase 47 column `{$column}` appeared on snags.");
+        }
+    }
+
+    public function test_a_snag_title_is_required_and_bounded_and_its_optional_fields_are_capped(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        $this->snag($project, $visit, ['title' => ''])->assertSessionHasErrors('title');
+        $this->snag($project, $visit, ['title' => 'no'])->assertSessionHasErrors('title');
+        $this->snag($project, $visit, ['title' => str_repeat('a', 201)])->assertSessionHasErrors('title');
+        $this->snag($project, $visit, ['detail' => str_repeat('a', 4001)])->assertSessionHasErrors('detail');
+        $this->snag($project, $visit, ['room_name' => str_repeat('a', 201)])->assertSessionHasErrors('room_name');
+
+        $this->assertSame(0, Snag::count());
+    }
+
+    public function test_a_snag_cannot_be_raised_on_an_accepted_or_a_planned_visit(): void
+    {
+        $project  = $this->project();
+        $accepted = Visit::factory()->accepted()->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
+        $planned  = Visit::factory()->planned()->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
+
+        // A snag found after acceptance is Phase 47's register, not a
+        // retroactive edit to a closed visit.
+        $this->snag($project, $accepted)->assertStatus(422);
+        $this->snag($project, $planned)->assertStatus(422);
+
+        $this->assertSame(0, Snag::count());
+    }
+
+    public function test_a_snag_on_another_projects_visit_is_a_404_and_writes_nothing(): void
+    {
+        $mine    = $this->project();
+        $theirs  = $this->project();
+        $foreign = $this->returnedSurveyVisit($theirs);
+
+        $this->snag($mine, $foreign)->assertNotFound();
+
+        $this->assertSame(0, Snag::count());
+    }
+
+    public function test_the_note_and_snag_routes_are_gone_when_the_cockpit_flag_is_off(): void
+    {
+        config(['cockpit.enabled' => false]);
+
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        $this->note($project, $visit)->assertNotFound();
+        $this->snag($project, $visit)->assertNotFound();
+
+        $this->assertSame(0, VisitNote::count());
+        $this->assertSame(0, Snag::count());
+    }
+
+    // ── Task 2: where the note shows ─────────────────────────────────────
+
+    /** The rendered cockpit region, entity-decoded. */
+    private function region(Project $project, array $query = [], ?User $user = null): string
+    {
+        $body = $this->actingAs($user ?? $this->user())
+            ->get(route('projects.cockpit', ['project' => $project] + $query))
+            ->assertOk()
+            ->getContent();
+
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$body);
+        libxml_clear_errors();
+
+        $node = (new \DOMXPath($dom))
+            ->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' cav-cockpit ')]")
+            ->item(0);
+
+        return $node === null ? '' : html_entity_decode($dom->saveHTML($node), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
+    public function test_the_notes_tab_lists_office_notes_newest_first_with_author_and_time(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+        $pm      = $this->user('Priya Mistry');
+
+        $this->travelTo(now()->setDate(2026, 8, 14)->setTime(16, 11));
+        $this->note($project, $visit, ['body' => 'The older office note.'], $pm);
+
+        $this->travelTo(now()->addDay());
+        $this->note($project, $visit, ['body' => 'The newer office note.'], $pm);
+
+        $this->travelBack();
+
+        $notes = $this->region($project, ['module' => 'site_survey', 'tab' => 'notes']);
+
+        $this->assertStringContainsString('The newer office note.', $notes);
+        $this->assertStringContainsString('The older office note.', $notes);
+        $this->assertStringContainsString('Priya Mistry', $notes);
+        $this->assertStringContainsString('14 Aug 2026, 16:11', $notes);
+
+        // Newest first.
+        $this->assertLessThan(
+            strpos($notes, 'The older office note.'),
+            strpos($notes, 'The newer office note.'),
+            'Office notes must read newest first.'
+        );
+
+        // Visibly the OFFICE's, so a reader can tell it from an engineer's.
+        $this->assertStringContainsString('Office note', $notes);
+    }
+
+    public function test_an_office_note_is_listed_once_not_twice(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        $this->note($project, $visit, ['body' => 'Exactly once, please.']);
+
+        $notes = $this->region($project, ['module' => 'site_survey', 'tab' => 'notes']);
+
+        $this->assertSame(1, substr_count($notes, 'Exactly once, please.'));
+    }
+
+    public function test_an_office_note_shows_under_the_module_its_visit_belongs_to_and_no_other(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        $this->note($project, $visit, ['body' => 'Survey drawer only.']);
+
+        $this->assertStringContainsString(
+            'Survey drawer only.',
+            $this->region($project, ['module' => 'site_survey', 'tab' => 'notes'])
+        );
+
+        $this->assertStringNotContainsString(
+            'Survey drawer only.',
+            $this->region($project, ['module' => 'worksheet', 'tab' => 'notes'])
+        );
+    }
+
+    /**
+     * THE WORKSHEET AND SURVEY LINKS ARE PAGES A CLIENT SIGNS. Office text
+     * does not belong on them — 46-05's send-back banner is the ONE piece of
+     * office copy deliberately shown there, and neither a note nor a snag
+     * joins it.
+     */
+    public function test_neither_a_note_nor_a_snag_reaches_the_engineer_link(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        /** @var SiteSurvey $survey */
+        $survey = SiteSurvey::findOrFail($visit->source_id);
+
+        $this->note($project, $visit, ['body' => 'OFFICE-ONLY-NOTE-MARKER']);
+        $this->snag($project, $visit, ['title' => 'OFFICE-ONLY-SNAG-MARKER']);
+
+        $body = $this->get('/survey/'.$survey->refresh()->access_token)->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('OFFICE-ONLY-NOTE-MARKER', $body);
+        $this->assertStringNotContainsString('OFFICE-ONLY-SNAG-MARKER', $body);
     }
 }
