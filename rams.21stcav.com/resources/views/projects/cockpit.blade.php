@@ -154,6 +154,7 @@
                         :notes="$panelNotes"
                         :activity="$activity"
                         :action="$action"
+                        :action-visit-id="$actionVisitId"
                         :rooms="$quickActionRooms"
                         :people="$quickActionPeople" />
                 @endif

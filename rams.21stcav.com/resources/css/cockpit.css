@@ -881,6 +881,110 @@
     font-weight: 600;
 }
 
+/* ── The visit row's action area (Phase 46, Plan 46-06) ─────────────────
+   At most FOUR controls, and never a disabled one. Same visual language as
+   `.cav-qa__control`, deliberately, so an act reads the same wherever the PM
+   meets it — but its own class, so a later edit to Quick actions cannot
+   reach a visit row it was not aimed at.
+   ⚠️ NO `position` ANYWHERE IN HERE (the stretched-link trap). */
+.cav-cockpit .cav-visit__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--cav-s3);
+    margin-top: var(--cav-s2);
+}
+
+.cav-cockpit .cav-visit__control {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--cav-s1) var(--cav-s3);
+    border: 1px solid var(--cav-teal-dark);
+    border-radius: var(--cav-radius-sm);
+    background: var(--cav-teal-dark);
+    color: var(--cav-surface);
+    font-family: var(--cav-font-body);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.5;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.cav-cockpit .cav-visit__control:hover {
+    background: var(--cav-teal);
+    border-color: var(--cav-teal);
+}
+
+/* Send back is the quieter of the two: rejecting a return is the exception,
+   and the design must not weight it equally with accepting one. */
+.cav-cockpit .cav-visit__control--quiet {
+    background: transparent;
+    border-color: var(--cav-border);
+    color: var(--cav-mid);
+}
+
+.cav-cockpit .cav-visit__control--quiet:hover {
+    background: var(--cav-row-hover);
+    border-color: var(--cav-mid);
+    color: var(--cav-ink);
+}
+
+.cav-cockpit .cav-visit__control:focus-visible,
+.cav-cockpit .cav-visit__cancel:focus-visible,
+.cav-cockpit .cav-visit__reason:focus-visible {
+    outline: 2px solid var(--cav-focus);
+    outline-offset: 2px;
+}
+
+.cav-cockpit .cav-visit__act {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cav-s2);
+}
+
+.cav-cockpit .cav-visit__act--reason {
+    flex: 1 1 100%;
+}
+
+.cav-cockpit .cav-visit__row {
+    display: flex;
+    align-items: center;
+    gap: var(--cav-s3);
+}
+
+.cav-cockpit .cav-visit__hint {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--cav-light);
+}
+
+.cav-cockpit .cav-visit__error {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--cav-destructive);
+}
+
+.cav-cockpit .cav-visit__reason {
+    width: 100%;
+    padding: var(--cav-s2) var(--cav-s3);
+    border: 1px solid var(--cav-border);
+    border-radius: var(--cav-radius-sm);
+    background: var(--cav-surface);
+    color: var(--cav-ink);
+    font-family: var(--cav-font-body);
+    font-size: 13px;
+    line-height: 1.5;
+    resize: vertical;
+}
+
+.cav-cockpit .cav-visit__cancel {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--cav-mid);
+    text-decoration: underline;
+}
+
 .cav-cockpit .cav-visit__status {
     font-size: 13px;
     line-height: 1.45;

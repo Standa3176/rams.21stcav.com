@@ -32,7 +32,41 @@
     Source force-deleted: the visit still renders, with the Record unavailable
     chip. A broken source must never remove a visit from the spine.
 --}}
-@props(['visit'])
+{{--
+    ── THE ACTION AREA (Phase 46, Plan 46-06) ───────────────────────────────
+
+    Two of D-02's four PM acts, on the row of the visit they act on: ACCEPT and
+    SEND BACK. 46-07 adds Add note and Raise a snag, making FOUR — and four is
+    the cap (VL-11), asserted over every factory state x every visit type by
+    CockpitVisitActionsTest::test_no_visit_row_ever_renders_more_than_four_controls().
+    A fifth control means removing one, not widening the row.
+
+    WHO GETS WHAT:
+      planned   none        sent_back  Accept (there is no second send-back)
+      sent      none        accepted   none — "Accepted by {name} on {date}"
+      returned  Accept + Send back     closed (reconstructed) none
+
+    NOTHING IS EVER DISABLED. A disabled control is still an offer, and one
+    that never explains itself is how a PM decides the page is broken. A state
+    with no act renders a SENTENCE instead.
+
+    D-06 — THERE IS NO "EDIT VISIT" CONTROL, so the scope lock has nothing to
+    grey out. It says "Scope locked — returned {date}" and a PM who needs a
+    change sends the visit back.
+
+    NO JAVASCRIPT. Each act is its own small form POST; the reason field is
+    disclosed by `&action=send-back&visit={id}` on the module's own URL and
+    closed by an anchor back — the same query-string mechanism the panel has
+    used since 45-11. All nine of the fence's banned handler attributes stay
+    absent and there is no <select>.
+--}}
+@props([
+    'visit',
+    'project'       => null,
+    'module'        => null,
+    'action'        => null,
+    'actionVisitId' => null,
+])
 
 @php
     $isReconstructed = $visit->isBackfilled();
@@ -84,6 +118,28 @@
     // concludes the page is broken.
     $lockedOn  = $isReconstructed ? null : $visit->returnedAt();
     $acceptedBy = $visit->accepted_at === null ? null : optional($visit->acceptedBy)->name;
+
+    // The acts this row offers. `$project` is null only where a caller renders
+    // the row outside the panel, in which case it offers nothing rather than
+    // building a route it cannot address.
+    $canAct      = $isReviewable && $project !== null && $module !== null;
+    $canAccept   = $canAct && in_array($state, [\App\Models\Visit::STATE_RETURNED, \App\Models\Visit::STATE_SENT_BACK], true);
+    $canSendBack = $canAct && $state === \App\Models\Visit::STATE_RETURNED;
+
+    $moduleUrl   = $canAct
+        ? route('projects.cockpit', ['project' => $project, 'module' => $module['key']])
+        : null;
+    $sendBackUrl = $canAct
+        ? route('projects.cockpit', [
+            'project' => $project,
+            'module'  => $module['key'],
+            'action'  => 'send-back',
+            'visit'   => $visit->id,
+        ])
+        : null;
+
+    // COMPARED, never looked up: the id came off the query string.
+    $sendBackOpen = $canSendBack && $action === 'send-back' && (int) $actionVisitId === $visit->id;
 @endphp
 
 <div class="cav-visit{{ $isReconstructed ? ' cav-visit--reconstructed' : '' }}">
@@ -154,6 +210,52 @@
             {{-- Scope locks ON RETURN, not on acceptance (Visit::isLocked()).
                  The sentence is the whole affordance. --}}
             <span class="cav-visit__lock">Scope locked — returned {{ $lockedOn->format('d M Y') }}</span>
+        @endif
+
+        @if ($canAccept || $canSendBack)
+            <span class="cav-visit__actions">
+                @if ($canAccept)
+                    {{-- Its own small form POST. Acceptance is FINAL in this
+                         phase: there is no un-accept, because one would erase
+                         the record of who said yes. --}}
+                    <form class="cav-visit__act" method="POST"
+                          action="{{ route('projects.cockpit.visits.accept', ['project' => $project, 'visit' => $visit->id]) }}">
+                        @csrf
+                        <button class="cav-visit__control" type="submit">Accept</button>
+                    </form>
+                @endif
+
+                @if ($canSendBack && ! $sendBackOpen)
+                    <a class="cav-visit__control cav-visit__control--quiet" href="{{ $sendBackUrl }}">Send back</a>
+                @endif
+
+                @if ($sendBackOpen)
+                    <form class="cav-visit__act cav-visit__act--reason" method="POST"
+                          action="{{ route('projects.cockpit.visits.send-back', ['project' => $project, 'visit' => $visit->id]) }}">
+                        @csrf
+
+                        {{-- THE ONE PLACE IN THIS PHASE WHERE AN INPUT'S
+                             AUDIENCE IS NOT OBVIOUS FROM WHERE IT SITS. The
+                             PM is writing to the engineer, on a page the PM
+                             never sees. --}}
+                        <span class="cav-visit__hint">The engineer will read this on their link.</span>
+
+                        @error('reason')
+                            {{-- Escaped, always. A submitted value is never
+                                 reflected raw (T-46-06-04). --}}
+                            <span class="cav-visit__error">{{ $message }}</span>
+                        @enderror
+
+                        <textarea class="cav-visit__reason" name="reason" rows="3"
+                                  aria-label="Why this visit is going back">{{ old('reason') }}</textarea>
+
+                        <span class="cav-visit__row">
+                            <button class="cav-visit__control" type="submit">Send back</button>
+                            <a class="cav-visit__cancel" href="{{ $moduleUrl }}">Cancel</a>
+                        </span>
+                    </form>
+                @endif
+            </span>
         @endif
     </span>
 

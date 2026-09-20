@@ -56,6 +56,9 @@
     // state, resolved by membership in ProjectCockpitController exactly as
     // `module` and `tab` are, so an unknown value discloses nothing.
     'action'   => null,
+    // Plan 46-06 — the visit row the `send-back` disclosure names. Compared,
+    // never looked up.
+    'actionVisitId' => null,
     'rooms'    => [],
     'people'   => [],
 ])
@@ -180,7 +183,12 @@
                          D-04 superseded treatments reach the panel unchanged
                          rather than being re-implemented here. --}}
                     @foreach ($visits as $visit)
-                        <x-cockpit.visit-row :visit="$visit" />
+                        <x-cockpit.visit-row
+                            :visit="$visit"
+                            :project="$project"
+                            :module="$module"
+                            :action="$action"
+                            :action-visit-id="$actionVisitId" />
                     @endforeach
                 </div>
             @else

@@ -65,9 +65,15 @@ class ProjectCockpitController extends Controller
      * the only edit Phase 46 makes to this controller, and it ADDS NO WRITE:
      * the cockpit's writes live in ProjectCockpitActionController.
      *
+     * Plan 46-06 adds `send-back`, which discloses ONE visit row's reason
+     * field. That row is named by a fourth piece of URL state, `?visit={id}`,
+     * resolved as an INT and only ever COMPARED against the ids already being
+     * rendered — it addresses no record and is never echoed, so a hostile
+     * value discloses nothing.
+     *
      * @var array<int, string>
      */
-    public const ACTIONS = ['create-visit'];
+    public const ACTIONS = ['create-visit', 'send-back'];
 
     public function __construct(
         private ProjectHealthService $health,
@@ -129,8 +135,15 @@ class ProjectCockpitController extends Controller
         // CockpitReadOnlyFenceTest's GET row-count tests still prove.
         $action = $this->resolveAction($request);
 
-        $quickActionRooms  = $action === null ? [] : $this->roomNames($project);
-        $quickActionPeople = $action === null ? [] : $this->activePeople();
+        // Only the create form needs these two lists, so `?action=send-back`
+        // must not pay for a query it never reads.
+        $quickActionRooms  = $action === 'create-visit' ? $this->roomNames($project) : [];
+        $quickActionPeople = $action === 'create-visit' ? $this->activePeople() : [];
+
+        // The visit row the `send-back` disclosure names. An int or null, and
+        // nothing looks it up: the row component COMPARES it against the
+        // visits it is already rendering (Plan 46-06).
+        $actionVisitId = $this->resolveActionVisitId($request);
 
         $masthead   = $this->headerPresenter->masthead($project);
         $kpis       = $this->headerPresenter->kpis($project, $health);
@@ -152,6 +165,7 @@ class ProjectCockpitController extends Controller
             'panelNotes',
             'activity',
             'action',
+            'actionVisitId',
             'quickActionRooms',
             'quickActionPeople',
         ));
@@ -209,6 +223,26 @@ class ProjectCockpitController extends Controller
         }
 
         return in_array($submitted, self::ACTIONS, true) ? $submitted : null;
+    }
+
+    /**
+     * The visit id the `send-back` disclosure names, or null.
+     *
+     * CAST, NEVER LOOKED UP. A visit id in a query string must not address a
+     * record on a read page: this value is compared against the visits the
+     * panel is already rendering, so a foreign or hostile id simply opens
+     * nothing. The POST it discloses does its own project-scoped ownership
+     * check (T-46-06-01).
+     */
+    private function resolveActionVisitId(Request $request): ?int
+    {
+        $submitted = $request->query('visit');
+
+        if (! is_string($submitted) && ! is_int($submitted)) {
+            return null;
+        }
+
+        return ctype_digit((string) $submitted) ? (int) $submitted : null;
     }
 
     /**
