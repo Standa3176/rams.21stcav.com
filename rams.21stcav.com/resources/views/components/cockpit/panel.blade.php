@@ -263,9 +263,29 @@
                              "Open full project" link, and two unrelated
                              things sharing a class is how a later styling
                              edit reaches something it was not aimed at. --}}
-                        <div class="cav-pnote">
+                        @php($isOffice = (bool) ($note['office'] ?? false))
+
+                        <div class="cav-pnote{{ $isOffice ? ' cav-pnote--office' : '' }}">
+                            {{-- D-02: an office note SITS ALONGSIDE the
+                                 engineer's record, so it has to READ as the
+                                 office's. The label is words, not a colour —
+                                 a hue alone would say nothing in greyscale
+                                 and nothing to a screen reader. --}}
+                            @if ($isOffice)
+                                <span class="cav-pnote__tag">Office note</span>
+                            @endif
+
+                            {{-- ESCAPED OUTPUT ONLY. PM free text is escaped
+                                 here and everywhere; unescaped output is
+                                 forbidden in every cockpit component and
+                                 CockpitPanelTest greps for it (T-46-07-05). --}}
                             <p class="cav-pnote__text">{{ $note['text'] }}</p>
-                            <span class="cav-pnote__meta">{{ $note['source'] }}{{ $note['at'] ? ' · '.$note['at']->format('d M Y') : '' }}</span>
+
+                            {{-- An office note carries the TIME as well as the
+                                 date: two notes on one return, minutes apart,
+                                 must be readable in the order they were
+                                 written. --}}
+                            <span class="cav-pnote__meta">{{ $note['source'] }}{{ $note['at'] ? ' · '.$note['at']->format($isOffice ? 'd M Y, H:i' : 'd M Y') : '' }}</span>
                         </div>
                     @endforeach
                 </div>

@@ -4,6 +4,7 @@ namespace App\Support\Cockpit;
 
 use App\Models\Project;
 use App\Models\ProjectActivityLog;
+use App\Models\VisitNote;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -241,7 +242,12 @@ final class CockpitPanelPresenter
      */
     public function notes(Project $project, string $moduleKey): Collection
     {
-        $notes = collect();
+        // OFFICE NOTES FIRST, newest first (Plan 46-07, D-02). They are listed
+        // BESIDE the module's own notes, never merged into them: an office
+        // note annotates the return, it does not become part of what the
+        // engineer said. Each carries `office => true` so the panel can label
+        // it, because a reader must be able to tell whose words these are.
+        $notes = $this->officeNotes($project, $moduleKey);
 
         $field = self::NOTE_FIELDS[$moduleKey] ?? null;
 
@@ -254,6 +260,7 @@ final class CockpitPanelPresenter
                         'text'   => $text,
                         'source' => $field['label'],
                         'at'     => $this->asDate($record->created_at),
+                        'office' => false,
                     ]);
                 }
             }
@@ -261,6 +268,15 @@ final class CockpitPanelPresenter
 
         foreach ($this->log($project) as $entry) {
             if ($entry->action !== ProjectActivityLog::ACTION_NOTE_ADDED) {
+                continue;
+            }
+
+            // An office note logs one `note_added` row AND writes one
+            // `visit_notes` record. The note itself is already listed above,
+            // so listing this row's description as well would print the same
+            // note twice under two different sources. The metadata key is
+            // what tells them apart.
+            if (($entry->metadata['visit_note_id'] ?? null) !== null) {
                 continue;
             }
 
@@ -274,10 +290,48 @@ final class CockpitPanelPresenter
                 'text'   => $text,
                 'source' => $entry->actor_name,
                 'at'     => $this->asDate($entry->created_at),
+                'office' => false,
             ]);
         }
 
         return $notes->values();
+    }
+
+    /**
+     * The office notes recorded against THIS module's visits, newest first.
+     *
+     * A note belongs to a visit, and a visit belongs to a module drawer by
+     * type — read from CockpitModulePresenter's OWN map rather than a second
+     * copy of it here, exactly as the action controller does, so a seventh
+     * visit type cannot silently land its notes nowhere.
+     *
+     * PURE READING, like everything else on this class: one query, no writes.
+     *
+     * @return Collection<int, array{text: string, source: string, at: \Illuminate\Support\Carbon|null, office: bool}>
+     */
+    private function officeNotes(Project $project, string $moduleKey): Collection
+    {
+        $types = CockpitModulePresenter::moduleMap()[$moduleKey]['visit_types'] ?? [];
+
+        if ($types === []) {
+            return collect();
+        }
+
+        return VisitNote::query()
+            ->where('project_id', $project->id)
+            ->whereHas('visit', fn ($query) => $query->whereIn('type', $types))
+            ->with('author')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (VisitNote $note): array => [
+                'text'   => (string) $note->body,
+                // actor_name, so a deleted login reads "System" here exactly
+                // as it does in the feed.
+                'source' => $note->actor_name,
+                'at'     => $this->asDate($note->created_at),
+                'office' => true,
+            ]);
     }
 
     // ── Recent activity (D-14) ───────────────────────────────────────────

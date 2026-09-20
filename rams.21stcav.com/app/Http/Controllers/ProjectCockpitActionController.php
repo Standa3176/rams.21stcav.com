@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Core\Modules\Projects\ProjectService;
 use App\Models\Project;
 use App\Models\ProjectActivityLog;
+use App\Models\Snag;
 use App\Models\Visit;
+use App\Models\VisitNote;
 use App\Support\Cockpit\CockpitModulePresenter;
 use App\Support\Visits\VisitLinkIssuer;
 use Illuminate\Http\RedirectResponse;
@@ -55,6 +57,38 @@ use Throwable;
  */
 class ProjectCockpitActionController extends Controller
 {
+    /**
+     * The states in which a visit may be ANNOTATED (Plan 46-07, D-02).
+     *
+     * ACCEPTED is included on purpose: a note after acceptance is exactly the
+     * annotation D-02 describes and it changes nothing about the acceptance.
+     * PLANNED and SENT are not — there is nothing back from site to annotate.
+     * A reconstructed visit never reaches here because the row offers no
+     * control at all (46-06's backfill trap), and CLOSED is excluded for the
+     * same reason: a visit finished years ago is not asking for a reading.
+     *
+     * @var array<int, string>
+     */
+    private const NOTEABLE_STATES = [
+        Visit::STATE_RETURNED,
+        Visit::STATE_SENT_BACK,
+        Visit::STATE_ACCEPTED,
+    ];
+
+    /**
+     * The states in which a snag may be RAISED (Plan 46-07, D-03).
+     *
+     * NOT accepted. A snag found after acceptance is Phase 47's register, not
+     * a retroactive edit to a closed visit — which is why this list is one
+     * entry shorter than NOTEABLE_STATES rather than the same list reused.
+     *
+     * @var array<int, string>
+     */
+    private const SNAGGABLE_STATES = [
+        Visit::STATE_RETURNED,
+        Visit::STATE_SENT_BACK,
+    ];
+
     public function __construct(
         private VisitLinkIssuer $issuer,
         private ProjectService $projects,
@@ -274,6 +308,146 @@ class ProjectCockpitActionController extends Controller
         return redirect()
             ->route('projects.cockpit', ['project' => $project, 'module' => $this->moduleKeyFor($visit)])
             ->with('success', 'Visit sent back. The engineer link is open again and carries your reason.');
+    }
+
+    /**
+     * POST /projects/{project}/cockpit/visits/{visit}/notes
+     *
+     * D-02's third PM act: the office annotates the return.
+     *
+     * IT WRITES TO `visit_notes` AND NEVER TO `site_surveys.office_review_notes`.
+     * That column exists and reusing it would have been one line — it is
+     * single-valued and overwritable (the second note destroys the first), it
+     * carries no author and no timestamp, and it lives ON THE ENGINEER'S
+     * RECORD, which is the shape D-02 forbids in its own words: "the engineer's
+     * record stays intact; the office view sits alongside it". A worksheet has
+     * no equivalent column at all, so reusing the survey's would leave first
+     * fix and install unannotatable. See VisitNote's docblock before
+     * "consolidating" the two.
+     *
+     * NOTHING ENGINEER-CAPTURED MOVES. No touch on the visit, no write to the
+     * survey or worksheet — asserted byte-for-byte through `getRawOriginal()`,
+     * `updated_at` included (T-46-07-02).
+     *
+     * AN ACCEPTED VISIT MAY STILL BE ANNOTATED. A note after acceptance is
+     * exactly the annotation D-02 describes and changes nothing; only a visit
+     * that has never come back has nothing to annotate.
+     *
+     * THE NOTE IS NOT COPIED INTO THE FEED. The activity row records that a
+     * note was added and by whom; the words live in exactly one place — the
+     * same rule the send-back reason follows.
+     */
+    public function storeNote(Request $request, Project $project, Visit $visit): RedirectResponse
+    {
+        $this->guard($project, $visit);
+
+        if (! in_array($visit->state(), self::NOTEABLE_STATES, true)) {
+            return $this->refuse('This visit has not come back from the engineer yet, so there is nothing to annotate.');
+        }
+
+        $data = $request->validate([
+            // PM free text. Stored raw and escaped at render — `{{ }}` only,
+            // never `{!! !!}` (T-46-07-05).
+            'body' => ['required', 'string', 'min:3', 'max:4000'],
+        ]);
+
+        /** @var \App\Models\User $user */
+        $user = auth()->user();
+
+        DB::transaction(function () use ($project, $visit, $user, $data): void {
+            $note = VisitNote::create([
+                'project_id' => $project->id,
+                'visit_id'   => $visit->id,
+                'user_id'    => $user->id,
+                'body'       => $data['body'],
+            ]);
+
+            $this->projects->log(
+                project:     $project,
+                user:        $user,
+                // REUSING the existing constant deliberately: a note is a
+                // note, and a second one would split the feed's history.
+                action:      ProjectActivityLog::ACTION_NOTE_ADDED,
+                description: "{$user->name} added an office note to a ".$this->typeLabel($visit->type).' visit.',
+                // `visit_note_id` is what lets the Notes tab list the note
+                // itself ONCE rather than alongside this row's description.
+                metadata:    ['visit_id' => $visit->id, 'visit_note_id' => $note->id],
+            );
+        });
+
+        return redirect()
+            ->route('projects.cockpit', [
+                'project' => $project,
+                'module'  => $this->moduleKeyFor($visit),
+                // The PM lands on what they just wrote.
+                'tab'     => 'notes',
+            ])
+            ->with('success', 'Office note added.');
+    }
+
+    /**
+     * POST /projects/{project}/cockpit/visits/{visit}/snags
+     *
+     * D-02's fourth PM act: raise a snag from the visit it came from.
+     *
+     * RAISING A SNAG IS NOT MANAGING ONE (D-03). This creates ONE `open` row
+     * with three fields and stops. There is no outcome, no parts, no follow-up
+     * chain, no assignee and no cost — each is owned by a named Phase 47
+     * criterion and each is absent from the schema (46-02's scope fence).
+     *
+     * THE FENCE IS ENFORCED AT THIS BOUNDARY TOO. Exactly three fields are
+     * validated and exactly three are passed to `create()`, so a POST carrying
+     * `outcome`, `parts`, `parent_snag_id`, `assigned_to`, `cost` or
+     * `resolved_at` has them IGNORED (T-46-07-03). `status` is set here, never
+     * taken from the request: a raised snag is open.
+     *
+     * NOT AFTER ACCEPTANCE. A snag found after a visit was accepted belongs in
+     * Phase 47's register, not in a retroactive edit to a closed visit.
+     */
+    public function storeSnag(Request $request, Project $project, Visit $visit): RedirectResponse
+    {
+        $this->guard($project, $visit);
+
+        if (! in_array($visit->state(), self::SNAGGABLE_STATES, true)) {
+            return $this->refuse(match ($visit->state()) {
+                Visit::STATE_ACCEPTED => 'This visit was accepted, so a snag against it belongs on the project rather than on the visit.',
+                default               => 'This visit has not come back from the engineer yet, so there is nothing to snag.',
+            });
+        }
+
+        $data = $request->validate([
+            'title'     => ['required', 'string', 'min:3', 'max:200'],
+            'detail'    => ['nullable', 'string', 'max:4000'],
+            'room_name' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        /** @var \App\Models\User $user */
+        $user = auth()->user();
+
+        DB::transaction(function () use ($project, $visit, $user, $data): void {
+            $snag = Snag::create([
+                'project_id'        => $project->id,
+                'visit_id'          => $visit->id,
+                'title'             => $data['title'],
+                'detail'            => $data['detail'] ?? null,
+                'room_name'         => $data['room_name'] ?? null,
+                'raised_by_user_id' => $user->id,
+                // Set here, never read from the request. A raised snag is open.
+                'status'            => Snag::STATUS_OPEN,
+            ]);
+
+            $this->projects->log(
+                project:     $project,
+                user:        $user,
+                action:      ProjectActivityLog::ACTION_SNAG_RAISED,
+                description: "{$user->name} raised a snag on a ".$this->typeLabel($visit->type).' visit.',
+                metadata:    ['visit_id' => $visit->id, 'snag_id' => $snag->id],
+            );
+        });
+
+        return redirect()
+            ->route('projects.cockpit', ['project' => $project, 'module' => $this->moduleKeyFor($visit)])
+            ->with('success', 'Snag raised against this visit.');
     }
 
     /**

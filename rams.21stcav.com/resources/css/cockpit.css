@@ -1333,6 +1333,28 @@
     color: var(--cav-light);
 }
 
+/* ── An office note, told apart from the engineer's own (46-07, D-02) ───
+   D-02 says the office view SITS ALONGSIDE the engineer's record, so a
+   reader has to be able to see which is which. The label carries the
+   meaning in WORDS; the tint and the left edge only reinforce it, so the
+   distinction survives greyscale and a screen reader alike.
+   ⚠️ NO `position` in here (the stretched-link trap). */
+.cav-cockpit .cav-pnote--office {
+    padding-left: var(--cav-s3);
+    border-left: 3px solid var(--cav-teal-dark);
+    background: var(--cav-rule);
+}
+
+.cav-cockpit .cav-pnote__tag {
+    display: inline-block;
+    margin-bottom: var(--cav-s1);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cav-teal-dark);
+}
+
 /* ── Recent activity (D-14) ────────────────────────────────────────────
    A plain list: the feed is a record, not a control surface. The design's
    "…" overflow on each row is a menu trigger and belongs to Phase 46/48, so

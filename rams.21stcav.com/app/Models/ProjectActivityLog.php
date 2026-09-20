@@ -38,6 +38,13 @@ class ProjectActivityLog extends Model
 
     const ACTION_VISIT_SENT_BACK  = 'visit_sent_back';
 
+    // Phase 46, Plan 46-07 — raising a snag. A NEW constant, unlike the office
+    // note which reuses ACTION_NOTE_ADDED: a note IS a note and a second
+    // constant would split the feed's history for no gain, whereas raising a
+    // snag is a distinct act that Phase 47 will read back. D-03: this records
+    // that a snag was RAISED. Nothing here says what happens to it next.
+    const ACTION_SNAG_RAISED      = 'snag_raised';
+
     protected $fillable = [
         'project_id',
         'user_id',

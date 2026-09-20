@@ -216,7 +216,15 @@ class CockpitPageTest extends TestCase
         $this->assertSame(1, $gets, 'Exactly one cockpit GET route must exist.');
         // Still EXACT, never a floor: 46-04's create, plus 46-06's accept and
         // send back. A fourth write route appearing unannounced is a red test.
-        $this->assertSame(3, $writes, 'Plan 46-04 registers the create route; Plan 46-06 adds accept and send-back.');
+        // RAISED 3 -> 5 BY PLAN 46-07, AND KEPT EXACT rather than relaxed to a
+        // floor: a sixth cockpit write route appearing unannounced is still a
+        // red test. 46-07 registers the note and the snag, which completes
+        // D-02's four PM acts — there is no sixth act in this phase.
+        $this->assertSame(
+            5,
+            $writes,
+            'Plan 46-04 registers the create route; Plan 46-06 adds accept and send-back; Plan 46-07 adds notes and snags.'
+        );
     }
 
     // ── Plan 45-11, Task 2 — the page: masthead, KPIs, stage chip, modules ─

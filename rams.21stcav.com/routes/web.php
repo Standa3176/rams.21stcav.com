@@ -275,6 +275,17 @@ Route::middleware('auth')->group(function () {
     Route::post('projects/{project}/cockpit/visits/{visit}/send-back', [ProjectCockpitActionController::class, 'sendBackVisit'])
         ->name('projects.cockpit.visits.send-back');
 
+    // ── Cockpit office note and snag (Phase 46, Plan 46-07; VL-07/VL-08) ──
+    // D-02's other two PM acts, on the same controller and under the same
+    // project-scoping rule. BOTH ARE POST-ONLY: a note is append-only, so
+    // there is deliberately no PUT, PATCH or DELETE here, and
+    // CockpitOfficeNoteAndSnagTest asserts the absence over the route table.
+    Route::post('projects/{project}/cockpit/visits/{visit}/notes', [ProjectCockpitActionController::class, 'storeNote'])
+        ->name('projects.cockpit.visits.notes');
+
+    Route::post('projects/{project}/cockpit/visits/{visit}/snags', [ProjectCockpitActionController::class, 'storeSnag'])
+        ->name('projects.cockpit.visits.snags');
+
     // ── Engineer reference files (quick task 260601-r4c) ──────────────────
     // Shared-workspace auth (per 260525-pyu/s8b) — any authed user. Routes
     // throttled to match existing project-level upload/delete/download
