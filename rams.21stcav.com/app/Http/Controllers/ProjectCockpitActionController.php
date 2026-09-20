@@ -205,6 +205,78 @@ class ProjectCockpitActionController extends Controller
     }
 
     /**
+     * POST /projects/{project}/cockpit/visits/{visit}/send-back
+     *
+     * D-02's second PM act: the office says "no, go back", with a reason the
+     * engineer reads on their own link.
+     *
+     * IT WRITES `sent_back_at` AND `send_back_reason` AND NOTHING ELSE. In
+     * particular IT NEVER CLEARS `submitted_at`. Plan 46-05 derives the
+     * reopening as `sent_back_at > the last submission`, so a resubmission
+     * relocks the link with no flag to clear — and clearing the engineer's own
+     * submission marker to make a form editable again is the exact D-02
+     * violation ("an office action never changes what the engineer said") the
+     * whole design exists to avoid.
+     *
+     * ONE REASON, NOT A HISTORY. Send back, engineer resubmits, send back
+     * again: both asks are legitimate and the LATEST is what shows. A reason
+     * history would be a second place to read the current ask from, which is
+     * how an engineer ends up answering last month's question.
+     *
+     * NOBODY IS NOTIFIED. There is a mail path in this app and a notification
+     * recipient resolver, and using either here would be inventing scope:
+     * 46-CONTEXT.md's in-scope list says "reopens the engineer link", not
+     * "emails the engineer". The omission is a decision, recorded here so it
+     * does not read as an oversight.
+     */
+    public function sendBackVisit(Request $request, Project $project, Visit $visit): RedirectResponse
+    {
+        $this->guard($project, $visit);
+
+        // Only from RETURNED. A visit that has not come back has nothing to
+        // reject, and one already sent back has no second send-back to give —
+        // the reopening ends when the engineer resubmits, not when the office
+        // clicks again.
+        if ($visit->state() !== Visit::STATE_RETURNED) {
+            return $this->refuse(match ($visit->state()) {
+                Visit::STATE_ACCEPTED  => 'This visit was accepted, so it cannot be sent back. Raise a new visit instead.',
+                Visit::STATE_SENT_BACK => 'This visit is already back with the engineer, so nothing was sent a second time.',
+                default                => 'This visit has not come back from the engineer yet, so there is nothing to send back.',
+            });
+        }
+
+        $data = $request->validate([
+            // REQUIRED. Sending work back without saying why is how a second
+            // incomplete return happens, and the engineer reads this text.
+            'reason' => ['required', 'string', 'min:5', 'max:2000'],
+        ]);
+
+        /** @var \App\Models\User $user */
+        $user = auth()->user();
+
+        DB::transaction(function () use ($project, $visit, $user, $data): void {
+            $visit->forceFill([
+                'sent_back_at'     => now(),
+                'send_back_reason' => $data['reason'],
+            ])->save();
+
+            $this->projects->log(
+                project:     $project,
+                user:        $user,
+                action:      ProjectActivityLog::ACTION_VISIT_SENT_BACK,
+                // The PM's free text is NOT copied into the feed. It is the
+                // engineer's current ask and belongs in exactly one place.
+                description: "{$user->name} sent a ".$this->typeLabel($visit->type).' visit back to the engineer.',
+                metadata:    ['visit_id' => $visit->id, 'visit_type' => $visit->type],
+            );
+        });
+
+        return redirect()
+            ->route('projects.cockpit', ['project' => $project, 'module' => $this->moduleKeyFor($visit)])
+            ->with('success', 'Visit sent back. The engineer link is open again and carries your reason.');
+    }
+
+    /**
      * The two gates every cockpit write carries, plus the ownership check.
      *
      * ROUTE-MODEL BINDING DOES NOT CHECK THE RELATIONSHIP. Without the third

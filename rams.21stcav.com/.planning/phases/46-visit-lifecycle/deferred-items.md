@@ -40,3 +40,30 @@ this finding at the point where the assertion would have gone.
 assignment (and any sibling in the same `@php` block that is read outside the
 branch) above the `@if(empty($rooms))` split, defaulting to `false`. Needs its
 own regression test for the empty-rooms render.
+
+---
+
+## D-46-06-01 — a send-back issued in the SAME SECOND as a resubmission reads as "not sent back"
+
+**Found during:** Plan 46-06, Task 2 (the "send back, resubmit, send back again"
+test).
+
+**Symptom:** `Visit::wasSentBack()` is
+`sent_back_at->greaterThan($returnedAt)` — a STRICT comparison against
+timestamps stored to one-second resolution. If a PM sends a visit back inside
+the same clock second as the engineer's submission, `sent_back_at ==
+returnedAt`, the comparison is false, and the visit reads RETURNED forever: the
+reason is stored but neither the cockpit's "Sent back …" line nor 46-05's
+engineer banner ever appears.
+
+**Why it is NOT fixed here:** the fix is one character in
+`Visit::wasSentBack()` (`greaterThan` → `greaterThanOrEqualTo`), but that
+comparison is Plan 46-01's recorded decision and is asserted by
+`VisitLifecycleTest`. Relaxing it changes what an EQUAL timestamp means
+everywhere — including for `VisitReworkState` on two public links — and that is
+a 46-01 decision to revisit, not a 46-06 edit. The window is one second wide
+and requires a PM to act before they could have read the return.
+
+**Suggested fix (for whoever picks it up):** either store `sent_back_at` with
+sub-second precision, or make the comparison inclusive and re-baseline the
+46-01 assertions deliberately, with the tie-break rule written down.

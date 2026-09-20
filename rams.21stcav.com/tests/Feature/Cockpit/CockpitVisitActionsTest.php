@@ -470,6 +470,14 @@ class CockpitVisitActionsTest extends TestCase
 
         $this->assertSame(Visit::STATE_RETURNED, $visit->refresh()->state());
 
+        // Two minutes pass. `wasSentBack()` is a strict `greaterThan` against
+        // a timestamp stored to the SECOND, so a send-back issued inside the
+        // same second as the resubmission would read as "not sent back" —
+        // logged as D-46-06-01 rather than papered over by relaxing 46-01's
+        // comparison, which would change what an equal timestamp means
+        // everywhere.
+        $this->travel(2)->minutes();
+
         $this->sendBack($project, $visit, ['reason' => 'The second ask: cable route photos.']);
 
         $visit->refresh();
