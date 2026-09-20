@@ -513,6 +513,230 @@ class CockpitVisitActionsTest extends TestCase
         $this->assertNull($visit->refresh()->sent_back_at);
     }
 
+    // ── Task 3: the visit row's action area ──────────────────────────────
+
+    /**
+     * Every `.cav-visit` row in the open module, as raw HTML.
+     *
+     * @return array<int, string>
+     */
+    private function visitRows(Project $project, string $module, array $query = []): array
+    {
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$this->region($project, ['module' => $module] + $query));
+        libxml_clear_errors();
+
+        $rows = [];
+
+        foreach ((new \DOMXPath($dom))->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' cav-visit ')]") as $node) {
+            $rows[] = html_entity_decode($dom->saveHTML($node), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+
+        return $rows;
+    }
+
+    /** Controls, counted the way a PM counts them: things you can press. */
+    private function countControls(string $row): int
+    {
+        return substr_count($row, '<button') + substr_count($row, '<a ');
+    }
+
+    public function test_a_returned_visit_offers_accept_and_send_back_and_nothing_else(): void
+    {
+        $project = $this->project();
+        $this->returnedSurveyVisit($project);
+
+        $rows = $this->visitRows($project, 'site_survey');
+
+        $this->assertCount(1, $rows);
+        $this->assertStringContainsString('Accept', $rows[0]);
+        $this->assertStringContainsString('Send back', $rows[0]);
+        $this->assertSame(2, $this->countControls($rows[0]));
+    }
+
+    public function test_a_planned_visit_offers_nothing(): void
+    {
+        $project = $this->project();
+        Visit::factory()->planned()->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
+
+        $rows = $this->visitRows($project, 'worksheet');
+
+        $this->assertCount(1, $rows);
+        $this->assertSame(0, $this->countControls($rows[0]));
+        $this->assertStringNotContainsString('Accept', $rows[0]);
+    }
+
+    public function test_a_sent_visit_offers_nothing_and_says_it_is_with_the_engineer(): void
+    {
+        $project = $this->project();
+        Visit::factory()->sent()->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
+
+        $rows = $this->visitRows($project, 'worksheet');
+
+        $this->assertCount(1, $rows);
+        $this->assertSame(0, $this->countControls($rows[0]));
+        $this->assertStringContainsString('Awaiting the engineer', $rows[0]);
+    }
+
+    public function test_a_sent_back_visit_offers_accept_but_no_second_send_back(): void
+    {
+        $project = $this->project();
+        Visit::factory()->sentBack()->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
+
+        $rows = $this->visitRows($project, 'worksheet');
+
+        $this->assertCount(1, $rows);
+        $this->assertSame(1, $this->countControls($rows[0]));
+        $this->assertStringContainsString('Accept', $rows[0]);
+        $this->assertStringContainsString('Sent back', $rows[0]);
+        $this->assertStringNotContainsString('Send back<', $rows[0]);
+    }
+
+    public function test_an_accepted_visit_offers_nothing(): void
+    {
+        $project = $this->project();
+        Visit::factory()->accepted()->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
+
+        $rows = $this->visitRows($project, 'worksheet');
+
+        $this->assertCount(1, $rows);
+        $this->assertSame(0, $this->countControls($rows[0]));
+        $this->assertStringContainsString('Accepted by', $rows[0]);
+    }
+
+    public function test_a_reconstructed_visit_offers_no_control_even_though_its_state_reads_returned(): void
+    {
+        $project   = $this->project();
+        $worksheet = \App\Models\Worksheet::factory()->create(['project_id' => $project->id]);
+
+        \App\Models\WorksheetSignoff::create([
+            'worksheet_id'         => $worksheet->id,
+            'client_name'          => 'A Client',
+            'signature_png_base64' => 'iVBORw0KGgo=',
+            'signed_with_comments' => false,
+            'signed_at'            => now()->subYear(),
+        ]);
+
+        $visit = Visit::factory()->backfilledFromWorksheet($worksheet)->create([
+            'project_id' => $project->id,
+            'status'     => Visit::STATUS_COMPLETED,
+        ]);
+
+        // 46-01's recorded finding, pinned here as well: the DERIVED state
+        // reads RETURNED, and 24 rows on live look exactly like this one.
+        $this->assertSame(Visit::STATE_RETURNED, $visit->state());
+        $this->assertTrue($visit->isClosed());
+
+        $rows = $this->visitRows($project, 'worksheet');
+
+        $this->assertCount(1, $rows);
+        $this->assertSame(0, $this->countControls($rows[0]), 'A reconstructed visit must never ask a PM to ratify a guess.');
+        $this->assertStringNotContainsString('Accept', $rows[0]);
+        $this->assertStringNotContainsString('Scope locked', $rows[0]);
+        $this->assertStringContainsString('Reconstructed', $rows[0]);
+    }
+
+    public function test_no_visit_row_ever_renders_more_than_four_controls(): void
+    {
+        $states = ['planned', 'sent', 'returned', 'sentBack', 'accepted', 'backfilledFromWorksheet', 'default'];
+        $seen   = 0;
+
+        foreach (Visit::TYPES as $type) {
+            foreach ($states as $state) {
+                $project = $this->project();
+
+                $factory = Visit::factory();
+                $visit   = $state === 'default'
+                    ? $factory->create(['project_id' => $project->id, 'type' => $type])
+                    : $factory->{$state}()->create(['project_id' => $project->id, 'type' => $type]);
+
+                foreach (array_keys(\App\Support\Cockpit\CockpitModulePresenter::moduleMap()) as $module) {
+                    foreach ([[], ['action' => 'send-back', 'visit' => $visit->id]] as $query) {
+                        foreach ($this->visitRows($project, $module, $query) as $row) {
+                            $seen++;
+
+                            $this->assertLessThanOrEqual(
+                                4,
+                                $this->countControls($row),
+                                "VL-11: a {$state} {$type} visit row exceeded four controls in the {$module} drawer."
+                            );
+
+                            // Nothing renders disabled — a disabled control is
+                            // still an offer, and one that never explains
+                            // itself is how a PM decides the page is broken.
+                            $this->assertStringNotContainsString('disabled', $row);
+                        }
+                    }
+                }
+            }
+        }
+
+        $this->assertGreaterThan(20, $seen, 'The cap test must judge real rows, never pass vacuously.');
+    }
+
+    public function test_the_send_back_form_is_disclosed_by_the_url_and_closed_by_an_anchor(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        $closed = $this->visitRows($project, 'site_survey')[0];
+
+        $this->assertStringNotContainsString('<textarea', $closed);
+        $this->assertStringContainsString('action=send-back', $closed);
+        $this->assertStringContainsString('visit='.$visit->id, $closed);
+
+        $open = $this->visitRows($project, 'site_survey', ['action' => 'send-back', 'visit' => $visit->id])[0];
+
+        $this->assertStringContainsString('<textarea', $open);
+        $this->assertStringContainsString('_token', $open);
+        $this->assertStringContainsString('The engineer will read this', $open);
+        $this->assertStringContainsString('Cancel', $open);
+        $this->assertLessThanOrEqual(4, $this->countControls($open));
+    }
+
+    public function test_the_form_opens_only_on_the_named_visit(): void
+    {
+        $project = $this->project();
+        $first   = $this->returnedSurveyVisit($project);
+        $second  = Visit::factory()->returned()->create(['project_id' => $project->id, 'type' => Visit::TYPE_SITE_SURVEY]);
+
+        $rows = $this->visitRows($project, 'site_survey', ['action' => 'send-back', 'visit' => $first->id]);
+
+        $this->assertCount(2, $rows);
+        $this->assertSame(
+            1,
+            substr_count(implode('', $rows), '<textarea'),
+            'Exactly one row discloses its reason field — the one named in the URL.'
+        );
+        $this->assertNotNull($second->id);
+    }
+
+    public function test_a_hostile_visit_title_and_a_hostile_query_are_never_echoed_raw(): void
+    {
+        $project = $this->project();
+
+        Visit::factory()->returned()->create([
+            'project_id' => $project->id,
+            'type'       => Visit::TYPE_INSTALL,
+            'title'      => '<script>alert(1)</script>',
+        ]);
+
+        $body = $this->actingAs($this->user())
+            ->get(route('projects.cockpit', [
+                'project' => $project,
+                'module'  => 'worksheet',
+                'action'  => '"><script>alert(2)</script>',
+                'visit'   => '"><script>alert(3)</script>',
+            ]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $body);
+        $this->assertStringNotContainsString('alert(2)', $body);
+        $this->assertStringNotContainsString('alert(3)', $body);
+    }
+
     public function test_the_action_routes_are_gone_when_the_cockpit_flag_is_off(): void
     {
         config(['cockpit.enabled' => false]);
