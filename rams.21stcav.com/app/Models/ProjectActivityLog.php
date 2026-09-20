@@ -21,6 +21,12 @@ class ProjectActivityLog extends Model
     const ACTION_PACKAGE_IMPORTED = 'package_imported';
     const ACTION_PACKAGE_REVIEWED = 'package_reviewed';
 
+    // Phase 46, Plan 46-04 — the cockpit's first write. T-46-04-06: a create
+    // with no actor and no entry in the feed would be repudiable, so every
+    // visit created from a module drawer writes exactly one of these beside
+    // the visit's own `created_by_user_id`.
+    const ACTION_VISIT_CREATED    = 'visit_created';
+
     protected $fillable = [
         'project_id',
         'user_id',

@@ -19,6 +19,7 @@ use App\Http\Controllers\HazardTemplateController;
 use App\Http\Controllers\InstallProgrammeController;
 use App\Http\Controllers\OmManualController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProjectCockpitActionController;
 use App\Http\Controllers\ProjectCockpitController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectDrawingController;
@@ -251,6 +252,16 @@ Route::middleware('auth')->group(function () {
     // deliberately no POST/PATCH/DELETE counterpart to this route.
     Route::get('projects/{project}/cockpit', [ProjectCockpitController::class, 'show'])
         ->name('projects.cockpit');
+
+    // ── Cockpit writes (Phase 46, Plan 46-04; VL-01/VL-02/VL-03) ──────────
+    // The cockpit's FIRST write surface, and it points at a SECOND controller
+    // on purpose: ProjectCockpitController's docblock forbids a POST reaching
+    // it, so that reading its class still proves rendering the page writes
+    // nothing. Inside the same `auth` group, so the `web` group's session CSRF
+    // applies (T-46-04-01). Flag-gated inside the controller, exactly as the
+    // GET above is.
+    Route::post('projects/{project}/cockpit/visits', [ProjectCockpitActionController::class, 'storeVisit'])
+        ->name('projects.cockpit.visits.store');
 
     // ── Engineer reference files (quick task 260601-r4c) ──────────────────
     // Shared-workspace auth (per 260525-pyu/s8b) — any authed user. Routes
