@@ -412,4 +412,34 @@
        numbers, and never reach for an opacity to do it — opacity on an
        element containing small text is banned outright by the rules above. */
     --cav-active-tint: #F2F7FF;
+
+    /* ── Row hover — added by quick task 260920, the whole-row open ───────
+       The module row became a stretched link (its anchor's ::after covers
+       the row), so it now needs a hover tint. Two are declared because one
+       cannot serve both states: an inactive row hovering onto the ACTIVE
+       row's own tint would read as "this row is open" and undo the marker
+       --cav-active-tint exists to be.
+
+           --cav-row-hover        #F8FAFC  faint NEUTRAL, inactive rows.
+           --cav-row-hover-active #E8F1FF  one step deeper than the active
+                                           tint, so the open row still
+                                           visibly responds to the pointer.
+
+       Contrast, computed rather than assumed, because 45-09 got this wrong
+       twice (see the --cav-active-tint note above):
+
+           --cav-ink   #0F172A on #F8FAFC = 17.15:1  PASS
+           --cav-mid   #334155 on #F8FAFC =  9.95:1  PASS
+           --cav-light #64748B on #F8FAFC =  4.58:1  PASS (thin — prefer mid)
+
+           --cav-ink   #0F172A on #E8F1FF = 15.68:1  PASS
+           --cav-mid   #334155 on #E8F1FF =  9.10:1  PASS
+           --cav-light #64748B on #E8F1FF =  4.18:1  FAIL (text floor 4.5:1)
+
+       The active row already bans --cav-light outright, so the one failing
+       pairing is unreachable — but it is written down rather than omitted,
+       because the next person to reach for --cav-light inside a module row
+       needs to meet this line, not rediscover it. */
+    --cav-row-hover: #F8FAFC;
+    --cav-row-hover-active: #E8F1FF;
 }

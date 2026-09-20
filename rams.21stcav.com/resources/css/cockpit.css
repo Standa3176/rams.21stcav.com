@@ -41,11 +41,19 @@
    5. Nothing renders below 13px, and no interactive target is under 44px.
 
    READ-ONLY FENCE. This file deliberately carries NO styles for buttons,
-   form controls, scrims, overflow menus, quick-action tiles or clickable
-   rows. Those are write surfaces owned by Phases 46-51, and a row that looks
-   clickable but is not is worse than one that looks inert — hence no
-   cursor:pointer and no hover colour shift on a module row. The ONLY
-   operable things in the cockpit are anchors.
+   form controls, scrims, overflow menus or quick-action tiles. Those are
+   write surfaces owned by Phases 46-51. The ONLY operable things in the
+   cockpit are anchors, and that has not changed.
+
+   THE MODULE ROW IS NOW CLICKABLE (quick task 260920) and therefore now DOES
+   take cursor:pointer and a hover tint. That is not a relaxation of the rule
+   above, it is the rule applied: the doctrine is "a row that looks clickable
+   but is not is worse than one that looks inert", and the module row is a
+   stretched link — genuinely operable over its whole area, with the same
+   single <a> and the same GET it always had. The ban survives intact for the
+   things that remain inert: the VISIT row and the unlinked FILE row, both of
+   which still carry no pointer and no hover shift, and both of which say so
+   at their own rules below.
    ════════════════════════════════════════════════════════════════════════ */
 
 /* The cockpit's token set. Separate file so phases 46-51 can adopt the
@@ -381,11 +389,18 @@
 }
 
 /* ── Module row — D-10 / D-11 / D-16 ────────────────────────────────────
-   The ROW is static. Only its anchor is operable: no cursor:pointer on the
-   row, no tabindex, no whole-row hover shift. 16px padding on a 15px line
-   computes to ~48px, clearing the 44px minimum target — do not reduce the
-   padding without re-checking that. */
+   THE ROW IS THE TARGET, AND HAS BEEN SINCE QUICK TASK 260920.
+   `position: relative` on the rule below is load-bearing: it is
+   the containing block for `.cav-module__open::after`, the transparent
+   overlay that stretches the anchor across the row. Remove it and the
+   overlay silently collapses onto the 28px chevron, the row stops being
+   clickable, and nothing fails loudly — so it is asserted in
+   CockpitVisualTest alongside the overlay itself.
+
+   16px padding on a 15px line computes to ~48px, clearing the 44px minimum
+   target — do not reduce the padding without re-checking that. */
 .cav-cockpit .cav-module {
+    position: relative;
     display: flex;
     align-items: center;
     gap: var(--cav-s3);
@@ -396,6 +411,14 @@
     background: var(--cav-surface);
     box-shadow: var(--cav-shadow);
     min-height: 44px;
+}
+
+/* The pointer is HONEST here and is wanted: the whole row activates one
+   anchor. Contrast with `.cav-visit` and the unlinked `.cav-file`, which
+   are genuinely static and must never take either of these declarations. */
+.cav-cockpit .cav-module:hover {
+    background: var(--cav-row-hover);
+    cursor: pointer;
 }
 
 /* The open module keeps a spine so the PM can see which panel they are
@@ -410,6 +433,15 @@
 .cav-cockpit .cav-module--active {
     border-left: 4px solid var(--cav-teal-dark);
     background: var(--cav-active-tint);
+}
+
+/* The OPEN row must still answer the pointer. The generic hover above is a
+   neutral #F8FAFC and would read as "this row is no longer the open one",
+   so the active row hovers one step DEEPER into its own blue instead. The
+   ordering matters: this rule follows the generic `.cav-module:hover` and
+   out-specifies it, so an active row never falls back to the neutral tint. */
+.cav-cockpit .cav-module--active:hover {
+    background: var(--cav-row-hover-active);
 }
 
 .cav-cockpit .cav-module__text {
@@ -440,34 +472,59 @@
     white-space: nowrap;
 }
 
-/* An ANCHOR styled as a pill. It is never a <button>: the panel's state is
-   URL state and opening it is a GET. */
+/* THE STRETCHED LINK. Still an ANCHOR, still never a <button>: the panel's
+   state is URL state and opening it is a GET. What changed in 260920 is that
+   the visible "Open drawer" pill became a chevron at the right edge, and the
+   anchor's ::after grew to cover the row.
+
+   `inset: 0` resolves against `.cav-module`, NOT against this element —
+   which is only true while this element stays statically positioned. Giving
+   `.cav-module__open` a `position` of its own is the one edit that breaks
+   the pattern, and it breaks it silently. Do not. */
 .cav-cockpit .cav-module__open {
     display: inline-flex;
     align-items: center;
-    gap: var(--cav-s2);
+    justify-content: center;
     flex: none;
+    width: 28px;
     min-height: 44px;
-    padding: var(--cav-s2) var(--cav-s3);
-    border: 1px solid var(--cav-border);
-    border-radius: var(--cav-radius-sm);
-    background: var(--cav-surface);
-    color: var(--cav-teal-dark);
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1.45;
+    color: var(--cav-light);
     text-decoration: none;
-    white-space: nowrap;
 }
 
-.cav-cockpit .cav-module__open:hover {
-    background: var(--cav-teal-soft);
+.cav-cockpit .cav-module__open::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--cav-radius);
+}
+
+/* The chevron answers a hover anywhere on the ROW, not only on itself —
+   the pointer sits over the overlay, so a `:hover` on the chevron alone
+   would almost never fire. --cav-light is a 4.76:1 non-text mark on white;
+   it darkens to the accent to confirm the row is live. */
+.cav-cockpit .cav-module:hover .cav-module__open {
+    color: var(--cav-teal-dark);
 }
 
 .cav-cockpit .cav-module--active .cav-module__open {
-    border-color: var(--cav-teal-dark);
-    background: var(--cav-teal-dark);
-    color: var(--cav-surface);
+    color: var(--cav-teal-dark);
+}
+
+/* FOCUS GOES ROUND THE ROW, NOT ROUND THE CHEVRON. This is the one place in
+   the cockpit that overrides the page-wide `a:focus-visible` rule further
+   down, and it is the exception that rule's "NEVER outline:none without a
+   replacement" clause allows for: the outline is not removed, it is MOVED
+   onto the overlay, which is the real full-width target. A 28px ring on the
+   chevron would tell a keyboard user almost nothing about where they are in
+   a list of nine rows. */
+.cav-cockpit .cav-module__open:focus-visible {
+    outline: none;
+}
+
+.cav-cockpit .cav-module__open:focus-visible::after {
+    outline: 2px solid var(--cav-focus);
+    outline-offset: 2px;
 }
 
 /* ── Module status chip — D-10 ──────────────────────────────────────────

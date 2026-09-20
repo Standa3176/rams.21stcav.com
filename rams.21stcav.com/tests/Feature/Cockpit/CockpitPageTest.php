@@ -330,13 +330,33 @@ class CockpitPageTest extends TestCase
                 $html,
                 "Module '{$key}' must open through a plain <a href> carrying ?module={$key}."
             );
+
+            // SINCE THE WHOLE ROW BECAME THE TARGET (quick task 260920) the
+            // anchor has NO visible text — it holds a chevron, and
+            // x-cockpit.icon renders every glyph aria-hidden. So this label
+            // is not a nicety, it is the link's ONLY accessible name, and a
+            // link with no accessible name is unusable by screen reader.
+            //
+            // Matched against the RAW title, not e($title): cockpitSubtree()
+            // entity-decodes, so the O&M module reads "O&M manual" here and
+            // an escaped needle would miss exactly one of the nine.
+            $this->assertStringContainsString(
+                'aria-label="Open '.$definition['title'].'"',
+                $html,
+                "Module '{$key}' must carry its own accessible name; nine unnamed ".
+                'chevrons would be indistinguishable in a link list.'
+            );
         }
 
-        // Counted by class, not by copy: each link carries the copy twice —
-        // once as its text and once in the aria-label that names which module
-        // it opens, so nine links legitimately produce eighteen matches.
+        // Counted by class, because there is no copy left to count by.
         $this->assertSame(count($map), $this->countByClass($html, 'cav-module__open'));
-        $this->assertStringContainsString('Open drawer', $html);
+
+        // THE OLD COPY IS GONE FROM THE PAGE ENTIRELY, label included. This
+        // assertion is the honest replacement for the old
+        // `assertStringContainsString('Open drawer', ...)`: had the label kept
+        // the word, that assertion would have gone on passing off the label
+        // alone and would have said nothing about the visible row at all.
+        $this->assertStringNotContainsString('Open drawer', $html);
     }
 
     /**

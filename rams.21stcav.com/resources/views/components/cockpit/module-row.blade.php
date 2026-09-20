@@ -12,9 +12,29 @@
     inside this region and weakening a fence to fit a design is the failure the
     fence exists to catch.
 
-    THE ROW ITSELF IS STILL STATIC. Only the link is operable — no
-    cursor:pointer on the row, no tabindex, no whole-row hover shift. A row
-    that looks clickable but is not is worse than one that looks inert.
+    THE WHOLE ROW IS THE TARGET, AND STILL WITHOUT JAVASCRIPT (quick task
+    260920). The user asked for the row itself to open the panel. That is
+    done with the STRETCHED-LINK pattern and nothing else: the row below is
+    `position: relative` and the anchor carries a `::after { inset: 0 }` that
+    covers it, so a click anywhere on the row activates the one anchor that
+    was already there. No handler, no tabindex, no second interactive
+    element, and the markup is unchanged in kind — exactly one <a> per row,
+    exactly one GET.
+
+    Three shapes this could have taken, and why each is refused:
+
+      * Wrapping the row in an <a>. The row holds a chip and a count; nesting
+        them inside a link is invalid HTML and flattens the row into one
+        unreadable link text.
+      * An onclick / x-on:click. Banned inside this region and asserted
+        absent by CockpitReadOnlyFenceTest::BANNED_HANDLER_ATTRIBUTES.
+      * A <button>. Banned by the same fence, and opening the panel is a GET.
+
+    The earlier ruling that the row must NOT look clickable is retired here
+    on purpose: it existed because the row was not clickable. It now is, so
+    cursor:pointer and a hover tint are the honest signals rather than the
+    lie they would have been. The VISIT row keeps the old ban — it really is
+    static, and cockpit.css says so at its own rule.
 
     THE TILE'S HUE IS A KEY FROM THE PRESENTER (Plan 45-15). `$module['hue']`
     is read, never chosen: this file holds no module list and no colour, so a
@@ -43,9 +63,20 @@
         <span class="cav-module__count">{{ $module['count'] }}</span>
     @endif
 
-    {{-- The accessible name names the module: nine links all reading "Open
-         drawer" would be indistinguishable in a screen reader's link list. --}}
+    {{-- THE ANCHOR NOW HAS NO VISIBLE TEXT, so the aria-label is its ONLY
+         accessible name and is not optional. It names the module because
+         nine links all reading the same word would be indistinguishable in
+         a screen reader's link list.
+
+         The copy dropped from "Open drawer: {title}" to "Open {title}" when
+         the visible "Open drawer" text was replaced by the glyph: "drawer"
+         was a reference to on-screen copy that no longer exists, so it had
+         become jargon naming nothing. The module title stays either way.
+
+         The glyph is decorative and x-cockpit.icon always renders it
+         aria-hidden — it must stay that way, or the link would announce
+         itself twice. --}}
     <a class="cav-module__open"
-       aria-label="Open drawer: {{ $module['title'] }}"
-       href="{{ route('projects.cockpit', ['project' => $project, 'module' => $module['key']]) }}">Open drawer<x-cockpit.icon name="arrow" class="cav-icon cav-icon--sm" /></a>
+       aria-label="Open {{ $module['title'] }}"
+       href="{{ route('projects.cockpit', ['project' => $project, 'module' => $module['key']]) }}"><x-cockpit.icon name="arrow" class="cav-icon cav-icon--sm" /></a>
 </div>

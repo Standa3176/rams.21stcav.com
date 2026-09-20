@@ -30,9 +30,9 @@ use Tests\TestCase;
  *      shared layout.
  *   3. The things the hues could have QUIETLY BROKEN still hold: state is
  *      still carried by a glyph shape and by words, not by colour, so the page
- *      survives greyscale; and "Open drawer" is still an <a>, because the
- *      read-only fence bans <button> and a restyle is exactly the kind of
- *      change that turns a link into one by accident.
+ *      survives greyscale; and the row's open affordance is still an <a>,
+ *      because the read-only fence bans <button> and a restyle is exactly
+ *      the kind of change that turns a link into one by accident.
  *
  * Assertions run against the extracted `cav-cockpit` subtree, never the whole
  * document — the shared layout carries its own inline colours, a logout form
@@ -257,20 +257,30 @@ class CockpitVisualTest extends TestCase
     }
 
     /**
-     * "OPEN DRAWER" IS AN ANCHOR. The read-only fence bans <button> inside
-     * this region, and the design draws the ACTIVE row's affordance as a
-     * filled dark button — precisely the styling change most likely to tempt
-     * someone into changing the element to match. It stays an <a> because the
-     * panel's state is URL state and opening it is a GET.
+     * THE OPEN AFFORDANCE IS AN ANCHOR. The read-only fence bans <button>
+     * inside this region, and the design draws the ACTIVE row's affordance
+     * as a filled dark control — precisely the styling change most likely to
+     * tempt someone into changing the element to match. It stays an <a>
+     * because the panel's state is URL state and opening it is a GET.
+     *
+     * RETARGETED BY QUICK TASK 260920, honestly rather than conveniently.
+     * This test used to assert the visible copy "Open drawer". That copy is
+     * gone: the user asked for the whole row to open the panel, so the pill
+     * became a chevron and the row became a stretched link. Simply deleting
+     * the copy assertion would have left the anchor's identity half-proved,
+     * so what replaced it is STRONGER — the link's accessible name is now
+     * asserted (it is the only name the link has), and the old copy is
+     * asserted ABSENT so this test cannot pass on a half-reverted change.
      */
-    public function test_open_drawer_is_an_anchor_even_when_the_row_is_active(): void
+    public function test_the_open_affordance_is_an_anchor_even_when_the_row_is_active(): void
     {
         $project = Project::factory()->create([
             'name'   => 'Anchor Job',
             'status' => Project::STATUS_INSTALLING,
         ]);
 
-        $first = array_key_first(CockpitModulePresenter::moduleMap());
+        $map   = CockpitModulePresenter::moduleMap();
+        $first = array_key_first($map);
 
         foreach ([[], ['module' => $first]] as $query) {
             $html = $this->page($project, $query);
@@ -280,19 +290,129 @@ class CockpitVisualTest extends TestCase
             $this->assertMatchesRegularExpression(
                 '/<a\b[^>]*class="[^"]*cav-module__open[^"]*"/',
                 $html,
-                'The "Open drawer" affordance is no longer an anchor.'
+                'The row-open affordance is no longer an anchor.'
             );
 
-            $this->assertStringContainsString('Open drawer', $html);
+            $this->assertStringContainsString(
+                'aria-label="Open '.$map[$first]['title'].'"',
+                $html,
+                'The chevron link lost the accessible name that is now its only one.'
+            );
+
+            $this->assertStringNotContainsString('Open drawer', $html);
         }
 
-        // The active row is styled as a filled button by CSS, not by markup.
+        // The active row is styled by CSS, not by markup.
         $css = file_get_contents(resource_path('css/cockpit.css'));
 
         $this->assertStringContainsString(
             '.cav-module--active .cav-module__open',
             $css,
-            'The active row no longer has its filled-link rule.'
+            'The active row no longer has its own chevron rule.'
+        );
+    }
+
+    /**
+     * THE WHOLE ROW OPENS THE PANEL, AND IT DOES SO WITH NO JAVASCRIPT.
+     *
+     * The user asked for the row itself to be clickable. There are two ways
+     * to grant that and only one is available here: a click handler is
+     * banned inside this region by CockpitReadOnlyFenceTest, so the row is a
+     * STRETCHED LINK — `.cav-module { position: relative }` plus an
+     * `::after { inset: 0 }` on the single anchor that was already there.
+     *
+     * Both halves are asserted because either one alone is useless AND
+     * silent: an overlay with no positioned ancestor collapses onto the 28px
+     * chevron and the row quietly stops being clickable, with every other
+     * test on this page still green. Nothing else in the suite would notice.
+     */
+    public function test_the_whole_module_row_is_the_click_target_without_javascript(): void
+    {
+        $css = file_get_contents(resource_path('css/cockpit.css'));
+
+        $this->assertMatchesRegularExpression(
+            '/\.cav-cockpit \.cav-module \{[^}]*position:\s*relative/s',
+            $css,
+            'The module row is not a positioned ancestor, so the stretched overlay '.
+            'has nothing to stretch to and only the chevron stays clickable.'
+        );
+
+        $this->assertMatchesRegularExpression(
+            '/\.cav-cockpit \.cav-module__open::after \{[^}]*inset:\s*0/s',
+            $css,
+            'The anchor no longer stretches across the row.'
+        );
+
+        // The pointer and the tint are the row telling the truth about being
+        // clickable. The ban on both survives for the rows that are NOT —
+        // asserted from the other side in the visit-row test below.
+        $this->assertMatchesRegularExpression(
+            '/\.cav-cockpit \.cav-module:hover \{[^}]*cursor:\s*pointer/s',
+            $css,
+            'A row that opens on click must say so with the pointer.'
+        );
+
+        $this->assertMatchesRegularExpression(
+            '/\.cav-cockpit \.cav-module:hover \{[^}]*background:\s*var\(--cav-row-hover\)/s',
+            $css,
+            'The row lost its hover tint.'
+        );
+
+        // FOCUS MUST RING THE ROW, NOT THE CHEVRON. A 28px ring in a list of
+        // nine rows tells a keyboard user almost nothing about where they
+        // are, so the outline moves onto the full-width overlay.
+        $this->assertMatchesRegularExpression(
+            '/\.cav-cockpit \.cav-module__open:focus-visible::after \{[^}]*outline:\s*2px solid var\(--cav-focus\)/s',
+            $css,
+            'The keyboard focus ring does not surround the row.'
+        );
+
+        // The two hover tints are TOKENS. No colour may be authored outside
+        // cav-tokens.css, whose only selector is .cav-brand.
+        $tokens = file_get_contents(resource_path('css/cav-tokens.css'));
+
+        foreach (['--cav-row-hover:', '--cav-row-hover-active:'] as $token) {
+            $this->assertStringContainsString($token, $tokens, "{$token} is not declared as a token.");
+        }
+
+        // The OPEN row must not fall back to the neutral hover, which would
+        // read as "this row is no longer the one you have open".
+        $this->assertMatchesRegularExpression(
+            '/\.cav-cockpit \.cav-module--active:hover \{[^}]*background:\s*var\(--cav-row-hover-active\)/s',
+            $css,
+            'The active row loses its marker on hover.'
+        );
+    }
+
+    /**
+     * THE MODULE ROW BECAME CLICKABLE; THE VISIT ROW DID NOT.
+     *
+     * The doctrine at the top of cockpit.css is "a row that looks clickable
+     * but is not is worse than one that looks inert". Quick task 260920 gave
+     * the module row a pointer because it genuinely became a link. This test
+     * exists so that nobody reads that change as permission to do the same
+     * to a row that is still static — visits become openable in Phase 46.
+     */
+    public function test_the_static_visit_row_still_advertises_nothing(): void
+    {
+        $css = file_get_contents(resource_path('css/cockpit.css'));
+
+        $this->assertMatchesRegularExpression(
+            '/\.cav-cockpit \.cav-visit \{[^}]*\}/s',
+            $css,
+            'The visit row rule has gone.'
+        );
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/\.cav-cockpit \.cav-visit(:hover)? \{[^}]*cursor:\s*pointer/s',
+            $css,
+            'The visit row is static until Phase 46 and must not advertise a click.'
+        );
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/\.cav-cockpit \.cav-visit:hover \{/s',
+            $css,
+            'The visit row gained a hover state it cannot honour.'
         );
     }
 
