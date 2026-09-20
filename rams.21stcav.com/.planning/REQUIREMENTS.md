@@ -183,17 +183,17 @@ Each is **recorded in the admin Hidden Functions register**, not forgotten:
 | VIS-08 | Phase 45 | Complete (Plans 45-02 + 45-05 + 45-07, carried by 45-12 + 45-13, 2026-09-20 — a force-deleted source still renders; superseded is disclosed in the module row's at-rest count phrase, not hidden) |
 | VIS-09 | Phase 45 | Complete (Plan 45-04, 2026-09-19 — `install_records` durable parent + nullable FK; D-06 baseline 159 passed / 0 failed re-measured at 45-08 and again at 45-14) |
 | VIS-10 | Phase 45 | Mechanism complete (Plans 45-03 + 45-06, **retargeted to the app's blue and Inter** by Plan 45-09 per D-08, 2026-09-20 — tokens stay scoped to `.cav-brand`; `layouts/app.blade.php`, `app.css` and `tailwind.config.js` all still hash to their pre-phase `4abd2b24` values). **Awaiting the 45-14 human check** — greyscale distinctness and the 320px count slot are the two properties no test can settle. |
-| VL-01 | Phase 46 | Planned (Plan 46-04) |
-| VL-02 | Phase 46 | Planned (Plan 46-04 — `VisitLinkIssuer` calls the module’s existing generator; no new public route) |
-| VL-03 | Phase 46 | Planned (Plans 46-04 + 46-05 + 46-08 — asserted by byte-identical `access_token` comparisons, never assumed) |
+| VL-01 | Phase 46 | Complete (Plan 46-04, 2026-09-20 - POST projects/{project}/cockpit/visits creates from the module drawer; the module fixes the type, the PM sets date/rooms/people, `is_backfilled = false` asserted) |
+| VL-02 | Phase 46 | Complete (Plan 46-04, 2026-09-20 - `VisitLinkIssuer` calls the module's existing generator; no new public route and no new document generator. A second survey visit ADOPTS the live survey, so one link stays one link) |
+| VL-03 | Phase 46 | In progress (Plans 46-04 + 46-05 + 46-08). 46-04 half done 2026-09-20: no token became mass-assignable (S-02/S-03 `$fillable` omissions untouched, tokens still minted only in `boot::creating`), and a test asserts no token is rendered anywhere in the cockpit region |
 | VL-04 | Phase 46 | Planned (Plan 46-03 — **the phase’s core feature**, D-01; proven by editing the survey and re-fetching the link) |
 | VL-05 | Phase 46 | Planned (Plans 46-01 + 46-06) |
 | VL-06 | Phase 46 | Planned (Plans 46-01 + 46-05 + 46-06 — the reopening is DERIVED, so `submitted_at` is never cleared) |
 | VL-07 | Phase 46 | Planned (Plan 46-07 — append-only `visit_notes`; `office_review_notes` deliberately not reused) |
 | VL-08 | Phase 46 | Planned (Plans 46-02 + 46-07 — minimal record only, D-03, fenced at both the schema and the HTTP boundary) |
-| VL-09 | Phase 46 | Planned (Plan 46-04) |
-| VL-10 | Phase 46 | Planned (Plans 46-04 + 46-06 + 46-07) |
-| VL-11 | Phase 46 | Planned (Plans 46-04 + 46-06 + 46-07, human-checked in 46-08) |
+| VL-09 | Phase 46 | Complete (Plan 46-04, 2026-09-20 - one `Generate document` control on RAMS / O&M / Cable schedule, posting to the existing generator route behind `Route::has()`. Issue to client, Add document, Upload files and Download all still banned by the fence) |
+| VL-10 | Phase 46 | In progress (Plans 46-04 + 46-06 + 46-07). 46-04 half done 2026-09-20: `ProjectActivityLog::ACTION_VISIT_CREATED`, exactly one row per create, rendered by the panel's own feed |
+| VL-11 | Phase 46 | In progress (Plans 46-04 + 46-06 + 46-07, human-checked in 46-08). 46-04 half done 2026-09-20: the Quick actions cap is EXECUTABLE - one control per module over five modules, none over four, never more than four controls in the block at any state, nothing disabled, and all nine banned handler attributes kept because Phase 46 considered retiring them and declined |
 | VL-12 | Phase 46 | **GAP — not delivered by Phase 46.** Raised 2026-09-20 at planning time; needs a user decision (see VL-12 above). |
 
 *Phases 47–51 have no requirement IDs yet. Mint them into this section as each phase is planned,
