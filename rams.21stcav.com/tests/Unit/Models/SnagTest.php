@@ -3,7 +3,9 @@
 namespace Tests\Unit\Models;
 
 use App\Models\Project;
+use App\Models\SiteSurvey;
 use App\Models\Snag;
+use App\Models\Visit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -24,6 +26,87 @@ use Tests\TestCase;
 class SnagTest extends TestCase
 {
     use RefreshDatabase;
+
+    /**
+     * The link D-03 asks for: "a minimal snag record linked to the visit it
+     * came from". It must resolve in both directions.
+     */
+    public function test_a_snag_knows_the_visit_it_came_from(): void
+    {
+        $visit = Visit::factory()->create();
+        $snag = Snag::factory()->create([
+            'project_id' => $visit->project_id,
+            'visit_id'   => $visit->id,
+        ]);
+
+        $this->assertSame($visit->id, $snag->visit->id);
+        $this->assertSame($visit->project_id, $snag->project->id);
+    }
+
+    /**
+     * Phase 47 criterion 1: "one visit may resolve several snags". The link
+     * lives on the snag, so N snags may already point at one visit — nothing
+     * about that shape has to change in Phase 47.
+     */
+    public function test_one_visit_may_carry_several_snags(): void
+    {
+        $visit = Visit::factory()->create();
+
+        Snag::factory()->count(3)->create([
+            'project_id' => $visit->project_id,
+            'visit_id'   => $visit->id,
+        ]);
+
+        $this->assertSame(3, Snag::where('visit_id', $visit->id)->count());
+    }
+
+    /**
+     * D-04 applied to a snag: what was reported does not stop having been
+     * reported because the visit record went. `visits` has no softDeletes, so
+     * this is a HARD delete and the FK is the only thing standing between the
+     * finding and oblivion — it nulls, it does not cascade.
+     */
+    public function test_deleting_a_visit_does_not_delete_its_snags(): void
+    {
+        $visit = Visit::factory()->create();
+        $snag = Snag::factory()->create([
+            'project_id' => $visit->project_id,
+            'visit_id'   => $visit->id,
+        ]);
+
+        $visit->delete();
+
+        $this->assertDatabaseHas('snags', ['id' => $snag->id]);
+        $this->assertNull($snag->fresh()->visit_id);
+        $this->assertSame('Trunking not made good in the comms room', $snag->fresh()->title);
+    }
+
+    /**
+     * The same D-04 property the visit itself has: the snag still resolves its
+     * visit and its project after the visit's SOURCE record is force-deleted.
+     * `Visit::source()` goes null; the visit row, and therefore the snag's
+     * link, are untouched.
+     */
+    public function test_a_snag_survives_its_visits_source_being_force_deleted(): void
+    {
+        $survey = SiteSurvey::factory()->create();
+        $visit = Visit::factory()
+            ->backfilledFromSurvey($survey)
+            ->create(['project_id' => $survey->project_id]);
+
+        $snag = Snag::factory()->create([
+            'project_id' => $visit->project_id,
+            'visit_id'   => $visit->id,
+        ]);
+
+        $survey->forceDelete();
+
+        $snag->refresh();
+
+        $this->assertNull($snag->visit->source());
+        $this->assertSame($visit->id, $snag->visit->id);
+        $this->assertSame($visit->project_id, $snag->project->id);
+    }
 
     /**
      * Phase 47 success criterion 2 owns the three outcomes (fixed / not fixed
