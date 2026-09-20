@@ -212,9 +212,12 @@ class CockpitOfficeNoteAndSnagTest extends TestCase
 
         $this->assertSame([], $offenders, 'visit_notes is append-only: nothing in app/ may edit or remove a note.');
 
-        // Nor may a route offer one.
+        // Nor may a route offer one. Scoped to the COCKPIT's note routes:
+        // `install-tasks/{task}/notes` and `commissioning-items/{item}/notes`
+        // are pre-existing PATCH routes on entirely different records, and
+        // this fence is about office notes on a visit.
         foreach (Route::getRoutes() as $route) {
-            if (! str_contains($route->uri(), 'notes')) {
+            if (! str_contains($route->uri(), 'cockpit') || ! str_contains($route->uri(), 'notes')) {
                 continue;
             }
 
