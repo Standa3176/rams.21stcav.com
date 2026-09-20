@@ -15,8 +15,9 @@ recorded in `.planning/sketches/002-install-cockpit/README.md` (cockpit + panels
 `.planning/sketches/003-quote-import/README.md` (import review). The sketches are the
 **visual contract**; where an implementation and a sketch disagree, the sketch wins unless
 the user says otherwise.
-**Total requirements:** 15 defined so far (LR-01..LR-05, Phase 44; VIS-01..VIS-10, Phase 45).
-Phases 46–51 are outlined in the roadmap but their requirement IDs are **not yet minted** — each
+**Total requirements:** 27 defined so far (LR-01..LR-05, Phase 44; VIS-01..VIS-10, Phase 45;
+VL-01..VL-12, Phase 46).
+Phases 47–51 are outlined in the roadmap but their requirement IDs are **not yet minted** — each
 will be added here when its phase is planned.
 
 ### Why this milestone exists
@@ -89,6 +90,63 @@ These ten were minted at planning time on 2026-09-19 and map to the Phase 45 suc
     MECHANISM, not the palette — the tokens resolve to the app's own blue and Inter
     (`resources/css/cav-tokens.css`, retargeted by Plan 45-09).*
 
+### Group VL — Visit lifecycle (Phase 46)
+
+These eleven were minted at planning time on 2026-09-20 and map to the Phase 46 success criteria
+in `ROADMAP.md` and to D-01..D-04 in `46-CONTEXT.md`. Two deliberate narrowings are recorded in
+VL-02 and VL-08; one deliberate GAP against ROADMAP criterion 2 is recorded in VL-12.
+
+- **VL-01** — A PM can create a visit from inside its module drawer: the module fixes the type,
+  and the PM sets the date, the rooms in scope and the assigned labour resources. The visit is
+  written with `is_backfilled = false`, so a PM-created visit is never mistaken for an inference.
+- **VL-02** — Creating a visit for a module that has an engineer link produces **exactly one**
+  engineer link, and it is produced by the generator that already exists for that module
+  (`site-surveys.from-project` for a survey visit, `worksheets.generate-from-project` for a
+  first-fix/install visit). No new public route and no new document generator is written.
+  (Deliberately narrower than the literal reading of ROADMAP criterion 1 — the link's content is
+  driven by the visit's type *because the type selects which existing engineer link is issued*,
+  per D-04's "use the generators that already exist".)
+- **VL-03** — Every live `/survey/{token}` and `/worksheet/{token}` link keeps working exactly as
+  it does today, and no access token becomes mass-assignable.
+- **VL-04** — **The survey → install carry-forward (D-01).** An install engineer opening their
+  link sees the survey's `access_constraints`, `parking_restraints`, `comms_room_access_status`,
+  `comms_room_access_notes`, `delivery_routes`, `site_access_notes`, `site_risks`, `h_and_s_notes`,
+  `general_notes` and `distance_from_base_miles`, **read live from the survey record and never
+  copied** — proven by a test that edits the survey after the link was first rendered and asserts
+  the link shows the new value.
+- **VL-05** — A PM can **accept** a returned visit. Acceptance records who and when, and locks the
+  visit's scope. The lock is visible on the page rather than silent.
+- **VL-06** — A PM can **send a returned visit back** for more information. The engineer's link
+  reopens, the engineer sees the office's reason, and nothing the engineer captured is altered or
+  deleted to achieve it.
+- **VL-07** — A PM can **add an office note** against a visit. The note is stored separately from
+  engineer-captured data and can never overwrite or edit it.
+- **VL-08** — A PM can **raise a snag** against a visit. A minimal snag record is created, linked
+  to the visit it came from. (Deliberately minimal per D-03: parts, the three outcomes and linked
+  follow-up chains are Phase 47. The record is shaped so Phase 47 extends it rather than replacing
+  it.)
+- **VL-09** — A module's document can be **generated from inside its drawer** using the module's
+  existing generator. Sending it to a client, confirming sent, uploading and downloading remain
+  absent (Phase 48).
+- **VL-10** — Every PM action in this phase writes exactly one `ProjectActivityLog` entry, so the
+  panel's Recent activity feed shows what happened without a second history mechanism.
+- **VL-11** — **"Simple to use" is a requirement, not a platitude.** Every write is a plain form
+  POST — the cockpit ships no JavaScript of its own and the read-only fence's nine banned handler
+  attributes stay banned. Two caps, both asserted by test: the panel's **Quick actions** area
+  renders **at most one** control per module (Create visit, or Generate document, or nothing), and a
+  **visit row** renders **at most four** (Accept · Send back · Add note · Raise a snag), each only
+  when it applies to that visit's state. A control is never rendered disabled — a disabled control
+  is still an offer. *The user's own words, which this requirement exists to keep: "I want to make
+  it look simple and less scary."*
+- **VL-12** — **GAP, deliberately recorded, NOT delivered by Phase 46.** ROADMAP criterion 2 says a
+  RAMS and a worksheet generated for a visit cover only that visit's type and rooms. Phase 46
+  captures `rooms_in_scope` on the visit and shows it on the engineer link, but does **not** scope
+  the generators' output: `RamsController::generateFromProject()` and
+  `WorksheetController::generateFromProject()` take a `Project` and nothing else, and no decision
+  exists about how a room-scoped RAMS should be authored from an AI pipeline driven by the whole
+  quote. Raised at planning time on 2026-09-20 rather than silently dropped. Needs a user decision
+  before it can be planned.
+
 ### Out of scope for v4.0
 
 Each is **recorded in the admin Hidden Functions register**, not forgotten:
@@ -125,8 +183,20 @@ Each is **recorded in the admin Hidden Functions register**, not forgotten:
 | VIS-08 | Phase 45 | Complete (Plans 45-02 + 45-05 + 45-07, carried by 45-12 + 45-13, 2026-09-20 — a force-deleted source still renders; superseded is disclosed in the module row's at-rest count phrase, not hidden) |
 | VIS-09 | Phase 45 | Complete (Plan 45-04, 2026-09-19 — `install_records` durable parent + nullable FK; D-06 baseline 159 passed / 0 failed re-measured at 45-08 and again at 45-14) |
 | VIS-10 | Phase 45 | Mechanism complete (Plans 45-03 + 45-06, **retargeted to the app's blue and Inter** by Plan 45-09 per D-08, 2026-09-20 — tokens stay scoped to `.cav-brand`; `layouts/app.blade.php`, `app.css` and `tailwind.config.js` all still hash to their pre-phase `4abd2b24` values). **Awaiting the 45-14 human check** — greyscale distinctness and the 320px count slot are the two properties no test can settle. |
+| VL-01 | Phase 46 | Planned (Plan 46-04) |
+| VL-02 | Phase 46 | Planned (Plan 46-04 — `VisitLinkIssuer` calls the module’s existing generator; no new public route) |
+| VL-03 | Phase 46 | Planned (Plans 46-04 + 46-05 + 46-08 — asserted by byte-identical `access_token` comparisons, never assumed) |
+| VL-04 | Phase 46 | Planned (Plan 46-03 — **the phase’s core feature**, D-01; proven by editing the survey and re-fetching the link) |
+| VL-05 | Phase 46 | Planned (Plans 46-01 + 46-06) |
+| VL-06 | Phase 46 | Planned (Plans 46-01 + 46-05 + 46-06 — the reopening is DERIVED, so `submitted_at` is never cleared) |
+| VL-07 | Phase 46 | Planned (Plan 46-07 — append-only `visit_notes`; `office_review_notes` deliberately not reused) |
+| VL-08 | Phase 46 | Planned (Plans 46-02 + 46-07 — minimal record only, D-03, fenced at both the schema and the HTTP boundary) |
+| VL-09 | Phase 46 | Planned (Plan 46-04) |
+| VL-10 | Phase 46 | Planned (Plans 46-04 + 46-06 + 46-07) |
+| VL-11 | Phase 46 | Planned (Plans 46-04 + 46-06 + 46-07, human-checked in 46-08) |
+| VL-12 | Phase 46 | **GAP — not delivered by Phase 46.** Raised 2026-09-20 at planning time; needs a user decision (see VL-12 above). |
 
-*Phases 46–51 have no requirement IDs yet. Mint them into this section as each phase is planned,
+*Phases 47–51 have no requirement IDs yet. Mint them into this section as each phase is planned,
 following the LR-xx / VIS-xx pattern.*
 
 ---

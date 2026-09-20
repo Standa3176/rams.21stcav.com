@@ -445,7 +445,8 @@ project.
 **Depends on**: Phase 45 (the `Visit` record and the cockpit that displays it), Phase 44 (labour
 resources are who a visit is sent to).
 
-**Requirements**: Not yet minted. Mint VL-xx into `.planning/REQUIREMENTS.md` § v4.0 at planning time.
+**Requirements**: VL-01..VL-11 (minted 2026-09-20). **VL-12 is a recorded GAP against criterion 2
+— see below and `.planning/REQUIREMENTS.md` § Group VL.**
 
 **Success Criteria** (what must be TRUE):
 
@@ -458,17 +459,39 @@ resources are who a visit is sent to).
   4. The PM can accept a returned visit, and acceptance is recorded with who and when
   5. Existing `/survey/{token}` and `/worksheet/{token}` links continue to work unchanged throughout
 
-**Open questions** (resolve at discuss-phase):
+**Open questions** — ALL RESOLVED at planning time, 2026-09-20:
 
-  - Who may accept a visit — PM only, or any authenticated staff user? The app is a shared workspace
-    with no role model beyond `EnsureUserIsAdmin`.
-  - Does accepting every visit in a section auto-close that section's deliverable, or is closing a
-    separate deliberate act?
-  - What happens to a returned visit that the PM rejects — reopen the same visit, or open a fresh one?
-  - Does one visit produce one engineer link, or can a link be reissued (and does reissuing invalidate
-    the first)?
+  - *Who may accept a visit?* **Any authenticated staff user.** The app's documented shared-workspace
+    convention (`abort_unless(auth()->check(), 403)`, no role model beyond `EnsureUserIsAdmin`);
+    inventing a PM role here would be a role model nothing else in the app has. (Plan 46-04.)
+  - *Does accepting auto-close the deliverable?* **No — they stay separate**, the conservative reading
+    46-CONTEXT.md names. Acceptance closes a visit; closing a deliverable stays its own act.
+  - *What happens to a rejected return?* **The same visit reopens.** Send back sets `sent_back_at` +
+    a required reason, and the engineer link becomes writable again by DERIVATION — nothing the
+    engineer captured is cleared to achieve it. A fresh visit would orphan the first return.
+  - *One link, or reissued?* **One.** The visit's link is the token link of the record its type
+    selects — `/survey/{token}` or `/worksheet/{token}` — issued by the generator that already
+    exists. A survey visit on a project that already has a live survey ADOPTS it rather than minting
+    a second link. Reissue/revoke stays where it already lives (`worksheets.revoke-token`).
 
-**Plans**: Not yet planned
+**Criterion 2 is NOT fully delivered — recorded as VL-12.** A visit captures `rooms_in_scope` and
+the engineer link shows it, but the RAMS and worksheet GENERATORS are not scoped to a visit's rooms:
+`RamsController::generateFromProject()` and `WorksheetController::generateFromProject()` take a
+`Project` and nothing else, and no decision exists about how a room-scoped RAMS should be authored
+from an AI pipeline driven by the whole quote. Raised at planning time rather than silently dropped.
+Needs a user decision before it can be planned.
+
+**Plans**: 8 plans
+
+Plans:
+- [ ] 46-01-PLAN.md — Visit lifecycle: seven stored acts, the rest derived (wave 1)
+- [ ] 46-02-PLAN.md — The minimal snag record, fenced against Phase 47 (wave 1)
+- [ ] 46-03-PLAN.md — **The survey → install carry-forward, read live (wave 1, D-01)**
+- [ ] 46-04-PLAN.md — Quick actions: create a visit, generate a document; the fence retired per entry (wave 2)
+- [ ] 46-05-PLAN.md — What the engineer sees: the link reopens, and the office says why (wave 2)
+- [ ] 46-06-PLAN.md — Accept and send back, with a visible scope lock (wave 3)
+- [ ] 46-07-PLAN.md — Office note and raise a snag; the visit row reaches its four-control cap (wave 4)
+- [ ] 46-08-PLAN.md — End-to-end proof, fence re-proof, and the human check (wave 5)
 
 **UI hint**: yes (prepare panel, send flow, return review — the cockpit's write half)
 
