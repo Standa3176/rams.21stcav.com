@@ -643,4 +643,231 @@ class CockpitOfficeNoteAndSnagTest extends TestCase
         $this->assertStringNotContainsString('OFFICE-ONLY-NOTE-MARKER', $body);
         $this->assertStringNotContainsString('OFFICE-ONLY-SNAG-MARKER', $body);
     }
+
+    // ── Task 3: the visit row reaches exactly four controls, and stops ───
+
+    /**
+     * Every `.cav-visit` row in the open module, as raw HTML.
+     *
+     * @return array<int, string>
+     */
+    private function visitRows(Project $project, string $module, array $query = []): array
+    {
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$this->region($project, ['module' => $module] + $query));
+        libxml_clear_errors();
+
+        $rows = [];
+
+        foreach ((new \DOMXPath($dom))->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' cav-visit ')]") as $node) {
+            $rows[] = html_entity_decode($dom->saveHTML($node), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+
+        return $rows;
+    }
+
+    /** Controls, counted the way a PM counts them: things you can press. */
+    private function countControls(string $row): int
+    {
+        return substr_count($row, '<button') + substr_count($row, '<a ');
+    }
+
+    public function test_a_returned_visit_offers_exactly_the_four_controls_and_no_fifth(): void
+    {
+        $project = $this->project();
+        $this->returnedSurveyVisit($project);
+
+        $rows = $this->visitRows($project, 'site_survey');
+
+        $this->assertCount(1, $rows);
+
+        // THE CAP IS REACHED HERE. Four is the maximum, not a target: a fifth
+        // act means removing one, not widening the row.
+        $this->assertSame(4, $this->countControls($rows[0]));
+
+        foreach (['Accept', 'Send back', 'Add note', 'Raise a snag'] as $control) {
+            $this->assertStringContainsString($control, $rows[0]);
+        }
+    }
+
+    public function test_an_accepted_visit_offers_add_note_and_nothing_else(): void
+    {
+        $project = $this->project();
+        Visit::factory()->accepted()->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
+
+        $rows = $this->visitRows($project, 'worksheet');
+
+        $this->assertCount(1, $rows);
+        $this->assertSame(1, $this->countControls($rows[0]));
+        $this->assertStringContainsString('Add note', $rows[0]);
+        $this->assertStringContainsString('Accepted by', $rows[0]);
+
+        // A snag after acceptance is Phase 47's register, not a retroactive
+        // edit to a closed visit.
+        $this->assertStringNotContainsString('Raise a snag', $rows[0]);
+    }
+
+    public function test_a_reconstructed_visit_still_offers_nothing_at_all(): void
+    {
+        $project   = $this->project();
+        $worksheet = \App\Models\Worksheet::factory()->create(['project_id' => $project->id]);
+
+        \App\Models\WorksheetSignoff::create([
+            'worksheet_id'         => $worksheet->id,
+            'client_name'          => 'A Client',
+            'signature_png_base64' => 'iVBORw0KGgo=',
+            'signed_with_comments' => false,
+            'signed_at'            => now()->subYear(),
+        ]);
+
+        $visit = Visit::factory()->backfilledFromWorksheet($worksheet)->create([
+            'project_id' => $project->id,
+            'status'     => Visit::STATUS_COMPLETED,
+        ]);
+
+        // 46-01's finding, and 24 rows on live look exactly like this one: the
+        // DERIVED state reads RETURNED while the visit is closed.
+        $this->assertSame(Visit::STATE_RETURNED, $visit->state());
+        $this->assertTrue($visit->isClosed());
+
+        $rows = $this->visitRows($project, 'worksheet');
+
+        $this->assertCount(1, $rows);
+        $this->assertSame(0, $this->countControls($rows[0]), 'A reconstructed visit must never offer a note or a snag.');
+        $this->assertStringNotContainsString('Add note', $rows[0]);
+        $this->assertStringNotContainsString('Raise a snag', $rows[0]);
+        $this->assertStringContainsString('Reconstructed', $rows[0]);
+    }
+
+    public function test_no_disclosed_form_ever_takes_a_row_past_four_controls(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        foreach (['send-back', 'note', 'snag'] as $action) {
+            $row = $this->visitRows($project, 'site_survey', ['action' => $action, 'visit' => $visit->id])[0];
+
+            $this->assertLessThanOrEqual(
+                4,
+                $this->countControls($row),
+                "Opening the {$action} form took the row past the cap."
+            );
+
+            $this->assertStringNotContainsString('disabled', $row);
+        }
+    }
+
+    public function test_only_one_form_can_be_open_because_only_one_action_fits_in_the_url(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        $closed = $this->visitRows($project, 'site_survey')[0];
+
+        $this->assertStringNotContainsString('<textarea', $closed);
+        $this->assertStringContainsString('action=note', $closed);
+        $this->assertStringContainsString('action=snag', $closed);
+
+        $noteOpen = $this->visitRows($project, 'site_survey', ['action' => 'note', 'visit' => $visit->id])[0];
+
+        $this->assertSame(1, substr_count($noteOpen, '<textarea'));
+        $this->assertStringContainsString('_token', $noteOpen);
+        $this->assertStringContainsString('Cancel', $noteOpen);
+        // The snag form is NOT also open — the panel cannot become a wall of
+        // open forms, which is the failure the user named.
+        $this->assertStringNotContainsString('name="title"', $noteOpen);
+
+        $snagOpen = $this->visitRows($project, 'site_survey', ['action' => 'snag', 'visit' => $visit->id])[0];
+
+        $this->assertStringContainsString('name="title"', $snagOpen);
+        $this->assertStringContainsString('_token', $snagOpen);
+        $this->assertStringNotContainsString('name="body"', $snagOpen);
+    }
+
+    public function test_a_form_opens_only_on_the_visit_the_url_names(): void
+    {
+        $project = $this->project();
+        $first   = $this->returnedSurveyVisit($project);
+        $second  = Visit::factory()->returned()->create(['project_id' => $project->id, 'type' => Visit::TYPE_SITE_SURVEY]);
+
+        $rows = $this->visitRows($project, 'site_survey', ['action' => 'note', 'visit' => $first->id]);
+
+        $this->assertCount(2, $rows);
+        $this->assertSame(1, substr_count(implode('', $rows), '<textarea'));
+        $this->assertNotNull($second->id);
+    }
+
+    public function test_the_row_copy_is_this_phases_wording_and_never_phase_47_or_48s(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        $rows = implode('', array_merge(
+            $this->visitRows($project, 'site_survey'),
+            $this->visitRows($project, 'site_survey', ['action' => 'note', 'visit' => $visit->id]),
+            $this->visitRows($project, 'site_survey', ['action' => 'snag', 'visit' => $visit->id]),
+        ));
+
+        $this->assertStringContainsString('Raise a snag', $rows);
+
+        // Every one of these is a LATER phase's word, and the fence still bans
+        // each by name.
+        foreach (['Add a snag', 'Book a visit', 'Open register', 'Assign parts', 'Close snag', 'Add document', 'Upload files', 'Download'] as $deferred) {
+            $this->assertStringNotContainsString($deferred, $rows, "`{$deferred}` is a later phase's copy.");
+        }
+    }
+
+    public function test_the_row_shows_a_plain_snag_count_that_links_nowhere(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        $this->snag($project, $visit, ['title' => 'Trunking not made good']);
+
+        $row = $this->visitRows($project, 'site_survey')[0];
+
+        $this->assertStringContainsString('1 snag raised', $row);
+
+        // A COUNT WITH NO DESTINATION is the honest rendering of a record
+        // Phase 47 will give a home: there is no snag register in Phase 46.
+        $this->assertSame(4, $this->countControls($row));
+
+        $this->snag($project, $visit, ['title' => 'Second finding']);
+
+        $this->assertStringContainsString('2 snags raised', $this->visitRows($project, 'site_survey')[0]);
+    }
+
+    public function test_a_hostile_note_and_a_hostile_snag_never_render_raw_on_any_tab(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        $this->note($project, $visit, ['body' => '<script>alert(1)</script>']);
+        $this->snag($project, $visit, ['title' => '<script>alert(2)</script>']);
+
+        foreach (['overview', 'files', 'notes'] as $tab) {
+            $body = $this->actingAs($this->user())
+                ->get(route('projects.cockpit', ['project' => $project, 'module' => 'site_survey', 'tab' => $tab]))
+                ->assertOk()
+                ->getContent();
+
+            $this->assertStringNotContainsString('<script>alert(1)</script>', $body);
+            $this->assertStringNotContainsString('<script>alert(2)</script>', $body);
+        }
+    }
+
+    public function test_the_cockpit_region_still_ships_no_javascript(): void
+    {
+        $project = $this->project();
+        $visit   = $this->returnedSurveyVisit($project);
+
+        foreach ([[], ['action' => 'note', 'visit' => $visit->id], ['action' => 'snag', 'visit' => $visit->id]] as $query) {
+            $region = $this->region($project, ['module' => 'site_survey'] + $query);
+
+            foreach (['onclick', 'wire:', 'x-on:', '@click', 'x-data', 'x-show', 'x-init', 'x-if', 'x-text', '<script', '<select'] as $banned) {
+                $this->assertStringNotContainsString($banned, $region, "The region grew `{$banned}`.");
+            }
+        }
+    }
 }
