@@ -211,6 +211,36 @@ class FlagOffBehaviourUnchangedTest extends TestCase
     }
 
     /**
+     * The panel's query string is gated by the same 404 (Plan 45-13).
+     *
+     * `?module=` and `?tab=` arrived in Plan 45-11, AFTER this file was
+     * written, so until now nothing proved that the flag gates them too. It
+     * does — the gate is `abort_unless(config('cockpit.enabled'), 404)` at the
+     * top of the one action, before any input is read — but a reader has to
+     * take that on trust unless a test says so, and a query parameter is
+     * exactly the kind of thing a later refactor resolves before the gate.
+     */
+    public function test_the_flag_off_404_holds_for_the_panel_query_string_too(): void
+    {
+        $user    = User::factory()->create();
+        $project = $this->project($user);
+
+        $urls = [
+            route('projects.cockpit', ['project' => $project, 'module' => 'worksheet']),
+            route('projects.cockpit', ['project' => $project, 'tab' => 'files']),
+            route('projects.cockpit', ['project' => $project, 'module' => 'worksheet', 'tab' => 'notes']),
+            route('projects.cockpit', ['project' => $project, 'module' => '<script>alert(1)</script>']),
+        ];
+
+        foreach ($urls as $url) {
+            $response = $this->actingAs($user)->get($url);
+
+            $response->assertNotFound();
+            $this->assertNoCockpitFootprint($response->getContent(), 'The flag-off 404 for '.$url);
+        }
+    }
+
+    /**
      * This assertion is what stops a later agent "tidying up" by wrapping
      * Route::get() in `if (config('cockpit.enabled'))`. Doing so would make
      * route('projects.cockpit') throw RouteNotFoundException whenever the
