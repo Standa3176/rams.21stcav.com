@@ -859,6 +859,28 @@
     color: var(--cav-light);
 }
 
+/* ── The lifecycle, said in words (Phase 46, Plan 46-06) ────────────────
+   Two sentences, never a badge and never a disabled control: "Accepted by
+   … on …" and "Scope locked — returned …". D-06 has no edit affordance to
+   grey out, so the lock has to SPEAK or a PM reads the row as broken.
+   NO `position` on either — `.cav-module` is position:relative and
+   `.cav-module__open::after` is inset:0, and a positioned child inside a row
+   collapses that stretched click target onto the chevron. These live in the
+   PANEL, and they stay unpositioned regardless. */
+.cav-cockpit .cav-visit__state,
+.cav-cockpit .cav-visit__lock {
+    display: block;
+    margin-top: var(--cav-s1);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.45;
+    color: var(--cav-light);
+}
+
+.cav-cockpit .cav-visit__lock {
+    font-weight: 600;
+}
+
 .cav-cockpit .cav-visit__status {
     font-size: 13px;
     line-height: 1.45;

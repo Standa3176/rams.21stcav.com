@@ -263,6 +263,18 @@ Route::middleware('auth')->group(function () {
     Route::post('projects/{project}/cockpit/visits', [ProjectCockpitActionController::class, 'storeVisit'])
         ->name('projects.cockpit.visits.store');
 
+    // ── Cockpit visit review (Phase 46, Plan 46-06; VL-05/VL-06/VL-10) ────
+    // The PM's two acts on a returned visit, beside the create route and in
+    // the same controller. `{visit}` is route-model-bound, but binding does
+    // NOT prove the relationship — the controller asserts
+    // `$visit->project_id === $project->id` and 404s otherwise (T-46-06-01),
+    // so a visit id guessed from another project is never accepted.
+    Route::post('projects/{project}/cockpit/visits/{visit}/accept', [ProjectCockpitActionController::class, 'acceptVisit'])
+        ->name('projects.cockpit.visits.accept');
+
+    Route::post('projects/{project}/cockpit/visits/{visit}/send-back', [ProjectCockpitActionController::class, 'sendBackVisit'])
+        ->name('projects.cockpit.visits.send-back');
+
     // ── Engineer reference files (quick task 260601-r4c) ──────────────────
     // Shared-workspace auth (per 260525-pyu/s8b) — any authed user. Routes
     // throttled to match existing project-level upload/delete/download

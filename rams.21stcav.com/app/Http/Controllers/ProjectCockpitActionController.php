@@ -6,6 +6,7 @@ use App\Core\Modules\Projects\ProjectService;
 use App\Models\Project;
 use App\Models\ProjectActivityLog;
 use App\Models\Visit;
+use App\Support\Cockpit\CockpitModulePresenter;
 use App\Support\Visits\VisitLinkIssuer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -144,6 +145,104 @@ class ProjectCockpitActionController extends Controller
         return redirect()
             ->route('projects.cockpit', ['project' => $project, 'module' => $data['module']])
             ->with('success', 'Visit created and the engineer link is ready.');
+    }
+
+    /**
+     * POST /projects/{project}/cockpit/visits/{visit}/accept
+     *
+     * D-02's first PM act: the office says "yes, that's done". It records WHO
+     * and WHEN and NOTHING ELSE.
+     *
+     * WHAT THIS DELIBERATELY DOES NOT DO: it does not rewrite `Visit::status`.
+     * The stored vocabulary is `planned` / `completed` and 24 reconstructed
+     * rows on live depend on it not growing — `isClosed()` already reads an
+     * acceptance, so the progress ring counts this visit without a single
+     * stored value changing. Nor does it touch the wrapped survey or
+     * worksheet: an office action never changes what the engineer said
+     * (T-46-06-02).
+     *
+     * ACCEPTANCE IS FINAL IN THIS PHASE. There is no un-accept: nothing in
+     * D-02 grants one, and an un-accept that cleared `accepted_by_user_id`
+     * would erase the record of who said yes (T-46-06-03). If it is ever
+     * needed it is a new decision, not an obvious extension of this method.
+     */
+    public function acceptVisit(Request $request, Project $project, Visit $visit): RedirectResponse
+    {
+        $this->guard($project, $visit);
+
+        // A PM who double-clicks must be told which of the two clicks counted,
+        // so a second accept is an ERROR, never a silent no-op that re-stamps
+        // the actor. Only a visit that has actually come back can be accepted.
+        if (! in_array($visit->state(), [Visit::STATE_RETURNED, Visit::STATE_SENT_BACK], true)) {
+            return $this->refuse(
+                $visit->state() === Visit::STATE_ACCEPTED
+                    ? 'This visit was already accepted, so nothing was recorded a second time.'
+                    : 'This visit has not come back from the engineer yet, so there is nothing to accept.',
+            );
+        }
+
+        /** @var \App\Models\User $user */
+        $user = auth()->user();
+
+        DB::transaction(function () use ($project, $visit, $user): void {
+            $visit->forceFill([
+                'accepted_at'         => now(),
+                'accepted_by_user_id' => $user->id,
+            ])->save();
+
+            $this->projects->log(
+                project:     $project,
+                user:        $user,
+                action:      ProjectActivityLog::ACTION_VISIT_ACCEPTED,
+                description: "{$user->name} accepted a ".$this->typeLabel($visit->type).' visit.',
+                metadata:    ['visit_id' => $visit->id, 'visit_type' => $visit->type],
+            );
+        });
+
+        return redirect()
+            ->route('projects.cockpit', ['project' => $project, 'module' => $this->moduleKeyFor($visit)])
+            ->with('success', 'Visit accepted. Its scope is now locked.');
+    }
+
+    /**
+     * The two gates every cockpit write carries, plus the ownership check.
+     *
+     * ROUTE-MODEL BINDING DOES NOT CHECK THE RELATIONSHIP. Without the third
+     * line, a visit id belonging to another project would be accepted by
+     * anyone who guessed it (T-46-06-01), so the check is explicit and the
+     * failure is a 404 — a 403 would confirm the id exists.
+     */
+    private function guard(Project $project, Visit $visit): void
+    {
+        abort_unless(config('cockpit.enabled'), 404);
+        abort_unless(auth()->check(), 403);
+        abort_unless($visit->project_id === $project->id, 404);
+    }
+
+    /**
+     * A refused act: back to where the PM was, with the reason visible, at
+     * 422. Not a redirect-with-success and not an exception page — the PM must
+     * be able to read what did not happen and carry on.
+     */
+    private function refuse(string $message): RedirectResponse
+    {
+        return back()->withInput()->withErrors(['visit' => $message])->setStatusCode(422);
+    }
+
+    /**
+     * The module drawer this visit belongs in, read from the presenter's OWN
+     * map rather than a second copy of it here — a seventh visit type added
+     * later must not silently redirect to nothing.
+     */
+    private function moduleKeyFor(Visit $visit): ?string
+    {
+        foreach (CockpitModulePresenter::moduleMap() as $key => $definition) {
+            if (in_array($visit->type, $definition['visit_types'] ?? [], true)) {
+                return $key;
+            }
+        }
+
+        return null;
     }
 
     /**

@@ -27,6 +27,17 @@ class ProjectActivityLog extends Model
     // the visit's own `created_by_user_id`.
     const ACTION_VISIT_CREATED    = 'visit_created';
 
+    // Phase 46, Plan 46-06 — the PM's two review acts. Added DELIBERATELY
+    // rather than left to the panel feed's humanised fallback (45-12): an
+    // unknown action string would still render a readable line, which is
+    // exactly why a missing constant here would never be noticed.
+    // T-46-06-03: acceptance is accountable — there is no un-accept path, so
+    // this row and `visits.accepted_by_user_id` are the permanent record of
+    // who said yes.
+    const ACTION_VISIT_ACCEPTED   = 'visit_accepted';
+
+    const ACTION_VISIT_SENT_BACK  = 'visit_sent_back';
+
     protected $fillable = [
         'project_id',
         'user_id',

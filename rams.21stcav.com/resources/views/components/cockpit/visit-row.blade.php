@@ -66,6 +66,24 @@
     // isClosed() (Phase 46) rather than a literal status comparison, for the
     // same reason the progress ring uses it: an accepted visit is finished.
     $statusLabel = $visit->isClosed() ? 'Completed' : 'Planned';
+
+    // ── The lifecycle, said in words (Phase 46, Plan 46-06) ──────────────
+    //
+    // A RECONSTRUCTED VISIT IS EXCLUDED FROM ALL OF IT. `Visit::state()`
+    // reads RETURNED for a backfilled visit whose worksheet carries a
+    // sign-off (46-01's recorded finding), and there are 24 such rows on
+    // live. Gating on `isClosed()` as well as on `isBackfilled()` is what
+    // stops two dozen years-old trips to site reading as work awaiting a PM's
+    // attention on the day this ships.
+    $isReviewable = ! $isReconstructed && ! $visit->isClosed();
+    $state        = $visit->state();
+
+    // The lock is a SENTENCE, never a greyed-out control. D-06: there is no
+    // edit affordance to disable, because a PM who needs a change sends the
+    // visit back. A disabled control that never explains itself is how a PM
+    // concludes the page is broken.
+    $lockedOn  = $isReconstructed ? null : $visit->returnedAt();
+    $acceptedBy = $visit->accepted_at === null ? null : optional($visit->acceptedBy)->name;
 @endphp
 
 <div class="cav-visit{{ $isReconstructed ? ' cav-visit--reconstructed' : '' }}">
@@ -114,6 +132,28 @@
                     <x-cockpit.chip variant="record-unavailable" />
                 @endif
             </span>
+        @endif
+
+        @if ($visit->accepted_at !== null && ! $isReconstructed)
+            {{-- WHO and WHEN, because an acceptance with no accountable actor
+                 is repudiable (T-46-06-03). A deleted staff login reads NULL
+                 at the database, so the actor degrades to "the office" rather
+                 than silently becoming somebody else. --}}
+            <span class="cav-visit__state">
+                Accepted by {{ $acceptedBy ?? 'the office' }} on {{ $visit->accepted_at->format('d M Y') }}
+            </span>
+        @elseif ($state === \App\Models\Visit::STATE_SENT_BACK && ! $isReconstructed)
+            <span class="cav-visit__state">
+                Sent back {{ optional($visit->sent_back_at)->format('d M Y') }} — awaiting the engineer
+            </span>
+        @elseif ($visit->isAwaitingReturn() && ! $isReconstructed)
+            <span class="cav-visit__state">Awaiting the engineer</span>
+        @endif
+
+        @if ($lockedOn !== null)
+            {{-- Scope locks ON RETURN, not on acceptance (Visit::isLocked()).
+                 The sentence is the whole affordance. --}}
+            <span class="cav-visit__lock">Scope locked — returned {{ $lockedOn->format('d M Y') }}</span>
         @endif
     </span>
 
