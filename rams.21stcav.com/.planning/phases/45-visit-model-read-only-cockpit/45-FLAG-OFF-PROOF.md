@@ -382,3 +382,26 @@ guessing keys from the row titles will get a closed panel and report a bug that 
 | PHP binary | `%USERPROFILE%\.config\herd\bin\php84\php.exe` (PowerShell — mandatory) |
 | Build | `npm run build` via Bash (npm is blocked by PowerShell execution policy here) |
 | Flag state | § 1-§ 7: `COCKPIT_ENABLED` absent from `.env` → `false`. § 9: present and `true`, in `.env` and in production since 2026-09-20. |
+
+
+---
+
+## § 10 — Human checkpoint: APPROVED (2026-09-20)
+
+The user reviewed the rebuilt cockpit on the live server after the sketch-004 rebuild
+(45-09..45-15) and the whole-row click change (`260920-rwc`), and approved it:
+**"DESIGN LOOKS GOOD."**
+
+**What was approved:** the layout, the nine module rows with their per-module hues, the KPI
+cards, the side panel with its Overview / Files / Notes tabs, the query-string panel state, and
+the row-click interaction.
+
+**What was NOT separately confirmed**, and is therefore recorded as outstanding rather than
+passed: the greyscale (Achromatopsia) check on the status chips, and the 320px reflow check that
+the count phrase stays visible. Both remain worth doing. Neither blocks Phase 46, because the
+properties they protect are asserted by tests — the chip carries its glyph shape and its state in
+words, and the count phrase carries the reconstructed/superseded qualifiers — but a test asserts
+the markup, not how it reads to a person.
+
+Phase 45 is complete. The write affordances the design shows (Create visit, Add note, Upload
+files, the Actions dropdown) were deliberately not built and are Phase 46/48.

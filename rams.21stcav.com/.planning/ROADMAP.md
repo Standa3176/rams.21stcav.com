@@ -430,7 +430,7 @@ moved.
 - [x] 45-11-PLAN.md — The replacement page itself: masthead, KPI cards, stage chip, module list, and the side-panel shell with its **Overview** tab. Panel open/closed and tab state live entirely in the URL — zero JavaScript. The accordion, the pip and the hand-tick box are deleted. Wave 3. Requirements: VIS-04, VIS-10.
 - [x] 45-12-PLAN.md — The panel's **Files** tab as the project's document library (D-13 — the user's own example of what the panel is for), the **Notes** tab, and the **Recent activity** feed from the existing `ProjectActivityLog` (D-14). Read-only listing and viewing only; upload is Phase 48. Wave 4. Requirements: VIS-04, VIS-08.
 - [x] 45-13-PLAN.md — Reconcile the four cockpit test files with the rebuild: the read-only fence extended to 18 deferred affordances and 9 banned handler attributes across every open panel, 13 spine assertions retargeted and 2 retired with their subjects rehomed. **Found and fixed a real regression** — the module row had stopped disclosing `reconstructed` / `superseded` at rest (D-02/D-04). Wave 5. Requirements: VIS-04, VIS-06, VIS-08.
-- [ ] 45-14-PLAN.md — Whole-phase gate re-run (D-06 baseline, full suite, the three sha256 pins, `npm run build`), documentation close-out, and **the phase's only human checkpoint**: the design comparison, greyscale and 320px. **Blocking — not self-approvable.** Wave 6. Requirements: VIS-04, VIS-05, VIS-10.
+- [x] 45-14-PLAN.md — Whole-phase gate re-run (D-06 baseline, full suite, the three sha256 pins, `npm run build`), documentation close-out, and **the phase's only human checkpoint**: the design comparison, greyscale and 320px. **Blocking — not self-approvable.** Wave 6. Requirements: VIS-04, VIS-05, VIS-10.
 
 **UI hint**: yes (new read-only page, flag-gated)
 
