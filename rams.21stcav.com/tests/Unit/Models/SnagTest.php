@@ -4,6 +4,7 @@ namespace Tests\Unit\Models;
 
 use App\Models\Project;
 use App\Models\SiteSurvey;
+use App\Models\User;
 use App\Models\Snag;
 use App\Models\Visit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -89,7 +90,7 @@ class SnagTest extends TestCase
      */
     public function test_a_snag_survives_its_visits_source_being_force_deleted(): void
     {
-        $survey = SiteSurvey::factory()->create();
+        $survey = $this->makeSurvey();
         $visit = Visit::factory()
             ->backfilledFromSurvey($survey)
             ->create(['project_id' => $survey->project_id]);
@@ -190,5 +191,23 @@ class SnagTest extends TestCase
 
         $this->assertNull($snag->fresh()->visit_id);
         $this->assertNull($snag->fresh()->visit);
+    }
+
+    // Helpers ----------------------------------------------------------------
+
+    /**
+     * There is no SiteSurveyFactory in this repo; VisitTest builds one the
+     * same way (tests/Unit/Models/VisitTest.php:212).
+     */
+    private function makeSurvey(): SiteSurvey
+    {
+        $project = Project::factory()->create();
+
+        return SiteSurvey::create([
+            'user_id'      => $project->user_id ?? User::factory()->create()->id,
+            'project_id'   => $project->id,
+            'project_name' => $project->name,
+            'survey_date'  => '2026-04-01',
+        ]);
     }
 }
