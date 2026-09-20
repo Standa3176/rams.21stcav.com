@@ -2,10 +2,12 @@
 
 namespace Tests\Feature\Cockpit;
 
+use App\Http\Controllers\ProjectCockpitController;
 use App\Models\Project;
 use App\Models\User;
 use App\Models\Visit;
 use App\Models\Worksheet;
+use App\Support\Cockpit\CockpitModulePresenter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -44,8 +46,15 @@ class CockpitReadOnlyFenceTest extends TestCase
     ];
 
     /**
-     * All fifteen deferred write affordances from 45-UI-SPEC.md § Read-only
-     * Fence, with the phase that owns each one.
+     * Every deferred write affordance, with the phase that owns it.
+     *
+     * Fifteen came from 45-UI-SPEC.md § Read-only Fence. Plan 45-13 added the
+     * three that sketch 004 draws as a "Quick actions" block in the side panel
+     * (D-15): Create visit, Add note and Upload files. They were never
+     * rendered, not even disabled, but until now only CockpitPageTest and
+     * CockpitPanelTest said so, each in its own private list. Naming them here
+     * puts them behind the count assertion below, so a later phase that ships
+     * one has to remove its entry deliberately.
      *
      * @var array<string, string>
      */
@@ -65,6 +74,41 @@ class CockpitReadOnlyFenceTest extends TestCase
         'Open register'            => 'Phase 48',
         'Export CSV'               => 'Phase 48',
         'Download'                 => 'Phase 48',
+
+        // Sketch 004's Quick actions block — added by Plan 45-13 (D-15).
+        'Create visit'             => 'Phase 46',
+        'Add note'                 => 'Phase 46',
+        'Upload files'             => 'Phase 48',
+    ];
+
+    /**
+     * Handler attributes and template directives banned INSIDE the region.
+     *
+     * THE ALPINE RULING, ENFORCED RATHER THAN REMEMBERED. Alpine is loaded
+     * globally by resources/views/layouts/app.blade.php and is therefore
+     * AVAILABLE on this page — it is not absent, it is BANNED. Phase 45 ships
+     * no JavaScript of its own: the side panel's open/closed and tab state is
+     * URL state driven by plain <a href> GETs (Plan 45-11), which is why the
+     * design's disclosure behaviour needed no directive. Plan 45-11 asserted
+     * these strings inline inside CockpitPageTest; Plan 45-13 promotes them
+     * here so the ruling lives in the fence.
+     *
+     * When Phase 46 introduces writes it MAY retire this ban — deliberately,
+     * by an owner, by editing this list. Until then an Alpine directive inside
+     * the cockpit region is a fence breach.
+     *
+     * @var array<int, string>
+     */
+    private const BANNED_HANDLER_ATTRIBUTES = [
+        'onclick',
+        'wire:',
+        'x-on:',
+        '@click',
+        'x-data',
+        'x-show',
+        'x-init',
+        'x-if',
+        'x-text',
     ];
 
     /**
@@ -205,12 +249,18 @@ class CockpitReadOnlyFenceTest extends TestCase
         return $project;
     }
 
-    private function render(Project $project): string
+    /**
+     * @param  array<string, string>  $query  `?module=` / `?tab=` — the page's
+     *                                        only user-supplied input.
+     */
+    private function render(Project $project, array $query = []): string
     {
         config(['cockpit.enabled' => true]);
 
+        $url = route('projects.cockpit', ['project' => $project] + $query);
+
         return $this->actingAs(User::factory()->create())
-            ->get(route('projects.cockpit', $project))
+            ->get($url)
             ->assertOk()
             ->getContent();
     }
@@ -231,7 +281,7 @@ class CockpitReadOnlyFenceTest extends TestCase
         }
     }
 
-    public function test_none_of_the_fifteen_deferred_affordances_appears(): void
+    public function test_none_of_the_deferred_affordances_appears(): void
     {
         $region = $this->cockpitRegion($this->render($this->populatedProject()));
 
@@ -246,10 +296,14 @@ class CockpitReadOnlyFenceTest extends TestCase
 
     public function test_the_fence_enumerates_the_whole_deferred_set(): void
     {
+        // MOVED DELIBERATELY, 15 -> 18, by Plan 45-13 when sketch 004's three
+        // Quick actions joined the list. This number is the anti-rot mechanism:
+        // it exists so that dropping an affordance is an edit somebody has to
+        // make on purpose. It is never to be deleted to make a change fit.
         $this->assertCount(
-            15,
+            18,
             self::DEFERRED_AFFORDANCES,
-            'All fifteen affordances drawn in the sketch are enumerated; nothing is dropped silently.'
+            'Every affordance drawn in either sketch is enumerated; nothing is dropped silently.'
         );
 
         foreach (self::DEFERRED_AFFORDANCES as $copy => $owner) {
@@ -259,22 +313,46 @@ class CockpitReadOnlyFenceTest extends TestCase
 
         $this->assertCount(6, self::FORBIDDEN_MARKUP);
         $this->assertCount(5, self::WRITE_SURFACE_TABLES);
+        $this->assertCount(9, self::BANNED_HANDLER_ATTRIBUTES);
     }
 
+    /**
+     * Alpine is AVAILABLE here and nonetheless BANNED — see
+     * BANNED_HANDLER_ATTRIBUTES for the ruling and for who may retire it.
+     *
+     * Run over the bare page AND over every open panel: the panel is the
+     * newest markup on the page and the likeliest place for a directive to
+     * appear, because it is the one part of the design that behaves like a
+     * widget.
+     */
     public function test_rows_are_static_and_nothing_is_wired_to_a_handler(): void
     {
-        $region = $this->cockpitRegion($this->render($this->populatedProject()));
+        $project = $this->populatedProject();
 
-        $this->assertStringNotContainsString('onclick', $region);
-        $this->assertStringNotContainsString('cursor: pointer', $region);
-        $this->assertStringNotContainsString('cursor:pointer', $region);
-        $this->assertStringNotContainsString('tabindex', $region);
-        $this->assertStringNotContainsString('wire:', $region);
-        $this->assertStringNotContainsString('x-on:', $region);
-        $this->assertStringNotContainsString('@click', $region);
+        $regions = [$this->cockpitRegion($this->render($project))];
 
-        // <details> announces its own state; a hand-written one would be a lie.
-        $this->assertStringNotContainsString('aria-expanded', $region);
+        foreach (array_keys(CockpitModulePresenter::moduleMap()) as $moduleKey) {
+            $regions[] = $this->cockpitRegion($this->render($project, ['module' => $moduleKey]));
+        }
+
+        foreach ($regions as $region) {
+            foreach (self::BANNED_HANDLER_ATTRIBUTES as $banned) {
+                $this->assertStringNotContainsString(
+                    $banned,
+                    $region,
+                    "Read-only fence: `{$banned}` must not appear inside the cockpit. ".
+                    'Phase 45 ships no JavaScript; the panel is URL state.'
+                );
+            }
+
+            $this->assertStringNotContainsString('cursor: pointer', $region);
+            $this->assertStringNotContainsString('cursor:pointer', $region);
+            $this->assertStringNotContainsString('tabindex', $region);
+
+            // Nothing on this page is a disclosure widget, so nothing may
+            // announce an expanded state it does not own.
+            $this->assertStringNotContainsString('aria-expanded', $region);
+        }
     }
 
     public function test_the_one_permitted_navigation_affordance_is_present(): void
@@ -311,6 +389,71 @@ class CockpitReadOnlyFenceTest extends TestCase
                 DB::table($table)->count(),
                 "Rendering the cockpit changed the row count of `{$table}` — Phase 45 adds no new writes."
             );
+        }
+    }
+
+    /**
+     * The bare page was already proved inert. `?module=` is NEW request
+     * surface (Plan 45-11) and gets its own proof: opening every module the
+     * presenter exposes, on every tab, must leave all five write-surface
+     * tables exactly where they were.
+     */
+    public function test_opening_a_panel_writes_nothing(): void
+    {
+        $project = $this->populatedProject();
+
+        $before = [];
+
+        foreach (self::WRITE_SURFACE_TABLES as $table) {
+            $before[$table] = DB::table($table)->count();
+        }
+
+        // Iterated from the presenter's OWN key list, so a tenth module is
+        // covered the day it is added rather than the day someone remembers.
+        foreach (array_keys(CockpitModulePresenter::moduleMap()) as $moduleKey) {
+            foreach (ProjectCockpitController::TABS as $tab) {
+                $this->cockpitRegion($this->render($project, ['module' => $moduleKey, 'tab' => $tab]));
+            }
+        }
+
+        foreach (self::WRITE_SURFACE_TABLES as $table) {
+            $this->assertSame(
+                $before[$table],
+                DB::table($table)->count(),
+                "Opening a panel changed the row count of `{$table}` — a GET on this page writes nothing."
+            );
+        }
+    }
+
+    /**
+     * An unrecognised `?module=` is a stale bookmark, not an error worth
+     * showing a PM. It renders 200 with the panel closed, and the submitted
+     * value is NEVER echoed — asserted on the RAW body rather than on the
+     * entity-decoded subtree, so even an escaped reflection fails here.
+     */
+    public function test_a_hostile_module_value_is_not_reflected(): void
+    {
+        $project = $this->populatedProject();
+
+        $payloads = [
+            '<script>alert(1)</script>',
+            str_repeat('a', 5000),
+        ];
+
+        foreach ($payloads as $payload) {
+            $body = $this->render($project, ['module' => $payload]);
+
+            $this->assertStringNotContainsString(
+                $payload,
+                $body,
+                'A submitted ?module= value must never be reflected into the page.'
+            );
+
+            // Still bracket-valid: cockpitRegion() asserts both ends, so a
+            // payload that broke the page would fail inside this call.
+            $region = $this->cockpitRegion($body);
+
+            $this->assertStringNotContainsString('cav-panel', $region, 'An unknown module opens nothing.');
         }
     }
 
