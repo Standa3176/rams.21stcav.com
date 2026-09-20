@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: Engineering-Grade AV Drawings
+milestone: v4.0
+milestone_name: Project Cockpit
 status: executing
-stopped_at: Phase 30 COMPLETE — Plan 30-09 (final plan) landed. 21CQ30960 clean+defects fixtures prove ROADMAP criterion 4 by fixture (StructuralGatesRealDocumentTest, 8 tests); clean fixture wired into both snapshot test files (4 new golden-render + 2 leak-boundary tests); 30-VALIDATION.md reconciled against actual wave 3-6 results. Full phase gate green: 2670/2671 (1 pre-existing unrelated QueueRecoverCommandTest failure), 12/12 snapshot suite, 873/873 --filter=Rams. GATE-01/02/04/13/14 all correctly Pending in REQUIREMENTS.md (disarmed-gate-is-not-Complete precedent, coordinator-directed correction of GATE-01/02/04). All three Phase 30 flags remain env(..., false); .env carries none. Phase 31 (Standards/COSHH Scoping & Padding Gates) not yet planned.
-last_updated: "2026-09-14T00:00:00.000Z"
-last_activity: 2026-09-14
+stopped_at: Phase 46 (Visit Lifecycle) IN PROGRESS — 1 of 8 plans landed (46-03, the survey→install carry-forward). Phases 44 and 45 COMPLETE and deployed to rams.21stcav.com. The cockpit is live behind COCKPIT_ENABLED (currently true on the server) at /projects/{id}/cockpit. Next: 46-01 (visit lifecycle columns), 46-02 (minimal snags table), then waves 2-4 (write affordances) and 46-08 (end-to-end walk + human check).
+last_updated: "2026-09-20T00:00:00.000Z"
+last_activity: 2026-09-20
 progress:
-  total_phases: 9
-  completed_phases: 8
-  total_plans: 39
-  completed_plans: 45
-  percent: 89
+  total_phases: 8
+  completed_phases: 2
+  total_plans: 27
+  completed_plans: 19
+  percent: 25
 ---
 
 ## Project Reference
@@ -19,11 +19,80 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-30)
 
 **Core value:** One dataset powers every document.
-**Current focus:** Phase 30 — Structural Validation Gates COMPLETE (9 of 9 plans landed). Phase 31 (Standards/COSHH Scoping & Padding Gates) not yet planned.
+**Current focus:** v4.0 Project Cockpit (phases 44–51). One page a project is delivered from.
+
+> **STATE.md is hand-maintained.** `gsd-sdk query state.advance-plan` and `state.update-progress`
+> corrupted this file five separate times during Phase 45, each time with the same signature
+> (`completed_phases` 8→7, `completed_plans` 45→38, `percent` 89→78) and each time overwriting the
+> hand-written `stopped_at`. Every executor reverted it. **Do not run those verbs.**
+> `roadmap.update-plan-progress` is safe and is the one to use.
+>
+> Note also that `gsd-sdk query roadmap.get-phase` returns `malformed_roadmap` for phases 46–51
+> even though their `### Phase NN:` sections exist — a parser-window bug triggered by Phase 45's
+> section growing. Read `.planning/ROADMAP.md` directly.
 
 ## Current Position
 
-Phase: 30 (Structural Validation Gates) — COMPLETE (all 9 plans landed). Plan 01 (foundation: three disarmed flags, GATE-01/GATE-14 config vocabularies, `StructuralGateVocabulary` helper, `compliance_warnings` channel — commits `7c05d63`/`0a308fe`/`b9d916e`), Plan 02 (data-reachability mirrors: `client_responsibilities_expanded` + gate-private `areas_for_gate` mirrored onto the pipeline array at all three real generation entry points immediately before `RamsComplianceUpgradeService::upgrade()`, closing 30-RESEARCH.md Finding 1 — without these, GATE-01/GATE-02 would report clean on every real document. `StructuralGatesDualPathTest` (6 tests) proves reachability per entry point; the delete-one-line-watch-it-fail non-vacuity procedure was actually run for all three mirror sites, not merely described — each deletion confirmed to fail its named test, each restoration confirmed via `git diff` empty. Full Rams suite: 780 passed. Commits `dd7ebd8` (Task 1), `213276c` (Task 2), `373ac36` (docs). See `30-02-SUMMARY.md`.) and Plan 03 (GATE-01/GATE-02 gate bodies: `enforceOrphanControlGate()` throws when a trigger phrase like "asbestos register" has no supporting hazard row OR no supporting client-responsibility entry — D-05, fires on either missing, message names which; `enforceAreaCoverageGate()` throws when a named area has no method step, passing vacuously on zero areas. Both dispatched in one new block in `upgrade()` behind the already-shipped `rams_tier1.structural_gates_enabled`/`RAMS_STRUCTURAL_GATES` flag, default false — no new config surface. `StructuralGatesTest` (15 unit tests) proves every throw/no-throw boundary plus dispatch-flag wiring; `StructuralGatesSaveReviewGateTest` (4 feature tests), modeled on `DisplayLiftSaveReviewGateTest`, proves an armed gate's exception is caught and surfaced as a friendly redirect on the real Save Review HTTP route (not a 500), that the same violating payload succeeds disarmed, and that nothing persists when a gate throws. One Rule-1 fix: reworded a docblock phrase that collided with `HazardResolutionPathGuardTest`'s marker scan. Full Rams suite: 799 passed (was 780). Commits `322705a` (Task 1), `c589755` (Task 2), `71bbf63` (Task 3). See `30-03-SUMMARY.md`.) and Plan 04 (review-screen warning surface per the approved 30-UI-SPEC.md: a `.alert.alert-warning` summary panel and a `.gate-flagged` hazard-row rail (reusing `.diff-modified`'s exact 3px rail + 6% tint, differentiated by an `aria-hidden` ⚠ glyph since the rails are pixel-identical), both reading the single `generated_data['compliance_warnings']` array — never a second computation in the blade. Renders nothing when the array is empty/absent (byte-identical pre-Phase-30 render); never claims "all checks passed" or names a non-firing gate; row matching is strict `hazard_index === $hIdx`, never guessing a row when the index is null. `ComplianceWarningsRenderTest` (12 tests) proves empty/populated states, XSS escaping, and — the security-critical part — a sentinel-string leak assertion proving `compliance_warnings` never reaches `pdf.rams`, `pdf.rams-v2`, `DocxBuilderService`, or `DocxBuilderServiceV2` output. Two self-caught Rule-1 fixes: an own CSS comment (rendered literally inside `<style>`, unlike a Blade `{{-- --}}` comment) initially leaked "GATE-14" and later the literal `class="gate-flagged"` string into every render regardless of any actual warning — both reworded to generic language once the always-present-CSS-selector-vs-applied-row-class distinction was made testable. GATE-04/GATE-14 requirements NOT marked complete — this plan ships the render channel only; the gate bodies land in Plans 30-06/30-08. Full Rams suite: 811 passed (was 799). Commits `6f346f8` (Task 1), `92ad29b` (Task 2). See `30-04-SUMMARY.md`.) are now landed. Plan 05 (documentation-only reconciliation, no code changes): corrected ROADMAP Phase 30's goal line from three gates to five (D-01) and criterion 1 from the inverted "no matching hazard row AND no matching clientReqs entry" reading to the canonical EITHER reading (D-05), added new criteria 5/6 for GATE-13/GATE-14, and updated REQUIREMENTS.md's GATE-13/GATE-14 traceability rows to record their scheduled-not-shipped state with the GATE-11/GATE-12 built-but-disarmed status-ambiguity warning. Wrote `30-MEASUREMENT.md` — a read-only, zero-write per-gate corpus measurement procedure plus the arming runbook, which states a non-`--dry-run` `rams:refresh-compliance` corpus regeneration as a HARD PRECONDITION of flipping `RAMS_STRUCTURAL_GATES` (sites 4/5/6 only inherit Plan 30-02's mirrors by persistence — arming pre-regeneration produces a silent-clean GATE-02 false negative and a GATE-01 `_expanded`-half false positive simultaneously), an explicit reasoned no-backfill-needed conclusion, and three independent one-line `.env` flips with the `config:clear`/`config:cache` step flagged as unverified assumption A4. Reconciled `30-UI-SPEC.md` (GATE-14 moved from error tier to warn tier, dated correction note, spec remains approved), `30-RESEARCH.md` (all four Open Questions retitled RESOLVED and annotated with their resolving plan), and `30-VALIDATION.md` (every Task ID/Plan/Wave filled in from the nine plans; the single D-04 flag-independence row — previously mis-mapped to `StructuralGatesTest`, a unit test with no `.env`-flipping mechanism — split into three rows naming `StructuralGatesDisarmedTest` and its three owning plans 30-06/30-07/30-08; two missing rows added; `status: approved`, `nyquist_compliant: true`, `wave_0_complete: true` set, with rows for unexecuted Plans 30-06 through 30-09 left honestly `⬜ pending`). Wrote `verify-artifacts.ps1` (fails on any of the four corrected regressions reappearing; confirmed green with `-ExecutionPolicy Bypass` — the plan's literal verify command hits this machine's `LocalMachine: Restricted` policy, an environment property, not a script defect). Commits `59d39a8` (Task 1), `6efc78c` (Task 2), `a3d933c` (Task 3), `3888911` (SUMMARY). See `30-05-SUMMARY.md`. Plan 06 (GATE-04, the phase's only two-tier gate: `enforceResidualScoreGate()` throws when a hazard's residual score `post_l*post_s` exceeds its initial score `pre_l*pre_s`, naming the hazard and the `RA##` label from row index+1 — not `$h['id']`; warns, and NEVER throws, when residual severity falls below initial severity, per T-30-15 proven non-vacuous against the COMMITTED Tilda golden fixture — direct inspection showed all three of its hazard rows trip the warn branch (severities 3<4, 2<3, 3<5), correcting an earlier "exactly one warn" assumption in the plan text against real fixture data. Rows missing `pre_likelihood`/`pre_severity` are skipped via `array_key_exists` BEFORE any default, per T-30-14. Dispatched as the third call in the existing `structural_gates_enabled` block — no new flag. `StructuralGatesDisarmedTest` (12 tests) proves the D-04 disarmed posture: a triple-violating document throws nothing with all three Phase 30 flags false and throws when armed; disarmed output is byte-identical apart from the always-present `compliance_warnings` key; all three Phase 30 flags proven independent in both directions against the three previously-shipped gate flags (`RAMS_DISPLAY_LIFT_GATE`, `RAMS_PPE_CEILING_ELECTRICAL_GATE`, `RAMS_CDM_AE_GATE`); a docblock scope note records that `enforceHotWorksGate()`/`enforceMissingRiskRefGate()` (30-07/30-08) don't exist yet and their reciprocal independence assertions are owned by those plans, which extend this same file. Full Rams suite: 834 passed (0 failed). Commits `8901a3d` (Task 1), `00b1433` (Task 2). See `30-06-SUMMARY.md`. Plan 07 (GATE-13, built whole with both halves, ships disarmed: `hot_works_assertion` detector added to `ControlTextRuleViolations::DETECTORS` (negation-first, two-list, narrow verb-paired absence phrases — "no hot works will be", "hot works are not required", etc. — never a bare "no hot works" substring); `enforceHotWorksGate()` detects the absence assertion first across `exclusions`/hazard names/hazard controls/method-statement steps and returns `$data` unchanged if none found, then checks `permit_and_isolation.rules` for an UNCONDITIONAL hot-works permit requirement (a conditional-marker deny-list — "if ", "where ", "should ", "when " — keeps `addPermitAndIsolation()`'s own shipped conditional line non-contradictory, proven by invoking that method directly and asserting identity) and `coshh_baseline` entries' `product` field for solder/flux. Dispatched in its own new block behind `rams_tier1.hot_works_gate_enabled`/`RAMS_HOT_WORKS_GATE`, default false — a new, independent flag per D-04, since this gate flips a full phase later than the rest per D-02. `StructuralGatesDisarmedTest` extended with the GATE-13 half of the D-04 independence matrix (arming hot-works alone throws only GATE-13 and leaves the structural trio dormant, and vice versa); the GATE-14 leg remains unasserted (owned by Plan 30-08). One Rule-1 fix caught during Task 1, before any GREEN code was written: RESEARCH.md Finding 5's "no app-side source" claim for the absence assertion was based on a grep scope (`app/`, `config/`, `resources/views/pdf/`) that excluded `database/seeders/` — `HazardTemplateSeeder.php:370` ships "No hot works of any kind included in this scope." on every generated RAMS (the always-included "Fire and evacuation" hazard); a bare-substring detector would have broken the existing seeded-library self-check test AND caused `RamsBuilderService::reviewedToRisk()`'s Tier-1 house-rule-replacement path (sharing the same detector registry) to silently overwrite any reviewed hazard's controls whenever this common line is present. Fixed by keeping the phrase list narrow and verb-paired; a dedicated regression test proves the seeded line stays clean. Full Rams suite: 850 passed (was 834; 16 new tests across the extended/new test files, exact match). Commits `a820f0c` (Task 1), `172e4a1` (Task 2). See `30-07-SUMMARY.md`. Plan 08 (GATE-14, WARN TIER — never throws: `enforceMissingRiskRefGate()` scans method-statement phase text against the config-resident `missing_risk_implications` map via `StructuralGateVocabulary::phrasesForSignal()` — NEVER `crossReferenceMethodStatementRisks()`'s `$keywordRiskMap`, the intersection-based code responsible for the canonical defect this gate exists to catch. Only warns when the implied hazard EXISTS in the register and is not already cited; de-duplicates per phase so multiple matching phrases resolving to the same hazard produce one warning, not several. Dispatched behind its own already-shipped `RAMS_MISSING_RISK_REF_GATE` flag (default false, Plan 30-01), placed after `crossReferenceMethodStatementRisks()` and before GATE-13's block. `MissingRiskRefGateTest` (8 tests) proves the canonical two-implied-hazard warning case (RA01/RA02), the already-cited/absent-hazard no-fire cases, a never-throws battery, and dispatch-flag wiring. `MissingRiskRefGateSourceGuardTest` (5 tests) proves independence from `$keywordRiskMap` — the load-bearing assertion is METHOD-scoped (via reflection source-slice extraction), not just file-scoped, since both methods live in the same file. `StructuralGatesDisarmedTest` extended with the GATE-14 half of the D-04 matrix, now COMPLETE across all three Phase 30 flags. One key decision: test fixtures use the two signals (`mounting_above_reach`, `ceiling_void_access`) the shipped config actually defines, not RESEARCH.md's illustrative `manual_handling` example, which corresponds to no signal Plan 30-01 shipped — a corpus-fidelity gap recorded for Phase 31/measurement. Full Rams suite: 865 passed (was 850; 15 new tests, exact match). Commits `107998b` (Task 1), `ccefef8` (D-04 matrix), `2353d79` (Task 2). See `30-08-SUMMARY.md`. Plan 09 (PHASE-CLOSING — 21CQ30960 clean+defects fixtures prove ROADMAP criterion 4 by fixture: `StructuralGatesRealDocumentTest`, 8 tests, feeds each fixture's `generated_data` directly to `upgrade()`; clean fixture passes all five armed gates with zero warnings on non-vacuous input (real `areas_for_gate` covered by a method step, populated `client_responsibilities_expanded`, complete hazard pre/post scores with no severity drop); defects fixture fires GATE-13 via the COSHH half only — a Rule-1 finding during authoring confirmed `addPermitAndIsolation()` unconditionally overwrites `permit_and_isolation` with its own conditional wording on every `upgrade()` call, so the permit half can never fire through the real pipeline — and GATE-14 on RA01 only, since no `manual_handling` signal exists for RA02, recorded not fixed. Clean fixture wired into `PdfSnapshotTest.php`/`DocxSnapshotTest.php` (4 new golden-render tests + 2 leak-boundary tests grepping for every gate ID + `compliance_warnings`); 4 goldens captured via `rams:regenerate-snapshots 21cq30960 --force` and diff-reviewed clean. `30-VALIDATION.md` fully reconciled against actual wave 3-6 results (Plan 30-05's mid-phase pass had left those rows `⬜ pending`). Phase gate: full `php artisan test` 2670 passed / 1 failed (pre-existing unrelated `QueueRecoverCommandTest`, not a Phase 30 regression) / 10330 assertions / 605s; `vendor/bin/phpunit --group snapshot` 12 passed / 71 assertions, stable on a second run; `--filter=Rams` 873 passed (was 865). All three Phase 30 flags confirmed still `env(..., false)`, `.env` grepped directly and carries none of them. Coordinator-directed correction: GATE-01/GATE-02/GATE-04 walked back from Complete to Pending in `REQUIREMENTS.md` (checklist + traceability table) per the project's own GATE-11 disarmed-gate-is-not-Complete precedent (`REQUIREMENTS.md:72`) — all five Phase 30 gates now read Pending with a code-complete/disarmed/flag-name/`30-MEASUREMENT.md`-pointer note. Commits `1941939` (Task 1), `0af82ea` (Task 2), `964ccba` (VALIDATION.md reconciliation), `b66b7e5` (REQUIREMENTS.md correction), `54e4247` (SUMMARY). See `30-09-SUMMARY.md`. **PHASE 30 COMPLETE. Phase 31 (Standards/COSHH Scoping & Padding Gates) not yet planned — read `30-09-SUMMARY.md`'s "Phase 31 Inheritance" section before arming any flag.**
+**Milestone v4.0 Project Cockpit — phases 44–51.** Design contract:
+`.planning/sketches/004-delivery-cockpit/` (accepted by the user 2026-09-20, supersedes sketch 002).
+
+**Phase 44 — Labour Resources: COMPLETE** (4 plans). `labour_resources` with a roles json column;
+admin CRUD with no hard-delete path; a PM-only selector. LR-04 is the load-bearing one: a client is
+never given an engineer's phone or email, proven by a source-guard over 20 client-facing files plus
+live HTTP renders.
+
+**Phase 45 — Visit Model + Cockpit: COMPLETE** (15 plans; human checkpoint approved 2026-09-20,
+"DESIGN LOOKS GOOD"). Delivered: the `visits` table and `Visit` model; the additive
+`InstallProgramme` split (a durable `install_records` parent, nullable FK, `install_tasks` NOT
+moved); two idempotent backfill commands; and the cockpit page. Plans 45-01..45-08 built it to
+sketch 002 (21CAV teal); 45-09..45-15 rebuilt it to sketch 004 after the user supplied a new design.
+
+Key facts a later agent needs:
+- **The D-06 behaviour gate is 159, measured.** `45-BASELINE.md` holds the character-identical
+  12-path command. Assert `>= 159 passed AND 0 failed`, **never equality against 161** — 161 is the
+  method count; 2 self-skip on absent `ext-imagick`.
+- **Three files must stay byte-identical to `4abd2b24`**: `resources/views/layouts/app.blade.php`,
+  `resources/css/app.css`, `tailwind.config.js`. `FlagOffBehaviourUnchangedTest` asserts by sha256
+  (working-tree hashes, CRLF checkout — a `git hash-object` will not match). A mismatch is a STOP.
+- **All cockpit colour is a token on `.cav-brand`** in `resources/css/cav-tokens.css` (76 tokens).
+  No hex literal may reach a Blade file; Tailwind colour utilities are banned (`brand.teal` is a
+  blue, `#2E7BFF`); every class is `cav-`-prefixed.
+- **The cockpit has no JavaScript.** Panel state is the query string (`?module=…&tab=…`), which
+  buys bookmarkable panels and a working back button. Alpine is loaded globally but banned in the
+  region by ruling, enforced in `CockpitReadOnlyFenceTest`.
+- **Stretched-link trap:** `.cav-module` has `position: relative`, `.cav-module__open::after` has
+  `inset: 0`. Give the anchor its own `position` and the row silently stops being clickable with
+  nothing else failing.
+- **Deployed**, and the backfills were run on live: 8 programmes linked, 24 visits created.
+  ⚠️ **13 of those 24 sit on soft-deleted projects** — `BackfillVisitsCommand` does not check
+  whether the parent project is trashed. Harmless (the cockpit 404s as that project's page already
+  does) but it is dead data. Fix wants two parts: skip trashed projects, and a considered cleanup.
+- ⚠️ **Only 1 of 22 worksheets on live carries a signoff**, which is why the spine shows a single
+  reconstructed install visit. Almost certainly the signature-capture bug fixed in the same deploy,
+  not a true reflection of site visits.
+
+**Phase 46 — Visit Lifecycle: IN PROGRESS** (1 of 8 plans). D-01..D-06 in `46-CONTEXT.md`.
+46-03 landed the survey→install carry-forward: ten survey fields render on the unauthenticated
+engineer link, read live from the `SiteSurvey` record and never copied. Four of them —
+`access_constraints`, `site_risks`, `h_and_s_notes`, `general_notes` — had grep count **0** in that
+file before this plan. Those are the safety fields; the five that already carried were logistics.
+`office_review_notes` is excluded by name because the worksheet link is a page a client signs.
+
+Open in Phase 46: **VL-12 NOT DELIVERED** (per-visit document scoping — the generators take a whole
+Project and the RAMS comes from an AI pipeline driven by the entire quote; D-05 captures
+`rooms_in_scope` and defers the generators). **D-06: no Edit control** — the visit row is capped at
+four (Accept, Send back, Add note, Raise a snag); a PM who needs a change sends it back.
+
+**Server note:** something switched the deploy checkout's branch to `deploy-mrgagg` between two
+deploys on 2026-09-20, which caused a build against four-month-old code. Cause unfound. Check
+`git log --oneline -1` on the server BEFORE building. Deploy as `stcav`, never root; the repo root
+is `/home/stcav/rams.21stcav.com.git` and `/home/stcav/rams.21stcav.com` is a symlink into it.
+
+---
+
+### Archived — Phase 30 close-out narrative (v3.0, superseded as current position 2026-09-20)
+
+Phase 30 COMPLETE — Plan 30-09 (final plan) landed. 21CQ30960 clean+defects fixtures prove ROADMAP criterion 4 by fixture (StructuralGatesRealDocumentTest, 8 tests); clean fixture wired into both snapshot test files (4 new golden-render + 2 leak-boundary tests); 30-VALIDATION.md reconciled against actual wave 3-6 results. Full phase gate green: 2670/2671 (1 pre-existing unrelated QueueRecoverCommandTest failure), 12/12 snapshot suite, 873/873 --filter=Rams. GATE-01/02/04/13/14 all correctly Pending in REQUIREMENTS.md (disarmed-gate-is-not-Complete precedent, coordinator-directed correction of GATE-01/02/04). All three Phase 30 flags remain env(..., false); .env carries none. Phase 31 (Standards/COSHH Scoping & Padding Gates) not yet planned.
 
 ---
 
