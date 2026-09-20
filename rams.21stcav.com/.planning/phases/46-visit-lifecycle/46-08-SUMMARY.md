@@ -244,3 +244,12 @@ Task 3 is a `checkpoint:human-verify` with `gate="blocking"`. Execution **stoppe
 questions it exists for — "does this page still look simple and unscary" and "is anything missing
 you expected to be able to do here" — are the user's judgement, and Phase 45's own human check
 (45-14) exists for the same reason. The phase is not complete until it is answered.
+
+## Self-Check: PASSED
+
+- `tests/Feature/Visits/VisitLifecycleEndToEndTest.php` — FOUND
+- `.planning/phases/46-visit-lifecycle/46-08-SUMMARY.md` — FOUND
+- commit `395ea0f5` — FOUND
+- commit `5273632a` — FOUND
+- commit `6149fe1e` (close-out) — FOUND
+- working tree clean of all three deliberate fence breakages
