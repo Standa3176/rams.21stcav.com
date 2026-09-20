@@ -985,6 +985,37 @@
     text-decoration: underline;
 }
 
+/* The snag form's single-line fields (46-07). Same box as the reason
+   textarea, deliberately: two inputs that do the same job must not look
+   like two different kinds of thing.
+   No `position` here either (the stretched-link trap). */
+.cav-cockpit .cav-visit__field {
+    width: 100%;
+    padding: var(--cav-s2) var(--cav-s3);
+    border: 1px solid var(--cav-border);
+    border-radius: var(--cav-radius-sm);
+    background: var(--cav-surface);
+    color: var(--cav-ink);
+    font-family: var(--cav-font-body);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.cav-cockpit .cav-visit__field:focus-visible {
+    outline: 2px solid var(--cav-focus);
+    outline-offset: 2px;
+}
+
+/* A plain count of the snags raised against this visit. A SENTENCE, not a
+   link: Phase 46 has no snag register to send anyone to. */
+.cav-cockpit .cav-visit__snags {
+    display: block;
+    margin-top: var(--cav-s1);
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--cav-light);
+}
+
 .cav-cockpit .cav-visit__status {
     font-size: 13px;
     line-height: 1.45;

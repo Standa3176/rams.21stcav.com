@@ -126,6 +126,31 @@
     $canAccept   = $canAct && in_array($state, [\App\Models\Visit::STATE_RETURNED, \App\Models\Visit::STATE_SENT_BACK], true);
     $canSendBack = $canAct && $state === \App\Models\Visit::STATE_RETURNED;
 
+    // -- The other two acts (Phase 46, Plan 46-07) -----------------------
+    //
+    // A NOTE IS OFFERED ON AN ACCEPTED VISIT AND A SNAG IS NOT, which is why
+    // these two are derived separately rather than sharing `$canAct`. An
+    // accepted visit is CLOSED, so `$canAct` is false for it -- but a note
+    // after acceptance is exactly the annotation D-02 describes and changes
+    // nothing, whereas a snag found after acceptance belongs in Phase 47's
+    // register rather than in a retroactive edit to a closed visit.
+    //
+    // BOTH STILL EXCLUDE A RECONSTRUCTED VISIT. 24 backfilled rows on live
+    // derive STATE_RETURNED while being closed, and none of them is asking a
+    // PM for a reading.
+    $hasContext = ! $isReconstructed && $project !== null && $module !== null;
+    $canNote    = $hasContext && in_array($state, [
+        \App\Models\Visit::STATE_RETURNED,
+        \App\Models\Visit::STATE_SENT_BACK,
+        \App\Models\Visit::STATE_ACCEPTED,
+    ], true);
+    $canSnag    = $canAct && in_array($state, [\App\Models\Visit::STATE_RETURNED, \App\Models\Visit::STATE_SENT_BACK], true);
+
+    // A plain COUNT, never a link: there is no snag register in Phase 46 and
+    // `Open register` is still a banned affordance. Eager-loaded by the read
+    // controller (`visits.snags`), so this is not a query per row.
+    $snagCount = $hasContext ? $visit->snags->count() : 0;
+
     $moduleUrl   = $canAct
         ? route('projects.cockpit', ['project' => $project, 'module' => $module['key']])
         : null;
@@ -138,8 +163,35 @@
         ])
         : null;
 
+    // The same disclosure mechanism, for the two acts 46-07 adds.
+    $noteUrl = $canNote
+        ? route('projects.cockpit', [
+            'project' => $project,
+            'module'  => $module['key'],
+            'action'  => 'note',
+            'visit'   => $visit->id,
+        ])
+        : null;
+
+    $snagUrl = $canSnag
+        ? route('projects.cockpit', [
+            'project' => $project,
+            'module'  => $module['key'],
+            'action'  => 'snag',
+            'visit'   => $visit->id,
+        ])
+        : null;
+
     // COMPARED, never looked up: the id came off the query string.
     $sendBackOpen = $canSendBack && $action === 'send-back' && (int) $actionVisitId === $visit->id;
+    $noteOpen     = $canNote && $action === 'note' && (int) $actionVisitId === $visit->id;
+    $snagOpen     = $canSnag && $action === 'snag' && (int) $actionVisitId === $visit->id;
+
+    // ONLY ONE FORM IS EVER OPEN, because only one `action` fits in the URL --
+    // and while one IS open, the other triggers step aside. That is what keeps
+    // the row at FOUR: Accept plus an open form's submit and Cancel is three,
+    // and the closed row's four controls ARE the cap.
+    $formOpen = $sendBackOpen || $noteOpen || $snagOpen;
 @endphp
 
 <div class="cav-visit{{ $isReconstructed ? ' cav-visit--reconstructed' : '' }}">
@@ -212,7 +264,7 @@
             <span class="cav-visit__lock">Scope locked — returned {{ $lockedOn->format('d M Y') }}</span>
         @endif
 
-        @if ($canAccept || $canSendBack)
+        @if ($canAccept || $canSendBack || $canNote || $canSnag)
             <span class="cav-visit__actions">
                 @if ($canAccept)
                     {{-- Its own small form POST. Acceptance is FINAL in this
@@ -225,8 +277,22 @@
                     </form>
                 @endif
 
-                @if ($canSendBack && ! $sendBackOpen)
+                @if ($canSendBack && ! $formOpen)
                     <a class="cav-visit__control cav-visit__control--quiet" href="{{ $sendBackUrl }}">Send back</a>
+                @endif
+
+                @if ($canNote && ! $formOpen)
+                    {{-- `Add note`, never `Add document` (Phase 48, and still
+                         a banned affordance). --}}
+                    <a class="cav-visit__control cav-visit__control--quiet" href="{{ $noteUrl }}">Add note</a>
+                @endif
+
+                @if ($canSnag && ! $formOpen)
+                    {{-- `Raise a snag`, never `Add a snag` or `Book a visit` --
+                         both are Phase 47 wording and both are still banned by
+                         name in the fence. Raising a snag creates one open
+                         record and stops (D-03); Phase 47 extends it. --}}
+                    <a class="cav-visit__control cav-visit__control--quiet" href="{{ $snagUrl }}">Raise a snag</a>
                 @endif
 
                 @if ($sendBackOpen)
@@ -255,7 +321,81 @@
                         </span>
                     </form>
                 @endif
+
+                @if ($noteOpen)
+                    {{-- THE OFFICE'S READING OF THE RETURN. It goes to
+                         `visit_notes`, never to the engineer's record, and it
+                         never appears on an engineer link. --}}
+                    <form class="cav-visit__act cav-visit__act--reason" method="POST"
+                          action="{{ route('projects.cockpit.visits.notes', ['project' => $project, 'visit' => $visit->id]) }}">
+                        @csrf
+
+                        <span class="cav-visit__hint">Office only - the engineer does not see this.</span>
+
+                        @error('body')
+                            <span class="cav-visit__error">{{ $message }}</span>
+                        @enderror
+
+                        <textarea class="cav-visit__reason" name="body" rows="3"
+                                  aria-label="The office note on this visit">{{ old('body') }}</textarea>
+
+                        <span class="cav-visit__row">
+                            <button class="cav-visit__control" type="submit">Add note</button>
+                            <a class="cav-visit__cancel" href="{{ $moduleUrl }}">Cancel</a>
+                        </span>
+                    </form>
+                @endif
+
+                @if ($snagOpen)
+                    {{-- D-03: THREE FIELDS. No outcome, no parts, no assignee,
+                         no follow-up chain and no cost -- each is owned by a
+                         named Phase 47 criterion and none of them exists in
+                         the schema. Raising a snag is not managing one. --}}
+                    <form class="cav-visit__act cav-visit__act--reason" method="POST"
+                          action="{{ route('projects.cockpit.visits.snags', ['project' => $project, 'visit' => $visit->id]) }}">
+                        @csrf
+
+                        <span class="cav-visit__hint">What was found, and where.</span>
+
+                        @error('title')
+                            <span class="cav-visit__error">{{ $message }}</span>
+                        @enderror
+
+                        <input class="cav-visit__field" type="text" name="title" maxlength="200"
+                               aria-label="What the snag is" value="{{ old('title') }}">
+
+                        @error('room_name')
+                            <span class="cav-visit__error">{{ $message }}</span>
+                        @enderror
+
+                        {{-- A plain string, not a room picker: a snag is often
+                             raised about somewhere the room list does not yet
+                             name, and a select element is still banned here. --}}
+                        <input class="cav-visit__field" type="text" name="room_name" maxlength="200"
+                               aria-label="Where on site (optional)" value="{{ old('room_name') }}">
+
+                        @error('detail')
+                            <span class="cav-visit__error">{{ $message }}</span>
+                        @enderror
+
+                        <textarea class="cav-visit__reason" name="detail" rows="2"
+                                  aria-label="More detail (optional)">{{ old('detail') }}</textarea>
+
+                        <span class="cav-visit__row">
+                            <button class="cav-visit__control" type="submit">Raise a snag</button>
+                            <a class="cav-visit__cancel" href="{{ $moduleUrl }}">Cancel</a>
+                        </span>
+                    </form>
+                @endif
             </span>
+        @endif
+
+        @if ($snagCount > 0)
+            {{-- A COUNT WITH NO DESTINATION. Phase 46 raises a snag; it does
+                 not manage one, so there is nowhere honest to send a PM yet
+                 and `Open register` stays banned. A span, not a control, so
+                 the four-control cap is untouched. --}}
+            <span class="cav-visit__snags">{{ $snagCount }} {{ $snagCount === 1 ? 'snag' : 'snags' }} raised</span>
         @endif
     </span>
 

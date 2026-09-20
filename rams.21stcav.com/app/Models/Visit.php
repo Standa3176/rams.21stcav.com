@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -229,6 +230,32 @@ class Visit extends Model
     public function acceptedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'accepted_by_user_id');
+    }
+
+    /**
+     * The snags raised against this visit (Phase 46, Plan 46-07).
+     *
+     * READ-ONLY IN THIS PHASE: the row renders a plain COUNT of them and
+     * nothing else. There is no snag register in Phase 46 — `Open register` is
+     * still a banned affordance — so a count with no destination is the honest
+     * rendering of a record Phase 47 will give a home. `snags.visit_id` is
+     * nullOnDelete, so a hard-deleted visit loses the link and keeps the snag.
+     */
+    public function snags(): HasMany
+    {
+        return $this->hasMany(Snag::class);
+    }
+
+    /**
+     * The office notes written against this visit (Phase 46, Plan 46-07).
+     *
+     * APPEND-ONLY and deliberately SEPARATE from anything the engineer
+     * captured — D-02: "the engineer's record stays intact; the office view
+     * sits alongside it."
+     */
+    public function notes(): HasMany
+    {
+        return $this->hasMany(VisitNote::class);
     }
 
     /**

@@ -131,6 +131,10 @@ class CockpitVisitActionsTest extends TestCase
             'worksheets'         => DB::table('worksheets')->count(),
             'worksheet_signoffs' => DB::table('worksheet_signoffs')->count(),
             'snags'              => DB::table('snags')->count(),
+            // ADDED BY PLAN 46-07, which is the plan that created the table —
+            // 46-06 recorded that it could not count a table that did not yet
+            // exist. Accepting or sending back a visit writes no office note.
+            'visit_notes'        => DB::table('visit_notes')->count(),
         ];
     }
 
@@ -542,7 +546,13 @@ class CockpitVisitActionsTest extends TestCase
         return substr_count($row, '<button') + substr_count($row, '<a ');
     }
 
-    public function test_a_returned_visit_offers_accept_and_send_back_and_nothing_else(): void
+    /**
+     * WAS `..._and_nothing_else`, asserting 2, when 46-06 shipped the first
+     * two of D-02's four acts. RAISED TO 4 BY PLAN 46-07, which ships the
+     * other two and REACHES the cap — the count stays EXACT, never a floor,
+     * so a fifth control is still a red test here as well as in the cap loop.
+     */
+    public function test_a_returned_visit_offers_exactly_the_four_pm_acts(): void
     {
         $project = $this->project();
         $this->returnedSurveyVisit($project);
@@ -552,7 +562,9 @@ class CockpitVisitActionsTest extends TestCase
         $this->assertCount(1, $rows);
         $this->assertStringContainsString('Accept', $rows[0]);
         $this->assertStringContainsString('Send back', $rows[0]);
-        $this->assertSame(2, $this->countControls($rows[0]));
+        $this->assertStringContainsString('Add note', $rows[0]);
+        $this->assertStringContainsString('Raise a snag', $rows[0]);
+        $this->assertSame(4, $this->countControls($rows[0]));
     }
 
     public function test_a_planned_visit_offers_nothing(): void
@@ -587,13 +599,21 @@ class CockpitVisitActionsTest extends TestCase
         $rows = $this->visitRows($project, 'worksheet');
 
         $this->assertCount(1, $rows);
-        $this->assertSame(1, $this->countControls($rows[0]));
+        // 1 -> 3 (Plan 46-07): Accept, Add note and Raise a snag. Still no
+        // SECOND send-back — the reopening ends when the engineer resubmits.
+        $this->assertSame(3, $this->countControls($rows[0]));
         $this->assertStringContainsString('Accept', $rows[0]);
         $this->assertStringContainsString('Sent back', $rows[0]);
         $this->assertStringNotContainsString('Send back<', $rows[0]);
     }
 
-    public function test_an_accepted_visit_offers_nothing(): void
+    /**
+     * WAS `..._offers_nothing`, asserting 0. Plan 46-07 gives an accepted
+     * visit EXACTLY ONE control: Add note. A note after acceptance is exactly
+     * the annotation D-02 describes and changes nothing about the acceptance;
+     * a SNAG after acceptance is Phase 47's register and is still absent here.
+     */
+    public function test_an_accepted_visit_offers_only_add_note(): void
     {
         $project = $this->project();
         Visit::factory()->accepted()->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
@@ -601,7 +621,9 @@ class CockpitVisitActionsTest extends TestCase
         $rows = $this->visitRows($project, 'worksheet');
 
         $this->assertCount(1, $rows);
-        $this->assertSame(0, $this->countControls($rows[0]));
+        $this->assertSame(1, $this->countControls($rows[0]));
+        $this->assertStringContainsString('Add note', $rows[0]);
+        $this->assertStringNotContainsString('Raise a snag', $rows[0]);
         $this->assertStringContainsString('Accepted by', $rows[0]);
     }
 
@@ -652,7 +674,18 @@ class CockpitVisitActionsTest extends TestCase
                     : $factory->{$state}()->create(['project_id' => $project->id, 'type' => $type]);
 
                 foreach (array_keys(\App\Support\Cockpit\CockpitModulePresenter::moduleMap()) as $module) {
-                    foreach ([[], ['action' => 'send-back', 'visit' => $visit->id]] as $query) {
+                    // URL STATES GROWN 2 -> 4 BY PLAN 46-07 (the ceiling is
+                    // NOT raised): the note and the snag disclose their own
+                    // forms, so the cap has to be judged with each of them
+                    // open as well.
+                    $urlStates = [
+                        [],
+                        ['action' => 'send-back', 'visit' => $visit->id],
+                        ['action' => 'note', 'visit' => $visit->id],
+                        ['action' => 'snag', 'visit' => $visit->id],
+                    ];
+
+                    foreach ($urlStates as $query) {
                         foreach ($this->visitRows($project, $module, $query) as $row) {
                             $seen++;
 

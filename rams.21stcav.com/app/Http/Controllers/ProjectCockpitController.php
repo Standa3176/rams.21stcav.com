@@ -71,9 +71,14 @@ class ProjectCockpitController extends Controller
      * rendered — it addresses no record and is never echoed, so a hostile
      * value discloses nothing.
      *
+     * Plan 46-07 adds `note` and `snag`, which disclose ONE visit row's note
+     * field or snag fields. ONLY ONE FITS IN THE URL AT A TIME, and that is a
+     * feature: the panel cannot become a wall of open forms, which is the
+     * failure the user named when they rejected an earlier design as busy.
+     *
      * @var array<int, string>
      */
-    public const ACTIONS = ['create-visit', 'send-back'];
+    public const ACTIONS = ['create-visit', 'send-back', 'note', 'snag'];
 
     public function __construct(
         private ProjectHealthService $health,
@@ -102,6 +107,11 @@ class ProjectCockpitController extends Controller
         // above still proves the health contract, and loaded here rather than
         // derived here — the controller wires, the presenter derives.
         $project->loadMissing([
+            // `visits.snags` (Plan 46-07): the visit row renders a plain COUNT
+            // of the snags raised against it, so the count is eager-loaded
+            // here rather than queried per row inside Blade. It is a READ —
+            // the fence's seven-table GET row-count tests still prove it.
+            'visits.snags',
             'visits',
             'worksheets',
             'installProgrammes',
