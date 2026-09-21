@@ -20,6 +20,7 @@ use App\Http\Controllers\InstallProgrammeController;
 use App\Http\Controllers\OmManualController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectCockpitActionController;
+use App\Http\Controllers\ProjectCockpitEvidenceController;
 use App\Http\Controllers\ProjectCockpitController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectDrawingController;
@@ -285,6 +286,25 @@ Route::middleware('auth')->group(function () {
 
     Route::post('projects/{project}/cockpit/visits/{visit}/snags', [ProjectCockpitActionController::class, 'storeSnag'])
         ->name('projects.cockpit.visits.snags');
+
+    // ── Cockpit returned evidence (Phase 46.1, Plan 46.1-02; RV-04) ───────
+    // BOTH ARE READS. The ZIP is D-03's Bitrix hand-off and the photo route is
+    // what the gallery's <a> points at; neither writes a row, and that includes
+    // no activity-log entry — the ruling is recorded in the controller's own
+    // docblock (T-46.1-09), not here, so a later phase changes it on purpose.
+    // A THIRD controller on purpose: the read controller exposes one action and
+    // the action controller is the write surface; a download is neither.
+    // Registered unconditionally and flag-gated inside the controller, exactly
+    // as projects.cockpit and the action routes are, so route() keeps resolving
+    // with COCKPIT_ENABLED off.
+    // The literal `photos.zip` segment is registered BEFORE the wildcard photo
+    // route so it cannot be shadowed — the same ordering discipline this file
+    // already applies around worksheets/{worksheet}.
+    Route::get('projects/{project}/cockpit/visits/{visit}/photos.zip', [ProjectCockpitEvidenceController::class, 'zip'])
+        ->name('projects.cockpit.visits.photos-zip');
+
+    Route::get('projects/{project}/cockpit/visits/{visit}/photo/{kind}/{photo}', [ProjectCockpitEvidenceController::class, 'photo'])
+        ->name('projects.cockpit.visits.photo');
 
     // ── Engineer reference files (quick task 260601-r4c) ──────────────────
     // Shared-workspace auth (per 260525-pyu/s8b) — any authed user. Routes
