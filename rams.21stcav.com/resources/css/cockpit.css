@@ -1689,6 +1689,19 @@
     color: var(--cav-mid);
 }
 
+/* THE BITRIX HAND-OFF (Plan 46.1-04, RV-04). Spacing only: the anchor itself
+   reuses `.cav-visit__control--quiet`, so this block introduces no colour and
+   no new control style. NO `position` HERE — the stretched-link trap is
+   prohibited on this tab and this comment is the record of that, not an
+   omission. */
+.cav-cockpit .cav-returned__handoff {
+    margin: 0 0 var(--cav-s3);
+}
+
+.cav-cockpit .cav-returned__handoff .cav-returned__meta {
+    margin-top: var(--cav-s1);
+}
+
 .cav-cockpit .cav-returned__head {
     display: block;
     margin: var(--cav-s4) 0 var(--cav-s2);

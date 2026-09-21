@@ -715,9 +715,101 @@ class CockpitReturnedTabTest extends TestCase
         }
     }
 
+    // -- RV-04: the Bitrix hand-off (Plan 46.1-04) ------------------------
+
+    public function test_a_visit_with_photos_carries_one_zip_handoff_link(): void
+    {
+        $project = $this->project();
+        [$visit] = $this->worksheetVisit($project);
+
+        $body = $this->body($project, ProjectDeliverable::KEY_WORKSHEET);
+
+        $url = route('projects.cockpit.visits.photos-zip', [
+            'project' => $project,
+            'visit'   => $visit->id,
+        ]);
+
+        $this->assertStringContainsString($url, $body);
+        $this->assertStringContainsString('Download all photos (ZIP)', $body);
+
+        // ONE, not one per bucket and not one per photo.
+        $this->assertSame(1, substr_count($body, 'Download all photos (ZIP)'));
+
+        // A hand-off leaves the page it was handed off from.
+        $this->assertStringContainsString('target="_blank"', $body);
+        $this->assertStringContainsString('rel="noopener"', $body);
+
+        // The shape of the archive, said before a PM opens it.
+        $this->assertStringContainsString('Grouped by room, into before / after / label folders.', $body);
+    }
+
+    /**
+     * AN ARCHIVE HOLDING ONLY A README IS A WORSE ANSWER THAN A SENTENCE.
+     *
+     * The builder (Plan 46.1-02) will happily produce a valid ZIP for a visit
+     * with no photos — and it should, because the route is reachable directly.
+     * Offering it in the page is a different question, and the answer is no.
+     */
+    public function test_no_handoff_link_renders_for_a_visit_with_no_photos(): void
+    {
+        $project   = $this->project();
+        $worksheet = $this->worksheet($project);
+
+        Visit::factory()->backfilledFromWorksheet($worksheet)->create([
+            'project_id' => $project->id,
+            'type'       => Visit::TYPE_INSTALL,
+        ]);
+
+        // Something DID come back — just not a photo. So this proves the link
+        // follows the photo count, not the empty-state branch.
+        $this->signoff($worksheet);
+
+        $body = $this->body($project, ProjectDeliverable::KEY_WORKSHEET);
+
+        $this->assertStringContainsString('Priya Raman', $body, 'Non-vacuity: the tab really did render evidence.');
+        $this->assertStringNotContainsString('Download all photos (ZIP)', $body);
+        $this->assertStringNotContainsString('photos.zip', $body);
+    }
+
+    /**
+     * VL-11, PROTECTED FROM A TIDY-UP.
+     *
+     * CockpitVisitActionsTest::countControls() counts `<button` and `<a `
+     * INSIDE a `.cav-visit` row and caps that at four. The hand-off is not one
+     * of D-02's four acts, so it must not spend a quarter of that cap. It
+     * lives outside the row, and this says so structurally rather than in a
+     * comment somebody can move the markup past.
+     */
+    public function test_the_handoff_sits_outside_any_visit_row(): void
+    {
+        $project = $this->project();
+        $this->worksheetVisit($project);
+
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$this->raw($project, ProjectDeliverable::KEY_WORKSHEET, 'returned'));
+        libxml_clear_errors();
+
+        $anchors = (new \DOMXPath($dom))->query("//a[contains(@href, 'photos.zip')]");
+
+        $this->assertSame(1, $anchors->length, 'Exactly one hand-off anchor on the page.');
+
+        for ($node = $anchors->item(0)->parentNode; $node !== null; $node = $node->parentNode) {
+            if (! $node instanceof \DOMElement) {
+                continue;
+            }
+
+            $this->assertStringNotContainsString(
+                'cav-visit',
+                (string) $node->getAttribute('class'),
+                'The hand-off moved INSIDE a visit row and now spends one of VL-11\'s four controls.'
+            );
+        }
+    }
+
     // -- RV-08: the calm budget -------------------------------------------
 
-    public function test_the_returned_tab_renders_no_non_photo_anchor(): void
+    public function test_the_returned_tab_renders_exactly_one_non_photo_anchor(): void
     {
         $project = $this->project();
         [, $worksheet] = $this->worksheetVisit($project);
@@ -733,15 +825,30 @@ class CockpitReturnedTabTest extends TestCase
             fn (string $href): bool => str_contains($href, '/cockpit/visits/') && str_contains($href, '/photo/')
         );
 
-        // PLAN 46.1-03 SHIPS ZERO NON-PHOTO ANCHORS ON THIS TAB. Plan 46.1-04
-        // raises this budget to EXACTLY ONE -- the photo-archive hand-off link
-        // -- and must say so here when it does. A gallery plus four controls is
-        // how a calm page becomes a control panel.
+        // THE BUDGET WAS RAISED FROM 0 TO EXACTLY ONE BY PLAN 46.1-04, and by
+        // exactly one thing: the photo-archive hand-off link (RV-04, D-03),
+        // the same affordance that plan paid for by lifting `Download` from
+        // the fence. 46.1-03 shipped zero and wrote here that 46.1-04 would
+        // raise it to one and must say so when it did. This is that edit.
+        //
+        // EXACTLY ONE, NOT "AT MOST ONE" AND NOT "SOME". The cap is the point:
+        // a gallery plus four controls is how a calm page becomes a control
+        // panel (RV-08), and the user's words were "simple and less scary".
+        // The four review controls Plan 46.1-05 adds are BUTTONS inside a
+        // form, not anchors, so they do not spend this budget — anything that
+        // does is a new link nobody decided to ship.
         $this->assertSame(
-            count($hrefs),
+            count($hrefs) - 1,
             count($photoLinks),
-            'Every anchor on the Returned tab must be a photo link. Budget: 0 others in this plan.'
+            'The Returned tab carries exactly one non-photo anchor: the ZIP hand-off. Budget: 1.'
         );
+
+        // ...and it is THAT anchor, not some other one that happened to
+        // balance the arithmetic.
+        $nonPhoto = array_values(array_diff($hrefs, $photoLinks));
+
+        $this->assertCount(1, $nonPhoto);
+        $this->assertStringContainsString('photos.zip', $nonPhoto[0]);
 
         $this->assertGreaterThanOrEqual(
             3,

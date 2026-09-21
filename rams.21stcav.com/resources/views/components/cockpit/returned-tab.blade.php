@@ -19,9 +19,16 @@
     state line → hand-off slot → per-room answers → contact sheet → serials →
     client sign-off → review-controls slot.
 
-    TWO OF THOSE SLOTS ARE DELIBERATELY EMPTY HERE. The hand-off link is Plan
-    46.1-04's and the four review controls are Plan 46.1-05's. Each is a NAMED
-    HOLE so that neither later plan has to restructure this file to fill it.
+    BOTH SLOTS WERE DELIBERATELY EMPTY WHEN 46.1-03 SHIPPED THIS FILE. The
+    hand-off link was Plan 46.1-04's and the four review controls are Plan
+    46.1-05's. Each is a NAMED HOLE so that neither later plan has to
+    restructure this file to fill it.
+
+    PLAN 46.1-04 HAS NOW FILLED THE FIRST: one anchor to the per-visit photo
+    archive, rendered only for a visit that has photos, and sitting OUTSIDE
+    `.cav-visit` so it does not spend one of VL-11's four in-row controls. The
+    reasoning lives at the render site, not here. The review-controls slot at
+    the foot of the card is still empty and still 46.1-05's.
 
     ── "SIMPLE" IS AN ACCEPTANCE CRITERION (RV-08), NOT A PREFERENCE ────────
 
@@ -125,10 +132,44 @@
             <span class="cav-returned__state">{{ $stateLine }}</span>
         @endif
 
-        {{-- HAND-OFF SLOT — Plan 46.1-04 fills this with the per-visit photo
-             archive link (D-03, the Bitrix hand-off) and lifts the one fence
-             entry that names it. Left empty on purpose so that plan fills a
-             named hole rather than restructuring this file. --}}
+        {{-- THE HAND-OFF (Plan 46.1-04, RV-04, D-03) — the slot 46.1-03 left
+             for it, now holding ONE anchor to the per-visit photo archive.
+             This is the plan that lifted the fence's `Download` entry, by
+             name; every other deferred affordance is still banned.
+
+             IT SITS OUTSIDE `.cav-visit`, AND THAT IS DELIBERATE.
+             CockpitVisitActionsTest::countControls() counts `<button` and
+             `<a ` INSIDE a visit row, and VL-11's cap of four is measured
+             there. A hand-off is not a review control — it is none of D-02's
+             four acts — so putting it in the row would spend a quarter of that
+             cap on something that does not belong to it. A later tidy-up must
+             not move it in.
+
+             `Route::has()` guards the call, on the rule CockpitPanelPresenter
+             already follows for every document route: a renamed route degrades
+             to NO LINK rather than to a RouteNotFoundException that would blank
+             the whole page for a PM who only wanted to read it.
+
+             NOT RENDERED WHEN THE VISIT HAS NO PHOTOS. Offering an archive that
+             would contain only a README is a worse answer than the sentence
+             "Nothing has come back from site yet." below.
+
+             No `position` on the anchor (the stretched-link trap), no new
+             colour, and no new control style — this reuses the existing
+             `.cav-visit__control--quiet` language because it is the same
+             panel. --}}
+        @if ((int) ($payload['photo_count'] ?? 0) > 0 && \Illuminate\Support\Facades\Route::has('projects.cockpit.visits.photos-zip'))
+            <div class="cav-returned__handoff">
+                <a class="cav-visit__control cav-visit__control--quiet"
+                   href="{{ route('projects.cockpit.visits.photos-zip', ['project' => $project, 'visit' => $visit->id]) }}"
+                   target="_blank"
+                   rel="noopener">Download all photos (ZIP)</a>
+
+                {{-- A PM about to drop this into Bitrix should know the shape
+                     of the archive before they open it. --}}
+                <span class="cav-returned__meta">Grouped by room, into before / after / label folders.</span>
+            </div>
+        @endif
 
         @if ($sourceMissing)
             <p class="cav-returned__empty">The visit is recorded; the evidence behind it could not be read.</p>

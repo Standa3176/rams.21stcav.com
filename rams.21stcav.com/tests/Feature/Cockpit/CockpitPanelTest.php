@@ -139,10 +139,25 @@ class CockpitPanelTest extends TestCase
     }
 
     /**
-     * The copy fence: "Download" is Phase 48's word and is banned outright.
-     * The only link copy this panel uses is "View".
+     * The copy fence, NARROWED AND RENAMED BY PLAN 46.1-04 — not deleted.
+     *
+     * "Download" used to be banned outright: it was Phase 48's word and no
+     * part of the cockpit shipped one. Plan 46.1-04 ships one, on the RETURNED
+     * tab, as the Bitrix hand-off (RV-04, D-03), and lifted the matching entry
+     * from CockpitReadOnlyFenceTest::DEFERRED_AFFORDANCES by name.
+     *
+     * THE RULING STILL HOLDS HERE, ON THE FILES TAB, and that is why this test
+     * survives. A document row must say "View": it opens a review screen, it
+     * does not stream a file, and copy that promises a download would be a lie
+     * about what the link does. Deleting this test along with the fence entry
+     * would have silently stopped covering the tab where the rule still
+     * applies — which is the failure the fence's own anti-rot comment warns
+     * about, arriving by the back door.
+     *
+     * The assertion below is UNCHANGED and still scoped to the Files tab.
+     * Only the name and this docblock moved.
      */
-    public function test_the_link_copy_is_view_and_never_download(): void
+    public function test_the_files_tab_link_copy_is_view_and_never_download(): void
     {
         $project = $this->project();
         RamsDocument::factory()->create(['project_id' => $project->id]);

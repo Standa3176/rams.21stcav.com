@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\User;
 use App\Models\Visit;
 use App\Models\Worksheet;
+use App\Models\WorksheetPhoto;
 use App\Support\Cockpit\CockpitModulePresenter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
@@ -88,7 +89,35 @@ class CockpitReadOnlyFenceTest extends TestCase
         'Close this project'       => 'Phase 50',
         'Open register'            => 'Phase 48',
         'Export CSV'               => 'Phase 48',
-        'Download'                 => 'Phase 48',
+
+        // 'Download' => 'Phase 48' WAS HERE. LIFTED BY PLAN 46.1-04, BY NAME,
+        // for requirement RV-04 — because this phase SHIPS the thing the entry
+        // banned: the Returned tab's per-visit photo archive, which D-03 calls
+        // the Bitrix hand-off. The copy is "Download all photos (ZIP)" and it
+        // is served by a GET on ProjectCockpitEvidenceController (Plan
+        // 46.1-02). An entry is removed when the affordance arrives, in the
+        // SAME commit as the affordance, and never to make a red test fit.
+        //
+        // EXACTLY ONE ENTRY LEFT. The boundary is named here rather than left
+        // to be inferred, because the next reader's real question is not what
+        // went but what stayed:
+        //
+        //   STILL PHASE 48, STILL BANNED — 'Upload files', 'Add document',
+        //   'Mark as sent', 'Issue to client', 'Open register', 'Export CSV',
+        //   'Add anyway', 'Upload a drawing', 'Send a RAMS to the client'.
+        //   This phase reads evidence and hands it over; it uploads nothing,
+        //   issues nothing and sends nothing to a client.
+        //
+        //   STILL PHASE 47 — 'Add a snag', 'Book a visit', 'Assign parts',
+        //   'Close snag'. STILL PHASE 49 — 'Edit details'. STILL PHASE 50 —
+        //   'Re-import from QuoteWerks', 'Close this project'. STILL PHASE 46 —
+        //   'Book another survey', 'Prepare a visit'.
+        //
+        // The word is ALSO still banned on the FILES tab, by
+        // CockpitPanelTest::test_the_files_tab_link_copy_is_view_and_never_download(),
+        // which Plan 46.1-04 NARROWED AND RENAMED rather than deleted: a
+        // document row must still say "View". This lift is the Returned tab's
+        // and nothing else's.
 
         // Sketch 004's Quick actions block — added by Plan 45-13 (D-15).
         //
@@ -173,6 +202,23 @@ class CockpitReadOnlyFenceTest extends TestCase
         // where they were.
         'snags',
         'project_activity_logs',
+
+        // GROWN 7 -> 11 BY PLAN 46.1-04. Phase 46.1 READS four new tables —
+        // the Returned tab resolves them and the photo-archive GET streams
+        // their bytes — and the whole point of this fence is that a GET moves
+        // none of them. THE ZIP IS A GET: it builds an archive to a temp file
+        // and deletes it after send; it inserts no row, not even an activity
+        // log (T-46.1-09, ruled in ProjectCockpitEvidenceController's
+        // docblock, precisely because `project_activity_logs` is held still
+        // here).
+        //
+        // All three row-count tests below ITERATE this constant, so they
+        // picked these four up the moment the names landed — which is why the
+        // list is the thing that grows and the tests are not touched.
+        'site_survey_photos',
+        'worksheet_photos',
+        'worksheet_signoffs',
+        'device_label_photos',
     ];
 
     /**
@@ -271,6 +317,24 @@ class CockpitReadOnlyFenceTest extends TestCase
         ]);
 
         $signed = Worksheet::factory()->create(['project_id' => $project->id]);
+
+        // ONE RETURNED PHOTO, ADDED BY PLAN 46.1-04, AND THE REASON MATTERS.
+        //
+        // The Returned tab's hand-off link renders ONLY for a visit that has
+        // photos, so without this row the fence would walk `?tab=returned` on
+        // every module and never once see the affordance it had just stopped
+        // banning — the lift would be free and the entry could have stayed.
+        // That is the vacuity this whole file exists to refuse. With the row,
+        // the region really does carry "Download all photos (ZIP)" and the
+        // lift is paid for by evidence rather than by assertion.
+        WorksheetPhoto::create([
+            'worksheet_id'  => $signed->id,
+            'room_name'     => 'Boardroom',
+            'filename'      => 'worksheet-photos/fence-install-01.jpg',
+            'original_name' => 'install-01.jpg',
+            'mime_type'     => 'image/jpeg',
+            'sort_order'    => 0,
+        ]);
 
         Visit::factory()->backfilledFromWorksheet($signed)->create([
             'project_id'     => $project->id,
@@ -371,6 +435,41 @@ class CockpitReadOnlyFenceTest extends TestCase
         }
     }
 
+    /**
+     * GROWTH BY ITERATION, PROVED RATHER THAN ASSUMED (Plan 46.1-04).
+     *
+     * everyRegion() walks ProjectCockpitController::TABS, which Plan 46.1-03
+     * grew from three entries to four — so the Returned tab joined this
+     * fence's coverage the day it existed, without anybody editing this file.
+     * That is worth exactly nothing unless the tab really does render inside a
+     * judged region, which is the difference between a fence that grew and a
+     * fence that merely looks as though it did.
+     *
+     * So this test says it out loud, and it says it about the ONE string this
+     * plan lifted: the region the fence judges carries the hand-off link. If
+     * the tab ever stops rendering there, the two assertions above would go on
+     * passing over markup that no longer contains the thing they were widened
+     * for, and this one goes red instead.
+     */
+    public function test_the_returned_tab_is_among_the_regions_this_fence_judges(): void
+    {
+        $this->assertContains('returned', ProjectCockpitController::TABS);
+
+        $regions = $this->everyRegion($this->populatedProject());
+
+        $judged = array_filter(
+            $regions,
+            fn (string $region): bool => str_contains($region, 'Download all photos (ZIP)')
+        );
+
+        $this->assertNotSame(
+            [],
+            $judged,
+            'No judged region carried the hand-off link — the Returned tab is outside this fence '.
+            'and the `Download` lift was therefore free.'
+        );
+    }
+
     // -- The write surface, fenced on its own terms (Plan 46-04) ----------
 
     /**
@@ -412,7 +511,12 @@ class CockpitReadOnlyFenceTest extends TestCase
         $this->assertSame($before['project_activity_logs'] + 1, $after['project_activity_logs']);
 
         // Untouched by a create, and named so the list cannot quietly grow.
-        foreach (['install_records', 'install_programmes', 'site_surveys', 'snags'] as $table) {
+        // GROWN BY PLAN 46.1-04 with the four evidence tables: creating a
+        // visit resolves nothing from site, so none of them may move either.
+        foreach ([
+            'install_records', 'install_programmes', 'site_surveys', 'snags',
+            'site_survey_photos', 'worksheet_photos', 'worksheet_signoffs', 'device_label_photos',
+        ] as $table) {
             $this->assertSame($before[$table], $after[$table], "A create moved `{$table}`.");
         }
 
@@ -485,11 +589,15 @@ class CockpitReadOnlyFenceTest extends TestCase
         // Quick actions joined the list. MOVED AGAIN, 18 -> 19, by Plan 46-04:
         // two were LIFTED because it ships them ('Create visit', 'Add note')
         // and three were ADDED because it must not ship them ('Assign parts',
-        // 'Close snag', 'Mark as sent'). This number is the anti-rot mechanism:
-        // it exists so that dropping an affordance is an edit somebody has to
-        // make on purpose. It is never to be deleted to make a change fit.
+        // 'Close snag', 'Mark as sent'). MOVED AGAIN, 19 -> 18, by Plan
+        // 46.1-04: exactly ONE entry was lifted ('Download') because that plan
+        // ships the Returned tab's photo-archive hand-off (RV-04, D-03), and
+        // NOTHING was added, because 46.1 renders no affordance a later phase
+        // owns. This number is the anti-rot mechanism: it exists so that
+        // dropping an affordance is an edit somebody has to make on purpose.
+        // It is never to be deleted to make a change fit.
         $this->assertCount(
-            19,
+            18,
             self::DEFERRED_AFFORDANCES,
             'Every affordance drawn in either sketch is enumerated; nothing is dropped silently.'
         );
@@ -503,8 +611,22 @@ class CockpitReadOnlyFenceTest extends TestCase
         // cockpit's POSTs now write), and 9 -> 9: the handler ban was
         // considered for retirement by the phase that could have retired it,
         // and kept.
+        //
+        // PLAN 46.1-04 MOVED EXACTLY ONE OF THESE THREE. 7 -> 11, because the
+        // Returned tab and the photo-archive GET read four more tables and a
+        // GET must still move none of them.
+        //
+        // 2 -> 2: `<select` and `<script` BOTH STAY. This phase adds no form
+        // control (the hand-off is an anchor, not a control) and no
+        // JavaScript.
+        //
+        // 9 -> 9: all nine handler attributes STAY, re-taken for the third
+        // time. The contact sheet uses `loading="lazy"` and `decoding="async"`,
+        // which are plain HTML attributes and are on no list here; they were
+        // checked against this one before use. A review page that works with
+        // JavaScript off is the page a PM reads in a plant room.
         $this->assertCount(2, self::FORBIDDEN_MARKUP);
-        $this->assertCount(7, self::WRITE_SURFACE_TABLES);
+        $this->assertCount(11, self::WRITE_SURFACE_TABLES);
         $this->assertCount(9, self::BANNED_HANDLER_ATTRIBUTES);
     }
 
