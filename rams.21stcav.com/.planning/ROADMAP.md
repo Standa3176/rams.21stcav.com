@@ -306,6 +306,7 @@ Each of these is **recorded in the admin Hidden Functions register**, not forgot
 - [x] **Phase 44: Labour Resources** — one table with a role field (engineer / programmer / other), admin add + remove, PM-facing assignment dropdowns. Client-facing output may expose a name only, never email or phone.
 - [ ] **Phase 45: Visit Model + Read-only Cockpit** — a `visits` table wrapping existing `SiteSurvey` and `Worksheet` rows (backfilled, nothing deleted); the cockpit page behind a flag, read-only, alongside the existing project page.
 - [ ] **Phase 46: Visit Lifecycle** — prepare, send, return, accept. Per-visit RAMS and worksheet scoped to the visit's type and rooms. A visit stays editable after sending; scope locks once a return arrives.
+- [ ] **Phase 46.1: Visit Review** — the drawer shows what came back (photos, room answers, captured serials, client sign-off) and hands it off as one ZIP for Bitrix; the four review controls move beneath that evidence. Inserted 2026-09-21.
 - [ ] **Phase 47: Snagging** — snag items separate from snag visits; three outcomes (fixed, not fixed, deferred); a not-fixed item requires the engineer to state actions and parts needed, closes the visit, and opens a new snag linked to the original. Parts tracked per snag. Snags may sit with the client or others and never have a visit.
 - [ ] **Phase 48: Documents** — generate client-facing documents; the PM sends them and confirms sent in-app, recording who, when and which revision. O&M offered as full or mini. Drawings uploaded from StarDrawer.
 - [ ] **Phase 49: Import Review + Self-populating Deliverables** — one import screen showing what the quote contains, with deliverables ticked from its lines and labelled *from quote* / *assumed* / *not found*. All nine always shown. The equipment-line review opens in a side panel.
@@ -500,6 +501,57 @@ Plans:
 > recorded as **VL-12, NOT DELIVERED**.
 
 **UI hint**: yes (prepare panel, send flow, return review — the cockpit's write half)
+
+---
+
+### Phase 46.1: Visit Review
+
+**Goal**: The drawer shows what an engineer sent back — photos, room answers, captured serials,
+client sign-off — and hands it off as one ZIP for Bitrix, with the review controls sitting under
+that evidence rather than above it.
+
+**Depends on**: Phase 46 (the visit lifecycle and the four controls this phase relocates).
+
+**Why it was inserted**: Phase 46 built the workflow but not the review. Measured 2026-09-21:
+`grep -c "photo" app/Support/Cockpit/CockpitPanelPresenter.php` returns **0**. The app captures
+`SiteSurveyPhoto`, `SiteSurveyRoom`, `SiteSurveyRoomQuestion`, `WorksheetPhoto`, `WorksheetSignoff`
+and `DeviceLabelPhoto`, and the cockpit shows none of it — so a PM can accept a visit today without
+seeing a single thing the engineer returned.
+
+**Reference implementation**: SCC's PMV review panel
+(`_pmv-review-panel.blade.php` in `service-contractor-creator`) — read it for the pattern, do not
+import its code. Its order is the contract: review state → Download all photos (ZIP) → per-room
+data → gallery → client sign-off → approve.
+
+**Requirements**: Not yet minted. Mint RV-xx into `.planning/REQUIREMENTS.md` § v4.0 at planning time.
+
+**Success Criteria** (what must be TRUE):
+
+  1. A `Returned` tab in the panel shows the visit's **photos**, **per-room answers and notes**,
+     **captured serials** (`DeviceLabelPhoto`) and the **client sign-off** — all read live from the
+     engineer's own records, never copied onto the visit
+  2. **One GET streams every photo on the visit as a ZIP**, grouped `{Room}/{before|after|label}/`,
+     and that GET writes nothing
+  3. The four review controls — Accept, Send back, Add note, Raise a snag — render **beneath the
+     evidence**, not above it, so a visit cannot be accepted without its evidence on screen
+  4. A **reconstructed visit shows its evidence but offers no controls** — nobody performed that
+     review
+  5. Nothing an engineer captured can be edited from this tab, and the VL-11 cap of four controls
+     still holds
+
+**Open questions** (resolve at planning):
+
+  - Does the Returned tab appear at all on the seven modules with no engineer link, or only on
+    Site survey and First fix and install? An empty tab on seven of nine would be noise.
+  - `ZipArchive` (used already in `ProjectDrawingController`, `OmManualDocxService`) or a streaming
+    writer? A large visit's photos could be substantial.
+  - ⚠️ The fence bans the string `Download`. This phase ships one, so that entry must be lifted
+    **by name with a reason**, exactly as 46-04 lifted `<form`/`<button`. `Upload files`,
+    `Mark as sent` and `Issue to client` stay banned — they are Phase 48.
+
+**Plans**: Not yet planned
+
+**UI hint**: yes (a new panel tab, a gallery, and the relocation of four existing controls)
 
 ---
 
