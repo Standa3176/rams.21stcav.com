@@ -398,4 +398,369 @@ class CockpitReturnedTabTest extends TestCase
             }
         }
     }
+    // -- Rendering helpers, part two: the tab body ------------------------
+
+    /**
+     * The `.cav-panel__body` subtree -- the TAB BODY only.
+     *
+     * Deliberately narrower than `cav-cockpit`: the panel head's close control
+     * and the tab strip's own anchors live OUTSIDE it, so the calm budget
+     * below counts what the Returned tab itself drew and nothing else.
+     */
+    private function body(Project $project, string $module): string
+    {
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$this->raw($project, $module, 'returned'));
+        libxml_clear_errors();
+
+        $node = (new \DOMXPath($dom))
+            ->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' cav-panel__body ')]")
+            ->item(0);
+
+        $this->assertNotNull($node, 'The panel body was not found in the response.');
+
+        return html_entity_decode($dom->saveHTML($node), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
+    /** @return array<int, string> every href in the given markup */
+    private function hrefs(string $html): array
+    {
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$html);
+        libxml_clear_errors();
+
+        $found = [];
+
+        foreach ((new \DOMXPath($dom))->query('//a') as $anchor) {
+            $found[] = (string) $anchor->getAttribute('href');
+        }
+
+        return $found;
+    }
+
+    // -- What the tab shows (RV-01) ---------------------------------------
+
+    public function test_the_tab_shows_the_survey_room_its_answer_its_notes_and_its_photo(): void
+    {
+        $project = $this->project();
+        [, , $room] = $this->surveyVisit($project);
+
+        $body = $this->body($project, ProjectDeliverable::KEY_SITE_SURVEY);
+
+        $this->assertStringContainsString('Boardroom', $body);
+        $this->assertStringContainsString('Is the comms room reachable without a ladder?', $body);
+        $this->assertStringContainsString('Yes, a step stool is enough.', $body);
+        $this->assertStringContainsString('Ladder needed for the ceiling void.', $body);
+
+        // Unanswered questions are OMITTED and carried as two integers, not as
+        // twenty empty rows (RV-08 -- "simple" is an acceptance criterion).
+        $this->question($room, ['question' => 'Never answered', 'sort_order' => 1]);
+
+        $body = $this->body($project, ProjectDeliverable::KEY_SITE_SURVEY);
+
+        $this->assertStringNotContainsString('Never answered', $body);
+        $this->assertStringContainsString('1 of 2 questions answered', $body);
+
+        // The before bucket is spelled in English -- `before` is a ZIP folder
+        // name, never page copy.
+        $this->assertStringContainsString('Before (survey)', $body);
+    }
+
+    public function test_the_tab_shows_the_worksheet_photo_the_serial_and_the_client_signoff(): void
+    {
+        $project = $this->project();
+        $this->worksheetVisit($project);
+
+        $body = $this->body($project, ProjectDeliverable::KEY_WORKSHEET);
+
+        $this->assertStringContainsString('After (install)', $body);
+        $this->assertStringContainsString('Equipment labels', $body);
+
+        // D-05 -- the serial is a LIST entry: room, device, serial, date.
+        $this->assertStringContainsString('Ceiling microphone array', $body);
+        $this->assertStringContainsString('SN-1122-AA', $body);
+
+        // The sign-off surface is the NAME and the SIGNATURE IMAGE.
+        $this->assertStringContainsString('Priya Raman', $body);
+        $this->assertStringContainsString('base64,iVBORw0KGgo=', $body);
+    }
+
+    public function test_a_serial_not_yet_read_says_so_rather_than_rendering_an_empty_cell(): void
+    {
+        $project = $this->project();
+
+        $worksheet = $this->worksheet($project);
+
+        Visit::factory()->backfilledFromWorksheet($worksheet)
+            ->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
+
+        $this->labelPhoto($project, $worksheet);
+
+        $this->assertStringContainsString(
+            'Serial not read yet',
+            $this->body($project, ProjectDeliverable::KEY_WORKSHEET)
+        );
+    }
+
+    public function test_an_untouched_source_and_a_missing_source_each_say_so_in_one_sentence(): void
+    {
+        $project = $this->project();
+
+        // Issued, nothing captured.
+        $worksheet = $this->worksheet($project);
+        Visit::factory()->backfilledFromWorksheet($worksheet)
+            ->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
+
+        $this->assertStringContainsString(
+            'Nothing has come back from site yet.',
+            $this->body($project, ProjectDeliverable::KEY_WORKSHEET)
+        );
+
+        // Force-deleted source -- the visit still happened.
+        $worksheet->forceDelete();
+
+        $this->assertStringContainsString(
+            'The visit is recorded; the evidence behind it could not be read.',
+            $this->body($project, ProjectDeliverable::KEY_WORKSHEET)
+        );
+    }
+
+    // -- RV-02: read live -------------------------------------------------
+
+    public function test_editing_the_engineers_record_changes_the_tab_and_touches_nothing(): void
+    {
+        $project = $this->project();
+
+        [$surveyVisit, $survey, $room] = $this->surveyVisit($project);
+        [$worksheetVisit, $worksheet]  = $this->worksheetVisit($project);
+
+        $before = [
+            'visit_updated'    => $surveyVisit->fresh()->getRawOriginal('updated_at'),
+            'wvisit_updated'   => $worksheetVisit->fresh()->getRawOriginal('updated_at'),
+            'survey_submitted' => $survey->fresh()->getRawOriginal('submitted_at'),
+            'worksheet_token'  => $worksheet->fresh()->getRawOriginal('access_token'),
+            'survey_token'     => $survey->fresh()->getRawOriginal('access_token'),
+        ];
+
+        $this->body($project, ProjectDeliverable::KEY_SITE_SURVEY);
+        $this->body($project, ProjectDeliverable::KEY_WORKSHEET);
+
+        // The engineer's record changes UNDER the review.
+        $room->forceFill(['notes' => 'Second visit: the void is boarded.'])->saveQuietly();
+
+        $this->worksheetPhoto($worksheet, ['original_name' => 'install-02-second-pass.jpg']);
+
+        $this->signoff($worksheet, [
+            'client_name' => 'Devraj Anand',
+            'signed_at'   => now(),
+        ]);
+
+        $surveyBody    = $this->body($project, ProjectDeliverable::KEY_SITE_SURVEY);
+        $worksheetBody = $this->body($project, ProjectDeliverable::KEY_WORKSHEET);
+
+        $this->assertStringContainsString('Second visit: the void is boarded.', $surveyBody);
+        $this->assertStringNotContainsString('Ladder needed for the ceiling void.', $surveyBody);
+
+        // Two worksheet thumbnails in the after bucket now, not one. The link
+        // and its <img> carry the same URL, so each photo contributes twice.
+        $this->assertSame(
+            4,
+            substr_count($worksheetBody, '/photo/worksheet/'),
+            'A photo added after the first render must reach the second.'
+        );
+
+        // The NEWEST sign-off wins and the superseded one is gone.
+        $this->assertStringContainsString('Devraj Anand', $worksheetBody);
+        $this->assertStringNotContainsString('Priya Raman', $worksheetBody);
+
+        // RENDERING THE REVIEW COPIES NOTHING AND TOUCHES NOTHING.
+        $this->assertSame($before['visit_updated'], $surveyVisit->fresh()->getRawOriginal('updated_at'));
+        $this->assertSame($before['wvisit_updated'], $worksheetVisit->fresh()->getRawOriginal('updated_at'));
+        $this->assertSame($before['survey_submitted'], $survey->fresh()->getRawOriginal('submitted_at'));
+        $this->assertSame($before['worksheet_token'], $worksheet->fresh()->getRawOriginal('access_token'));
+        $this->assertSame($before['survey_token'], $survey->fresh()->getRawOriginal('access_token'));
+    }
+
+    public function test_opening_the_returned_tab_on_every_module_moves_no_row(): void
+    {
+        $project = $this->project();
+        $this->surveyVisit($project);
+        $this->worksheetVisit($project);
+
+        $tables = [
+            'visits', 'install_records', 'install_programmes', 'site_surveys',
+            'worksheets', 'snags', 'project_activity_logs', 'site_survey_photos',
+            'worksheet_photos', 'worksheet_signoffs', 'device_label_photos',
+        ];
+
+        $before = [];
+
+        foreach ($tables as $table) {
+            $before[$table] = \Illuminate\Support\Facades\DB::table($table)->count();
+        }
+
+        foreach (array_keys(\App\Support\Cockpit\CockpitModulePresenter::moduleMap()) as $moduleKey) {
+            $this->raw($project, $moduleKey, 'returned');
+        }
+
+        foreach ($tables as $table) {
+            $this->assertSame(
+                $before[$table],
+                \Illuminate\Support\Facades\DB::table($table)->count(),
+                "Opening the Returned tab moved `{$table}`."
+            );
+        }
+    }
+
+    // -- RV-03: no capture IP reaches the page ----------------------------
+
+    public function test_no_capture_address_or_client_agent_is_ever_rendered(): void
+    {
+        $project = $this->project();
+        $this->worksheetVisit($project);
+
+        // The audit values really are in the database -- so the assertions
+        // below cannot pass because there was nothing to leak.
+        $this->assertDatabaseHas('device_label_photos', ['captured_by' => self::AUDIT_CAPTURE_VALUE]);
+        $this->assertDatabaseHas('worksheet_signoffs', ['ip_address' => self::SIGNOFF_ADDRESS]);
+
+        $raw = $this->raw($project, ProjectDeliverable::KEY_WORKSHEET, 'returned');
+
+        $secrets = [
+            self::AUDIT_CAPTURE_VALUE,
+            'ip:',
+            '203.0.113.9',
+            'captured_by',
+            self::SIGNOFF_ADDRESS,
+            self::SIGNOFF_AGENT,
+            'ip_address',
+            'user_agent',
+        ];
+
+        foreach ($secrets as $secret) {
+            $this->assertStringNotContainsString(
+                $secret,
+                $raw,
+                "RV-03: `{$secret}` must never reach a PM's screen. See ".
+                '2026_07_08_170000_backfill_device_label_photos_captured_by_leak.php.'
+            );
+        }
+    }
+
+    public function test_no_labour_resource_contact_detail_appears_on_the_tab(): void
+    {
+        $project = $this->project();
+        $this->worksheetVisit($project);
+
+        \App\Models\LabourResource::factory()->create([
+            'name'  => 'Marcus Feld',
+            'email' => 'marcus.feld@example-engineer.test',
+            'phone' => '07700900461',
+        ]);
+
+        $raw = $this->raw($project, ProjectDeliverable::KEY_WORKSHEET, 'returned');
+
+        // LR-04 adjacent: the cockpit is staff-auth, so contact details would
+        // be sanctioned -- the tab simply reads no LabourResource field at all.
+        $this->assertStringNotContainsString('marcus.feld@example-engineer.test', $raw);
+        $this->assertStringNotContainsString('07700900461', $raw);
+    }
+
+    // -- Escaping (T-46.1-12) ---------------------------------------------
+
+    public function test_engineer_and_client_free_text_is_escaped(): void
+    {
+        $hostile = '<script>alert(1)</script>';
+
+        $project = $this->project();
+
+        // Survey side: room name, caption and question text.
+        $survey = $this->survey($project);
+
+        Visit::factory()->backfilledFromSurvey($survey)
+            ->create(['project_id' => $project->id, 'type' => Visit::TYPE_SITE_SURVEY]);
+
+        $room = $this->room($survey, ['room_name' => $hostile]);
+        $this->surveyPhoto($room, ['caption' => $hostile]);
+        $this->question($room, ['question' => $hostile, 'answer' => $hostile]);
+
+        $surveyRaw = $this->raw($project, ProjectDeliverable::KEY_SITE_SURVEY, 'returned');
+
+        // Worksheet side: client name and comments.
+        $worksheet = $this->worksheet($project);
+
+        Visit::factory()->backfilledFromWorksheet($worksheet)
+            ->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
+
+        $this->worksheetPhoto($worksheet);
+        $this->signoff($worksheet, [
+            'client_name'          => $hostile,
+            'comments'             => $hostile,
+            'signed_with_comments' => true,
+        ]);
+
+        $worksheetRaw = $this->raw($project, ProjectDeliverable::KEY_WORKSHEET, 'returned');
+
+        foreach ([$surveyRaw, $worksheetRaw] as $raw) {
+            // Non-vacuous: the value really did reach the page, escaped.
+            $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $raw);
+            $this->assertStringNotContainsString($hostile, $raw);
+        }
+    }
+
+    // -- RV-08: the calm budget -------------------------------------------
+
+    public function test_the_returned_tab_renders_no_non_photo_anchor(): void
+    {
+        $project = $this->project();
+        [, $worksheet] = $this->worksheetVisit($project);
+
+        // A third and fourth photo, so the floor below is a real floor.
+        $this->worksheetPhoto($worksheet, ['original_name' => 'install-02.jpg']);
+        $this->worksheetPhoto($worksheet, ['original_name' => 'install-03.jpg']);
+
+        $hrefs = $this->hrefs($this->body($project, ProjectDeliverable::KEY_WORKSHEET));
+
+        $photoLinks = array_filter(
+            $hrefs,
+            fn (string $href): bool => str_contains($href, '/cockpit/visits/') && str_contains($href, '/photo/')
+        );
+
+        // PLAN 46.1-03 SHIPS ZERO NON-PHOTO ANCHORS ON THIS TAB. Plan 46.1-04
+        // raises this budget to EXACTLY ONE -- the photo-archive hand-off link
+        // -- and must say so here when it does. A gallery plus four controls is
+        // how a calm page becomes a control panel.
+        $this->assertSame(
+            count($hrefs),
+            count($photoLinks),
+            'Every anchor on the Returned tab must be a photo link. Budget: 0 others in this plan.'
+        );
+
+        $this->assertGreaterThanOrEqual(
+            3,
+            count($photoLinks),
+            'Non-vacuity floor: the contact sheet really did render links.'
+        );
+    }
+
+    public function test_the_contact_sheet_lazy_loads_and_opens_in_a_new_tab(): void
+    {
+        $project = $this->project();
+        $this->worksheetVisit($project);
+
+        $body = $this->body($project, ProjectDeliverable::KEY_WORKSHEET);
+
+        $this->assertStringContainsString('loading="lazy"', $body);
+        $this->assertStringContainsString('rel="noopener"', $body);
+        $this->assertStringContainsString('target="_blank"', $body);
+
+        // Nothing per photo: no lightbox, no pager, no delete, no caption
+        // editor, no reorder. The fence already bans the script any of them
+        // would need; this says the copy is absent too.
+        foreach (['Delete', 'Next', 'Previous', 'Rotate', 'Reorder', 'Edit caption'] as $control) {
+            $this->assertStringNotContainsString($control, $body);
+        }
+    }
 }
