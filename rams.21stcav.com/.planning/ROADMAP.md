@@ -572,7 +572,7 @@ data → gallery → client sign-off → approve.
 **Plans**: 6 plans
 
 Plans:
-- [ ] 46.1-01-PLAN.md — VisitEvidence + CockpitEvidencePresenter: resolve what came back, read-live, write-nothing (wave 1)
+- [x] 46.1-01-PLAN.md — VisitEvidence + CockpitEvidencePresenter: resolve what came back, read-live, write-nothing (wave 1)
 - [ ] 46.1-02-PLAN.md — The per-visit photo ZIP + the inline photo route, and their security proofs (wave 2)
 - [ ] 46.1-03-PLAN.md — The Returned tab: presence rule, room answers, contact sheet, serials, sign-off (wave 2)
 - [ ] 46.1-04-PLAN.md — The hand-off link + the fence lift + the three-way breakage ritual (wave 3)
