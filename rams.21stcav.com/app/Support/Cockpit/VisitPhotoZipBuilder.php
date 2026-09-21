@@ -212,8 +212,10 @@ final class VisitPhotoZipBuilder
 
     /**
      * A FOLDER segment. Separators and the Windows-reserved set are collapsed
-     * to `-`; a `.`-only or empty result becomes `Unnamed`, so no segment can
-     * ever be `.` or `..`.
+     * to `-`, and so is EVERY run of two or more dots — `../../../etc` must not
+     * survive as `..-..-..-etc`, which still carries `..` into the archive even
+     * though it could no longer traverse. A `.`-only or empty result becomes
+     * `Unnamed`, so no segment can ever be `.` or `..`.
      */
     private function folderSegment(string $raw, string $fallback): string
     {
@@ -224,7 +226,11 @@ final class VisitPhotoZipBuilder
         }
 
         $clean = preg_replace('/[\/\\\\:*?"<>|]+/', '-', $raw) ?? '';
+        $clean = preg_replace('/\.{2,}/', '-', $clean) ?? '';
+        $clean = preg_replace('/-{2,}/', '-', $clean) ?? '';
         $clean = trim($clean);
+        $clean = trim($clean, '-');
+        $clean = ltrim($clean, '.');
         $clean = trim($clean, '-');
         $clean = trim($clean);
 
@@ -266,6 +272,9 @@ final class VisitPhotoZipBuilder
         $name = basename(str_replace('\\', '/', $raw));
 
         $name = preg_replace('/[^A-Za-z0-9._-]+/', '-', $name) ?? '';
+        // A run of dots is collapsed too: `..name.jpg` could not traverse, but
+        // it would still carry `..` into an archive another tool unpacks.
+        $name = preg_replace('/\.{2,}/', '.', $name) ?? '';
         $name = trim($name, '-');
         $name = ltrim($name, '.');
         $name = trim($name, '-');
