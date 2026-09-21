@@ -223,7 +223,15 @@ class CockpitPageTest extends TestCase
             );
         }
 
-        $this->assertSame(1, $gets, 'Exactly one cockpit GET route must exist.');
+        // RAISED 1 -> 3 BY PHASE 46.1, AND KEPT EXACT rather than relaxed to a
+        // floor: a fourth cockpit GET appearing unannounced is still a red
+        // test. 46.1-02 registers two read-only GETs -- the per-visit photo
+        // ZIP (the Bitrix hand-off) and the inline photo the gallery renders --
+        // on ProjectCockpitEvidenceController, one authorisation surface for
+        // all three photo kinds. Both are asserted row-count invariant across
+        // all eleven write-surface tables, so they are reads in fact and not
+        // merely by verb.
+        $this->assertSame(3, $gets, 'Exactly three cockpit GET routes must exist.');
         // Still EXACT, never a floor: 46-04's create, plus 46-06's accept and
         // send back. A fourth write route appearing unannounced is a red test.
         // RAISED 3 -> 5 BY PLAN 46-07, AND KEPT EXACT rather than relaxed to a
