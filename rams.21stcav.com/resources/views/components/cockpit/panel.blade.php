@@ -43,6 +43,41 @@
     The Files and Notes tabs and the Recent activity feed were filled by Plan
     45-12 from records the app already holds. Nothing in them writes, and the
     only link copy they use is "View".
+
+    ── THE RETURNED TAB'S PRESENCE RULE (Phase 46.1, Plan 46.1-03, D-01) ────
+
+    A fourth tab, `Returned`, sits between Overview and Files — but only where
+    there is something to review. THE RULE FOLLOWS THE DATA: the tab renders
+    if and only if this drawer holds at least one visit whose `source_type` is
+    set, i.e. at least one visit backed by an engineer record that could have
+    returned something.
+
+    Why not on every module: `Visit::returnedAt()` reads the SOURCE, so a visit
+    with no source can never be RETURNED, SENT BACK or ACCEPTED — and the four
+    document modules (RAMS, Drawings, O&M, Cable schedule) hold no visits at
+    all. They would carry a permanently empty fourth tab, which is noise on
+    seven of nine drawers.
+
+    Why not "Site survey and First fix only": that hardcodes two module keys.
+    It would strip the review surface from any commissioning, programming or
+    snagging visit that ever does carry a source, and it needs a hand-kept list
+    that drifts from the rows actually rendered — the same failure the module
+    whitelist in ProjectCockpitController avoids by reading the presenter's own
+    keys.
+
+    `?tab=returned` on a drawer that does not offer it is a STALE BOOKMARK, not
+    an error: `$tab` is coerced back to `overview` ONCE, at the top of the PHP
+    block below (a literal directive name is deliberately not written inside
+    this comment — Blade compiles statements BEFORE it strips comments, so a
+    directive mentioned in prose is still compiled), and the strip and the body
+    therefore cannot disagree about which tab is open.
+    The page is still 200 and the submitted string is never echoed — exactly
+    the treatment `?module=` has had since 45-11.
+
+    The tab strip is still anchors only, still carries `aria-current="page"` on
+    the active tab and still carries no `aria-expanded`. It is navigation
+    between URLs, not a disclosure widget, and a fourth URL does not change
+    that.
 --}}
 @props([
     'project',
@@ -61,19 +96,40 @@
     'actionVisitId' => null,
     'rooms'    => [],
     'people'   => [],
+    // Plan 46.1-03 — the Returned tab's payload, keyed by visit id and derived
+    // in ProjectCockpitController. Empty when no module is open.
+    'evidence' => [],
 ])
 
 @php
-    $tabs = [
-        'overview' => 'Overview',
-        'files'    => 'Files',
-        'notes'    => 'Notes',
-    ];
-
     $heading = $project->ref ?? $project->name;
 
     /** @var \Illuminate\Support\Collection $visits */
     $visits = $module['section']['visits'] ?? collect();
+
+    // THE PRESENCE RULE — see the docblock above. Read from the visits already
+    // on this panel, so no module key is named anywhere.
+    $offersReturned = $visits->contains(fn ($visit) => $visit->source_type !== null);
+
+    // ONE COERCION, ONE VARIABLE. A stale `?tab=returned` bookmark falls back
+    // to Overview here rather than in two branches that could disagree about
+    // which tab the strip marks and which body renders.
+    if ($tab === 'returned' && ! $offersReturned) {
+        $tab = 'overview';
+    }
+
+    $tabs = ['overview' => 'Overview'];
+
+    if ($offersReturned) {
+        $tabs['returned'] = 'Returned';
+    }
+
+    $tabs['files'] = 'Files';
+    $tabs['notes'] = 'Notes';
+
+    // Only the sourced visits reach the Returned tab. A sourceless visit has
+    // nothing to review and Overview already lists it.
+    $returnedVisits = $visits->filter(fn ($visit) => $visit->source_type !== null)->values();
 
     // The ring's geometry. r=26 on a 64x64 box; the dash array is the arc
     // length so the stroke draws exactly `percent` of the circumference.
@@ -118,8 +174,9 @@
 
     <p class="cav-panel__purpose">{{ $module['description'] }}</p>
 
-    {{-- Three anchors. Each carries the CURRENT module forward, so a tab
-         switch never closes the panel. aria-current marks the active one;
+    {{-- Three anchors, or four where the drawer holds a sourced visit. Each
+         carries the CURRENT module forward, so a tab switch never closes the
+         panel. aria-current marks the active one;
          there is no aria-expanded, because none of this is a disclosure
          widget — the tab strip is navigation between three URLs. --}}
     <nav class="cav-panel__tabs" aria-label="{{ $module['title'] }} sections">
@@ -227,6 +284,14 @@
                 :action="$action"
                 :rooms="$rooms"
                 :people="$people" />
+        @elseif ($tab === 'returned')
+            {{-- D-01 / RV-01 — what the engineer actually sent back. Read live
+                 and read-only; the tab writes nothing and edits nothing. --}}
+            <x-cockpit.returned-tab
+                :project="$project"
+                :module="$module"
+                :visits="$returnedVisits"
+                :evidence="$evidence" />
         @elseif ($tab === 'files')
             {{-- D-13 — the project's document library for this module. Every
                  document it holds, in one place. A document whose type has no

@@ -7,6 +7,7 @@ use App\Models\LabourResource;
 use App\Models\Project;
 use App\Models\SiteSurvey;
 use App\Services\ProjectHealthService;
+use App\Support\Cockpit\CockpitEvidencePresenter;
 use App\Support\Cockpit\CockpitHeaderPresenter;
 use App\Support\Cockpit\CockpitModulePresenter;
 use App\Support\Cockpit\CockpitPanelPresenter;
@@ -49,12 +50,26 @@ use Throwable;
 class ProjectCockpitController extends Controller
 {
     /**
-     * The three tabs of the side panel (D-09). Anything else falls back to
-     * the first entry.
+     * The tabs of the side panel (D-09). Anything else falls back to the
+     * first entry.
+     *
+     * THE ORDER OF THIS ARRAY IS THE TAB ORDER, and `TABS[0]` is still the
+     * fallback — which is why Phase 46.1 inserted `returned` at index 1 (D-01
+     * puts it between Overview and Files) without `resolveTab()` changing at
+     * all. Everything that ITERATES this constant rather than sampling it —
+     * `CockpitReadOnlyFenceTest::everyRegion()`, its two GET row-count tests,
+     * `CockpitPageTest::test_every_module_renders_on_every_tab()` — picked the
+     * new tab up on the day it was added. That is the point of iterating the
+     * constant, and the reason a hand-maintained second list is never written.
+     *
+     * A tab being IN this list does not mean every module offers it: the
+     * Returned tab renders only where the open module's drawer holds a visit
+     * with a source (see `panel.blade.php`). Membership here is about what the
+     * URL may legally say, not about what a given drawer draws.
      *
      * @var array<int, string>
      */
-    public const TABS = ['overview', 'files', 'notes'];
+    public const TABS = ['overview', 'returned', 'files', 'notes'];
 
     /**
      * The panel's THIRD piece of URL state (Phase 46, Plan 46-04).
@@ -86,6 +101,7 @@ class ProjectCockpitController extends Controller
         private CockpitModulePresenter $modulePresenter,
         private CockpitHeaderPresenter $headerPresenter,
         private CockpitPanelPresenter $panelPresenter,
+        private CockpitEvidencePresenter $evidencePresenter,
     ) {
     }
 
@@ -139,6 +155,13 @@ class ProjectCockpitController extends Controller
         $panelNotes = $moduleKey === null ? collect() : $this->panelPresenter->notes($project, $moduleKey);
         $activity   = $this->panelPresenter->activity($project);
 
+        // The Returned tab's payload (Phase 46.1, Plan 46.1-03). Keyed by
+        // visit id, derived HERE and never in Blade, on the same rule as the
+        // three above: the controller wires, the presenter derives, the view
+        // draws. Null when no module is open, because the panel that would
+        // read it is not rendered.
+        $panelEvidence = $openModule === null ? null : $this->evidenceFor($project, $openModule);
+
         // Quick actions (Plan 46-04). The form's two option lists are read
         // HERE rather than in Blade, on the same rule as everything else on
         // this page. Both are READS: deriving them writes nothing, which
@@ -173,12 +196,94 @@ class ProjectCockpitController extends Controller
             'progress',
             'panelFiles',
             'panelNotes',
+            'panelEvidence',
             'activity',
             'action',
             'actionVisitId',
             'quickActionRooms',
             'quickActionPeople',
         ));
+    }
+
+    /**
+     * The evidence behind every SOURCED visit in the open module's drawer,
+     * keyed by visit id (Phase 46.1, Plan 46.1-03).
+     *
+     * A visit with no `source_type` is skipped rather than given an empty
+     * entry: nothing was ever issued, so nothing could have come back, and the
+     * Returned tab's own presence rule is derived from the same fact.
+     *
+     * TWO RESHAPES HAPPEN HERE, both deliberate:
+     *
+     *  1. every photo gains a `url` — the project-scoped GET registered by
+     *     Plan 46.1-02. The route is built in PHP, once, rather than in Blade
+     *     inside a loop.
+     *  2. every photo LOSES its `path`. The view has no use for a storage
+     *     path and a page that never receives one cannot print one; the ZIP
+     *     builder and the photo route remain the only two places in this phase
+     *     where a stored path meets the filesystem (T-46.1-05).
+     *
+     * `captured_by`, `ip_address` and `user_agent` are absent because
+     * `VisitEvidence` never returns them (RV-03). Nothing here reaches past
+     * the presenter to a model to get them back, and nothing ever should.
+     *
+     * @param  array<string, mixed>  $module
+     * @return array<int, array<string, mixed>>
+     */
+    private function evidenceFor(Project $project, array $module): array
+    {
+        /** @var \Illuminate\Support\Collection<int, \App\Models\Visit> $visits */
+        $visits = $module['section']['visits'] ?? collect();
+
+        $evidence = [];
+
+        foreach ($visits as $visit) {
+            if ($visit->source_type === null) {
+                continue;
+            }
+
+            $payload = $this->evidencePresenter->evidence($project, $visit);
+
+            if ($payload === null) {
+                continue;
+            }
+
+            foreach ($payload['photos_by_bucket'] as $bucket => $photos) {
+                $payload['photos_by_bucket'][$bucket] = array_map(
+                    function (array $photo) use ($project, $visit): array {
+                        $photo['url'] = route('projects.cockpit.visits.photo', [
+                            'project' => $project,
+                            'visit'   => $visit,
+                            'kind'    => $photo['kind'],
+                            'photo'   => $photo['id'],
+                        ]);
+
+                        unset($photo['path']);
+
+                        return $photo;
+                    },
+                    $photos
+                );
+            }
+
+            $payload['serials'] = array_map(
+                function (array $serial) use ($project, $visit): array {
+                    $serial['url'] = route('projects.cockpit.visits.photo', [
+                        'project' => $project,
+                        'visit'   => $visit,
+                        'kind'    => \App\Support\Cockpit\VisitEvidence::KIND_LABEL,
+                        'photo'   => $serial['id'],
+                    ]);
+
+                    return $serial;
+                },
+                $payload['serials']
+            );
+
+            $evidence[(int) $visit->id] = $payload;
+        }
+
+        return $evidence;
     }
 
     /**

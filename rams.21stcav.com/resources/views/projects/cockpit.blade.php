@@ -152,6 +152,7 @@
                         :progress="$progress"
                         :files="$panelFiles"
                         :notes="$panelNotes"
+                        :evidence="$panelEvidence ?? []"
                         :activity="$activity"
                         :action="$action"
                         :action-visit-id="$actionVisitId"
