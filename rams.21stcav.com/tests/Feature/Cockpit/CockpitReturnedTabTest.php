@@ -199,7 +199,9 @@ class CockpitReturnedTabTest extends TestCase
         $room = $this->room($survey, ['notes' => 'Ladder needed for the ceiling void.']);
 
         $this->surveyPhoto($room);
-        $this->question($room, ['answer' => 'Yes, a step stool is enough.']);
+        // `site_survey_room_questions.answer` is an ENUM of yes/no/other —
+        // the engineer's own words live in `other_text`.
+        $this->question($room, ['answer' => 'other', 'other_text' => 'A step stool is enough.']);
 
         return [$visit, $survey, $room];
     }
@@ -451,7 +453,10 @@ class CockpitReturnedTabTest extends TestCase
 
         $this->assertStringContainsString('Boardroom', $body);
         $this->assertStringContainsString('Is the comms room reachable without a ladder?', $body);
-        $this->assertStringContainsString('Yes, a step stool is enough.', $body);
+        $this->assertStringContainsString('A step stool is enough.', $body);
+
+        // The engineer's words, not the enum token behind them.
+        $this->assertStringNotContainsString('>other<', $body);
         $this->assertStringContainsString('Ladder needed for the ceiling void.', $body);
 
         // Unanswered questions are OMITTED and carried as two integers, not as
@@ -684,7 +689,7 @@ class CockpitReturnedTabTest extends TestCase
 
         $room = $this->room($survey, ['room_name' => $hostile]);
         $this->surveyPhoto($room, ['caption' => $hostile]);
-        $this->question($room, ['question' => $hostile, 'answer' => $hostile]);
+        $this->question($room, ['question' => $hostile, 'answer' => 'other', 'other_text' => $hostile]);
 
         $surveyRaw = $this->raw($project, ProjectDeliverable::KEY_SITE_SURVEY, 'returned');
 
