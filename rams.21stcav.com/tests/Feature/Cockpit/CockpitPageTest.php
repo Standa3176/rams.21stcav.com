@@ -194,10 +194,20 @@ class CockpitPageTest extends TestCase
             if ($verbs === ['GET', 'HEAD']) {
                 $gets++;
 
-                $this->assertStringContainsString(
-                    'ProjectCockpitController',
-                    (string) $route->getActionName(),
-                    "Cockpit GET {$route->uri()} must be served by the READ controller."
+                // Widened 2026-09-21 by Phase 46.1: a cockpit GET may be served
+                // by EITHER read controller. 46.1-02 added two read-only GETs
+                // (the photo ZIP and the inline photo) on a third controller,
+                // deliberately, so one authorisation surface covers all three
+                // photo kinds. Both are named EXACTLY -- this is not relaxed to
+                // "any controller", because the property being protected is
+                // that a cockpit GET never lands on the ACTION controller. Add
+                // a name here only for a controller that provably writes
+                // nothing; ProjectCockpitEvidenceController's GETs are asserted
+                // row-count invariant across all eleven write-surface tables.
+                $this->assertTrue(
+                    str_contains((string) $route->getActionName(), 'ProjectCockpitController')
+                    || str_contains((string) $route->getActionName(), 'ProjectCockpitEvidenceController'),
+                    "Cockpit GET {$route->uri()} must be served by a READ controller."
                 );
 
                 continue;
