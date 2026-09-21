@@ -638,16 +638,26 @@ class CockpitReadOnlyFenceTest extends TestCase
      * newest markup on the page and the likeliest place for a directive to
      * appear, because it is the one part of the design that behaves like a
      * widget.
+     *
+     * WIDENED TO everyRegion() BY PLAN 46.1-04, AND THE BREAKAGE RITUAL IS
+     * WHY. This test used to open each module on its DEFAULT tab only, so it
+     * judged `?tab=overview` and nothing else. That was adequate while there
+     * were three tabs and the drawers were the new markup; it stopped being
+     * adequate the moment Plan 46.1-03 added a fourth. 46.1-04's third
+     * breakage — `<button onclick="void 0">Upload files</button>` injected
+     * into returned-tab.blade.php — expected TWO reds and produced ONE: the
+     * deferred-affordance assertion caught `Upload files` because IT walks
+     * everyRegion(), and this one missed the `onclick` entirely because it did
+     * not. A handler could have been added to the Returned tab and the Alpine
+     * ban would have gone on showing green.
+     *
+     * That is exactly the rot the ritual exists to find, found by running it
+     * rather than by reading the file. The two assertions now judge the same
+     * regions, which is what "the fence" ought to have meant all along.
      */
     public function test_rows_are_static_and_nothing_is_wired_to_a_handler(): void
     {
-        $project = $this->populatedProject();
-
-        $regions = [$this->cockpitRegion($this->render($project))];
-
-        foreach (array_keys(CockpitModulePresenter::moduleMap()) as $moduleKey) {
-            $regions[] = $this->cockpitRegion($this->render($project, ['module' => $moduleKey]));
-        }
+        $regions = $this->everyRegion($this->populatedProject());
 
         foreach ($regions as $region) {
             foreach (self::BANNED_HANDLER_ATTRIBUTES as $banned) {
