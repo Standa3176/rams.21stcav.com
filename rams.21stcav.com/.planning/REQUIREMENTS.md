@@ -242,7 +242,7 @@ Each is **recorded in the admin Hidden Functions register**, not forgotten:
 | RV-01 | Phase 46.1 | Planned (Plans 46.1-01, 46.1-03) |
 | RV-02 | Phase 46.1 | Planned (Plans 46.1-01, 46.1-03, 46.1-06) |
 | RV-03 | Phase 46.1 | Planned (Plans 46.1-01, 46.1-03) — `captured_by` never rendered |
-| RV-04 | Phase 46.1 | Planned (Plan 46.1-02; copy + fence lift in Plan 46.1-04) |
+| RV-04 | Phase 46.1 | Complete (route + ZIP builder in Plan 46.1-02; the link copy and the fence lift in Plan 46.1-04) |
 | RV-05 | Phase 46.1 | Planned (Plan 46.1-05) |
 | RV-06 | Phase 46.1 | Planned (Plan 46.1-05) |
 | RV-07 | Phase 46.1 | Planned (Plans 46.1-04, 46.1-05, 46.1-06) |
