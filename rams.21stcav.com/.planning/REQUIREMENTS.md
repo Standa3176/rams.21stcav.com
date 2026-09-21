@@ -147,6 +147,50 @@ VL-02 and VL-08; one deliberate GAP against ROADMAP criterion 2 is recorded in V
   quote. Raised at planning time on 2026-09-20 rather than silently dropped. Needs a user decision
   before it can be planned.
 
+### Group RV — Visit review (Phase 46.1)
+
+Eight requirements minted at planning time on 2026-09-21, mapping to the five Phase 46.1 success
+criteria in `ROADMAP.md` and to D-01..D-06 in `46.1-CONTEXT.md`. The group exists because of one
+measured fact: `grep -c "photo" app/Support/Cockpit/CockpitPanelPresenter.php` returned **0** on
+2026-09-21 — Phase 46 shipped the visit workflow and none of the review, so a PM could accept a
+visit without seeing a single thing the engineer sent back.
+
+- **RV-01** — A **`Returned` tab** in the module panel shows the visit's **photos**, its **per-room
+  answers and notes**, its **captured serials** and its **client sign-off**. The tab sits between
+  `Overview` and `Files`, and its state is query-string state (`?module=…&tab=returned`) like every
+  other tab — no JavaScript (D-01).
+- **RV-02** — Everything the tab shows is **read live from the engineer's own records** —
+  `SiteSurveyPhoto`, `SiteSurveyRoom`, `SiteSurveyRoomQuestion`, `WorksheetPhoto`,
+  `WorksheetSignoff`, `DeviceLabelPhoto` — and is **never copied onto the visit and never
+  editable**. Proven the way VL-04 was proven: edit the engineer's record after the tab was first
+  rendered and assert the tab shows the new value (D-04).
+- **RV-03** — **Captured serials are first-class**: a plain list of room · device · serial · when,
+  not thumbnails buried in the gallery (D-05). `device_label_photos.captured_by` is **NEVER
+  rendered** — it is an audit field holding `ip:…|actor:<sha256-slice>` (see
+  `2026_07_08_170000_backfill_device_label_photos_captured_by_leak.php`), so rendering it would put
+  a capture IP on a page, which is the class of leak LR-04 exists to prevent.
+- **RV-04** — **One GET streams every photo on the visit as a ZIP**, grouped
+  `{Room}/{before|after|label}/`, and **that GET writes nothing** — it is covered by the fence's
+  row-count invariance tests over a grown table list. Scoped to the route-bound `{project}`; no
+  filesystem path is ever built from user input; every ZIP entry name is sanitised so a hostile
+  room name or original filename cannot escape the archive root (D-03).
+- **RV-05** — The four review controls — **Accept · Send back · Add note · Raise a snag** — render
+  **beneath the evidence** on the `Returned` tab and **no longer render on Overview**, so a visit
+  cannot be accepted without its evidence on screen (D-02).
+- **RV-06** — A **reconstructed visit shows its evidence but offers no control**. Its source record
+  holds real photos worth seeing; nobody performed that review, so all four controls stay hidden —
+  the rule Phase 46 established and proved over 24 backfilled rows on live (D-06).
+- **RV-07** — **Nothing an engineer captured can be edited from this tab**, and the **VL-11 cap of
+  four controls still binds**. `<select`, `<script` and all nine banned handler attributes stay
+  banned inside the cockpit region; `Upload files`, `Add document`, `Mark as sent` and
+  `Issue to client` stay deferred to Phase 48. Only the string `Download` is lifted from the fence,
+  by name, in the commit that ships it.
+- **RV-08** — **The tab stays calm.** One hand-off link at the top, one control area at the bottom,
+  nothing per-photo, no lightbox, no pager, no new chip and no new colour. Asserted as a budget by
+  test — outside the visit row the `Returned` tab renders exactly **one** non-photo anchor — and
+  settled by a human checkpoint, because "simple and less scary" is the user's own wording and no
+  assertion in this repo can settle it. The sibling of VL-11, for the same reason.
+
 ### Out of scope for v4.0
 
 Each is **recorded in the admin Hidden Functions register**, not forgotten:
@@ -195,6 +239,14 @@ Each is **recorded in the admin Hidden Functions register**, not forgotten:
 | VL-10 | Phase 46 | Complete (Plans 46-04 + 46-06 + 46-07, 2026-09-20). 46-07 closed it: an office note writes exactly one `note_added` row (the existing constant reused deliberately — a note is a note) and a raised snag writes exactly one new `ACTION_SNAG_RAISED` row. All four PM acts now log exactly one row each, and no PM free text is copied into the feed. 46-06 added `ACTION_VISIT_ACCEPTED` and `ACTION_VISIT_SENT_BACK`, exactly one row per act, with the PM's free text deliberately NOT copied into the feed. 46-04 half done 2026-09-20: `ProjectActivityLog::ACTION_VISIT_CREATED`, exactly one row per create, rendered by the panel's own feed |
 | VL-11 | Phase 46 | Code-complete; AWAITING THE HUMAN CHECK (Plans 46-04 + 46-06 + 46-07, 2026-09-20; checkpoint presented by Plan 46-08, 2026-09-21 — NOT self-approved, because "simple to use" in the user's own words is not a property any assertion in this repo can settle). 46-07 REACHED the cap: a returned visit renders exactly four controls (Accept, Send back, Add note, Raise a snag), an accepted one renders one (Add note), a reconstructed one renders none. The cap loop now judges 7 states x 6 types x 9 drawers x FOUR URL states with its ceiling unchanged at four, and only one form can be open at a time because only one `action` fits in the URL. 46-06 done 2026-09-20: the visit-row FOUR-control cap is executable - asserted over 7 factory states x 6 visit types x 9 drawers x 2 URL states, with a vacuity floor, plus `assertStringNotContainsString('disabled')` inside the same loop; a reconstructed visit renders none. 46-04 half done 2026-09-20: the Quick actions cap is EXECUTABLE - one control per module over five modules, none over four, never more than four controls in the block at any state, nothing disabled, and all nine banned handler attributes kept because Phase 46 considered retiring them and declined |
 | VL-12 | Phase 46 | **GAP — not delivered by Phase 46.** Raised 2026-09-20 at planning time; needs a user decision (see VL-12 above). |
+| RV-01 | Phase 46.1 | Planned (Plans 46.1-01, 46.1-03) |
+| RV-02 | Phase 46.1 | Planned (Plans 46.1-01, 46.1-03, 46.1-06) |
+| RV-03 | Phase 46.1 | Planned (Plans 46.1-01, 46.1-03) — `captured_by` never rendered |
+| RV-04 | Phase 46.1 | Planned (Plan 46.1-02; copy + fence lift in Plan 46.1-04) |
+| RV-05 | Phase 46.1 | Planned (Plan 46.1-05) |
+| RV-06 | Phase 46.1 | Planned (Plan 46.1-05) |
+| RV-07 | Phase 46.1 | Planned (Plans 46.1-04, 46.1-05, 46.1-06) |
+| RV-08 | Phase 46.1 | Planned (Plan 46.1-06 — human checkpoint, NOT self-approvable) |
 
 *Phases 47–51 have no requirement IDs yet. Mint them into this section as each phase is planned,
 following the LR-xx / VIS-xx pattern.*

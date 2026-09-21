@@ -523,7 +523,7 @@ seeing a single thing the engineer returned.
 import its code. Its order is the contract: review state → Download all photos (ZIP) → per-room
 data → gallery → client sign-off → approve.
 
-**Requirements**: Not yet minted. Mint RV-xx into `.planning/REQUIREMENTS.md` § v4.0 at planning time.
+**Requirements**: RV-01 .. RV-08 (minted 2026-09-21, `.planning/REQUIREMENTS.md` § Group RV — Visit review).
 
 **Success Criteria** (what must be TRUE):
 
@@ -539,17 +539,45 @@ data → gallery → client sign-off → approve.
   5. Nothing an engineer captured can be edited from this tab, and the VL-11 cap of four controls
      still holds
 
-**Open questions** (resolve at planning):
+**Open questions** — ALL RESOLVED at planning time, 2026-09-21:
 
-  - Does the Returned tab appear at all on the seven modules with no engineer link, or only on
-    Site survey and First fix and install? An empty tab on seven of nine would be noise.
-  - `ZipArchive` (used already in `ProjectDrawingController`, `OmManualDocxService`) or a streaming
-    writer? A large visit's photos could be substantial.
-  - ⚠️ The fence bans the string `Download`. This phase ships one, so that entry must be lifted
-    **by name with a reason**, exactly as 46-04 lifted `<form`/`<button`. `Upload files`,
-    `Mark as sent` and `Issue to client` stay banned — they are Phase 48.
+  - ~~Does the Returned tab appear on the seven modules with no engineer link?~~ **RESOLVED:
+    NEITHER "all nine" NOR "only two" — the tab follows the DATA, not the module.** It renders
+    if and only if the open module's drawer holds at least one visit whose `source_type` is set,
+    i.e. a visit backed by an engineer record that could return something. `Visit::returnedAt()`
+    reads the SOURCE, so a sourceless visit can never reach RETURNED / SENT_BACK / ACCEPTED; the
+    four document modules (RAMS, Drawings, O&M, Cable schedule) hold no visits at all and never
+    show the tab. Hard-coding "Site survey and First fix only" was rejected because it would strip
+    the review surface from any commissioning / programming / snagging visit that ever does carry
+    a source — and Phase 47 will make snag visits do exactly that. Carried by Plan 46.1-03.
 
-**Plans**: Not yet planned
+  - ~~`ZipArchive` or a streaming writer?~~ **RESOLVED: `ZipArchive` to a temp file, then
+    `deleteFileAfterSend(true)`** — the house pattern already in `ProjectDrawingController`
+    (DRAW-28, with its own T-20-02 traversal note) and `OmManualDocxService`. `ZipArchive` is
+    confirmed present on the Herd php84 build. The streaming alternative,
+    `maennchen/zipstream-php`, is only a TRANSITIVE dependency of `phpoffice/phpspreadsheet` —
+    using it directly would mean a new direct composer requirement on a deploy this phase has no
+    mandate to change. Large visits are handled by skipping files missing on disk rather than
+    failing, and the size trade-off is recorded as accepted threat T-46.1-11. Carried by Plan
+    46.1-02.
+
+  - ⚠️ ~~The fence bans the string `Download`.~~ **RESOLVED: lifted by Plan 46.1-04, by name,
+    in the commit that ships the link**, with the plan and requirement (RV-04) recorded at the
+    entry and `assertCount(19, ...)` moved to 18 keeping its "never deleted to make a change fit"
+    comment. `Upload files`, `Add document`, `Mark as sent`, `Issue to client`, `Open register`
+    and `Export CSV` all STAY BANNED (Phase 48), as do `<select`, `<script` and all nine handler
+    attributes. `WRITE_SURFACE_TABLES` grows 7 → 11 in the same commit, because the ZIP is a GET
+    and must move none of the four evidence tables.
+
+**Plans**: 6 plans
+
+Plans:
+- [ ] 46.1-01-PLAN.md — VisitEvidence + CockpitEvidencePresenter: resolve what came back, read-live, write-nothing (wave 1)
+- [ ] 46.1-02-PLAN.md — The per-visit photo ZIP + the inline photo route, and their security proofs (wave 2)
+- [ ] 46.1-03-PLAN.md — The Returned tab: presence rule, room answers, contact sheet, serials, sign-off (wave 2)
+- [ ] 46.1-04-PLAN.md — The hand-off link + the fence lift + the three-way breakage ritual (wave 3)
+- [ ] 46.1-05-PLAN.md — Relocate the four review controls beneath the evidence (wave 4)
+- [ ] 46.1-06-PLAN.md — End-to-end walk through HTTP, the four gates, and the RV-08 calm checkpoint (wave 5)
 
 **UI hint**: yes (a new panel tab, a gallery, and the relocation of four existing controls)
 
