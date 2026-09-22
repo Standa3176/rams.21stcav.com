@@ -253,7 +253,11 @@ class CockpitEvidencePresenterTest extends TestCase
         $first = $evidence['photos_by_bucket']['before'][0];
 
         $this->assertSame(
-            ['kind', 'id', 'room', 'bucket', 'caption', 'original_name', 'mime_type', 'path'],
+            // `disk` was added by Plan 46.1-06: the three kinds are written to
+            // TWO different disks and a path with no disk beside it is only
+            // resolvable by guessing. Guessing is what made every equipment
+            // label photo 404 on live. See VisitEvidence::DISK_FOR_KIND.
+            ['kind', 'id', 'room', 'bucket', 'caption', 'original_name', 'mime_type', 'path', 'disk'],
             array_keys($first),
             'The photo array keys are the contract Plans 46.1-02 and 46.1-03 build against.'
         );

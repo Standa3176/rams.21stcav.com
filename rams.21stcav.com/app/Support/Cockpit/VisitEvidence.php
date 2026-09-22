@@ -109,11 +109,15 @@ final class VisitEvidence
      * found it.
      *
      * `worksheet_photos.filename` and `site_survey_photos.filename` are
-     * written by `Storage::disk('local')` (see WorksheetPhoto::absolutePath()
-     * and SiteSurveyPhoto::absolutePath()). `device_label_photos.photo_path`
-     * is written by `DeviceLabelPhotoService::capture()` through
-     * `Storage::disk('public')`, because that row's other consumer renders it
-     * with `Storage::url()`.
+     * written to the LOCAL disk (see WorksheetPhoto and SiteSurveyPhoto, which
+     * each resolve their own absolute path). `device_label_photos.photo_path`
+     * is written by `DeviceLabelPhotoService::capture()` to the PUBLIC disk,
+     * because that row's other consumer renders it as a public URL.
+     *
+     * THIS CLASS STILL TOUCHES NO DISK. It names one; it opens none. The disk
+     * facade is absent from this file by design (T-46.1-05) and
+     * CockpitEvidencePresenterTest greps for it — a NAME travels with the path
+     * so the one place that does open a file knows which root to check.
      *
      * In Laravel 11+ `local` is `storage/app/private` and `public` is
      * `storage/app/public` — SIBLINGS, not nested. So resolving a label path
