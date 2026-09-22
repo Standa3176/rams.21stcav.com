@@ -834,9 +834,19 @@ class CockpitReturnedTabTest extends TestCase
         // EXACTLY ONE, NOT "AT MOST ONE" AND NOT "SOME". The cap is the point:
         // a gallery plus four controls is how a calm page becomes a control
         // panel (RV-08), and the user's words were "simple and less scary".
-        // The four review controls Plan 46.1-05 adds are BUTTONS inside a
-        // form, not anchors, so they do not spend this budget — anything that
-        // does is a new link nobody decided to ship.
+        // CORRECTED BY PLAN 46.1-05, WHICH SHIPPED THEM AND COUNTED THEM.
+        // 46.1-04 wrote here that the four review controls "are BUTTONS
+        // inside a form, not anchors". ONE of them is: Accept. `Send back`,
+        // `Add note` and `Raise a snag` are ANCHORS carrying a disclosure
+        // URL (visit-row.blade.php) — there is no JavaScript on this page,
+        // so a control that only changes the URL has to be a link.
+        //
+        // THE BUDGET IS STILL EXACTLY ONE, AND THE REASON IS THE FIXTURE
+        // RATHER THAN THE MARKUP: `worksheetVisit()` builds a RECONSTRUCTED
+        // visit, which offers ZERO controls (D-06). A reviewable returned
+        // visit on this tab renders three anchors and one button, and that
+        // is the deliberate cost of D-02. Anything OTHER than those four,
+        // on a reconstructed visit, is a new link nobody decided to ship.
         $this->assertSame(
             count($hrefs) - 1,
             count($photoLinks),

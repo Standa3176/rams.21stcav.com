@@ -522,13 +522,31 @@ class CockpitVisitActionsTest extends TestCase
     /**
      * Every `.cav-visit` row in the open module, as raw HTML.
      *
+     * DEFAULTS TO `?tab=returned` — MOVED ONCE, BY PLAN 46.1-05, AND THIS IS A
+     * RELOCATION RATHER THAN A RELAXATION.
+     *
+     * D-02 of `46.1-CONTEXT.md` moved the four review controls out of Overview
+     * and beneath the evidence, in the user's own words: a PM should not be
+     * able to accept a visit without having looked at it. WHERE the assertions
+     * below look therefore changes; WHAT they assert does not. Every one of
+     * them is byte-identical to what it was before the move, and
+     * test_no_visit_state_loses_a_control_it_could_previously_reach() holds the
+     * whole before-table so a weakened assertion cannot hide in the relocation.
+     *
+     * A drawer holding no sourced visit COERCES `?tab=returned` back to
+     * Overview (panel.blade.php's one stale-bookmark coercion), so a planned or
+     * a sent visit still renders its row here — with zero controls, exactly as
+     * it did on Overview. Where a test needs Overview SPECIFICALLY it passes
+     * `['tab' => 'overview']`, which wins because the explicit query is unioned
+     * over this default.
+     *
      * @return array<int, string>
      */
     private function visitRows(Project $project, string $module, array $query = []): array
     {
         $dom = new \DOMDocument();
         libxml_use_internal_errors(true);
-        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$this->region($project, ['module' => $module] + $query));
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$this->region($project, ['module' => $module] + $query + ['tab' => 'returned']));
         libxml_clear_errors();
 
         $rows = [];
@@ -659,6 +677,222 @@ class CockpitVisitActionsTest extends TestCase
         $this->assertStringContainsString('Reconstructed', $rows[0]);
     }
 
+    /**
+     * THE TEST THAT MAKES THE RELOCATION SAFE (Plan 46.1-05, T-46.1-21).
+     *
+     * A control moved to a tab a visit never gets is a control DELETED, and it
+     * would be deleted silently: every other assertion in this file would stay
+     * green, because every other assertion looks at one state at a time.
+     *
+     * THE EXPECTED COUNTS ARE COPIED FROM THE NAMED TESTS ABOVE, NOT READ BACK
+     * OFF THE BLADE. A table derived from the implementation proves only that
+     * the implementation matches itself:
+     *
+     *   returned 4 - test_a_returned_visit_offers_exactly_the_four_pm_acts()
+     *   sentBack 3 - test_a_sent_back_visit_offers_accept_but_no_second_send_back()
+     *                (Accept, Add note, Raise a snag; there is no second
+     *                send-back)
+     *   accepted 1 - test_an_accepted_visit_offers_only_add_note()
+     *   backfilledFromWorksheet 0 -
+     *                test_a_reconstructed_visit_offers_no_control_even_though_its_state_reads_returned()
+     *   planned 0  - test_a_planned_visit_offers_nothing()
+     *   sent 0     - test_a_sent_visit_offers_nothing_and_says_it_is_with_the_engineer()
+     *   default 0  - a completed visit nobody reviewed is closed
+     *
+     * The plan's own prose for `sentBack` read "1 (Accept only ... so 3)". The
+     * named test says THREE, and the test wins: 3 is what is asserted here.
+     *
+     * THE ROW MUST ALSO STILL EXIST. A count of zero would pass for a visit
+     * that vanished, so every state asserts at least one rendered row across
+     * the nine drawers as well as the count on it.
+     */
+    public function test_no_visit_state_loses_a_control_it_could_previously_reach(): void
+    {
+        $expected = [
+            'planned'                 => 0,
+            'sent'                    => 0,
+            'returned'                => 4,
+            'sentBack'                => 3,
+            'accepted'                => 1,
+            'backfilledFromWorksheet' => 0,
+            'default'                 => 0,
+        ];
+
+        $modules = array_keys(\App\Support\Cockpit\CockpitModulePresenter::moduleMap());
+        $seen    = 0;
+
+        foreach (Visit::TYPES as $type) {
+            foreach ($expected as $state => $count) {
+                $project = $this->project();
+                $factory = Visit::factory();
+
+                $state === 'default'
+                    ? $factory->create(['project_id' => $project->id, 'type' => $type])
+                    : $factory->{$state}()->create(['project_id' => $project->id, 'type' => $type]);
+
+                $rows = 0;
+
+                foreach ($modules as $module) {
+                    foreach ($this->visitRows($project, $module) as $row) {
+                        $rows++;
+                        $seen++;
+
+                        $this->assertSame(
+                            $count,
+                            $this->countControls($row),
+                            "A {$state} {$type} visit offered {$count} control(s) before Plan 46.1-05 moved them; the Returned tab must offer the same number."
+                        );
+                    }
+                }
+
+                $this->assertGreaterThanOrEqual(
+                    1,
+                    $rows,
+                    "A {$state} {$type} visit renders no row at all - the relocation stranded it instead of moving it."
+                );
+            }
+        }
+
+        $this->assertGreaterThan(20, $seen, 'The no-loss table must judge real rows, never pass vacuously.');
+    }
+
+    /**
+     * OVERVIEW LOSES THE OFFERS AND KEEPS THE RECORD (Plan 46.1-05, T-46.1-24).
+     *
+     * D-02 moved what a PM can DO. It did not move what a PM can SEE. A PM
+     * glancing at Overview must still be able to say where every visit stands
+     * without opening anything, so each state sentence is asserted here by
+     * name - a relocation that took them along would be a repudiation bug, not
+     * a tidier page.
+     */
+    public function test_overview_offers_no_control_and_still_says_where_the_visit_stands(): void
+    {
+        $project = $this->project();
+        $this->returnedSurveyVisit($project);
+
+        $returned = $this->visitRows($project, 'site_survey', ['tab' => 'overview'])[0];
+
+        $this->assertSame(0, $this->countControls($returned));
+        $this->assertStringContainsString('Scope locked', $returned);
+        $this->assertStringNotContainsString('Accept', $returned);
+
+        $accepted = $this->project();
+        Visit::factory()->accepted()->create(['project_id' => $accepted->id, 'type' => Visit::TYPE_INSTALL]);
+
+        $acceptedRow = $this->visitRows($accepted, 'worksheet', ['tab' => 'overview'])[0];
+
+        $this->assertSame(0, $this->countControls($acceptedRow));
+        $this->assertStringContainsString('Accepted by', $acceptedRow);
+        $this->assertStringNotContainsString('Add note', $acceptedRow);
+
+        $sentBack = $this->project();
+        Visit::factory()->sentBack()->create(['project_id' => $sentBack->id, 'type' => Visit::TYPE_INSTALL]);
+
+        $sentBackRow = $this->visitRows($sentBack, 'worksheet', ['tab' => 'overview'])[0];
+
+        $this->assertSame(0, $this->countControls($sentBackRow));
+        $this->assertStringContainsString('Sent back', $sentBackRow);
+        $this->assertStringContainsString('awaiting the engineer', $sentBackRow);
+
+        $sent = $this->project();
+        Visit::factory()->sent()->create(['project_id' => $sent->id, 'type' => Visit::TYPE_INSTALL]);
+
+        $sentRow = $this->visitRows($sent, 'worksheet', ['tab' => 'overview'])[0];
+
+        $this->assertSame(0, $this->countControls($sentRow));
+        $this->assertStringContainsString('Awaiting the engineer', $sentRow);
+    }
+
+    /**
+     * THE PRESENCE RULE STRANDS NOTHING (Plan 46.1-05, T-46.1-21).
+     *
+     * Plan 46.1-03 gives the Returned tab only to a drawer holding a visit with
+     * a `source_type`. That is safe only if the set of visits that can OFFER a
+     * control is a subset of the set that GETS the tab, so this asserts every
+     * half of that:
+     *
+     *   1. a sourceless visit renders no control, in any factory state;
+     *   2. it cannot REACH a control-offering state either - each of
+     *      `$canAccept`, `$canSendBack`, `$canNote` and `$canSnag` requires
+     *      `state()` to be RETURNED, SENT_BACK or ACCEPTED, and all three of
+     *      those need either a return (which `returnedAt()` reads off the
+     *      SOURCE) or a column only the two POST routes write;
+     *   3. and those two routes refuse a visit that has not come back with a
+     *      422 - so the app cannot manufacture the stranded shape either.
+     *
+     * Part 3 is the load-bearing one. Parts 1 and 2 describe fixtures; part 3
+     * describes what production can actually produce.
+     */
+    public function test_a_sourceless_visit_could_never_have_offered_a_control(): void
+    {
+        $states  = ['planned', 'sent', 'returned', 'sentBack', 'accepted', 'backfilledFromWorksheet', 'default'];
+        $modules = array_keys(\App\Support\Cockpit\CockpitModulePresenter::moduleMap());
+        $seen    = 0;
+
+        foreach ($states as $state) {
+            $project = $this->project();
+            $factory = Visit::factory();
+
+            $visit = $state === 'default'
+                ? $factory->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL])
+                : $factory->{$state}()->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
+
+            // FORCED, because nothing in the app ever clears a source: this is
+            // the shape the presence rule would strand if it could exist.
+            $visit->forceFill(['source_type' => null, 'source_id' => null])->save();
+
+            foreach ($modules as $module) {
+                foreach ($this->visitRows($project, $module, ['tab' => 'overview']) as $row) {
+                    $seen++;
+
+                    $this->assertSame(
+                        0,
+                        $this->countControls($row),
+                        "A sourceless {$state} visit offered a control, so the Returned tab's presence rule would strand it."
+                    );
+                }
+            }
+
+            if ($visit->refresh()->accepted_at === null && $visit->sent_back_at === null) {
+                $this->assertNotContains(
+                    $visit->state(),
+                    [Visit::STATE_RETURNED, Visit::STATE_SENT_BACK, Visit::STATE_ACCEPTED],
+                    "A sourceless {$state} visit derived a control-offering state with no return to derive it from."
+                );
+            }
+        }
+
+        $this->assertGreaterThan(5, $seen, 'The sourceless sweep must judge real rows, never pass vacuously.');
+
+        // 3. The two routes that write `accepted_at` and `sent_back_at` both
+        //    refuse a visit that has not come back - and a sourceless visit
+        //    never has, because `returnedAt()` reads the source.
+        $project = $this->project();
+        $bare    = Visit::factory()->sent()->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
+
+        $this->accept($project, $bare)->assertStatus(422);
+        $this->sendBack($project, $bare, ['reason' => 'The comms room photos are missing.'])->assertStatus(422);
+
+        $bare->refresh();
+
+        $this->assertNull($bare->accepted_at);
+        $this->assertNull($bare->sent_back_at);
+        $this->assertNull($bare->source_type);
+    }
+
+    /**
+     * VL-11, JUDGED WHERE THE CONTROLS NOW LIVE (Plan 46.1-05).
+     *
+     * NOT ONE DIMENSION OF THE COVERAGE CHANGED: still 7 factory states x 6
+     * visit types x 9 drawers x 4 URL states, still a ceiling of FOUR, still
+     * `assertStringNotContainsString('disabled')`, still the same vacuity
+     * floor of 20 rows. Only `visitRows()`'s default tab moved. The floor is
+     * asserted UNCHANGED on purpose: because `returned()`, `sentBack()` and
+     * `accepted()` all create a source, and because a drawer with no sourced
+     * visit falls back to Overview, every row this loop used to judge is still
+     * judged — a relocation that had quietly halved its reach would read red
+     * here.
+     */
     public function test_no_visit_row_ever_renders_more_than_four_controls(): void
     {
         $states = ['planned', 'sent', 'returned', 'sentBack', 'accepted', 'backfilledFromWorksheet', 'default'];

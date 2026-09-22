@@ -649,13 +649,21 @@ class CockpitOfficeNoteAndSnagTest extends TestCase
     /**
      * Every `.cav-visit` row in the open module, as raw HTML.
      *
+     * DEFAULTS TO `?tab=returned` - MOVED ONCE, BY PLAN 46.1-05, AND THIS IS A
+     * RELOCATION RATHER THAN A RELAXATION. D-02 moved the four review controls
+     * out of Overview and beneath the evidence, because a PM should not be able
+     * to accept a visit without having looked at it. Every assertion below is
+     * byte-identical to what it was before the move; only where it looks
+     * changed. A drawer holding no sourced visit coerces the tab back to
+     * Overview, so a row is still found for every state.
+     *
      * @return array<int, string>
      */
     private function visitRows(Project $project, string $module, array $query = []): array
     {
         $dom = new \DOMDocument();
         libxml_use_internal_errors(true);
-        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$this->region($project, ['module' => $module] + $query));
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$this->region($project, ['module' => $module] + $query + ['tab' => 'returned']));
         libxml_clear_errors();
 
         $rows = [];
