@@ -576,7 +576,7 @@ Plans:
 - [x] 46.1-02-PLAN.md — The per-visit photo ZIP + the inline photo route, and their security proofs (wave 2)
 - [x] 46.1-03-PLAN.md — The Returned tab: presence rule, room answers, contact sheet, serials, sign-off (wave 2)
 - [x] 46.1-04-PLAN.md — The hand-off link + the fence lift + the three-way breakage ritual (wave 3)
-- [ ] 46.1-05-PLAN.md — Relocate the four review controls beneath the evidence (wave 4)
+- [x] 46.1-05-PLAN.md — Relocate the four review controls beneath the evidence (wave 4)
 - [ ] 46.1-06-PLAN.md — End-to-end walk through HTTP, the four gates, and the RV-08 calm checkpoint (wave 5)
 
 **UI hint**: yes (a new panel tab, a gallery, and the relocation of four existing controls)
