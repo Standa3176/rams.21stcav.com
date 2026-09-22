@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Project Cockpit
 status: executing
-stopped_at: Phase 46 (Visit Lifecycle) — ALL 8 PLANS LANDED; the phase is held at its HUMAN CHECKPOINT (Plan 46-08, Task 3) and is NOT complete until the user has judged the cockpit simple enough to use. Code state: the cockpit is writable (create visit, generate document, and the four PM acts on a returned visit), and the survey→install carry-forward is live. Gates at hand-back: D-06 baseline 2 skipped / 159 passed / 0 failed; cockpit suite 266 passed (201 Feature + 65 Unit); full suite 3118 passed with the ONE documented pre-existing QueueRecoverCommandTest failure; three sha256 pins all identical. VL-12 (per-visit document scoping) is NOT DELIVERED and stays a GAP.
-last_updated: "2026-09-21T00:00:00.000Z"
-last_activity: 2026-09-21
+stopped_at: Phase 46.1 (Visit Review) — ALL 6 PLANS LANDED; the phase is held at its HUMAN CHECKPOINT (Plan 46.1-06, Task 3, RV-08) and is NOT complete until the user has judged the Returned tab calm. Phase 46 is ALSO still held at its own checkpoint (Plan 46-08, VL-11). Code state: a PM can read what an engineer sent back — photos, room answers, serials, client sign-off — download it as one ZIP for Bitrix, and accept / send back / note / snag from beneath that evidence without being thrown off the tab. Gates at hand-back: D-06 baseline 2 skipped / 159 passed / 0 failed; cockpit suite 341 passed (260 Feature + 81 Unit); full suite 3193 passed with the ONE documented pre-existing QueueRecoverCommandTest failure; three sha256 pins all identical; fence counts 2 / 18 / 9 / 11 and the three-way breakage ritual re-run. VL-12 (per-visit document scoping) is STILL NOT DELIVERED and stays a GAP.
+last_updated: "2026-09-22T00:00:00.000Z"
+last_activity: 2026-09-22
 progress:
   total_phases: 8
   completed_phases: 2
@@ -101,6 +101,34 @@ four (Accept, Send back, Add note, Raise a snag); a PM who needs a change sends 
 - **D-46-06-01.** `Visit::wasSentBack()` is a strict `greaterThan` on second-resolution timestamps,
   so a send-back issued in the same clock second as a resubmission reads as "not sent back" and the
   engineer never sees the ask. One-second window; the fix is a 46-01 decision to revisit.
+
+**Phase 46.1 — Visit Review: ALL 6 PLANS LANDED, HELD AT THE HUMAN CHECKPOINT** (not complete).
+Inserted 2026-09-21 because Phase 46 built the workflow but not the review: a PM could accept a
+visit without seeing a single thing the engineer returned. Plan 46.1-06 finished every automatable
+task and STOPPED at RV-08's `checkpoint:human-verify`. The question it asks is the user's own:
+*“is this simple, or is it the busy control panel you rejected before?”*
+
+What shipped: 46.1-01 `VisitEvidence` + `CockpitEvidencePresenter`, read-live and write-nothing;
+46.1-02 the per-visit photo ZIP (`{Room}/{before|after|label}/`) and the inline photo GET, both
+traversal- and zip-slip-proofed; 46.1-03 the `Returned` tab, which renders if and only if the open
+module's drawer holds a visit with a `source_type`; 46.1-04 the `Download all photos (ZIP)` link
+and the fence lift of exactly one entry; 46.1-05 the four PM acts moved BENEATH the evidence, with
+`visit-row`'s new `controls` prop defaulting FALSE; 46.1-06 one end-to-end walk through HTTP, the
+gates and the checkpoint.
+
+Key facts a later agent needs:
+- **An act carries the tab it was initiated from.** Every cockpit write used to redirect to the
+  module's TABLESS URL, which resolves to Overview — so pressing Accept threw the PM off the
+  Returned tab. The tab now rides in a hidden field and is membership-checked against
+  `ProjectCockpitController::TABS` at BOTH ends. Any new cockpit write must do the same.
+- **An evidence path carries its DISK.** `device_label_photos.photo_path` is written to the
+  `public` disk while worksheet and survey photos go to `local`, and in Laravel 11+ those roots are
+  siblings. Before 46.1-06 every equipment-label photo was silently skipped from the hand-off ZIP
+  and 404ed on the photo route, on live. `VisitEvidence::DISK_FOR_KIND` is the mapping; do not
+  assume a default.
+- **The ZIP is photos only.** No data summary — deferred by the user in favour of photos-only.
+- **The calm budget is executable.** A reviewable returned visit spends exactly four non-photo
+  anchors (the ZIP plus the three disclosures) and exactly one button (Accept).
 
 **Server note:** something switched the deploy checkout's branch to `deploy-mrgagg` between two
 deploys on 2026-09-20, which caused a build against four-month-old code. Cause unfound. Check
