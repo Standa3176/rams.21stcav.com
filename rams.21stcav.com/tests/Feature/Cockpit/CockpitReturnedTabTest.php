@@ -847,6 +847,14 @@ class CockpitReturnedTabTest extends TestCase
         // visit on this tab renders three anchors and one button, and that
         // is the deliberate cost of D-02. Anything OTHER than those four,
         // on a reconstructed visit, is a new link nobody decided to ship.
+        //
+        // AND THAT IS WHY THIS TEST IS NOT THE WHOLE STORY (Plan 46.1-06).
+        // A budget whose fixture offers zero controls cannot claim to have
+        // counted them: this one would keep passing if the four acts became
+        // fourteen. It is kept because "a reconstructed visit grows no new
+        // link" is worth pinning on its own — the cost of D-02 is counted
+        // where it is actually paid, in
+        // test_a_reviewable_returned_visit_spends_four_non_photo_anchors_and_one_button().
         $this->assertSame(
             count($hrefs) - 1,
             count($photoLinks),
@@ -883,6 +891,119 @@ class CockpitReturnedTabTest extends TestCase
         // would need; this says the copy is absent too.
         foreach (['Delete', 'Next', 'Previous', 'Rotate', 'Reorder', 'Edit caption'] as $control) {
             $this->assertStringNotContainsString($control, $body);
+        }
+    }
+    /**
+     * A REVIEWABLE returned install visit — the row `worksheetVisit()` cannot
+     * produce (Plan 46.1-06).
+     *
+     * `worksheetVisit()` builds a RECONSTRUCTED visit, which offers ZERO
+     * controls (D-06). That makes it the right fixture for "a visit nobody
+     * performed a review on shows evidence and offers nothing" and the WRONG
+     * one for any budget that claims to have counted the controls: the budget
+     * passes because the controls are absent, not because they were counted.
+     *
+     * This one is not backfilled, was sent, and its worksheet carries a
+     * sign-off — so `Visit::state()` reads RETURNED, `isClosed()` is false,
+     * and the row renders all four of D-02's acts.
+     *
+     * @return array{0: Visit, 1: Worksheet}
+     */
+    private function reviewableWorksheetVisit(Project $project): array
+    {
+        $worksheet = $this->worksheet($project);
+
+        $visit = Visit::factory()->create([
+            'project_id'  => $project->id,
+            'type'        => Visit::TYPE_INSTALL,
+            'title'       => 'Install visit',
+            'status'      => Visit::STATUS_PLANNED,
+            'sent_at'     => now()->subDays(3),
+            'source_type' => Visit::SOURCE_WORKSHEET,
+            'source_id'   => $worksheet->id,
+            'is_backfilled' => false,
+        ]);
+
+        $this->worksheetPhoto($worksheet);
+        $this->worksheetPhoto($worksheet, ['original_name' => 'install-02.jpg']);
+        $this->worksheetPhoto($worksheet, ['original_name' => 'install-03.jpg']);
+        $this->signoff($worksheet);
+
+        return [$visit, $worksheet];
+    }
+
+    /**
+     * THE BUDGET, JUDGED AGAINST A ROW THAT ACTUALLY HAS CONTROLS
+     * (Plan 46.1-06, RV-08).
+     *
+     * WHY THIS TEST EXISTS. The one-anchor budget above is real, but its
+     * fixture is a reconstructed visit offering nothing, so it never exercises
+     * a row with controls on it — it would keep passing if D-02's four acts
+     * silently became fourteen. The cost of D-02 is counted HERE, on the row
+     * that pays it, and it is FOUR non-photo anchors plus ONE button:
+     *
+     *   • `Download all photos (ZIP)` — the hand-off (RV-04)
+     *   • `Send back`, `Add note`, `Raise a snag` — disclosure ANCHORS, because
+     *     there is no JavaScript on this page and a control that only changes
+     *     the URL has to be a link
+     *   • `Accept` — the one real BUTTON, inside its own form POST
+     *
+     * EXACTLY, not "at most". A gallery plus a growing control strip is how a
+     * calm page becomes the busy control panel the user rejected, and the
+     * numbers are the only thing standing between the two.
+     */
+    public function test_a_reviewable_returned_visit_spends_four_non_photo_anchors_and_one_button(): void
+    {
+        $project = $this->project();
+        $this->reviewableWorksheetVisit($project);
+
+        $body  = $this->body($project, ProjectDeliverable::KEY_WORKSHEET);
+        $hrefs = $this->hrefs($body);
+
+        $photoLinks = array_filter(
+            $hrefs,
+            fn (string $href): bool => str_contains($href, '/cockpit/visits/') && str_contains($href, '/photo/')
+        );
+
+        $this->assertGreaterThanOrEqual(
+            3,
+            count($photoLinks),
+            'Non-vacuity floor: the contact sheet really did render links.'
+        );
+
+        $nonPhoto = array_values(array_diff($hrefs, $photoLinks));
+
+        $this->assertCount(
+            4,
+            $nonPhoto,
+            'A reviewable returned visit spends exactly four non-photo anchors: the ZIP and the three D-02 disclosures.'
+        );
+
+        // ...and they are THOSE four, not some other set that happens to
+        // balance the arithmetic.
+        foreach (['photos.zip', 'action=send-back', 'action=note', 'action=snag'] as $expected) {
+            $this->assertNotEmpty(
+                array_filter($nonPhoto, fn (string $href): bool => str_contains(html_entity_decode($href), $expected)),
+                "The non-photo anchor `{$expected}` is missing from the reviewable row."
+            );
+        }
+
+        // ONE button — Accept. The other three acts are anchors, so a second
+        // button would mean an act grew a form nobody decided to ship.
+        $this->assertSame(
+            1,
+            substr_count($body, '<button'),
+            'Accept is the only button on the Returned tab.'
+        );
+
+        // Every disclosure carries the tab it was opened from (Plan 46.1-06),
+        // so pressing one does not throw the PM back to Overview.
+        foreach ($nonPhoto as $href) {
+            if (str_contains($href, 'photos.zip')) {
+                continue;
+            }
+
+            $this->assertStringContainsString('tab=returned', html_entity_decode($href));
         }
     }
 }
