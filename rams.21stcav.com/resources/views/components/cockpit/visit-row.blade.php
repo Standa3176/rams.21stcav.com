@@ -59,6 +59,32 @@
     closed by an anchor back — the same query-string mechanism the panel has
     used since 45-11. All nine of the fence's banned handler attributes stay
     absent and there is no <select>.
+
+    ── WHERE THE ACTION AREA RENDERS (Phase 46.1, Plan 46.1-05, D-02) ───────
+
+    IT NO LONGER RENDERS ON OVERVIEW. The four acts are now drawn ONLY where
+    `controls` is passed true, and the only caller that passes it is
+    `returned-tab.blade.php`, beneath that visit's evidence. The reason is the
+    user's own, recorded as D-02 of `46.1-CONTEXT.md`: A PM SHOULD NOT BE ABLE
+    TO ACCEPT A VISIT WITHOUT HAVING LOOKED AT IT. Before this move, Accept sat
+    on a row showing a date, a title and a status chip, and nothing that came
+    back from site.
+
+    THE DEFAULT IS FALSE, NOT TRUE. A component that offers a write by default
+    is one bad include away from offering it somewhere nobody looked.
+
+    OVERVIEW KEEPS EVERY SENTENCE AND LOSES ONLY THE OFFERS. "Accepted by {name}
+    on {date}", "Sent back {date} — awaiting the engineer", "Awaiting the
+    engineer", the scope lock and the snag count all still render there. What
+    moved is the OFFER, never the record of what happened.
+
+    THE GATES ARE UNCHANGED. `controls` is an AND on top of the eight booleans
+    below, never a replacement for them: a reconstructed visit still offers
+    ZERO on the Returned tab (D-06, and 24 backfilled rows on live), and VL-11's
+    cap of four is still a property of this row wherever the row is drawn.
+
+    The three disclosure links carry `tab=returned` so that disclosing a form
+    from the Returned tab does not throw the PM back to Overview.
 --}}
 @props([
     'visit',
@@ -66,6 +92,8 @@
     'module'        => null,
     'action'        => null,
     'actionVisitId' => null,
+    // Plan 46.1-05 (D-02). FALSE BY DEFAULT — see the action-area docblock.
+    'controls'      => false,
 ])
 
 @php
@@ -160,6 +188,9 @@
             'module'  => $module['key'],
             'action'  => 'send-back',
             'visit'   => $visit->id,
+            // Plan 46.1-05: the acts live on the Returned tab now, so the
+            // disclosure has to come back to it rather than to Overview.
+            'tab'     => 'returned',
         ])
         : null;
 
@@ -170,6 +201,7 @@
             'module'  => $module['key'],
             'action'  => 'note',
             'visit'   => $visit->id,
+            'tab'     => 'returned',
         ])
         : null;
 
@@ -179,6 +211,7 @@
             'module'  => $module['key'],
             'action'  => 'snag',
             'visit'   => $visit->id,
+            'tab'     => 'returned',
         ])
         : null;
 
@@ -264,7 +297,9 @@
             <span class="cav-visit__lock">Scope locked — returned {{ $lockedOn->format('d M Y') }}</span>
         @endif
 
-        @if ($canAccept || $canSendBack || $canNote || $canSnag)
+        {{-- `$controls` is an AND on top of the gates, never a replacement:
+             D-02 moved WHERE these render, not WHO gets them. --}}
+        @if ($controls && ($canAccept || $canSendBack || $canNote || $canSnag))
             <span class="cav-visit__actions">
                 @if ($canAccept)
                     {{-- Its own small form POST. Acceptance is FINAL in this

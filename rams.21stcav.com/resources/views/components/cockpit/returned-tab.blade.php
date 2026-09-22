@@ -24,11 +24,21 @@
     46.1-05's. Each is a NAMED HOLE so that neither later plan has to
     restructure this file to fill it.
 
-    PLAN 46.1-04 HAS NOW FILLED THE FIRST: one anchor to the per-visit photo
-    archive, rendered only for a visit that has photos, and sitting OUTSIDE
-    `.cav-visit` so it does not spend one of VL-11's four in-row controls. The
-    reasoning lives at the render site, not here. The review-controls slot at
-    the foot of the card is still empty and still 46.1-05's.
+    PLAN 46.1-04 FILLED THE FIRST: one anchor to the per-visit photo archive,
+    rendered only for a visit that has photos, and sitting OUTSIDE `.cav-visit`
+    so it does not spend one of VL-11's four in-row controls. The reasoning
+    lives at the render site, not here.
+
+    PLAN 46.1-05 HAS NOW FILLED THE SECOND, and it is the reason this phase
+    exists (D-02). The four review acts — Accept, Send back, Add note and Raise
+    a snag — no longer render on Overview at all. They render HERE, at the foot
+    of the card, BENEATH the photos, the room answers, the serials and the
+    client's signature, because A PM SHOULD NOT BE ABLE TO ACCEPT A VISIT
+    WITHOUT HAVING LOOKED AT IT. Pressing Accept now means having scrolled past
+    what came back from site.
+
+    This file is the ONLY caller that passes `controls`, and `visit-row`
+    defaults it to false.
 
     ── "SIMPLE" IS AN ACCEPTANCE CRITERION (RV-08), NOT A PREFERENCE ────────
 
@@ -87,6 +97,12 @@
     'module',
     'visits'   => null,
     'evidence' => [],
+    // Plan 46.1-05 — the disclosure state the four review controls read.
+    // COMPARED, never looked up: `action` is resolved by membership in
+    // ProjectCockpitController::ACTIONS and `actionVisitId` is cast to int and
+    // compared against a row already on this page.
+    'action'        => null,
+    'actionVisitId' => null,
 ])
 
 @php
@@ -293,10 +309,26 @@
             @endif
         @endif
 
-        {{-- REVIEW-CONTROLS SLOT — Plan 46.1-05 moves the four existing
-             controls out of Overview and beneath this evidence (D-02), so a PM
-             cannot accept a visit without having looked at it. Left empty on
-             purpose; this plan ships the evidence, empty-handed. --}}
+        {{-- THE REVIEW CONTROLS (Plan 46.1-05, RV-05/06/07, D-02) — the slot
+             46.1-03 left, now holding the four acts MOVED out of Overview.
+
+             THE COMPONENT IS UNCHANGED IN WHO IT OFFERS WHAT. Every gate it
+             already had still decides: a reconstructed visit offers ZERO even
+             though its derived state reads RETURNED (D-06 — 24 backfilled rows
+             on live, and none of them is asking a PM to ratify a guess), an
+             accepted visit offers only Add note, a sent-back visit offers no
+             second send-back, and VL-11's cap of four still binds on the row.
+             `controls` changed WHERE they render, not WHO gets them.
+
+             It is the LAST block in the card on purpose: the offer sits after
+             the evidence, never above it. --}}
+        <x-cockpit.visit-row
+            :visit="$visit"
+            :project="$project"
+            :module="$module"
+            :controls="true"
+            :action="$action"
+            :action-visit-id="$actionVisitId" />
     </div>
 @empty
     <x-cockpit.hint>{{ $module['title'] }} has no visit with an engineer record behind it.</x-cockpit.hint>

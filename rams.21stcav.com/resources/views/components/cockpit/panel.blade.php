@@ -238,14 +238,23 @@
 
                     {{-- The existing component, so the D-02 reconstructed and
                          D-04 superseded treatments reach the panel unchanged
-                         rather than being re-implemented here. --}}
+                         rather than being re-implemented here.
+
+                         NO `controls` HERE, AND NO `action` EITHER (Plan
+                         46.1-05, D-02). Overview still says where every visit
+                         stands — accepted by whom, sent back when, awaiting
+                         the engineer, scope locked, snags raised — and it
+                         offers nothing. The four acts moved beneath the
+                         evidence on the Returned tab, because a PM should not
+                         be able to accept a visit without having looked at it.
+                         With no controls there is no form to disclose, so the
+                         two disclosure props are DROPPED rather than left as
+                         wiring that can never fire. --}}
                     @foreach ($visits as $visit)
                         <x-cockpit.visit-row
                             :visit="$visit"
                             :project="$project"
-                            :module="$module"
-                            :action="$action"
-                            :action-visit-id="$actionVisitId" />
+                            :module="$module" />
                     @endforeach
                 </div>
             @else
@@ -291,7 +300,9 @@
                 :project="$project"
                 :module="$module"
                 :visits="$returnedVisits"
-                :evidence="$evidence" />
+                :evidence="$evidence"
+                :action="$action"
+                :action-visit-id="$actionVisitId" />
         @elseif ($tab === 'files')
             {{-- D-13 — the project's document library for this module. Every
                  document it holds, in one place. A document whose type has no
