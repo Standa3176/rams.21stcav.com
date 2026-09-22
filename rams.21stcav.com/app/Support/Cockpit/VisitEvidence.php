@@ -103,6 +103,36 @@ final class VisitEvidence
 
     public const KIND_LABEL = 'label';
 
+    /**
+     * WHICH DISK EACH KIND'S PATH IS RELATIVE TO — recorded here because the
+     * three kinds do NOT agree, and Plan 46.1-06's end-to-end walk is what
+     * found it.
+     *
+     * `worksheet_photos.filename` and `site_survey_photos.filename` are
+     * written by `Storage::disk('local')` (see WorksheetPhoto::absolutePath()
+     * and SiteSurveyPhoto::absolutePath()). `device_label_photos.photo_path`
+     * is written by `DeviceLabelPhotoService::capture()` through
+     * `Storage::disk('public')`, because that row's other consumer renders it
+     * with `Storage::url()`.
+     *
+     * In Laravel 11+ `local` is `storage/app/private` and `public` is
+     * `storage/app/public` — SIBLINGS, not nested. So resolving a label path
+     * against the local disk finds nothing: before this constant existed,
+     * every equipment-label photo was silently SKIPPED from the hand-off ZIP
+     * and 404ed on the inline photo route, on live, while the tab still drew a
+     * thumbnail for it. Unit fixtures hid it by planting the label file on the
+     * faked local disk; only a walk that uploaded one through the real public
+     * endpoint could see it.
+     *
+     * A path carried out of here is ALWAYS relative to the disk named beside
+     * it. Nothing downstream may assume a default.
+     */
+    public const DISK_FOR_KIND = [
+        self::KIND_SURVEY    => 'local',
+        self::KIND_WORKSHEET => 'local',
+        self::KIND_LABEL     => 'public',
+    ];
+
     /** @var Collection<int, array<string, mixed>> */
     private Collection $photos;
 
@@ -278,6 +308,7 @@ final class VisitEvidence
                     'original_name' => $photo->original_name,
                     'mime_type'     => $photo->mime_type,
                     'path'          => $photo->storagePath(),
+                    'disk'          => self::DISK_FOR_KIND[self::KIND_SURVEY],
                 ];
             }
 
@@ -352,6 +383,7 @@ final class VisitEvidence
                 'original_name' => $photo->original_name,
                 'mime_type'     => $photo->mime_type,
                 'path'          => $photo->storagePath(),
+                'disk'          => self::DISK_FOR_KIND[self::KIND_WORKSHEET],
             ];
         }
 
@@ -382,6 +414,7 @@ final class VisitEvidence
                 'original_name' => null,
                 'mime_type'     => null,
                 'path'          => (string) $label->photo_path,
+                'disk'          => self::DISK_FOR_KIND[self::KIND_LABEL],
             ];
 
             // NOTE: there is deliberately no audit-column key on this array.

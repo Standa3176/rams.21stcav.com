@@ -124,7 +124,11 @@ class ProjectCockpitEvidenceController extends Controller
             'visit_id'   => $visit->id,
             'kind'       => $kind,
             'photo_id'   => $id,
-        ]);
+            // The disk comes from the EVIDENCE ENTRY, never from the request:
+            // the three photo kinds are written to two different disks (see
+            // VisitEvidence::DISK_FOR_KIND), and assuming one of them here is
+            // what made every equipment-label photo 404 before Plan 46.1-06.
+        ], (string) ($entry['disk'] ?? VisitPhotoZipBuilder::DEFAULT_DISK));
 
         abort_if($absolute === null, 404);
 

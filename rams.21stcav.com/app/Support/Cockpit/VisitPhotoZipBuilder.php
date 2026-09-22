@@ -77,6 +77,22 @@ final class VisitPhotoZipBuilder
     public const UNNAMED = 'Unnamed';
 
     /**
+     * The disks an evidence path may live on — `VisitEvidence::DISK_FOR_KIND`
+     * is the only thing that decides which, and this is the ALLOW-LIST that
+     * containment is measured against.
+     *
+     * A MEMBERSHIP CHECK, NOT A CAST. The disk name reaches here from an
+     * evidence entry rather than from the request, but an unknown value must
+     * not be handed to `Storage::disk()`: a disk this app has not declared here
+     * has a root nobody checked, and the whole point of `resolveWithinDisk()`
+     * is that a root WAS checked.
+     */
+    public const ALLOWED_DISKS = ['local', 'public'];
+
+    /** The disk a path is relative to when an entry does not name one. */
+    public const DEFAULT_DISK = 'local';
+
+    /**
      * Build the archive and return the ABSOLUTE path of the temp file.
      *
      * The caller streams it and deletes it after send. A visit with zero
@@ -107,7 +123,7 @@ final class VisitPhotoZipBuilder
                 'visit_id'   => $visit->id,
                 'kind'       => $photo['kind'] ?? null,
                 'photo_id'   => $photo['id'] ?? null,
-            ]);
+            ], (string) ($photo['disk'] ?? self::DEFAULT_DISK));
 
             if ($absolute === null) {
                 $skipped++;
@@ -169,19 +185,36 @@ final class VisitPhotoZipBuilder
     /**
      * T-46.1-06 — turn a RELATIVE stored path into an absolute one, or null.
      *
-     * Null means: empty, not a real file, or resolving OUTSIDE the local disk
-     * root. Nothing is read before this returns. Shared with the controller's
-     * inline photo route so there is exactly one containment rule in the phase.
+     * Null means: empty, not a real file, resolving OUTSIDE the named disk's
+     * root, or naming a disk this class does not allow. Nothing is read before
+     * this returns. Shared with the controller's inline photo route so there is
+     * exactly one containment rule in the phase.
+     *
+     * THE DISK IS A PARAMETER BECAUSE THE THREE KINDS DISAGREE — worksheet and
+     * survey photos are written to `local`, device label photos to `public`,
+     * and in Laravel 11+ those two roots are SIBLINGS rather than nested. See
+     * `VisitEvidence::DISK_FOR_KIND` for the finding that produced this.
+     * Containment is still measured against ONE root: the root of the disk the
+     * caller named, resolved here and nowhere else.
      *
      * @param  array<string, mixed>  $logContext
      */
-    public function resolveWithinDisk(string $relativePath, array $logContext = []): ?string
+    public function resolveWithinDisk(string $relativePath, array $logContext = [], string $disk = self::DEFAULT_DISK): ?string
     {
         if (trim($relativePath) === '') {
             return null;
         }
 
-        $root = realpath(Storage::disk('local')->path(''));
+        if (! in_array($disk, self::ALLOWED_DISKS, true)) {
+            Log::warning('VisitPhotoZipBuilder: refused an unknown disk (T-46.1-06)', $logContext + [
+                'stored_path' => $relativePath,
+                'disk'        => $disk,
+            ]);
+
+            return null;
+        }
+
+        $root = realpath(Storage::disk($disk)->path(''));
 
         if ($root === false) {
             return null;
@@ -189,7 +222,7 @@ final class VisitPhotoZipBuilder
 
         $root = rtrim($root, DIRECTORY_SEPARATOR);
 
-        $candidate = realpath(Storage::disk('local')->path($relativePath));
+        $candidate = realpath(Storage::disk($disk)->path($relativePath));
 
         if ($candidate === false || ! is_file($candidate)) {
             // A file simply missing on disk is not an attack; it is a short
@@ -198,8 +231,9 @@ final class VisitPhotoZipBuilder
         }
 
         if ($candidate !== $root && ! str_starts_with($candidate, $root.DIRECTORY_SEPARATOR)) {
-            Log::warning('VisitPhotoZipBuilder: refused a path outside the local disk root (T-46.1-06)', $logContext + [
+            Log::warning('VisitPhotoZipBuilder: refused a path outside the disk root (T-46.1-06)', $logContext + [
                 'stored_path' => $relativePath,
+                'disk'        => $disk,
             ]);
 
             return null;

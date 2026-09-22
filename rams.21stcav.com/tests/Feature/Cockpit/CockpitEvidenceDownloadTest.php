@@ -86,6 +86,12 @@ class CockpitEvidenceDownloadTest extends TestCase
         config(['cockpit.enabled' => true]);
 
         Storage::fake('local');
+
+        // Plan 46.1-06: device label photos are written to the PUBLIC disk by
+        // DeviceLabelPhotoService, and in Laravel 11+ that root is a SIBLING of
+        // the local one. Faking only `local` is what let this file pass while
+        // every equipment-label photo was being skipped on live.
+        Storage::fake('public');
     }
 
     protected function tearDown(): void
@@ -115,9 +121,9 @@ class CockpitEvidenceDownloadTest extends TestCase
     }
 
     /** Put a real file on the faked local disk and return its relative path. */
-    private function storeFile(string $relative, string $contents = 'JPEGBYTES'): string
+    private function storeFile(string $relative, string $contents = 'JPEGBYTES', string $disk = 'local'): string
     {
-        Storage::disk('local')->put($relative, $contents);
+        Storage::disk($disk)->put($relative, $contents);
 
         return $relative;
     }
@@ -196,7 +202,10 @@ class CockpitEvidenceDownloadTest extends TestCase
             'project_id'   => $project->id,
             'worksheet_id' => $worksheet->id,
             'room_name'    => 'Boardroom',
-            'photo_path'   => $this->storeFile('device-labels/label-01.jpg'),
+            // ON THE PUBLIC DISK, because that is where the live capture path
+            // writes it (VisitEvidence::DISK_FOR_KIND). Planting it on `local`
+            // would test a shape production never produces.
+            'photo_path'   => $this->storeFile('device-labels/label-01.jpg', disk: 'public'),
             'confirmed'    => true,
             'captured_at'  => now()->subDay(),
             'captured_by'  => 'ip:203.0.113.9|actor:deadbeef',
