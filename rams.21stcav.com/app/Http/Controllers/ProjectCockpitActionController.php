@@ -177,7 +177,7 @@ class ProjectCockpitActionController extends Controller
         }
 
         return redirect()
-            ->route('projects.cockpit', ['project' => $project, 'module' => $data['module']])
+            ->route('projects.cockpit', $this->withTab($request, ['project' => $project, 'module' => $data['module']]))
             ->with('success', 'Visit created and the engineer link is ready.');
     }
 
@@ -234,7 +234,7 @@ class ProjectCockpitActionController extends Controller
         });
 
         return redirect()
-            ->route('projects.cockpit', ['project' => $project, 'module' => $this->moduleKeyFor($visit)])
+            ->route('projects.cockpit', $this->withTab($request, ['project' => $project, 'module' => $this->moduleKeyFor($visit)]))
             ->with('success', 'Visit accepted. Its scope is now locked.');
     }
 
@@ -306,7 +306,7 @@ class ProjectCockpitActionController extends Controller
         });
 
         return redirect()
-            ->route('projects.cockpit', ['project' => $project, 'module' => $this->moduleKeyFor($visit)])
+            ->route('projects.cockpit', $this->withTab($request, ['project' => $project, 'module' => $this->moduleKeyFor($visit)]))
             ->with('success', 'Visit sent back. The engineer link is open again and carries your reason.');
     }
 
@@ -376,12 +376,14 @@ class ProjectCockpitActionController extends Controller
         });
 
         return redirect()
-            ->route('projects.cockpit', [
-                'project' => $project,
-                'module'  => $this->moduleKeyFor($visit),
-                // The PM lands on what they just wrote.
-                'tab'     => 'notes',
-            ])
+            ->route('projects.cockpit', $this->withTab(
+                $request,
+                ['project' => $project, 'module' => $this->moduleKeyFor($visit)],
+                // The PM lands on what they just wrote — UNLESS the act was
+                // initiated from a real tab, in which case they stay where they
+                // were reading. This is the ONLY act with a fallback tab.
+                fallback: 'notes',
+            ))
             ->with('success', 'Office note added.');
     }
 
@@ -446,8 +448,51 @@ class ProjectCockpitActionController extends Controller
         });
 
         return redirect()
-            ->route('projects.cockpit', ['project' => $project, 'module' => $this->moduleKeyFor($visit)])
+            ->route('projects.cockpit', $this->withTab($request, ['project' => $project, 'module' => $this->moduleKeyFor($visit)]))
             ->with('success', 'Snag raised against this visit.');
+    }
+
+    /**
+     * THE TAB THE ACT CAME FROM (Plan 46.1-06).
+     *
+     * Every one of D-02's four acts used to redirect to the module's TABLESS
+     * URL, which resolves to `TABS[0]` — Overview. So a PM who read the photos,
+     * the serials and the client's signature on the Returned tab and pressed
+     * Accept was thrown off that tab by the act of using it. The tab now
+     * travels with the POST in a hidden field, because there is no JavaScript
+     * on this page and a form is the only carrier available.
+     *
+     * RESOLVED BY MEMBERSHIP, NEVER REFLECTED. The submitted value is checked
+     * against `ProjectCockpitController::TABS` — the SAME constant the read
+     * controller's `resolveTab()` uses, not a second copy of the list — and
+     * anything else yields an EMPTY array, so the redirect falls back to
+     * exactly the behaviour these five acts shipped with. A hostile `tab` is
+     * therefore never echoed into a URL, a header or the page.
+     *
+     * It APPENDS rather than prepends, so the redirect URL keeps the
+     * `?module=…&tab=…` order every other cockpit URL in this app uses — a
+     * `tab` that jumped to the front would be correct and would still make
+     * every exact-URL assertion in the suite read as a change.
+     *
+     * @param  array<string, mixed>  $params
+     * @param  string|null  $fallback  the tab to use when none was submitted;
+     *                                 null means the tabless URL these acts
+     *                                 shipped with.
+     * @return array<string, mixed>
+     */
+    private function withTab(Request $request, array $params, ?string $fallback = null): array
+    {
+        $submitted = $request->input('tab');
+
+        $tab = is_string($submitted) && in_array($submitted, ProjectCockpitController::TABS, true)
+            ? $submitted
+            : $fallback;
+
+        if ($tab !== null) {
+            $params['tab'] = $tab;
+        }
+
+        return $params;
     }
 
     /**

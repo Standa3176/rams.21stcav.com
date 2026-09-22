@@ -327,6 +327,11 @@
             :project="$project"
             :module="$module"
             :controls="true"
+            {{-- Plan 46.1-06 — this component IS the Returned tab, so every
+                 act it offers was initiated from it and must come back to it.
+                 The value is re-checked against ProjectCockpitController::TABS
+                 in visit-row and again in the action controller. --}}
+            tab="returned"
             :action="$action"
             :action-visit-id="$actionVisitId" />
     </div>

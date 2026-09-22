@@ -94,6 +94,11 @@
     'actionVisitId' => null,
     // Plan 46.1-05 (D-02). FALSE BY DEFAULT — see the action-area docblock.
     'controls'      => false,
+    // Plan 46.1-06 — the tab the PM is ON. Carried so an act initiated from
+    // the Returned tab RETURNS to it, rather than bouncing the PM to Overview
+    // the moment they press Accept. Validated by MEMBERSHIP below, never
+    // echoed raw: it reaches a hidden field and a route() parameter.
+    'tab'           => null,
 ])
 
 @php
@@ -179,8 +184,26 @@
     // controller (`visits.snags`), so this is not a query per row.
     $snagCount = $hasContext ? $visit->snags->count() : 0;
 
+    // THE TAB, RESOLVED BY MEMBERSHIP — the same rule
+    // ProjectCockpitController::resolveTab() applies, against the same
+    // constant. An absent or hostile value resolves to null and every URL
+    // below falls back to the tabless shape this row shipped with.
+    $currentTab = in_array($tab, \App\Http\Controllers\ProjectCockpitController::TABS, true)
+        ? $tab
+        : null;
+
+    $moduleParams = $canAct
+        ? ['project' => $project, 'module' => $module['key']]
+        : [];
+
+    if ($canAct && $currentTab !== null) {
+        $moduleParams['tab'] = $currentTab;
+    }
+
+    // Cancel STAYS PUT. A PM who opens a form on the Returned tab and changes
+    // their mind must land back where they were reading, not on Overview.
     $moduleUrl   = $canAct
-        ? route('projects.cockpit', ['project' => $project, 'module' => $module['key']])
+        ? route('projects.cockpit', $moduleParams)
         : null;
     $sendBackUrl = $canAct
         ? route('projects.cockpit', [
@@ -308,6 +331,7 @@
                     <form class="cav-visit__act" method="POST"
                           action="{{ route('projects.cockpit.visits.accept', ['project' => $project, 'visit' => $visit->id]) }}">
                         @csrf
+                        <x-cockpit.tab-field :tab="$currentTab" />
                         <button class="cav-visit__control" type="submit">Accept</button>
                     </form>
                 @endif
@@ -334,6 +358,7 @@
                     <form class="cav-visit__act cav-visit__act--reason" method="POST"
                           action="{{ route('projects.cockpit.visits.send-back', ['project' => $project, 'visit' => $visit->id]) }}">
                         @csrf
+                        <x-cockpit.tab-field :tab="$currentTab" />
 
                         {{-- THE ONE PLACE IN THIS PHASE WHERE AN INPUT'S
                              AUDIENCE IS NOT OBVIOUS FROM WHERE IT SITS. The
@@ -364,6 +389,7 @@
                     <form class="cav-visit__act cav-visit__act--reason" method="POST"
                           action="{{ route('projects.cockpit.visits.notes', ['project' => $project, 'visit' => $visit->id]) }}">
                         @csrf
+                        <x-cockpit.tab-field :tab="$currentTab" />
 
                         <span class="cav-visit__hint">Office only - the engineer does not see this.</span>
 
@@ -389,6 +415,7 @@
                     <form class="cav-visit__act cav-visit__act--reason" method="POST"
                           action="{{ route('projects.cockpit.visits.snags', ['project' => $project, 'visit' => $visit->id]) }}">
                         @csrf
+                        <x-cockpit.tab-field :tab="$currentTab" />
 
                         <span class="cav-visit__hint">What was found, and where.</span>
 
