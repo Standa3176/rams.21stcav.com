@@ -617,9 +617,22 @@ word and pdf"*.
 **Reverses**: sketch 004's **D-16** (nine rows) and narrows **D-11**. The reversal is recorded at
 D-16 itself, not only here.
 
-**Requirements**: Not yet minted. Mint DC-xx into `.planning/REQUIREMENTS.md` § v4.0 at planning time.
+**Requirements**: DC-01 .. DC-11 (minted 2026-09-22, `.planning/REQUIREMENTS.md` § Group DC).
+**DC-07 is a recorded GAP against criterion 3** — the Worksheet document has no PDF path
+(`worksheets.engineer-report-pdf` renders the engineer's ACTIVITY report, 404s without engineer
+activity, and there is no `pdf.worksheet` Blade). Producing one means authoring a second renderer,
+which D-04 forbids. Raised at planning time; needs a user decision. See
+`46.2-FORMAT-INVENTORY.md` and the 46.2-06 checkpoint.
 
-**Plans**: Not yet planned
+**Plans**: 6 plans
+
+Plans:
+- [ ] 46.2-01-PLAN.md — Four rows, and the every-visit-type invariant retired by name (wave 1, D-01)
+- [ ] 46.2-02-PLAN.md — The format inventory; Site survey Word wired to the service that had no callers (wave 1, D-04)
+- [ ] 46.2-03-PLAN.md — The visit work unsurfaced, not deleted, and its retirement ledger (wave 2, D-02)
+- [ ] 46.2-04-PLAN.md — DOCUMENT_FIELD_MAP: the field set as data, every field proven against its generator (wave 2, D-03)
+- [ ] 46.2-05-PLAN.md — The panel form, one write route, the fence re-taken, the counts moved (wave 3)
+- [ ] 46.2-06-PLAN.md — End-to-end through HTTP, the breakage ritual, the count ledger, the calm checkpoint (wave 4)
 
 **UI hint**: yes (four rows, and the most input-heavy panel the cockpit has carried)
 

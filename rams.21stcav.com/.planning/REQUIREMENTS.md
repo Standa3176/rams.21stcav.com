@@ -15,8 +15,8 @@ recorded in `.planning/sketches/002-install-cockpit/README.md` (cockpit + panels
 `.planning/sketches/003-quote-import/README.md` (import review). The sketches are the
 **visual contract**; where an implementation and a sketch disagree, the sketch wins unless
 the user says otherwise.
-**Total requirements:** 27 defined so far (LR-01..LR-05, Phase 44; VIS-01..VIS-10, Phase 45;
-VL-01..VL-12, Phase 46).
+**Total requirements:** 46 defined so far (LR-01..LR-05, Phase 44; VIS-01..VIS-10, Phase 45;
+VL-01..VL-12, Phase 46; RV-01..RV-08, Phase 46.1; DC-01..DC-11, Phase 46.2).
 Phases 47–51 are outlined in the roadmap but their requirement IDs are **not yet minted** — each
 will be added here when its phase is planned.
 
@@ -191,6 +191,66 @@ visit without seeing a single thing the engineer sent back.
   settled by a human checkpoint, because "simple and less scary" is the user's own wording and no
   assertion in this repo can settle it. The sibling of VL-11, for the same reason.
 
+### Group DC — Doc creation cockpit (Phase 46.2)
+
+Eleven requirements minted at planning time on 2026-09-22, mapping to the five Phase 46.2 success
+criteria in `ROADMAP.md` and to D-01..D-04 in `46.2-CONTEXT.md`. The group exists because of one
+user instruction: *"This is now just a doc creation tool … when a user selects a tab, the side
+window will open and allow doc generation and fields to enter items used in the doc creation …
+Docs will create in word and pdf"*. It **reverses D-16** of sketch 004 and narrows D-11.
+
+- **DC-01** — The cockpit renders **exactly four** module rows — Site survey · Worksheet · RAMS ·
+  O&M manual. The other five (Programme and commissioning, Drawings, Cable schedule, Programming,
+  Snagging) are **removed from `CockpitModulePresenter::MODULE_MAP` entirely** — not greyed, not
+  emptied, not hidden in Blade (D-01). The module count stays derived, never hardcoded, so the
+  `Documents n of m` denominator follows it.
+- **DC-02** — Phase 45's invariant that **every `Visit::TYPE_*` reaches exactly one module row** is
+  **retired deliberately, by name, citing 46.2 D-01** — never deleted to make a red test pass. Its
+  two surviving halves are re-asserted: no visit type may reach **two** rows, and the set of types
+  reaching **zero** rows is a named allow-list (`snag`, `commissioning`, `programming`), so a
+  seventh type added later still fails loudly instead of rendering nowhere.
+- **DC-03** — Each document's input field set is **DATA, keyed by document type**, in one map —
+  never four hand-written panels. This page's contents have changed three times (sketch 002 →
+  sketch 004 → PMV review → doc creation) while the visual design held; the next change must be a
+  row in a map, not a rewrite (46.2-CONTEXT.md § Specific Ideas).
+- **DC-04** — **Every field in the map names a real consumer in a real generator**, proven by a
+  test that greps the named generator for the named key. A field the generator ignores is a field
+  that teaches a PM to fill in noise (D-03). A field the user asked for that no generator consumes
+  is **reported, not rendered**.
+- **DC-05** — Opening a module slides in the panel carrying that document's form. Its disclosure is
+  **query-string state** (`?module=…&action=generate`) like every other piece of cockpit state —
+  **no JavaScript**, all nine banned handler attributes still banned. The form is a **real POST**
+  with `@csrf`, validated server-side, scoped to the route-bound `{project}`.
+- **DC-06** — Each document generates in **Word and PDF from the generators that already exist** —
+  `SiteSurveyDocxService`, `WorksheetDocxService`, `OmManualDocxService`, `DocxBuilderServiceV2`,
+  `PdfService` / `PdfRenderService` / `SurveyPdfService`. **No new generator and no second renderer
+  is written** (D-04). `SiteSurveyDocxService` exists with **zero callers** today; wiring a route to
+  the service that is already written is not writing a generator.
+- **DC-07** — **GAP, RECORDED NOT PAPERED OVER: the Worksheet document has no PDF path.**
+  `worksheets.engineer-report-pdf` renders `pdf.engineer-report` — the engineer's *activity* report,
+  which 404s when a worksheet has no engineer activity — and is **not** the worksheet document.
+  There is no `pdf.worksheet` Blade. Offering a worksheet PDF would mean authoring a second renderer,
+  which D-04 forbids. Raised at planning time; needs a user decision before it can be planned.
+- **DC-08** — **The form stays simple.** Fields are grouped, defaulted and **pre-filled from the
+  project wherever the data already exists**; a field the project can answer is never asked. The
+  user rejected an earlier design as "scary" and has said "simple to use" every time. Sibling of
+  VL-11 and RV-08, and settled the same way: by a human checkpoint, because no assertion in this
+  repo can settle it.
+- **DC-09** — **The visit work is unsurfaced, NOT deleted.** The `Visit` model, `VisitLinkIssuer`,
+  `SurveyCarryForward`, `VisitEvidence`, `VisitPhotoZipBuilder`, `ProjectCockpitActionController`,
+  `ProjectCockpitEvidenceController`, their routes and their route-behaviour tests all stay and stay
+  green. `/survey/{token}` and `/worksheet/{token}` are **unchanged**, and the **survey→install
+  carry-forward stays live** — it is on the engineer's link, not the cockpit, and it is the one piece
+  with safety consequences (an installing engineer seeing the surveyor's access constraints, site
+  risks and H&S notes) (D-02).
+- **DC-10** — Every **render** assertion the unsurfacing invalidates is **retired by name with the
+  decision cited**, in the same commit as the change that invalidates it — never deleted to make a
+  red test pass. Every **route-behaviour** assertion over the kept code stays exactly as written,
+  because the code it proves is exactly as written.
+- **DC-11** — Every **exact-count** assertion the reduction moves is **raised or lowered by name
+  with a reason and kept exact** — never relaxed to `assertGreaterThanOrEqual`. This repo's house
+  rule has caught real drift repeatedly.
+
 ### Out of scope for v4.0
 
 Each is **recorded in the admin Hidden Functions register**, not forgotten:
@@ -247,6 +307,18 @@ Each is **recorded in the admin Hidden Functions register**, not forgotten:
 | RV-06 | Phase 46.1 | Complete (Plans 46.1-05 + 46.1-06, 2026-09-22) — D-06. A reconstructed visit SHOWS its evidence and offers not one control, and its archive still opens: reading an old job is not reviewing it. `Visit::state()` reads RETURNED for a backfilled visit whose worksheet carries a sign-off and there are 24 such rows on live, so the exclusion is gated on `isClosed()` too. 46.1-06 asserts it through HTTP — the tab shows the photos and the client name, all four act words are ABSENT from the region, and the page carries zero `<button>` |
 | RV-07 | Phase 46.1 | Complete (Plans 46.1-01 + 46.1-02 + 46.1-04 + 46.1-05, closed by 46.1-06, 2026-09-22). Nothing on the tab edits anything: no lightbox, no delete, no caption editor, no reorder, and the two evidence GETs write nothing across eleven tables asserted before and after. VL-11's cap of four is now judged where the controls actually live — 46.1-06 added the test that counts them on a REVIEWABLE row (exactly four non-photo anchors and exactly one button), because the pre-existing budget test's fixture was a reconstructed visit offering zero and would have kept passing if four became fourteen |
 | RV-08 | Phase 46.1 | Code-complete; AWAITING THE HUMAN CHECK (Plans 46.1-03 + 46.1-04 + 46.1-05, checkpoint presented by Plan 46.1-06, 2026-09-22 — NOT self-approved, exactly as VL-11 was not, because "simple and less scary" is the user's own wording and no assertion in this repo can settle it). What was built to keep it calm: ONE hand-off link near the top, ONE control area at the bottom, NOTHING per photo; a uniform lazy-loading contact sheet per bucket; unanswered questions carried as two integers instead of twenty empty rows; no new chip and no new colour; and no fourth tab on a module that holds no engineer record. The budget is executable — a reviewable returned visit spends exactly four non-photo anchors and one button |
+
+| DC-01 | Phase 46.2 | Planned (Plan 46.2-01) — MODULE_MAP reduced nine → four, reversing D-16 |
+| DC-02 | Phase 46.2 | Planned (Plan 46.2-01) — the every-visit-type-reaches-one-row invariant retired by name, its two surviving halves re-asserted |
+| DC-03 | Phase 46.2 | Planned (Plan 46.2-04) — CockpitDocumentFormPresenter::DOCUMENT_FIELD_MAP, one row per document type |
+| DC-04 | Phase 46.2 | Planned (Plan 46.2-04) — every mapped field proven against its named generator by grep-backed unit test |
+| DC-05 | Phase 46.2 | Planned (Plan 46.2-05) — ?action=generate disclosure + POST projects/{project}/cockpit/documents |
+| DC-06 | Phase 46.2 | Planned (Plan 46.2-02) — format inventory; site-surveys.docx wired to the existing, uncalled SiteSurveyDocxService |
+| DC-07 | Phase 46.2 | **GAP — NOT DELIVERED.** No worksheet-document PDF path exists; needs a user decision (Plan 46.2-02 records it) |
+| DC-08 | Phase 46.2 | Planned (Plan 46.2-05 builds it, Plan 46.2-06 checkpoints it) |
+| DC-09 | Phase 46.2 | Planned (Plan 46.2-03) — surfacing removed, code and routes kept green |
+| DC-10 | Phase 46.2 | Planned (Plan 46.2-03) — the retirement ledger |
+| DC-11 | Phase 46.2 | Planned (Plans 46.2-01, 46.2-03, 46.2-05) — every moved count named with its new value |
 
 *Phases 47–51 have no requirement IDs yet. Mint them into this section as each phase is planned,
 following the LR-xx / VIS-xx pattern.*
