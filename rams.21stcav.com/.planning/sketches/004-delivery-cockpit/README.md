@@ -63,6 +63,12 @@ it in. The module list stays visible behind it, so a PM never loses their place.
   Commissioning is folded into "Programme and commissioning" rather than standing alone.
   ⚠️ Phase 51 assumed commissioning becomes its own visit type — reconcile before planning 51.
 
+> ⚠️ **D-16 IS REVERSED BY D-01 OF PHASE 46.2 (2026-09-22).** The user narrowed the cockpit to a
+> document-creation tool with **FOUR** rows — Site survey, Worksheet, RAMS, O&M manual — and the
+> other five removed entirely. D-16 is kept below verbatim as the record of what was decided and
+> built, not as live guidance. Its invariant that every `Visit::TYPE_*` reaches exactly one module
+> row **can no longer hold** and must be retired deliberately, by name, citing 46.2 D-01.
+
 - **D-16 (2026-09-20, user ruling):** **NINE modules — a Snagging row is added** to the eight in
   the design image. The design showed eight rows but a "1 of 9 complete" count; the unaccounted
   ninth is snagging, and `ProjectDeliverable::ALL_KEYS` has nine entries.

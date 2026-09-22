@@ -307,6 +307,7 @@ Each of these is **recorded in the admin Hidden Functions register**, not forgot
 - [ ] **Phase 45: Visit Model + Read-only Cockpit** — a `visits` table wrapping existing `SiteSurvey` and `Worksheet` rows (backfilled, nothing deleted); the cockpit page behind a flag, read-only, alongside the existing project page.
 - [ ] **Phase 46: Visit Lifecycle** — prepare, send, return, accept. Per-visit RAMS and worksheet scoped to the visit's type and rooms. A visit stays editable after sending; scope locks once a return arrives.
 - [ ] **Phase 46.1: Visit Review** — the drawer shows what came back (photos, room answers, captured serials, client sign-off) and hands it off as one ZIP for Bitrix; the four review controls move beneath that evidence. Inserted 2026-09-21.
+- [ ] **Phase 46.2: Doc Creation Cockpit** — four rows (Site survey · Worksheet · RAMS · O&M manual), each opening a panel of that document's fields, generating Word and PDF. The visit work is unsurfaced, not deleted. Inserted 2026-09-22.
 - [ ] **Phase 47: Snagging** — snag items separate from snag visits; three outcomes (fixed, not fixed, deferred); a not-fixed item requires the engineer to state actions and parts needed, closes the visit, and opens a new snag linked to the original. Parts tracked per snag. Snags may sit with the client or others and never have a visit.
 - [ ] **Phase 48: Documents** — generate client-facing documents; the PM sends them and confirms sent in-app, recording who, when and which revision. O&M offered as full or mini. Drawings uploaded from StarDrawer.
 - [ ] **Phase 49: Import Review + Self-populating Deliverables** — one import screen showing what the quote contains, with deliverables ticked from its lines and labelled *from quote* / *assumed* / *not found*. All nine always shown. The equipment-line review opens in a side panel.
@@ -580,6 +581,47 @@ Plans:
 - [ ] 46.1-06-PLAN.md — End-to-end walk through HTTP, the four gates, and the RV-08 calm checkpoint (wave 5)
 
 **UI hint**: yes (a new panel tab, a gallery, and the relocation of four existing controls)
+
+---
+
+### Phase 46.2: Doc Creation Cockpit
+
+**Goal**: The cockpit becomes a document creation tool — four rows (Site survey · Worksheet · RAMS ·
+O&M manual), each opening a panel that carries the fields that document needs and produces it in
+Word and PDF.
+
+**Depends on**: Phase 45 (the page and its panel), Phase 46.1 (the panel mechanics).
+
+**Why it was inserted**: user direction, 2026-09-22 — *"This is now just a doc creation tool … when
+a user selects a tab, the side window will open and allow doc generation and fields to enter items
+used in the doc creation eg rams > install dates / engineers / site contact … Docs will create in
+word and pdf"*.
+
+**Success Criteria** (what must be TRUE):
+
+  1. The cockpit renders **exactly four** module rows — Site survey, Worksheet, RAMS, O&M manual.
+     The other five are gone, not greyed or emptied
+  2. Opening a module slides in a panel carrying **that document's input fields**, derived from what
+     its generator actually consumes — not invented, and not fields the generator ignores
+  3. Each of the four generates in **Word and PDF** using the generators that already exist
+     (`SiteSurveyDocxService`, `WorksheetDocxService`, `OmManualDocxService`, `DocxBuilderServiceV2`,
+     `PdfService` / `PdfRenderService`) — no new generator is written
+  4. **The visit work is unsurfaced, NOT deleted.** The visit model, engineer links, accept / send
+     back / note / snag, the survey→install carry-forward, the review evidence and the photo ZIP all
+     keep working at their own routes, with their tests green. `/survey/{token}` and
+     `/worksheet/{token}` are unchanged
+  5. Every exact-count assertion the reduction moves is **raised or lowered by name with a reason**
+     and kept exact — including the retirement of Phase 45's "every visit type reaches exactly one
+     module row", which 46.2 D-01 makes impossible
+
+**Reverses**: sketch 004's **D-16** (nine rows) and narrows **D-11**. The reversal is recorded at
+D-16 itself, not only here.
+
+**Requirements**: Not yet minted. Mint DC-xx into `.planning/REQUIREMENTS.md` § v4.0 at planning time.
+
+**Plans**: Not yet planned
+
+**UI hint**: yes (four rows, and the most input-heavy panel the cockpit has carried)
 
 ---
 
