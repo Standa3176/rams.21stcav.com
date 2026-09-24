@@ -8,10 +8,12 @@ use App\Models\User;
 use App\Models\Visit;
 use App\Models\Worksheet;
 use App\Models\WorksheetPhoto;
+use App\Models\WorksheetSignoff;
 use App\Support\Cockpit\CockpitModulePresenter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -90,6 +92,27 @@ class CockpitReadOnlyFenceTest extends TestCase
         'Open register'            => 'Phase 48',
         'Export CSV'               => 'Phase 48',
 
+        // ══ THREE ENTRIES RETURNED, 18 -> 21, BY 46.2 D-02 (Plan 46.2-03) ═══
+        //
+        // THE PRINCIPLE THAT BOUNDS THIS, STATED SO THE LIST CANNOT GROW WITHOUT
+        // LIMIT: an entry returns to this list when, and ONLY when, it was once
+        // LIFTED FROM IT and the affordance it named has since LEFT THE PAGE.
+        // Both halves are required. That is why exactly three come back and not
+        // seven: 'Accept', 'Send back' and 'Raise a snag' also left the page, but
+        // they were never entries here — they arrived in 46-05/46-06/46-07
+        // without ever having been deferred — so they do not return. (They could
+        // not, either: the visit row still REPORTS "Sent back" and "Accepted by"
+        // as status copy under 46.2 D-06, and banning those strings would ban the
+        // row's own record.)
+        //
+        // THE OWNER STRING SAYS "Unsurfaced", NEVER "Phase NN". These three are
+        // not deferred. They exist, they are tested, and they work TODAY at the
+        // routes named. Writing a phase number would tell the next reader they
+        // are unbuilt, which is the opposite of the truth.
+        'Create visit' => 'Unsurfaced by 46.2 D-02 — lives at projects.cockpit.visits.store',
+        'Add note'     => 'Unsurfaced by 46.2 D-02 — lives at projects.cockpit.visits.notes',
+        'Download'     => 'Unsurfaced by 46.2 D-02 — the ZIP still lives at projects.cockpit.visits.photos-zip',
+
         // 'Download' => 'Phase 48' WAS HERE. LIFTED BY PLAN 46.1-04, BY NAME,
         // for requirement RV-04 — because this phase SHIPS the thing the entry
         // banned: the Returned tab's per-visit photo archive, which D-03 calls
@@ -126,6 +149,10 @@ class CockpitReadOnlyFenceTest extends TestCase
         //   'Add note'     => shipped by Plan 46-05 (VL-06). Lifted here for
         //                     the same reason as '<textarea', and named, so the
         //                     fence is not edited twice for one decision.
+        //
+        // BOTH RETURNED ABOVE BY 46.2 D-02 (Plan 46.2-03), because the cockpit
+        // stopped rendering them. They are still SHIPPED — this is the one case
+        // where an entry on this list names something that exists and works.
         //
         // 'Upload files' STAYS: it is Phase 48 and this phase deliberately does
         // not grow a second half (D-04).
@@ -401,8 +428,17 @@ class CockpitReadOnlyFenceTest extends TestCase
                 $regions[] = $this->cockpitRegion($this->render($project, ['module' => $moduleKey, 'tab' => $tab]));
             }
 
-            // The Quick actions form, disclosed.
-            $regions[] = $this->cockpitRegion($this->render($project, ['module' => $moduleKey, 'action' => 'create-visit']));
+            // THE `?action=create-visit` RENDER IS RETIRED BY NAME (46.2 D-02,
+            // Plan 46.2-03). It disclosed the Quick actions form; `create-visit`
+            // is no longer in `ProjectCockpitController::ACTIONS`, which is now
+            // empty, so the call would have rendered the bare panel a second time
+            // — coverage that reads as extra and is not.
+            //
+            // PLAN 46.2-05 REPLACES IT WITH `?action=generate`, in the commit that
+            // ships the document form. Until then this loop covers the three tabs
+            // only, and it covers them by ITERATING the constant, so the day
+            // `generate` joins TABS-adjacent URL state the fence has to be edited
+            // here on purpose rather than drifting.
         }
 
         return $regions;
@@ -436,38 +472,163 @@ class CockpitReadOnlyFenceTest extends TestCase
     }
 
     /**
-     * GROWTH BY ITERATION, PROVED RATHER THAN ASSUMED (Plan 46.1-04).
+     * RETIRED AND REPLACED BY ITS EXACT INVERSE (46.2 D-02, Plan 46.2-03).
      *
-     * everyRegion() walks ProjectCockpitController::TABS, which Plan 46.1-03
-     * grew from three entries to four — so the Returned tab joined this
-     * fence's coverage the day it existed, without anybody editing this file.
-     * That is worth exactly nothing unless the tab really does render inside a
-     * judged region, which is the difference between a fence that grew and a
-     * fence that merely looks as though it did.
+     * WAS `test_the_returned_tab_is_among_the_regions_this_fence_judges()`. Plan
+     * 46.1-04 wrote it to PAY FOR the `Download` lift: `everyRegion()` grew a
+     * fourth tab automatically because it iterates TABS, and that growth is worth
+     * nothing unless the tab really renders inside a judged region. So it
+     * asserted `assertContains('returned', TABS)` and that some judged region
+     * carried "Download all photos (ZIP)".
      *
-     * So this test says it out loud, and it says it about the ONE string this
-     * plan lifted: the region the fence judges carries the hand-off link. If
-     * the tab ever stops rendering there, the two assertions above would go on
-     * passing over markup that no longer contains the thing they were widened
-     * for, and this one goes red instead.
+     * `returned` has left TABS and the hand-off link has left the page, so both
+     * assertions are impossible. `Download` RETURNED to DEFERRED_AFFORDANCES in
+     * the same commit, which is the bookkeeping half — and this is the half that
+     * matters:
+     *
+     * ── THE ONE ASSERTION THAT MAKES "UNSURFACED" MEAN ANYTHING ──────────────
+     *
+     * Removing a link is not removing a capability, and the difference has to be
+     * PROVED or the next reader is entitled to assume the phase deleted the visit
+     * workflow. So: every one of the five POSTs and both evidence GETs is driven
+     * for real, and every judged region is checked to carry no link to any of
+     * them. The routes answer; the page offers nothing.
+     *
+     * This is also the executable form of threat register entries T-46.2-06 and
+     * T-46.2-07, both dispositioned `accept`: these routes were never protected
+     * by the absence of a link, and their real guards — `auth`, `@csrf`,
+     * per-route validation and route-bound `{project}` scoping — are untouched.
      */
-    public function test_the_returned_tab_is_among_the_regions_this_fence_judges(): void
+    public function test_the_unsurfaced_write_routes_all_still_work_with_no_link_on_the_page(): void
     {
-        $this->assertContains('returned', ProjectCockpitController::TABS);
+        Bus::fake();
 
-        $regions = $this->everyRegion($this->populatedProject());
+        $this->assertNotContains('returned', ProjectCockpitController::TABS);
+        $this->assertSame([], ProjectCockpitController::ACTIONS);
 
-        $judged = array_filter(
-            $regions,
-            fn (string $region): bool => str_contains($region, 'Download all photos (ZIP)')
+        $project = $this->populatedProject();
+        $pm      = User::factory()->create();
+
+        // A visit that has come back from site AND carries a photo, so all five
+        // POSTs reach their happy path rather than a 422 and both evidence GETs
+        // have real bytes to serve. Built here rather than fished out of
+        // populatedProject(): that fixture's sourced visits are a RECONSTRUCTED
+        // one (closed, and deliberately not annotatable) and one whose source was
+        // force-deleted, so neither exercises the five acts.
+        $worksheet = Worksheet::factory()->create(['project_id' => $project->id]);
+
+        // The photo GET streams real bytes, so the disk is faked and the file is
+        // written. Without it the route is a correct 404 and this test would
+        // "prove" the GET was gone when it was only empty.
+        Storage::fake('local');
+        Storage::disk('local')->put('worksheet-photos/fence-unsurfaced-01.jpg', 'not-really-a-jpeg');
+
+        WorksheetPhoto::create([
+            'worksheet_id'  => $worksheet->id,
+            'room_name'     => 'Comms room',
+            'filename'      => 'worksheet-photos/fence-unsurfaced-01.jpg',
+            'original_name' => 'unsurfaced-01.jpg',
+            'mime_type'     => 'image/jpeg',
+            'sort_order'    => 0,
+        ]);
+
+        WorksheetSignoff::create([
+            'worksheet_id'         => $worksheet->id,
+            'client_name'          => 'A Client',
+            'signature_png_base64' => 'iVBORw0KGgo=',
+            'signed_with_comments' => false,
+            'signed_at'            => now()->subHour(),
+        ]);
+
+        $visit = Visit::factory()->create([
+            'project_id'     => $project->id,
+            'type'           => Visit::TYPE_INSTALL,
+            'title'          => 'Unsurfaced acts',
+            'scheduled_date' => '2026-09-04',
+            'status'         => Visit::STATUS_PLANNED,
+            'sent_at'        => now()->subDays(2),
+            'source_type'    => Visit::SOURCE_WORKSHEET,
+            'source_id'      => $worksheet->id,
+        ]);
+
+        $this->assertSame(
+            Visit::STATE_RETURNED,
+            $visit->state(),
+            'The fixture must be genuinely returned, or these POSTs would 422 and prove nothing.'
         );
 
-        $this->assertNotSame(
-            [],
-            $judged,
-            'No judged region carried the hand-off link — the Returned tab is outside this fence '.
-            'and the `Download` lift was therefore free.'
-        );
+        // ── 1. ALL FIVE POSTS ANSWER ────────────────────────────────────────
+        // Each against its own visit where the state machine demands it: accept
+        // closes the visit and send-back moves it out of RETURNED.
+        $this->actingAs($pm)->post(route('projects.cockpit.visits.store', $project), [
+            'module'     => 'worksheet',
+            'visit_type' => Visit::TYPE_INSTALL,
+        ])->assertRedirect();
+
+        $this->actingAs($pm)->post(route('projects.cockpit.visits.notes', [
+            'project' => $project, 'visit' => $visit,
+        ]), ['body' => 'Unsurfaced, not deleted.'])->assertRedirect();
+
+        $this->actingAs($pm)->post(route('projects.cockpit.visits.snags', [
+            'project' => $project, 'visit' => $visit,
+        ]), ['title' => 'Raised with no button'])->assertRedirect();
+
+        $this->actingAs($pm)->post(route('projects.cockpit.visits.send-back', [
+            'project' => $project, 'visit' => $visit,
+        ]), ['reason' => 'Sent back with no button.'])->assertRedirect();
+
+        $this->actingAs($pm)->post(route('projects.cockpit.visits.accept', [
+            'project' => $project, 'visit' => $visit,
+        ]))->assertRedirect();
+
+        // ── 2. BOTH EVIDENCE GETS ANSWER ────────────────────────────────────
+        $zip = route('projects.cockpit.visits.photos-zip', ['project' => $project, 'visit' => $visit]);
+
+        $this->actingAs($pm)->get($zip)->assertOk();
+
+        $photo = WorksheetPhoto::where('worksheet_id', $worksheet->id)->firstOrFail();
+
+        $photoUrl = route('projects.cockpit.visits.photo', [
+            'project' => $project,
+            'visit'   => $visit,
+            'kind'    => 'worksheet',
+            'photo'   => $photo->id,
+        ]);
+
+        $this->actingAs($pm)->get($photoUrl)->assertOk();
+
+        // ── 3. AND NOT ONE OF THEM IS LINKED FROM ANYWHERE ON THE PAGE ──────
+        $urls = [
+            route('projects.cockpit.visits.store', $project),
+            route('projects.cockpit.visits.notes', ['project' => $project, 'visit' => $visit]),
+            route('projects.cockpit.visits.snags', ['project' => $project, 'visit' => $visit]),
+            route('projects.cockpit.visits.send-back', ['project' => $project, 'visit' => $visit]),
+            route('projects.cockpit.visits.accept', ['project' => $project, 'visit' => $visit]),
+            $zip,
+            $photoUrl,
+        ];
+
+        $this->assertCount(7, $urls, 'Five POSTs and two evidence GETs — the whole unsurfaced set.');
+
+        $judged = 0;
+
+        foreach ($this->everyRegion($project) as $region) {
+            $judged++;
+
+            foreach ($urls as $url) {
+                $this->assertStringNotContainsString(
+                    $url,
+                    $region,
+                    "The cockpit links to `{$url}`. 46.2 D-02 unsurfaces these routes; a link here undoes it."
+                );
+            }
+
+            // Belt and braces on the path shape, so a relative or re-signed href
+            // could not slip past the absolute-URL comparison above.
+            $this->assertStringNotContainsString('/cockpit/visits/', $region);
+        }
+
+        $this->assertGreaterThan(0, $judged, 'No region was judged — this test would pass vacuously.');
     }
 
     // -- The write surface, fenced on its own terms (Plan 46-04) ----------
@@ -539,6 +700,24 @@ class CockpitReadOnlyFenceTest extends TestCase
      * render test — the control would be there, look right, and never work.
      * Asserted structurally in the DOM rather than by substring, so a `_token`
      * belonging to a neighbouring form cannot satisfy it.
+     *
+     * ── THE ANTI-VACUITY FLOOR BECOMES AN EXACT ZERO (46.2 D-02, Plan 46.2-03) ─
+     *
+     * This test carried `assertGreaterThanOrEqual(5, $checked)`. That was the one
+     * place in this file contrary to the repo's exact-count house rule, flagged as
+     * finding F-7 by Plan 46.2-01 and deliberately left for this plan, which owns
+     * the fence this wave. It is now exact.
+     *
+     * AND THE NUMBER IS ZERO, because 46.2 D-02 removed the last form from the
+     * cockpit region. Stating that as `assertSame(0, $checked)` inverts the
+     * assertion's purpose on purpose: while the count was five it existed to stop
+     * the per-form loop passing over nothing; at zero it IS the claim — there is
+     * no form on this page — and the per-form loop is kept, unedited, so that the
+     * FIRST form to arrive is token-checked on the day it lands.
+     *
+     * PLAN 46.2-05 MOVES THIS NUMBER BY NAME when it ships the document form. It
+     * moves to the exact number of forms that form renders — never back to a
+     * `>=`, and never by deleting this assertion.
      */
     public function test_every_form_in_the_region_carries_a_csrf_token(): void
     {
@@ -547,9 +726,10 @@ class CockpitReadOnlyFenceTest extends TestCase
         $checked = 0;
 
         foreach (array_keys(CockpitModulePresenter::moduleMap()) as $moduleKey) {
+            // WAS `'action' => 'create-visit'`, the Quick actions disclosure.
+            // `ACTIONS` is empty, so the bare panel is what there is to judge.
             $region = $this->cockpitRegion($this->render($project, [
                 'module' => $moduleKey,
-                'action' => 'create-visit',
             ]));
 
             $dom = new \DOMDocument();
@@ -576,11 +756,23 @@ class CockpitReadOnlyFenceTest extends TestCase
             }
         }
 
-        // Five module keys offer a Quick action, and two of them disclose a
-        // form under ?action=create-visit while three post their generator
-        // directly — so the region is never form-free, and this test can never
-        // pass vacuously.
-        $this->assertGreaterThanOrEqual(5, $checked, 'No form was examined — this test would pass vacuously.');
+        // MOVED `assertGreaterThanOrEqual(5, ...)` -> `assertSame(0, ...)`
+        // (46.2 D-02, Plan 46.2-03; finding F-7). See the docblock: the floor was
+        // an anti-vacuity guard while forms existed, the exact zero is the claim
+        // now that none does, and 46.2-05 moves it to an exact positive number in
+        // the commit that ships the document form.
+        $this->assertSame(
+            0,
+            $checked,
+            'A form appeared inside the cockpit region. 46.2 D-02 left none; '.
+            'if Plan 46.2-05 shipped the document form, move this number BY NAME.'
+        );
+
+        // The per-form loop above is kept rather than deleted, so the first form
+        // to arrive is method-checked and token-checked on the day it lands. This
+        // asserts the loop is REACHABLE — that the region really was extracted and
+        // parsed — so a zero that came from a broken extraction still fails.
+        $this->assertGreaterThan(0, count(CockpitModulePresenter::moduleMap()));
     }
 
     public function test_the_fence_enumerates_the_whole_deferred_set(): void
@@ -596,8 +788,21 @@ class CockpitReadOnlyFenceTest extends TestCase
         // owns. This number is the anti-rot mechanism: it exists so that
         // dropping an affordance is an edit somebody has to make on purpose.
         // It is never to be deleted to make a change fit.
+        //
+        // MOVED AGAIN, 18 -> 21, BY 46.2 D-02 (Plan 46.2-03). THIS IS THE FIRST
+        // TIME THE NUMBER HAS GONE UP BY RETURN RATHER THAN BY DEFERRAL, so the
+        // rule that licenses it is written into the list itself, beside the three
+        // entries: AN ENTRY RETURNS WHEN, AND ONLY WHEN, IT WAS ONCE LIFTED FROM
+        // THIS LIST AND THE AFFORDANCE IT NAMED HAS SINCE LEFT THE PAGE. Both
+        // halves. 'Create visit' and 'Add note' were lifted by 46-04 and
+        // 'Download' by 46.1-04; all three left the page in 46.2-03.
+        //
+        // Their owner strings read "Unsurfaced by 46.2 D-02 — lives at {route}",
+        // never a phase number, because unlike every other entry here these three
+        // ARE BUILT AND DO WORK. The history of this number is now
+        // 15 -> 18 -> 19 -> 18 -> 21.
         $this->assertCount(
-            18,
+            21,
             self::DEFERRED_AFFORDANCES,
             'Every affordance drawn in either sketch is enumerated; nothing is dropped silently.'
         );
@@ -625,6 +830,42 @@ class CockpitReadOnlyFenceTest extends TestCase
         // which are plain HTML attributes and are on no list here; they were
         // checked against this one before use. A review page that works with
         // JavaScript off is the page a PM reads in a plant room.
+        //
+        // ══ 46.2-03 RE-TAKES ALL THREE. NONE IS INHERITED ═══════════════════
+        //
+        // 2 -> 2: `<select` AND `<script` BOTH STAY, AND `<select` WAS GENUINELY
+        // UP FOR RETIREMENT. Phase 46.2 ships the most input-heavy surface this
+        // page has carried — a per-document form with a field set per document
+        // type — and 46.2-CONTEXT's own code notes say so and invite the lift. It
+        // stays because Plan 46.2-04's field map resolves to text, date, checkbox
+        // and two-to-five-option radio groups and nothing else: not one field
+        // needs a dropdown. If Plan 46.2-05 finds one that genuinely does, IT
+        // LIFTS THE ENTRY BY NAME IN THE COMMIT THAT SHIPS THE CONTROL, exactly as
+        // 46-04 and 46.1-04 did. Never by deletion.
+        //
+        // AND THE FOUR ENTRIES 46-04 LIFTED (`<form`, `<input`, `<button`,
+        // `<textarea`) DO NOT RETURN, even though every form has left the page and
+        // the DEFERRED_AFFORDANCES return principle would otherwise apply. Stated
+        // because a reader who has just read that principle will ask: re-banning
+        // `<form` here would make Plan 46.2-05 — the very next plan, already
+        // planned — lift it again three commits later. An entry that would be
+        // lifted again immediately is churn, not a fence. The forms' ABSENCE is
+        // asserted instead, exactly and in three places:
+        // test_every_form_in_the_region_carries_a_csrf_token() at 0,
+        // CockpitCreateVisitTest::test_no_module_panel_renders_any_visit_control()
+        // and CockpitVisitActionsTest::test_no_visit_row_in_any_state_renders_any_control().
+        //
+        // 9 -> 9: RE-TAKEN FOR THE FOURTH TIME. There is still no JavaScript on
+        // this page, and there is still no pressure to add any: the document
+        // form's disclosure is `?action=` query-string state, the same mechanism
+        // the visit forms used, so the strongest argument for Alpine — a
+        // progressive-enhancement need — has not appeared in four phases.
+        //
+        // 11 -> 11: UNCHANGED BY THIS PLAN, and said out loud so the next reader
+        // knows the number was CONSIDERED rather than skipped. 46.2-03 removes
+        // surfacing only; it reads no new table and writes none. PLAN 46.2-05
+        // MOVES IT — generating a document writes rows this list does not yet
+        // name.
         $this->assertCount(2, self::FORBIDDEN_MARKUP);
         $this->assertCount(11, self::WRITE_SURFACE_TABLES);
         $this->assertCount(9, self::BANNED_HANDLER_ATTRIBUTES);
