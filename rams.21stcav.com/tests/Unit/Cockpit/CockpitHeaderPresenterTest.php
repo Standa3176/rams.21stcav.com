@@ -292,8 +292,24 @@ class CockpitHeaderPresenterTest extends TestCase
         $card = $this->presenter()->kpis($project->fresh(), null)['documents'];
 
         $this->assertSame(1, $card['complete']);
-        $this->assertSame(9, $card['total']);
-        $this->assertSame(11, $card['percent'], 'Percent is integer-floored: floor(1/9*100) = 11.');
+
+        // MOVED BY NAME, 9 -> 4 AND 11 -> 25 (46.2 D-01, Plan 46.2-03).
+        //
+        // These were the only two LITERALS in this file's documents-card
+        // assertions, and 46.2-01 reduced MODULE_MAP from nine rows to four. THE
+        // PRESENTER NEEDED NO EDIT: `documentsCard()` derives the denominator
+        // from `$modules->count()`, which followed the map on its own — which is
+        // exactly what the test directly above this one
+        // (test_the_documents_denominator_is_never_a_literal, green and unedited)
+        // exists to guarantee. So this is a test-side move, not a defect.
+        //
+        // The literals are kept as literals rather than replaced by
+        // `moduleMap()` count: this test's job is to pin the arithmetic, and a
+        // denominator computed the same way the production code computes it would
+        // prove only that the code matches itself. The derived form is already
+        // asserted next door.
+        $this->assertSame(4, $card['total']);
+        $this->assertSame(25, $card['percent'], 'Percent is integer-floored: floor(1/4*100) = 25.');
     }
 
     public function test_the_documents_percent_is_zero_rather_than_a_division_error_when_empty(): void

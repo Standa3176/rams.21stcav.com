@@ -191,14 +191,48 @@ class CockpitPanelTest extends TestCase
         $this->assertStringNotContainsString('href="#"', $html);
     }
 
-    public function test_a_module_with_no_document_relation_says_so_in_one_sentence(): void
+    /**
+     * RETIRED AND REPLACED (46.2 D-01, Plan 46.2-03).
+     *
+     * WAS `test_a_module_with_no_document_relation_says_so_in_one_sentence()`,
+     * which opened the `programming` drawer and asserted "Programming holds no
+     * documents." — the permanent sentence, as distinct from "none produced yet".
+     *
+     * 46.2-01 removed Programming, Programme and commissioning and Snagging from
+     * `MODULE_MAP`, and those three were the only rows with no document relation.
+     * SO THE BRANCH THAT PRINTS THAT SENTENCE IS NOW UNREACHABLE, and a test that
+     * opened a removed key proved nothing.
+     *
+     * THE BLADE BRANCH IS KEPT, NOT DELETED. `panel.blade.php`'s `@else` still
+     * distinguishes "holds no documents" (permanent) from "none produced yet"
+     * (not yet) — the distinction 45-12 drew on purpose — because a future row
+     * with no library must stay representable, exactly as 46.2-01 kept
+     * `COUNT_NONE` dormant rather than deleting it.
+     *
+     * The replacement asserts the fact that makes the branch unreachable, so the
+     * day a library-less row IS added this goes red and whoever adds it repoints
+     * the original test at their row instead of rediscovering the distinction.
+     */
+    public function test_no_surviving_module_can_reach_the_holds_no_documents_branch(): void
     {
-        $html = $this->panel($this->project(), 'programming', 'files');
+        $withLibrary = CockpitPanelPresenter::documentModules();
 
-        $this->assertStringContainsString('Programming holds no documents.', $html);
-        $this->assertSame(0, $this->countByClass($html, 'cav-file'));
-        $this->assertStringNotContainsString('coming soon', $html);
-        $this->assertStringNotContainsString('Files and notes arrive in the next plan', $html);
+        foreach (array_keys(CockpitModulePresenter::moduleMap()) as $module) {
+            $this->assertContains(
+                $module,
+                $withLibrary,
+                "Module `{$module}` has no document relation, so its panel prints the permanent ".
+                '"holds no documents" sentence. That branch is currently unreachable and untested — '.
+                'repoint the retired test_a_module_with_no_document_relation_says_so_in_one_sentence() at this row.'
+            );
+
+            $html = $this->panel($this->project(), $module, 'files');
+
+            // Neither stub sentence may creep back on any surviving row.
+            $this->assertStringNotContainsString('coming soon', $html);
+            $this->assertStringNotContainsString('Files and notes arrive in the next plan', $html);
+            $this->assertStringNotContainsString('holds no documents.', $html);
+        }
     }
 
     public function test_a_module_with_a_library_but_nothing_in_it_says_so(): void
@@ -330,11 +364,31 @@ class CockpitPanelTest extends TestCase
 
         RamsDocument::factory()->create(['project_id' => $project->id, 'filename' => 'the-rams.docx']);
         OmManual::factory()->create(['project_id' => $project->id, 'filename' => 'the-om.docx']);
-        CableSchedule::factory()->create(['project_id' => $project->id, 'source_filename' => 'the-cables.xlsx']);
 
+        // THE CABLE SCHEDULE ASSERTION IS RETIRED BY NAME (46.2 D-01, Plan
+        // 46.2-03). It created a CableSchedule with `source_filename` =
+        // 'the-cables.xlsx' and asserted the `cable_schedule` panel listed it.
+        // 46.2-01 removed that row from MODULE_MAP, so the panel never opens.
+        //
+        // NOTHING WAS DELETED: `CableSchedule`, its relation and
+        // `CockpitPanelPresenter::DOCUMENTS['cable_schedule']` are all untouched,
+        // and the row is the FIRST candidate to return — 46.2-CONTEXT's deferred
+        // list names Cable schedule and Drawings as "the likely next two if the
+        // four prove out". When it returns, restore the third assertion here.
         $this->assertStringContainsString('the-rams.docx', $this->panel($project, 'rams', 'files'));
         $this->assertStringContainsString('the-om.docx', $this->panel($project, 'om', 'files'));
-        $this->assertStringContainsString('the-cables.xlsx', $this->panel($project, 'cable_schedule', 'files'));
+
+        // ADDED, so the test still covers EVERY document row rather than two of
+        // them: the four-row map's other two both have libraries now (46.2-02
+        // made the site survey's Word output reachable).
+        $this->assertSame(
+            ['site_survey', 'worksheet', 'rams', 'om'],
+            array_values(array_intersect(
+                CockpitPanelPresenter::documentModules(),
+                array_keys(CockpitModulePresenter::moduleMap())
+            )),
+            'Every surviving row has a document library; add its assertion above if a row is added.'
+        );
     }
 
     // ── The read-only fence over this plan's own markup ──────────────────

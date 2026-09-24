@@ -5,6 +5,7 @@ namespace Tests\Feature\Cockpit;
 use App\DTO\ProjectHealth;
 use App\Http\Controllers\ProjectCockpitController;
 use App\Models\Project;
+use App\Models\ProjectDeliverable;
 use App\Models\User;
 use App\Models\Visit;
 use App\Services\ProjectHealthService;
@@ -359,7 +360,7 @@ class CockpitPageTest extends TestCase
         $this->assertStringContainsString('Installation', $html);
     }
 
-    public function test_nine_module_rows_render_in_presenter_order_with_an_anchor_open_link(): void
+    public function test_every_module_row_renders_in_presenter_order_with_an_anchor_open_link(): void
     {
         config(['cockpit.enabled' => true]);
         $project = $this->project();
@@ -396,11 +397,11 @@ class CockpitPageTest extends TestCase
             //
             // Matched against the RAW title, not e($title): cockpitSubtree()
             // entity-decodes, so the O&M module reads "O&M manual" here and
-            // an escaped needle would miss exactly one of the nine.
+            // an escaped needle would miss exactly one of them.
             $this->assertStringContainsString(
                 'aria-label="Open '.$definition['title'].'"',
                 $html,
-                "Module '{$key}' must carry its own accessible name; nine unnamed ".
+                "Module '{$key}' must carry its own accessible name; unnamed ".
                 'chevrons would be indistinguishable in a link list.'
             );
         }
@@ -424,14 +425,30 @@ class CockpitPageTest extends TestCase
      * Programming has no model, table or relation anywhere in this codebase,
      * so its row renders a chip and no count phrase at all. The same property
      * is asserted from the other side in
-     * CockpitSpineTest::test_programming_claims_no_completion_it_cannot_evidence().
+     * CockpitSpineTest::test_no_row_or_panel_claims_a_completion_it_cannot_evidence().
+     *
+     * ── REPOINTED OFF THE PROGRAMMING ROW (46.2 D-01, Plan 46.2-03) ──────────
+     *
+     * WAS `test_the_programming_row_renders_its_chip_and_no_count_phrase()`. It
+     * opened with `assertStringContainsString('Programming', $html)` and 46.2-01
+     * removed that row from `MODULE_MAP` entirely, so the subject is gone.
+     *
+     * The HALF THAT DIED WITH IT is "renders no count phrase": Programming was
+     * the only `COUNT_NONE` row, and every surviving row carries a count — which
+     * 46.2-01 already moved by name in
+     * CockpitSpineTest::test_an_empty_project_still_renders_every_module_row_waiting().
+     *
+     * THE HALF THAT MATTERED IS KEPT AND WIDENED, from one row to the whole page:
+     * nothing claims a completion this app cannot evidence. `0 files` would claim
+     * a file store `ProjectDeliverable.php:14-26` says does not exist and forbids
+     * building; `cav-tick` and "Marked done by hand" were the hand-ticked
+     * completion sketch 004 dropped. Asserted over every surviving row rather
+     * than over the one row that used to make the point.
      */
-    public function test_the_programming_row_renders_its_chip_and_no_count_phrase(): void
+    public function test_no_row_claims_a_completion_or_a_store_it_has_no_model_for(): void
     {
         config(['cockpit.enabled' => true]);
         $html = $this->cockpitSubtree($this->renderCockpit($this->project()));
-
-        $this->assertStringContainsString('Programming', $html);
 
         // "0 files" would claim a file store that ProjectDeliverable.php:14-26
         // says does not exist and forbids building.
@@ -439,6 +456,12 @@ class CockpitPageTest extends TestCase
         $this->assertStringNotContainsString('cav-tick', $html);
         $this->assertStringNotContainsString('Marked done by hand', $html);
         $this->assertStringContainsString('Not started', $html);
+
+        // Non-vacuity, and the reason this is now a whole-page assertion: every
+        // row the presenter renders is judged, and there really are rows.
+        foreach (CockpitModulePresenter::moduleMap() as $row) {
+            $this->assertStringContainsString($row['title'], $html);
+        }
     }
 
     /**
@@ -612,12 +635,27 @@ class CockpitPageTest extends TestCase
         $this->assertSame(1, $this->countByClass($html, 'cav-panel'));
 
         // Header: the module's title, the project's identifier, its purpose.
-        $this->assertStringContainsString('First fix and install', $html);
-        $this->assertStringContainsString('Manage visits, tasks and evidence.', $html);
+        //
+        // REPOINTED, NOT RETIRED (46.2 D-07 / D-01, Plan 46.2-03). These read
+        // 'First fix and install' and 'Manage visits, tasks and evidence.' —
+        // 46.2-01 retitled the row 'Worksheet' (D-07: on a document-creation page
+        // the row is the document, not a visit type) and redescribed it. The
+        // strings are read FROM THE MAP now rather than copied out of it, so the
+        // next retitle is a map edit and this test follows it.
+        $worksheet = CockpitModulePresenter::moduleMap()[ProjectDeliverable::KEY_WORKSHEET];
 
-        // Tab strip — three anchors, and a close control that is also an
-        // anchor, back to the bare cockpit URL.
+        $this->assertSame('Worksheet', $worksheet['title'], '46.2 D-07 named this row for its document.');
+        $this->assertStringContainsString($worksheet['title'], $html);
+        $this->assertStringContainsString($worksheet['description'], $html);
+
+        // Tab strip — THREE anchors, and a close control that is also an
+        // anchor, back to the bare cockpit URL. Three is re-taken, not
+        // inherited: Phase 46.1 could make this drawer draw a conditional
+        // FOURTH (`Returned`), and 46.2 D-02 removed that tab, so three is
+        // now unconditional. Asserted against TABS so it cannot drift.
         $this->assertSame(3, $this->countByClass($html, 'cav-panel__tab'));
+        $this->assertCount(3, ProjectCockpitController::TABS);
+        $this->assertStringNotContainsString('Returned', $html);
         $this->assertStringContainsString('Overview', $html);
         $this->assertStringContainsString('Files', $html);
         $this->assertStringContainsString('Notes', $html);
@@ -709,9 +747,15 @@ class CockpitPageTest extends TestCase
     {
         $project = $this->projectWithInstallVisits();
 
+        // REPOINTED, NOT RETIRED (46.2 D-07, Plan 46.2-03). Both sentences read
+        // 'First fix and install'; 46.2-01 retitled the row 'Worksheet'. The
+        // sentences are BUILT from the map's title rather than re-copied, so a
+        // third retitle is a map edit and not a test edit.
+        $title = CockpitModulePresenter::moduleMap()[ProjectDeliverable::KEY_WORKSHEET]['title'];
+
         $expected = [
-            'files' => 'No First fix and install documents have been produced yet.',
-            'notes' => 'First fix and install has no notes recorded.',
+            'files' => "No {$title} documents have been produced yet.",
+            'notes' => "{$title} has no notes recorded.",
         ];
 
         foreach ($expected as $tab => $sentence) {
