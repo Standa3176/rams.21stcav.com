@@ -206,6 +206,9 @@ class CockpitSpineTest extends TestCase
      * module the app knows about reaches the page, because a missing one reads
      * as an app fault — counted against the presenter's own map rather than a
      * literal 9, so the D-16 ruling can be revisited without this test lying.
+     *
+     * It was: 46.2 D-01 revisited exactly that, nine rows down to four, and
+     * this test needed NO edit. That is what deriving from the map buys.
      */
     public function test_every_module_renders_a_row(): void
     {
@@ -232,17 +235,20 @@ class CockpitSpineTest extends TestCase
 
         ProjectDeliverable::create([
             'project_id'      => $project->id,
-            'deliverable_key' => ProjectDeliverable::KEY_CABLE_SCHEDULE,
+            // REPOINTED by Plan 46.2-01 from KEY_CABLE_SCHEDULE to KEY_OM:
+            // 46.2 D-01 removed the Cable schedule row. The subject is the
+            // not-required TREATMENT, not that one particular row can carry it.
+            'deliverable_key' => ProjectDeliverable::KEY_OM,
             'state'           => ProjectDeliverable::STATE_NOT_REQUIRED,
         ]);
 
         $html = $this->render($project);
 
-        $this->assertStringContainsString('>Cable schedule<', $html);
+        $this->assertStringContainsString('>O&M manual<', $html);
 
         // It recedes by its words, not by disappearing: the row says why its
         // count is empty instead of showing a zero that looks like neglect.
-        $this->assertSame('Not required', $this->rowCount($html, 'Cable schedule'));
+        $this->assertSame('Not required', $this->rowCount($html, 'O&M manual'));
         $this->assertSame(
             count(CockpitModulePresenter::moduleMap()),
             $this->countByClass($html, 'cav-module')
@@ -297,7 +303,7 @@ class CockpitSpineTest extends TestCase
         // Singular drops the numeral.
         $this->assertSame(
             '1 visit · reconstructed',
-            $this->rowCount($this->render($project), 'First fix and install'),
+            $this->rowCount($this->render($project), 'Worksheet'),
             'The at-rest disclosure D-02 depends on must appear in the row count phrase.'
         );
     }
@@ -324,7 +330,7 @@ class CockpitSpineTest extends TestCase
 
         $this->assertSame(
             '3 visits · 2 reconstructed',
-            $this->rowCount($this->render($project), 'First fix and install')
+            $this->rowCount($this->render($project), 'Worksheet')
         );
     }
 
@@ -399,7 +405,7 @@ class CockpitSpineTest extends TestCase
 
         $this->assertSame(
             '1 visit · superseded',
-            $this->rowCount($this->render($project), 'First fix and install')
+            $this->rowCount($this->render($project), 'Worksheet')
         );
     }
 
@@ -477,7 +483,7 @@ class CockpitSpineTest extends TestCase
         // And both are disclosed at rest, in the order the chips use.
         $this->assertSame(
             '1 visit · reconstructed · superseded',
-            $this->rowCount($this->render($project), 'First fix and install')
+            $this->rowCount($this->render($project), 'Worksheet')
         );
     }
 
@@ -517,8 +523,8 @@ class CockpitSpineTest extends TestCase
         $qualifiedHtml = $this->render($qualified);
 
         $this->assertSame(
-            $this->rowChip($plainHtml, 'First fix and install'),
-            $this->rowChip($qualifiedHtml, 'First fix and install'),
+            $this->rowChip($plainHtml, 'Worksheet'),
+            $this->rowChip($qualifiedHtml, 'Worksheet'),
             'Gold means someone must act, and a qualifier cannot be actioned on a read-only page.'
         );
 
@@ -530,10 +536,10 @@ class CockpitSpineTest extends TestCase
 
         // The two counts differ — which is the point: the disclosure changed,
         // the demand for attention did not.
-        $this->assertSame('2 visits', $this->rowCount($plainHtml, 'First fix and install'));
+        $this->assertSame('2 visits', $this->rowCount($plainHtml, 'Worksheet'));
         $this->assertSame(
             '2 visits · reconstructed · superseded',
-            $this->rowCount($qualifiedHtml, 'First fix and install')
+            $this->rowCount($qualifiedHtml, 'Worksheet')
         );
 
         // Dead attention classes from the accordion, kept as a regression
@@ -566,33 +572,68 @@ class CockpitSpineTest extends TestCase
         return trim($cards->item(0)->textContent);
     }
 
-    // -- Programming claims no completion it cannot evidence ---------------
+    // -- No row claims a completion it cannot evidence ----------------------
 
     /**
-     * RETIRED: `test_programming_renders_the_unticked_box_and_not_marked`. The
-     * tick box component is deleted and sketch 004 draws no box, so the
-     * assertion had no subject left. What it really protected was this:
-     * NOTHING ON THIS PAGE CLAIMS A COMPLETION THIS PHASE CANNOT EVIDENCE.
-     * Programming has no model, table or relation anywhere in this codebase
-     * (ProjectHealthService.php:105-107), so its row renders a chip and no
-     * count phrase at all — "0 files" would claim a file store exists, and a
-     * ticked box would claim someone marked it done with nowhere to record who
-     * or when.
+     * RETIRED: `test_programming_claims_no_completion_it_cannot_evidence`, by
+     * Plan 46.2-01 per 46.2 D-01 — the Programming row it read is gone, so its
+     * two row assertions ('>Programming<' present, its count phrase empty) had
+     * nothing left to read. It is REPLACED, not deleted: what it and its own
+     * predecessor (`test_programming_renders_the_unticked_box_and_not_marked`,
+     * retired in Phase 45 when the tick box was deleted) really protected is
+     * this, and it survives in a stronger form — NOTHING ON THIS PAGE CLAIMS A
+     * COMPLETION THIS PHASE CANNOT EVIDENCE, now asserted over EVERY surviving
+     * row and panel rather than over the one row that made the point.
      */
-    public function test_programming_claims_no_completion_it_cannot_evidence(): void
+    public function test_no_row_or_panel_claims_a_completion_it_cannot_evidence(): void
     {
         $project = $this->project();
         $html    = $this->render($project);
 
-        $this->assertStringContainsString('>Programming<', $html);
-        $this->assertSame('', $this->rowCount($html, 'Programming'), 'Programming renders no count phrase.');
+        $markups = [$html];
 
-        foreach ([$html, $this->panel($project, ProjectDeliverable::KEY_PROGRAMMING)] as $markup) {
+        foreach (array_keys(CockpitModulePresenter::moduleMap()) as $key) {
+            $markups[] = $this->panel($project, $key);
+        }
+
+        foreach ($markups as $markup) {
             $this->assertStringNotContainsString('0 files', $markup);
             $this->assertStringNotContainsString('cav-tick', $markup);
             $this->assertStringNotContainsString('Not marked', $markup);
             $this->assertStringNotContainsString('Marked done by hand', $markup);
             $this->assertStringNotContainsString('Ticked by', $markup);
+        }
+
+        // The Programming row is gone outright (46.2 D-01), which is a stronger
+        // guarantee than a row that claimed nothing.
+        $this->assertStringNotContainsString('>Programming<', $html);
+    }
+
+    /**
+     * T-46.2-01. Five module keys were valid URLs until this plan, so a
+     * bookmarked or pasted `?module=snagging` is a REAL request a PM will make.
+     * It must render the page with NO panel and HTTP 200 — the "closed at rest
+     * means ABSENT" path — never a 500 and never an empty panel frame.
+     */
+    public function test_a_bookmarked_removed_module_renders_the_page_with_no_panel(): void
+    {
+        $project = $this->project();
+
+        foreach (['install_programme', 'drawings', 'cable_schedule', 'programming', 'snagging'] as $key) {
+            // render() asserts 200 for us; a 500 here would fail before the
+            // panel assertion is reached.
+            $html = $this->panel($project, $key);
+
+            $this->assertSame(
+                0,
+                $this->countByClass($html, 'cav-panel'),
+                "A removed module key ('{$key}') must open no panel."
+            );
+            $this->assertSame(
+                count(CockpitModulePresenter::moduleMap()),
+                $this->countByClass($html, 'cav-module'),
+                'The row list still renders in full behind an unknown module key.'
+            );
         }
     }
 
@@ -610,13 +651,20 @@ class CockpitSpineTest extends TestCase
         $this->assertSame(0, $this->countByClass($html, 'cav-schip--live'));
         $this->assertSame(0, $this->countByClass($html, 'cav-schip--file'));
 
-        // Eight rows carry a zero count; Programming carries none, because it
-        // has no store to be empty.
-        $this->assertSame(count($modules) - 1, $this->countByClass($html, 'cav-module__count'));
-        $this->assertSame('', $this->rowCount($html, 'Programming'));
+        // `count($modules) - 1` -> `count($modules)` by Plan 46.2-01, because
+        // 46.2 D-01 removed Programming, the only COUNT_NONE row. EVERY
+        // surviving row now carries a count phrase, so the exception is gone
+        // rather than the assertion being loosened.
+        $this->assertSame(count($modules), $this->countByClass($html, 'cav-module__count'));
+
+        // RETIRED by Plan 46.2-01, 46.2 D-01: `rowCount($html, 'Programming')`
+        // === '' and `rowCount($html, 'Programme and commissioning')` ===
+        // '0 tasks'. Both rows are gone. The test still ENUMERATES every row
+        // rather than sampling one — all four phrases are asserted below.
         $this->assertSame('0 visits', $this->rowCount($html, 'Site survey'));
+        $this->assertSame('0 visits', $this->rowCount($html, 'Worksheet'));
         $this->assertSame('0 documents', $this->rowCount($html, 'RAMS'));
-        $this->assertSame('0 tasks', $this->rowCount($html, 'Programme and commissioning'));
+        $this->assertSame('0 documents', $this->rowCount($html, 'O&M manual'));
 
         $this->assertStringContainsString('Nothing has been recorded on this job yet', $html);
         $this->assertStringContainsString('This cockpit reads records the app', $html);
@@ -648,7 +696,7 @@ class CockpitSpineTest extends TestCase
 
         // The visit is counted at rest too — an unreadable source hides
         // nothing.
-        $this->assertSame('1 visit', $this->rowCount($this->render($project), 'First fix and install'));
+        $this->assertSame('1 visit', $this->rowCount($this->render($project), 'Worksheet'));
     }
 
     // -- Helper -------------------------------------------------------------
