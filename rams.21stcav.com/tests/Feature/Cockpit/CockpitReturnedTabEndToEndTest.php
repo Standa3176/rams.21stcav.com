@@ -60,6 +60,19 @@ use ZipArchive;
  * `"><script>alert(1)</script>` and a client of the same are what the engineer
  * actually submits here — not a synthetic row in a separate file. The page
  * stays 200, nothing is reflected raw, and no ZIP entry name carries a `..`.
+ *
+ * ── 46.2 D-02 TURNED THE WALK INSIDE OUT, AND IMPROVED IT ──────────────────
+ * Plan 46.2-03 took the Returned tab and the four acts OFF the cockpit without
+ * deleting one line behind them. The walk used to DISCOVER each route by reading
+ * an anchor out of the markup; it now BUILDS each route and asserts that
+ * NOTHING ON THE PAGE LINKS TO IT — parsed, over every `<a href>`, not grepped.
+ *
+ * That is a stronger end-to-end claim than the original, and it is the one claim
+ * this phase actually needs: the ZIP still streams, both photo GETs still serve,
+ * the accept still writes and logs, the engineer's link still opens — with no
+ * button, no anchor and no tab anywhere on the cockpit. Every render assertion
+ * the change invalidated is retired INLINE, by name, at its former position,
+ * with the presenter test that still holds the property named beside it.
  */
 class CockpitReturnedTabEndToEndTest extends TestCase
 {
@@ -118,8 +131,15 @@ class CockpitReturnedTabEndToEndTest extends TestCase
         return $this;
     }
 
-    /** The rendered cockpit region on a given tab, entity-decoded. */
-    private function region(User $pm, Project $project, string $module, string $tab = 'returned'): string
+    /**
+     * The rendered cockpit region on a given tab, entity-decoded.
+     *
+     * DEFAULT MOVED 'returned' -> 'overview' by 46.2 D-02 (Plan 46.2-03).
+     * `returned` is no longer in ProjectCockpitController::TABS, so the old
+     * default would have silently rendered Overview under a Returned tab's name
+     * — green, and covering less than every call site claimed.
+     */
+    private function region(User $pm, Project $project, string $module, string $tab = 'overview'): string
     {
         $body = $this->actingAs($pm)
             ->get(route('projects.cockpit', ['project' => $project, 'module' => $module, 'tab' => $tab]))
@@ -365,50 +385,75 @@ class CockpitReturnedTabEndToEndTest extends TestCase
         $this->assertNotSame('', $bytesAtReturn['signature']);
         $this->assertSame(Visit::STATE_RETURNED, $visit->refresh()->state());
 
-        // ── 3. THE PM OPENS THE RETURNED TAB ────────────────────────────
+        // ── 3. THE PM OPENS THE COCKPIT AND IS OFFERED NOTHING ──────────
+        //
+        // REPOINTED BY 46.2 D-02 (Plan 46.2-03). This step used to open
+        // `?tab=returned` and read the evidence out of the markup. There is no
+        // Returned tab, so THE STEP INVERTS: the walk asserts the page offers
+        // neither the evidence nor the acts, and then does the rest of the walk
+        // by BUILDING each route — which is the stronger end-to-end claim,
+        // because it is the one that distinguishes "unsurfaced" from "deleted".
+        //
+        // RETIRED HERE, BY NAME, all of them render assertions on a body that no
+        // longer exists (the capability is proved at its route below, and the
+        // payload by tests/Unit/Cockpit/CockpitEvidencePresenterTest.php):
+        //   · 'Download all photos (ZIP)' / SERIAL / 'Client sign-off' /
+        //     'cav-returned__signature' present in the region
+        //   · the escaping sweep over the Returned tab's markup and the
+        //     handlerAttributeCount() == 0 assertion on it —
+        //     CockpitPanelTest::test_no_cockpit_view_uses_unescaped_output() and
+        //     CockpitReadOnlyFenceTest::test_rows_are_static_and_nothing_is_wired_to_a_handler()
+        //     still hold both properties over every SURVIVING cockpit view
+        //   · the four acts ('Accept', 'Send back', 'Add note', 'Raise a snag')
+        //     being offered beneath the evidence — inverted below to assert they
+        //     are offered NOWHERE, while step 6 still performs one for real
         $region = $this->region($pm, $project, 'worksheet');
 
-        // The evidence is all there, in the PM's own words.
-        $this->assertStringContainsString('Download all photos (ZIP)', $region);
-        $this->assertStringContainsString(self::SERIAL, $region);
-        $this->assertStringContainsString('Client sign-off', $region);
-        $this->assertStringContainsString('cav-returned__signature', $region);
+        foreach (['Download all photos (ZIP)', 'Accept', 'Send back', 'Add note', 'Raise a snag'] as $gone) {
+            $this->assertStringNotContainsString(
+                $gone,
+                $region,
+                "46.2 D-02: the cockpit offers no visit control, and \"{$gone}\" is one.",
+            );
+        }
 
-        // The engineer's and the client's free text is ESCAPED, always. The
-        // caption reaches the page as an `alt`, the client name as text, and
-        // the room name as a heading — so the check is on the RAW markup.
-        $this->assertStringNotContainsString('<script', $region);
-        $this->assertStringNotContainsString('<img src=x', $region);
-        $this->assertStringContainsString('&lt;img src=x onerror=alert(1)&gt;', $region);
-        $this->assertStringContainsString('alert(1)', $region, 'Non-vacuity: the hostile strings really did reach the page, escaped.');
+        // Non-vacuity: it really is the cockpit, and it really does hold this
+        // visit — so the absences above are absences of a CONTROL, not of a page.
+        $this->assertStringContainsString('Install visit', $region);
 
-        // AND THE PROPERTY UNDERNEATH THE STRING MATCH. `e()` escapes `<`, `>`,
-        // `&`, `"` and `'` — it does NOT escape `=`, so the literal text
-        // `onerror=` survives INSIDE a quoted attribute value (the room name
-        // reaches the contact sheet as an `alt`). That is harmless and a
-        // substring check would call it a breach. What must be true is that no
-        // ELEMENT carries a handler attribute — the same nine the fence bans.
+        // NOT ONE ANCHOR ON THE PAGE POINTS AT A VISIT OR EVIDENCE ROUTE.
+        // PARSED, not grepped — the claim is about what a browser would follow.
+        // This is the assertion that makes "unsurfaced" mean something: the
+        // routes below all answer, and the page offers no way to reach them.
+        foreach ($this->hrefs($region) as $href) {
+            $this->assertStringNotContainsString('/cockpit/visits/', $href, "The cockpit links to `{$href}`.");
+        }
+
+        // The walk's hostile fixtures are already in the database, so this is a
+        // live check rather than a formality: no element on the page carries an
+        // `on*` handler. KEPT from step 3's retired escaping sweep, repointed
+        // from the Returned tab's body to the region that survives.
         $this->assertSame(
             0,
             $this->handlerAttributeCount($region),
             'Engineer free text became a handler attribute on a real element.',
         );
 
-        // The four acts are offered, beneath the evidence (D-02).
-        foreach (['Accept', 'Send back', 'Add note', 'Raise a snag'] as $act) {
-            $this->assertStringContainsString($act, $region);
-        }
+        // ── 4. THE ZIP, OPENED FOR REAL, WITH NO LINK TO IT ─────────────
+        //
+        // The href used to be discovered from the markup. It is BUILT now: the
+        // route is registered, the controller is untouched, and the archive is
+        // byte-for-byte what it was — only the anchor is gone.
+        $zipHref = route('projects.cockpit.visits.photos-zip', [
+            'project' => $project,
+            'visit'   => $visit,
+        ]);
 
-        // ── 4. THE ZIP, OPENED FOR REAL ─────────────────────────────────
-        $zipHref = null;
-
-        foreach ($this->hrefs($region) as $href) {
-            if (str_contains($href, 'photos.zip')) {
-                $zipHref = $href;
-            }
-        }
-
-        $this->assertNotNull($zipHref, 'The hand-off link is the PM\'s only route to the archive.');
+        $this->assertStringNotContainsString(
+            $zipHref,
+            $region,
+            'The ZIP route must still work while NOTHING on the page links to it — that is the whole of D-02.',
+        );
 
         $names = $this->zipEntryNames(
             $this->actingAs($pm)->get($zipHref)->assertOk()->baseResponse,
@@ -439,16 +484,33 @@ class CockpitReturnedTabEndToEndTest extends TestCase
             $this->assertFalse(str_starts_with($name, '/'), "Entry `{$name}` is an absolute path.");
         }
 
-        // ── 5. THE PHOTO LINKS THE PM WOULD ACTUALLY CLICK ──────────────
-        $photoHrefs = array_values(array_filter(
-            $this->hrefs($region),
-            fn (string $href): bool => str_contains($href, '/cockpit/visits/') && str_contains($href, '/photo/'),
-        ));
+        // ── 5. EVERY PHOTO GET, BUILT RATHER THAN CLICKED ───────────────
+        //
+        // REPOINTED BY 46.2 D-02: these hrefs came out of the Returned tab's
+        // contact sheet. They are enumerated from the DATA now — the same two
+        // room photos and one label photo — and each is fetched at its route.
+        // The route works; nothing links to it.
+        $photoHrefs = [];
 
-        $this->assertGreaterThanOrEqual(3, count($photoHrefs), 'Two room photos and one label photo are linked.');
+        foreach (WorksheetPhoto::where('worksheet_id', $worksheet->id)->get() as $photo) {
+            $photoHrefs[] = route('projects.cockpit.visits.photo', [
+                'project' => $project,
+                'visit'   => $visit,
+                'kind'    => 'worksheet',
+                'photo'   => $photo->id,
+            ]);
+        }
+
+        $this->assertCount(2, $photoHrefs, 'Both room photos came back from site.');
 
         foreach ($photoHrefs as $href) {
             $this->actingAs($pm)->get($href)->assertOk();
+
+            $this->assertStringNotContainsString(
+                $href,
+                $region,
+                'A photo GET still serves while the cockpit links to none of them.',
+            );
         }
 
         // A photo id belonging to ANOTHER project is 404, not served. The same
@@ -472,15 +534,21 @@ class CockpitReturnedTabEndToEndTest extends TestCase
             'photo'   => $otherPhoto->id,
         ]))->assertNotFound();
 
-        // ── 6. THE PM ACCEPTS, FROM THE RETURNED TAB ────────────────────
+        // ── 6. THE PM ACCEPTS, AT THE ROUTE, WITH NO BUTTON ─────────────
+        //
+        // `tab` SWAPPED 'returned' -> 'notes' (46.2 D-02): the tab mechanism is
+        // not what changed — `returned` simply is not in
+        // ProjectCockpitController::TABS any more, so it can no longer be
+        // carried. This is still the real accept POST, unchanged, and it still
+        // proves the act works with nothing on the page offering it.
         $this->actingAs($pm)
             ->post(route('projects.cockpit.visits.accept', ['project' => $project, 'visit' => $visit]), [
-                'tab' => 'returned',
+                'tab' => 'notes',
             ])
             ->assertRedirect(route('projects.cockpit', [
                 'project' => $project,
                 'module'  => 'worksheet',
-                'tab'     => 'returned',
+                'tab'     => 'notes',
             ]))
             ->assertSessionHas('success');
 
@@ -515,7 +583,7 @@ class CockpitReturnedTabEndToEndTest extends TestCase
      * rendered per room, archived under `before/` — and the survey's own
      * record byte-identical after the review.
      */
-    public function test_a_survey_visit_renders_per_room_answers_and_archives_them_under_before(): void
+    public function test_a_survey_visit_surfaces_no_answers_and_still_archives_them_under_before(): void
     {
         $pm      = $this->pm();
         $project = $this->project('Survey Review Job');
@@ -579,28 +647,31 @@ class CockpitReturnedTabEndToEndTest extends TestCase
             'survey_data'  => (string) $survey->getRawOriginal('survey_data'),
         ];
 
-        // ── THE PM READS IT ─────────────────────────────────────────────
+        // ── THE PM OPENS THE COCKPIT AND READS NO ANSWERS ───────────────
+        //
+        // REPOINTED BY 46.2 D-02 (Plan 46.2-03). Six render assertions are
+        // RETIRED HERE, BY NAME — 'Board Room', the question copy, 'Yes', the
+        // engineer's own words for an `other` answer, the absence of '>Other<'
+        // and '2 of 2 questions answered'. All six read the Returned tab's body.
+        // Every one of those properties is asserted on the PRESENTER instead, in
+        // tests/Unit/Cockpit/CockpitEvidencePresenterTest.php
+        // (::test_a_survey_sourced_visit_returns_its_photos_in_the_before_bucket,
+        //  ::test_unanswered_questions_are_omitted_but_still_counted,
+        //  ::test_a_room_that_returned_nothing_is_omitted) — green and unedited.
         $region = $this->region($pm, $project, 'site_survey');
 
-        $this->assertStringContainsString('Board Room', $region);
-        $this->assertStringContainsString('Is there a spare double socket?', $region);
-        $this->assertStringContainsString('Yes', $region);
-        // An `other` answer shows the engineer's OWN WORDS, not the token.
-        $this->assertStringContainsString('Only above the lectern.', $region);
-        $this->assertStringNotContainsString('>Other<', $region);
-        // Two integers, not twenty empty rows.
-        $this->assertStringContainsString('2 of 2 questions answered', $region);
+        $this->assertStringNotContainsString('Download all photos (ZIP)', $region);
+        $this->assertStringContainsString('Site survey visit', $region, 'Non-vacuity: this really is the survey drawer.');
 
-        // ── AND THE ARCHIVE GROUPS IT UNDER before/ ─────────────────────
-        $zipHref = null;
+        // ── AND THE ARCHIVE STILL GROUPS IT UNDER before/ ───────────────
+        //
+        // Built, not discovered — there is no link left to discover.
+        $zipHref = route('projects.cockpit.visits.photos-zip', [
+            'project' => $project,
+            'visit'   => $visit,
+        ]);
 
-        foreach ($this->hrefs($region) as $href) {
-            if (str_contains($href, 'photos.zip')) {
-                $zipHref = $href;
-            }
-        }
-
-        $this->assertNotNull($zipHref);
+        $this->assertStringNotContainsString($zipHref, $region);
 
         $names = $this->zipEntryNames($this->actingAs($pm)->get($zipHref)->assertOk()->baseResponse);
 
@@ -632,7 +703,7 @@ class CockpitReturnedTabEndToEndTest extends TestCase
      * two dozen phantom items for work finished years ago would be worse than
      * no surface at all.
      */
-    public function test_a_reconstructed_visit_shows_its_evidence_and_offers_nothing(): void
+    public function test_a_reconstructed_visit_offers_nothing_and_its_archive_still_opens(): void
     {
         $pm      = $this->pm();
         $project = $this->project('Reconstructed Job');
@@ -667,17 +738,26 @@ class CockpitReturnedTabEndToEndTest extends TestCase
 
         $region = $this->region($pm, $project, 'worksheet');
 
-        // Its evidence IS shown.
-        $this->assertStringContainsString('Board Room', $region);
-        $this->assertStringContainsString('Marta Vieira', $region);
-        $this->assertStringContainsString('Download all photos (ZIP)', $region);
+        // REPOINTED BY 46.2 D-02 (Plan 46.2-03). Three "its evidence IS shown"
+        // assertions are RETIRED HERE, BY NAME — 'Board Room', 'Marta Vieira'
+        // and 'Download all photos (ZIP)'. They read the Returned tab's body.
+        // The presenter still resolves all three: see
+        // CockpitEvidencePresenterTest::test_a_worksheet_sourced_visit_returns_photos_serials_and_the_signoff().
+        //
+        // THE "AND IT OFFERS NOTHING" HALF STAYS, AND IS NOW UNIVERSAL RATHER
+        // THAN SPECIAL. This was the one visit shape that offered no control;
+        // under D-02 no visit shape does, so the same four strings are asserted
+        // absent for a reason that has grown rather than gone.
+        $this->assertStringNotContainsString('Download all photos (ZIP)', $region);
 
-        // And it offers NOTHING.
         foreach (['Accept', 'Send back', 'Add note', 'Raise a snag'] as $act) {
             $this->assertStringNotContainsString($act, $region);
         }
 
         $this->assertSame(0, substr_count($region, '<button'));
+
+        // Non-vacuity: the visit really is on the page, reported and not offered.
+        $this->assertStringContainsString('Install visit', $region);
 
         // The archive still opens — reading an old job is not reviewing it.
         $names = $this->zipEntryNames(
