@@ -3,8 +3,6 @@
 namespace Tests\Unit\Cockpit;
 
 use App\Models\CableSchedule;
-use App\Models\InstallProgramme;
-use App\Models\InstallTask;
 use App\Models\OmManual;
 use App\Models\Project;
 use App\Models\ProjectDeliverable;
@@ -22,29 +20,54 @@ use Tests\TestCase;
  *
  * These tests exist to stop a plausible-looking number reaching a PM's screen.
  * Every assertion below pins a value to a source that already exists, or pins
- * its ABSENCE (Programming's count phrase) to the fact that no source exists.
+ * its ABSENCE to the fact that no source exists.
  *
- * D-16 (user ruling, 2026-09-20): NINE module rows including Snagging. The
- * design image showed eight, but `Visit::TYPE_SNAG` exists, so with eight rows
- * a snag visit would sit in the database and appear on no screen — the exact
- * "collected but never turned into work" failure this milestone exists to fix.
+ * 46.2 D-01 (user ruling, 2026-09-22), Plan 46.2-01: FOUR module rows — Site
+ * survey, Worksheet, RAMS, O&M manual. The cockpit is a document-creation tool
+ * and the other five rows are gone, not greyed and not emptied.
+ *
+ * THIS REVERSES D-16 (user ruling, 2026-09-20: nine rows including Snagging),
+ * whose load-bearing argument was that every `Visit::TYPE_*` reaches exactly
+ * one module row, so no visit could sit in the database and appear on no
+ * screen. That invariant is NOW FALSE by decision, and
+ * `test_every_visit_type_maps_to_exactly_one_module()` was RETIRED BY NAME
+ * below — not deleted to make a red test pass. Its two surviving halves,
+ * `test_no_visit_type_reaches_two_module_rows()` and
+ * `test_the_visit_types_with_no_module_row_are_exactly_three_and_named()`,
+ * keep everything D-01 did not actually license.
  */
 class CockpitModulePresenterTest extends TestCase
 {
     use RefreshDatabase;
 
     /**
-     * D-11 as amended by D-16 — nine rows, in render order.
+     * 46.2 D-01 — four rows, in render order. NARROWED BY NAME from
+     * `NINE_MODULES` (site_survey, worksheet, install_programme, rams,
+     * drawings, om, cable_schedule, programming, snagging) by Plan 46.2-01:
+     * the five absent keys are removed from the cockpit entirely, and their
+     * absence is asserted by
+     * `test_the_removed_module_keys_render_no_row_and_report_no_progress()`
+     * rather than left unstated.
      *
      * @var array<int, string>
      */
-    private const NINE_MODULES = [
+    private const FOUR_MODULES = [
         'site_survey',
         'worksheet',
-        'install_programme',
         'rams',
-        'drawings',
         'om',
+    ];
+
+    /**
+     * The five keys 46.2 D-01 removed from the cockpit. They REMAIN in
+     * `ProjectDeliverable::ALL_KEYS` — that is the deliverables screen's
+     * vocabulary, it stays nine, and this phase does not touch that screen.
+     *
+     * @var array<int, string>
+     */
+    private const REMOVED_MODULES = [
+        'install_programme',
+        'drawings',
         'cable_schedule',
         'programming',
         'snagging',
@@ -70,19 +93,46 @@ class CockpitModulePresenterTest extends TestCase
 
     // -- Shape ---------------------------------------------------------------
 
-    public function test_nine_modules_render_in_the_designed_order(): void
+    /**
+     * RENAMED from `test_nine_modules_render_in_the_designed_order` by Plan
+     * 46.2-01: 46.2 D-01 made the render order four keys long. The order is
+     * still asserted EXACTLY, against a named constant.
+     */
+    public function test_four_modules_render_in_the_designed_order(): void
     {
         $keys = $this->presenter()->modules($this->project())->pluck('key')->all();
 
-        $this->assertSame(self::NINE_MODULES, $keys);
+        $this->assertSame(self::FOUR_MODULES, $keys);
     }
 
-    public function test_the_nine_module_keys_are_the_canonical_deliverable_vocabulary(): void
+    /**
+     * RENAMED AND NARROWED from
+     * `test_the_nine_module_keys_are_the_canonical_deliverable_vocabulary` by
+     * Plan 46.2-01, per 46.2 D-01.
+     *
+     * The old form asserted EQUALITY with `ProjectDeliverable::ALL_KEYS`. That
+     * equality is gone because the cockpit now names four of the nine — but
+     * `ALL_KEYS` ITSELF STAYS NINE: it is the DELIVERABLES SCREEN's vocabulary,
+     * not the cockpit's, and this phase does not touch that screen. So the
+     * MEMBERSHIP half is kept: every rendered key must still be one of the
+     * canonical nine, which is what catches a typo'd or invented key.
+     */
+    public function test_the_four_module_keys_are_a_named_subset_of_the_canonical_deliverable_vocabulary(): void
     {
         $keys = $this->presenter()->modules($this->project())->pluck('key')->sort()->values()->all();
-        $all  = collect(ProjectDeliverable::ALL_KEYS)->sort()->values()->all();
 
-        $this->assertSame($all, $keys, 'The cockpit must name the same nine things the deliverables screen names.');
+        $this->assertSame(['om', 'rams', 'site_survey', 'worksheet'], $keys);
+
+        // ALL_KEYS is still nine, and every cockpit key is a member of it.
+        $this->assertCount(9, ProjectDeliverable::ALL_KEYS);
+
+        foreach ($keys as $key) {
+            $this->assertContains(
+                $key,
+                ProjectDeliverable::ALL_KEYS,
+                "Module key '{$key}' is not part of the canonical deliverable vocabulary."
+            );
+        }
     }
 
     public function test_every_row_carries_the_design_keys(): void
@@ -101,44 +151,154 @@ class CockpitModulePresenterTest extends TestCase
         }
     }
 
-    // -- The visit-type invariant (D-16's load-bearing argument) --------------
+    // -- The visit-type invariant, retired and halved -------------------------
 
-    public function test_every_visit_type_maps_to_exactly_one_module(): void
+    /**
+     * RETIRED: `test_every_visit_type_maps_to_exactly_one_module()`.
+     *
+     * 46.2 D-01 (Plan 46.2-01) made it IMPOSSIBLE, not merely inconvenient:
+     * with four rows, commissioning, programming and snag visits reach no
+     * module row at all. It was retired BY NAME with that decision cited, and
+     * NOT deleted to make a red test pass — which is why both halves of it
+     * that D-01 did not license are still asserted below:
+     *
+     *   - `test_no_visit_type_reaches_two_module_rows()` — a type owned by two
+     *     rows is still a bug. D-01 removed rows; it did not permit overlap.
+     *   - `test_the_visit_types_with_no_module_row_are_exactly_three_and_named()`
+     *     — the anti-rot half, and D-16's real argument. The zero-owner set is
+     *     an EXACT named allow-list, so a SEVENTH visit type added later, or a
+     *     fourth type quietly losing its row, still fails loudly instead of
+     *     rendering nowhere.
+     *
+     * The old test's third assertion — that a type's owning row is actually
+     * RENDERED — survives inside the first of those two, so a row present in
+     * the map but missing from `modules()` is still caught.
+     */
+    public function test_no_visit_type_reaches_two_module_rows(): void
     {
         $modules = $this->presenter()->modules($this->project());
 
         foreach (Visit::TYPES as $type) {
-            $owners = [];
+            $owners = $this->ownersOf($type);
 
-            foreach (CockpitModulePresenter::moduleMap() as $key => $definition) {
-                if (in_array($type, $definition['visit_types'], true)) {
-                    $owners[] = $key;
-                }
-            }
-
-            $this->assertCount(
+            $this->assertLessThanOrEqual(
                 1,
-                $owners,
-                "Visit type '{$type}' must reach exactly one module row, got: ".implode(', ', $owners)
+                count($owners),
+                "Visit type '{$type}' reaches more than one module row: ".implode(', ', $owners)
             );
-            $this->assertNotNull(
-                $modules->firstWhere('key', $owners[0]),
-                "Visit type '{$type}' maps to module '{$owners[0]}', which is not rendered."
-            );
+
+            foreach ($owners as $owner) {
+                $this->assertNotNull(
+                    $modules->firstWhere('key', $owner),
+                    "Visit type '{$type}' maps to module '{$owner}', which is not rendered."
+                );
+            }
         }
     }
 
-    public function test_a_snag_visit_reaches_the_snagging_row(): void
+    public function test_the_visit_types_with_no_module_row_are_exactly_three_and_named(): void
+    {
+        $orphans = [];
+
+        foreach (Visit::TYPES as $type) {
+            if ($this->ownersOf($type) === []) {
+                $orphans[] = $type;
+            }
+        }
+
+        sort($orphans);
+
+        $expected = [Visit::TYPE_COMMISSIONING, Visit::TYPE_PROGRAMMING, Visit::TYPE_SNAG];
+        sort($expected);
+
+        $this->assertSame(
+            $expected,
+            $orphans,
+            'Exactly three visit types may reach no module row (46.2 D-01). Any other type '
+            .'rendering nowhere is the "collected but never turned into work" failure D-16 named.'
+        );
+    }
+
+    /**
+     * The owners of one visit type, read off the map as data rather than a
+     * hand-written list, so `Visit::TYPES` remains the source of truth.
+     *
+     * @return array<int, string>
+     */
+    private function ownersOf(string $type): array
+    {
+        $owners = [];
+
+        foreach (CockpitModulePresenter::moduleMap() as $key => $definition) {
+            if (in_array($type, $definition['visit_types'], true)) {
+                $owners[] = $key;
+            }
+        }
+
+        return $owners;
+    }
+
+    /**
+     * REPLACES `test_a_snag_visit_reaches_the_snagging_row()`, retired by name:
+     * 46.2 D-01 removed the Snagging row from the cockpit, so there is no row
+     * left for a snag visit to reach. Phase 47 owns snags; the visit itself is
+     * NOT deleted (46.2 D-02) and still exists in the database.
+     *
+     * The assertion is inverted rather than dropped, because "a snag visit
+     * silently inflates another row's count" would be a real bug.
+     */
+    public function test_a_snag_visit_reaches_no_module_row_by_design(): void
     {
         $project = $this->project();
+
+        $before = $this->presenter()->modules($project)->pluck('count', 'key')->all();
+
         Visit::factory()->create([
             'project_id' => $project->id,
             'type'       => Visit::TYPE_SNAG,
         ]);
 
-        $row = $this->row($project->fresh(), 'snagging');
+        $modules = $this->presenter()->modules($project->fresh());
 
-        $this->assertSame('1 visit', $row['count']);
+        $this->assertNull($modules->firstWhere('key', 'snagging'), 'The snagging row is gone (46.2 D-01).');
+        $this->assertSame(
+            $before,
+            $modules->pluck('count', 'key')->all(),
+            'A snag visit must not change any surviving row\'s count phrase.'
+        );
+    }
+
+    /**
+     * The five keys 46.2 D-01 removed render NO row at all — not a greyed one
+     * and not an empty one — and `progress()` reports null for each, through
+     * the presenter's existing `?? null` guard rather than a second one added
+     * for them.
+     *
+     * This test also carries what two retired tests protected:
+     *   - RETIRED `test_programming_reports_no_count_at_all()` — its subject was
+     *     that no Programming count phrase may imply a file store that does not
+     *     exist. With the row gone the page makes no claim at all, which is the
+     *     same property enforced more strongly.
+     *   - RETIRED `test_programme_and_commissioning_counts_install_tasks()` —
+     *     `COUNT_TASKS` is now dormant (its only row is gone). The constant is
+     *     kept in the presenter, so this test pins the absence of the row, not
+     *     the absence of the mode.
+     */
+    public function test_the_removed_module_keys_render_no_row_and_report_no_progress(): void
+    {
+        $project = $this->project();
+        Visit::factory()->create(['project_id' => $project->id, 'type' => Visit::TYPE_PROGRAMMING]);
+        Visit::factory()->create(['project_id' => $project->id, 'type' => Visit::TYPE_COMMISSIONING]);
+
+        $modules = $this->presenter()->modules($project->fresh());
+
+        foreach (self::REMOVED_MODULES as $key) {
+            $this->assertNull($modules->firstWhere('key', $key), "Module '{$key}' must render no row (46.2 D-01).");
+            $this->assertNull($this->presenter()->progress($project->fresh(), $key));
+
+            // Still canonical on the deliverables screen; only absent here.
+            $this->assertContains($key, ProjectDeliverable::ALL_KEYS);
+        }
     }
 
     // -- Chips are a pure translation ----------------------------------------
@@ -149,7 +309,7 @@ class CockpitModulePresenterTest extends TestCase
             'waiting'   => 'not-started',
             'attention' => 'in-progress',
             'done'      => 'on-file',
-            ''          => 'not-started', // pip null — Programming has no derivation
+            ''          => 'not-started', // a null pip — no derivation at all
         ];
 
         $project = $this->project();
@@ -338,37 +498,31 @@ class CockpitModulePresenterTest extends TestCase
         $project = $this->project();
         RamsDocument::factory()->count(2)->create(['project_id' => $project->id]);
         OmManual::factory()->create(['project_id' => $project->id]);
+
+        // A cable schedule still EXISTS as a record; it simply has no cockpit
+        // row to be counted on. Created here so the two surviving document
+        // rows are shown not to absorb it.
         CableSchedule::factory()->create(['project_id' => $project->id]);
 
         $fresh = $project->fresh();
 
+        // Both surviving document rows, enumerated rather than sampled.
         $this->assertSame('2 documents', $this->row($fresh, 'rams')['count']);
         $this->assertSame('1 document', $this->row($fresh, 'om')['count']);
-        $this->assertSame('1 document', $this->row($fresh, 'cable_schedule')['count']);
-        $this->assertSame('0 documents', $this->row($fresh, 'drawings')['count']);
+
+        // RETIRED by Plan 46.2-01, 46.2 D-01: the `cable_schedule` ('1 document')
+        // and `drawings` ('0 documents') assertions had no row left to read.
+        // Their absence is asserted in
+        // `test_the_removed_module_keys_render_no_row_and_report_no_progress()`.
     }
 
-    public function test_programme_and_commissioning_counts_install_tasks(): void
-    {
-        $project = $this->project();
-
-        $this->assertSame('0 tasks', $this->row($project, 'install_programme')['count']);
-
-        $programme = InstallProgramme::factory()->create(['project_id' => $project->id]);
-        InstallTask::factory()->count(3)->create(['install_programme_id' => $programme->id]);
-
-        $this->assertSame('3 tasks', $this->row($project->fresh(), 'install_programme')['count']);
-    }
-
-    public function test_programming_reports_no_count_at_all(): void
-    {
-        $project = $this->project();
-        Visit::factory()->create(['project_id' => $project->id, 'type' => Visit::TYPE_PROGRAMMING]);
-
-        $row = $this->row($project->fresh(), 'programming');
-
-        $this->assertSame('', $row['count'], 'There is no Programming store, so no count phrase may imply one.');
-    }
+    // RETIRED by Plan 46.2-01, 46.2 D-01:
+    // `test_programme_and_commissioning_counts_install_tasks()` and
+    // `test_programming_reports_no_count_at_all()`. Both read rows that D-01
+    // removed. What each protected is carried, in absence form, by
+    // `test_the_removed_module_keys_render_no_row_and_report_no_progress()`
+    // above; neither was deleted to make a red test pass. `COUNT_TASKS` and
+    // `COUNT_NONE` remain in the presenter, documented there as dormant.
 
     public function test_a_not_required_module_says_so_and_reads_not_started(): void
     {
@@ -376,7 +530,11 @@ class CockpitModulePresenterTest extends TestCase
 
         ProjectDeliverable::create([
             'project_id'      => $project->id,
-            'deliverable_key' => ProjectDeliverable::KEY_CABLE_SCHEDULE,
+            // REPOINTED by Plan 46.2-01 from KEY_CABLE_SCHEDULE (row removed by
+            // 46.2 D-01) to KEY_OM. The subject is the not-required TREATMENT,
+            // never that one particular row can be marked not required, so it
+            // is read off a surviving document row instead.
+            'deliverable_key' => ProjectDeliverable::KEY_OM,
             'state'           => ProjectDeliverable::STATE_NOT_REQUIRED,
         ]);
 
@@ -387,7 +545,7 @@ class CockpitModulePresenterTest extends TestCase
         $fresh = $project->fresh();
         $fresh->loadMissing('deliverables');
 
-        $row = $this->presenter()->modules($fresh)->firstWhere('key', 'cable_schedule');
+        $row = $this->presenter()->modules($fresh)->firstWhere('key', 'om');
 
         $this->assertSame('not-started', $row['chip']);
         $this->assertSame('Not required', $row['count']);
