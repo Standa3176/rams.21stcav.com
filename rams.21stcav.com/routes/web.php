@@ -20,6 +20,7 @@ use App\Http\Controllers\InstallProgrammeController;
 use App\Http\Controllers\OmManualController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectCockpitActionController;
+use App\Http\Controllers\ProjectCockpitDocumentController;
 use App\Http\Controllers\ProjectCockpitEvidenceController;
 use App\Http\Controllers\ProjectCockpitController;
 use App\Http\Controllers\ProjectController;
@@ -286,6 +287,35 @@ Route::middleware('auth')->group(function () {
 
     Route::post('projects/{project}/cockpit/visits/{visit}/snags', [ProjectCockpitActionController::class, 'storeSnag'])
         ->name('projects.cockpit.visits.snags');
+
+    // ── Cockpit document form (Phase 46.2, Plan 46.2-05; DC-05/DC-06/DC-11) ─
+    // THE SIXTH COCKPIT WRITE, and the only one that produces a document. It is
+    // the write that gives the page its purpose back: Plan 46.2-03 removed the
+    // per-row Generate control with `quick-actions.blade.php`, leaving a cockpit
+    // that could generate nothing at all.
+    //
+    // A FOURTH CONTROLLER on purpose. `ProjectCockpitController` is the read
+    // surface and forbids a POST; `ProjectCockpitActionController` owns the five
+    // visit acts and is left byte-identical by this plan (DC-09);
+    // `ProjectCockpitEvidenceController` serves the two evidence GETs. So this
+    // is `ProjectCockpitDocumentController`, and it VALIDATES from
+    // `DOCUMENT_FIELD_MAP`, PERSISTS where the generator already reads, and
+    // DELEGATES to the four generate entry points that already exist — it writes
+    // no generator and dispatches no job of its own (46.2 D-04).
+    //
+    // THE EXACT COUNT THAT MOVES WITH IT:
+    // `CockpitPageTest::test_the_cockpit_read_route_is_still_get_only_and_every_write_is_a_post_elsewhere()`
+    // asserts `assertSame(6, $writes)` — RAISED 5 -> 6 BY THIS ROUTE, and kept
+    // exact rather than relaxed to a floor. Its allow-list names this controller
+    // explicitly. `assertSame(3, $gets)` is UNCHANGED: the form's disclosure is
+    // `?action=generate` on the cockpit GET that already exists, so this surface
+    // adds no GET.
+    //
+    // Inside the same `auth` group as the other cockpit routes, so the `web`
+    // group's session CSRF applies (T-46.2-14). Flag-gated inside the
+    // controller, exactly as the GET above is.
+    Route::post('projects/{project}/cockpit/documents', [ProjectCockpitDocumentController::class, 'store'])
+        ->name('projects.cockpit.documents.store');
 
     // ── Cockpit returned evidence (Phase 46.1, Plan 46.1-02; RV-04) ───────
     // BOTH ARE READS. The ZIP is D-03's Bitrix hand-off and the photo route is

@@ -217,9 +217,18 @@ class CockpitPageTest extends TestCase
             $writes++;
 
             $this->assertSame(['POST'], $verbs, "Cockpit write {$route->uri()} must be a plain form POST.");
-            $this->assertStringContainsString(
-                'ProjectCockpitActionController',
-                (string) $route->getActionName(),
+
+            // WIDENED 2026-09-24 by Plan 46.2-05, BY NAME AND NEVER TO "ANY
+            // CONTROLLER". The property being protected is unchanged: a cockpit
+            // write never lands on the READ controller, whose own docblock
+            // forbids it. 46.2-05 registers the document write on a fourth
+            // controller — `ProjectCockpitDocumentController` — because
+            // `ProjectCockpitActionController` owns the five visit acts and is
+            // left byte-identical by that plan (DC-09). Add a name here only for
+            // a controller that is a deliberate cockpit write surface.
+            $this->assertTrue(
+                str_contains((string) $route->getActionName(), 'ProjectCockpitActionController')
+                || str_contains((string) $route->getActionName(), 'ProjectCockpitDocumentController'),
                 "Cockpit write {$route->uri()} must NOT point at the read controller."
             );
         }
@@ -232,6 +241,13 @@ class CockpitPageTest extends TestCase
         // all three photo kinds. Both are asserted row-count invariant across
         // all eleven write-surface tables, so they are reads in fact and not
         // merely by verb.
+        // THREE, RE-TAKEN BY PLAN 46.2-05 rather than inherited. That plan ships
+        // the document form, which is the most GET-shaped thing this page has
+        // added since 46.1 — and it adds NO GET: its disclosure is
+        // `?action=generate` on the cockpit GET that already exists, and
+        // `site-surveys.docx` / `rams.download-pdf` and the rest are not cockpit
+        // routes (they carry no `cockpit` segment, so this loop never sees them).
+        // Recorded so the number reads as considered.
         $this->assertSame(3, $gets, 'Exactly three cockpit GET routes must exist.');
         // Still EXACT, never a floor: 46-04's create, plus 46-06's accept and
         // send back. A fourth write route appearing unannounced is a red test.
@@ -239,10 +255,19 @@ class CockpitPageTest extends TestCase
         // floor: a sixth cockpit write route appearing unannounced is still a
         // red test. 46-07 registers the note and the snag, which completes
         // D-02's four PM acts — there is no sixth act in this phase.
+        //
+        // RAISED 5 -> 6 BY PLAN 46.2-05, AND KEPT EXACT rather than relaxed to a
+        // floor: Plan 46.2-05 registers the DOCUMENT write
+        // (`projects.cockpit.documents.store`), which is the only write that
+        // phase adds and the only one that produces a document. A SEVENTH
+        // appearing unannounced is still a red test. It is a plain POST on a
+        // fourth controller, and the allow-list above names that controller
+        // rather than being relaxed.
         $this->assertSame(
-            5,
+            6,
             $writes,
-            'Plan 46-04 registers the create route; Plan 46-06 adds accept and send-back; Plan 46-07 adds notes and snags.'
+            'Plan 46-04 registers the create route; Plan 46-06 adds accept and send-back; '.
+            'Plan 46-07 adds notes and snags; Plan 46.2-05 adds the document write.'
         );
     }
 
