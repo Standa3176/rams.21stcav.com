@@ -11,7 +11,8 @@ use Illuminate\Support\Collection;
 
 /**
  * CockpitModulePresenter — the module rows of the delivery cockpit
- * (Phase 45, Plan 45-10; sketch 004, D-10 / D-11 / D-16).
+ * (Phase 45, Plan 45-10; sketch 004, D-10 / D-11; reduced to four rows by
+ * Phase 46.2, Plan 46.2-01, per 46.2-CONTEXT.md D-01).
  *
  * PURE READING. Every value on a row either traces to a named accessor that
  * already exists, or is ABSENT. Nothing here derives a second opinion, and
@@ -26,29 +27,51 @@ use Illuminate\Support\Collection;
  * `ProjectHealthService` — editing either would change what the dashboard
  * renders with the cockpit flag OFF, a ROADMAP criterion 4 violation.
  *
- * NINE ROWS, NOT EIGHT (D-16, user ruling 2026-09-20). The design image showed
- * eight module rows above a "1 of 9 complete" count. The unaccounted ninth is
- * snagging. The deciding argument was not the arithmetic: `Visit::TYPE_SNAG`
- * already exists, so with eight rows a snag visit would sit in the database and
- * appear on no screen — the exact "collected but never turned into work"
- * failure this milestone exists to fix. Nine rows also preserve the invariant
- * that EVERY VISIT TYPE REACHES EXACTLY ONE MODULE ROW, which
- * `test_every_visit_type_maps_to_exactly_one_module()` proves over
- * `Visit::TYPES` rather than over a hand-written list, so a seventh visit type
- * added later fails loudly instead of rendering nowhere.
+ * FOUR ROWS (46.2-CONTEXT.md D-01, user ruling 2026-09-22) — Site survey ·
+ * Worksheet · RAMS · O&M manual. The cockpit is a DOCUMENT CREATION tool, so
+ * the row is the document. The other five (Programme and commissioning,
+ * Drawings, Cable schedule, Programming, Snagging) are REMOVED from this map
+ * entirely — not greyed, not emptied, gone. They remain in
+ * `ProjectDeliverable::ALL_KEYS`, which is the DELIVERABLES SCREEN's
+ * vocabulary and stays nine; this class no longer mirrors it.
+ *
+ * D-16 IS THE DECISION BEING REVERSED (nine rows, Snagging added, user ruling
+ * 2026-09-20). The reversal is recorded at D-16 itself, in
+ * `.planning/sketches/004-delivery-cockpit/README.md`, so the earlier reasoning
+ * is not silently contradicted — read it there before adding a row back.
+ *
+ * THE INVARIANT D-16 WAS ARGUED FROM IS NOW FALSE. "Every visit type reaches
+ * exactly one module row" cannot hold: commissioning, programming and snag
+ * visits have no row here. `test_every_visit_type_maps_to_exactly_one_module()`
+ * was therefore RETIRED BY NAME, not deleted to make a red test pass, and its
+ * two surviving halves took its place in `CockpitModulePresenterTest`:
+ *   - `test_no_visit_type_reaches_two_module_rows()` — a type on two rows is
+ *     still a bug, and D-01 did not license one.
+ *   - `test_the_visit_types_with_no_module_row_are_exactly_three_and_named()`
+ *     — the zero-owner set must equal exactly [commissioning, programming,
+ *     snag], so a SEVENTH visit type added later, or a fourth type losing its
+ *     row, still fails loudly instead of rendering nowhere. That was D-16's
+ *     real argument and it is kept even though its conclusion was reversed.
  *
  * WHERE EACH COUNT COMES FROM — fixed per module by its count mode, never
  * guessed per render:
- *   - `visits`    — the section's own visit collection (site survey, first fix
- *                   and install, snagging).
+ *   - `visits`    — the section's own visit collection (site survey and
+ *                   worksheet — the two surviving rows that report visits,
+ *                   46.2 D-06).
  *   - `tasks`     — `InstallTask` rows under the project's install programmes.
+ *                   DORMANT since 46.2 D-01: Programme and commissioning was
+ *                   its only user. Kept, not deleted — see `none` below.
  *   - `documents` — the project relation named in the map (`ramsDocuments`,
- *                   `drawings`, `omManuals`, `cableSchedules`).
- *   - `none`      — PROGRAMMING ONLY. `ProjectDeliverable.php:14-26` states
- *                   there is no Programming model, generator or storage type
- *                   and forbids building one. A "0 files" here would claim a
- *                   file store exists, so the row renders its chip alone and
- *                   its count phrase is the empty string.
+ *                   `omManuals`).
+ *   - `none`      — DORMANT AND UNREACHABLE since 46.2 D-01: Programming was
+ *                   its only user and its row is gone. The constant and its
+ *                   branch are KEPT rather than deleted, because
+ *                   `ProjectDeliverable.php:14-26` still forbids inventing a
+ *                   Programming store and a future row with no store must
+ *                   still be representable. Its rule stands if it is ever used
+ *                   again: a "0 files" would claim a file store exists, so
+ *                   such a row renders its chip alone and its count phrase is
+ *                   the empty string.
  *
  * `icon` is a KEY, never inline SVG and never a hex — the Blade layer owns the
  * glyph and the token layer owns the colour.
@@ -60,8 +83,9 @@ use Illuminate\Support\Collection;
  * fails outright. Second, deciding it in Blade would mean Blade holding a
  * module list, and this class exists precisely so that the module list lives in
  * one place — a tenth module would then render with no tile rather than failing
- * loudly. `CockpitVisualTest` asserts the nine hues are DISTINCT over this map,
- * so a module added without one, or sharing another's, is a red test.
+ * loudly. `CockpitVisualTest` asserts the hues are DISTINCT over this map —
+ * iterating it rather than counting to nine — so a module added without one,
+ * or sharing another's, is a red test.
  *
  * A HUE IS IDENTITY, NEVER STATE. It says which module a row is, the same way
  * the glyph and the title do. Progress is the chip's job, and the chip carries
@@ -90,8 +114,8 @@ final class CockpitModulePresenter
     /**
      * The chip is a pure TRANSLATION of the section's existing `pip`. It is a
      * lookup, deliberately, so that no second derivation can drift from the
-     * one `CockpitSectionPresenter` already made. `null` (Programming, which
-     * has no derivation at all) reads as not started.
+     * one `CockpitSectionPresenter` already made. A `null` pip — a section
+     * with no derivation at all — reads as not started.
      */
     private const CHIP_FROM_PIP = [
         'waiting'   => self::CHIP_NOT_STARTED,
@@ -100,15 +124,17 @@ final class CockpitModulePresenter
     ];
 
     /**
-     * The nine module rows, in D-11's order as amended by D-16 (Snagging last).
+     * The FOUR module rows, in 46.2 D-01's order: Site survey, Worksheet, RAMS,
+     * O&M manual. D-11's nine-row order (as amended by D-16) is reversed here;
+     * see the class docblock for the reversal and the retirement it forced.
      *
      * This is a CONST MAP rather than a `match`, so a test can iterate it as
-     * data — which is what makes the "every visit type reaches exactly one
-     * module" invariant provable rather than sampleable.
+     * data — which is what still makes the surviving halves of the visit-type
+     * invariant provable rather than sampleable.
      *
-     * Descriptions are taken verbatim from the design image. They are labels,
-     * not claims about data, so they are safe to copy as written. Snagging's is
-     * written here because the design image had no ninth row to copy from.
+     * Descriptions are taken verbatim from the design image, except Worksheet's
+     * (see its entry). They are labels, not claims about data, so they are safe
+     * to copy as written.
      *
      * @var array<string, array<string, mixed>>
      */
@@ -122,23 +148,22 @@ final class CockpitModulePresenter
             'relation'    => null,
             'visit_types' => [Visit::TYPE_SITE_SURVEY],
         ],
+        // D-07 (46.2-CONTEXT.md): titled 'Worksheet', NOT 'First fix and
+        // install'. This is a DECISION, not a typo — the old title named a
+        // VISIT TYPE, and on a document-creation page the row is the document.
+        // The description moved with it, from 'Manage visits, tasks and
+        // evidence.' to the document this row generates.
+        // `visit_types` is KEPT even though the cockpit stops OFFERING visit
+        // actions (Plan 46.2-03), because the row's visit COUNT phrase is a
+        // READ and it stays (46.2 D-06).
         ProjectDeliverable::KEY_WORKSHEET => [
-            'title'       => 'First fix and install',
-            'description' => 'Manage visits, tasks and evidence.',
+            'title'       => 'Worksheet',
+            'description' => 'Generate the installation worksheet.',
             'icon'        => 'wrench',
             'hue'         => 'worksheet',
             'count_mode'  => self::COUNT_VISITS,
             'relation'    => null,
             'visit_types' => [Visit::TYPE_FIRST_FIX, Visit::TYPE_INSTALL],
-        ],
-        ProjectDeliverable::KEY_INSTALL_PROGRAMME => [
-            'title'       => 'Programme and commissioning',
-            'description' => 'Plan activities and capture test results.',
-            'icon'        => 'calendar',
-            'hue'         => 'programme',
-            'count_mode'  => self::COUNT_TASKS,
-            'relation'    => null,
-            'visit_types' => [Visit::TYPE_COMMISSIONING],
         ],
         ProjectDeliverable::KEY_RAMS => [
             'title'       => 'RAMS',
@@ -149,15 +174,6 @@ final class CockpitModulePresenter
             'relation'    => 'ramsDocuments',
             'visit_types' => [],
         ],
-        ProjectDeliverable::KEY_DRAWINGS => [
-            'title'       => 'Drawings',
-            'description' => 'Designs, elevations and connection diagrams.',
-            'icon'        => 'ruler',
-            'hue'         => 'drawings',
-            'count_mode'  => self::COUNT_DOCUMENTS,
-            'relation'    => 'drawings',
-            'visit_types' => [],
-        ],
         ProjectDeliverable::KEY_OM => [
             'title'       => 'O&M manual',
             'description' => 'Operation and maintenance documentation.',
@@ -166,33 +182,6 @@ final class CockpitModulePresenter
             'count_mode'  => self::COUNT_DOCUMENTS,
             'relation'    => 'omManuals',
             'visit_types' => [],
-        ],
-        ProjectDeliverable::KEY_CABLE_SCHEDULE => [
-            'title'       => 'Cable schedule',
-            'description' => 'Cable schedules and infrastructure details.',
-            'icon'        => 'cable',
-            'hue'         => 'cable',
-            'count_mode'  => self::COUNT_DOCUMENTS,
-            'relation'    => 'cableSchedules',
-            'visit_types' => [],
-        ],
-        ProjectDeliverable::KEY_PROGRAMMING => [
-            'title'       => 'Programming',
-            'description' => 'Control system programming files and notes.',
-            'icon'        => 'gear',
-            'hue'         => 'programming',
-            'count_mode'  => self::COUNT_NONE,
-            'relation'    => null,
-            'visit_types' => [Visit::TYPE_PROGRAMMING],
-        ],
-        ProjectDeliverable::KEY_SNAGGING => [
-            'title'       => 'Snagging',
-            'description' => 'Return visits to clear outstanding snags.',
-            'icon'        => 'flag',
-            'hue'         => 'snagging',
-            'count_mode'  => self::COUNT_VISITS,
-            'relation'    => null,
-            'visit_types' => [Visit::TYPE_SNAG],
         ],
     ];
 
@@ -212,7 +201,7 @@ final class CockpitModulePresenter
     }
 
     /**
-     * The nine module rows the cockpit renders, in design order.
+     * The four module rows the cockpit renders, in design order (46.2 D-01).
      *
      * @return Collection<int, array<string, mixed>>
      */
