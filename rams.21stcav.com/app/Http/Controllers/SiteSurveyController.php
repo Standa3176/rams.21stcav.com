@@ -11,6 +11,7 @@ use App\Models\SiteSurveyRoom;
 use App\Models\SiteSurveyRoomQuestion;
 use App\Services\ProjectDeliverablesService;
 use App\Services\Survey\SiteSurveyTierOneReadinessService;
+use App\Services\SiteSurveyDocxService;
 use App\Services\SurveyPdfService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -23,6 +24,7 @@ class SiteSurveyController extends Controller
     public function __construct(
         private readonly SurveyService                     $service,
         private readonly SurveyPdfService                  $pdfService,
+        private readonly SiteSurveyDocxService              $docxService,
         private readonly SiteSurveyTierOneReadinessService $tierOne,
         private readonly ProjectDeliverablesService        $deliverablesService,
     ) {}
@@ -545,6 +547,37 @@ class SiteSurveyController extends Controller
             . $siteSurvey->id . '.pdf';
 
         return response()->download($path, $downloadName);
+    }
+
+    /**
+     * GET /site-surveys/{siteSurvey}/docx  (DC-06, plan 46.2-02)
+     *
+     * Streams the branded Word (.docx) Site Survey report. `SiteSurveyDocxService`
+     * has existed since the survey module shipped and had ZERO callers — no route,
+     * no controller, no job. This wires the existing generator; it does NOT write a
+     * new one (D-04 forbids new generators).
+     *
+     * Guarded by `authorizeSurvey()` — deliberately the SAME guard as
+     * `downloadPdf()` above, not a looser one, because this is a download of survey
+     * data. Asserted by
+     * DocumentFormatInventoryTest::test_site_survey_word_is_guarded_like_site_survey_pdf.
+     *
+     * NOTE: `SiteSurveyDocxService::build()` performs `$survey->update(['filename' =>
+     * ...])` — a WRITE during a GET. That is pre-existing service behaviour and is
+     * left untouched (minimal-diff rule); this route is outside the cockpit region,
+     * so the cockpit fence's GET row-count invariance does not cover it. Recorded in
+     * the 46.2-02 summary because plan 46.2-05 will link here from the cockpit.
+     *
+     * The download filename uses the survey id only — never the raw project or
+     * client name, which is user data in a response header.
+     */
+    public function downloadDocx(SiteSurvey $siteSurvey): BinaryFileResponse
+    {
+        $this->authorizeSurvey($siteSurvey);
+
+        $path = $this->docxService->build($siteSurvey);
+
+        return response()->download($path, 'site-survey-' . $siteSurvey->id . '.docx');
     }
 
     /**

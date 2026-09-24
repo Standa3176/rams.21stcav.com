@@ -561,6 +561,12 @@ Route::middleware('auth')->group(function () {
     Route::delete('site-surveys/photos/{photo}', [SiteSurveyController::class, 'deletePhoto'])->name('site-surveys.photos.delete');
     Route::get('site-surveys/photos/{photo}', [SiteSurveyController::class, 'servePhoto'])->name('site-surveys.photos.serve');
     Route::get('site-surveys/{siteSurvey}/pdf', [SiteSurveyController::class, 'downloadPdf'])->name('site-surveys.pdf');
+    // Word (.docx) survey report — DC-06, plan 46.2-02. Wires the pre-existing
+    // SiteSurveyDocxService, which had zero callers. Sits immediately beside the
+    // PDF route so its ordering against the Route::resource wildcard above is
+    // identical to the PDF route that already works here. Same authorizeSurvey()
+    // guard as site-surveys.pdf.
+    Route::get('site-surveys/{siteSurvey}/docx', [SiteSurveyController::class, 'downloadDocx'])->name('site-surveys.docx');
     Route::get('site-surveys/blank-form', [SiteSurveyController::class, 'downloadBlankForm'])->name('site-surveys.blank-form');
 
     // ── Survey variations (quick task 260508-v7g; D-LOCK-1 flat capture, D-LOCK-6 auth-only) ──
