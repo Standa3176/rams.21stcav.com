@@ -20,9 +20,21 @@ use Tests\TestCase;
 /**
  * Phase 46, Plan 46-04 — the cockpit's FIRST WRITE.
  *
- * Two halves, deliberately in one file because they are one feature: the POST
+ * Two halves, deliberately in one file because they were one feature: the POST
  * that creates a visit and issues its engineer link (Task 1), and the Quick
- * actions area that offers it (Task 2).
+ * actions area that offered it (Task 2).
+ *
+ * ── TASK 2'S HALF IS UNSURFACED (46.2 D-02, Plan 46.2-03) ──────────────────
+ * The Quick actions block is gone from the cockpit and its Blade component is
+ * deleted. TASK 1'S HALF IS UNTOUCHED AND GREEN: the POST still creates the
+ * visit, still issues the link the existing generator produced, still reuses a
+ * live survey, still captures rooms and people, still logs one activity row,
+ * still validates, still scopes to the project in the URL, still rejects a
+ * guest and still 404s with the flag off. Sixteen route tests, unedited.
+ *
+ * Eleven render tests are retired BY NAME in the block where Task 2 used to
+ * start, each with the reason and with where its property now lives. VL-11's cap
+ * of four is a cap of ZERO, not an absent test.
  *
  * The write is a PLAIN FORM POST. There is no JSON endpoint and no JavaScript:
  * CockpitReadOnlyFenceTest::BANNED_HANDLER_ATTRIBUTES still bans all nine
@@ -30,17 +42,29 @@ use Tests\TestCase;
  * record that Phase 46 CONSIDERED retiring it and declined.
  *
  * VL-11 — "simple to use" — is asserted here as a CAP, not described in a
- * comment: see test_no_module_panel_ever_renders_more_than_four_quick_actions().
+ * comment: see test_no_module_panel_renders_any_visit_control(), which is
+ * 46-04's `test_no_module_panel_ever_renders_more_than_four_quick_actions()`
+ * moved from four to zero.
  */
 class CockpitCreateVisitTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** Modules that offer "Generate document" — the three with an existing generator route. */
-    private const DOCUMENT_MODULES = ['rams', 'om', 'cable_schedule'];
-
-    /** Modules that offer NOTHING. Not an empty heading, not a disabled button. */
-    private const SILENT_MODULES = ['install_programme', 'drawings', 'programming', 'snagging'];
+    // TWO MODULE LISTS RETIRED BY 46.2 D-02 / D-01 (Plan 46.2-03):
+    //
+    //   DOCUMENT_MODULES = ['rams', 'om', 'cable_schedule'] — the three that
+    //     offered "Generate document". No module offers it now; Plan 46.2-05
+    //     renders the document form in the PANEL for the four surviving rows.
+    //     `cable_schedule` also lost its row entirely in 46.2-01 (D-01).
+    //   SILENT_MODULES = ['install_programme', 'drawings', 'programming',
+    //     'snagging'] — the four that offered nothing. All four are among the
+    //     five rows 46.2-01 removed from the map (D-01), so they render no panel
+    //     to be silent in, and EVERY surviving module is silent now.
+    //
+    // Neither is replaced by a list: the property they encoded is asserted over
+    // `CockpitModulePresenter::moduleMap()` itself in
+    // test_no_module_panel_renders_any_visit_control(), which cannot drift from
+    // the rows actually rendered.
 
     protected function setUp(): void
     {
@@ -100,10 +124,18 @@ class CockpitCreateVisitTest extends TestCase
         return $node === null ? '' : html_entity_decode($dom->saveHTML($node), ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
 
-    /** The `cav-qa` Quick actions block only, or '' when the module offers none. */
-    private function quickActions(Project $project, string $module, array $query = []): string
+    /**
+     * The `cav-panel` subtree, or '' when no panel opened.
+     *
+     * WAS `quickActions()`, extracting `cav-qa` (46.2 D-02, Plan 46.2-03). That
+     * subtree no longer exists on any module, so a helper returning it would make
+     * every assertion built on it pass vacuously. Widened to the whole panel: the
+     * question is now whether a visit control appears ANYWHERE in the drawer, not
+     * whether one appears in a block that is gone.
+     */
+    private function panel(Project $project, string $module, array $query = []): string
     {
-        return $this->subtree($this->region($project, ['module' => $module] + $query), 'cav-qa');
+        return $this->subtree($this->region($project, ['module' => $module] + $query), 'cav-panel');
     }
 
     // ── Task 1: the write ────────────────────────────────────────────────
@@ -397,160 +429,129 @@ class CockpitCreateVisitTest extends TestCase
         $this->assertSame([Visit::TYPE_FIRST_FIX, Visit::TYPE_INSTALL], VisitLinkIssuer::VISIT_MODULES['worksheet']);
     }
 
-    // ── Task 2: the Quick actions area ───────────────────────────────────
-
-    public function test_the_two_link_modules_offer_exactly_one_control_each(): void
-    {
-        $project = $this->project();
-
-        foreach (['site_survey', 'worksheet'] as $module) {
-            $qa = $this->quickActions($project, $module);
-
-            $this->assertNotSame('', $qa, "{$module} must offer Create visit.");
-            $this->assertStringContainsString('Create visit', $qa);
-            $this->assertSame(1, substr_count($qa, 'cav-qa__control'), "{$module} offers more than one control.");
-        }
-    }
-
-    public function test_the_three_document_modules_offer_exactly_one_generate_control(): void
-    {
-        $project = $this->project();
-
-        foreach (self::DOCUMENT_MODULES as $module) {
-            $qa = $this->quickActions($project, $module);
-
-            $this->assertStringContainsString('Generate document', $qa, "{$module} must offer its generator.");
-            $this->assertStringNotContainsString('Create visit', $qa, "{$module} has no engineer link.");
-            $this->assertSame(1, substr_count($qa, 'cav-qa__control'), "{$module} offers more than one control.");
-        }
-    }
-
-    public function test_four_modules_render_no_quick_actions_block_at_all(): void
-    {
-        $project = $this->project();
-
-        foreach (self::SILENT_MODULES as $module) {
-            $this->assertSame(
-                '',
-                $this->quickActions($project, $module),
-                "{$module} renders a Quick actions block — a disabled control is still an offer."
-            );
-        }
-    }
+    // ══ TASK 2 WAS "THE QUICK ACTIONS AREA". THERE IS NO SUCH AREA ═════════
+    //
+    // 46.2 D-02, Plan 46.2-03. `resources/views/components/cockpit/quick-actions.blade.php`
+    // was DELETED — a Blade component is surfacing, and this repo's own rule
+    // (CockpitPageTest's ruling on the superseded accordion) is that a dead
+    // drawer component left on disk invites a later agent to render one beside
+    // the new design. `ProjectCockpitController::ACTIONS` is empty and
+    // `resolveAction()`, `roomNames()` and `activePeople()` went with it.
+    //
+    // NOTHING THE FORM POSTED TO WAS DELETED. `projects.cockpit.visits.store`
+    // is registered, `VisitLinkIssuer` is byte-unchanged, and the sixteen route
+    // tests ABOVE this comment are all green and UNEDITED — the issue, the
+    // reuse, the rooms and people captured on the visit, the activity row, the
+    // validation, the scoping, the guest rejection and the flag-off 404.
+    //
+    // ELEVEN RENDER TESTS RETIRED HERE, BY NAME. Each asserted markup inside the
+    // `.cav-qa` subtree, which no longer exists:
+    //
+    //   1. test_the_two_link_modules_offer_exactly_one_control_each()
+    //      Site survey and Worksheet each carried one `cav-qa__control` reading
+    //      "Create visit".
+    //   2. test_the_three_document_modules_offer_exactly_one_generate_control()
+    //      RAMS / O&M / Cable schedule each carried one "Generate document".
+    //      ⚠ THE GENERATE CONTROL IS THE ONE THING HERE THAT COMES BACK: Plan
+    //      46.2-05 renders it in the PANEL, from Plan 46.2-04's field map, for
+    //      the four surviving rows. It is not gone, it is being rebuilt one
+    //      plan later and better. (`cable_schedule` also lost its ROW in
+    //      46.2-01 per D-01, which is why this test had two reasons to be red.)
+    //   3. test_four_modules_render_no_quick_actions_block_at_all()  [was green]
+    //   4. test_quick_actions_appear_on_overview_only()              [was green]
+    //   5. test_the_quick_actions_area_carries_no_handler_attribute_and_no_script()  [was green]
+    //      All three passed by asserting an EMPTY `.cav-qa` subtree, which every
+    //      module now has. Retired as VACUOUS rather than as failing, and their
+    //      combined property — no module panel offers a visit control, and
+    //      nothing on the panel carries a handler — is asserted for real by
+    //      test_no_module_panel_renders_any_visit_control() below and by
+    //      CockpitReadOnlyFenceTest::test_rows_are_static_and_nothing_is_wired_to_a_handler().
+    //   6. test_no_module_panel_ever_renders_more_than_four_quick_actions()  [was green]
+    //      VL-11's cap of FOUR. RETIRED AND REPLACED, per this plan's own
+    //      instruction, by a cap of ZERO — so a later plan that re-renders a
+    //      visit control here trips something, rather than finding an absence
+    //      of a test. Its `assertLessThanOrEqual` goes with it: at zero the
+    //      exact-count house rule applies.
+    //   7. test_the_form_is_disclosed_by_url_state_and_carries_a_csrf_token()
+    //   8. test_the_open_form_offers_the_rooms_the_people_and_the_two_visit_types()
+    //   9. test_the_survey_form_offers_no_visit_type_choice()          [was green]
+    //  10. test_no_labour_resource_contact_detail_reaches_the_form()
+    //      The disclosure, the option lists, the two radios, the `<select` ban
+    //      and LR-04's no-contact-detail rule. THE LR-04 PROPERTY SURVIVES
+    //      WITHOUT THIS TEST: `activePeople()` was the only place the cockpit
+    //      read a LabourResource, and it is gone, so no contact detail can
+    //      reach the page at all — asserted over every tab by
+    //      CockpitReturnedTabTest::test_no_labour_resource_contact_detail_appears_on_any_tab().
+    //      The `<select` ban is RE-TAKEN in the fence this wave, not inherited.
+    //  11. test_the_generate_document_control_posts_to_the_existing_route()
+    //      See 2 — Plan 46.2-05's territory, and D-04 still forbids writing a
+    //      new generator when it gets there.
+    //
+    //  `test_the_copy_is_create_visit_and_never_the_banned_neighbours()` is
+    //  RETIRED AND MERGED into test_no_module_panel_renders_any_visit_control()
+    //  below: its six banned neighbours are asserted there, with 'Create visit'
+    //  itself added to the list, because the copy that WAS this phase's word is
+    //  now nobody's.
+    //
+    // ══════════════════════════════════════════════════════════════════════
 
     /**
-     * VL-11 AS AN EXECUTABLE CAP. Counted over every module key, with the
-     * disclosure form both closed and open, on a project carrying visits in
-     * more than one state. If a later plan needs a fifth control, it removes
-     * something.
+     * VL-11'S CAP OF FOUR, AT ZERO (46.2 D-02, Plan 46.2-03).
+     *
+     * Replaces `test_no_module_panel_ever_renders_more_than_four_quick_actions()`
+     * rather than removing it. Same coverage: every module key from the
+     * presenter's own map, the disclosure query both closed and open, on a
+     * project carrying visits in more than one state.
+     *
+     * `assertSame(0, ...)` not `assertLessThanOrEqual` — the inequality existed
+     * only because the cap was four.
      */
-    public function test_no_module_panel_ever_renders_more_than_four_quick_actions(): void
+    public function test_no_module_panel_renders_any_visit_control(): void
     {
         $project = $this->project();
 
         Visit::factory()->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
         Visit::factory()->sent()->create(['project_id' => $project->id, 'type' => Visit::TYPE_SITE_SURVEY]);
 
+        $judged = 0;
+
         foreach (array_keys(CockpitModulePresenter::moduleMap()) as $module) {
             foreach ([[], ['action' => 'create-visit']] as $query) {
-                $qa = $this->quickActions($project, $module, $query);
+                // The WHOLE panel, not the `.cav-qa` subtree — a subtree that no
+                // longer exists would make every assertion below vacuous.
+                $panel = $this->panel($project, $module, $query);
 
-                if ($qa === '') {
-                    continue;
+                $this->assertNotSame('', $panel, "The {$module} panel did not render — this test would pass vacuously.");
+                $judged++;
+
+                $this->assertSame(
+                    0,
+                    substr_count($panel, 'cav-qa'),
+                    "{$module} renders a Quick actions block. 46.2 D-02: the cockpit offers no visit control."
+                );
+
+                // Every act's copy, plus the six neighbours that were always
+                // another phase's word. 'Create visit' joins them because it is
+                // now nobody's copy on this page — it lives at
+                // projects.cockpit.visits.store.
+                foreach ([
+                    'Create visit', 'Generate document', 'Accept', 'Send back', 'Add note', 'Raise a snag',
+                    'Book a visit', 'Prepare a visit', 'Book another survey', 'Add a snag', 'Edit visit', 'Edit details',
+                ] as $banned) {
+                    $this->assertStringNotContainsString($banned, $panel, "\"{$banned}\" must not appear in {$module}'s panel.");
                 }
 
-                $controls = substr_count($qa, '<button') + substr_count($qa, '<a class="cav-qa__');
-
-                $this->assertLessThanOrEqual(
-                    4,
-                    $controls,
-                    "{$module} renders {$controls} Quick actions controls — VL-11 caps it at four."
-                );
+                // No form at all, in either URL state. Plan 46.2-05 ships the
+                // DOCUMENT form here and moves this number by name.
+                $this->assertSame(0, substr_count($panel, '<form'));
             }
         }
-    }
 
-    public function test_quick_actions_appear_on_overview_only(): void
-    {
-        $project = $this->project();
-
-        foreach (['files', 'notes'] as $tab) {
-            $this->assertSame(
-                '',
-                $this->quickActions($project, 'worksheet', ['tab' => $tab]),
-                "Quick actions leaked onto the {$tab} tab — one place to act, not three."
-            );
-        }
-    }
-
-    public function test_the_form_is_disclosed_by_url_state_and_carries_a_csrf_token(): void
-    {
-        $project = $this->project();
-
-        $closed = $this->quickActions($project, 'worksheet');
-
-        $this->assertStringNotContainsString('<form', $closed, 'Closed at rest means no form.');
-        $this->assertStringContainsString('action=create-visit', $closed);
-
-        $open = $this->quickActions($project, 'worksheet', ['action' => 'create-visit']);
-
-        $this->assertStringContainsString('<form', $open);
-        $this->assertStringContainsString('method="POST"', $open);
-        $this->assertStringContainsString('name="_token"', $open);
-        $this->assertStringContainsString(route('projects.cockpit.visits.store', $project), $open);
-    }
-
-    public function test_the_open_form_offers_the_rooms_the_people_and_the_two_visit_types(): void
-    {
-        $project = $this->project();
-
-        $survey = SiteSurvey::create([
-            'user_id'      => $this->user()->id,
-            'project_id'   => $project->id,
-            'project_name' => $project->name,
-            'status'       => 'draft',
-        ]);
-        $survey->rooms()->create(['room_name' => 'Boardroom']);
-
-        LabourResource::factory()->create(['name' => 'Dan Okafor', 'is_active' => true]);
-        LabourResource::factory()->create(['name' => 'Retired Rita', 'is_active' => false]);
-
-        $open = $this->quickActions($project, 'worksheet', ['action' => 'create-visit']);
-
-        $this->assertStringContainsString('Boardroom', $open);
-        $this->assertStringContainsString('Dan Okafor', $open);
-        $this->assertStringNotContainsString('Retired Rita', $open, 'Only ACTIVE people are offered.');
-
-        // Two radios, never a <select> — the fence still bans one.
-        $this->assertStringContainsString('type="radio"', $open);
-        $this->assertStringNotContainsString('<select', $open);
-    }
-
-    public function test_the_survey_form_offers_no_visit_type_choice(): void
-    {
-        $project = $this->project();
-
-        $open = $this->quickActions($project, 'site_survey', ['action' => 'create-visit']);
-
-        $this->assertStringNotContainsString('type="radio"', $open, 'Site survey has exactly one visit type.');
-    }
-
-    public function test_no_labour_resource_contact_detail_reaches_the_form(): void
-    {
-        $project = $this->project();
-
-        LabourResource::factory()->create([
-            'name'      => 'Dan Okafor',
-            'email'     => 'dan@example.test',
-            'phone'     => '07700 900123',
-            'is_active' => true,
-        ]);
-
-        $open = $this->quickActions($project, 'worksheet', ['action' => 'create-visit']);
-
-        $this->assertStringContainsString('Dan Okafor', $open);
-        $this->assertStringNotContainsString('dan@example.test', $open);
-        $this->assertStringNotContainsString('07700 900123', $open);
+        $this->assertSame(
+            count(CockpitModulePresenter::moduleMap()) * 2,
+            $judged,
+            'Every module was judged in both URL states.'
+        );
     }
 
     public function test_no_access_token_appears_in_any_form_field(): void
@@ -581,7 +582,10 @@ class CockpitCreateVisitTest extends TestCase
                 ->getContent();
 
             $this->assertStringNotContainsString($payload, $body, 'A submitted ?action= value is never reflected.');
-            $this->assertStringNotContainsString('<form', $this->quickActions($project, 'worksheet', ['action' => $payload]));
+            // WIDENED from the `cav-qa` subtree to the whole panel (46.2 D-02):
+            // there is no Quick actions block, so the narrow check would be
+            // vacuous. The panel must carry no form for ANY `?action=` value.
+            $this->assertStringNotContainsString('<form', $this->panel($project, 'worksheet', ['action' => $payload]));
         }
     }
 
@@ -605,47 +609,4 @@ class CockpitCreateVisitTest extends TestCase
             ->assertSessionHasErrors('scheduled_date');
     }
 
-    public function test_the_generate_document_control_posts_to_the_existing_route(): void
-    {
-        $project = $this->project();
-
-        $qa = $this->quickActions($project, 'rams');
-
-        // D-04: the generator that ALREADY EXISTS. No new document generator.
-        $this->assertStringContainsString(route('rams.from-project', $project), $qa);
-        $this->assertStringContainsString('name="_token"', $qa);
-        $this->assertStringNotContainsString('Add document', $qa);
-        $this->assertStringNotContainsString('Issue to client', $qa);
-        $this->assertStringNotContainsString('Download', $qa);
-    }
-
-    public function test_the_copy_is_create_visit_and_never_the_banned_neighbours(): void
-    {
-        $project = $this->project();
-
-        foreach (['site_survey', 'worksheet'] as $module) {
-            foreach ([[], ['action' => 'create-visit']] as $query) {
-                $qa = $this->quickActions($project, $module, $query);
-
-                foreach (['Book a visit', 'Prepare a visit', 'Book another survey', 'Add a snag', 'Edit visit', 'Edit details'] as $banned) {
-                    $this->assertStringNotContainsString($banned, $qa, "\"{$banned}\" is another phase's word.");
-                }
-            }
-        }
-    }
-
-    public function test_the_quick_actions_area_carries_no_handler_attribute_and_no_script(): void
-    {
-        $project = $this->project();
-
-        foreach (array_keys(CockpitModulePresenter::moduleMap()) as $module) {
-            foreach ([[], ['action' => 'create-visit']] as $query) {
-                $qa = $this->quickActions($project, $module, $query);
-
-                foreach (['onclick', 'wire:', 'x-on:', '@click', 'x-data', 'x-show', 'x-init', 'x-if', 'x-text', '<script'] as $banned) {
-                    $this->assertStringNotContainsString($banned, $qa, "{$banned} inside {$module}'s Quick actions.");
-                }
-            }
-        }
-    }
 }

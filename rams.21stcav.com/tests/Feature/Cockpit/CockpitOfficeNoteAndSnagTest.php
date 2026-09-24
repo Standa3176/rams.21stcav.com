@@ -31,10 +31,20 @@ use Tests\TestCase;
  * Phase 47 field names are IGNORED, which complements 46-02's schema-level
  * scope fence rather than repeating it.
  *
- * THE CAP (VL-11): this plan REACHES four controls on a returned visit. Four
- * is the maximum, not a target — 46-06's
- * `test_no_visit_row_ever_renders_more_than_four_controls()` keeps its ceiling
- * and this file does not raise it.
+ * THE CAP (VL-11): this plan REACHED four controls on a returned visit. Four was
+ * the maximum, not a target.
+ *
+ * ── THE CAP IS NOW ZERO (46.2 D-02, Plan 46.2-03) ──────────────────────────
+ * The cockpit surfaces no visit control. BOTH ACTS STILL WORK: every route test
+ * in this file — the append-only table, the authored note, the one activity row,
+ * the ignored Phase 47 snag fields, the bounding, the cross-project 404, the
+ * anonymous rejection, the flag-off 404 and "an accepted visit may still be
+ * annotated" — is UNEDITED and green. It is the buttons that left, at
+ * projects.cockpit.visits.notes and projects.cockpit.visits.snags.
+ *
+ * Every render assertion that change invalidated is retired or moved BY NAME
+ * below, with its old number and its new one. 46-06's ceiling test is now
+ * `test_no_visit_row_in_any_state_renders_any_control()`.
  */
 class CockpitOfficeNoteAndSnagTest extends TestCase
 {
@@ -649,13 +659,14 @@ class CockpitOfficeNoteAndSnagTest extends TestCase
     /**
      * Every `.cav-visit` row in the open module, as raw HTML.
      *
-     * DEFAULTS TO `?tab=returned` - MOVED ONCE, BY PLAN 46.1-05, AND THIS IS A
-     * RELOCATION RATHER THAN A RELAXATION. D-02 moved the four review controls
-     * out of Overview and beneath the evidence, because a PM should not be able
-     * to accept a visit without having looked at it. Every assertion below is
-     * byte-identical to what it was before the move; only where it looks
-     * changed. A drawer holding no sourced visit coerces the tab back to
-     * Overview, so a row is still found for every state.
+     * DEFAULT MOVED `?tab=returned` -> `?tab=overview` BY 46.2 D-02, PLAN
+     * 46.2-03. Plan 46.1-05 had moved the four review controls out of Overview
+     * and beneath the evidence, because a PM should not be able to accept a visit
+     * without having looked at it; 46.2 D-02 then took the Returned tab off the
+     * cockpit, so the controls are offered nowhere and Overview's read-only row
+     * is the only visit surface left (kept by 46.2 D-06 — it reports, it does not
+     * offer). `returned` is no longer in ProjectCockpitController::TABS, so
+     * leaving this default would have rendered Overview under the wrong name.
      *
      * @return array<int, string>
      */
@@ -663,7 +674,7 @@ class CockpitOfficeNoteAndSnagTest extends TestCase
     {
         $dom = new \DOMDocument();
         libxml_use_internal_errors(true);
-        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$this->region($project, ['module' => $module] + $query + ['tab' => 'returned']));
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$this->region($project, ['module' => $module] + $query + ['tab' => 'overview']));
         libxml_clear_errors();
 
         $rows = [];
@@ -681,25 +692,45 @@ class CockpitOfficeNoteAndSnagTest extends TestCase
         return substr_count($row, '<button') + substr_count($row, '<a ');
     }
 
-    public function test_a_returned_visit_offers_exactly_the_four_controls_and_no_fifth(): void
+    /**
+     * WAS `test_a_returned_visit_offers_exactly_the_four_controls_and_no_fifth()`,
+     * asserting 4 — "the cap is REACHED here; four is the maximum, not a target".
+     *
+     * RETIRED AND REPLACED BY 46.2 D-02 (Plan 46.2-03): the cap is ZERO. A cap of
+     * zero rather than an absent test, so a later plan that re-renders one of the
+     * four acts on this page trips something. Both acts still work at their
+     * routes — the twenty route tests above are green and unedited, including
+     * test_adding_a_note_writes_one_note_and_one_activity_row() and
+     * test_raising_a_snag_creates_exactly_one_open_snag_linked_to_its_visit().
+     */
+    public function test_a_returned_visit_offers_none_of_the_four_controls(): void
     {
         $project = $this->project();
         $this->returnedSurveyVisit($project);
 
         $rows = $this->visitRows($project, 'site_survey');
 
-        $this->assertCount(1, $rows);
+        $this->assertCount(1, $rows, 'The row STAYS (46.2 D-06). Only the offers went.');
 
-        // THE CAP IS REACHED HERE. Four is the maximum, not a target: a fifth
-        // act means removing one, not widening the row.
-        $this->assertSame(4, $this->countControls($rows[0]));
+        // 4 -> 0. THE CAP IS ZERO, and it is an equality so that one returning
+        // control is a red test.
+        $this->assertSame(0, $this->countControls($rows[0]));
 
         foreach (['Accept', 'Send back', 'Add note', 'Raise a snag'] as $control) {
-            $this->assertStringContainsString($control, $rows[0]);
+            $this->assertStringNotContainsString($control, $rows[0]);
         }
     }
 
-    public function test_an_accepted_visit_offers_add_note_and_nothing_else(): void
+    /**
+     * WAS `test_an_accepted_visit_offers_add_note_and_nothing_else()`, asserting 1.
+     *
+     * MOVED 1 -> 0 BY 46.2 D-02. The 46-07 reasoning it carried is UNCHANGED and
+     * still true at the route: an accepted visit may still be annotated (see
+     * test_an_accepted_visit_may_still_be_annotated() above, green and unedited),
+     * and a snag after acceptance is still Phase 47's register. It is the BUTTON
+     * that left, not the ability.
+     */
+    public function test_an_accepted_visit_offers_no_note_button_and_still_says_who_accepted_it(): void
     {
         $project = $this->project();
         Visit::factory()->accepted()->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
@@ -707,8 +738,10 @@ class CockpitOfficeNoteAndSnagTest extends TestCase
         $rows = $this->visitRows($project, 'worksheet');
 
         $this->assertCount(1, $rows);
-        $this->assertSame(1, $this->countControls($rows[0]));
-        $this->assertStringContainsString('Add note', $rows[0]);
+        $this->assertSame(0, $this->countControls($rows[0]));
+        $this->assertStringNotContainsString('Add note', $rows[0]);
+
+        // Status copy, not a control — it stays (46.2 D-06).
         $this->assertStringContainsString('Accepted by', $rows[0]);
 
         // A snag after acceptance is Phase 47's register, not a retroactive
@@ -748,7 +781,18 @@ class CockpitOfficeNoteAndSnagTest extends TestCase
         $this->assertStringContainsString('Reconstructed', $rows[0]);
     }
 
-    public function test_no_disclosed_form_ever_takes_a_row_past_four_controls(): void
+    /**
+     * WAS `test_no_disclosed_form_ever_takes_a_row_past_four_controls()`.
+     *
+     * MOVED 4 -> 0 AND `assertLessThanOrEqual` -> `assertSame` (46.2 D-02, Plan
+     * 46.2-03). The inequality existed only because the cap was four; at zero it
+     * would be a house-rule violation and would also pass vacuously.
+     *
+     * THE THREE ACTION VALUES ARE KEPT even though `ProjectCockpitController::ACTIONS`
+     * is now empty — an `?action=` value that must disclose nothing is precisely
+     * the value worth passing in.
+     */
+    public function test_no_action_value_can_disclose_a_control_on_a_row(): void
     {
         $project = $this->project();
         $visit   = $this->returnedSurveyVisit($project);
@@ -756,57 +800,66 @@ class CockpitOfficeNoteAndSnagTest extends TestCase
         foreach (['send-back', 'note', 'snag'] as $action) {
             $row = $this->visitRows($project, 'site_survey', ['action' => $action, 'visit' => $visit->id])[0];
 
-            $this->assertLessThanOrEqual(
-                4,
+            $this->assertSame(
+                0,
                 $this->countControls($row),
-                "Opening the {$action} form took the row past the cap."
+                "?action={$action} disclosed a control. 46.2 D-02: nothing on this page offers a visit act."
             );
 
             $this->assertStringNotContainsString('disabled', $row);
         }
     }
 
-    public function test_only_one_form_can_be_open_because_only_one_action_fits_in_the_url(): void
-    {
-        $project = $this->project();
-        $visit   = $this->returnedSurveyVisit($project);
-
-        $closed = $this->visitRows($project, 'site_survey')[0];
-
-        $this->assertStringNotContainsString('<textarea', $closed);
-        $this->assertStringContainsString('action=note', $closed);
-        $this->assertStringContainsString('action=snag', $closed);
-
-        $noteOpen = $this->visitRows($project, 'site_survey', ['action' => 'note', 'visit' => $visit->id])[0];
-
-        $this->assertSame(1, substr_count($noteOpen, '<textarea'));
-        $this->assertStringContainsString('_token', $noteOpen);
-        $this->assertStringContainsString('Cancel', $noteOpen);
-        // The snag form is NOT also open — the panel cannot become a wall of
-        // open forms, which is the failure the user named.
-        $this->assertStringNotContainsString('name="title"', $noteOpen);
-
-        $snagOpen = $this->visitRows($project, 'site_survey', ['action' => 'snag', 'visit' => $visit->id])[0];
-
-        $this->assertStringContainsString('name="title"', $snagOpen);
-        $this->assertStringContainsString('_token', $snagOpen);
-        $this->assertStringNotContainsString('name="body"', $snagOpen);
-    }
-
-    public function test_a_form_opens_only_on_the_visit_the_url_names(): void
+    /**
+     * TWO DISCLOSURE TESTS RETIRED AND REPLACED BY ONE (46.2 D-02, Plan 46.2-03):
+     *
+     *   test_only_one_form_can_be_open_because_only_one_action_fits_in_the_url()
+     *     asserted a closed row carried `action=note` and `action=snag`; that
+     *     `?action=note` opened exactly one `<textarea` with a `_token` and a
+     *     Cancel anchor and NOT the snag's `name="title"`; and that
+     *     `?action=snag` opened `name="title"` and not `name="body"`.
+     *
+     *   test_a_form_opens_only_on_the_visit_the_url_names()
+     *     asserted exactly one of two rendered rows disclosed its field.
+     *
+     * Both are IMPOSSIBLE rather than failing: `ACTIONS` is empty, `resolveAction()`
+     * is gone, and no row renders a form. Retired here and replaced by the
+     * assertion that carries the same weight — NO url state opens ANY form,
+     * proved over every action value the page ever knew.
+     *
+     * The note and snag WRITES are untouched: the twenty route tests above prove
+     * body validation, bounding, the 404 on a foreign project, the anonymous
+     * rejection and the flag-off 404.
+     */
+    public function test_no_url_state_opens_a_note_or_snag_form_any_more(): void
     {
         $project = $this->project();
         $first   = $this->returnedSurveyVisit($project);
         $second  = Visit::factory()->returned()->create(['project_id' => $project->id, 'type' => Visit::TYPE_SITE_SURVEY]);
 
-        $rows = $this->visitRows($project, 'site_survey', ['action' => 'note', 'visit' => $first->id]);
+        $closed = $this->visitRows($project, 'site_survey')[0];
 
-        $this->assertCount(2, $rows);
-        $this->assertSame(1, substr_count(implode('', $rows), '<textarea'));
-        $this->assertNotNull($second->id);
+        $this->assertStringNotContainsString('<textarea', $closed);
+        $this->assertStringNotContainsString('action=note', $closed);
+        $this->assertStringNotContainsString('action=snag', $closed);
+
+        foreach (['note', 'snag', 'send-back', 'create-visit'] as $action) {
+            foreach ([$first->id, $second->id] as $visitId) {
+                $rows = $this->visitRows($project, 'site_survey', ['action' => $action, 'visit' => $visitId]);
+
+                $this->assertCount(2, $rows, 'Both rows still render — they report, they do not offer.');
+
+                $joined = implode('', $rows);
+
+                $this->assertSame(0, substr_count($joined, '<textarea'));
+                $this->assertStringNotContainsString('name="title"', $joined);
+                $this->assertStringNotContainsString('name="body"', $joined);
+                $this->assertStringNotContainsString('_token', $joined);
+            }
+        }
     }
 
-    public function test_the_row_copy_is_this_phases_wording_and_never_phase_47_or_48s(): void
+    public function test_the_row_carries_no_act_copy_and_never_phase_47_or_48s(): void
     {
         $project = $this->project();
         $visit   = $this->returnedSurveyVisit($project);
@@ -817,10 +870,19 @@ class CockpitOfficeNoteAndSnagTest extends TestCase
             $this->visitRows($project, 'site_survey', ['action' => 'snag', 'visit' => $visit->id]),
         ));
 
-        $this->assertStringContainsString('Raise a snag', $rows);
+        // 'Raise a snag' MUST BE PRESENT -> MUST BE ABSENT (46.2 D-02, Plan
+        // 46.2-03). This was the one positive assertion in the test: the row used
+        // THIS phase's word for the act. There is no act on the row now, so the
+        // word is gone with it — and the snag route still takes one.
+        $this->assertStringNotContainsString('Raise a snag', $rows);
+
+        // Non-vacuity: the row really is rendered, so the absence above is the
+        // absence of a CONTROL rather than of a page.
+        $this->assertStringContainsString('cav-visit', $rows);
 
         // Every one of these is a LATER phase's word, and the fence still bans
-        // each by name.
+        // each by name. `Download` returned to DEFERRED_AFFORDANCES in this plan
+        // (the ZIP link left the page), and it is still banned here.
         foreach (['Add a snag', 'Book a visit', 'Open register', 'Assign parts', 'Close snag', 'Add document', 'Upload files', 'Download'] as $deferred) {
             $this->assertStringNotContainsString($deferred, $rows, "`{$deferred}` is a later phase's copy.");
         }
@@ -839,7 +901,11 @@ class CockpitOfficeNoteAndSnagTest extends TestCase
 
         // A COUNT WITH NO DESTINATION is the honest rendering of a record
         // Phase 47 will give a home: there is no snag register in Phase 46.
-        $this->assertSame(4, $this->countControls($row));
+        //
+        // 4 -> 0 (46.2 D-02, Plan 46.2-03). The count phrase itself STAYS — it is
+        // the row REPORTING, which 46.2 D-06 keeps — and "links nowhere" is now
+        // true of everything on the row rather than of this phrase alone.
+        $this->assertSame(0, $this->countControls($row));
 
         $this->snag($project, $visit, ['title' => 'Second finding']);
 

@@ -104,95 +104,86 @@ class CockpitTabPreservationTest extends TestCase
     /** The module the survey fixture's drawer lives in. */
     private const MODULE = 'site_survey';
 
-    private function returnedUrl(Project $project): string
+    /**
+     * WAS `returnedUrl()`, hard-coding `tab=returned`.
+     *
+     * 46.2 D-02 (Plan 46.2-03) took `returned` out of
+     * ProjectCockpitController::TABS, so it can no longer be carried. Default
+     * `files` rather than `notes`, ON PURPOSE: `storeNote()` hard-codes
+     * `tab=notes`, and a submitted tab that happened to equal the hard-coded one
+     * would make the "the submitted tab WINS" case below prove nothing.
+     */
+    private function tabUrl(Project $project, string $tab = 'files'): string
     {
         return route('projects.cockpit', [
             'project' => $project,
             'module'  => self::MODULE,
-            'tab'     => 'returned',
+            'tab'     => $tab,
         ]);
     }
 
-    /**
-     * THE PAGE CARRIES THE TAB INTO EVERY FORM AND EVERY CANCEL.
+    /*
+     * RETIRED BY NAME, 46.2 D-02, Plan 46.2-03 — unsurfaced, not deleted:
      *
-     * Four forms — Accept, Send back, Add note, Raise a snag — but only Accept
-     * renders closed; the other three disclose. So the field is counted on the
-     * closed row (Accept alone) and then on each disclosed form in turn, which
-     * is also where the three `Cancel` links live.
+     *   test_the_returned_tab_carries_its_own_tab_into_every_control()
+     *     asserted `<input type="hidden" name="tab" value="returned">` on the
+     *     closed Accept form and on each of the three disclosed forms, plus that
+     *     each form's `Cancel` anchor went back to the Returned tab.
+     *
+     * There are no forms and no Cancel anchors on the cockpit any more, so this
+     * is impossible rather than failing. It also carried an
+     * `assertGreaterThanOrEqual(2, ...)` that this repo's exact-count rule would
+     * not accept today.
+     *
+     * THE MECHANISM IT GUARDED IS FULLY KEPT, on the POST side where it actually
+     * matters: `test_every_act_initiated_from_a_real_tab_returns_to_it()` below
+     * proves all four acts round-trip a submitted tab,
+     * `test_every_real_tab_is_carried_and_only_a_real_tab_is()` proves membership
+     * resolution against TABS, `test_a_hostile_tab_value_is_never_reflected()`
+     * proves the rejection, and `test_an_act_with_no_tab_redirects_exactly_as_it_did_before()`
+     * proves the fallback. All four are green and unedited. What Plan 46.2-05
+     * must do when it ships the document form is re-assert the hidden field for
+     * THAT form — which is a new control, not this one restored.
      */
-    public function test_the_returned_tab_carries_its_own_tab_into_every_control(): void
-    {
-        $project = $this->project();
-        $visit   = $this->returnedVisit($project);
-        $pm      = $this->pm();
-
-        $closed = $this->actingAs($pm)->get($this->returnedUrl($project))->assertOk()->getContent();
-
-        $this->assertStringContainsString(
-            '<input type="hidden" name="tab" value="returned">',
-            $closed,
-            'Accept must carry the tab it was pressed on.',
-        );
-
-        // Each disclosure in turn: the form carries the hidden field AND its
-        // Cancel goes back to the Returned tab rather than to Overview.
-        foreach (['send-back', 'note', 'snag'] as $action) {
-            $body = $this->actingAs($pm)->get(route('projects.cockpit', [
-                'project' => $project,
-                'module'  => self::MODULE,
-                'tab'     => 'returned',
-                'action'  => $action,
-                'visit'   => $visit->id,
-            ]))->assertOk()->getContent();
-
-            $this->assertGreaterThanOrEqual(
-                2,
-                substr_count($body, '<input type="hidden" name="tab" value="returned">'),
-                "The disclosed `{$action}` form and the Accept form must both carry the tab.",
-            );
-
-            $this->assertStringContainsString(
-                'href="'.e($this->returnedUrl($project)).'"',
-                $body,
-                "Cancel on the disclosed `{$action}` form must stay on the Returned tab.",
-            );
-        }
-    }
 
     /**
-     * ALL FOUR ACTS, EACH INITIATED FROM `?tab=returned`, LAND BACK ON IT.
+     * ALL FOUR ACTS, EACH INITIATED FROM A REAL TAB, LAND BACK ON IT.
+     *
+     * `returned` SWAPPED FOR `files` throughout (46.2 D-02, Plan 46.2-03). The
+     * tab mechanism is NOT what changed — `returned` simply stopped being a legal
+     * tab — so every case is kept and only the string moved.
      *
      * Each act runs against its OWN visit: accept closes the visit and send
      * back moves it out of RETURNED, so sharing one row would test the refusal
      * path rather than the redirect.
      */
-    public function test_every_act_initiated_from_the_returned_tab_returns_to_it(): void
+    public function test_every_act_initiated_from_a_real_tab_returns_to_it(): void
     {
         $project = $this->project();
         $pm      = $this->pm();
-        $back    = $this->returnedUrl($project);
+        $back    = $this->tabUrl($project);
 
         $this->actingAs($pm)->post(
             route('projects.cockpit.visits.accept', ['project' => $project, 'visit' => $this->returnedVisit($project)]),
-            ['tab' => 'returned'],
+            ['tab' => 'files'],
         )->assertRedirect($back);
 
         $this->actingAs($pm)->post(
             route('projects.cockpit.visits.send-back', ['project' => $project, 'visit' => $this->returnedVisit($project)]),
-            ['tab' => 'returned', 'reason' => 'The comms room photo is missing.'],
+            ['tab' => 'files', 'reason' => 'The comms room photo is missing.'],
         )->assertRedirect($back);
 
-        // The note act is the interesting one: it hard-codes `tab=notes`, and
-        // the submitted tab must WIN — a PM reading the evidence stays with it.
+        // The note act is still the interesting one: it hard-codes `tab=notes`,
+        // and the submitted tab must WIN. `files` is submitted precisely so that
+        // this case still distinguishes the two.
         $this->actingAs($pm)->post(
             route('projects.cockpit.visits.notes', ['project' => $project, 'visit' => $this->returnedVisit($project)]),
-            ['tab' => 'returned', 'body' => 'Checked against the survey; content is complete.'],
+            ['tab' => 'files', 'body' => 'Checked against the survey; content is complete.'],
         )->assertRedirect($back);
 
         $this->actingAs($pm)->post(
             route('projects.cockpit.visits.snags', ['project' => $project, 'visit' => $this->returnedVisit($project)]),
-            ['tab' => 'returned', 'title' => 'Trunking short by 400mm'],
+            ['tab' => 'files', 'title' => 'Trunking short by 400mm'],
         )->assertRedirect($back);
     }
 
@@ -290,12 +281,18 @@ class CockpitTabPreservationTest extends TestCase
             ]));
         }
 
-        // NOT in this list: `'returned '`. The `TrimStrings` middleware trims
-        // it to a real tab before the controller sees it, so asserting it were
-        // rejected would be asserting against the framework rather than
-        // against this rule. Case, traversal, emptiness and encoding ARE the
-        // rule's business, and each is here.
-        foreach (['RETURNED', 'overview/../files', '', '0', 'notes%00', 'returned"'] as $notATab) {
+        // `'returned'` ADDED TO THIS LIST BY 46.2 D-02 (Plan 46.2-03). It was a
+        // REAL tab when this list was written, which is why only `'returned"'`
+        // appeared; it is a non-tab now, and asserting its rejection here is the
+        // POST-side half of `returned` leaving
+        // ProjectCockpitController::TABS.
+        //
+        // STILL NOT in this list: `'returned '`. The `TrimStrings` middleware
+        // trims it before the controller sees it, so it would now be rejected for
+        // the same reason as the bare string rather than for its own, and
+        // asserting it would be asserting against the framework. Case, traversal,
+        // emptiness and encoding ARE the rule's business, and each is here.
+        foreach (['returned', 'RETURNED', 'overview/../files', '', '0', 'notes%00', 'returned"'] as $notATab) {
             $this->actingAs($pm)->post(
                 route('projects.cockpit.visits.accept', ['project' => $project, 'visit' => $this->returnedVisit($project)]),
                 ['tab' => $notATab],

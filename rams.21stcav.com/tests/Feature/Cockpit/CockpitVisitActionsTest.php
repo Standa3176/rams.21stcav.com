@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Cockpit;
 
+use App\Http\Controllers\ProjectCockpitController;
 use App\Models\Project;
 use App\Models\ProjectActivityLog;
 use App\Models\SiteSurvey;
@@ -13,7 +14,15 @@ use Tests\TestCase;
 
 /**
  * Phase 46, Plan 46-06 — the PM's first two actions on a returned visit:
- * ACCEPT and SEND BACK, plus the visit row's action area that offers them.
+ * ACCEPT and SEND BACK, plus the visit row's action area that USED to offer them.
+ *
+ * ── THE ROUTES ARE THE FILE; THE OFFERS ARE GONE (46.2 D-02, Plan 46.2-03) ──
+ * The cockpit no longer renders a visit control of any kind. Both acts still
+ * exist, still validate, still log and still 404 on a foreign project — proved by
+ * the twenty-one route tests below, every one of them UNEDITED. What changed is
+ * the render half: every "offers N controls" assertion is now "offers zero",
+ * moved BY NAME with the test it was copied from, and VL-11's ceiling of four is
+ * a ceiling of zero.
  *
  * THE ONE SENTENCE THIS WHOLE FILE EXISTS TO PROVE (D-02): AN OFFICE ACTION
  * NEVER CHANGES WHAT THE ENGINEER SAID. Accept records who and when; send back
@@ -32,7 +41,11 @@ use Tests\TestCase;
  * is the executable form of that.
  *
  * VL-11 — the cap: no visit row renders more than FOUR controls in any state,
- * for any visit type. 46-06 ships two of the four; 46-07 adds the others.
+ * for any visit type. 46-06 shipped two of the four; 46-07 added the others;
+ * 46.2-03 MOVED THE CAP TO ZERO — see
+ * test_no_visit_row_in_any_state_renders_any_control(), which also drops the
+ * `assertLessThanOrEqual` a ceiling of four required and this repo's exact-count
+ * rule forbids once the ceiling is zero.
  */
 class CockpitVisitActionsTest extends TestCase
 {
@@ -522,23 +535,27 @@ class CockpitVisitActionsTest extends TestCase
     /**
      * Every `.cav-visit` row in the open module, as raw HTML.
      *
-     * DEFAULTS TO `?tab=returned` — MOVED ONCE, BY PLAN 46.1-05, AND THIS IS A
-     * RELOCATION RATHER THAN A RELAXATION.
+     * DEFAULT MOVED `?tab=returned` -> `?tab=overview` BY 46.2 D-02, PLAN
+     * 46.2-03 — AND THE OVERVIEW ROW IS NOW THE ONLY VISIT SURFACE.
      *
-     * D-02 of `46.1-CONTEXT.md` moved the four review controls out of Overview
-     * and beneath the evidence, in the user's own words: a PM should not be
-     * able to accept a visit without having looked at it. WHERE the assertions
-     * below look therefore changes; WHAT they assert does not. Every one of
-     * them is byte-identical to what it was before the move, and
-     * test_no_visit_state_loses_a_control_it_could_previously_reach() holds the
-     * whole before-table so a weakened assertion cannot hide in the relocation.
+     * The history, so the next reader does not have to reconstruct it: Plan
+     * 46.1-05 moved the four review controls OUT of Overview and beneath the
+     * evidence on the Returned tab, in the user's own words — a PM should not be
+     * able to accept a visit without having looked at it. 46.2 D-02 then took the
+     * Returned tab off the cockpit altogether, so the four controls are offered
+     * NOWHERE on this page. The row itself STAYS, by 46.2 D-06: it reports where
+     * every visit stands and it offers nothing.
      *
-     * A drawer holding no sourced visit COERCES `?tab=returned` back to
-     * Overview (panel.blade.php's one stale-bookmark coercion), so a planned or
-     * a sent visit still renders its row here — with zero controls, exactly as
-     * it did on Overview. Where a test needs Overview SPECIFICALLY it passes
-     * `['tab' => 'overview']`, which wins because the explicit query is unioned
-     * over this default.
+     * Leaving the default at `returned` would have been quietly wrong rather than
+     * red: `returned` is not in ProjectCockpitController::TABS any more, so every
+     * call would have rendered OVERVIEW while every docblock and failure message
+     * said Returned tab.
+     *
+     * The four acts are NOT deleted. They live at
+     * projects.cockpit.visits.accept / .send-back / .notes / .snags, are proved
+     * by the route half of this very file, and are asserted to be reachable with
+     * no link on the page by
+     * CockpitReadOnlyFenceTest::test_the_unsurfaced_write_routes_all_still_work_with_no_link_on_the_page().
      *
      * @return array<int, string>
      */
@@ -546,7 +563,7 @@ class CockpitVisitActionsTest extends TestCase
     {
         $dom = new \DOMDocument();
         libxml_use_internal_errors(true);
-        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$this->region($project, ['module' => $module] + $query + ['tab' => 'returned']));
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$this->region($project, ['module' => $module] + $query + ['tab' => 'overview']));
         libxml_clear_errors();
 
         $rows = [];
@@ -565,24 +582,36 @@ class CockpitVisitActionsTest extends TestCase
     }
 
     /**
-     * WAS `..._and_nothing_else`, asserting 2, when 46-06 shipped the first
-     * two of D-02's four acts. RAISED TO 4 BY PLAN 46-07, which ships the
-     * other two and REACHES the cap — the count stays EXACT, never a floor,
-     * so a fifth control is still a red test here as well as in the cap loop.
+     * WAS `test_a_returned_visit_offers_exactly_the_four_pm_acts()`, asserting 4.
+     *
+     * RETIRED AND REPLACED, NOT REMOVED (46.2 D-02, Plan 46.2-03). Its history:
+     * `..._and_nothing_else` asserting 2 when 46-06 shipped the first two of
+     * D-02's four acts, raised to 4 by Plan 46-07 which shipped the other two and
+     * REACHED the cap. 46.2 D-02 takes the cap to ZERO.
+     *
+     * A CAP OF ZERO, NOT AN ABSENCE OF A TEST. The count stays EXACT — never a
+     * floor, never `assertLessThanOrEqual` — so a later plan that re-renders a
+     * visit control on this page trips this test rather than finding nothing
+     * here. The four strings are asserted ABSENT individually as well as by the
+     * count, because a control could arrive with new copy.
+     *
+     * THE ACTS STILL WORK. The twenty-one route tests above this one POST to
+     * accept and send-back and prove they write, log, validate and 404 exactly
+     * as before. Nothing was deleted; the row stopped offering.
      */
-    public function test_a_returned_visit_offers_exactly_the_four_pm_acts(): void
+    public function test_a_returned_visit_offers_no_pm_act_at_all(): void
     {
         $project = $this->project();
         $this->returnedSurveyVisit($project);
 
         $rows = $this->visitRows($project, 'site_survey');
 
-        $this->assertCount(1, $rows);
-        $this->assertStringContainsString('Accept', $rows[0]);
-        $this->assertStringContainsString('Send back', $rows[0]);
-        $this->assertStringContainsString('Add note', $rows[0]);
-        $this->assertStringContainsString('Raise a snag', $rows[0]);
-        $this->assertSame(4, $this->countControls($rows[0]));
+        $this->assertCount(1, $rows, 'The row itself STAYS (46.2 D-06) — it reports, it does not offer.');
+        $this->assertStringNotContainsString('Accept', $rows[0]);
+        $this->assertStringNotContainsString('Send back', $rows[0]);
+        $this->assertStringNotContainsString('Add note', $rows[0]);
+        $this->assertStringNotContainsString('Raise a snag', $rows[0]);
+        $this->assertSame(0, $this->countControls($rows[0]));
     }
 
     public function test_a_planned_visit_offers_nothing(): void
@@ -609,7 +638,7 @@ class CockpitVisitActionsTest extends TestCase
         $this->assertStringContainsString('Awaiting the engineer', $rows[0]);
     }
 
-    public function test_a_sent_back_visit_offers_accept_but_no_second_send_back(): void
+    public function test_a_sent_back_visit_offers_no_accept_and_still_reports_the_send_back(): void
     {
         $project = $this->project();
         Visit::factory()->sentBack()->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
@@ -617,21 +646,30 @@ class CockpitVisitActionsTest extends TestCase
         $rows = $this->visitRows($project, 'worksheet');
 
         $this->assertCount(1, $rows);
-        // 1 -> 3 (Plan 46-07): Accept, Add note and Raise a snag. Still no
-        // SECOND send-back — the reopening ends when the engineer resubmits.
-        $this->assertSame(3, $this->countControls($rows[0]));
-        $this->assertStringContainsString('Accept', $rows[0]);
+        // 1 -> 3 (Plan 46-07) -> 0 (46.2 D-02, Plan 46.2-03). The cap is exact at
+        // every step: there is no second send-back AND no first one, because the
+        // row offers nothing at all now.
+        $this->assertSame(0, $this->countControls($rows[0]));
+        $this->assertStringNotContainsString('Accept', $rows[0]);
+        // THE STATUS COPY STAYS (46.2 D-06). "Sent back" here is the row
+        // REPORTING where the visit stands, not a control — which is exactly the
+        // distinction this plan turns on, so it is asserted rather than dropped.
         $this->assertStringContainsString('Sent back', $rows[0]);
         $this->assertStringNotContainsString('Send back<', $rows[0]);
     }
 
     /**
-     * WAS `..._offers_nothing`, asserting 0. Plan 46-07 gives an accepted
-     * visit EXACTLY ONE control: Add note. A note after acceptance is exactly
-     * the annotation D-02 describes and changes nothing about the acceptance;
-     * a SNAG after acceptance is Phase 47's register and is still absent here.
+     * WAS `..._offers_nothing` asserting 0, then `..._offers_only_add_note`
+     * asserting 1 when Plan 46-07 gave an accepted visit exactly one control.
+     *
+     * BACK TO 0 BY 46.2 D-02 (Plan 46.2-03), AND RENAMED TO SAY SO. The name
+     * returns to what it was for a DIFFERENT reason than it first held: 46-07's
+     * "a note after acceptance is the annotation D-02 describes" is still true,
+     * and the note route still accepts it — `test_an_accepted_visit_may_still_be_annotated()`
+     * in CockpitOfficeNoteAndSnagTest is green and unedited. It is the BUTTON
+     * that is gone, not the ability.
      */
-    public function test_an_accepted_visit_offers_only_add_note(): void
+    public function test_an_accepted_visit_offers_nothing_while_the_note_route_still_takes_one(): void
     {
         $project = $this->project();
         Visit::factory()->accepted()->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
@@ -639,9 +677,10 @@ class CockpitVisitActionsTest extends TestCase
         $rows = $this->visitRows($project, 'worksheet');
 
         $this->assertCount(1, $rows);
-        $this->assertSame(1, $this->countControls($rows[0]));
-        $this->assertStringContainsString('Add note', $rows[0]);
+        $this->assertSame(0, $this->countControls($rows[0]));
+        $this->assertStringNotContainsString('Add note', $rows[0]);
         $this->assertStringNotContainsString('Raise a snag', $rows[0]);
+        // Status copy, not a control — it stays (46.2 D-06).
         $this->assertStringContainsString('Accepted by', $rows[0]);
     }
 
@@ -684,39 +723,49 @@ class CockpitVisitActionsTest extends TestCase
      * would be deleted silently: every other assertion in this file would stay
      * green, because every other assertion looks at one state at a time.
      *
-     * THE EXPECTED COUNTS ARE COPIED FROM THE NAMED TESTS ABOVE, NOT READ BACK
-     * OFF THE BLADE. A table derived from the implementation proves only that
-     * the implementation matches itself:
+     * ── MOVED TO A TABLE OF ZEROS BY 46.2 D-02 (Plan 46.2-03) ────────────────
      *
-     *   returned 4 - test_a_returned_visit_offers_exactly_the_four_pm_acts()
-     *   sentBack 3 - test_a_sent_back_visit_offers_accept_but_no_second_send_back()
-     *                (Accept, Add note, Raise a snag; there is no second
-     *                send-back)
-     *   accepted 1 - test_an_accepted_visit_offers_only_add_note()
-     *   backfilledFromWorksheet 0 -
-     *                test_a_reconstructed_visit_offers_no_control_even_though_its_state_reads_returned()
-     *   planned 0  - test_a_planned_visit_offers_nothing()
-     *   sent 0     - test_a_sent_visit_offers_nothing_and_says_it_is_with_the_engineer()
-     *   default 0  - a completed visit nobody reviewed is closed
+     * The table was `returned 4 / sentBack 3 / accepted 1 / planned 0 / sent 0 /
+     * backfilledFromWorksheet 0 / default 0`, copied from the named tests above
+     * rather than read back off the Blade. EVERY ENTRY IS NOW 0, and each of the
+     * three that moved was moved BY NAME with the test it was copied from:
      *
-     * The plan's own prose for `sentBack` read "1 (Accept only ... so 3)". The
-     * named test says THREE, and the test wins: 3 is what is asserted here.
+     *   returned 4 -> 0  test_a_returned_visit_offers_no_pm_act_at_all()
+     *   sentBack 3 -> 0  test_a_sent_back_visit_offers_no_accept_and_still_reports_the_send_back()
+     *   accepted 1 -> 0  test_an_accepted_visit_offers_nothing_while_the_note_route_still_takes_one()
+     *   the four already-zero rows are UNCHANGED, and they are why this table is
+     *   kept rather than replaced: it still distinguishes "offers nothing" from
+     *   "renders nothing".
      *
-     * THE ROW MUST ALSO STILL EXIST. A count of zero would pass for a visit
-     * that vanished, so every state asserts at least one rendered row across
-     * the nine drawers as well as the count on it.
+     * THE TABLE IS KEPT AT ZERO RATHER THAN DELETED, for its original reason
+     * inverted. A control moved to a tab a visit never gets is a control deleted
+     * silently; a control RE-ADDED to one visit state is just as silent, and
+     * every other assertion in this file looks at one state at a time. So this
+     * remains the file's cap, now a cap of zero over every state and every type.
+     *
+     * THE ROW MUST STILL EXIST — except for the three visit types 46.2 D-01 left
+     * without a module row. `commissioning`, `programming` and `snag` render no
+     * row anywhere by design, and that set is asserted to be exactly those three
+     * by CockpitModulePresenterTest::test_the_visit_types_with_no_module_row_are_exactly_three_and_named().
+     * They are named here rather than skipped silently, and they are asserted to
+     * render ZERO rows — so a fourth type losing its row still fails loudly.
      */
-    public function test_no_visit_state_loses_a_control_it_could_previously_reach(): void
+    public function test_no_visit_state_reaches_any_control_at_all(): void
     {
         $expected = [
             'planned'                 => 0,
             'sent'                    => 0,
-            'returned'                => 4,
-            'sentBack'                => 3,
-            'accepted'                => 1,
+            'returned'                => 0,
+            'sentBack'                => 0,
+            'accepted'                => 0,
             'backfilledFromWorksheet' => 0,
             'default'                 => 0,
         ];
+
+        // 46.2 D-01 removed the Programme and commissioning, Programming and
+        // Snagging rows, so these three types reach no drawer. NOT a skip list:
+        // each is asserted to render exactly zero rows below.
+        $typesWithNoRow = [Visit::TYPE_COMMISSIONING, Visit::TYPE_PROGRAMMING, Visit::TYPE_SNAG];
 
         $modules = array_keys(\App\Support\Cockpit\CockpitModulePresenter::moduleMap());
         $seen    = 0;
@@ -740,20 +789,30 @@ class CockpitVisitActionsTest extends TestCase
                         $this->assertSame(
                             $count,
                             $this->countControls($row),
-                            "A {$state} {$type} visit offered {$count} control(s) before Plan 46.1-05 moved them; the Returned tab must offer the same number."
+                            "A {$state} {$type} visit offered a control. 46.2 D-02: the cockpit offers none, in any state, on any row."
                         );
                     }
+                }
+
+                if (in_array($type, $typesWithNoRow, true)) {
+                    $this->assertSame(
+                        0,
+                        $rows,
+                        "A {$state} {$type} visit rendered a row, but 46.2 D-01 removed the row that owned this type."
+                    );
+
+                    continue;
                 }
 
                 $this->assertGreaterThanOrEqual(
                     1,
                     $rows,
-                    "A {$state} {$type} visit renders no row at all - the relocation stranded it instead of moving it."
+                    "A {$state} {$type} visit renders no row at all - it was stranded rather than merely unoffered."
                 );
             }
         }
 
-        $this->assertGreaterThan(20, $seen, 'The no-loss table must judge real rows, never pass vacuously.');
+        $this->assertGreaterThan(20, $seen, 'The no-control table must judge real rows, never pass vacuously.');
     }
 
     /**
@@ -881,19 +940,27 @@ class CockpitVisitActionsTest extends TestCase
     }
 
     /**
-     * VL-11, JUDGED WHERE THE CONTROLS NOW LIVE (Plan 46.1-05).
+     * VL-11'S CEILING OF FOUR BECOMES A CEILING OF ZERO (46.2 D-02, Plan 46.2-03).
      *
-     * NOT ONE DIMENSION OF THE COVERAGE CHANGED: still 7 factory states x 6
-     * visit types x 9 drawers x 4 URL states, still a ceiling of FOUR, still
-     * `assertStringNotContainsString('disabled')`, still the same vacuity
-     * floor of 20 rows. Only `visitRows()`'s default tab moved. The floor is
-     * asserted UNCHANGED on purpose: because `returned()`, `sentBack()` and
-     * `accepted()` all create a source, and because a drawer with no sourced
-     * visit falls back to Overview, every row this loop used to judge is still
-     * judged — a relocation that had quietly halved its reach would read red
-     * here.
+     * History: VL-11 capped every visit row at FOUR controls, judged over 7
+     * factory states x 6 visit types x every drawer x 4 URL states, and Plan
+     * 46.1-05 rejudged it where the controls then lived. 46.2 D-02 takes the
+     * cockpit's visit controls to zero, so the ceiling follows.
+     *
+     * THE `assertLessThanOrEqual` IS GONE, AND THAT IS THE POINT. A ceiling of
+     * four had to be an inequality; a ceiling of zero can be — and under this
+     * repo's exact-count rule MUST be — an equality. At four it would also now
+     * pass vacuously on every one of these rows.
+     *
+     * COVERAGE IS UNCHANGED IN EVERY DIMENSION, deliberately: still every state,
+     * every type, every surviving drawer, still all four `?action=` URL states
+     * even though none of them discloses anything any more (that is exactly what
+     * makes trying them worth it), still
+     * `assertStringNotContainsString('disabled')`, still the vacuity floor of 20
+     * rows. If a later plan re-renders one control in one state in one drawer,
+     * this loop is what finds it.
      */
-    public function test_no_visit_row_ever_renders_more_than_four_controls(): void
+    public function test_no_visit_row_in_any_state_renders_any_control(): void
     {
         $states = ['planned', 'sent', 'returned', 'sentBack', 'accepted', 'backfilledFromWorksheet', 'default'];
         $seen   = 0;
@@ -911,7 +978,9 @@ class CockpitVisitActionsTest extends TestCase
                     // URL STATES GROWN 2 -> 4 BY PLAN 46-07 (the ceiling is
                     // NOT raised): the note and the snag disclose their own
                     // forms, so the cap has to be judged with each of them
-                    // open as well.
+                    // open as well. KEPT AT FOUR BY 46.2-03 even though
+                    // `ACTIONS` is now empty — a value that discloses nothing
+                    // is the value most worth passing in.
                     $urlStates = [
                         [],
                         ['action' => 'send-back', 'visit' => $visit->id],
@@ -923,10 +992,13 @@ class CockpitVisitActionsTest extends TestCase
                         foreach ($this->visitRows($project, $module, $query) as $row) {
                             $seen++;
 
-                            $this->assertLessThanOrEqual(
-                                4,
+                            // 4 -> 0, AND `assertLessThanOrEqual` -> `assertSame`
+                            // (46.2 D-02, Plan 46.2-03).
+                            $this->assertSame(
+                                0,
                                 $this->countControls($row),
-                                "VL-11: a {$state} {$type} visit row exceeded four controls in the {$module} drawer."
+                                "VL-11 at zero: a {$state} {$type} visit row rendered a control in the {$module} drawer. ".
+                                'The cockpit offers no visit control; the acts live at their own routes.'
                             );
 
                             // Nothing renders disabled — a disabled control is
@@ -942,7 +1014,32 @@ class CockpitVisitActionsTest extends TestCase
         $this->assertGreaterThan(20, $seen, 'The cap test must judge real rows, never pass vacuously.');
     }
 
-    public function test_the_send_back_form_is_disclosed_by_the_url_and_closed_by_an_anchor(): void
+    /**
+     * TWO DISCLOSURE TESTS RETIRED AND REPLACED BY ONE (46.2 D-02, Plan 46.2-03):
+     *
+     *   test_the_send_back_form_is_disclosed_by_the_url_and_closed_by_an_anchor()
+     *     asserted that a closed row carried `action=send-back` and `visit={id}`,
+     *     and that `?action=send-back&visit={id}` opened a row with a
+     *     `<textarea`, a `_token`, the "The engineer will read this" hint and a
+     *     Cancel anchor.
+     *
+     *   test_the_form_opens_only_on_the_named_visit()
+     *     asserted exactly ONE of two rendered rows disclosed its reason field.
+     *
+     * Both are IMPOSSIBLE, not failing: `ProjectCockpitController::ACTIONS` is
+     * empty and `resolveAction()` is gone, so no `?action=` value discloses
+     * anything on this page. Retired here rather than deleted, and replaced below
+     * by the assertion that carries the same weight now — the URL cannot summon a
+     * form, no matter what it says.
+     *
+     * The send-back CAPABILITY is untouched. Every assertion the two tests made
+     * about what the form POSTS is proved by the route half of this file:
+     * test_sending_back_records_the_reason_and_when(),
+     * test_a_reason_is_required_and_is_bounded(),
+     * test_only_a_returned_visit_can_be_sent_back() and five more — all green,
+     * all unedited by this plan.
+     */
+    public function test_no_url_state_can_disclose_a_visit_form_any_more(): void
     {
         $project = $this->project();
         $visit   = $this->returnedSurveyVisit($project);
@@ -950,33 +1047,25 @@ class CockpitVisitActionsTest extends TestCase
         $closed = $this->visitRows($project, 'site_survey')[0];
 
         $this->assertStringNotContainsString('<textarea', $closed);
-        $this->assertStringContainsString('action=send-back', $closed);
-        $this->assertStringContainsString('visit='.$visit->id, $closed);
+        $this->assertStringNotContainsString('action=send-back', $closed);
 
-        $open = $this->visitRows($project, 'site_survey', ['action' => 'send-back', 'visit' => $visit->id])[0];
+        // EVERY retired action string, tried against the real URL. The row must
+        // come back byte-for-byte the same as the undisclosed one: nothing in
+        // `?action=` is a legal value any more, so nothing opens.
+        foreach (['send-back', 'note', 'snag', 'create-visit'] as $action) {
+            $rows = $this->visitRows($project, 'site_survey', ['action' => $action, 'visit' => $visit->id]);
 
-        $this->assertStringContainsString('<textarea', $open);
-        $this->assertStringContainsString('_token', $open);
-        $this->assertStringContainsString('The engineer will read this', $open);
-        $this->assertStringContainsString('Cancel', $open);
-        $this->assertLessThanOrEqual(4, $this->countControls($open));
-    }
+            $this->assertCount(1, $rows);
+            $this->assertStringNotContainsString('<textarea', $rows[0]);
+            $this->assertStringNotContainsString('_token', $rows[0]);
+            $this->assertSame(
+                0,
+                $this->countControls($rows[0]),
+                "?action={$action} disclosed a control. 46.2 D-02: ACTIONS is empty and nothing discloses."
+            );
+        }
 
-    public function test_the_form_opens_only_on_the_named_visit(): void
-    {
-        $project = $this->project();
-        $first   = $this->returnedSurveyVisit($project);
-        $second  = Visit::factory()->returned()->create(['project_id' => $project->id, 'type' => Visit::TYPE_SITE_SURVEY]);
-
-        $rows = $this->visitRows($project, 'site_survey', ['action' => 'send-back', 'visit' => $first->id]);
-
-        $this->assertCount(2, $rows);
-        $this->assertSame(
-            1,
-            substr_count(implode('', $rows), '<textarea'),
-            'Exactly one row discloses its reason field — the one named in the URL.'
-        );
-        $this->assertNotNull($second->id);
+        $this->assertSame([], ProjectCockpitController::ACTIONS);
     }
 
     public function test_a_hostile_visit_title_and_a_hostile_query_are_never_echoed_raw(): void
