@@ -630,7 +630,7 @@ Plans:
 - [x] 46.2-01-PLAN.md — Four rows, and the every-visit-type invariant retired by name (wave 1, D-01)
 - [x] 46.2-02-PLAN.md — The format inventory; Site survey Word wired to the service that had no callers (wave 1, D-04)
 - [ ] 46.2-03-PLAN.md — The visit work unsurfaced, not deleted, and its retirement ledger (wave 2, D-02)
-- [ ] 46.2-04-PLAN.md — DOCUMENT_FIELD_MAP: the field set as data, every field proven against its generator (wave 2, D-03)
+- [x] 46.2-04-PLAN.md — DOCUMENT_FIELD_MAP: the field set as data, every field proven against its generator (wave 2, D-03)
 - [ ] 46.2-05-PLAN.md — The panel form, one write route, the fence re-taken, the counts moved (wave 3)
 - [ ] 46.2-06-PLAN.md — End-to-end through HTTP, the breakage ritual, the count ledger, the calm checkpoint (wave 4)
 
