@@ -155,7 +155,18 @@
                         :progress="$progress"
                         :files="$panelFiles"
                         :notes="$panelNotes"
-                        :activity="$activity" />
+                        :activity="$activity"
+                        {{-- SEVEN ATTRIBUTES ADDED BY PLAN 46.2-05 — the document
+                             form's URL state and its data. All seven are READS,
+                             derived in ProjectCockpitController from
+                             CockpitDocumentFormPresenter. --}}
+                        :action="$action"
+                        :doc-fields="$docFields"
+                        :doc-readiness="$docReadiness"
+                        :doc-formats="$docFormats"
+                        :doc-intro="$docIntro"
+                        :doc-values="$docValues"
+                        :doc-resources="$docResources" />
                     {{-- FIVE ATTRIBUTES REMOVED BY 46.2 D-02 (Plan 46.2-03):
                          `evidence`, `action`, `action-visit-id`, `rooms` and
                          `people`. They fed the Create visit form and the

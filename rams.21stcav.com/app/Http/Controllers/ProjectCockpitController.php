@@ -3,14 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\DTO\ProjectHealth;
+use App\Models\LabourResource;
 use App\Models\Project;
 use App\Services\ProjectHealthService;
+use App\Services\RamsReviewDataService;
+use App\Support\Cockpit\CockpitDocumentFormPresenter;
 use App\Support\Cockpit\CockpitHeaderPresenter;
 use App\Support\Cockpit\CockpitModulePresenter;
 use App\Support\Cockpit\CockpitPanelPresenter;
 use App\Support\Cockpit\CockpitSectionPresenter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 use Throwable;
 
@@ -77,27 +81,30 @@ class ProjectCockpitController extends Controller
     public const TABS = ['overview', 'files', 'notes'];
 
     /**
-     * The panel's THIRD piece of URL state (Phase 46, Plan 46-04) — DORMANT.
+     * The panel's THIRD piece of URL state (Phase 46, Plan 46-04) — LIVE AGAIN,
+     * with exactly ONE entry (Phase 46.2, Plan 46.2-05).
      *
      * This list held `create-visit`, `send-back`, `note` and `snag`: the four
-     * visit disclosures. 46.2 D-02 took all four off the page, so as of Plan
-     * 46.2-03 THERE IS NO DISCLOSABLE ACTION AND THE LIST IS EMPTY. Its
-     * resolver, `resolveAction()`, went with them.
+     * visit disclosures. 46.2 D-02 took all four off the page and Plan 46.2-03
+     * emptied the list, KEEPING it dormant on the same reasoning that kept
+     * `CockpitModulePresenter::COUNT_NONE` dormant in 46.2-01 — that the
+     * document form would need exactly this mechanism one plan later.
      *
-     * The constant is KEPT rather than deleted on the same reasoning that kept
-     * `CockpitModulePresenter::COUNT_NONE` dormant in Plan 46.2-01: Plan
-     * 46.2-05 ships the document form, whose `?action=generate` disclosure is
-     * the next entry and needs exactly this mechanism — membership resolution,
-     * never validate(), so an unrecognised value discloses nothing and is
-     * never echoed.
+     * IT DOES, AND THIS IS IT. `generate` discloses the DOCUMENT form, resolved
+     * by MEMBERSHIP against this list and never by validate(), so an
+     * unrecognised value discloses nothing, is never echoed, and the page is
+     * still 200 — the identical treatment `?module=` and `?tab=` have had since
+     * 45-11. `?action=generate` is a GET that writes nothing; the WRITE is
+     * `projects.cockpit.documents.store` on its own controller.
      *
-     * The four removed strings are NOT deferred capabilities. They exist and
-     * they work, at `projects.cockpit.visits.store` / `.send-back` / `.notes` /
-     * `.snags`. Only the URL state that DISCLOSED THEIR FORMS is gone.
+     * The four removed strings are NOT deferred capabilities and they do NOT
+     * come back here. They exist and they work, at
+     * `projects.cockpit.visits.store` / `.send-back` / `.notes` / `.snags`. Only
+     * the URL state that DISCLOSED THEIR FORMS is gone, and it stays gone.
      *
      * @var array<int, string>
      */
-    public const ACTIONS = [];
+    public const ACTIONS = ['generate'];
 
     public function __construct(
         private ProjectHealthService $health,
@@ -105,6 +112,12 @@ class ProjectCockpitController extends Controller
         private CockpitModulePresenter $modulePresenter,
         private CockpitHeaderPresenter $headerPresenter,
         private CockpitPanelPresenter $panelPresenter,
+        // Plan 46.2-05. Read-only: `documentFieldMap()` and `fieldsFor()` touch
+        // no model at all, and `readiness()` DELEGATES to
+        // `OmManualValidationService` rather than forming a second opinion about
+        // what is missing, so the panel and the generator cannot disagree.
+        private CockpitDocumentFormPresenter $docFormPresenter,
+        private RamsReviewDataService $reviewData,
     ) {
     }
 
@@ -158,6 +171,27 @@ class ProjectCockpitController extends Controller
         $panelNotes = $moduleKey === null ? collect() : $this->panelPresenter->notes($project, $moduleKey);
         $activity   = $this->panelPresenter->activity($project);
 
+        // ── THE DOCUMENT FORM'S FOUR WIRINGS (Phase 46.2, Plan 46.2-05) ────
+        //
+        // All four are READS and MOVE NO ROW IN ANY TABLE — which is why
+        // `CockpitReadOnlyFenceTest::WRITE_SURFACE_TABLES` grows 11 -> 13 in the
+        // same commit: `$docValues` reads `project_packages` (the RAMS reviewed
+        // payload) and `site_surveys` (the survey's own columns), and
+        // `$docResources` reads `labour_resources`. The whole point of that
+        // fence is that disclosing this form still writes nothing.
+        //
+        // Derived HERE and never in Blade, on this page's standing rule: the
+        // controller wires, the presenter derives, the view draws. The FIELDS
+        // come from `CockpitDocumentFormPresenter` and from nowhere else, so the
+        // view decides no field of its own.
+        $action       = $this->resolveAction($request);
+        $docFields    = $moduleKey === null ? [] : $this->docFormPresenter->fieldsFor($moduleKey);
+        $docReadiness = $moduleKey === null ? [] : $this->docFormPresenter->readiness($project, $moduleKey);
+        $docFormats   = $moduleKey === null ? [] : $this->documentFormats($moduleKey);
+        $docIntro     = $moduleKey === null ? null : $this->documentIntro($moduleKey);
+        $docValues    = $moduleKey === null ? [] : $this->documentValues($project, $moduleKey);
+        $docResources = $moduleKey === null ? [] : $this->resourceNames();
+
         // FOUR WIRINGS REMOVED BY 46.2 D-02 (Plan 46.2-03), unsurfaced not
         // deleted — and with them four private helpers:
         //
@@ -198,6 +232,13 @@ class ProjectCockpitController extends Controller
             'panelFiles',
             'panelNotes',
             'activity',
+            'action',
+            'docFields',
+            'docReadiness',
+            'docFormats',
+            'docIntro',
+            'docValues',
+            'docResources',
         ));
     }
 
@@ -246,6 +287,161 @@ class ProjectCockpitController extends Controller
         }
 
         return array_key_exists($submitted, CockpitModulePresenter::moduleMap()) ? $submitted : null;
+    }
+
+    /**
+     * The panel's disclosed action, or null (Plan 46-04, RESTORED BY 46.2-05).
+     *
+     * Resolved by MEMBERSHIP against `ACTIONS`, never by validate(): an
+     * unrecognised value discloses nothing, is never echoed, and the page is
+     * still 200. Matching is exact and case-sensitive — `GENERATE` discloses
+     * nothing rather than being helpfully corrected.
+     *
+     * This is the resolver 46.2-03 retired with the visit disclosures and kept
+     * named in its place-holder comment. It is back for ONE action, `generate`,
+     * and the four visit strings do not come with it.
+     */
+    private function resolveAction(Request $request): ?string
+    {
+        $submitted = $request->query('action');
+
+        if (! is_string($submitted)) {
+            return null;
+        }
+
+        return in_array($submitted, self::ACTIONS, true) ? $submitted : null;
+    }
+
+    /**
+     * The document's Word and PDF route names, straight off the map — which
+     * mirrors `46.2-FORMAT-INVENTORY.md` exactly.
+     *
+     * A null cell is KEPT AS NULL and travels to the view, because the view's job
+     * is to SAY the format is unavailable (46.2 D-05, DC-07). Dropping the key
+     * here would turn a stated gap into a silent absence. `Route::has()` guards
+     * the survivors on the same terms 45-12's document links use, so a renamed
+     * route degrades to one fewer offered format rather than a 500 on a PM's
+     * screen.
+     *
+     * @return array<string, string|null>
+     */
+    private function documentFormats(string $moduleKey): array
+    {
+        $formats = CockpitDocumentFormPresenter::documentFieldMap()[$moduleKey]['formats'] ?? [];
+
+        return array_map(
+            static fn (?string $routeName): ?string => $routeName !== null && Route::has($routeName) ? $routeName : null,
+            $formats,
+        );
+    }
+
+    private function documentIntro(string $moduleKey): ?string
+    {
+        return CockpitDocumentFormPresenter::documentFieldMap()[$moduleKey]['intro'] ?? null;
+    }
+
+    /**
+     * The value each field should show: WHAT IS ALREADY STORED, or failing that
+     * what the PROJECT already answers.
+     *
+     * This is the executable half of "the form never asks a question the project
+     * already answers" (DC-11). Resolution order per field:
+     *
+     *   1. the map's own `target`, read back out of wherever the generator reads
+     *      it — so a field the PM filled in last month comes back filled in;
+     *   2. the map's `prefill`, a named path on the project;
+     *   3. ''.
+     *
+     * A `project.` target is READ from the `Project` model when that attribute
+     * exists and from the reviewed payload's `project` section otherwise. The
+     * prefix is overloaded in the map for a measured reason: the O&M's
+     * `project.handover_date` IS a Project column, while the RAMS'
+     * `project.project_name` is a key of `normaliseProject()`. Resolving by
+     * attribute existence keeps that a data question rather than a per-document
+     * branch. Only `handover_date` is WRITABLE among them — every other
+     * `project.` field carries `prohibited`.
+     *
+     * READ-ONLY, ALL OF IT. This method is the reason `WRITE_SURFACE_TABLES`
+     * grows to name `project_packages` and `site_surveys`.
+     *
+     * @return array<string, mixed>
+     */
+    private function documentValues(Project $project, string $moduleKey): array
+    {
+        $survey   = $project->siteSurveys
+            ->whereNull('superseded_at')
+            ->whereIn('status', ['draft', 'completed'])
+            ->sortByDesc('id')
+            ->first();
+        $reviewed = $this->reviewData->normalise($project->latestPackage?->extracted_data ?? []);
+
+        $fromProject = [
+            'project.name'          => (string) ($project->name ?? ''),
+            'project.ref'           => (string) ($project->ref ?? ''),
+            'project.client_name'   => (string) ($project->client_name ?? ''),
+            'project.site_address'  => (string) ($project->site_address ?? ''),
+            'project.handover_date' => $project->handover_date?->format('Y-m-d') ?? '',
+            'project.owner_name'    => (string) ($project->owner?->name ?? ''),
+        ];
+
+        $values = [];
+
+        foreach ($this->docFormPresenter->fieldsFor($moduleKey) as $group) {
+            foreach ($group['fields'] as $field) {
+                [$prefix, $leaf] = explode('.', $field['target'], 2);
+
+                $stored = match ($prefix) {
+                    'survey'                     => $survey?->{$leaf},
+                    'programme', 'site_logistics' => $reviewed[$prefix][$leaf] ?? null,
+                    'project'                    => $project->getAttribute($leaf) ?? ($reviewed['project'][$leaf] ?? null),
+                    // `query`, `form_data`, `worksheet` and `om_context` have no
+                    // readable home before the document exists. Named rather
+                    // than defaulted, so a new prefix is a loud failure.
+                    'query', 'form_data', 'worksheet', 'om_context' => null,
+                };
+
+                if ($stored instanceof \DateTimeInterface) {
+                    $stored = $stored->format('Y-m-d');
+                }
+
+                $blank = $stored === null || $stored === '' || $stored === [];
+
+                $values[$field['key']] = $blank
+                    ? ($fromProject[$field['prefill'] ?? ''] ?? '')
+                    : $stored;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * The `LabourResource` NAMES a `resource-list` field may offer, keyed by the
+     * map's own prefill constant.
+     *
+     * LR-04, STRUCTURALLY: this method selects `name` and nothing else, so an
+     * engineer's email or phone cannot reach the page even by a later author
+     * forgetting to strip it. There is nothing to strip. The list is a
+     * convenience source and not a foreign key — the selected NAME is what the
+     * RAMS stores, because `lead_engineer_name` is a string column and
+     * `additional_engineers` a string array (T-46.2-11, accepted).
+     *
+     * @return array<string, array<int, string>>
+     */
+    private function resourceNames(): array
+    {
+        $names = [];
+
+        foreach (CockpitDocumentFormPresenter::resourceListRoles() as $prefill => $role) {
+            $names[$prefill] = LabourResource::query()
+                ->active()
+                ->whereJsonContains('roles', $role)
+                ->orderBy('name')
+                ->pluck('name')
+                ->all();
+        }
+
+        return $names;
     }
 
     /**

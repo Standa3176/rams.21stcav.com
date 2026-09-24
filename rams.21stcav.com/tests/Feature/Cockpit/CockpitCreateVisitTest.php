@@ -505,6 +505,24 @@ class CockpitCreateVisitTest extends TestCase
      *
      * `assertSame(0, ...)` not `assertLessThanOrEqual` — the inequality existed
      * only because the cap was four.
+     *
+     * ── NARROWED FROM MARKUP TO MEANING (Plan 46.2-05) ────────────────────
+     *
+     * 46.2-03 could assert `substr_count($panel, 'cav-qa') === 0`, because it had
+     * just deleted the only component that rendered that class. 46.2-05 renders
+     * the DOCUMENT form in the same position and deliberately in the same class
+     * family, so a class count can no longer distinguish "no visit control" from
+     * "no control at all" — and asserting the latter would mean asserting that the
+     * cockpit cannot generate anything, which is the defect that plan exists to
+     * fix.
+     *
+     * So the class count is replaced by TWO ROUTE ASSERTIONS and the copy list
+     * loses exactly one entry. That is stronger, not weaker: a class name says
+     * nothing about which act a control performs; a URL says everything. The
+     * panel is asserted to link to no `/cockpit/visits/` path at all and to post
+     * to no `visits.store`. `<form` stays at an exact zero for both judged URL
+     * states, because the document form opens on `?action=generate`, which is
+     * neither of them.
      */
     public function test_no_module_panel_renders_any_visit_control(): void
     {
@@ -524,25 +542,61 @@ class CockpitCreateVisitTest extends TestCase
                 $this->assertNotSame('', $panel, "The {$module} panel did not render — this test would pass vacuously.");
                 $judged++;
 
-                $this->assertSame(
-                    0,
-                    substr_count($panel, 'cav-qa'),
-                    "{$module} renders a Quick actions block. 46.2 D-02: the cockpit offers no visit control."
+                // ══ THE `cav-qa` CAP OF ZERO IS RETIRED (Plan 46.2-05) ══════
+                //
+                // 46.2-03 set this to ZERO because it had just deleted the only
+                // thing that rendered a `.cav-qa` subtree. Plan 46.2-05 renders
+                // the DOCUMENT form in that position, in that class family
+                // deliberately — reusing `.cav-qa__*` rather than starting a
+                // second one — so a count of zero is no longer the claim and
+                // would only be asserting that this page cannot generate anything.
+                //
+                // WHAT THIS TEST STILL OWNS IS THE VISIT CONTROL, and that is
+                // asserted below by COPY and by ROUTE, which is stronger than a
+                // class count ever was: a class name says nothing about which act
+                // a control performs, whereas a URL does. `cav-qa` is now asserted
+                // by CockpitDocumentFormTest, which knows how many controls the
+                // form should carry and why.
+                //
+                // NO VISIT ROUTE IS REACHABLE FROM THE PANEL. The one thing the
+                // `.cav-qa` block posts to is the document write.
+                $this->assertStringNotContainsString(
+                    '/cockpit/visits/',
+                    $panel,
+                    "{$module}'s panel links to a visit route. 46.2 D-02: the cockpit offers no visit act."
+                );
+                $this->assertStringNotContainsString(
+                    e(route('projects.cockpit.visits.store', $project)),
+                    $panel,
+                    "{$module}'s panel posts to the create-visit route."
                 );
 
                 // Every act's copy, plus the six neighbours that were always
                 // another phase's word. 'Create visit' joins them because it is
                 // now nobody's copy on this page — it lives at
                 // projects.cockpit.visits.store.
+                //
+                // 'Generate document' IS LIFTED FROM THIS LIST BY NAME (Plan
+                // 46.2-05), because that plan SHIPS it: the per-row control
+                // 46.2-03 removed is rebuilt in the panel from
+                // `CockpitDocumentFormPresenter::DOCUMENT_FIELD_MAP`. It is the one
+                // string here that names a capability this page has rather than
+                // one it defers, and it is checked against
+                // `CockpitReadOnlyFenceTest::DEFERRED_AFFORDANCES` (it is on no
+                // entry there). The other eleven stay.
                 foreach ([
-                    'Create visit', 'Generate document', 'Accept', 'Send back', 'Add note', 'Raise a snag',
+                    'Create visit', 'Accept', 'Send back', 'Add note', 'Raise a snag',
                     'Book a visit', 'Prepare a visit', 'Book another survey', 'Add a snag', 'Edit visit', 'Edit details',
                 ] as $banned) {
                     $this->assertStringNotContainsString($banned, $panel, "\"{$banned}\" must not appear in {$module}'s panel.");
                 }
 
-                // No form at all, in either URL state. Plan 46.2-05 ships the
-                // DOCUMENT form here and moves this number by name.
+                // NO FORM IN EITHER OF THESE TWO URL STATES, and that is still an
+                // exact zero rather than a retired assertion: `create-visit` is not
+                // in `ACTIONS` and the closed panel discloses an ANCHOR, not a
+                // form. The form the page DOES have opens only on
+                // `?action=generate`, which is neither state judged here, and
+                // CockpitDocumentFormTest counts it there.
                 $this->assertSame(0, substr_count($panel, '<form'));
             }
         }

@@ -246,6 +246,23 @@ class CockpitReadOnlyFenceTest extends TestCase
         'worksheet_photos',
         'worksheet_signoffs',
         'device_label_photos',
+
+        // GROWN 11 -> 13 BY PLAN 46.2-05, and these two are named for a specific
+        // reason rather than added for completeness.
+        //
+        // The document form's DISCLOSURE — `?action=generate`, a GET — reads both.
+        // `ProjectCockpitController::documentValues()` reads `project_packages`
+        // (the RAMS reviewed payload, so a field the PM filled in last month comes
+        // back filled in) and `resourceNames()` reads `labour_resources` (the
+        // engineer and programmer NAMES a `resource-list` field offers, LR-04).
+        //
+        // THAT IS EXACTLY WHY THEY BELONG HERE. This is the first cockpit GET that
+        // reads a table the cockpit also WRITES to on the neighbouring POST
+        // (`project_packages`), so "opening the form changes nothing" stops being
+        // obvious and starts needing proof. All three row-count tests below ITERATE
+        // this constant, so they picked these two up the moment the names landed.
+        'labour_resources',
+        'project_packages',
     ];
 
     /**
@@ -428,17 +445,21 @@ class CockpitReadOnlyFenceTest extends TestCase
                 $regions[] = $this->cockpitRegion($this->render($project, ['module' => $moduleKey, 'tab' => $tab]));
             }
 
-            // THE `?action=create-visit` RENDER IS RETIRED BY NAME (46.2 D-02,
-            // Plan 46.2-03). It disclosed the Quick actions form; `create-visit`
-            // is no longer in `ProjectCockpitController::ACTIONS`, which is now
-            // empty, so the call would have rendered the bare panel a second time
-            // — coverage that reads as extra and is not.
+            // THE `?action=generate` RENDER, REPLACING THE RETIRED
+            // `?action=create-visit` ONE (Plan 46.2-05, as 46.2-03 said it would).
             //
-            // PLAN 46.2-05 REPLACES IT WITH `?action=generate`, in the commit that
-            // ships the document form. Until then this loop covers the three tabs
-            // only, and it covers them by ITERATING the constant, so the day
-            // `generate` joins TABS-adjacent URL state the fence has to be edited
-            // here on purpose rather than drifting.
+            // 46-04 added a `create-visit` render here because the form was the
+            // only place a banned control could appear; 46.2-03 retired it when
+            // `ACTIONS` went empty, naming this plan as the one that would put it
+            // back. THIS IS THE MOST INPUT-HEAVY SURFACE THIS FENCE HAS EVER
+            // COVERED — the RAMS form alone discloses fourteen controls across five
+            // fieldsets plus a format radio group — and covering it is the whole
+            // point of the fence. A bare-page or closed-panel-only sweep would go
+            // on passing while anything at all was added to the disclosed form.
+            $regions[] = $this->cockpitRegion($this->render($project, [
+                'module' => $moduleKey,
+                'action' => 'generate',
+            ]));
         }
 
         return $regions;
@@ -504,7 +525,22 @@ class CockpitReadOnlyFenceTest extends TestCase
         Bus::fake();
 
         $this->assertNotContains('returned', ProjectCockpitController::TABS);
-        $this->assertSame([], ProjectCockpitController::ACTIONS);
+
+        // MOVED BY NAME, `[]` -> `['generate']` (Plan 46.2-05). `ACTIONS` is no
+        // longer empty, because that plan re-surfaced the DOCUMENT form on exactly
+        // the mechanism 46.2-03 kept dormant for it. The property this test cares
+        // about is unchanged and is now asserted DIRECTLY rather than by emptiness:
+        // NONE OF THE FOUR VISIT DISCLOSURES IS A LEGAL ACTION. An empty list said
+        // that only by accident.
+        $this->assertSame(['generate'], ProjectCockpitController::ACTIONS);
+
+        foreach (['create-visit', 'send-back', 'note', 'snag'] as $retired) {
+            $this->assertNotContains(
+                $retired,
+                ProjectCockpitController::ACTIONS,
+                "`{$retired}` is unsurfaced by 46.2 D-02 and must not be a disclosable action."
+            );
+        }
 
         $project = $this->populatedProject();
         $pm      = User::factory()->create();
@@ -726,10 +762,12 @@ class CockpitReadOnlyFenceTest extends TestCase
         $checked = 0;
 
         foreach (array_keys(CockpitModulePresenter::moduleMap()) as $moduleKey) {
-            // WAS `'action' => 'create-visit'`, the Quick actions disclosure.
-            // `ACTIONS` is empty, so the bare panel is what there is to judge.
+            // WAS `'action' => 'create-visit'` (46-04), then the bare panel while
+            // `ACTIONS` was empty (46.2-03). NOW `'action' => 'generate'` — the
+            // document form's disclosure, which is the only form on this page.
             $region = $this->cockpitRegion($this->render($project, [
                 'module' => $moduleKey,
+                'action' => 'generate',
             ]));
 
             $dom = new \DOMDocument();
@@ -756,23 +794,35 @@ class CockpitReadOnlyFenceTest extends TestCase
             }
         }
 
-        // MOVED `assertGreaterThanOrEqual(5, ...)` -> `assertSame(0, ...)`
-        // (46.2 D-02, Plan 46.2-03; finding F-7). See the docblock: the floor was
-        // an anti-vacuity guard while forms existed, the exact zero is the claim
-        // now that none does, and 46.2-05 moves it to an exact positive number in
-        // the commit that ships the document form.
+        // ══ 0 -> 4, AN EXACT POSITIVE (Plan 46.2-05) ════════════════════════
+        //
+        // The history of this number is `>= 5` (46-04) -> `=== 0` (46.2-03,
+        // finding F-7) -> `=== 4` (here). It has NEVER gone back to a floor and
+        // must not: `assertGreaterThanOrEqual` was removed from this file by
+        // 46.2-03 and is not to be reintroduced.
+        //
+        // FOUR IS ONE FORM PER MODULE, which is the design and not a coincidence:
+        // the panel offers exactly one control per row, and opening it discloses
+        // exactly one form. A FIFTH form inside the cockpit region is a red test
+        // — and so is a THIRD, because a module that stopped disclosing its form
+        // is a cockpit that has quietly stopped being able to generate that
+        // document, which is precisely the state 46.2-03 left behind and this plan
+        // exists to end.
+        //
+        // The literal is kept rather than derived from `moduleMap()` so this test
+        // pins the ARITHMETIC (one form per row), with the module count asserted
+        // next door so drift in either is loud.
         $this->assertSame(
-            0,
+            4,
             $checked,
-            'A form appeared inside the cockpit region. 46.2 D-02 left none; '.
-            'if Plan 46.2-05 shipped the document form, move this number BY NAME.'
+            'Exactly one document form per module panel. Move this number BY NAME, never to a floor.'
         );
 
-        // The per-form loop above is kept rather than deleted, so the first form
-        // to arrive is method-checked and token-checked on the day it lands. This
-        // asserts the loop is REACHABLE — that the region really was extracted and
-        // parsed — so a zero that came from a broken extraction still fails.
-        $this->assertGreaterThan(0, count(CockpitModulePresenter::moduleMap()));
+        $this->assertCount(
+            4,
+            CockpitModulePresenter::moduleMap(),
+            'Four rows since 46.2-01 (D-01) — the other half of the four above.'
+        );
     }
 
     public function test_the_fence_enumerates_the_whole_deferred_set(): void
@@ -866,8 +916,53 @@ class CockpitReadOnlyFenceTest extends TestCase
         // surfacing only; it reads no new table and writes none. PLAN 46.2-05
         // MOVES IT — generating a document writes rows this list does not yet
         // name.
+        //
+        // ══ 46.2-05 SHIPPED THE FORM. ALL THREE JUDGED AGAINST IT ═══════════
+        //
+        // 2 -> 2: `<select` STAYS, AND THIS IS THE COMMIT THAT COULD HAVE LIFTED
+        // IT. 46.2-03 named the condition — "if Plan 46.2-05 finds a field that
+        // genuinely needs a dropdown, it lifts the entry BY NAME in the commit
+        // that ships the control". IT FOUND NONE. The disclosed forms resolve to
+        // text, date, time, textarea, checkbox, radio (two to four options) and
+        // `resource-list` (checkboxes for a list-valued field, radios for a
+        // single-valued one) — seven types, closed set, not one dropdown. The
+        // widest option set on the page is the comms-room access radio at FOUR,
+        // and four radios read better than a four-item dropdown on a phone in a
+        // plant room. So the ruling held against the hardest case it has faced.
+        // `<script` stays too; there is none.
+        //
+        // AND THE FOUR ENTRIES 46-04 LIFTED (`<form`, `<input`, `<button`,
+        // `<textarea`) DO NOT RETURN — which 46.2-03 predicted exactly: it kept
+        // them off the list because re-banning them would mean lifting them again
+        // three commits later. This is that commit, and all four are back on the
+        // page. The prediction is recorded as CORRECT.
+        //
+        // 9 -> 9: RE-TAKEN FOR THE FIFTH TIME, on the most input-heavy surface
+        // this page has carried. The document form ships with NO directive and NO
+        // handler: its disclosure is `?action=generate` query state, its cancel is
+        // an anchor, and its submit is a real form POST. Alpine is still loaded
+        // globally and still available; the strongest argument for it — a
+        // progressive-enhancement need — has now failed to appear in FIVE phases,
+        // including the one that added a fourteen-field form. Retiring this list
+        // still means deciding that the cockpit ships JavaScript, and that
+        // decision still belongs to whoever writes the first line of it.
+        //
+        // 11 -> 13: MOVED, BY NAME, with the reason inline at the two new entries.
+        //
+        // 21 -> 21: `DEFERRED_AFFORDANCES` IS UNCHANGED, and the check was made
+        // rather than skipped. The form's one piece of copy is `Generate document`
+        // — the retired quick-actions' own word — and it was checked against every
+        // entry on that list before use: it is on none of them, while every
+        // neighbouring string a designer might have reached for IS banned
+        // (`Add document`, `Upload files`, `Issue to client`, `Mark as sent`,
+        // `Download`, `Export CSV`, `Open register`). Nothing was lifted, because
+        // nothing this plan ships was ever deferred: the generate control is a
+        // capability the page HAD and lost in 46.2-03, and a re-surfacing is not a
+        // deferral coming due. Asserted for real over every judged region —
+        // including the four `?action=generate` renders — by
+        // test_none_of_the_deferred_affordances_appears().
         $this->assertCount(2, self::FORBIDDEN_MARKUP);
-        $this->assertCount(11, self::WRITE_SURFACE_TABLES);
+        $this->assertCount(13, self::WRITE_SURFACE_TABLES);
         $this->assertCount(9, self::BANNED_HANDLER_ATTRIBUTES);
     }
 

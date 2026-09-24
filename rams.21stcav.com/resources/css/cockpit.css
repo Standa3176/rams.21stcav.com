@@ -1851,3 +1851,95 @@
     border-radius: var(--cav-radius-sm);
     background: var(--cav-surface);
 }
+
+/* ── The document form (Phase 46.2, Plan 46.2-05) ────────────────────────
+   LAYOUT AND SPACING ONLY. Every rule below reuses the existing `.cav-qa__*`
+   family rather than starting a second one, so the document form reads as the
+   same kind of thing the Quick actions block was. NO NEW COLOUR AND NO NEW
+   TOKEN: the two rules that mention colour use `--cav-mid` and `--cav-rule`,
+   both already defined on `.cav-brand`. Not one hex value, and no `position`
+   on anything — this block lives inside the panel, never inside a module row.
+
+   The design brief was one word: SIMPLE. The map gives RAMS fourteen fields
+   across five groups, so the groups do the work — each `<fieldset>` is a
+   labelled band with its own legend, and the fields inside it stack. What the
+   project already answers is printed as a VALUE, not offered as an input, so
+   the PM is never asked a question the app can answer. */
+.cav-cockpit .cav-qa__group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cav-s3);
+    margin: 0;
+    padding: var(--cav-s3) 0 0;
+    border: 0;
+    border-top: 1px solid var(--cav-rule);
+}
+
+/* The legend sits on its own line above its fields, on the same terms as
+   `.cav-qa__legend` in the Quick actions block. */
+.cav-cockpit .cav-qa__group > .cav-qa__legend {
+    padding: 0;
+}
+
+/* One line of plain guidance above the fields — the map's own `intro`, which
+   for the worksheet is the whole form (it has zero enterable fields, and
+   saying why is the requirement). */
+.cav-cockpit .cav-qa__intro {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--cav-mid);
+}
+
+/* A value the PROJECT already answers. Printed, never offered. */
+.cav-cockpit .cav-qa__value {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--cav-ink);
+}
+
+/* A textarea needs the full column; a date or a phone number does not, which
+   is why `.cav-qa__input` keeps its 220px cap and this widens past it. */
+.cav-cockpit .cav-qa__field--wide {
+    align-self: stretch;
+}
+
+.cav-cockpit .cav-qa__area {
+    max-width: none;
+    width: 100%;
+    resize: vertical;
+}
+
+/* The readiness list — things to go and FIX elsewhere, never inputs. It is the
+   generator's own missing-field output, so the panel and the generator cannot
+   disagree about what is missing. */
+.cav-cockpit .cav-qa__ready {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cav-s2);
+    padding: var(--cav-s3);
+    border: 1px solid var(--cav-border);
+    border-radius: var(--cav-radius-sm);
+    background: var(--cav-bg);
+}
+
+.cav-cockpit .cav-qa__ready-list {
+    margin: 0;
+    padding-left: var(--cav-s4);
+    list-style: disc;
+}
+
+.cav-cockpit .cav-qa__ready-item {
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--cav-ink);
+}
+
+/* The stated format gap (46.2 D-05 / DC-07). A sentence, because a control
+   that fails is worse than an explanation that does not. */
+.cav-cockpit .cav-qa__note {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--cav-mid);
+}

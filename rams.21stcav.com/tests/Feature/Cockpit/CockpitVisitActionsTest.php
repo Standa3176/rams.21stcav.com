@@ -1061,11 +1061,19 @@ class CockpitVisitActionsTest extends TestCase
             $this->assertSame(
                 0,
                 $this->countControls($rows[0]),
-                "?action={$action} disclosed a control. 46.2 D-02: ACTIONS is empty and nothing discloses."
+                "?action={$action} disclosed a control. 46.2 D-02: none of these is a legal action."
             );
         }
 
-        $this->assertSame([], ProjectCockpitController::ACTIONS);
+        // MOVED BY NAME, `[]` -> `['generate']` (Plan 46.2-05), which re-surfaced
+        // the DOCUMENT form on this mechanism. The four strings above are still
+        // illegal and that is now asserted directly instead of resting on the list
+        // being empty — a weaker claim that happened to hold for two commits.
+        $this->assertSame(['generate'], ProjectCockpitController::ACTIONS);
+
+        foreach (['send-back', 'note', 'snag', 'create-visit'] as $retired) {
+            $this->assertNotContains($retired, ProjectCockpitController::ACTIONS);
+        }
     }
 
     public function test_a_hostile_visit_title_and_a_hostile_query_are_never_echoed_raw(): void

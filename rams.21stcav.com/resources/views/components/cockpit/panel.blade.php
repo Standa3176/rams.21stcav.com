@@ -104,10 +104,22 @@
     //   'action', 'actionVisitId' — the visit disclosures' URL state
     //   'rooms', 'people'         — the Create visit form's option lists
     //   'evidence'                — the Returned tab's payload
-    // Plan 46.2-05 reintroduces an `action` prop for the DOCUMENT form's
-    // `?action=generate` disclosure. It is a new prop for a new control, not
-    // this one restored — the visit actions live at their own routes now (see
-    // the docblock above).
+    //
+    // `action` IS BACK (Plan 46.2-05) FOR THE DOCUMENT FORM'S `?action=generate`
+    // DISCLOSURE. It is a new prop for a new control, not the old one restored:
+    // `ACTIONS` holds exactly one string and none of the four visit disclosures
+    // is among them — those acts live at their own routes now (see the docblock).
+    // `actionVisitId`, `rooms`, `people` and `evidence` do NOT come back.
+    'action'       => null,
+    // The document form's data, all of it derived in ProjectCockpitController
+    // from CockpitDocumentFormPresenter — this file decides no field and no
+    // format of its own.
+    'docFields'    => [],
+    'docReadiness' => [],
+    'docFormats'   => [],
+    'docIntro'     => null,
+    'docValues'    => [],
+    'docResources' => [],
 ])
 
 @php
@@ -299,8 +311,28 @@
 
                  THE CAPABILITY WAS NOT DELETED. Every one of those five acts
                  and the photo ZIP still lives at its route, listed in this
-                 file's docblock. Plan 46.2-05 renders the DOCUMENT form in
-                 this position instead. --}}
+                 file's docblock. THE DOCUMENT FORM IS RENDERED IN THIS POSITION
+                 INSTEAD (Plan 46.2-05), and it is what gives this page its
+                 purpose back: between 46.2-03 and 46.2-05 the cockpit could
+                 generate nothing at all. --}}
+
+            {{-- ONE COMPONENT, EVERY DOCUMENT. It renders whatever
+                 `CockpitDocumentFormPresenter::DOCUMENT_FIELD_MAP` gives it and
+                 branches on FIELD TYPE, never on which document this is. Overview
+                 only, on the same reasoning the Quick actions block used: the
+                 Files tab is where documents are READ and this is where one is
+                 ASKED FOR. --}}
+            <x-cockpit.doc-form
+                :project="$project"
+                :module="$module"
+                :tab="$tab"
+                :action="$action"
+                :fields="$docFields"
+                :readiness="$docReadiness"
+                :formats="$docFormats"
+                :intro="$docIntro"
+                :values="$docValues"
+                :resources="$docResources" />
         @elseif ($tab === 'files')
             {{-- D-13 — the project's document library for this module. Every
                  document it holds, in one place. A document whose type has no
