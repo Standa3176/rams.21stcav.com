@@ -131,8 +131,11 @@
                         </p>
                     @endif
 
-                    {{-- Nine rows because the presenter returns nine (D-16).
-                         Never a hardcoded list and never a hardcoded count. --}}
+                    {{-- As many rows as the presenter returns — four since
+                         46.2 D-01 reversed D-16's nine. This file states no
+                         number precisely so that a reversal like that one is a
+                         map edit and nothing else: never a hardcoded list and
+                         never a hardcoded count. --}}
                     @foreach ($modules as $module)
                         <x-cockpit.module-row
                             :project="$project"
@@ -152,12 +155,13 @@
                         :progress="$progress"
                         :files="$panelFiles"
                         :notes="$panelNotes"
-                        :evidence="$panelEvidence ?? []"
-                        :activity="$activity"
-                        :action="$action"
-                        :action-visit-id="$actionVisitId"
-                        :rooms="$quickActionRooms"
-                        :people="$quickActionPeople" />
+                        :activity="$activity" />
+                    {{-- FIVE ATTRIBUTES REMOVED BY 46.2 D-02 (Plan 46.2-03):
+                         `evidence`, `action`, `action-visit-id`, `rooms` and
+                         `people`. They fed the Create visit form and the
+                         Returned tab, neither of which this page surfaces any
+                         more. The capability is unsurfaced, NOT deleted — see
+                         the routes named in panel.blade.php's docblock. --}}
                 @endif
             </div>
 

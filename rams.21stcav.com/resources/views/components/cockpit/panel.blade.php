@@ -28,56 +28,69 @@
 
     ── WHAT IS NOT HERE ─────────────────────────────────────────────────────
 
-    The design image draws a Quick actions block (Create visit · Add note ·
-    Upload files) and a "…" overflow on each activity row. PHASE 46 SHIPS THE
-    FIRST OF THOSE and nothing else: `x-cockpit.quick-actions` renders at the
-    bottom of the OVERVIEW body, on five module keys, one control each. Upload
-    files stays Phase 48 and the "…" overflow is still nobody's — neither is
-    rendered, not even disabled, because a disabled control is still an offer.
+    THE COCKPIT CARRIES NO VISIT CONTROL (Phase 46.2, Plan 46.2-03, D-02).
 
-    The Quick actions block is a plain form POST, so the paragraph above about
-    handler attributes is UNCHANGED: Phase 46 retired `<form`, `<input`,
-    `<button` and `<textarea` from the fence's forbidden markup, and retired
-    NONE of the nine banned handler attributes.
+    There is no Create visit, no Accept, no Send back, no Add note, no Raise a
+    snag, no Download all photos and no `Returned` tab on this page. That is a
+    SURFACING change and nothing else: **the visit workflow was not deleted, it
+    was unsurfaced.** Every act above still exists, still validates, still logs
+    and still passes its own tests — at its own route:
+
+      Create visit ......... projects.cockpit.visits.store
+      Accept ............... projects.cockpit.visits.accept
+      Send back ............ projects.cockpit.visits.send-back
+      Add note ............. projects.cockpit.visits.notes
+      Raise a snag ......... projects.cockpit.visits.snags
+      Download all photos .. projects.cockpit.visits.photos-zip
+      One photo ............ projects.cockpit.visits.photo
+
+    If you arrived here looking for the review surface, it is not gone: read
+    `.planning/phases/46.2-doc-creation-cockpit/46.2-RETIREMENT-LEDGER.md` and
+    46.2 D-02. `App\Support\Cockpit\CockpitEvidencePresenter` and
+    `App\Support\Cockpit\VisitEvidence` now have NO caller from the cockpit's
+    side. That is deliberate and it is this repo's own precedent —
+    `SiteSurveyDocxService` sat written and tested with no caller until Plan
+    46.2-02 wired it up. DO NOT delete them to tidy the graph.
+
+    What the cockpit region DOES carry from 46.2 on is a DOCUMENT FORM (Plan
+    46.2-05): the fields each of the four documents needs, POSTing to the
+    generate route. So the paragraph above about handler attributes is
+    UNCHANGED and still load-bearing — the form's disclosure is `?action=`
+    query-string state, not JavaScript. Phase 46 retired `<form`, `<input`,
+    `<button` and `<textarea` from the fence's forbidden markup; `<select` and
+    `<script` are still banned and all nine handler attributes are still
+    banned. If a document field genuinely needs a `<select`, lift the entry
+    BY NAME in the commit that ships the control. Never by deletion.
+
+    ── THREE TABS, AND THE LIST IS A LITERAL ────────────────────────────────
+
+    `overview`, `files`, `notes`. The tab list is no longer derived from the
+    drawer's data: the presence rule that made a fourth tab conditional (Phase
+    46.1, Plan 46.1-03, D-01 — "the tab renders iff this drawer holds a visit
+    with a source") went with the Returned tab, and with it the `$offersReturned`
+    derivation and the one-place `?tab=` coercion it fed. `returned` is also
+    gone from `ProjectCockpitController::TABS`, so a stale `?tab=returned`
+    bookmark now falls back to Overview in the CONTROLLER — one fallback, not
+    two that could disagree about which tab the strip marks and which body
+    renders. The page is still 200 and the submitted string is still never
+    echoed, exactly the treatment `?module=` has had since 45-11.
 
     The Files and Notes tabs and the Recent activity feed were filled by Plan
     45-12 from records the app already holds. Nothing in them writes, and the
     only link copy they use is "View".
 
-    ── THE RETURNED TAB'S PRESENCE RULE (Phase 46.1, Plan 46.1-03, D-01) ────
-
-    A fourth tab, `Returned`, sits between Overview and Files — but only where
-    there is something to review. THE RULE FOLLOWS THE DATA: the tab renders
-    if and only if this drawer holds at least one visit whose `source_type` is
-    set, i.e. at least one visit backed by an engineer record that could have
-    returned something.
-
-    Why not on every module: `Visit::returnedAt()` reads the SOURCE, so a visit
-    with no source can never be RETURNED, SENT BACK or ACCEPTED — and the four
-    document modules (RAMS, Drawings, O&M, Cable schedule) hold no visits at
-    all. They would carry a permanently empty fourth tab, which is noise on
-    seven of nine drawers.
-
-    Why not "Site survey and First fix only": that hardcodes two module keys.
-    It would strip the review surface from any commissioning, programming or
-    snagging visit that ever does carry a source, and it needs a hand-kept list
-    that drifts from the rows actually rendered — the same failure the module
-    whitelist in ProjectCockpitController avoids by reading the presenter's own
-    keys.
-
-    `?tab=returned` on a drawer that does not offer it is a STALE BOOKMARK, not
-    an error: `$tab` is coerced back to `overview` ONCE, at the top of the PHP
-    block below (a literal directive name is deliberately not written inside
-    this comment — Blade compiles statements BEFORE it strips comments, so a
-    directive mentioned in prose is still compiled), and the strip and the body
-    therefore cannot disagree about which tab is open.
-    The page is still 200 and the submitted string is never echoed — exactly
-    the treatment `?module=` has had since 45-11.
-
     The tab strip is still anchors only, still carries `aria-current="page"` on
     the active tab and still carries no `aria-expanded`. It is navigation
-    between URLs, not a disclosure widget, and a fourth URL does not change
-    that.
+    between URLs, not a disclosure widget.
+
+    ── WHAT STAYS, AND WHY IT IS NOT A CONTRADICTION (46.2 D-06) ────────────
+
+    The read-only VISIT LIST on the Overview tab stays, as does the module
+    row's "N visits" count phrase. The rows stop OFFERING visit actions; they
+    do not stop REPORTING. A PM generating a worksheet is helped, not confused,
+    by seeing that two visits exist — and removing the phrase would mean
+    redesigning the module row, which sketch 004's visual design explicitly
+    survives.
 --}}
 @props([
     'project',
@@ -87,18 +100,14 @@
     'files'    => null,
     'notes'    => null,
     'activity' => null,
-    // Phase 46 — Quick actions. `action` is the panel's THIRD piece of URL
-    // state, resolved by membership in ProjectCockpitController exactly as
-    // `module` and `tab` are, so an unknown value discloses nothing.
-    'action'   => null,
-    // Plan 46-06 — the visit row the `send-back` disclosure names. Compared,
-    // never looked up.
-    'actionVisitId' => null,
-    'rooms'    => [],
-    'people'   => [],
-    // Plan 46.1-03 — the Returned tab's payload, keyed by visit id and derived
-    // in ProjectCockpitController. Empty when no module is open.
-    'evidence' => [],
+    // FIVE PROPS REMOVED BY 46.2 D-02 (Plan 46.2-03), unsurfaced not deleted:
+    //   'action', 'actionVisitId' — the visit disclosures' URL state
+    //   'rooms', 'people'         — the Create visit form's option lists
+    //   'evidence'                — the Returned tab's payload
+    // Plan 46.2-05 reintroduces an `action` prop for the DOCUMENT form's
+    // `?action=generate` disclosure. It is a new prop for a new control, not
+    // this one restored — the visit actions live at their own routes now (see
+    // the docblock above).
 ])
 
 @php
@@ -107,29 +116,17 @@
     /** @var \Illuminate\Support\Collection $visits */
     $visits = $module['section']['visits'] ?? collect();
 
-    // THE PRESENCE RULE — see the docblock above. Read from the visits already
-    // on this panel, so no module key is named anywhere.
-    $offersReturned = $visits->contains(fn ($visit) => $visit->source_type !== null);
-
-    // ONE COERCION, ONE VARIABLE. A stale `?tab=returned` bookmark falls back
-    // to Overview here rather than in two branches that could disagree about
-    // which tab the strip marks and which body renders.
-    if ($tab === 'returned' && ! $offersReturned) {
-        $tab = 'overview';
-    }
-
-    $tabs = ['overview' => 'Overview'];
-
-    if ($offersReturned) {
-        $tabs['returned'] = 'Returned';
-    }
-
-    $tabs['files'] = 'Files';
-    $tabs['notes'] = 'Notes';
-
-    // Only the sourced visits reach the Returned tab. A sourceless visit has
-    // nothing to review and Overview already lists it.
-    $returnedVisits = $visits->filter(fn ($visit) => $visit->source_type !== null)->values();
+    // THREE TABS, A LITERAL (46.2 D-02). The `$offersReturned` derivation, the
+    // conditional fourth entry, the one-place `?tab=returned` coercion and the
+    // `$returnedVisits` filter were all removed with the Returned tab. The
+    // fallback for a stale `?tab=returned` bookmark now lives in
+    // ProjectCockpitController::resolveTab(), which no longer lists `returned`
+    // as a legal tab — so this file needs no coercion at all.
+    $tabs = [
+        'overview' => 'Overview',
+        'files'    => 'Files',
+        'notes'    => 'Notes',
+    ];
 
     // The ring's geometry. r=26 on a 64x64 box; the dash array is the arc
     // length so the stroke draws exactly `percent` of the circumference.
@@ -174,7 +171,8 @@
 
     <p class="cav-panel__purpose">{{ $module['description'] }}</p>
 
-    {{-- Three anchors, or four where the drawer holds a sourced visit. Each
+    {{-- Three anchors, always exactly three (46.2 D-02 — the conditional
+         fourth went with the Returned tab). Each
          carries the CURRENT module forward, so a tab switch never closes the
          panel. aria-current marks the active one;
          there is no aria-expanded, because none of this is a disclosure
@@ -244,9 +242,13 @@
                          46.1-05, D-02). Overview still says where every visit
                          stands — accepted by whom, sent back when, awaiting
                          the engineer, scope locked, snags raised — and it
-                         offers nothing. The four acts moved beneath the
-                         evidence on the Returned tab, because a PM should not
-                         be able to accept a visit without having looked at it.
+                         offers nothing. 46.1-05 moved the four acts beneath the
+                         evidence on the Returned tab; 46.2 D-02 then took the
+                         Returned tab off this page entirely, so THE READ-ONLY
+                         LIST IS NOW THE ONLY VISIT SURFACE HERE — kept
+                         deliberately by 46.2 D-06, because a row that reports
+                         is not a row that offers. The four acts are still live
+                         at their own routes (see the docblock).
                          With no controls there is no form to disclose, so the
                          two disclosure props are DROPPED rather than left as
                          wiring that can never fire. --}}
@@ -284,25 +286,21 @@
                 @endif
             </div>
 
-            {{-- Quick actions sit at the BOTTOM of Overview, where sketch 004
-                 draws them (D-15). The Files and Notes tabs carry none — one
-                 place to act, not three. --}}
-            <x-cockpit.quick-actions
-                :project="$project"
-                :module="$module"
-                :action="$action"
-                :rooms="$rooms"
-                :people="$people" />
-        @elseif ($tab === 'returned')
-            {{-- D-01 / RV-01 — what the engineer actually sent back. Read live
-                 and read-only; the tab writes nothing and edits nothing. --}}
-            <x-cockpit.returned-tab
-                :project="$project"
-                :module="$module"
-                :visits="$returnedVisits"
-                :evidence="$evidence"
-                :action="$action"
-                :action-visit-id="$actionVisitId" />
+            {{-- THE QUICK ACTIONS BLOCK AND THE RETURNED TAB WERE HERE
+                 (46.2 D-02, Plan 46.2-03). `x-cockpit.quick-actions` rendered
+                 the Create visit form at the bottom of Overview (D-15) and
+                 `x-cockpit.returned-tab` rendered the engineer's returned
+                 evidence with Accept / Send back / Add note / Raise a snag
+                 beneath it. Both Blade components were deleted from disk on
+                 this repo's own established rule — CockpitPageTest's ruling on
+                 the superseded accordion: "a dead drawer component left on
+                 disk is an invitation for a later agent to render one beside
+                 the new design."
+
+                 THE CAPABILITY WAS NOT DELETED. Every one of those five acts
+                 and the photo ZIP still lives at its route, listed in this
+                 file's docblock. Plan 46.2-05 renders the DOCUMENT form in
+                 this position instead. --}}
         @elseif ($tab === 'files')
             {{-- D-13 — the project's document library for this module. Every
                  document it holds, in one place. A document whose type has no
@@ -328,7 +326,8 @@
         @else
             {{-- Notes the module itself recorded, plus the project's logged
                  notes. Never Project::notes, which is a project-level field
-                 and would print the same paragraph under all nine modules. --}}
+                 and would print the same paragraph under every module (all four
+                 of them since 46.2 D-01; it was nine when this was written). --}}
             @if ($notes->isNotEmpty())
                 <div class="cav-panel__card">
                     <span class="cav-panel__card-head">Notes</span>

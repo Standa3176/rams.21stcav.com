@@ -3,11 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\DTO\ProjectHealth;
-use App\Models\LabourResource;
 use App\Models\Project;
-use App\Models\SiteSurvey;
 use App\Services\ProjectHealthService;
-use App\Support\Cockpit\CockpitEvidencePresenter;
 use App\Support\Cockpit\CockpitHeaderPresenter;
 use App\Support\Cockpit\CockpitModulePresenter;
 use App\Support\Cockpit\CockpitPanelPresenter;
@@ -54,46 +51,53 @@ class ProjectCockpitController extends Controller
      * first entry.
      *
      * THE ORDER OF THIS ARRAY IS THE TAB ORDER, and `TABS[0]` is still the
-     * fallback — which is why Phase 46.1 inserted `returned` at index 1 (D-01
-     * puts it between Overview and Files) without `resolveTab()` changing at
-     * all. Everything that ITERATES this constant rather than sampling it —
-     * `CockpitReadOnlyFenceTest::everyRegion()`, its two GET row-count tests,
-     * `CockpitPageTest::test_every_module_renders_on_every_tab()` — picked the
-     * new tab up on the day it was added. That is the point of iterating the
+     * fallback. Everything that ITERATES this constant rather than sampling it
+     * — `CockpitReadOnlyFenceTest::everyRegion()`, its two GET row-count tests,
+     * `CockpitPageTest::test_every_module_renders_on_every_tab()` — picks a tab
+     * change up on the day it lands. That is the point of iterating the
      * constant, and the reason a hand-maintained second list is never written.
      *
-     * A tab being IN this list does not mean every module offers it: the
-     * Returned tab renders only where the open module's drawer holds a visit
-     * with a source (see `panel.blade.php`). Membership here is about what the
-     * URL may legally say, not about what a given drawer draws.
+     * `returned` WAS AT INDEX 1 AND IS GONE (Phase 46.2, Plan 46.2-03, D-02).
+     * The Returned tab is no longer surfaced on the cockpit, so `returned` is
+     * no longer a legal thing for the URL to say, and a stale `?tab=returned`
+     * bookmark falls back to `overview` HERE — one fallback, in
+     * `resolveTab()`. Phase 46.1's second fallback inside `panel.blade.php`
+     * (the `$offersReturned` coercion) went with it, so the strip and the body
+     * can no longer disagree about which tab is open. The page is still 200 and
+     * the submitted string is still never echoed.
+     *
+     * UNSURFACED, NOT DELETED: the returned-evidence review still exists in
+     * full — `App\Support\Cockpit\CockpitEvidencePresenter`,
+     * `App\Support\Cockpit\VisitEvidence`, `ProjectCockpitEvidenceController`
+     * and the five `ProjectCockpitActionController` POSTs are all untouched and
+     * still green at their own routes.
      *
      * @var array<int, string>
      */
-    public const TABS = ['overview', 'returned', 'files', 'notes'];
+    public const TABS = ['overview', 'files', 'notes'];
 
     /**
-     * The panel's THIRD piece of URL state (Phase 46, Plan 46-04).
+     * The panel's THIRD piece of URL state (Phase 46, Plan 46-04) — DORMANT.
      *
-     * `?action=create-visit` discloses the Quick actions form. It is resolved
-     * by MEMBERSHIP against this list, exactly as `?module=` and `?tab=` are,
-     * so an unrecognised value discloses nothing and is never echoed. This is
-     * the only edit Phase 46 makes to this controller, and it ADDS NO WRITE:
-     * the cockpit's writes live in ProjectCockpitActionController.
+     * This list held `create-visit`, `send-back`, `note` and `snag`: the four
+     * visit disclosures. 46.2 D-02 took all four off the page, so as of Plan
+     * 46.2-03 THERE IS NO DISCLOSABLE ACTION AND THE LIST IS EMPTY. Its
+     * resolver, `resolveAction()`, went with them.
      *
-     * Plan 46-06 adds `send-back`, which discloses ONE visit row's reason
-     * field. That row is named by a fourth piece of URL state, `?visit={id}`,
-     * resolved as an INT and only ever COMPARED against the ids already being
-     * rendered — it addresses no record and is never echoed, so a hostile
-     * value discloses nothing.
+     * The constant is KEPT rather than deleted on the same reasoning that kept
+     * `CockpitModulePresenter::COUNT_NONE` dormant in Plan 46.2-01: Plan
+     * 46.2-05 ships the document form, whose `?action=generate` disclosure is
+     * the next entry and needs exactly this mechanism — membership resolution,
+     * never validate(), so an unrecognised value discloses nothing and is
+     * never echoed.
      *
-     * Plan 46-07 adds `note` and `snag`, which disclose ONE visit row's note
-     * field or snag fields. ONLY ONE FITS IN THE URL AT A TIME, and that is a
-     * feature: the panel cannot become a wall of open forms, which is the
-     * failure the user named when they rejected an earlier design as busy.
+     * The four removed strings are NOT deferred capabilities. They exist and
+     * they work, at `projects.cockpit.visits.store` / `.send-back` / `.notes` /
+     * `.snags`. Only the URL state that DISCLOSED THEIR FORMS is gone.
      *
      * @var array<int, string>
      */
-    public const ACTIONS = ['create-visit', 'send-back', 'note', 'snag'];
+    public const ACTIONS = [];
 
     public function __construct(
         private ProjectHealthService $health,
@@ -101,7 +105,6 @@ class ProjectCockpitController extends Controller
         private CockpitModulePresenter $modulePresenter,
         private CockpitHeaderPresenter $headerPresenter,
         private CockpitPanelPresenter $panelPresenter,
-        private CockpitEvidencePresenter $evidencePresenter,
     ) {
     }
 
@@ -155,28 +158,26 @@ class ProjectCockpitController extends Controller
         $panelNotes = $moduleKey === null ? collect() : $this->panelPresenter->notes($project, $moduleKey);
         $activity   = $this->panelPresenter->activity($project);
 
-        // The Returned tab's payload (Phase 46.1, Plan 46.1-03). Keyed by
-        // visit id, derived HERE and never in Blade, on the same rule as the
-        // three above: the controller wires, the presenter derives, the view
-        // draws. Null when no module is open, because the panel that would
-        // read it is not rendered.
-        $panelEvidence = $openModule === null ? null : $this->evidenceFor($project, $openModule);
-
-        // Quick actions (Plan 46-04). The form's two option lists are read
-        // HERE rather than in Blade, on the same rule as everything else on
-        // this page. Both are READS: deriving them writes nothing, which
-        // CockpitReadOnlyFenceTest's GET row-count tests still prove.
-        $action = $this->resolveAction($request);
-
-        // Only the create form needs these two lists, so `?action=send-back`
-        // must not pay for a query it never reads.
-        $quickActionRooms  = $action === 'create-visit' ? $this->roomNames($project) : [];
-        $quickActionPeople = $action === 'create-visit' ? $this->activePeople() : [];
-
-        // The visit row the `send-back` disclosure names. An int or null, and
-        // nothing looks it up: the row component COMPARES it against the
-        // visits it is already rendering (Plan 46-06).
-        $actionVisitId = $this->resolveActionVisitId($request);
+        // FOUR WIRINGS REMOVED BY 46.2 D-02 (Plan 46.2-03), unsurfaced not
+        // deleted — and with them four private helpers:
+        //
+        //   $panelEvidence     ← evidenceFor()          the Returned tab payload
+        //   $action            ← resolveAction()        the four visit disclosures
+        //   $quickActionRooms  ← roomNames()            Create visit's room list
+        //   $quickActionPeople ← activePeople()         Create visit's people list
+        //   $actionVisitId     ← resolveActionVisitId() the send-back row id
+        //
+        // Nothing behind them was touched. `CockpitEvidencePresenter` and
+        // `VisitEvidence` still exist, still have their own green unit tests,
+        // and are now ZERO-CALLER SERVICES from the cockpit's side. That is
+        // deliberate and it matches this repo's own precedent — SiteSurveyDocxService
+        // sat written and tested with no caller until Plan 46.2-02 wired it up.
+        // DO NOT delete them to tidy the dependency graph. The five POST routes
+        // and the two evidence GETs remain registered and green.
+        //
+        // The `CockpitEvidencePresenter` constructor injection went with
+        // evidenceFor(), its only caller. Re-inject it in the commit that ships
+        // a surface that reads it.
 
         $masthead   = $this->headerPresenter->masthead($project);
         $kpis       = $this->headerPresenter->kpis($project, $health);
@@ -196,95 +197,36 @@ class ProjectCockpitController extends Controller
             'progress',
             'panelFiles',
             'panelNotes',
-            'panelEvidence',
             'activity',
-            'action',
-            'actionVisitId',
-            'quickActionRooms',
-            'quickActionPeople',
         ));
     }
 
-    /**
-     * The evidence behind every SOURCED visit in the open module's drawer,
-     * keyed by visit id (Phase 46.1, Plan 46.1-03).
+    /*
+     * FIVE PRIVATE HELPERS WERE HERE, AND ARE RETIRED BY NAME (46.2 D-02,
+     * Plan 46.2-03). Each fed a control the cockpit no longer surfaces. None
+     * of the CAPABILITY they fed was deleted:
      *
-     * A visit with no `source_type` is skipped rather than given an empty
-     * entry: nothing was ever issued, so nothing could have come back, and the
-     * Returned tab's own presence rule is derived from the same fact.
+     *   evidenceFor()           — reshaped CockpitEvidencePresenter's payload
+     *                             for the Returned tab. The presenter,
+     *                             VisitEvidence, VisitPhotoZipBuilder and
+     *                             ProjectCockpitEvidenceController are all
+     *                             untouched and still green; the photo and ZIP
+     *                             GETs are still registered.
+     *   resolveAction()         — resolved `?action=` against ACTIONS, which is
+     *                             now empty. Plan 46.2-05 brings this back for
+     *                             the document form's `?action=generate`.
+     *   resolveActionVisitId()  — cast `?visit=` for the send-back disclosure.
+     *                             The POST's own project-scoped ownership check
+     *                             (T-46-06-01) was always the real guard and is
+     *                             unchanged.
+     *   roomNames()             — Create visit's "Rooms in scope" option list.
+     *   activePeople()          — Create visit's engineer option list.
      *
-     * TWO RESHAPES HAPPEN HERE, both deliberate:
-     *
-     *  1. every photo gains a `url` — the project-scoped GET registered by
-     *     Plan 46.1-02. The route is built in PHP, once, rather than in Blade
-     *     inside a loop.
-     *  2. every photo LOSES its `path`. The view has no use for a storage
-     *     path and a page that never receives one cannot print one; the ZIP
-     *     builder and the photo route remain the only two places in this phase
-     *     where a stored path meets the filesystem (T-46.1-05).
-     *
-     * `captured_by`, `ip_address` and `user_agent` are absent because
-     * `VisitEvidence` never returns them (RV-03). Nothing here reaches past
-     * the presenter to a model to get them back, and nothing ever should.
-     *
-     * @param  array<string, mixed>  $module
-     * @return array<int, array<string, mixed>>
+     * The acts themselves live at projects.cockpit.visits.store / .accept /
+     * .send-back / .notes / .snags and .photos-zip / .photo. If you need one of
+     * these helpers back, the surface is what you are adding — write it in the
+     * commit that ships the control, do not resurrect the wiring first.
      */
-    private function evidenceFor(Project $project, array $module): array
-    {
-        /** @var \Illuminate\Support\Collection<int, \App\Models\Visit> $visits */
-        $visits = $module['section']['visits'] ?? collect();
-
-        $evidence = [];
-
-        foreach ($visits as $visit) {
-            if ($visit->source_type === null) {
-                continue;
-            }
-
-            $payload = $this->evidencePresenter->evidence($project, $visit);
-
-            if ($payload === null) {
-                continue;
-            }
-
-            foreach ($payload['photos_by_bucket'] as $bucket => $photos) {
-                $payload['photos_by_bucket'][$bucket] = array_map(
-                    function (array $photo) use ($project, $visit): array {
-                        $photo['url'] = route('projects.cockpit.visits.photo', [
-                            'project' => $project,
-                            'visit'   => $visit,
-                            'kind'    => $photo['kind'],
-                            'photo'   => $photo['id'],
-                        ]);
-
-                        unset($photo['path']);
-
-                        return $photo;
-                    },
-                    $photos
-                );
-            }
-
-            $payload['serials'] = array_map(
-                function (array $serial) use ($project, $visit): array {
-                    $serial['url'] = route('projects.cockpit.visits.photo', [
-                        'project' => $project,
-                        'visit'   => $visit,
-                        'kind'    => \App\Support\Cockpit\VisitEvidence::KIND_LABEL,
-                        'photo'   => $serial['id'],
-                    ]);
-
-                    return $serial;
-                },
-                $payload['serials']
-            );
-
-            $evidence[(int) $visit->id] = $payload;
-        }
-
-        return $evidence;
-    }
 
     /**
      * The open module, or null.
@@ -320,89 +262,6 @@ class ProjectCockpitController extends Controller
         }
 
         return in_array($submitted, self::TABS, true) ? $submitted : self::TABS[0];
-    }
-
-    /**
-     * The disclosed Quick action, or null.
-     *
-     * Membership again, never validate(): a stale `?action=` bookmark is not an
-     * error worth showing a PM, and a redirect-with-error-bag is a write-shaped
-     * behaviour that belongs on the POST, not here.
-     */
-    private function resolveAction(Request $request): ?string
-    {
-        $submitted = $request->query('action');
-
-        if (! is_string($submitted)) {
-            return null;
-        }
-
-        return in_array($submitted, self::ACTIONS, true) ? $submitted : null;
-    }
-
-    /**
-     * The visit id the `send-back` disclosure names, or null.
-     *
-     * CAST, NEVER LOOKED UP. A visit id in a query string must not address a
-     * record on a read page: this value is compared against the visits the
-     * panel is already rendering, so a foreign or hostile id simply opens
-     * nothing. The POST it discloses does its own project-scoped ownership
-     * check (T-46-06-01).
-     */
-    private function resolveActionVisitId(Request $request): ?int
-    {
-        $submitted = $request->query('visit');
-
-        if (! is_string($submitted) && ! is_int($submitted)) {
-            return null;
-        }
-
-        return ctype_digit((string) $submitted) ? (int) $submitted : null;
-    }
-
-    /**
-     * The project's survey room names, for the "Rooms in scope" checkboxes
-     * (D-05). Read from the live survey the engineer link is built on, so the
-     * rooms a PM ticks are rooms that exist.
-     *
-     * @return array<int, string>
-     */
-    private function roomNames(Project $project): array
-    {
-        $survey = SiteSurvey::where('project_id', $project->id)
-            ->whereNull('superseded_at')
-            ->whereIn('status', ['draft', 'completed'])
-            ->with('rooms')
-            ->first();
-
-        if ($survey === null) {
-            return [];
-        }
-
-        return $survey->rooms
-            ->pluck('room_name')
-            ->filter(fn ($name) => is_string($name) && trim($name) !== '')
-            ->values()
-            ->all();
-    }
-
-    /**
-     * ACTIVE labour resources, NAME ONLY (LR-04).
-     *
-     * The cockpit is staff-auth, so contact details would be sanctioned here —
-     * but this control needs only names, so only names are read. Inactive
-     * people are not offered: assigning one would be assigning somebody who
-     * has left.
-     *
-     * @return array<int, array{id: int, name: string}>
-     */
-    private function activePeople(): array
-    {
-        return LabourResource::active()
-            ->orderBy('name')
-            ->get(['id', 'name'])
-            ->map(fn (LabourResource $r) => ['id' => $r->id, 'name' => (string) $r->name])
-            ->all();
     }
 
     /**
