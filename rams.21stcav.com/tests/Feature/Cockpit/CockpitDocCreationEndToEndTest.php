@@ -548,8 +548,25 @@ class CockpitDocCreationEndToEndTest extends TestCase
         $this->assertTrue(Route::has('om-manuals.download-pdf'));
     }
 
-    public function test_the_site_survey_reaches_its_creator_and_stops_unspent(): void
+    /**
+     * THE SECOND ARTIFACT THIS PLAN MAY HONESTLY OPEN - and the reason it may.
+     *
+     * The brief that carried this plan's spend prohibition named the site survey
+     * alongside the RAMS and the O&M as "running through the AI pipeline". IT DOES
+     * NOT. `site-surveys.docx` -> `SiteSurveyController::downloadDocx` ->
+     * `SiteSurveyDocxService::build()` is pure PhpWord + `DocumentTemplateService`
+     * with no model call anywhere in it - the same class of thing as
+     * `WorksheetDocxService`. The premise was checked and corrected by the
+     * coordinator, and ONLY the Word cell was authorised: no RAMS, no O&M, no PDF.
+     *
+     * `Bus::fake()` and the inherited `Http::fake()` stay on regardless, so if that
+     * path ever acquires a model call this test cannot pay for it - it goes red
+     * instead.
+     */
+    public function test_the_site_survey_walks_from_the_form_to_a_word_file_that_opens(): void
     {
+        Bus::fake();
+
         $pm      = $this->user();
         $project = $this->project();
 
@@ -581,6 +598,55 @@ class CockpitDocCreationEndToEndTest extends TestCase
 
         $this->assertTrue(Route::has('site-surveys.docx'));
         $this->assertTrue(Route::has('site-surveys.pdf'));
+
+        // -- AND THE WORD DOCUMENT OPENS -----------------------------------
+        //
+        // Same standard as the Worksheet: produced through the real route, real
+        // bytes, a readable zip container, a document part, and the PM's OWN
+        // TYPED VALUE inside the XML. The PDF cell is NOT exercised - it is
+        // Browsershot, it was not authorised here, and it remains NOT VERIFIED.
+        $response = $this->actingAs($pm)
+            ->get(route('site-surveys.docx', $survey))
+            ->assertOk();
+
+        $this->assertStringContainsString(
+            '.docx',
+            (string) $response->headers->get('content-disposition'),
+            'site-surveys.docx must stream a .docx attachment.'
+        );
+
+        $path = $response->baseResponse->getFile()->getPathname();
+
+        try {
+            $this->assertFileExists($path);
+            $this->assertGreaterThan(0, filesize($path), 'A zero-byte document is a failed generation (T-46.2-20).');
+
+            $zip = new ZipArchive();
+            $this->assertTrue($zip->open($path) === true, 'The .docx is not a readable zip container.');
+
+            $names = [];
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $names[] = $zip->getNameIndex($i);
+            }
+
+            $this->assertContains('word/document.xml', $names, 'No document part - Word would refuse to open this.');
+
+            $xml = (string) $zip->getFromName('word/document.xml');
+            $zip->close();
+
+            $this->assertStringContainsString('Northbank Fitout', $xml, 'The document does not carry the project name.');
+            $this->assertStringContainsString('Kit Farrow', $xml, 'The surveyor the PM typed never reached the document.');
+            $this->assertStringContainsString('Northbank Media', $xml, 'The document does not carry the client.');
+        } finally {
+            // `SiteSurveyDocxService` writes to `storage_path('app/site-surveys')`
+            // DIRECTLY, bypassing `DocumentArtifactStorage`, so it is unaffected by
+            // `Storage::fake()` and this artifact lands in the repo's own storage
+            // tree. Cleaned up here rather than left to accumulate - the hygiene
+            // note in `46.2-06-SUMMARY.md` is about the writer, not about this test.
+            if (is_string($path) && $path !== '' && file_exists($path)) {
+                @unlink($path);
+            }
+        }
     }
 
     // ── DC-09: unsurfaced is not deleted ───────────────────────────────────
