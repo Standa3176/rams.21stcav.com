@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\SiteSurvey;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
+use PhpOffice\PhpWord\Settings;
 use PhpOffice\PhpWord\SimpleType\Jc;
 
 /**
@@ -38,6 +39,9 @@ class SiteSurveyDocxService
      */
     public function build(SiteSurvey $survey): string
     {
+        // Ensure PhpWord escapes &, <, > in text content (off by default).
+        Settings::setOutputEscapingEnabled(true);
+
         $survey->loadMissing('rooms.photos');
 
         $storageDir = storage_path('app/site-surveys');
