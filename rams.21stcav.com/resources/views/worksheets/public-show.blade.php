@@ -567,6 +567,29 @@
         @php
             $rooms = $worksheet->generated_data['rooms'] ?? [];
 
+            // ── D-46-05-01 — sign-off gate defaults, declared UNCONDITIONALLY ──
+            // The real values are computed in the @else arm of `@if(empty($rooms))`
+            // below (~:773), but BOTH are read AFTER that @endif in the Client
+            // Sign-Off card (~:1359, ~:1441). A worksheet with no rooms therefore
+            // reached those reads with the variables undefined → 500 on a live
+            // engineer link. Three states get here: `generated_data` still NULL
+            // while BuildWorksheetJob is queued, that job throwing on zero-room /
+            // no-substantive-content (NULL forever), and WorksheetEditAdapter's
+            // remove_room emptying `rooms[]` (no last-room guard).
+            //
+            // FALSE is deliberate, not merely the falsy default. Zero rooms means
+            // zero unreviewed rooms, so `! empty($unreviewedRooms)` over the empty
+            // set is false — the defaults simply agree with the expression they
+            // stand in for. Blocking instead would render a warning naming NO
+            // rooms, on a page with no room drawers to clear it, and this gate is
+            // cosmetic anyway (the sign POST is accepted regardless). If an empty
+            // worksheet must not be signable, that belongs in
+            // PublicWorksheetController::sign, not in a display flag.
+            //
+            // Keep these ABOVE the branch. Moving them inside it restores the 500.
+            $signOffBlocked  = false;
+            $unreviewedRooms = [];
+
             // ── Survey Reference lookup (per quick task 260504-dh8) ────────────────
             // Build a per-project, room-name-keyed lookup of engineer-feedback
             // captured in the latest SiteSurvey for this worksheet's project. Used
