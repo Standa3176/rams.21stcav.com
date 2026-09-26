@@ -329,6 +329,23 @@ class CockpitReadOnlyFenceTest extends TestCase
         $this->assertNotEmpty($region, 'The extracted cockpit region is empty — the fence would pass vacuously.');
 
         // TOP bracket — the masthead, the first thing in the subtree.
+        //
+        // ══ JUDGED AGAINST 46.3-02's RESTRUCTURE. VERDICT: THIS BRACKET DID
+        //    NOT HAVE TO MOVE. ═══════════════════════════════════════════════
+        //
+        // The judgement was made rather than skipped, and the verdict is
+        // written down because an UNJUDGED bracket is the vacuity this helper
+        // exists to prevent — while a bracket retargeted for no reason is
+        // churn that costs the next reader their trust in the rest of it.
+        //
+        // 46.3 D-01 / D-02 moved the PANEL (out of a second grid column and
+        // into the module list, after its own row) and stopped rendering the
+        // other rows. Both changes happen INSIDE `.cav-layout`. The masthead
+        // is still the first child of `.cav-page` and `.cav-page` is still the
+        // first child of `.cav-cockpit` — cockpit.blade.php's first three
+        // elements are untouched by this plan. The string is CONTENT (the
+        // project's own name, from the masthead) rather than structure, which
+        // is why the restructure could not reach it.
         $this->assertStringContainsString(
             self::PROJECT_NAME,
             $region,
@@ -337,6 +354,25 @@ class CockpitReadOnlyFenceTest extends TestCase
 
         // BOTTOM bracket — the last element in the page shell. Without this, a
         // truncated extraction would still satisfy the top bracket.
+        //
+        // ══ JUDGED AGAINST 46.3-02's RESTRUCTURE. VERDICT: THIS BRACKET DID
+        //    NOT HAVE TO MOVE EITHER — AND THE OPEN-RENDER HALF WAS CHECKED
+        //    SEPARATELY, BECAUSE COLLAPSE-AWAY SHORTENS THE PAGE. ════════════
+        //
+        // `Open full project` is still the last element in the page shell: the
+        // `<p class="cav-note">` that holds it is a sibling of `.cav-layout`
+        // and still the final child of `.cav-page`. The restructure took place
+        // one level in, so the end of the shell never moved.
+        //
+        // AND IT IS STILL THERE ON AN OPEN-MODULE RENDER, not only a closed
+        // one. That is the half a restructure quietly breaks: D-02 removes
+        // three of the four rows, so an open page is much shorter than it was,
+        // and a link that had drifted inside the module list would have
+        // vanished with them. It did not — and this is not taken on trust:
+        // everyRegion() runs this helper over the bare page, every module on
+        // every tab AND every `?action=generate` render, so the assertion
+        // below executes on all seventeen and a missing link on any one of
+        // them is a red.
         $this->assertStringContainsString(
             'Open full project',
             $region,
@@ -961,6 +997,47 @@ class CockpitReadOnlyFenceTest extends TestCase
         // deferral coming due. Asserted for real over every judged region —
         // including the four `?action=generate` renders — by
         // test_none_of_the_deferred_affordances_appears().
+        //
+        // ══ 46.3-02 RE-TAKES ALL FOUR, BY NAME. NONE IS INHERITED ═══════════
+        //
+        // This plan moves the panel into the module list, collapses the other
+        // rows away and adds ONE anchor. It ships no control, no handler, no
+        // script and reads no new table, so the expectation going in was
+        // 2 / 21 / 9 / 13 unchanged — and each was checked rather than assumed.
+        //
+        // 2 -> 2: `<select` AND `<script` BOTH STAY. Nothing this plan renders
+        // is a form control: the way back is an anchor, the collapse is a
+        // `@continue` in a loop, and the drawer's position is CSS. `<select`
+        // was not even a candidate this time — 46.2-05 already faced the
+        // hardest case for it (a fourteen-field form) and kept the ban.
+        //
+        // 21 -> 21: DEFERRED_AFFORDANCES UNCHANGED, and the check was made
+        // BEFORE the copy was used, not after. The new anchor reads `Back to
+        // all modules`, checked as a SUBSTRING against all 21 keys: it
+        // collides with none, and the near neighbours a designer would reach
+        // for are on the list and stayed off the page (`Open register`,
+        // `Edit details`, `Close this project`). Nothing was lifted — and
+        // nothing would have been: a fence entry is never lifted for a label.
+        //
+        // 9 -> 9: RE-TAKEN FOR THE SIXTH TIME, AND THIS IS THE STRONGEST CASE
+        // ALPINE HAS EVER HAD, SO SAY SO OUT LOUD. The whole subject of this
+        // phase is a DISCLOSURE WIDGET: a drawer that opens beneath a row
+        // while its siblings collapse away is, in every other codebase, three
+        // lines of `x-data` / `x-show` / `x-collapse`, and Alpine is loaded
+        // globally by this application's layout, so it was there for the
+        // taking. It was CONSIDERED AND REFUSED. Opening, collapsing and
+        // closing are all `?module=` query-string state, which costs a page
+        // load and buys a bookmarkable URL, a working back button, a drawer
+        // that survives JavaScript being off, and a page a PM can read in a
+        // plant room. A reader who arrives here after the phase that finally
+        // ships JavaScript needs to know this decision was FACED on the plan
+        // that had the best reason to duck it, rather than skipped.
+        //
+        // 13 -> 13: WRITE_SURFACE_TABLES UNCHANGED. This plan adds no route
+        // and no write; it renders strictly fewer rows than it used to and
+        // still moves none of them. Asserted for real by
+        // test_rendering_the_cockpit_changes_no_row_count() and
+        // test_opening_a_panel_writes_nothing().
         $this->assertCount(2, self::FORBIDDEN_MARKUP);
         $this->assertCount(13, self::WRITE_SURFACE_TABLES);
         $this->assertCount(9, self::BANNED_HANDLER_ATTRIBUTES);
