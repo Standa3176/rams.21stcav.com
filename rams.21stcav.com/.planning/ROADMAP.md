@@ -308,6 +308,7 @@ Each of these is **recorded in the admin Hidden Functions register**, not forgot
 - [ ] **Phase 46: Visit Lifecycle** — prepare, send, return, accept. Per-visit RAMS and worksheet scoped to the visit's type and rooms. A visit stays editable after sending; scope locks once a return arrives.
 - [ ] **Phase 46.1: Visit Review** — the drawer shows what came back (photos, room answers, captured serials, client sign-off) and hands it off as one ZIP for Bitrix; the four review controls move beneath that evidence. Inserted 2026-09-21.
 - [ ] **Phase 46.2: Doc Creation Cockpit** — four rows (Site survey · Worksheet · RAMS · O&M manual), each opening a panel of that document's fields, generating Word and PDF. The visit work is unsurfaced, not deleted. Inserted 2026-09-22.
+- [ ] **Phase 46.3: Inline Drawer Layout** — the module panel becomes a drawer beneath the row you clicked, the other rows collapse away, Recent activity moves to its own right-hand panel, and the vestigial "N visits" phrase comes off the rows. Inserted 2026-09-26 from the user's first real use of the live page.
 - [ ] **Phase 47: Snagging** — snag items separate from snag visits; three outcomes (fixed, not fixed, deferred); a not-fixed item requires the engineer to state actions and parts needed, closes the visit, and opens a new snag linked to the original. Parts tracked per snag. Snags may sit with the client or others and never have a visit.
 - [ ] **Phase 48: Documents** — generate client-facing documents; the PM sends them and confirms sent in-app, recording who, when and which revision. O&M offered as full or mini. Drawings uploaded from StarDrawer.
 - [ ] **Phase 49: Import Review + Self-populating Deliverables** — one import screen showing what the quote contains, with deliverables ticked from its lines and labelled *from quote* / *assumed* / *not found*. All nine always shown. The equipment-line review opens in a side panel.
@@ -665,6 +666,50 @@ Plans:
 > surface for it, and Phase 47's goal assumes snags are resolved through visits — i.e. that visits
 > have a screen. Decide where the visit workflow lives before planning 47; planning it now would
 > build against a premise that stopped being true on 2026-09-25.
+
+---
+
+### Phase 46.3: Inline Drawer Layout
+
+**Goal**: Opening a module shows you that module and nothing else — a drawer beneath the row you
+clicked, with the other rows out of the way — so the page is one thing at a time rather than two
+columns competing.
+
+**Depends on**: Phase 46.2 (the panel's contents, which this does not reopen), Phase 45 (the row
+design and the query-string state, both of which survive).
+
+**Why it was inserted**: the user opened the live cockpit on 2026-09-26 for the DC-08 check — the
+first time anyone had used this page rather than judged a design — and asked for three changes:
+the drawer underneath rather than to the side, Recent activity as its own right-hand panel, and
+"strip 0 visits". They chose collapse-away over push-down, explicitly for calm.
+
+**Success criteria**:
+1. Clicking a module row opens its panel **directly beneath that row**; the other three rows are out
+   of the way; getting back to the list is obvious and needs no JavaScript.
+2. Recent activity renders in its own right-hand panel, outside any module, and shows the same
+   entries whichever module is open.
+3. No module row shows a visit count or visit phrase.
+4. The generate control reads as opening a form, not as producing a file — the Word/PDF radios that
+   already exist become discoverable without changing which formats are offered.
+5. The read-only fence still passes with both `cockpitRegion()` brackets moved deliberately, the
+   three-way breakage ritual re-run, and no count loosened to fit.
+6. Whole-row click still works — the stretched-link `position` pairing is intact.
+
+**UI hint**: yes (this phase is entirely layout)
+
+> ⚠️ **The two riskiest things in this phase are both silent.** Moving the fence's region brackets
+> can make the whole fence pass vacuously; and touching `.cav-module`'s `position` collapses the
+> row's click target onto the chevron with nothing else failing. Prove both by breaking them.
+
+**Requirements**: DL-01..DL-06, minted into `.planning/REQUIREMENTS.md` by Plan 46.3-01.
+
+**Plans:** 4 plans in 4 waves
+
+Plans:
+- [ ] 46.3-01-PLAN.md — wave 1: strip the visit phrase from the rows (D-04), relabel the generate control (D-05), and widen the stretched-link assertion before any layout moves
+- [ ] 46.3-02-PLAN.md — wave 2: the inline drawer, the collapse-away, the way back (D-01/D-02), both `cockpitRegion()` brackets judged and the breakage ritual re-run
+- [ ] 46.3-03-PLAN.md — wave 3: Recent activity becomes its own right-hand panel (D-03), filling the column the drawer vacated
+- [ ] 46.3-04-PLAN.md — wave 4: the through-HTTP walk, the reconciled ledger, the deploy note, and the human checkpoint (never self-approved)
 
 ---
 
