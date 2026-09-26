@@ -7,6 +7,7 @@ use App\Models\Device;
 use App\Models\DeviceLabelPhoto;
 use App\Models\SiteSurveyPhoto;
 use App\Models\Worksheet;
+use App\Models\WorksheetAdditionalKit;
 use App\Services\DeviceLabelPhotoService;
 use App\Services\NotificationRecipientResolver;
 use App\Support\Worksheets\WorksheetCaptureLock;
@@ -359,6 +360,394 @@ class PublicWorksheetController extends Controller
         return redirect()
             ->route('public-worksheet.show', ['token' => $token])
             ->with('success', "Room marked complete: {$roomName}");
+    }
+
+    // ─── Additional kit (46.4-05 — D-06 / D-08 / D-02 / D-10) ────────────────
+
+    /**
+     * Rendered in place of an engineer's name when `labour_resource_id` is null.
+     *
+     * D-02's fallback, in words: no visit, an empty allocation, or a resource
+     * that has since been deleted all reduce to "nobody was named", and the row
+     * is still recordable. Because THERE IS NO FREE-TEXT ENGINEER FIELD ANYWHERE
+     * IN THIS PHASE, a null can only ever mean that — it can never become a
+     * spelling variant of somebody's name.
+     */
+    public const UNASSIGNED_ENGINEER = 'Unassigned — no engineer allocated to this visit';
+
+    /**
+     * POST /worksheet/{token}/additional-kit
+     *
+     * Record one row of extra kit an engineer used on site, scoped to a room.
+     * D-06: real rows, one per item, repeatable — not a `max:5000` comments
+     * textarea and not a phone call to the office.
+     *
+     * `room_name` travels in the body (not the path) for the same documented
+     * reason as the photo routes — see routes/web.php.
+     *
+     * ⚠️ EVERY AUDIT COLUMN IS SET SERVER-SIDE AND NONE IS EVER READ FROM THE
+     * REQUEST. The public token is the only credential on this link; a body that
+     * could set `created_via` is a body that could claim to be the office.
+     * `WorksheetAdditionalKit` keeps all eight off `$fillable` for that reason
+     * and this method assigns the two it owns explicitly.
+     */
+    public function addAdditionalKit(Request $request, string $token): \Illuminate\Http\JsonResponse
+    {
+        $worksheet = $this->resolveWorksheet($token);
+
+        // D-07 — FIRST, BEFORE VALIDATION. A locked caller must not learn which
+        // field was malformed, and a row queued on a phone must be refused
+        // before it lands.
+        if (WorksheetCaptureLock::isLocked($worksheet)) {
+            return response()->json(['message' => WorksheetCaptureLock::MESSAGE], 422);
+        }
+
+        $data = $request->validate([
+            'room_name'          => ['required', 'string', 'max:200'],
+            'labour_resource_id' => ['nullable', 'integer'],
+            // D-10: qty and part_description, AND NOTHING ELSE. A unit field
+            // (each / metres / boxes) was put to the user and declined — "3.no."
+            // Do not add one, not even as a nullable placeholder.
+            'qty'                => ['required', 'integer', 'min:1', 'max:999'],
+            'part_description'   => ['required', 'string', 'max:500'],
+        ]);
+
+        $roomName = $this->assertRoomNameIsOnTheWorksheet($worksheet, $data['room_name']);
+
+        $engineers    = \App\Support\Worksheets\AllocatedEngineers::forWorksheet($worksheet);
+        $engineerId   = $this->assertEngineerIsAllocated($engineers, $data['labour_resource_id'] ?? null);
+
+        // sort_order runs WITHIN the room, matching SCC's addCheck precedent
+        // (max + 1 scoped to the room, never a worksheet-wide sequence).
+        $nextSort = (int) WorksheetAdditionalKit::query()
+            ->where('worksheet_id', $worksheet->id)
+            ->where('room_name', $roomName)
+            ->max('sort_order');
+
+        $row = new WorksheetAdditionalKit();
+        $row->fill([
+            'worksheet_id'       => $worksheet->id,
+            'room_name'          => $roomName,
+            'labour_resource_id' => $engineerId,
+            'qty'                => (int) $data['qty'],
+            'part_description'   => $data['part_description'],
+            'sort_order'         => $nextSort + 1,
+        ]);
+        // ⚠️ SERVER-FORCED, never mass-assigned. Both columns are off $fillable.
+        $row->forceFill([
+            'created_via'      => WorksheetAdditionalKit::CREATED_VIA_ENGINEER_LINK,
+            'created_by_actor' => $this->actorStamp($request, $token),
+        ])->save();
+
+        // ⚠️ THE RESPONSE CARRIES NO ACTOR STAMP. created_by_actor holds
+        // `ip:…|actor:<sha256 slice>` and is NEVER rendered or returned — same
+        // rule as device_label_photos.captured_by, which once leaked a token
+        // fragment and needed a migration to null every legacy value.
+        return response()->json([
+            'id'               => $row->id,
+            'room_name'        => $row->room_name,
+            'qty'              => $row->qty,
+            'part_description' => $row->part_description,
+            'engineer_name'    => $this->engineerName($engineers, $row->labour_resource_id),
+        ], 201);
+    }
+
+    /**
+     * POST /worksheet/{token}/additional-kit/{row}
+     *
+     * Correct a row — qty, part description, or which allocated engineer (D-08).
+     *
+     * ⚠️ THIS IS AN AMENDMENT, NOT AN OVERWRITE. Each request appends exactly
+     * ONE entry to the append-only `amendments` trail, carrying only the fields
+     * that actually moved. A request that changes nothing is refused 422 rather
+     * than appending an empty entry: a trail of `{from: 3, to: 3}` rows is noise
+     * the office stops reading, and a trail nobody reads is not an audit trail.
+     *
+     * No `room_name` is accepted — a row cannot change rooms (see routes/web.php).
+     */
+    public function modifyAdditionalKit(Request $request, string $token, int $rowId): \Illuminate\Http\JsonResponse
+    {
+        $worksheet = $this->resolveWorksheet($token);
+
+        // D-07 — first, before validation.
+        if (WorksheetCaptureLock::isLocked($worksheet)) {
+            return response()->json(['message' => WorksheetCaptureLock::MESSAGE], 422);
+        }
+
+        $row = $this->resolveAdditionalKitRow($worksheet, $rowId);
+        $this->assertRowIsOpen($row);
+
+        // `sometimes` on all three: the drawer posts what it holds, and an
+        // ABSENT key must be distinguishable from an explicit null (which means
+        // "unassign the engineer", a real edit).
+        $data = $request->validate([
+            'qty'                => ['sometimes', 'required', 'integer', 'min:1', 'max:999'],
+            'part_description'   => ['sometimes', 'required', 'string', 'max:500'],
+            'labour_resource_id' => ['sometimes', 'nullable', 'integer'],
+        ]);
+
+        $engineers = \App\Support\Worksheets\AllocatedEngineers::forWorksheet($worksheet);
+
+        // ── Diff BEFORE saving. The trail is built from what actually moved ──
+        $changes = [];
+
+        if (array_key_exists('qty', $data) && (int) $data['qty'] !== (int) $row->qty) {
+            $changes['qty'] = ['from' => (int) $row->qty, 'to' => (int) $data['qty']];
+        }
+
+        if (array_key_exists('part_description', $data)
+            && (string) $data['part_description'] !== (string) $row->part_description) {
+            $changes['part_description'] = [
+                'from' => (string) $row->part_description,
+                'to'   => (string) $data['part_description'],
+            ];
+        }
+
+        if (array_key_exists('labour_resource_id', $data)) {
+            $posted = $this->assertEngineerIsAllocated($engineers, $data['labour_resource_id']);
+
+            if ($posted !== $row->labour_resource_id) {
+                $changes['labour_resource_id'] = ['from' => $row->labour_resource_id, 'to' => $posted];
+            }
+        }
+
+        // ⚠️ AN EMPTY AMENDMENT IS WORSE THAN NO AMENDMENT.
+        abort_if($changes === [], 422, 'Nothing changed.');
+
+        foreach ($changes as $field => $pair) {
+            $row->{$field} = $pair['to'];
+        }
+
+        // `amendments` and `amended_at` are off $fillable by design — append to
+        // the existing list and assign explicitly. Never REPLACE the trail.
+        $trail   = $row->amendments;
+        $trail[] = [
+            'at'      => now()->toIso8601String(),
+            'actor'   => $this->actorStamp($request, $token),
+            'changes' => $changes,
+        ];
+
+        $row->forceFill([
+            'amendments' => $trail,
+            'amended_at' => now(),
+        ])->save();
+
+        // ⚠️ NO ACTOR STAMP IN THE RESPONSE — not created_by_actor, not
+        // marked_by_actor, and not the amendment's own `actor`.
+        return response()->json([
+            'id'               => $row->id,
+            'room_name'        => $row->room_name,
+            'qty'              => $row->qty,
+            'part_description' => $row->part_description,
+            'engineer_name'    => $this->engineerName($engineers, $row->labour_resource_id),
+            'amended'          => true,
+        ]);
+    }
+
+    /**
+     * POST /worksheet/{token}/additional-kit/{row}/mark-deleted
+     *
+     * Flag a row for the office to take off, WITH A REASON (D-08). The user:
+     * *"mark items for deletion (with reason)."*
+     *
+     * ⚠️ THE ROW STAYS. This method sets three columns and removes nothing.
+     * `Worksheet::additionalKit()` still returns the row, on purpose, and the
+     * office's table shows it as marked rather than finding it gone — that is
+     * what makes the list reconcilable. There is no hard delete anywhere in this
+     * phase and no unmark; if an engineer marks a row by mistake, the office
+     * fixes it (recorded as a known gap in 46.4-01-SUMMARY.md).
+     *
+     * The reason is REQUIRED and must be at least 3 non-whitespace characters:
+     * a blank reason is a row the office cannot action, and `x` is not an
+     * explanation.
+     */
+    public function markAdditionalKitForDeletion(Request $request, string $token, int $rowId): \Illuminate\Http\JsonResponse
+    {
+        $worksheet = $this->resolveWorksheet($token);
+
+        // D-07 — first, before validation.
+        if (WorksheetCaptureLock::isLocked($worksheet)) {
+            return response()->json(['message' => WorksheetCaptureLock::MESSAGE], 422);
+        }
+
+        $row = $this->resolveAdditionalKitRow($worksheet, $rowId);
+        // Marking an ALREADY-MARKED row is refused here, which is what keeps the
+        // first explanation and its timestamp intact. A second mark must not
+        // rewrite the first engineer's reason.
+        $this->assertRowIsOpen($row);
+
+        // Trim before validating so a whitespace-only reason fails `required`
+        // rather than being stored as "   ". TrimStrings already does this for
+        // ordinary form posts; doing it here means a JSON caller gets the same
+        // rule, and the rule is then visible at the point it matters.
+        $reason = $request->input('deletion_reason');
+        $request->merge([
+            'deletion_reason' => is_string($reason) ? trim($reason) : $reason,
+        ]);
+
+        $data = $request->validate([
+            'deletion_reason' => ['required', 'string', 'min:3', 'max:500'],
+        ]);
+
+        // All three columns are off $fillable — assigned explicitly, never from
+        // the request beyond the validated reason itself.
+        $row->forceFill([
+            'marked_for_deletion_at' => now(),
+            'deletion_reason'        => $data['deletion_reason'],
+            'marked_by_actor'        => $this->actorStamp($request, $token),
+        ])->save();
+
+        // ⚠️ NO ACTOR STAMP IN THE RESPONSE. The reason is engineer free text
+        // and is returned raw JSON-encoded here; the PAGE escapes it on render
+        // (Blade `{{ }}` server-side, `_esc()` for a JS-grafted row).
+        return response()->json([
+            'id'              => $row->id,
+            'marked'          => true,
+            'deletion_reason' => $row->deletion_reason,
+        ]);
+    }
+
+    // ─── Additional-kit helpers ──────────────────────────────────────────────
+
+    /**
+     * The forged-room-name inclusion list.
+     *
+     * ⚠️ THIS IS A DELIBERATE COPY of the guard in `markRoomComplete` and
+     * `markSurveyReviewed`, and it is NOT a candidate for extraction into one
+     * shared helper. Three call sites that are free to differ are better than
+     * three that are forced to move together: the two status endpoints carry
+     * their own wording, their own HTTP idiom (redirect vs JSON) and their own
+     * M-06 history, and a future change to one of them must not silently change
+     * the kit endpoint's behaviour on a page with no login on it.
+     */
+    private function assertRoomNameIsOnTheWorksheet(Worksheet $worksheet, string $roomName): string
+    {
+        $validRoomNames = collect((array) ($worksheet->generated_data['rooms'] ?? []))
+            ->pluck('name')
+            ->filter()
+            ->values()
+            ->all();
+
+        abort_if(empty($validRoomNames), 422,
+            'Worksheet has no rooms — cannot record additional kit.');
+
+        if (! in_array($roomName, $validRoomNames, true)) {
+            abort(422, 'Unknown room name.');
+        }
+
+        return $roomName;
+    }
+
+    /**
+     * D-02 — the engineer is PICKED, never typed, and the pick is verified
+     * server-side against the visit's own allocation.
+     *
+     * ⚠️ THE REFUSAL IS GENERIC ON PURPOSE. Naming the rejected resource would
+     * turn a public token into a staff-directory lookup oracle: post an id,
+     * read a name back. Null is always accepted (D-02's fallback).
+     *
+     * @param array<int, array{id: int, name: string}> $engineers
+     */
+    private function assertEngineerIsAllocated(array $engineers, mixed $posted): ?int
+    {
+        if ($posted === null || $posted === '') {
+            return null;
+        }
+
+        $id = (int) $posted;
+
+        foreach ($engineers as $engineer) {
+            if ((int) $engineer['id'] === $id) {
+                return $id;
+            }
+        }
+
+        abort(422, 'That engineer is not allocated to this visit.');
+    }
+
+    /**
+     * ONE definition of "the engineer link may still touch this row", shared by
+     * modify and mark so the two can never drift. Plan 03's office screen
+     * branches on plan 01's matching `isMarked()` / `isOpen()` helpers.
+     *
+     * The two refusals carry DISTINCT messages so the engineer reads *why*
+     * rather than a generic "no" — a refusal they cannot interpret becomes a
+     * phone call to the office.
+     */
+    private function assertRowIsOpen(WorksheetAdditionalKit $row): void
+    {
+        abort_if(
+            $row->isMarked(),
+            422,
+            'This row is already marked for deletion — the office will action it. Its original reason stays on the record.',
+        );
+
+        abort_if(
+            $row->reconciled_at !== null,
+            422,
+            'The office has already reconciled this row — it can no longer be changed here.',
+        );
+    }
+
+    /**
+     * Resolve a kit row that belongs to THIS worksheet. 404 on a row from
+     * another worksheet even with a valid token — the same cross-tenant shape as
+     * `resolveDevice` and the label-photo lookups.
+     */
+    private function resolveAdditionalKitRow(Worksheet $worksheet, int $rowId): WorksheetAdditionalKit
+    {
+        $row = WorksheetAdditionalKit::query()
+            ->where('id', $rowId)
+            ->where('worksheet_id', $worksheet->id)
+            ->first();
+
+        abort_if($row === null, 404, 'Kit row not found on this worksheet.');
+
+        return $row;
+    }
+
+    /**
+     * Name-only projection (LR-04). The name comes from `AllocatedEngineers`'
+     * plain `['id','name']` arrays — never from the `labourResource` relation,
+     * which carries an email and a phone.
+     *
+     * @param array<int, array{id: int, name: string}> $engineers
+     */
+    private function engineerName(array $engineers, ?int $labourResourceId): string
+    {
+        if ($labourResourceId === null) {
+            return self::UNASSIGNED_ENGINEER;
+        }
+
+        foreach ($engineers as $engineer) {
+            if ((int) $engineer['id'] === $labourResourceId) {
+                return (string) $engineer['name'];
+            }
+        }
+
+        // An id whose resource has since been deleted, or one no longer on the
+        // visit. The row keeps its id; the page says nobody is named rather
+        // than inventing a name or throwing at an engineer on site.
+        return self::UNASSIGNED_ENGINEER;
+    }
+
+    /**
+     * Audit M-06's stamp, verbatim in shape from `markRoomComplete` /
+     * `markSurveyReviewed`: the request IP plus a 12-hex slice of
+     * `sha256($token)`.
+     *
+     * ⚠️ NEVER `substr($token, 0, 8)`. That leaked 32 bits of a URL-bearing auth
+     * secret into a persisted audit column and needed a migration to undo. The
+     * hash lets a DB reader confirm "same actor touched both rows" without
+     * exposing bytes an attacker could use to guess the URL.
+     *
+     * ⚠️ THE RETURN VALUE IS STORED AND NEVER RENDERED — not by this
+     * controller's responses, not by the engineer page, not by the office table.
+     */
+    private function actorStamp(Request $request, string $token): string
+    {
+        return 'ip:' . ($request->ip() ?: 'unknown')
+            . '|actor:' . substr(hash('sha256', $token), 0, 12);
     }
 
     // ─── Sign ────────────────────────────────────────────────────────────────

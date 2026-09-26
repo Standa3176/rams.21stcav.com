@@ -859,7 +859,10 @@ class EngineerLinkAdditionalKitTest extends TestCase
         ]);
 
         $response->assertStatus(422);
-        $this->assertStringContainsString(WorksheetCaptureLock::MESSAGE, $response->getContent());
+        // Asserted through the DECODED json: the message contains an em dash,
+        // which json_encode escapes to — in the raw body. A raw-string
+        // assertion would fail on the encoding, not on the behaviour.
+        $response->assertJson(['message' => WorksheetCaptureLock::MESSAGE]);
         $this->assertSame(0, WorksheetAdditionalKit::where('worksheet_id', $worksheet->id)->count());
     }
 
@@ -872,7 +875,10 @@ class EngineerLinkAdditionalKitTest extends TestCase
         $response = $this->postJson($this->modifyUrl($worksheet, $row->id), ['qty' => 5]);
 
         $response->assertStatus(422);
-        $this->assertStringContainsString(WorksheetCaptureLock::MESSAGE, $response->getContent());
+        // Asserted through the DECODED json: the message contains an em dash,
+        // which json_encode escapes to — in the raw body. A raw-string
+        // assertion would fail on the encoding, not on the behaviour.
+        $response->assertJson(['message' => WorksheetCaptureLock::MESSAGE]);
 
         $row->refresh();
         $this->assertSame(3, $row->qty);
@@ -891,7 +897,10 @@ class EngineerLinkAdditionalKitTest extends TestCase
         ]);
 
         $response->assertStatus(422);
-        $this->assertStringContainsString(WorksheetCaptureLock::MESSAGE, $response->getContent());
+        // Asserted through the DECODED json: the message contains an em dash,
+        // which json_encode escapes to — in the raw body. A raw-string
+        // assertion would fail on the encoding, not on the behaviour.
+        $response->assertJson(['message' => WorksheetCaptureLock::MESSAGE]);
 
         $row->refresh();
         $this->assertNull($row->marked_for_deletion_at);
@@ -935,7 +944,10 @@ class EngineerLinkAdditionalKitTest extends TestCase
         ]);
 
         $response->assertStatus(422);
-        $this->assertStringContainsString(WorksheetCaptureLock::MESSAGE, $response->getContent());
+        // Asserted through the DECODED json: the message contains an em dash,
+        // which json_encode escapes to — in the raw body. A raw-string
+        // assertion would fail on the encoding, not on the behaviour.
+        $response->assertJson(['message' => WorksheetCaptureLock::MESSAGE]);
         $this->assertStringNotContainsString('part_description', $response->getContent());
     }
 

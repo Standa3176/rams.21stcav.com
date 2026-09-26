@@ -243,6 +243,31 @@ class AppServiceProvider extends ServiceProvider
             fn (Request $request) => Limit::perMinute(60)
                 ->by((string) $request->route('token') ?: $request->ip())
         );
+        // ── 46.4-05 (D-06 / D-08) — the additional-kit write routes ──────────
+        // Covers add / modify / mark-for-deletion on the engineer link.
+        //
+        // 30/min, deliberately the same budget as `worksheet-photo-write` and
+        // deliberately NOT the 15/min of the label-photo route: a kit row is a
+        // TEXT WRITE with no AI cost and no file I/O, so there is nothing here
+        // to give a leaked token an expensive worst case. It belongs with the
+        // ordinary write budget.
+        //
+        // The number is also a UX constraint, not only a security one. An
+        // engineer standing in a plant room taps "Add" once per item and works
+        // through a list — ten or fifteen items in a burst is NORMAL, and being
+        // 429'd half way down that list would lose the rest of the capture.
+        // Anything tighter would make the feature feel broken on exactly the
+        // day it matters.
+        //
+        // Keyed per-token with the same load-bearing `?: $request->ip()`
+        // fallback as every limiter above: without it, a request reaching these
+        // routes with no token resolves to an empty-string key, i.e. one shared
+        // unlimited bucket for every such request.
+        RateLimiter::for(
+            'worksheet-kit-write',
+            fn (Request $request) => Limit::perMinute(30)
+                ->by((string) $request->route('token') ?: $request->ip())
+        );
         // Covers survey-photo serve. Unchanged numeric budget, now per-token.
         RateLimiter::for(
             'worksheet-survey-photo-read',

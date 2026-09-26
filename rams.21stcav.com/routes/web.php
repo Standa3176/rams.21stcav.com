@@ -148,6 +148,33 @@ Route::post('worksheet/{token}/rooms/{roomName}/complete', [PublicWorksheetContr
     ->name('public-worksheet.room-complete')->middleware('throttle:worksheet-status-write')
     ->where('roomName', '.*');
 
+// ── 46.4-05 (D-06 / D-08) — additional kit an engineer used on site ─────────
+// Three endpoints and THREE ONLY: add, modify, mark-for-deletion-with-a-reason.
+//
+// ⚠️ THERE IS DELIBERATELY NO `DELETE` ROUTE AND NO `unmark` ROUTE. D-08:
+// *"Engineer can add items , modify items and mark items for deletion (with
+// reason)"* — a marked row STAYS in the table, flagged, with its reason, and the
+// office decides what to do with it. That is an audit trail; a delete is a hole
+// where a row used to be. `EngineerLinkAdditionalKitTest::test_there_is_no_hard
+// _delete_route` asserts DELETE on the modify URI returns 405 precisely because
+// the router knows the URI and has no DELETE verb for it — a stronger statement
+// than a 404. Do not add one.
+//
+// `room_name` travels in the BODY on add, for the same documented reason as the
+// photo routes above: room names containing '/', '?' or '#' 404 against the web
+// server's encoded-slash rejection before Laravel ever sees the request.
+//
+// Modify and mark take the ROW by id in the path and re-derive everything else
+// from the row. Neither accepts a room_name — a row cannot change rooms (D-08
+// lists qty, description and engineer; moving a row between rooms is a different
+// decision nobody has made).
+Route::post('worksheet/{token}/additional-kit', [PublicWorksheetController::class, 'addAdditionalKit'])
+    ->name('public-worksheet.additional-kit.add')->middleware('throttle:worksheet-kit-write');
+Route::post('worksheet/{token}/additional-kit/{row}', [PublicWorksheetController::class, 'modifyAdditionalKit'])
+    ->name('public-worksheet.additional-kit.modify')->middleware('throttle:worksheet-kit-write');
+Route::post('worksheet/{token}/additional-kit/{row}/mark-deleted', [PublicWorksheetController::class, 'markAdditionalKitForDeletion'])
+    ->name('public-worksheet.additional-kit.mark-deleted')->middleware('throttle:worksheet-kit-write');
+
 // Device label photo capture (engineer takes photo of equipment label,
 // AI extracts part / serial / MAC, engineer confirms → writes to devices).
 // The server finds-or-creates the device row by (project, room, description).
