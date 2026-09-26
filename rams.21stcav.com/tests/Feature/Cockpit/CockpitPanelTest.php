@@ -358,6 +358,101 @@ class CockpitPanelTest extends TestCase
         }
     }
 
+    /**
+     * THE WAY BACK IS ON EVERY OPEN REGION — 46.3 D-02, Plan 46.3-02.
+     *
+     * With the other module rows collapsed away, this anchor and the header
+     * close control are the only routes to the module list. A control that
+     * exists on Overview and vanishes on Files is the trap D-02 warns about
+     * wearing a different hat: the PM who needs it most is the one who opened
+     * the wrong module and clicked a tab before noticing.
+     *
+     * So it is asserted over EVERY open region — all four modules times all
+     * three tabs, PLUS the `?action=generate` disclosures — with its href, its
+     * VISIBLE TEXT and the surviving header close checked on each. The module
+     * list is read off the presenter's own map, so a fifth module is covered
+     * here without an edit.
+     */
+    public function test_the_way_back_and_the_close_are_on_every_open_region(): void
+    {
+        config(['cockpit.enabled' => true]);
+
+        $project = $this->project();
+
+        RamsDocument::factory()->create(['project_id' => $project->id]);
+        OmManual::factory()->create(['project_id' => $project->id]);
+        $this->log($project);
+
+        $bare    = route('projects.cockpit', $project);
+        $modules = array_keys(CockpitModulePresenter::moduleMap());
+
+        $this->assertNotEmpty($modules, 'No module was exercised, so this test judges nothing.');
+
+        $regions = [];
+
+        foreach ($modules as $module) {
+            foreach (self::THREE_TABS as $tab) {
+                $regions["{$module}/{$tab}"] = $this->panel($project, $module, $tab);
+            }
+
+            $regions["{$module}/?action=generate"] = $this->subtree(
+                $this->actingAs(User::factory()->create())
+                    ->get(route('projects.cockpit', [
+                        'project' => $project,
+                        'module'  => $module,
+                        'action'  => 'generate',
+                    ]))
+                    ->assertOk()
+                    ->getContent()
+            );
+        }
+
+        // 4 modules x (3 tabs + 1 disclosure) = 16. Derived, not written down.
+        $this->assertCount(count($modules) * (count(self::THREE_TABS) + 1), $regions);
+
+        foreach ($regions as $where => $html) {
+            $dom = new \DOMDocument();
+            libxml_use_internal_errors(true);
+            $dom->loadHTML('<?xml encoding="utf-8" ?>'.$html);
+            libxml_clear_errors();
+
+            $xpath = new \DOMXPath($dom);
+
+            $backs = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' cav-panel__back ')]");
+
+            $this->assertSame(1, $backs->length, "[{$where}] renders no way back to the module list.");
+
+            $back = $backs->item(0);
+
+            $this->assertSame('a', $back->nodeName, "[{$where}] the way back is not an anchor.");
+            $this->assertSame($bare, $back->getAttribute('href'), "[{$where}] the way back does not drop ?module=.");
+            $this->assertNotSame(
+                '',
+                trim($back->textContent),
+                "[{$where}] the way back has no visible text -- a glyph-only control is the trap D-02 warns about."
+            );
+
+            // Two ways out, on every region. Not one replaced by another.
+            $closes = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' cav-panel__close ')]");
+
+            $this->assertSame(1, $closes->length, "[{$where}] renders no header close control.");
+            $this->assertSame($bare, $closes->item(0)->getAttribute('href'), "[{$where}] the close control disagrees with the way back.");
+        }
+
+        // The closed page carries NEITHER, because it needs neither — and that
+        // is asserted so "on every open region" cannot be satisfied by an
+        // anchor that renders unconditionally.
+        $closed = $this->subtree(
+            $this->actingAs(User::factory()->create())
+                ->get($bare)
+                ->assertOk()
+                ->getContent()
+        );
+
+        $this->assertSame(0, $this->countByClass($closed, 'cav-panel__back'));
+        $this->assertSame(0, $this->countByClass($closed, 'cav-panel__close'));
+    }
+
     public function test_the_document_modules_each_list_their_own_documents(): void
     {
         $project = $this->project();

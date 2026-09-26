@@ -385,6 +385,24 @@ class CockpitReadOnlyFenceTest extends TestCase
     private const PROJECT_NAME = 'Fence Test Job';
 
     /**
+     * How many `cav-module` rows a region holds, counted in the DOM on an exact
+     * class so `cav-module__title` can never be mistaken for a row.
+     *
+     * Added by Plan 46.3-02 for the collapse-away guard. See everyRegion().
+     */
+    private function rowsIn(string $region): int
+    {
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$region);
+        libxml_clear_errors();
+
+        return (new \DOMXPath($dom))
+            ->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' cav-module ')]")
+            ->length;
+    }
+
+    /**
      * A project with a drawer of every shape: visit rows, a reconstructed row,
      * a superseded row, and document sections. The fence must hold over the
      * richest page this phase can render, not over an empty one.
@@ -475,6 +493,34 @@ class CockpitReadOnlyFenceTest extends TestCase
     private function everyRegion(Project $project): array
     {
         $regions = [$this->cockpitRegion($this->render($project))];
+
+        // ══ THE COLLAPSE-AWAY GUARD, AND NEITHER BRACKET CLOSES IT ══════════
+        //
+        // 46.3 D-02 stopped rendering the other module rows while a drawer is
+        // open. Before it, EVERY region in this array held four `cav-module`
+        // rows; after it, sixteen of the seventeen hold ONE. So every assertion
+        // in this file shaped "no row contains X", iterated over rows, now
+        // judges a QUARTER of what it used to on those regions — and it would
+        // have gone quiet without going red. That is the same failure the two
+        // brackets exist to prevent, arriving by a route neither of them
+        // watches: the extraction is correct, the page is simply smaller.
+        //
+        // It is closed here rather than in a sibling test for the reason both
+        // brackets live inside cockpitRegion(): this is the function that
+        // decides what the fence looks at, so this is where "and it really did
+        // look at the whole list somewhere" has to be true.
+        //
+        // EXACT, and derived from the presenter's own map — never the literal
+        // 4. 46.2 D-01 already moved this number once (nine to four) and a
+        // literal would have had to be chased into every file that held one.
+        $this->assertSame(
+            count(CockpitModulePresenter::moduleMap()),
+            $this->rowsIn($regions[0]),
+            'everyRegion() no longer starts with the BARE CLOSED PAGE. That is the only region in '.
+            'this array that still holds the whole module list (46.3 D-02 collapses the others '.
+            'away), so every row-iterating assertion in this file would judge a single row and go '.
+            'quiet without going red. Keep the closed page FIRST.'
+        );
 
         foreach (array_keys(CockpitModulePresenter::moduleMap()) as $moduleKey) {
             foreach (ProjectCockpitController::TABS as $tab) {
@@ -1090,6 +1136,73 @@ class CockpitReadOnlyFenceTest extends TestCase
             // announce an expanded state it does not own.
             $this->assertStringNotContainsString('aria-expanded', $region);
         }
+    }
+
+    /**
+     * THE COLLAPSE-AWAY COUNT GUARD — 46.3 D-02, Plan 46.3-02.
+     *
+     * WHY IT EXISTS, said plainly so a later reader who sees a one-row page
+     * does not read this guard as arbitrary: **collapse-away is why this guard
+     * exists.** Before 46.3 D-02, an open-module region held FOUR `cav-module`
+     * rows; after it, ONE. Every assertion in this file of the shape "no row
+     * contains X" now judges a quarter of what it did on those regions, and
+     * would have gone quiet WITHOUT GOING RED — which is precisely the vacuity
+     * cockpitRegion()'s two brackets exist to prevent, arriving by a route
+     * neither bracket watches.
+     *
+     * Closed the way the brackets close theirs: with an EXACT count that fails
+     * when the structure moves, never a `>= 1`. Both directions are pinned,
+     * because either one alone can be satisfied by a broken page — four rows
+     * everywhere would mean the collapse silently stopped happening, and one
+     * row everywhere would mean the list itself had gone.
+     *
+     * The four is DERIVED from CockpitModulePresenter::moduleMap(), never
+     * written down: the map is the source of truth and 46.2 D-01 already moved
+     * this number once, from nine.
+     */
+    public function test_the_region_holds_every_module_row_closed_and_exactly_one_open(): void
+    {
+        $project = $this->populatedProject();
+        $modules = CockpitModulePresenter::moduleMap();
+
+        // Non-vacuity: a one-module map would make both halves below the same
+        // assertion, and the guard would prove nothing.
+        $this->assertGreaterThan(1, count($modules), 'A single-module map makes this guard vacuous.');
+
+        $this->assertSame(
+            count($modules),
+            $this->rowsIn($this->cockpitRegion($this->render($project))),
+            'The CLOSED page must hold the whole module list. If it does not, every row-iterating '.
+            'assertion in this file is judging a short page.'
+        );
+
+        foreach (array_keys($modules) as $moduleKey) {
+            foreach (ProjectCockpitController::TABS as $tab) {
+                $this->assertSame(
+                    1,
+                    $this->rowsIn($this->cockpitRegion($this->render($project, ['module' => $moduleKey, 'tab' => $tab]))),
+                    "Opening '{$moduleKey}' on the '{$tab}' tab must leave EXACTLY ONE module row ".
+                    '(46.3 D-02). More than one means the collapse stopped happening; none means '.
+                    'the row list went with the others.'
+                );
+            }
+
+            $this->assertSame(
+                1,
+                $this->rowsIn($this->cockpitRegion($this->render($project, ['module' => $moduleKey, 'action' => 'generate']))),
+                "The '{$moduleKey}' form disclosure must not change the row count."
+            );
+        }
+
+        // AND THE UNKNOWN-KEY PATH IS THE OTHER DIRECTION, re-asserted here
+        // rather than trusted: a bookmarked `?module=snagging` opens no drawer,
+        // so it must NOT collapse the list. A page that hid three rows and
+        // opened nothing would be the worst of both.
+        $this->assertSame(
+            count($modules),
+            $this->rowsIn($this->cockpitRegion($this->render($project, ['module' => 'snagging']))),
+            'An unknown module key opens no drawer, so it must collapse nothing.'
+        );
     }
 
     public function test_the_one_permitted_navigation_affordance_is_present(): void

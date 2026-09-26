@@ -680,8 +680,23 @@ class CockpitSpineTest extends TestCase
      *
      * Run over FOUR fixtures, because an all-empty or all-populated project
      * proves only one direction: nothing, visits only, documents only, and both.
+     *
+     * ══ NARROWED BY NAME TO THE CLOSED PAGE, PLAN 46.3-02, CITING D-02 ══════
+     *
+     * This method always rendered with no `?module=`, so it has ALWAYS judged
+     * the closed page. What changed is that "the closed page" is now the only
+     * place the whole list exists: 46.3 D-02 collapses the other rows away
+     * while a drawer is open, so on an OPEN render this loop would iterate the
+     * four modules the presenter returned and find three rows missing —
+     * `rowCount()` would `fail()` on the first of them.
+     *
+     * It is NOT weakened to a `>= 1` and NEITHER DIRECTION IS DROPPED. It is
+     * narrowed in name and in its docblock to the page it always judged, and
+     * the open page gets its OWN assertion of the SAME iff property in
+     * test_the_surviving_open_row_obeys_the_same_count_iff_property() below.
+     * Two exact assertions, never one vague one.
      */
-    public function test_a_row_renders_a_count_if_and_only_if_that_count_is_non_empty(): void
+    public function test_a_row_renders_a_count_if_and_only_if_that_count_is_non_empty_on_the_closed_page(): void
     {
         $seen = ['empty' => 0, 'rendered' => 0];
 
@@ -740,6 +755,79 @@ class CockpitSpineTest extends TestCase
         // that never exercised one of its two directions.
         $this->assertNotSame(0, $seen['empty'], 'No suppressed count was exercised.');
         $this->assertNotSame(0, $seen['rendered'], 'No rendered count was exercised.');
+    }
+
+    /**
+     * THE OPEN-PAGE HALF OF THE IFF PROPERTY — Plan 46.3-02, 46.3 D-02.
+     *
+     * The sibling above judges the closed page, where all four rows exist. This
+     * one judges what 46.3 D-02 leaves behind: exactly ONE row, and the SAME
+     * property on it — a count element iff the presenter produced a non-empty
+     * count, and verbatim when it did.
+     *
+     * ⚠️ IT IS THE IFF PROPERTY AND NEVER "EXACTLY ONE COUNT". The open row may
+     * legitimately render NO count: a zero-visit module is exactly the case
+     * D-04 now suppresses, so `?module=site_survey` on a project with no visits
+     * is a one-row page with no count element on it — and correct.
+     *
+     * Both fixtures are exercised on purpose: a project with visits (so a
+     * rendered count is judged) and one without (so a suppressed count is), and
+     * a counter proves each was actually reached.
+     */
+    public function test_the_surviving_open_row_obeys_the_same_count_iff_property(): void
+    {
+        $seen = ['empty' => 0, 'rendered' => 0];
+
+        foreach (['nothing', 'both'] as $fixture) {
+            $project = $this->project();
+
+            if ($fixture === 'both') {
+                $worksheet = Worksheet::factory()->create(['project_id' => $project->id]);
+
+                Visit::factory()->backfilledFromWorksheet($worksheet)->create([
+                    'project_id'     => $project->id,
+                    'scheduled_date' => '2026-09-02',
+                ]);
+
+                RamsDocument::factory()->create(['project_id' => $project->id]);
+            }
+
+            $counts = $this->presentedCounts($project);
+
+            foreach (CockpitModulePresenter::moduleMap() as $key => $definition) {
+                $html = $this->panel($project, $key);
+
+                // D-02: one row, and it is this module's.
+                $this->assertSame(
+                    1,
+                    $this->countByClass($html, 'cav-module'),
+                    "[{$fixture}] Opening '{$key}' must leave exactly one module row (D-02)."
+                );
+
+                $expected = $counts[$definition['title']];
+
+                if ($expected === '') {
+                    $seen['empty']++;
+                } else {
+                    $seen['rendered']++;
+                }
+
+                // rowCount() fails outright if the titled row is absent, so
+                // this also proves the SURVIVING row is the right one.
+                $this->assertSame(
+                    $expected,
+                    $this->rowCount($html, $definition['title']),
+                    "[{$fixture}] The open '{$key}' row does not render the presenter's count ".
+                    "\"{$expected}\" verbatim. The iff property holds on the open page too -- and it ".
+                    'is the iff property, never "exactly one count": a zero-visit module renders '.
+                    'none, by D-04.'
+                );
+            }
+        }
+
+        // NON-VACUITY, BOTH WAYS, on the open page as on the closed one.
+        $this->assertNotSame(0, $seen['empty'], 'No suppressed count was exercised on an open page.');
+        $this->assertNotSame(0, $seen['rendered'], 'No rendered count was exercised on an open page.');
     }
 
     /**
