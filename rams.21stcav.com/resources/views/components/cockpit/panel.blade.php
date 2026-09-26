@@ -82,9 +82,11 @@
     renders. The page is still 200 and the submitted string is still never
     echoed, exactly the treatment `?module=` has had since 45-11.
 
-    The Files and Notes tabs and the Recent activity feed were filled by Plan
-    45-12 from records the app already holds. Nothing in them writes, and the
-    only link copy they use is "View".
+    The Files and Notes tabs were filled by Plan 45-12 from records the app
+    already holds. Nothing in them writes, and the only link copy they use is
+    "View". The Recent activity feed was filled by the same plan and LEFT THIS
+    COMPONENT in 46.3 D-03 — it is project-level and now renders at page level
+    as `x-cockpit.activity-panel`. See the comment where its card stood.
 
     The tab strip is still anchors only, still carries `aria-current="page"` on
     the active tab and still carries no `aria-expanded`. It is navigation
@@ -106,7 +108,11 @@
     'progress' => null,
     'files'    => null,
     'notes'    => null,
-    'activity' => null,
+    // `activity` WAS HERE AND WAS DROPPED BY 46.3 D-03, with the card it fed.
+    // The feed is project-level and now renders at page level from
+    // `x-cockpit.activity-panel`; a prop left wired to a block that no longer
+    // exists is exactly the wiring-that-can-never-fire this file's own
+    // comments warn about.
     // FIVE PROPS REMOVED BY 46.2 D-02 (Plan 46.2-03), unsurfaced not deleted:
     //   'action', 'actionVisitId' — the visit disclosures' URL state
     //   'rooms', 'people'         — the Create visit form's option lists
@@ -155,7 +161,7 @@
 
     $files    = $files ?? collect();
     $notes    = $notes ?? collect();
-    $activity = $activity ?? collect();
+    // `$activity = $activity ?? collect();` went with the prop (46.3 D-03).
 
     // Whether this module HAS a document library at all, read from the
     // presenter's own key list rather than a second copy of it here. Three
@@ -308,28 +314,21 @@
                 <x-cockpit.hint>{{ $module['title'] }} has nothing recorded against it yet.</x-cockpit.hint>
             @endif
 
-            {{-- Recent activity (D-14). Project-wide on purpose: the log has
-                 no module column, so the same feed renders under every
-                 module rather than a filtered one that would silently drop
-                 every entry carrying no metadata hint. --}}
-            <div class="cav-panel__card">
-                <span class="cav-panel__card-head">Recent activity</span>
+            {{-- THE RECENT ACTIVITY CARD WAS HERE (sketch 004 D-14), AND IT
+                 LEFT BY 46.3 D-03 — the same treatment the quick-actions
+                 block and the Returned tab got below.
 
-                @if ($activity->isNotEmpty())
-                    <ul class="cav-acts">
-                        @foreach ($activity as $entry)
-                            <x-cockpit.activity-row
-                                :initials="$entry['initials']"
-                                :actor="$entry['actor']"
-                                :phrase="$entry['phrase']"
-                                :hue="$entry['hue'] ?? 0"
-                                :at="$entry['at']" />
-                        @endforeach
-                    </ul>
-                @else
-                    <x-cockpit.hint>Nothing has been recorded against this project yet.</x-cockpit.hint>
-                @endif
-            </div>
+                 It is now `x-cockpit.activity-panel`, rendered at PAGE level
+                 from cockpit.blade.php as a sibling of `.cav-modules`. The
+                 reason is the one this card's own comment always gave:
+                 `ProjectActivityLog` has no module column, so the feed showed
+                 the same entries whichever module was open. It is
+                 project-level data and a module's panel was never its place.
+
+                 NOTHING ABOUT THE FEED CHANGED — same collection, same
+                 `x-cockpit.activity-row`, same empty sentence. Only its
+                 position. D-14's wording is kept verbatim in the sketch with
+                 a narrowing note above it. --}}
 
             {{-- THE QUICK ACTIONS BLOCK AND THE RETURNED TAB WERE HERE
                  (46.2 D-02, Plan 46.2-03). `x-cockpit.quick-actions` rendered

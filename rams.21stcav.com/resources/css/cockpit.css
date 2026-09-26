@@ -369,10 +369,23 @@
    track is one declaration.
 
    `align-items: start` is kept for the same reason: it is what stops a short
-   column stretching once there are two again. */
+   column stretching once there are two again.
+
+   ── AND THE SECOND TRACK IS BACK, FOR A DIFFERENT OCCUPANT (46.3 D-03) ──
+   THIS IS NOT A REVERT OF THE PARAGRAPH ABOVE. Plan 46.3-02 removed the
+   second column because the SIDE PANEL left it; this plan restores one
+   because the project-level RECENT ACTIVITY PANEL arrives in it. D-03's own
+   wording is "moving it also fills the column the drawer vacates", so the
+   two commits are one move in two halves and the order was deliberate: done
+   the other way round there would have been two right-hand panels competing,
+   which is the exact thing the user asked to stop.
+
+   320px, not the side panel's old 360px. The feed is six single-line entries
+   and an avatar — narrower than a tabbed panel needed — and the module list
+   is the page's purpose, so the reading column keeps the extra 40px. */
 .cav-cockpit .cav-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 320px;
     gap: var(--cav-s5);
     align-items: start;
     margin-top: var(--cav-s6);
@@ -1443,6 +1456,50 @@
     color: var(--cav-teal-dark);
 }
 
+/* ── THE RECENT ACTIVITY PANEL (46.3 D-03) ─────────────────────────────
+   The feed's own panel, in the second .cav-layout track. It is a SIBLING of
+   .cav-modules, never a descendant of a row, so nothing here can reach the
+   stretched link — and the containing-block scan in CockpitVisualTest only
+   reads rules ending in .cav-module / .cav-module__open, which none of these
+   do. CockpitVisualTest was run after this block was added, green.
+
+   ITS OWN CLASSES, NOT .cav-panel__card's. It looks like one of the drawer's
+   cards today and it deliberately does not share their selectors — the same
+   refusal .cav-pnote made over .cav-note. Two unrelated things on one class
+   is how an edit aimed at the drawer later retones the activity feed.
+
+   STICKY, AND THAT IS NOT THE SAME CALL 46.3-02 REVERSED. The DRAWER's
+   `position: sticky` was retired by name because a sticky drawer detaches
+   from the row it belongs to. This panel belongs to no row: it is the
+   project's own column, it is context for whatever is being read beside it,
+   and a drawer with a long document form is exactly the case where the feed
+   would otherwise scroll away. Nothing overlaps it — it is its own grid
+   track. It drops to static under 1024px with the column itself. */
+.cav-cockpit .cav-activity {
+    position: sticky;
+    top: var(--cav-s4);
+    min-width: 0;
+    padding: var(--cav-s4);
+    border: 1px solid var(--cav-border);
+    border-radius: var(--cav-radius);
+    background: var(--cav-surface);
+    box-shadow: var(--cav-shadow);
+}
+
+/* A real heading, not a card label — this panel is a landmark of its own now
+   rather than a strip inside someone else's. Sized to match the module
+   list's own sub-head weight so the two columns read as peers. */
+.cav-cockpit .cav-activity__head {
+    display: block;
+    margin: 0 0 var(--cav-s3);
+    font-family: var(--cav-font-head);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+    letter-spacing: .04em;
+    color: var(--cav-mid);
+}
+
 /* ── Recent activity (D-14) ────────────────────────────────────────────
    A plain list: the feed is a record, not a control surface. The design's
    "…" overflow on each row is a menu trigger and belongs to Phase 46/48, so
@@ -1659,33 +1716,56 @@
 }
 
 /* ── Responsive ─────────────────────────────────────────────────────────
-   TWO breakpoints since 46.3 D-01 — 860px and 680px. The third, at 1024px,
-   is retired by name immediately below. Both survivors collapse rather than
-   hide, and that ruling is unchanged. NOTHING IS HIDDEN AT
+   THREE breakpoints again — 1024px, 860px and 680px. The 1024px block was
+   retired by name in Plan 46.3-02 and is RESTORED here by 46.3-03, in the
+   same commit as the second .cav-layout track, exactly as that retirement
+   instructed. All three collapse rather than hide, and that ruling is
+   unchanged. NOTHING IS HIDDEN AT
    ANY WIDTH: the count phrase and the status chip are the only places a
    module's state is disclosed to a PM who opens no panel, so a
    `display:none` on either would mislead by omission at exactly the width a
    PM is most likely reading on — on site, on a phone. This is the same
    ruling the superseded spine carried, and it survives D-08 unchanged. */
 
-/* ── THE 1024px BLOCK IS RETIRED BY NAME, 46.3 D-01 ─────────────────────
-   It held exactly two declarations and both are now the BASE value, so the
-   block could only ever restate what already applies at every width:
+/* ── THE 1024px BLOCK, RESTORED BY 46.3 D-03 ────────────────────────────
+   Plan 46.3-02 retired this block BY NAME, quoting its two declarations, and
+   left the instruction that 46.3-03 must restore it in the SAME COMMIT as
+   its second column, never after it. That is this commit. A restored column
+   without this block is a two-column layout that never collapses on a
+   narrow screen — a silent regression no test catches and that the reader
+   meets on a laptop.
+
+   IT IS RESTORED IN ONE DECLARATION, NOT TWO. The retirement quoted:
 
        .cav-cockpit .cav-layout { grid-template-columns: minmax(0, 1fr); }
        .cav-cockpit .cav-panel  { position: static; }
 
-   Its job was to STACK a two-column layout. The layout is one column at
-   every width now (D-01) and the drawer is inline and static, so there is
-   nothing left to stack. It is removed rather than narrowed because a
-   breakpoint that changes nothing is worse than no breakpoint: the next
-   reader takes it as evidence that a second column exists somewhere.
+   The FIRST is back and doing real work again: there are two tracks above
+   1024px now, and under it the activity panel must go somewhere.
 
-   IT COMES BACK IN PLAN 46.3-03, and that is not a reversal — D-03 adds a
-   project-level Recent activity column to the right, and the moment there
-   are two tracks again they must stack under 1024px exactly as these two
-   declarations made them. Restore this block in the same commit as the
-   second track, never after it. */
+   The SECOND is NOT restored, and that is deliberate rather than an
+   oversight. `.cav-panel { position: static }` became the BASE value in
+   46.3-02 when the drawer went inline, and it still is — the drawer is
+   inline at every width, so restating it here would be a declaration that
+   changes nothing, which is the very reason that plan removed the block
+   rather than narrowing it. What IS here instead is the new panel's own
+   un-sticking: `.cav-activity` is sticky in a column, and with no column it
+   must stop being sticky or it would float over the module list.
+
+   THE ACTIVITY PANEL STACKS BELOW THE MODULE LIST, NOT ABOVE IT. The module
+   rows are the page's purpose and the feed is context, and source order puts
+   `.cav-modules` first, so the single column falls out correctly with no
+   `order` needed. It is stated here anyway as the reason this block does not
+   reorder anything. */
+@media (max-width: 1024px) {
+    .cav-cockpit .cav-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .cav-cockpit .cav-activity {
+        position: static;
+    }
+}
 
 /* Tablet — the three KPI cards stop being three across. */
 @media (max-width: 860px) {

@@ -338,6 +338,194 @@ class CockpitPanelTest extends TestCase
         $this->assertStringNotContainsString('View all', $this->panel($project, 'rams'));
     }
 
+    // ── THE PROJECT-LEVEL RECENT ACTIVITY PANEL (46.3 D-03) ──────────────
+    //
+    // The feed used to live inside the module panel and it never belonged
+    // there: `ProjectActivityLog` has no module column, so the same entries
+    // rendered under every module. D-03 moves it OUT — into its own panel,
+    // outside any module, filling the column the inline drawer vacated in
+    // Plan 46.3-02.
+    //
+    // The feed is MOVED, NOT REBUILT. Same rows, same presenter method, same
+    // `x-cockpit.activity-row`. What changed is where it sits, so what is
+    // asserted below is POSITION and IDENTITY, never content — the content
+    // assertions above (newest first, the initials, the empty sentence) are
+    // unchanged and still green.
+
+    /** The cockpit subtree for a module/tab, or for the BARE page. */
+    private function page(Project $project, ?string $module = null, string $tab = 'overview'): string
+    {
+        config(['cockpit.enabled' => true]);
+
+        $params = ['project' => $project];
+
+        if ($module !== null) {
+            $params['module'] = $module;
+            $params['tab']    = $tab;
+        }
+
+        return $this->subtree(
+            $this->actingAs(User::factory()->create())
+                ->get(route('projects.cockpit', $params))
+                ->assertOk()
+                ->getContent()
+        );
+    }
+
+    /** Every element carrying $class, each serialised whole. */
+    private function nodesByClass(string $html, string $class): array
+    {
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$html);
+        libxml_clear_errors();
+
+        $found = [];
+
+        foreach ((new \DOMXPath($dom))->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' {$class} ')]") as $node) {
+            $found[] = html_entity_decode($dom->saveHTML($node), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+
+        return $found;
+    }
+
+    /**
+     * ONE PANEL, ON THE BARE PAGE, WITH NO MODULE OPEN.
+     *
+     * This is the render the feed could never have before: it was inside the
+     * module panel, and the module panel does not exist until `?module=`.
+     * Project-level data that only appears once you have opened something is
+     * not project-level.
+     */
+    public function test_the_bare_cockpit_renders_exactly_one_recent_activity_panel(): void
+    {
+        $project = $this->project();
+        $this->log($project, ['description' => 'the only entry']);
+
+        $html = $this->page($project);
+
+        $this->assertSame(1, $this->countByClass($html, 'cav-activity'), 'The bare cockpit must carry exactly one Recent activity panel.');
+        $this->assertStringContainsString('Recent activity', $html);
+        $this->assertSame(1, $this->countByClass($html, 'cav-act'));
+        $this->assertStringContainsString('the only entry', $html);
+    }
+
+    /**
+     * ONE PANEL ON EVERY OPEN REGION TOO — and exactly one. Counted rather
+     * than merely found, because the failure this replaces a relocated
+     * assertion to catch is a page that renders the feed TWICE: once at page
+     * level and once from a module panel that was not emptied.
+     */
+    public function test_every_module_and_tab_renders_exactly_one_recent_activity_panel(): void
+    {
+        $project = $this->project();
+        $this->log($project, ['description' => 'the only entry']);
+
+        foreach (array_keys(CockpitModulePresenter::moduleMap()) as $module) {
+            foreach (self::THREE_TABS as $tab) {
+                $html = $this->page($project, $module, $tab);
+
+                $this->assertSame(1, $this->countByClass($html, 'cav-activity'), "{$module}/{$tab} must carry exactly one Recent activity panel.");
+                $this->assertSame(1, $this->countByClass($html, 'cav-act'), "{$module}/{$tab} renders the feed's entry once, not twice.");
+            }
+        }
+    }
+
+    /**
+     * DL-03's SECOND HALF, ASSERTED FOR THE FIRST TIME.
+     *
+     * "It shows the same entries whichever module is open" has been true
+     * since Phase 45 but was never assertable: until D-03 the feed had no
+     * position from which it COULD differ, because it was re-rendered inside
+     * whichever panel was open.
+     *
+     * Equality of the rendered subtree, not a count of entries — "the same
+     * entries" means the same, and a count would pass on two different feeds
+     * of the same length.
+     */
+    public function test_the_activity_panel_is_identical_across_every_module_every_tab_and_the_bare_page(): void
+    {
+        $project = $this->project();
+        $this->log($project, ['description' => 'imported the QuoteWerks package', 'created_at' => '2026-08-01 09:00:00']);
+        $this->log($project, ['description' => 'approved the RAMS', 'created_at' => '2026-08-14 16:11:00']);
+
+        $panels = $this->nodesByClass($this->page($project), 'cav-activity');
+        $this->assertCount(1, $panels, 'The bare page must carry exactly one Recent activity panel.');
+
+        $expected = $panels[0];
+
+        // Non-vacuity: an empty or contentless subtree would make every
+        // comparison below trivially true.
+        $this->assertStringContainsString('approved the RAMS', $expected);
+        $this->assertStringContainsString('imported the QuoteWerks package', $expected);
+
+        $compared = 0;
+
+        foreach (array_keys(CockpitModulePresenter::moduleMap()) as $module) {
+            foreach (self::THREE_TABS as $tab) {
+                $found = $this->nodesByClass($this->page($project, $module, $tab), 'cav-activity');
+
+                $this->assertCount(1, $found, "{$module}/{$tab} must carry exactly one Recent activity panel.");
+                $this->assertSame($expected, $found[0], "{$module}/{$tab} renders a DIFFERENT feed. The log has no module column; the feed is project-wide and every render must be identical.");
+
+                $compared++;
+            }
+        }
+
+        $this->assertSame(
+            count(CockpitModulePresenter::moduleMap()) * count(self::THREE_TABS),
+            $compared,
+            'The comparison must walk every module times every tab — derived from the presenter, never a literal.'
+        );
+    }
+
+    /**
+     * AND THE MODULE PANEL NO LONGER CARRIES IT.
+     *
+     * The other half of the relocation. Without this, "the page has one feed"
+     * would still pass on a page that kept the card in the panel and rendered
+     * nothing new at all.
+     */
+    public function test_no_module_panel_carries_the_recent_activity_feed(): void
+    {
+        $project = $this->project();
+        $this->log($project, ['description' => 'the only entry']);
+
+        foreach (array_keys(CockpitModulePresenter::moduleMap()) as $module) {
+            foreach (self::THREE_TABS as $tab) {
+                $panels = $this->nodesByClass($this->page($project, $module, $tab), 'cav-panel');
+
+                // Non-vacuity: the drawer IS open on every one of these, so a
+                // missing panel means the extraction broke, not that the feed
+                // left.
+                $this->assertCount(1, $panels, "{$module}/{$tab} did not render a module panel — this check would pass vacuously.");
+
+                $this->assertStringNotContainsString('Recent activity', $panels[0], "{$module}/{$tab} still carries the feed's heading inside the module panel (46.3 D-03 moved it out).");
+                $this->assertSame(0, $this->countByClass($panels[0], 'cav-act'), "{$module}/{$tab} still renders feed entries inside the module panel.");
+            }
+        }
+    }
+
+    /**
+     * AN EMPTY PROJECT GETS THE PANEL AND ITS SENTENCE, NOT A MISSING PANEL.
+     *
+     * Same reasoning the not-required module row uses: a panel that vanishes
+     * when there is nothing to show reads as a page fault, and the PM cannot
+     * tell "nothing happened yet" from "this page is broken".
+     */
+    public function test_the_activity_panel_renders_its_hint_when_the_project_has_no_activity(): void
+    {
+        $project = $this->project();
+
+        foreach ([null, 'rams'] as $module) {
+            $panels = $this->nodesByClass($this->page($project, $module), 'cav-activity');
+
+            $this->assertCount(1, $panels, 'An empty project still gets the panel.');
+            $this->assertStringContainsString('Nothing has been recorded against this project yet.', $panels[0]);
+            $this->assertSame(0, $this->countByClass($panels[0], 'cav-act'));
+        }
+    }
+
     // ── Every module x every tab ─────────────────────────────────────────
 
     public function test_every_module_renders_on_every_tab(): void

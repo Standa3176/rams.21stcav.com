@@ -16,6 +16,12 @@
     the one you're working in". Sketch 004's side panel is NARROWED by that
     ruling; its tokens, row design and query-string state all survive.
 
+    AND THE COLUMN IT VACATED IS NOW RECENT ACTIVITY'S (46.3 D-03). The feed
+    moved OUT of the module panel to page level, where it always belonged —
+    the log has no module column, so it showed the same entries whichever
+    module was open. .cav-layout is two tracks again for that reason and not
+    as a reversal of 46.3-02; see the rule's own comment in cockpit.css.
+
     Consequence, designed rather than discovered: with the other rows gone the
     drawer's close control is the ONLY route back to the list. panel.blade.php
     therefore carries a NAMED anchor with visible text ("Back to all modules")
@@ -191,7 +197,9 @@
                                 :progress="$progress"
                                 :files="$panelFiles"
                                 :notes="$panelNotes"
-                                :activity="$activity"
+                                {{-- `:activity` WAS HERE AND WENT WITH THE CARD
+                                     (46.3 D-03). The feed is project-level and
+                                     renders below, outside the module loop. --}}
                                 {{-- SEVEN ATTRIBUTES ADDED BY PLAN 46.2-05 — the
                                      document form's URL state and its data. All
                                      seven are READS, derived in
@@ -215,6 +223,22 @@
                         @endif
                     @endforeach
                 </div>
+
+                {{-- D-03 — RECENT ACTIVITY, AT PAGE LEVEL AND OUTSIDE EVERY
+                     MODULE. A sibling of .cav-modules, in the second column
+                     the inline drawer vacated in Plan 46.3-02.
+
+                     IT RENDERS UNCONDITIONALLY, with or without `?module=`.
+                     That is the point of the move rather than a side effect:
+                     `ProjectActivityLog` has no module column, the feed
+                     always showed the same entries whichever module was open,
+                     and project-level data that only appears once you have
+                     opened something is not project-level. It takes the
+                     page's own `$activity`, which the controller has always
+                     derived unconditionally — `panelPresenter->activity()` is
+                     not gated on `$moduleKey` the way `files()` and `notes()`
+                     are, because it never took a module. --}}
+                <x-cockpit.activity-panel :activity="$activity" />
             </div>
 
             <p class="cav-note">
