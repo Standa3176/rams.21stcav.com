@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\SiteSurvey;
+use App\Support\Visits\SurveyCarryForward;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
 use PhpOffice\PhpWord\Settings;
@@ -28,6 +29,33 @@ class SiteSurveyDocxService
     // ── Geometry ──────────────────────────────────────────────────────────────
     private const M_PORT = 1020;
     private const W_PORT = 9866;
+
+    // ── Site logistics ────────────────────────────────────────────────────────
+    /**
+     * The site-logistics columns this document carries, as the KEYS of
+     * `SurveyCarryForward::FIELDS` — which supplies the label, the render order
+     * and the `comms_room_access_status` vocabulary map.
+     *
+     * WHY AN ALLOW-LIST RATHER THAN ALL OF `FIELDS`: this set is parity with the
+     * survey PDF (`resources/views/pdf/site-survey/_header-meta.blade.php` lines
+     * 47 and 61-94), which is also what `CockpitDocumentFormPresenter` names as
+     * each field's `consumer`. `FIELDS` additionally carries
+     * `access_constraints`, `site_risks` and `h_and_s_notes`, which the PDF does
+     * not render either — a separate gap, deliberately NOT closed here (see the
+     * quick-task summary). Deleting an entry from this list is how you'd add one.
+     *
+     * `general_notes` is absent on purpose: `buildCover()` already renders it as
+     * a Survey Details row, and listing it here would print it twice.
+     *
+     * @var list<string>
+     */
+    private const LOGISTICS_KEYS = [
+        'parking_restraints',
+        'site_access_notes',
+        'delivery_routes',
+        'comms_room_access_status',
+        'distance_from_base_miles',
+    ];
 
     public function __construct(
         private readonly DocumentTemplateService $templates,
@@ -74,6 +102,13 @@ class SiteSurveyDocxService
             $section = $phpWord->addSection($this->portraitStyle());
             $this->buildCover($section, $survey, $dateStr);
         }
+
+        // ── Site logistics ────────────────────────────────────────────────────
+        // Deliberately here rather than inside buildCover(): appending to
+        // `$section` covers BOTH branches above without extending the templated
+        // branch's raw string-replacement into document XML (which output
+        // escaping does not cover). See D-46.2-06-05 note 2.
+        $this->buildSiteLogistics($section, $survey);
 
         // ── Per-room tables ───────────────────────────────────────────────────
         foreach ($survey->rooms->sortBy('sort_order') as $room) {
@@ -137,6 +172,55 @@ class SiteSurveyDocxService
             $row = $table->addRow(400);
             $row->addCell(2800, $lc)->addText($label, $lf);
             $row->addCell(7066, $vc)->addText((string) $value, $vf);
+        }
+
+        $section->addTextBreak(1);
+    }
+
+    // =========================================================================
+    // SITE LOGISTICS
+    // =========================================================================
+
+    /**
+     * The PM-typed site findings: parking, site access, delivery routes, comms
+     * room access and distance from depot.
+     *
+     * Rows, labels, order and the `comms_room_access_status` label map all come
+     * from `SurveyCarryForward::forSurvey()` — the one place this project derives
+     * survey findings — rather than from a copy made here. A sixth hand-rolled
+     * copy of that vocabulary is exactly how D-46.2-04-02 happened.
+     *
+     * `forSurvey()` already drops every empty field, so an unfilled survey
+     * yields `[]` and this method returns having added NOTHING: no heading, no
+     * empty labelled rows, and a document byte-identical to the previous output.
+     *
+     * Values are written RAW. `Settings::setOutputEscapingEnabled(true)` at the
+     * top of `build()` escapes them; pre-escaping here would double-escape and
+     * print a literal `&amp;` to the reader.
+     */
+    private function buildSiteLogistics(\PhpOffice\PhpWord\Element\Section $section, SiteSurvey $survey): void
+    {
+        $rows = array_values(array_filter(
+            SurveyCarryForward::forSurvey($survey),
+            static fn (array $row): bool => in_array($row['key'], self::LOGISTICS_KEYS, true),
+        ));
+
+        if ($rows === []) {
+            return;
+        }
+
+        $this->sectionHeading($section, 'Site Logistics');
+
+        $table = $section->addTable($this->tableStyle());
+        $lc = ['bgColor' => self::ROW_ALT];
+        $vc = ['bgColor' => self::WHITE];
+        $lf = $this->font(9, bold: true);
+        $vf = $this->font(9);
+
+        foreach ($rows as $row) {
+            $tableRow = $table->addRow(400);
+            $tableRow->addCell(2800, $lc)->addText($row['label'], $lf);
+            $tableRow->addCell(7066, $vc)->addText($row['value'], $vf);
         }
 
         $section->addTextBreak(1);
