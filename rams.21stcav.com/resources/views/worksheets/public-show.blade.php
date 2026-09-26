@@ -846,6 +846,21 @@
                     $roomPhotos   = $worksheet->photos
                         ->filter(fn ($p) => strtolower(trim((string) $p->room_name)) === $roomKey);
 
+                    // ── 46.4-02 (D-03) — one pass, two trays ──────────────────
+                    // Partition the room's photos by bucket here rather than
+                    // querying twice: $worksheet->photos is already eager-loaded
+                    // and a second query per room would be an N+1 on a page an
+                    // engineer opens on site signal.
+                    //
+                    // $photoCount above stays WHOLE-ROOM on purpose. It feeds the
+                    // room-summary pill and the Mark Room Complete soft gate, both
+                    // of which have meant "photos exist for this room" since
+                    // 260504-iy4, and neither changes meaning today.
+                    $roomPhotosByBucket = $roomPhotos
+                        ->groupBy(fn ($p) => (string) ($p->bucket ?: \App\Models\WorksheetPhoto::BUCKET_COMPLETION));
+                    $startPhotos      = ($roomPhotosByBucket[\App\Models\WorksheetPhoto::BUCKET_START] ?? collect())->values();
+                    $completionPhotos = ($roomPhotosByBucket[\App\Models\WorksheetPhoto::BUCKET_COMPLETION] ?? collect())->values();
+
                     // ── Survey Reference (260504-dh8) — per-room engineer-feedback
                     //    lookup keyed by lowercase room name. \$hasEF gates the
                     //    teal drawer below; \$efItemCount drives the "(N captured)"
@@ -929,44 +944,104 @@
                          scrolling through Survey Reference / AV Works / Kit / Steps. --}}
                     @php
                         // 260508 — pre-compute the photo set as a plain array for the
-                        // x-photo-lightbox cycler. One array per room; each thumbnail's
-                        // onclick passes its own index so prev/next walks just this room.
-                        $roomPhotosLb = $roomPhotos->values()->map(fn ($p) => [
+                        // lightbox cycler. ONE ARRAY PER TRAY (46.4-02): prev/next walks
+                        // the tray the engineer actually tapped, so paging out of the
+                        // Start tray and into completion shots cannot happen.
+                        $lbSet = fn ($set) => $set->map(fn ($p) => [
                             'url'     => route('public-worksheet.photos.serve', ['token' => $token, 'photo' => $p->id]),
                             'caption' => $p->caption ?? '',
                         ])->all();
+
+                        // ── 46.4-02 (D-03) — the two trays, in capture order ──────
+                        // Order is Start then Completion because that is the order the
+                        // work happens in.
+                        //
+                        // ⚠️ THE COMPLETION TRAY'S TITLE IS LOAD-BEARING AND MUST NOT
+                        // CHANGE. Plan 46.4-01's migration backfilled every pre-existing
+                        // photo to `completion` and justified that ruling by quoting this
+                        // exact wording — `📷 Photos of completed work`. Renaming it would
+                        // retroactively make a written decision look arbitrary.
+                        // See database/migrations/2026_09_26_100000_add_bucket_to_worksheet_photos_table.php
+                        //
+                        // START PHOTOS GATE NOTHING. 46.4-CONTEXT.md leaves this to
+                        // discretion but rules that if they gate anything, the gate is
+                        // VISUAL ONLY — RAMS's existing gates deliberately never block the
+                        // server so an engineer on flaky signal is never stranded
+                        // (PublicWorksheetController::markRoomComplete's docblock). A
+                        // start-photo gate would be a NEW way to strand one, so there is
+                        // none: the Mark Room Complete gate below still reads the
+                        // whole-room $photoCount exactly as it did before this plan.
+                        $photoTrays = [
+                            [
+                                'bucket' => \App\Models\WorksheetPhoto::BUCKET_START,
+                                'title'  => '📸 Before you start',
+                                'photos' => $startPhotos,
+                                'warn'   => false,
+                                'hint'   => 'Optional — a record of how the room looked before works began.',
+                            ],
+                            [
+                                'bucket' => \App\Models\WorksheetPhoto::BUCKET_COMPLETION,
+                                'title'  => '📷 Photos of completed work',
+                                'photos' => $completionPhotos,
+                                'warn'   => true,
+                                'hint'   => null,
+                            ],
+                        ];
                     @endphp
-                    <div class="photo-tray" data-photo-tray data-room-key="{{ $roomKey }}" style="margin-top:0;padding-top:0;border-top:0;margin-bottom:1rem;padding-bottom:.85rem;border-bottom:1px dashed #E5E7EB;">
-                        <div class="photo-tray-title">📷 Photos of completed work (<span data-photo-count>{{ $photoCount }}</span>)</div>
-                        <div class="photo-thumbs" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.6rem;">
-                            @foreach($roomPhotos as $p)
-                                <div style="position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;background:#F3F4F6;flex-shrink:0;">
-                                    <a href="{{ route('public-worksheet.photos.serve', ['token' => $token, 'photo' => $p->id]) }}"
-                                       target="_blank"
-                                       onclick="event.preventDefault(); openPhotoLightbox(@js($roomPhotosLb), {{ $loop->index }});">
-                                        <img src="{{ route('public-worksheet.photos.serve', ['token' => $token, 'photo' => $p->id]) }}"
-                                             alt="{{ $p->caption ?? '' }}"
-                                             loading="lazy"
-                                             style="width:100%;height:100%;object-fit:cover;">
-                                    </a>
-                                    <button type="button"
-                                            onclick="deleteWorksheetPhoto({{ $p->id }}, '{{ $token }}', this)"
-                                            title="Remove"
-                                            style="position:absolute;top:2px;right:2px;width:20px;height:20px;border:0;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:.7rem;line-height:1;cursor:pointer;">✕</button>
-                                </div>
-                            @endforeach
-                        </div>
-                        <label class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:.4rem;cursor:pointer;">
-                            📷 Add photo
-                            <input type="file" accept="image/*" style="display:none;"
-                                   onchange="uploadWorksheetPhoto(this, '{{ $token }}', '{{ addslashes($room['name'] ?? '') }}')">
-                        </label>
-                        @if($photoCount === 0)
-                            <div class="photo-warn" style="margin-top:.55rem;">
-                                ⚠ No photos captured yet — capture at least one before requesting sign-off.
+                    @foreach($photoTrays as $tray)
+                        @php $trayLb = $lbSet($tray['photos']); @endphp
+                        <div class="photo-tray" data-photo-tray data-room-key="{{ $roomKey }}" data-bucket="{{ $tray['bucket'] }}" style="margin-top:0;padding-top:0;border-top:0;margin-bottom:{{ $loop->last ? '1rem' : '.85rem' }};padding-bottom:.85rem;border-bottom:1px dashed #E5E7EB;">
+                            <div class="photo-tray-title">{{ $tray['title'] }} (<span data-photo-count>{{ $tray['photos']->count() }}</span>)</div>
+                            @if($tray['hint'])
+                                <div class="muted" style="font-size:.78rem;margin:-.15rem 0 .5rem;">{{ $tray['hint'] }}</div>
+                            @endif
+                            <div class="photo-thumbs" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.6rem;">
+                                @foreach($tray['photos'] as $p)
+                                    <div style="width:72px;flex-shrink:0;">
+                                        <div style="position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;background:#F3F4F6;">
+                                            <a href="{{ route('public-worksheet.photos.serve', ['token' => $token, 'photo' => $p->id]) }}"
+                                               target="_blank"
+                                               onclick="event.preventDefault(); openPhotoLightbox(@js($trayLb), {{ $loop->index }});">
+                                                <img src="{{ route('public-worksheet.photos.serve', ['token' => $token, 'photo' => $p->id]) }}"
+                                                     alt="{{ $p->caption ?? '' }}"
+                                                     loading="lazy"
+                                                     style="width:100%;height:100%;object-fit:cover;">
+                                            </a>
+                                            <button type="button"
+                                                    data-capture-control
+                                                    onclick="deleteWorksheetPhoto({{ $p->id }}, '{{ $token }}', this)"
+                                                    title="Remove"
+                                                    style="position:absolute;top:2px;right:2px;width:20px;height:20px;border:0;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:.7rem;line-height:1;cursor:pointer;">✕</button>
+                                        </div>
+                                        @if(($p->caption ?? '') !== '')
+                                            {{-- Engineer free text on a page the CLIENT SIGNS: escaped echo
+                                                 only, never a raw echo (T-46.4-02-02). --}}
+                                            <div class="photo-thumb-caption" title="{{ $p->caption }}" style="font-size:.66rem;line-height:1.25;color:#4B5563;margin-top:.2rem;word-break:break-word;">{{ $p->caption }}</div>
+                                        @endif
+                                    </div>
+                                @endforeach
                             </div>
-                        @endif
-                    </div>
+                            {{-- D-04 — the label rides with the capture. maxlength mirrors the
+                                 server's max:200 so the field cannot promise what the endpoint
+                                 will refuse. --}}
+                            <input type="text"
+                                   data-photo-caption
+                                   data-capture-control
+                                   maxlength="200"
+                                   placeholder="Label (optional) — e.g. rack before works"
+                                   style="display:block;width:100%;max-width:340px;margin-bottom:.45rem;padding:.45rem .6rem;border:1px solid #D1D5DB;border-radius:8px;font-size:.85rem;min-height:40px;">
+                            <label class="btn btn-outline btn-sm" data-capture-control style="display:inline-flex;align-items:center;gap:.4rem;cursor:pointer;">
+                                {{ $tray['bucket'] === \App\Models\WorksheetPhoto::BUCKET_START ? '📸 Add start photo' : '📷 Add photo' }}
+                                <input type="file" accept="image/*" data-capture-control style="display:none;"
+                                       onchange="uploadWorksheetPhoto(this, '{{ $token }}', '{{ addslashes($room['name'] ?? '') }}', '{{ $tray['bucket'] }}')">
+                            </label>
+                            @if($tray['warn'] && $tray['photos']->count() === 0)
+                                <div class="photo-warn" style="margin-top:.55rem;">
+                                    ⚠ No photos captured yet — capture at least one before requesting sign-off.
+                                </div>
+                            @endif
+                        </div>
+                    @endforeach
 
                     {{-- ── 260504-iy4 H1 — Mark Room Complete CTA ──
                          Soft visual gate: button disables until (a) survey reviewed if a survey
@@ -1707,15 +1782,32 @@
         // The original body below is the ONLINE happy path — it still runs unchanged
         // when navigator.onLine === true. The wrapper intercepts the OFFLINE path
         // BEFORE this function is called.
-        window.uploadWorksheetPhoto = async function uploadWorksheetPhoto(input, token, roomName) {
+        // ── 46.4-02 (D-04) — the label that rides with a capture ────────────
+        // The capture control and its label field live in the same
+        // [data-photo-tray], one tray per bucket per room, so "this tray's
+        // label" is a closest() away. Returns the element (not the string) so
+        // callers can clear it after a successful capture — otherwise the next
+        // photo silently inherits the last one's label.
+        window.__wsPhotoCaptionInput = function (input) {
+            const tray = input && input.closest ? input.closest('[data-photo-tray]') : null;
+            return tray ? tray.querySelector('[data-photo-caption]') : null;
+        };
+
+        window.uploadWorksheetPhoto = async function uploadWorksheetPhoto(input, token, roomName, bucket) {
             const file = input.files && input.files[0];
             if (!file) return;
+            const capEl   = window.__wsPhotoCaptionInput(input);
+            const caption = capEl ? String(capEl.value || '').trim() : '';
             const fd = new FormData();
             fd.append('photo', file);
             // room_name travels in the body, not the URL path, so names with
             // '/', '?', '#' (e.g. "Comms Room (Next to Breakout/Townhall Area)")
             // don't 404 against nginx/Apache's encoded-slash rejection.
             fd.append('room_name', roomName);
+            // Bucket defaults client-side too, so a call site that forgets the
+            // 4th argument behaves like every pre-46.4 caller did.
+            fd.append('bucket', bucket || 'completion');
+            if (caption) fd.append('caption', caption);
             const url = '/worksheet/' + encodeURIComponent(token) + '/photos';
             try {
                 const resp = await fetch(url, {
@@ -1729,6 +1821,8 @@
                     input.value = '';
                     return;
                 }
+                // Clear the label so the NEXT photo does not inherit it.
+                if (capEl) { try { capEl.value = ''; } catch (e) {} }
                 // Simplest UX: reload the page so the new thumbnail + count + warning
                 // state all update together. The page is short and fast.
                 window.location.reload();
@@ -1753,6 +1847,96 @@
                 alert('Network error.');
             }
         }
+
+        // ── Photo lightbox (46.4-02) ────────────────────────────────────────
+        // openPhotoLightbox() has been CALLED from two places on this page
+        // since 260508 and was never DEFINED here — and the thumbnail's
+        // onclick runs event.preventDefault() first, so tapping a photo has
+        // been doing nothing at all. This phase puts photos at the centre of
+        // the page, so it is fixed here.
+        //
+        // ⚠️ DELIBERATELY NOT the components/photo-lightbox.blade.php
+        // component. That component exists, but it is Alpine-based and Alpine
+        // is NEVER loaded on this standalone page — including it would swap
+        // one dead feature for another, exactly as the sign-off form's own
+        // dead Alpine directives already demonstrate. It also styles itself
+        // with .photo-lightbox classes this page does not carry, and app.css
+        // is byte-pinned so they cannot be added.
+        //
+        // (This comment names no Alpine directive and no component tag on
+        // purpose: EngineerLinkPhotoTrayGuardTest counts those literals in
+        // this file and a comment would read as an occurrence.)
+        //
+        // Signature matches the two existing call sites EXACTLY —
+        // ([{url, caption}], startIndex) — so neither call site changes.
+        // The lightbox is handed url + caption ONLY; it must never be given a
+        // photo model, and never `captured_by` (T-46.4-02-04).
+        (function () {
+            let items = [];
+            let index = 0;
+            let dlg   = null;
+
+            function render() {
+                const item = items[index] || {};
+                const img  = dlg.querySelector('[data-lb-img]');
+                img.src = item.url || '';
+                // textContent / property assignment, never innerHTML — the
+                // caption is engineer free text (T-46.4-02-02).
+                img.alt = item.caption || '';
+                dlg.querySelector('[data-lb-caption]').textContent = item.caption || '';
+                dlg.querySelector('[data-lb-idx]').textContent = items.length > 1 ? (index + 1) + ' / ' + items.length : '';
+                dlg.querySelectorAll('[data-lb-step]').forEach(function (b) {
+                    b.style.display = items.length > 1 ? 'inline-block' : 'none';
+                });
+            }
+
+            function step(delta) {
+                if (!items.length) return;
+                index = (index + delta + items.length) % items.length;
+                render();
+            }
+
+            function build() {
+                const d = document.createElement('dialog');
+                d.id = 'ws-photo-lightbox';
+                d.style.cssText = 'max-width:96vw;max-height:94vh;border:0;border-radius:12px;padding:.75rem;background:#111827;color:#F9FAFB;';
+                d.innerHTML =
+                      '<img data-lb-img alt="" style="display:block;max-width:90vw;max-height:74vh;margin:0 auto;border-radius:8px;">'
+                    + '<div data-lb-caption style="margin-top:.5rem;font-size:.85rem;text-align:center;word-break:break-word;"></div>'
+                    + '<div style="margin-top:.6rem;display:flex;align-items:center;justify-content:center;gap:.75rem;">'
+                    +   '<button type="button" data-lb-step data-lb-prev style="min-height:40px;min-width:48px;border:0;border-radius:8px;background:#374151;color:#fff;font-size:1.1rem;cursor:pointer;">‹</button>'
+                    +   '<span data-lb-idx style="font-size:.8rem;opacity:.8;"></span>'
+                    +   '<button type="button" data-lb-step data-lb-next style="min-height:40px;min-width:48px;border:0;border-radius:8px;background:#374151;color:#fff;font-size:1.1rem;cursor:pointer;">›</button>'
+                    +   '<button type="button" data-lb-close style="min-height:40px;padding:0 .9rem;border:0;border-radius:8px;background:#2E7BFF;color:#fff;font-size:.85rem;cursor:pointer;">Close</button>'
+                    + '</div>';
+                document.body.appendChild(d);
+                d.querySelector('[data-lb-prev]').addEventListener('click', function () { step(-1); });
+                d.querySelector('[data-lb-next]').addEventListener('click', function () { step(1); });
+                d.querySelector('[data-lb-close]').addEventListener('click', function () { d.close(); });
+                // Backdrop tap closes; Esc is the <dialog>'s own behaviour.
+                d.addEventListener('click', function (e) { if (e.target === d) d.close(); });
+                d.addEventListener('keydown', function (e) {
+                    if (e.key === 'ArrowLeft')  { e.preventDefault(); step(-1); }
+                    if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
+                });
+                return d;
+            }
+
+            window.openPhotoLightbox = function (photos, startIndex) {
+                items = (Array.isArray(photos) ? photos : []).filter(function (p) { return p && p.url; });
+                if (!items.length) return;
+                index = Math.min(Math.max(parseInt(startIndex, 10) || 0, 0), items.length - 1);
+                dlg = dlg || document.getElementById('ws-photo-lightbox') || build();
+                render();
+                if (typeof dlg.showModal === 'function') {
+                    if (!dlg.open) dlg.showModal();
+                } else {
+                    // Very old browser with no <dialog> support — fall back to
+                    // the plain link behaviour the thumbnail's href already has.
+                    window.open(items[index].url, '_blank');
+                }
+            };
+        })();
 
         // ── Equipment label capture (per-item) ──────────────────────────────
         // Engineer photographs the manufacturer sticker; Claude vision OCRs
@@ -2529,9 +2713,21 @@
             };
 
             // ── window.uploadWorksheetPhoto wrapper ──────────────────────
-            window.uploadWorksheetPhoto = async function (input, token, roomName) {
+            window.uploadWorksheetPhoto = async function (input, token, roomName, bucket) {
                 const file = input && input.files && input.files[0];
                 if (!file) return;
+
+                // 46.4-02 — bucket (D-03) + label (D-04). Both travel the SAME
+                // two roads as room_name already does: the FormData on the
+                // online path, and the queue row's free-form `fields` bag on
+                // the offline path. `fields` is already spread into the drain
+                // FormData key by key, so this costs ZERO queue schema change —
+                // no DB_VERSION bump, no keyPath change, no index change, and
+                // therefore no onupgradeneeded (which only ever creates and
+                // would strand every pending photo).
+                const __bucket = bucket || 'completion';
+                const __capEl  = window.__wsPhotoCaptionInput ? window.__wsPhotoCaptionInput(input) : null;
+                const __cap    = __capEl ? String(__capEl.value || '').trim() : '';
 
                 // HEIC normalisation (bonus per PLAN.md — original doesn't run this).
                 // Smaller blob in IDB AND faster online uploads on iOS.
@@ -2549,6 +2745,8 @@
                     const fd = new FormData();
                     fd.append('photo', uploadFile, (uploadFile && uploadFile.type) ? 'photo.jpg' : (file.name || 'photo.jpg'));
                     fd.append('room_name', roomName);
+                    fd.append('bucket', __bucket);
+                    if (__cap) fd.append('caption', __cap);
                     const url = '/worksheet/' + encodeURIComponent(token) + '/photos';
                     try {
                         const resp = await fetch(url, {
@@ -2567,6 +2765,8 @@
                             try { input.value = ''; } catch (e) {}
                             return;
                         }
+                        // Clear the label so the next photo does not inherit it.
+                        if (__capEl) { try { __capEl.value = ''; } catch (e) {} }
                         // SAME UX as original — reload so thumbnail + count update.
                         window.location.reload();
                         return;
@@ -2577,6 +2777,9 @@
                 }
 
                 // OFFLINE (or online + network throw): enqueue.
+                // ⚠ `kind` STAYS 'completed'. A photo is still a photo; the
+                // bucket is DATA, not a kind. drain() routes on kind, and a
+                // third photo kind would need a third URL arm for the same URL.
                 try {
                     await window.OfflineQueue.enqueue({
                         token: token,
@@ -2584,12 +2787,13 @@
                         room:  roomName,
                         blob:  uploadFile,
                         mime:  'image/jpeg',
-                        fields: {},
+                        fields: __cap ? { bucket: __bucket, caption: __cap } : { bucket: __bucket },
                     });
                     __toast("📥 Saved offline — will upload when you're online", 'info');
                 } catch (e) {
                     __toast('Could not save offline. Please try again when online.', 'error');
                 }
+                if (__capEl) { try { __capEl.value = ''; } catch (e) {} }
                 try { input.value = ''; } catch (e) {}
             };
 
