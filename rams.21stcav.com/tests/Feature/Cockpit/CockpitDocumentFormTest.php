@@ -213,14 +213,27 @@ class CockpitDocumentFormTest extends TestCase
     // ── Closed at rest: ONE control, and its copy ───────────────────────────
 
     /**
-     * The copy is `Generate document` — the retired quick-actions' own word,
-     * re-used deliberately. It was checked against
-     * `CockpitReadOnlyFenceTest::DEFERRED_AFFORDANCES` before use: it is on no
-     * list there, whereas every neighbouring string a designer might reach for
-     * (`Add document`, `Upload files`, `Issue to client`, `Mark as sent`,
-     * `Download`, `Export CSV`, `Open register`) is banned.
+     * RENAMED AND RE-EXPECTED BY PLAN 46.3-01, CITING D-05 (requirement DL-05).
+     *
+     * WAS `test_every_module_closed_offers_exactly_one_control_reading_generate_document()`,
+     * asserting the copy `Generate document`. That copy reads like it PRODUCES
+     * A FILE; it opens a form. The Word/PDF radios behind it have existed since
+     * 46.2-05, and the user asked "can output be word and pdf" while looking at
+     * a page that already did both — so the affordance, not the capability, was
+     * the defect.
+     *
+     * The copy is now DERIVED from the module's own `$offered` format set, so
+     * this test asserts the derivation rather than a string: the Worksheet must
+     * read `Create document — Word` and must NOT promise the PDF that DC-07
+     * says does not exist. Nothing about which formats are offered changed.
+     *
+     * The exactly-one-control, no-`<form`-when-closed and `action=generate`
+     * assertions in this method are UNTOUCHED. Recorded as A-4 in
+     * 46.3-COUNT-LEDGER.md; the fence check the old docblock described in prose
+     * is now executable in
+     * `test_the_closed_control_copy_collides_with_no_fence_entry()`.
      */
-    public function test_every_module_closed_offers_exactly_one_control_reading_generate_document(): void
+    public function test_every_module_closed_offers_exactly_one_control_that_reads_as_opening_a_form(): void
     {
         $project = $this->project();
 
@@ -235,13 +248,102 @@ class CockpitDocumentFormTest extends TestCase
                 "{$module} must offer exactly ONE control when closed."
             );
 
-            $this->assertStringContainsString('Generate document', $block);
+            // READS AS OPENING A FORM, NOT AS PRODUCING A FILE.
+            $this->assertStringContainsString('Create document', $block);
+            $this->assertStringNotContainsString(
+                'Generate document',
+                $block,
+                "{$module}'s CLOSED control still reads as producing a file. The submit button on ".
+                'the OPEN form keeps that copy, because it genuinely does generate.'
+            );
+
+            // AND IT NAMES ONLY FORMATS THE MODULE ACTUALLY OFFERS. Read off
+            // `documentFieldMap()` — the same source the Blade reads — so the
+            // copy and the offer cannot drift into disagreement.
+            $formats = CockpitDocumentFormPresenter::documentFieldMap()[$module]['formats'] ?? [];
+            $labels  = ['word' => 'Word', 'pdf' => 'PDF'];
+
+            foreach ($labels as $key => $label) {
+                if (($formats[$key] ?? null) !== null) {
+                    $this->assertStringContainsString(
+                        $label,
+                        $block,
+                        "{$module} offers {$label} and the closed control does not say so — which ".
+                        'is the undiscoverable capability D-05 exists to fix.'
+                    );
+
+                    continue;
+                }
+
+                $this->assertStringNotContainsString(
+                    $label,
+                    $block,
+                    "{$module} does NOT offer {$label}, and the closed control must not promise ".
+                    'it. The Worksheet PDF does not exist (DC-07) and the open form SAYS so; the '.
+                    'closed control must not contradict that.'
+                );
+            }
 
             // Closed is an ANCHOR to `?action=generate`, never a form: the form
             // is a URL away, not a widget away.
             $this->assertSame(0, substr_count($block, '<form'), "{$module} discloses a form before it was asked to.");
             $this->assertStringContainsString('action=generate', $block);
         }
+    }
+
+    /**
+     * THE COPY-VS-FENCE CHECK, MADE EXECUTABLE (Plan 46.3-01, D-05 / DL-05).
+     *
+     * 46.2-05 made this check by hand before choosing `Generate document` and
+     * wrote the result in a comment. A comment cannot fail, so the next copy
+     * edit — this one — could have collided with a deferred affordance silently.
+     * `CockpitReadOnlyFenceTest::test_none_of_the_deferred_affordances_appears()`
+     * would have caught it, but only as an unexplained red in a different file;
+     * here it fails where the copy lives, with the reason attached.
+     *
+     * THE RULE THIS ENCODES: if the chosen copy collides, CHOOSE DIFFERENT
+     * COPY. A fence entry is never lifted for a label — an entry comes off that
+     * list only when the phase ships the affordance the entry banned.
+     *
+     * The list is read out of the fence test by reflection rather than copied,
+     * because a second copy of 21 strings is a second thing to drift.
+     */
+    public function test_the_closed_control_copy_collides_with_no_fence_entry(): void
+    {
+        $fence = new \ReflectionClass(CockpitReadOnlyFenceTest::class);
+
+        /** @var array<string, string> $deferred */
+        $deferred = $fence->getConstant('DEFERRED_AFFORDANCES');
+        /** @var list<string> $markup */
+        $markup = $fence->getConstant('FORBIDDEN_MARKUP');
+
+        // The pins are re-taken here too: a check against a list that silently
+        // shrank would be a check against nothing.
+        $this->assertCount(21, $deferred, 'DEFERRED_AFFORDANCES is no longer 21 — see 46.3-COUNT-LEDGER.md C-2.');
+        $this->assertCount(2, $markup, 'FORBIDDEN_MARKUP is no longer 2 — see 46.3-COUNT-LEDGER.md C-1.');
+
+        $project = $this->project();
+        $judged  = 0;
+
+        foreach (array_keys(CockpitModulePresenter::moduleMap()) as $module) {
+            $block = $this->docForm($project, $module);
+            $judged++;
+
+            foreach ($deferred as $copy => $owner) {
+                $this->assertStringNotContainsString(
+                    $copy,
+                    $block,
+                    "The closed control's copy on {$module} contains \"{$copy}\", which is deferred ".
+                    "to {$owner}. CHOOSE DIFFERENT COPY — never lift a fence entry for a label."
+                );
+            }
+
+            foreach ($markup as $forbidden) {
+                $this->assertStringNotContainsString($forbidden, $block, "The closed control block contains {$forbidden}.");
+            }
+        }
+
+        $this->assertSame(count(CockpitModulePresenter::moduleMap()), $judged, 'Not every module was judged.');
     }
 
     public function test_the_control_is_absent_from_the_files_and_notes_tabs(): void

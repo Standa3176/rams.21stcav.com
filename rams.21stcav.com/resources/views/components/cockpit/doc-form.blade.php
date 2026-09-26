@@ -49,11 +49,18 @@
                  field needs a dropdown. If one ever does, LIFT THE ENTRY BY NAME
                  in the commit that ships the control — never by deletion.
       `<script`  STILL BANNED.
-      The 21 DEFERRED_AFFORDANCES. `Generate document` is on none of them and was
-      checked against the list before use; every neighbouring string a designer
-      might reach for — `Add document`, `Upload files`, `Issue to client`,
-      `Mark as sent`, `Download`, `Export CSV`, `Open register` — IS banned.
-      That is why the copy is the retired quick-actions' own word.
+      The 21 DEFERRED_AFFORDANCES. `Generate document` — still the SUBMIT
+      button's copy — is on none of them and was checked against the list before
+      use; every neighbouring string a designer might reach for — `Add document`,
+      `Upload files`, `Issue to client`, `Mark as sent`, `Download`, `Export CSV`,
+      `Open register` — IS banned. That is why the copy is the retired
+      quick-actions' own word.
+      RE-CHECKED BY PLAN 46.3-01 FOR THE CLOSED CONTROL'S NEW COPY (D-05):
+      `Create document — Word or PDF` / `Create document — Word` collides with no
+      entry as a substring, and with neither FORBIDDEN_MARKUP entry. Nothing was
+      lifted — a fence entry is never lifted for a label. The list stays 21 and
+      the check is now an assertion in CockpitDocumentFormTest, so the next copy
+      edit cannot collide quietly.
 
     ── ESCAPED OUTPUT ONLY (T-46.2-17) ────────────────────────────────────
 
@@ -128,6 +135,44 @@
     // a third format would render its key rather than silently vanish.
     $formatLabels = ['word' => 'Word', 'pdf' => 'PDF'];
 
+    // THE CLOSED CONTROL NAMES WHAT IS BEHIND IT (D-05, requirement DL-05).
+    // The Word/PDF radios have existed since 46.2-05 and render per document,
+    // but they sat behind a control reading "Generate document" — which reads
+    // like it PRODUCES A FILE when it opens a form — so the user asked "can
+    // output be word and pdf" while looking at a page that already did both.
+    // A capability that cannot be discovered reads as absent.
+    //
+    // NOTHING ABOUT THE FORMATS CHANGES. The copy is built from `$offered`
+    // above — the presenter's own map — so it can never promise a format this
+    // module does not have. The Worksheet has no PDF path (DC-07) and this
+    // control must not imply one; `$missing` still SAYS so on the open form.
+    //
+    // The joining word comes from the COUNT, not from an assumption of two: a
+    // third format added to the map would read correctly without an edit here.
+    $offeredWords = array_values(array_map(
+        static fn (string $key): string => $formatLabels[$key] ?? $key,
+        array_keys($offered),
+    ));
+
+    $offeredPhrase = match (true) {
+        $offeredWords === []      => '',
+        count($offeredWords) === 1 => $offeredWords[0],
+        default                    => implode(', ', array_slice($offeredWords, 0, -1))
+                                      .' or '.$offeredWords[count($offeredWords) - 1],
+    };
+
+    // CHECKED AS A SUBSTRING AGAINST ALL 21 `DEFERRED_AFFORDANCES` KEYS AND
+    // BOTH `FORBIDDEN_MARKUP` ENTRIES BEFORE USE, the same check 46.2-05 made
+    // for "Generate document". It collides with none — and `Add document`,
+    // `Upload files`, `Issue to client`, `Open register`, `Export CSV` and
+    // `Download`, every neighbouring string a designer might reach for, are all
+    // banned. A fence entry is NEVER lifted for a label. The check is itself
+    // asserted by CockpitDocumentFormTest so a later copy edit cannot collide
+    // quietly.
+    $openLabel = $offeredPhrase === ''
+        ? 'Create document'
+        : 'Create document — '.$offeredPhrase;
+
     $textLike = [$types::TYPE_TEXT, $types::TYPE_DATE, $types::TYPE_TIME];
 @endphp
 
@@ -135,8 +180,13 @@
     <span class="cav-panel__card-head">Generate</span>
 
     @if (! $isOpen)
-        {{-- ONE control per module. The form is a URL away, not a widget away. --}}
-        <a class="cav-qa__control" href="{{ $openUrl }}">Generate document</a>
+        {{-- ONE control per module. The form is a URL away, not a widget away.
+             Its copy is DERIVED from $offered (D-05) — built in the props block
+             above; do not write the word for the directive here, Blade compiles
+             it even inside a comment and leaves the PHP block unterminated. The
+             submit button below keeps "Generate document", because that control
+             genuinely does generate. --}}
+        <a class="cav-qa__control" href="{{ $openUrl }}">{{ $openLabel }}</a>
     @else
         @if ($intro !== null)
             <p class="cav-qa__intro">{{ $intro }}</p>

@@ -276,7 +276,15 @@ class CockpitDocCreationEndToEndTest extends TestCase
         );
 
         $this->assertNotSame('', $closed, 'The worksheet row renders no document block.');
-        $this->assertStringContainsString('Generate document', $closed);
+        // RETARGETED BY PLAN 46.3-01, CITING D-05 (A-5 in 46.3-COUNT-LEDGER.md).
+        // WAS `assertStringContainsString('Generate document', $closed)`. The
+        // closed control now reads as OPENING A FORM and names the formats it
+        // will offer — and the Worksheet offers Word only, so this walk's
+        // retarget is STRICTER than the string it replaced: it also proves the
+        // control does not promise the PDF that DC-07 says does not exist.
+        // The submit button on the open form keeps `Generate document`.
+        $this->assertStringContainsString('Create document — Word', $closed);
+        $this->assertStringNotContainsString('PDF', $closed);
         $this->assertSame(0, substr_count($closed, '<form'), 'Closed discloses no form.');
 
         $open = $this->subtree(

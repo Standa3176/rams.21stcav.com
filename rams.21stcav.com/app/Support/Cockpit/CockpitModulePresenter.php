@@ -301,6 +301,14 @@ final class CockpitModulePresenter
             return 'Not required';
         }
 
+        // THE ZERO RULE IS SCOPED TO THE VISIT PHRASE, DELIBERATELY. D-04
+        // (revised 2026-09-26) names the visit phrase, so `0 documents` still
+        // renders on RAMS and O&M. A planner does not widen a user's decision
+        // on their behalf — and the cases are not obviously the same: on a
+        // document-creation tool `0 documents` is arguably the row's state,
+        // where `0 visits` on a row whose visits are a by-product was noise.
+        // OPEN QUESTION, carried to Plan 46.3-04's human checkpoint (CR-2 in
+        // 46.3-COUNT-LEDGER.md). Do not decide it in code.
         return match ($definition['count_mode']) {
             self::COUNT_VISITS    => $this->visitPhrase($section),
             self::COUNT_TASKS     => $this->phrase($this->taskCount($project), 'task', 'tasks'),
@@ -339,6 +347,32 @@ final class CockpitModulePresenter
     {
         $visits = $section['visits'] ?? null;
         $visits = $visits instanceof Collection ? $visits : collect();
+
+        // ── HIDDEN AT ZERO, AND AT ZERO ONLY (D-04, REVISED 2026-09-26) ─────
+        //
+        // WHY THIS IS ONE LINE AND NOT A DELETED METHOD. The user said "strip
+        // 0 visits" while looking at an empty project, and they were right:
+        // `0 visits` is noise. But the same slot renders `1 visit ·
+        // reconstructed` and `2 visits · 1 superseded`, and — see the docblock
+        // above — with the panel closed it is the page's ONLY disclosure that a
+        // visit was INFERRED rather than recorded, or has been SUPERSEDED.
+        // Phase 45's D-02 put it there so a PM would not read an inference as
+        // fact, and there are 24 backfilled visits on live.
+        //
+        // A FULL STRIP WAS CONSIDERED AND REFUSED. Three options were put to
+        // the user — hide-at-zero, strip and show a document count instead, or
+        // strip and show nothing — and they chose HIDE-AT-ZERO on 2026-09-26.
+        // So `site_survey` and `worksheet` stay on COUNT_VISITS, MODULE_MAP is
+        // untouched, and zero is the only value with nothing to disclose.
+        //
+        // ONE MECHANISM, IN THE PLACE THAT ALREADY OWNS THE DECISION. The
+        // empty string is hidden by the row's existing
+        // `@if (filled($module['count']))` at module-row.blade.php:62. Do NOT
+        // add a second suppression in Blade; a rule enforced in two places
+        // drifts in one of them.
+        if ($visits->isEmpty()) {
+            return '';
+        }
 
         $phrase = $this->phrase($visits->count(), 'visit', 'visits');
 
