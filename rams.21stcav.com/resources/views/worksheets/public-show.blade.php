@@ -589,6 +589,41 @@
             // PublicWorksheetController. Never treat this flag as a permission.
             $captureLocked = \App\Support\Worksheets\WorksheetCaptureLock::isLocked($worksheet);
 
+            // ── 46.4-05 (D-06 / D-08) — ADDITIONAL KIT, IN ONE QUERY ──────────
+            // The rows are fetched ONCE for the whole worksheet and partitioned
+            // by trimmed lower-cased room_name, matching the join convention
+            // already used above for WorksheetPhoto and DeviceLabelPhoto. A
+            // per-room query would be an N+1 on a page an engineer opens on site
+            // signal, which is the one place this app must not be slow.
+            //
+            // `Worksheet::additionalKit()` returns MARKED ROWS TOO, on purpose
+            // (D-08: nothing is ever hard deleted). The three states are branched
+            // on plan 01's isMarked() / isAmended() / isOpen() helpers below —
+            // never re-derived from marked_for_deletion_at or count($amendments),
+            // so the server's refusals and this page cannot drift apart.
+            $kitByRoom = [];
+            foreach ($worksheet->additionalKit()->get() as $kitRow) {
+                $kitKey = strtolower(trim((string) $kitRow->room_name));
+                $kitByRoom[$kitKey][] = $kitRow;
+            }
+
+            // ── D-02 — THE ENGINEER IS PICKED, NEVER TYPED ─────────────────────
+            // A plain array of ['id','name'] and nothing else. By construction it
+            // cannot reach an email or a phone (LR-04): the resolver selects two
+            // columns and returns arrays, not models, so there is no model left
+            // downstream to lazily reach back through. THERE IS NO FREE-TEXT
+            // ENGINEER INPUT ON THIS PAGE — if there were, a null would stop
+            // meaning "nobody was allocated" and start being a spelling variant.
+            $allocatedEngineers = \App\Support\Worksheets\AllocatedEngineers::forWorksheet($worksheet);
+            $engineerNamesById  = [];
+            foreach ($allocatedEngineers as $kitEngineer) {
+                $engineerNamesById[(int) $kitEngineer['id']] = (string) $kitEngineer['name'];
+            }
+            // Read from the controller's own constant rather than re-typed here —
+            // the endpoint returns this exact string in its JSON, the page renders
+            // it server-side, and the two must be the same sentence.
+            $unassignedEngineerLabel = \App\Http\Controllers\PublicWorksheetController::UNASSIGNED_ENGINEER;
+
             // ── D-46-05-01 — sign-off gate defaults, declared UNCONDITIONALLY ──
             // The real values are computed in the @else arm of `@if(empty($rooms))`
             // below (~:773), but BOTH are read AFTER that @endif in the Client
@@ -959,6 +994,10 @@
                     // Skip-restore flag — used by the H3 scroll-restore JS so a room that was just
                     // completed DOES NOT get reopened on reload (auto-collapse must win).
                     $skipRestoreAttr = $isRoomComplete ? 'data-skip-restore="1"' : '';
+
+                    // 46.4-05 — this room's additional-kit rows, out of the ONE
+                    // query partitioned in the page-level @php block above.
+                    $kitRows = $kitByRoom[$roomKey] ?? [];
                 @endphp
 
                 <details class="card" id="room-{{ $roomIdSlug }}" {!! $skipRestoreAttr !!} {{ $idx === $firstIncompleteIdx ? 'open' : '' }}>
@@ -1066,9 +1105,10 @@
                             </div>
                             {{-- 46.4-04 (D-07) — the whole capture control set for this tray:
                                  the label field, the capture button and its hidden file input.
-                                 Gone once signed; the thumbnails above stay. Plan 46.4-05's kit
-                                 drawer trigger and per-row controls wire to this SAME
-                                 $captureLocked variable — do not invent a second flag. --}}
+                                 Gone once signed; the thumbnails above stay. 46.4-05's kit
+                                 drawer trigger and per-row Correct / Mark controls read this
+                                 SAME $captureLocked variable — there is no second flag, and
+                                 a new capture control must not introduce one. --}}
                             @unless($captureLocked)
                             {{-- D-04 — the label rides with the capture. maxlength mirrors the
                                  server's max:200 so the field cannot promise what the endpoint
@@ -1094,6 +1134,109 @@
                             @endif
                         </div>
                     @endforeach
+
+                    {{-- ════════════════════════════════════════════════════════════════
+                         46.4-05 (D-06 / D-08 / D-02 / D-10) — ADDITIONAL KIT, PER ROOM
+
+                         The thing this phase is named for. Until now the only place
+                         extra kit could land was the sign-off comments textarea or a
+                         phone call to the office; these are real rows the office
+                         already has a screen for (plan 03).
+
+                         THREE STATES, WORDED THE SAME WAY THE OFFICE SEES THEM, so an
+                         engineer on the phone and an admin at a desk describe the same
+                         row identically: open, Amended, and Marked for deletion with
+                         its reason. A row can be BOTH amended and marked — two
+                         independent checks, not a chain.
+
+                         ⚠️ EVERY ECHO IS ESCAPED, INCLUDING THE REASON. part_description
+                         and deletion_reason are engineer free text on a document the
+                         CLIENT SIGNS. There is exactly one raw echo in this file (the
+                         pre-existing $skipRestoreAttr literal) and a test pins that
+                         count at one, so a second one fails red.
+
+                         D-10: qty and part description. NO UNIT FIELD — put to the user
+                         and declined ("3.no."). Not even a placeholder.
+                         Claude's-discretion ruling the same day: NO PHOTO on a kit row
+                         either ("dont need kit pics, on serial cpature") — no file
+                         input, no thumbnail, no upload endpoint.
+                    ════════════════════════════════════════════════════════════════ --}}
+                    <div style="margin-bottom:1rem;padding-bottom:.85rem;border-bottom:1px dashed #E5E7EB;">
+                        {{-- Hidden while the room has no rows: the trigger below IS the
+                             affordance, and an empty titled list is just noise. The JS
+                             reveals it when the first row is grafted in. --}}
+                        <div class="photo-tray-title" data-kit-title data-room-key="{{ $roomKey }}"
+                             style="display:{{ empty($kitRows) ? 'none' : 'block' }};">
+                            🧰 Additional kit used (<span data-kit-count>{{ count($kitRows) }}</span>)
+                        </div>
+                        {{-- Always rendered, even when empty, so a grafted row has a home
+                             without the page reloading. Empty, it displays nothing. --}}
+                        <ul data-kit-list data-room-key="{{ $roomKey }}" style="list-style:none;margin:0;padding:0;">
+                            @foreach($kitRows as $kitRow)
+                                @php
+                                    // The name comes from AllocatedEngineers' two-key
+                                    // arrays. An id whose resource is gone, or one no
+                                    // longer on the visit, falls back to the same
+                                    // sentence as a null — never to a guessed name.
+                                    $kitRowEngineer = $kitRow->labour_resource_id !== null
+                                        ? ($engineerNamesById[(int) $kitRow->labour_resource_id] ?? $unassignedEngineerLabel)
+                                        : $unassignedEngineerLabel;
+                                @endphp
+                                <li data-kit-row="{{ $kitRow->id }}"
+                                    style="padding:.5rem 0;border-bottom:1px dotted #F1F5F9;font-size:.86rem;line-height:1.45;">
+                                    <div style="word-break:break-word;">
+                                        <strong>{{ $kitRow->qty }} ×</strong> {{ $kitRow->part_description }}
+                                        <span class="muted">— {{ $kitRowEngineer }}</span>
+                                    </div>
+                                    @if($kitRow->isAmended())
+                                        <span data-kit-chip="amended" style="display:inline-block;margin-top:.25rem;padding:1px 8px;border-radius:9999px;background:#E0F2FE;color:#075985;font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;">Amended</span>
+                                    @endif
+                                    @if($kitRow->isMarked())
+                                        <span data-kit-chip="marked" style="display:inline-block;margin-top:.25rem;padding:1px 8px;border-radius:9999px;background:#FEE2E2;color:#991B1B;font-weight:700;font-size:.68rem;">Marked for deletion — {{ $kitRow->deletion_reason ?: 'No reason recorded' }}</span>
+                                    @endif
+                                    {{-- Controls only on an OPEN row, and only while capture
+                                         is possible. A marked or reconciled row shows its
+                                         state and NO buttons: the server refuses either way,
+                                         but an affordance that always fails is a bug report
+                                         waiting to happen. --}}
+                                    @if($kitRow->isOpen() && ! $captureLocked)
+                                        <div data-kit-row-controls style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.4rem;">
+                                            <button type="button"
+                                                    data-capture-control
+                                                    data-kit-correct
+                                                    data-row="{{ $kitRow->id }}"
+                                                    data-room="{{ $room['name'] ?? '' }}"
+                                                    data-qty="{{ $kitRow->qty }}"
+                                                    data-desc="{{ $kitRow->part_description }}"
+                                                    data-engineer="{{ $kitRow->labour_resource_id }}"
+                                                    class="btn btn-outline btn-sm"
+                                                    style="min-height:44px;padding:.5rem .8rem;font-size:.82rem;">✏️ Correct</button>
+                                            <button type="button"
+                                                    data-capture-control
+                                                    data-kit-mark
+                                                    data-row="{{ $kitRow->id }}"
+                                                    class="btn btn-outline btn-sm"
+                                                    style="min-height:44px;padding:.5rem .8rem;font-size:.82rem;">🗑 Mark for deletion</button>
+                                        </div>
+                                    @endif
+                                </li>
+                            @endforeach
+                        </ul>
+                        {{-- The per-room trigger. ONE page-level drawer serves every
+                             room (SCC's PMV shape) — the room travels on the button. --}}
+                        @unless($captureLocked)
+                            <button type="button"
+                                    data-capture-control
+                                    data-kit-trigger
+                                    data-room="{{ $room['name'] ?? '' }}"
+                                    data-room-key="{{ $roomKey }}"
+                                    class="btn btn-outline btn-sm"
+                                    style="margin-top:.6rem;min-height:44px;padding:.6rem 1rem;font-size:.86rem;">+ Add additional kit</button>
+                            <div class="muted" style="font-size:.78rem;margin-top:.3rem;">
+                                Tap to open — add one or several before closing.
+                            </div>
+                        @endunless
+                    </div>
 
                     {{-- ── 260504-iy4 H1 — Mark Room Complete CTA ──
                          Soft visual gate: button disables until (a) survey reviewed if a survey
@@ -1494,6 +1637,130 @@
                     {{-- 260504-ij9 fix B3 — Photo tray moved to TOP of room body (above). --}}
                 </details>
             @endforeach
+
+            {{-- ════════════════════════════════════════════════════════════════════
+                 46.4-05 — ONE PAGE-LEVEL DRAWER, REUSED BY EVERY ROOM AND BOTH MODES
+
+                 Shape copied from SCC's PMV add-device drawer
+                 (service-contractor-creator/resources/views/pmv/show.blade.php
+                 :1329-1332 trigger, :1530-1553 the single shared drawer). SHAPE only —
+                 that is a different application and nothing is imported from it.
+
+                 ⚠️ VANILLA ON PURPOSE. This page never loads Alpine, so RAMS's own
+                 repeater components would silently no-op here. It is also why the
+                 styling is inline: the page has no bundler, and the three pinned
+                 files (layouts/app.blade.php, resources/css/app.css,
+                 tailwind.config.js) must stay byte-identical.
+
+                 `data-mode` switches the SAME drawer between add and correct, so a
+                 pre-filled correction and a fresh add cannot drift into two forms
+                 that validate differently.
+            ════════════════════════════════════════════════════════════════════ --}}
+            @unless($captureLocked)
+                <div id="kit-drawer-backdrop" data-capture-control hidden
+                     style="position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:80;"></div>
+
+                <aside id="kit-drawer"
+                       data-drawer
+                       data-capture-control
+                       data-mode="add"
+                       data-token="{{ $token }}"
+                       role="dialog"
+                       aria-modal="true"
+                       aria-labelledby="kit-drawer-heading"
+                       hidden
+                       style="position:fixed;left:0;right:0;bottom:0;z-index:81;background:#fff;border-radius:14px 14px 0 0;box-shadow:0 -6px 24px rgba(15,23,42,.18);padding:1rem 1.1rem 1.5rem;max-height:88vh;overflow-y:auto;">
+                    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.6rem;margin-bottom:.2rem;">
+                        <div>
+                            <div id="kit-drawer-heading" data-kit-heading style="font-weight:700;font-size:1rem;">Add additional kit</div>
+                            <div class="muted" data-kit-room-label style="font-size:.8rem;margin-top:.15rem;"></div>
+                        </div>
+                        <button type="button" data-capture-control data-kit-close aria-label="Close"
+                                style="border:0;background:transparent;font-size:1.5rem;line-height:1;min-width:44px;min-height:44px;cursor:pointer;color:#475569;">&times;</button>
+                    </div>
+
+                    {{-- ENGINEER — A SELECT, AND ONLY EVER A SELECT (D-02).
+                         There is no free-text engineer input on this page and there
+                         never will be one. The options come from the visit's own
+                         allocation via AllocatedEngineers, which carries a name and an
+                         id and nothing else (LR-04). --}}
+                    <label class="form-label" for="kit-engineer" style="display:block;margin-top:.7rem;font-size:.82rem;font-weight:600;">Engineer</label>
+                    <select id="kit-engineer" data-capture-control
+                            style="display:block;width:100%;min-height:44px;padding:.5rem .6rem;border:1px solid #D1D5DB;border-radius:8px;font-size:.9rem;background:#fff;">
+                        @if(empty($allocatedEngineers))
+                            {{-- D-02's fallback, on screen. The row is still saved with a
+                                 NULL engineer and the office matches it up — which is why
+                                 the column is nullable and why THE FORM STAYS
+                                 SUBMITTABLE in this state. --}}
+                            <option value="" selected disabled>{{ $unassignedEngineerLabel }}</option>
+                        @else
+                            <option value="">{{ $unassignedEngineerLabel }}</option>
+                            @foreach($allocatedEngineers as $kitEngineerOption)
+                                <option value="{{ $kitEngineerOption['id'] }}">{{ $kitEngineerOption['name'] }}</option>
+                            @endforeach
+                        @endif
+                    </select>
+                    @if(empty($allocatedEngineers))
+                        <div class="muted" style="font-size:.76rem;margin-top:.25rem;">
+                            No engineer is allocated to this visit yet. Add the item anyway —
+                            it saves without a name and the office will match it up.
+                        </div>
+                    @endif
+
+                    <label class="form-label" for="kit-qty" style="display:block;margin-top:.7rem;font-size:.82rem;font-weight:600;">Qty</label>
+                    <input type="number" id="kit-qty" data-capture-control
+                           min="1" max="999" value="1" step="1" inputmode="numeric" required
+                           style="display:block;width:100%;max-width:140px;min-height:44px;padding:.5rem .6rem;border:1px solid #D1D5DB;border-radius:8px;font-size:.95rem;">
+
+                    {{-- maxlength mirrors the endpoint's max:500 so the field cannot
+                         promise what the server will refuse. D-10: there is no unit
+                         box next to this one, deliberately. --}}
+                    <label class="form-label" for="kit-desc" style="display:block;margin-top:.7rem;font-size:.82rem;font-weight:600;">Part description</label>
+                    <input type="text" id="kit-desc" data-capture-control maxlength="500" required
+                           placeholder="e.g. Trunking, 50x50 white"
+                           style="display:block;width:100%;min-height:44px;padding:.5rem .6rem;border:1px solid #D1D5DB;border-radius:8px;font-size:.9rem;">
+
+                    <button type="button" id="kit-submit" data-capture-control class="btn btn-teal"
+                            style="margin-top:.9rem;width:100%;min-height:48px;font-size:.95rem;">Add</button>
+                    <div id="kit-status" data-kit-status class="muted" style="font-size:.8rem;margin-top:.5rem;min-height:1.1em;"></div>
+                    <div class="muted" style="font-size:.76rem;margin-top:.2rem;">
+                        Each item saves as you tap Add — the drawer stays open so you can add the next one.
+                    </div>
+                </aside>
+
+                {{-- ── THE MARK PROMPT (D-08) ──────────────────────────────────────
+                     NOT a confirm() box, and that is the whole point: a confirm box
+                     cannot collect a reason, and here THE TEXT IS THE PAYLOAD. The
+                     office reads this sentence and decides what to do with the line,
+                     so the submit stays disabled until there are at least three
+                     non-whitespace characters — the same floor the server enforces. --}}
+                <aside id="kit-mark-dialog"
+                       data-drawer
+                       data-capture-control
+                       data-token="{{ $token }}"
+                       role="dialog"
+                       aria-modal="true"
+                       aria-labelledby="kit-mark-heading"
+                       hidden
+                       style="position:fixed;left:0;right:0;bottom:0;z-index:82;background:#fff;border-radius:14px 14px 0 0;box-shadow:0 -6px 24px rgba(15,23,42,.18);padding:1rem 1.1rem 1.5rem;max-height:88vh;overflow-y:auto;">
+                    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.6rem;">
+                        <div id="kit-mark-heading" style="font-weight:700;font-size:1rem;">Mark this item for deletion</div>
+                        <button type="button" data-capture-control data-kit-mark-close aria-label="Close"
+                                style="border:0;background:transparent;font-size:1.5rem;line-height:1;min-width:44px;min-height:44px;cursor:pointer;color:#475569;">&times;</button>
+                    </div>
+                    <div class="muted" style="font-size:.8rem;margin-top:.3rem;">
+                        The line stays on the record, flagged with your reason. The office reads the
+                        reason and decides what to do with it — so say what happened.
+                    </div>
+                    <label class="form-label" for="kit-mark-reason" style="display:block;margin-top:.7rem;font-size:.82rem;font-weight:600;">Reason <span class="req">*</span></label>
+                    <textarea id="kit-mark-reason" data-capture-control rows="3" maxlength="500" required
+                              placeholder="e.g. Ordered twice — only one length fitted."
+                              style="display:block;width:100%;padding:.5rem .6rem;border:1px solid #D1D5DB;border-radius:8px;font-size:.9rem;"></textarea>
+                    <button type="button" id="kit-mark-submit" data-capture-control class="btn btn-teal" disabled
+                            style="margin-top:.9rem;width:100%;min-height:48px;font-size:.95rem;">Mark for deletion</button>
+                    <div id="kit-mark-status" class="muted" style="font-size:.8rem;margin-top:.5rem;min-height:1.1em;"></div>
+                </aside>
+            @endunless
         @endif
 
         {{-- ── Sign-off card ─────────────────────────────────────────── --}}
@@ -3160,6 +3427,419 @@
                 document.addEventListener('DOMContentLoaded', _lcInit);
             } else {
                 _lcInit();
+            }
+        })();
+    </script>
+
+    {{-- ══════════════════════════════════════════════════════════════════════
+         46.4-05 — THE ADDITIONAL-KIT DRAWER (vanilla, no framework)
+
+         Alpine is never loaded on this page, so every behaviour here is hand
+         rolled in the page's existing style. Nothing is imported and nothing
+         is installed.
+
+         THREE RULES THIS BLOCK EXISTS TO HOLD:
+
+         1. ADD DOES NOT RELOAD. Each tap POSTs, grafts the returned row into the
+            room's list, resets qty to 1, clears the description, KEEPS the
+            engineer and KEEPS THE DRAWER OPEN — an engineer standing in a room
+            with six items should tap six times, not reload six pages.
+
+         2. ON A FAILURE THE FORM IS NOT CLEARED. The server's own message goes
+            in the status line and what the engineer typed stays where it is.
+            Losing a typed part number to a dropped packet is the fastest way to
+            make somebody go back to ringing the office.
+
+         3. ⚠️ EVERY GRAFTED STRING GOES THROUGH _esc. part_description and
+            deletion_reason are engineer free text on a document the CLIENT
+            SIGNS, so a JS-built row is exactly as much of an XSS surface as a
+            Blade echo. _esc is a local copy of the queue panel's helper
+            (defined inside its own IIFE and not exported) and escapes the same
+            five characters — kept identical deliberately.
+
+         OFFLINE (the ruling lives in plan 46.4-06, next to the queue): ADD works
+         offline because plan 06 queues it. CORRECT and MARK do NOT — they need
+         the row's current server-side state to diff against, and a queued
+         correction could drain onto a row the office had already reconciled.
+         So they are shown VISIBLY DISABLED with the words "Needs a connection"
+         and they say so on tap. What is NOT acceptable is a control that looks
+         like it worked and silently loses the change.
+    ══════════════════════════════════════════════════════════════════════ --}}
+    <script>
+        (function () {
+            'use strict';
+
+            const drawer = document.getElementById('kit-drawer');
+            const markDlg = document.getElementById('kit-mark-dialog');
+
+            // Absent when the worksheet is signed (capture is closed) or when the
+            // worksheet has no rooms at all. Both are normal, neither is an error.
+            if (!drawer || !markDlg) return;
+
+            const backdrop   = document.getElementById('kit-drawer-backdrop');
+            const heading    = drawer.querySelector('[data-kit-heading]');
+            const roomLabel  = drawer.querySelector('[data-kit-room-label]');
+            const engineerEl = document.getElementById('kit-engineer');
+            const qtyEl      = document.getElementById('kit-qty');
+            const descEl     = document.getElementById('kit-desc');
+            const submitEl   = document.getElementById('kit-submit');
+            const statusEl   = document.getElementById('kit-status');
+
+            const reasonEl     = document.getElementById('kit-mark-reason');
+            const markSubmitEl = document.getElementById('kit-mark-submit');
+            const markStatusEl = document.getElementById('kit-mark-status');
+
+            const token = drawer.dataset.token || '';
+
+            let activeRoom    = '';
+            let activeRoomKey = '';
+            let activeRowId   = null;
+            let markRowId     = null;
+
+            // Identical to the queue panel's helper. That one lives inside its own
+            // IIFE and is not exported; copying five replaces is better than
+            // reaching into another closure or making a global out of it.
+            function _esc(s) {
+                return String(s == null ? '' : s)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            }
+
+            function _headers() {
+                return {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                };
+            }
+
+            function _toast(message, tone) {
+                if (window.__wsShowToast) {
+                    window.__wsShowToast(message, tone || 'info', 4000);
+                }
+            }
+
+            // ── Open / close ──────────────────────────────────────────────────
+
+            function openDrawer(mode, room, roomKey) {
+                activeRoom    = room || '';
+                activeRoomKey = roomKey || '';
+                drawer.dataset.mode = mode;
+                heading.textContent = mode === 'modify' ? 'Correct this item' : 'Add additional kit';
+                submitEl.textContent = mode === 'modify' ? 'Save correction' : 'Add';
+                roomLabel.textContent = activeRoom;
+                statusEl.textContent = '';
+                if (backdrop) backdrop.hidden = false;
+                drawer.hidden = false;
+                descEl.focus();
+            }
+
+            function closeDrawer() {
+                drawer.hidden = true;
+                if (backdrop) backdrop.hidden = true;
+                activeRowId = null;
+                drawer.dataset.mode = 'add';
+            }
+
+            function closeMark() {
+                markDlg.hidden = true;
+                if (backdrop) backdrop.hidden = true;
+                markRowId = null;
+                reasonEl.value = '';
+                markSubmitEl.disabled = true;
+                markStatusEl.textContent = '';
+            }
+
+            // ── Row markup — the SAME shape the Blade renders above ───────────
+
+            function controlsHtml(row) {
+                return ''
+                    + '<div data-kit-row-controls style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.4rem;">'
+                    +   '<button type="button" data-capture-control data-kit-correct'
+                    +     ' data-row="' + _esc(row.id) + '"'
+                    +     ' data-room="' + _esc(activeRoom) + '"'
+                    +     ' data-qty="' + _esc(row.qty) + '"'
+                    +     ' data-desc="' + _esc(row.part_description) + '"'
+                    +     ' data-engineer="' + _esc(row.labour_resource_id == null ? '' : row.labour_resource_id) + '"'
+                    +     ' class="btn btn-outline btn-sm" style="min-height:44px;padding:.5rem .8rem;font-size:.82rem;">&#9999;&#65039; Correct</button>'
+                    +   '<button type="button" data-capture-control data-kit-mark'
+                    +     ' data-row="' + _esc(row.id) + '"'
+                    +     ' class="btn btn-outline btn-sm" style="min-height:44px;padding:.5rem .8rem;font-size:.82rem;">&#128465; Mark for deletion</button>'
+                    + '</div>';
+            }
+
+            function rowInnerHtml(row, opts) {
+                const flags = opts || {};
+                let html = ''
+                    + '<div style="word-break:break-word;">'
+                    +   '<strong>' + _esc(row.qty) + ' &times;</strong> ' + _esc(row.part_description)
+                    +   ' <span class="muted">&mdash; ' + _esc(row.engineer_name) + '</span>'
+                    + '</div>';
+
+                if (flags.amended) {
+                    html += '<span data-kit-chip="amended" style="display:inline-block;margin-top:.25rem;padding:1px 8px;border-radius:9999px;background:#E0F2FE;color:#075985;font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;">Amended</span>';
+                }
+                if (flags.marked) {
+                    html += '<span data-kit-chip="marked" style="display:inline-block;margin-top:.25rem;padding:1px 8px;border-radius:9999px;background:#FEE2E2;color:#991B1B;font-weight:700;font-size:.68rem;">Marked for deletion &mdash; '
+                        + _esc(flags.deletion_reason || 'No reason recorded') + '</span>';
+                }
+                // A marked row shows state and NO controls — matching the Blade.
+                if (!flags.marked) {
+                    html += controlsHtml(row);
+                }
+                return html;
+            }
+
+            function listFor(roomKey) {
+                return document.querySelector('[data-kit-list][data-room-key="' + roomKey + '"]');
+            }
+
+            function bumpCount(roomKey, delta) {
+                const title = document.querySelector('[data-kit-title][data-room-key="' + roomKey + '"]');
+                if (!title) return;
+                const span = title.querySelector('[data-kit-count]');
+                const next = Math.max(0, parseInt(span ? span.textContent : '0', 10) + delta);
+                if (span) span.textContent = String(next);
+                title.style.display = next > 0 ? 'block' : 'none';
+            }
+
+            // ── Triggers ──────────────────────────────────────────────────────
+
+            document.querySelectorAll('[data-kit-trigger]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    activeRowId = null;
+                    qtyEl.value = '1';
+                    descEl.value = '';
+                    openDrawer('add', btn.dataset.room, btn.dataset.roomKey);
+                });
+            });
+
+            function wireCorrect(btn) {
+                btn.addEventListener('click', function () {
+                    if (!isOnline()) { _toast('Correcting an item needs a connection.', 'warning'); return; }
+                    const li = btn.closest('[data-kit-row]');
+                    const list = li ? li.closest('[data-kit-list]') : null;
+                    activeRowId = btn.dataset.row;
+                    qtyEl.value = btn.dataset.qty || '1';
+                    descEl.value = btn.dataset.desc || '';
+                    engineerEl.value = btn.dataset.engineer || '';
+                    openDrawer('modify', btn.dataset.room, list ? list.dataset.roomKey : '');
+                });
+            }
+
+            function wireMark(btn) {
+                btn.addEventListener('click', function () {
+                    if (!isOnline()) { _toast('Marking an item for deletion needs a connection.', 'warning'); return; }
+                    markRowId = btn.dataset.row;
+                    reasonEl.value = '';
+                    markSubmitEl.disabled = true;
+                    markStatusEl.textContent = '';
+                    if (backdrop) backdrop.hidden = false;
+                    markDlg.hidden = false;
+                    reasonEl.focus();
+                });
+            }
+
+            function wireRowControls(scope) {
+                (scope || document).querySelectorAll('[data-kit-correct]').forEach(function (b) {
+                    if (b.dataset.wired) return;
+                    b.dataset.wired = '1';
+                    wireCorrect(b);
+                });
+                (scope || document).querySelectorAll('[data-kit-mark]').forEach(function (b) {
+                    if (b.dataset.wired) return;
+                    b.dataset.wired = '1';
+                    wireMark(b);
+                });
+                // A row grafted in must carry the same offline wording as one the
+                // server rendered — otherwise the state depends on when the row
+                // arrived, which is exactly the bug the online/offline listeners
+                // exist to avoid.
+                applyOnlineState();
+            }
+
+            drawer.querySelectorAll('[data-kit-close]').forEach(function (b) {
+                b.addEventListener('click', closeDrawer);
+            });
+            markDlg.querySelectorAll('[data-kit-mark-close]').forEach(function (b) {
+                b.addEventListener('click', closeMark);
+            });
+            if (backdrop) {
+                backdrop.addEventListener('click', function () { closeDrawer(); closeMark(); });
+            }
+
+            // ── Add / correct submit ──────────────────────────────────────────
+
+            submitEl.addEventListener('click', async function () {
+                const isModify = drawer.dataset.mode === 'modify';
+                const qty  = parseInt(qtyEl.value, 10);
+                const desc = (descEl.value || '').trim();
+
+                if (!(qty >= 1 && qty <= 999)) { statusEl.textContent = 'Enter a quantity between 1 and 999.'; return; }
+                if (desc === '') { statusEl.textContent = 'Enter a part description.'; return; }
+
+                const engineerRaw = engineerEl ? engineerEl.value : '';
+                const payload = {
+                    qty: qty,
+                    part_description: desc,
+                    labour_resource_id: engineerRaw === '' ? null : parseInt(engineerRaw, 10),
+                };
+                let url = '/worksheet/' + encodeURIComponent(token) + '/additional-kit';
+                if (isModify) {
+                    url += '/' + encodeURIComponent(activeRowId);
+                } else {
+                    payload.room_name = activeRoom;
+                }
+
+                submitEl.disabled = true;
+                statusEl.textContent = isModify ? 'Saving correction…' : 'Adding…';
+
+                try {
+                    const resp = await fetch(url, { method: 'POST', headers: _headers(), body: JSON.stringify(payload) });
+                    const data = await resp.json().catch(function () { return {}; });
+
+                    if (!resp.ok) {
+                        // The server's own sentence, verbatim — including the
+                        // sign-off lock's message when a worksheet was signed
+                        // while this drawer was open. THE FORM IS NOT CLEARED.
+                        statusEl.textContent = data.message || 'That did not save. Try again.';
+                        return;
+                    }
+
+                    if (isModify) {
+                        const li = document.querySelector('[data-kit-row="' + activeRowId + '"]');
+                        if (li) {
+                            li.innerHTML = rowInnerHtml({
+                                id: data.id,
+                                qty: data.qty,
+                                part_description: data.part_description,
+                                engineer_name: data.engineer_name,
+                                labour_resource_id: payload.labour_resource_id,
+                            }, { amended: true });
+                            wireRowControls(li);
+                        }
+                        statusEl.textContent = 'Correction saved.';
+                        closeDrawer();
+                        return;
+                    }
+
+                    const list = listFor(activeRoomKey);
+                    if (list) {
+                        const li = document.createElement('li');
+                        li.setAttribute('data-kit-row', data.id);
+                        li.setAttribute('style', 'padding:.5rem 0;border-bottom:1px dotted #F1F5F9;font-size:.86rem;line-height:1.45;');
+                        li.innerHTML = rowInnerHtml({
+                            id: data.id,
+                            qty: data.qty,
+                            part_description: data.part_description,
+                            engineer_name: data.engineer_name,
+                            labour_resource_id: payload.labour_resource_id,
+                        }, {});
+                        list.appendChild(li);
+                        wireRowControls(li);
+                        bumpCount(activeRoomKey, 1);
+                    }
+
+                    // Reset for the NEXT item: keep the engineer, keep the drawer.
+                    qtyEl.value = '1';
+                    descEl.value = '';
+                    descEl.focus();
+                    statusEl.textContent = 'Added. Add another, or close when you are done.';
+                } catch (e) {
+                    statusEl.textContent = 'That did not save — check your signal and try again.';
+                } finally {
+                    submitEl.disabled = false;
+                }
+            });
+
+            // ── Mark submit ───────────────────────────────────────────────────
+
+            reasonEl.addEventListener('input', function () {
+                // Three non-whitespace characters — the same floor the server
+                // enforces, so the button never promises a 422.
+                markSubmitEl.disabled = (reasonEl.value || '').trim().length < 3;
+            });
+
+            markSubmitEl.addEventListener('click', async function () {
+                const reason = (reasonEl.value || '').trim();
+                if (reason.length < 3) { return; }
+
+                markSubmitEl.disabled = true;
+                markStatusEl.textContent = 'Marking…';
+
+                const url = '/worksheet/' + encodeURIComponent(token)
+                    + '/additional-kit/' + encodeURIComponent(markRowId) + '/mark-deleted';
+
+                try {
+                    const resp = await fetch(url, {
+                        method: 'POST', headers: _headers(),
+                        body: JSON.stringify({ deletion_reason: reason }),
+                    });
+                    const data = await resp.json().catch(function () { return {}; });
+
+                    if (!resp.ok) {
+                        markStatusEl.textContent = data.message || 'That did not save. Try again.';
+                        markSubmitEl.disabled = false;
+                        return;
+                    }
+
+                    const li = document.querySelector('[data-kit-row="' + markRowId + '"]');
+                    if (li) {
+                        const controls = li.querySelector('[data-kit-row-controls]');
+                        if (controls) controls.remove();
+                        const chip = document.createElement('span');
+                        chip.setAttribute('data-kit-chip', 'marked');
+                        chip.setAttribute('style', 'display:inline-block;margin-top:.25rem;padding:1px 8px;border-radius:9999px;background:#FEE2E2;color:#991B1B;font-weight:700;font-size:.68rem;');
+                        chip.innerHTML = 'Marked for deletion &mdash; ' + _esc(data.deletion_reason || reason);
+                        li.appendChild(chip);
+                    }
+                    closeMark();
+                    _toast('Marked for deletion. The line stays on the record with your reason.', 'info');
+                } catch (e) {
+                    markStatusEl.textContent = 'That did not save — check your signal and try again.';
+                    markSubmitEl.disabled = false;
+                }
+            });
+
+            // ── Online / offline state, bound to REALITY not page-load time ───
+
+            function isOnline() {
+                return navigator.onLine !== false;
+            }
+
+            function applyOnlineState() {
+                const online = isOnline();
+                document.querySelectorAll('[data-kit-correct],[data-kit-mark]').forEach(function (b) {
+                    if (!b.dataset.labelWas) b.dataset.labelWas = b.innerHTML;
+                    // aria-disabled, NOT the disabled attribute: a natively
+                    // disabled button fires no click, and then the engineer taps
+                    // a dead control and learns nothing. This one still explains
+                    // itself.
+                    b.setAttribute('aria-disabled', online ? 'false' : 'true');
+                    b.style.opacity = online ? '' : '.55';
+                    b.style.textDecoration = '';
+                    if (online) {
+                        b.innerHTML = b.dataset.labelWas;
+                        b.removeAttribute('title');
+                    } else {
+                        b.innerHTML = 'Needs a connection';
+                        b.setAttribute('title', 'Correcting or marking an item needs a connection. Adding still works offline.');
+                    }
+                });
+            }
+
+            window.addEventListener('online', applyOnlineState);
+            window.addEventListener('offline', applyOnlineState);
+
+            function _kitInit() {
+                wireRowControls(document);
+                applyOnlineState();
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', _kitInit);
+            } else {
+                _kitInit();
             }
         })();
     </script>
