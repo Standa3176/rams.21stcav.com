@@ -15,8 +15,9 @@ recorded in `.planning/sketches/002-install-cockpit/README.md` (cockpit + panels
 `.planning/sketches/003-quote-import/README.md` (import review). The sketches are the
 **visual contract**; where an implementation and a sketch disagree, the sketch wins unless
 the user says otherwise.
-**Total requirements:** 46 defined so far (LR-01..LR-05, Phase 44; VIS-01..VIS-10, Phase 45;
-VL-01..VL-12, Phase 46; RV-01..RV-08, Phase 46.1; DC-01..DC-11, Phase 46.2).
+**Total requirements:** 52 defined so far (LR-01..LR-05, Phase 44; VIS-01..VIS-10, Phase 45;
+VL-01..VL-12, Phase 46; RV-01..RV-08, Phase 46.1; DC-01..DC-11, Phase 46.2;
+DL-01..DL-06, Phase 46.3).
 Phases 47–51 are outlined in the roadmap but their requirement IDs are **not yet minted** — each
 will be added here when its phase is planned.
 
@@ -251,6 +252,38 @@ Docs will create in word and pdf"*. It **reverses D-16** of sketch 004 and narro
   with a reason and kept exact** — never relaxed to `assertGreaterThanOrEqual`. This repo's house
   rule has caught real drift repeatedly.
 
+### Group DL — Inline drawer layout (Phase 46.3)
+
+Six requirements minted at execution time on 2026-09-26, mapping one-to-one onto the six Phase 46.3
+success criteria in `ROADMAP.md` and onto D-01..D-06 in `46.3-CONTEXT.md`. The group exists because
+the panel that 46.2 filled sits in a right-hand column a PM has to look across to, and because two
+pieces of row copy were wrong: `0 visits` said nothing and `Generate document` hid the Word/PDF
+choice it already offered.
+
+- **DL-01** — Clicking a module row opens its panel **directly beneath that row**, as an inline
+  drawer, not in a right-hand column (D-01). The disclosure stays query-string state; no JavaScript.
+- **DL-02** — While a drawer is open the other module rows are **not rendered**, and the route back
+  to the list is an obvious, named, **JavaScript-free anchor** (D-02).
+- **DL-03** — **Recent activity renders in its own panel outside any module** and shows the same
+  entries whichever module is open (D-03). It is project-level data and never belonged inside a
+  module's panel.
+- **DL-04** — A module row shows its visit phrase **if and only if the count is non-zero**:
+  `0 visits` never renders, and **every non-zero phrase — including its `· reconstructed` and
+  `· superseded` suffixes — renders exactly as before** (D-04, **revised 2026-09-26**). The phrase
+  is `CockpitModulePresenter::visitPhrase()`'s own docblock's *at-rest disclosure slot*, the only
+  place a backfilled or superseded visit is disclosed without opening anything (Phase 45 D-02, 24
+  backfilled visits on live), so the ruling is **hide-at-zero, not remove**. `site_survey` and
+  `worksheet` stay on `COUNT_VISITS`; `MODULE_MAP` is not touched.
+- **DL-05** — The closed-state generate control **reads as opening a form** and makes the existing
+  Word/PDF choice discoverable, **without changing which formats are offered** (D-05). No new format
+  key, no new route, no edit to `CockpitDocumentFormPresenter`; `DocumentFormatInventoryTest`'s
+  missing set stays exactly `['worksheet.pdf']`.
+- **DL-06** — The read-only fence still bites with **both `cockpitRegion()` brackets judged against
+  the new structure**, and the **whole-row click target is intact** — the stretched-link pairing
+  (`.cav-module { position: relative }` + `.cav-module__open::after { inset: 0 }`) is asserted from
+  both sides, including the absence of a competing `position` on the anchor and the one-anchor-per-row
+  invariant, because that failure mode is silent in every other test on the page.
+
 ### Out of scope for v4.0
 
 Each is **recorded in the admin Hidden Functions register**, not forgotten:
@@ -319,6 +352,13 @@ Each is **recorded in the admin Hidden Functions register**, not forgotten:
 | DC-09 | Phase 46.2 | Complete (Plan 46.2-03, re-proved on the closing commit by 46.2-06, 2026-09-24). The surfacing was removed; nothing behind it was. `CockpitDocCreationEndToEndTest::test_the_visit_work_is_reachable_at_its_own_routes_on_this_commit()` drives all five visit POSTs and the photo ZIP against a genuinely returned visit and asserts in the SAME test that no `<a href>` and no `<form action>` on any cockpit tab points at any of them. `git diff --stat` over the protected paths is zero files and zero lines; `tests/Feature/Visits` 27 passed and `tests/Unit/Visits` 12 passed, both UNEDITED; `/survey/{token}` and `/worksheet/{token}` still resolve and the survey->install carry-forward is untouched (`-Filter SurveyCarryForward` -> 23 passed) |
 | DC-10 | Phase 46.2 | Complete (Plan 46.2-03, closed and CORRECTED by 46.2-06, 2026-09-24). `46.2-RETIREMENT-LEDGER.md` lists every retired render assertion with its class, what it asserted, why it became impossible, the decision cited, and where the property still lives - plus an inline comment at each retired method's former position. 46.2-06's close found the ledger's own prose had gone stale on `ProjectCockpitController::ACTIONS` (it says the fence asserts `[]`; since 46.2-05 it asserts `['generate']`) and corrected it by appending, because a ledger that drifts is a wrong answer with a citation |
 | DC-11 | Phase 46.2 | Complete (Plans 46.2-01 / -03 / -05, reconciled by 46.2-06, 2026-09-24). Every moved count is in `46.2-COUNT-LEDGER.md` with its old value, new value, plan and reason - including the ones that did NOT move and were re-taken. No `assertGreaterThanOrEqual` was introduced anywhere and the one that existed (F-7) became an exact positive. **All four fence lists are pinned and always were** - `FORBIDDEN_MARKUP` (2), `WRITE_SURFACE_TABLES` (13) and `BANNED_HANDLER_ATTRIBUTES` (9) at `CockpitReadOnlyFenceTest:964-966`, and `DEFERRED_AFFORDANCES` (21) at `:853`. **46.2-06 initially reported that fourth pin as missing and raised it as `D-46.2-06-04`; that finding was FALSE and is WITHDRAWN** - it came from a single-line grep that cannot match a multi-line `assertCount`, and it was caught by the instruction to prove the fix bites, which went red on an assertion that predates the phase. The retraction and the method failure are written up in the count ledger. The house rule held; nothing was unpinned |
+
+| DL-01 | Phase 46.3 | Not started (Plan 46.3-02, wave 2) |
+| DL-02 | Phase 46.3 | Not started (Plan 46.3-02, wave 2) |
+| DL-03 | Phase 46.3 | Not started (Plan 46.3-03, wave 3) |
+| DL-04 | Phase 46.3 | Complete (Plan 46.3-01, 2026-09-26). `CockpitModulePresenter::visitPhrase()` returns the empty string when the visit collection is empty, and the row's existing `@if (filled($module['count']))` guard at `module-row.blade.php:62` hides the element — ONE mechanism, no second suppression in Blade. `MODULE_MAP` is byte-unchanged; `site_survey` and `worksheet` stay on `COUNT_VISITS`. Every non-zero phrase, suffixes included, is byte-identical. `CockpitSpineTest:658` was RETIRED BY NAME citing D-04 and replaced by `test_a_row_renders_a_count_if_and_only_if_that_count_is_non_empty()`, which drives off the presenter's own output and asserts BOTH directions; a new `test_the_reconstructed_and_superseded_disclosures_survive_on_the_closed_page()` seeds both qualifiers and asserts them on the CLOSED page |
+| DL-05 | Phase 46.3 | Complete (Plan 46.3-01, 2026-09-26). The closed-state anchor reads `Create document — Word or PDF`, or `Create document — Word` on the Worksheet, built from `$offered` and `$formatLabels` with the joining word derived from the count. Checked as a SUBSTRING against all 21 `DEFERRED_AFFORDANCES` keys and both `FORBIDDEN_MARKUP` entries before use — no collision, nothing lifted — and that check is now a real assertion (`CockpitDocumentFormTest::test_the_closed_control_copy_collides_with_no_fence_entry()`). No format key, route, field or presenter changed; the missing set is still exactly `['worksheet.pdf']` |
+| DL-06 | Phase 46.3 | Half complete (Plan 46.3-01, 2026-09-26) — the stretched-link half. `CockpitVisualTest::test_the_whole_module_row_is_the_click_target_without_javascript()` now also proves no rule ending in `.cav-module__open` declares a `position`, that no `.cav-module` rule declares `position: static`, and (in its DOM sibling `test_each_module_row_holds_exactly_one_anchor_and_no_other_interactive_element()`) that each row holds exactly one `<a>`, carrying its own `module=` key, with no `<button>` and no `tabindex`. Proven to bite by injecting `position: absolute` into the `.cav-module__open` rule. The fence-brackets half belongs to Plans 46.3-02/-03/-04 |
 
 *Phases 47–51 have no requirement IDs yet. Mint them into this section as each phase is planned,
 following the LR-xx / VIS-xx pattern.*
