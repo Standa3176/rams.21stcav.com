@@ -143,6 +143,29 @@ class Worksheet extends Model
     }
 
     /**
+     * Phase 46.4 (D-06/D-08) — extra kit the engineer used on site, as
+     * separate rows rather than prose in a comments box.
+     *
+     * ⚠️ MARKED ROWS ARE INCLUDED, ON PURPOSE. D-08 says nothing in this phase
+     * is ever hard deleted: a row marked for deletion STAYS, flagged, with its
+     * reason, and the office decides. A scope that hid marked rows here would
+     * turn an instruction to the office into a silent disappearance — which is
+     * exactly the behaviour the mark exists to avoid. Callers that want only
+     * the live list filter on `isOpen()` at the point of use, visibly.
+     *
+     * Ordered room, then sort_order, then id — the order the office reads.
+     *
+     * @see WorksheetAdditionalKit
+     */
+    public function additionalKit(): HasMany
+    {
+        return $this->hasMany(WorksheetAdditionalKit::class)
+            ->orderBy('room_name')
+            ->orderBy('sort_order')
+            ->orderBy('id');
+    }
+
+    /**
      * Photo count per room name (lower-cased trimmed key) — drives the
      * room summary badge on the public worksheet view.
      *
