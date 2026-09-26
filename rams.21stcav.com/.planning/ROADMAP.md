@@ -706,7 +706,7 @@ the drawer underneath rather than to the side, Recent activity as its own right-
 **Plans:** 4 plans in 4 waves
 
 Plans:
-- [ ] 46.3-01-PLAN.md — wave 1: strip the visit phrase from the rows (D-04), relabel the generate control (D-05), and widen the stretched-link assertion before any layout moves
+- [ ] 46.3-01-PLAN.md — wave 1: hide the visit phrase at zero and keep every non-zero phrase (D-04, revised), relabel the generate control (D-05), and widen the stretched-link assertion before any layout moves
 - [ ] 46.3-02-PLAN.md — wave 2: the inline drawer, the collapse-away, the way back (D-01/D-02), both `cockpitRegion()` brackets judged and the breakage ritual re-run
 - [ ] 46.3-03-PLAN.md — wave 3: Recent activity becomes its own right-hand panel (D-03), filling the column the drawer vacated
 - [ ] 46.3-04-PLAN.md — wave 4: the through-HTTP walk, the reconciled ledger, the deploy note, and the human checkpoint (never self-approved)
