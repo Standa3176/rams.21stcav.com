@@ -309,6 +309,7 @@ Each of these is **recorded in the admin Hidden Functions register**, not forgot
 - [ ] **Phase 46.1: Visit Review** — the drawer shows what came back (photos, room answers, captured serials, client sign-off) and hands it off as one ZIP for Bitrix; the four review controls move beneath that evidence. Inserted 2026-09-21.
 - [ ] **Phase 46.2: Doc Creation Cockpit** — four rows (Site survey · Worksheet · RAMS · O&M manual), each opening a panel of that document's fields, generating Word and PDF. The visit work is unsurfaced, not deleted. Inserted 2026-09-22.
 - [ ] **Phase 46.3: Inline Drawer Layout** — the module panel becomes a drawer beneath the row you clicked, the other rows collapse away, Recent activity moves to its own right-hand panel, and the vestigial "N visits" phrase comes off the rows. Inserted 2026-09-26 from the user's first real use of the live page.
+- [ ] **Phase 46.4: Engineer Link — Install Capture** — room start/completion photos that can carry labels, serial capture surfaced as an asset list, and a per-room additional-kit list (engineer · qty · part description) that queues offline, so the office gets a clean list instead of prose in a comments box. Worksheet link only — a site survey is a room survey, so no kit.
 - [ ] **Phase 47: Snagging** — snag items separate from snag visits; three outcomes (fixed, not fixed, deferred); a not-fixed item requires the engineer to state actions and parts needed, closes the visit, and opens a new snag linked to the original. Parts tracked per snag. Snags may sit with the client or others and never have a visit.
 - [ ] **Phase 48: Documents** — generate client-facing documents; the PM sends them and confirms sent in-app, recording who, when and which revision. O&M offered as full or mini. Drawings uploaded from StarDrawer.
 - [ ] **Phase 49: Import Review + Self-populating Deliverables** — one import screen showing what the quote contains, with deliverables ticked from its lines and labelled *from quote* / *assumed* / *not found*. All nine always shown. The equipment-line review opens in a side panel.
@@ -710,6 +711,42 @@ Plans:
 - [ ] 46.3-02-PLAN.md — wave 2: the inline drawer, the collapse-away, the way back (D-01/D-02), both `cockpitRegion()` brackets judged and the breakage ritual re-run
 - [ ] 46.3-03-PLAN.md — wave 3: Recent activity becomes its own right-hand panel (D-03), filling the column the drawer vacated
 - [ ] 46.3-04-PLAN.md — wave 4: the through-HTTP walk, the reconciled ledger, the deploy note, and the human checkpoint (never self-approved)
+
+---
+
+### Phase 46.4: Engineer Link — Install Capture
+
+**Goal**: An engineer standing in a plant room records what they installed and what extra kit they
+used, as structured rows — so the office reconciles a list against the quote instead of reading
+prose out of a comments box.
+
+**Depends on**: Phase 46 (the `Visit` and its allocated engineers), Phase 44 (`labour_resources`).
+
+**Why it was inserted**: the user asked for the engineer link to follow SCC's PMV design, with room
+photos that carry labels and a per-room repeatable additional-kit list. Measured 2026-09-26: there is
+**no field for additional kit anywhere in RAMS** — grep for `additional kit|extra kit|materials
+used|kit used` returns nothing. Today it lands in `worksheet_signoffs.comments`, or in a phone call.
+
+**Success criteria**:
+1. Room photos carry a **start/completion** bucket and an engineer-set **label**, and existing photos
+   are not silently relabelled.
+2. Per room, an engineer adds **separate** additional-kit rows — engineer · qty · part description —
+   "add another" as many times as needed, and may delete their own rows and nothing else.
+3. Those rows **queue offline** and drain when signal returns, **without** bumping the IndexedDB
+   version, changing `keyPath` or touching the `capturedAt` index.
+4. Captured serials are surfaced as a readable **asset list** for the project.
+5. The office reads the additional kit as a clean list, not free text.
+6. **LR-04 holds on a page the client now reads**: an engineer's **name only** — never email, never
+   phone — asserted with a realistic email and phone present on the record.
+
+**UI hint**: yes (the engineer link, used one-handed on site)
+
+> ⚠️ **Three traps.** The offline queue carries **binaries only** — `drain()` unconditionally appends
+> a `photo` part and routes on a two-value ternary, so a blobless row is marked "Local blob
+> unreadable" forever; a kit row must branch BEFORE that append. **Alpine is not loaded on this
+> page**, so RAMS's own repeaters (all Alpine) will silently no-op — copy SCC's vanilla drawer
+> instead. And **rooms are JSON strings, not rows**, so everything keys off a trimmed lower-cased
+> `room_name` and a regenerated room orphans its data.
 
 ---
 
