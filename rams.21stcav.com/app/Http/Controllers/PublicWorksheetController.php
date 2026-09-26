@@ -93,9 +93,27 @@ class PublicWorksheetController extends Controller
             'room_name' => ['required', 'string', 'max:200'],
             'photo'     => ['required', 'file', 'image', 'max:10240'],
             'caption'   => ['nullable', 'string', 'max:200'],
+            // Phase 46.4 (D-03) — the tray the photo came from. Validated
+            // against the MODEL'S OWN constant, never a literal list here, so
+            // the vocabulary cannot drift between the two files.
+            //
+            // `sometimes` — NOT `nullable` — and the distinction is load
+            // bearing. An ABSENT bucket is a compatibility case that must
+            // work: a pre-46.4 client posts no bucket at all, and so does a
+            // photo that has been sitting in a browser's IndexedDB queue since
+            // before this deploy — its `fields` bag has no bucket key and it
+            // may drain days later. Those uploads land in `completion`, the
+            // same statement the migration's backfill made about every legacy
+            // row. A bucket that is PRESENT but empty is a different thing: a
+            // client that meant to say something and said nothing, which is
+            // rejected. (`nullable` would conflate the two, because the global
+            // ConvertEmptyStringsToNull middleware turns `bucket=` into null
+            // before the validator ever sees it.)
+            'bucket'    => ['sometimes', 'string', \Illuminate\Validation\Rule::in(\App\Models\WorksheetPhoto::BUCKETS)],
         ]);
 
         $roomName = $request->input('room_name');
+        $bucket   = $request->input('bucket') ?: \App\Models\WorksheetPhoto::BUCKET_COMPLETION;
 
         $file = $request->file('photo');
         $extension = match ($file->getMimeType()) {
@@ -112,9 +130,17 @@ class PublicWorksheetController extends Controller
         $storedPath = "{$directory}/{$basename}";
         \Illuminate\Support\Facades\Storage::disk('local')->putFileAs($directory, $file, $basename);
 
-        $sortOrder = ($worksheet->photos()->where('room_name', $roomName)->max('sort_order') ?? 0) + 1;
+        // Phase 46.4 (D-03) — sort order is computed WITHIN the room AND the
+        // bucket, so the Start and Completion trays number independently. Room
+        // only would make a start photo captured after three completion photos
+        // sort as #4 in a tray showing one item.
+        $sortOrder = ($worksheet->photos()
+            ->where('room_name', $roomName)
+            ->where('bucket', $bucket)
+            ->max('sort_order') ?? 0) + 1;
         $photo = $worksheet->photos()->create([
             'room_name'     => $roomName,
+            'bucket'        => $bucket,
             'filename'      => $storedPath,
             'original_name' => $file->getClientOriginalName(),
             'mime_type'     => $file->getMimeType() ?? 'image/jpeg',
@@ -126,6 +152,7 @@ class PublicWorksheetController extends Controller
             'id'       => $photo->id,
             'filename' => $photo->filename,
             'caption'  => $photo->caption,
+            'bucket'   => $photo->bucket,
             'url'      => route('public-worksheet.photos.serve', ['token' => $token, 'photo' => $photo->id]),
         ]);
     }
