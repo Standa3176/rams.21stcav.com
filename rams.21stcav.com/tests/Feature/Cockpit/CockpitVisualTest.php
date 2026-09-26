@@ -315,6 +315,13 @@ class CockpitVisualTest extends TestCase
     /**
      * THE WHOLE ROW OPENS THE PANEL, AND IT DOES SO WITH NO JAVASCRIPT.
      *
+     * WHAT THIS TEST MEASURES, IN ONE SENTENCE: that the stretched-link
+     * PAIRING holds — `.cav-module` is the containing block, the anchor's
+     * `::after` is the full-row overlay, NO rule gives `.cav-module__open`
+     * a `position` of its own and no rule takes the containing block away —
+     * with the one-anchor-per-row half asserted against the rendered DOM in
+     * the sibling test below.
+     *
      * The user asked for the row itself to be clickable. There are two ways
      * to grant that and only one is available here: a click handler is
      * banned inside this region by CockpitReadOnlyFenceTest, so the row is a
@@ -325,6 +332,17 @@ class CockpitVisualTest extends TestCase
      * silent: an overlay with no positioned ancestor collapses onto the 28px
      * chevron and the row quietly stops being clickable, with every other
      * test on this page still green. Nothing else in the suite would notice.
+     *
+     * WIDENED BY PLAN 46.3-01 (DL-06), BEFORE ANY LAYOUT MOVED. Up to here
+     * the test proved the two declarations that must be PRESENT and nothing
+     * about the ones that must be ABSENT — and a `position: absolute` added
+     * to `.cav-module__open` itself satisfies both of the original regexes
+     * while collapsing the overlay onto the 28px chevron. cockpit.css warns
+     * about exactly that in prose at four separate places (`:393`, `:482`,
+     * `:1471`, `:1676`), which is the shape of a rule that has never been
+     * executable. Waves 2 and 3 of this phase restructure this row, so the
+     * assertion is strengthened FIRST and was proven to bite by injecting
+     * `position: absolute` and watching it go red.
      */
     public function test_the_whole_module_row_is_the_click_target_without_javascript(): void
     {
@@ -382,6 +400,230 @@ class CockpitVisualTest extends TestCase
             $css,
             'The active row loses its marker on hover.'
         );
+
+        // ── THE HALF THAT WAS ASSERTED NOWHERE (Plan 46.3-01, DL-06) ────────
+        //
+        // `inset: 0` on the ::after resolves against `.cav-module` ONLY while
+        // `.cav-module__open` itself stays statically positioned. Give the
+        // anchor a `position` and the overlay resolves against the ANCHOR — a
+        // 28px box — and the row silently stops being clickable while every
+        // regex above still matches.
+        //
+        // Scanned as RULES, not as page text: the selector must END in
+        // `.cav-module__open`, so `::after` and `:focus-visible::after` — which
+        // are SUPPOSED to be positioned — are excluded by construction rather
+        // than by a blacklist that a new pseudo-element would slip past.
+        $rules   = $this->cssRules($css);
+        $scanned = [];
+
+        foreach ($rules as $rule) {
+            foreach ($rule['selectors'] as $selector) {
+                if (! str_ends_with($selector, '.cav-module__open')) {
+                    continue;
+                }
+
+                $scanned[] = $selector;
+
+                $this->assertDoesNotMatchRegularExpression(
+                    '/(?:^|[;{}\s])position\s*:/',
+                    $rule['body'],
+                    "`{$selector}` declares a `position` of its own. That is the ONE edit that ".
+                    'breaks the stretched link, and it breaks it silently: the overlay stops '.
+                    'resolving against `.cav-module` and collapses onto the 28px chevron. '.
+                    'Move the declaration onto `.cav-module__open::after` or remove it.'
+                );
+            }
+        }
+
+        // NON-VACUITY, AS AN EXACT MEMBERSHIP RATHER THAN A FLOOR. A renamed
+        // class would otherwise leave the loop scanning nothing and passing
+        // loudly. Named rather than counted so a later wave adding a rule does
+        // not have to move a number, while a later wave DELETING the base rule
+        // still fails here.
+        $this->assertContains(
+            '.cav-cockpit .cav-module__open',
+            $scanned,
+            'The base `.cav-module__open` rule was not scanned — this check is measuring nothing. '.
+            'If the class was renamed, retarget this scan in the commit that renames it.'
+        );
+
+        // ── AND NOTHING MAY TAKE THE CONTAINING BLOCK AWAY ──────────────────
+        //
+        // The other end of the same pairing. A `position: static` on
+        // `.cav-module` — or any value other than `relative` — removes the
+        // containing block and the overlay stretches to the nearest positioned
+        // ancestor instead, which is the page.
+        //
+        // "BETWEEN" `.cav-module` AND `.cav-module__open` THERE IS NOTHING
+        // TODAY: the anchor is a DIRECT CHILD of the row, which the sibling
+        // test asserts against the rendered DOM. If a later plan introduces a
+        // wrapper, THIS PAIR OF ASSERTIONS IS THE ONE TO EXTEND — extending
+        // them to cover the wrapper is maintenance; deleting them because the
+        // markup moved is the failure they exist to catch.
+        $rowRules = [];
+
+        foreach ($rules as $rule) {
+            foreach ($rule['selectors'] as $selector) {
+                if (! str_ends_with($selector, '.cav-module') && ! str_ends_with($selector, '.cav-module--active')) {
+                    continue;
+                }
+
+                $rowRules[] = $selector;
+
+                if (! preg_match('/(?:^|[;{}\s])position\s*:\s*([a-z-]+)/', $rule['body'], $found)) {
+                    continue;
+                }
+
+                $this->assertSame(
+                    'relative',
+                    $found[1],
+                    "`{$selector}` declares `position: {$found[1]}`. The module row must stay the ".
+                    'containing block for the anchor overlay; anything but `relative` un-stretches '.
+                    'the link with nothing else failing.'
+                );
+            }
+        }
+
+        $this->assertContains(
+            '.cav-cockpit .cav-module',
+            $rowRules,
+            'The base `.cav-module` rule was not scanned — this check is measuring nothing.'
+        );
+    }
+
+    /**
+     * EXACTLY ONE ANCHOR PER MODULE ROW, AND NOTHING ELSE INTERACTIVE IN IT.
+     *
+     * WHAT THIS MEASURES: the DOM half of the stretched link. Every assertion
+     * in the sibling test above reads CSS TEXT and none of them reads the page,
+     * so all of them would pass on markup that cannot work.
+     *
+     * The pattern only holds while the row holds ONE anchor. A second one — a
+     * "Files" shortcut, a download, a chip that became a link — would sit
+     * UNDERNEATH the full-row overlay and be unreachable by mouse, while
+     * remaining perfectly reachable by keyboard and perfectly invisible to
+     * every CSS assertion in this file. A <button> or a `tabindex` would be
+     * the same failure wearing different markup, and both are banned in this
+     * region anyway (CockpitReadOnlyFenceTest::BANNED_HANDLER_ATTRIBUTES).
+     *
+     * The anchor is also asserted to be a DIRECT CHILD of the row. That is the
+     * executable form of "there is nothing between `.cav-module` and
+     * `.cav-module__open`", which the CSS-side containing-block assertion
+     * relies on. A wrapper introduced later must be covered there too.
+     *
+     * Plan 46.3-01, DL-06.
+     */
+    public function test_each_module_row_holds_exactly_one_anchor_and_no_other_interactive_element(): void
+    {
+        $html = $this->page();
+
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$html);
+        libxml_clear_errors();
+
+        $xpath = new \DOMXPath($dom);
+        $rows  = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' cav-module ')]");
+
+        $this->assertSame(
+            count(CockpitModulePresenter::moduleMap()),
+            $rows->length,
+            'The row list did not render in full, so this test would be measuring an empty page.'
+        );
+
+        // Title -> key, read off the presenter's own map: the href must carry
+        // the key of the row it sits in, never a neighbour's. Nine rows all
+        // linking to the first module is a real regression a per-page
+        // `assertStringContainsString` cannot see.
+        $keyForTitle = [];
+
+        foreach (CockpitModulePresenter::moduleMap() as $key => $definition) {
+            $keyForTitle[$definition['title']] = $key;
+        }
+
+        foreach ($rows as $row) {
+            $titleNode = $xpath->query(".//*[contains(concat(' ', normalize-space(@class), ' '), ' cav-module__title ')]", $row)->item(0);
+            $this->assertNotNull($titleNode, 'A module row rendered no title.');
+
+            $title = trim($titleNode->textContent);
+            $this->assertArrayHasKey($title, $keyForTitle, "The row titled \"{$title}\" is in no module map.");
+
+            $anchors = $xpath->query('.//a', $row);
+
+            $this->assertSame(
+                1,
+                $anchors->length,
+                "The \"{$title}\" row holds {$anchors->length} anchors. The stretched link needs ".
+                'EXACTLY ONE: a second anchor sits under the full-row overlay and cannot be '.
+                'clicked, which no CSS assertion in this file can see.'
+            );
+
+            $anchor = $anchors->item(0);
+
+            $this->assertSame(
+                $row,
+                $anchor->parentNode,
+                "The \"{$title}\" row's anchor is no longer a direct child of the row. A wrapper ".
+                'between them may introduce a containing block of its own — extend the '.
+                'containing-block scan in the sibling test to cover it, in this same commit.'
+            );
+
+            $this->assertStringContainsString(
+                'module='.$keyForTitle[$title],
+                urldecode($anchor->getAttribute('href')),
+                "The \"{$title}\" row's anchor opens a different module."
+            );
+
+            $this->assertSame(
+                0,
+                $xpath->query('.//button', $row)->length,
+                "The \"{$title}\" row holds a <button>. Opening a module is a GET, and the fence bans it."
+            );
+
+            $this->assertSame(
+                0,
+                $xpath->query('.//*[@tabindex]', $row)->length,
+                "The \"{$title}\" row holds a `tabindex`. The one anchor is the whole tab stop."
+            );
+        }
+    }
+
+    /**
+     * cockpit.css as RULES rather than as one long string.
+     *
+     * Comments are stripped FIRST and deliberately: four separate comment
+     * blocks in that file warn, in prose, about the exact declaration the
+     * scan above hunts for. A scan that read prose as code would fail on the
+     * warning instead of on the bug — which is worse than not scanning, because
+     * it would be fixed by deleting the warning.
+     *
+     * Nested at-rules need no special handling: the body pattern excludes
+     * braces, so a `@media` prelude never matches and its INNER rules do.
+     *
+     * @return list<array{selectors: list<string>, body: string}>
+     */
+    private function cssRules(string $css): array
+    {
+        $css = preg_replace('#/\*.*?\*/#s', '', $css);
+
+        preg_match_all('/([^{}]+)\{([^{}]*)\}/s', (string) $css, $matches, PREG_SET_ORDER);
+
+        $rules = [];
+
+        foreach ($matches as $match) {
+            $selectorList = trim($match[1]);
+
+            if ($selectorList === '' || str_starts_with($selectorList, '@')) {
+                continue;
+            }
+
+            $rules[] = [
+                'selectors' => array_values(array_filter(array_map('trim', explode(',', $selectorList)))),
+                'body'      => $match[2],
+            ];
+        }
+
+        return $rules;
     }
 
     /**
