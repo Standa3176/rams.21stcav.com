@@ -578,7 +578,15 @@ Plans:
 - [x] 46.1-03-PLAN.md — The Returned tab: presence rule, room answers, contact sheet, serials, sign-off (wave 2)
 - [x] 46.1-04-PLAN.md — The hand-off link + the fence lift + the three-way breakage ritual (wave 3)
 - [x] 46.1-05-PLAN.md — Relocate the four review controls beneath the evidence (wave 4)
-- [ ] 46.1-06-PLAN.md — End-to-end walk through HTTP, the four gates, and the RV-08 calm checkpoint (wave 5)
+- [x] 46.1-06-PLAN.md — End-to-end walk through HTTP, the four gates, and the RV-08 calm checkpoint (wave 5)
+
+> **Phase 46.1 is CODE-COMPLETE but HELD AT ITS HUMAN CHECKPOINT** (46.1-06, RV-08 — "is the
+> Returned tab calm?"). All six plans landed and are deployed (2026-09-25). ⚠️ Note that Phase 46.2
+> then UNSURFACED this work from the cockpit (46.2 D-02): the evidence review, the photo ZIP and the
+> four controls all still exist, still pass their tests and still work by route, but the Returned tab
+> is no longer reachable from the page — so **RV-08 can no longer be judged by opening the cockpit.**
+> Answering it now means either re-surfacing the tab or judging it from the tests. That is a
+> consequence of the user's fourth direction change, recorded here rather than left as a puzzle.
 
 **UI hint**: yes (a new panel tab, a gallery, and the relocation of four existing controls)
 
@@ -631,10 +639,32 @@ Plans:
 - [x] 46.2-02-PLAN.md — The format inventory; Site survey Word wired to the service that had no callers (wave 1, D-04)
 - [x] 46.2-03-PLAN.md — The visit work unsurfaced, not deleted, and its retirement ledger (wave 2, D-02)
 - [x] 46.2-04-PLAN.md — DOCUMENT_FIELD_MAP: the field set as data, every field proven against its generator (wave 2, D-03)
-- [ ] 46.2-05-PLAN.md — The panel form, one write route, the fence re-taken, the counts moved (wave 3)
-- [ ] 46.2-06-PLAN.md — End-to-end through HTTP, the breakage ritual, the count ledger, the calm checkpoint (wave 4)
+- [x] 46.2-05-PLAN.md — The panel form, one write route, the fence re-taken, the counts moved (wave 3)
+- [x] 46.2-06-PLAN.md — End-to-end through HTTP, the breakage ritual, the count ledger, the calm checkpoint (wave 4)
 
 **UI hint**: yes (four rows, and the most input-heavy panel the cockpit has carried)
+
+> **Phase 46.2 is CODE-COMPLETE and DEPLOYED (2026-09-25) but HELD AT ITS HUMAN CHECKPOINT**
+> (46.2-06, Task 3 Part B). All six plans landed. It went live with `COCKPIT_ENABLED=true` already
+> set, so it REPLACED the page PMs were using rather than shipping dark. Four rulings are
+> outstanding and none may be self-approved: (a) should the read-only visit list and the "0 visits"
+> phrase come off the Site survey and Worksheet rows (D-06); (b) the "First fix and install" →
+> "Worksheet" retitle (D-07); (c) **DC-07** — accept Word-only, authorise a worksheet PDF as its own
+> phase, or relabel the engineer-activity report and gate it on `hasEngineerActivity()`; (d) open a
+> cockpit and judge whether the four document forms are simple to use.
+>
+> Gates: D-06 baseline 2 skipped / 159 passed / 0 failed; cockpit 361 passed (269 Feature + 92 Unit),
+> 0 failed; three sha256 pins identical; fence 2 / 21 / 9 / 13.
+>
+> **GAPS: DC-07 NOT DELIVERED** (no worksheet PDF exists anywhere). **DC-06 only PARTIALLY verified**
+> — two of eight format cells have ever been opened (Worksheet `.docx`, site-survey `.docx`); RAMS
+> Word+PDF, O&M Word+PDF and the site-survey PDF have NEVER been generated, because three of them
+> cost real Anthropic spend that was not authorised.
+>
+> ⚠️ **THIS PHASE BLOCKS PHASE 47.** D-02 kept the entire visit lifecycle working but removed every
+> surface for it, and Phase 47's goal assumes snags are resolved through visits — i.e. that visits
+> have a screen. Decide where the visit workflow lives before planning 47; planning it now would
+> build against a premise that stopped being true on 2026-09-25.
 
 ---
 

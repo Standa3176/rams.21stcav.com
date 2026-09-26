@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Project Cockpit
 status: executing
-stopped_at: Phase 46.1 (Visit Review) — ALL 6 PLANS LANDED; the phase is held at its HUMAN CHECKPOINT (Plan 46.1-06, Task 3, RV-08) and is NOT complete until the user has judged the Returned tab calm. Phase 46 is ALSO still held at its own checkpoint (Plan 46-08, VL-11). Code state: a PM can read what an engineer sent back — photos, room answers, serials, client sign-off — download it as one ZIP for Bitrix, and accept / send back / note / snag from beneath that evidence without being thrown off the tab. Gates at hand-back: D-06 baseline 2 skipped / 159 passed / 0 failed; cockpit suite 341 passed (260 Feature + 81 Unit); full suite 3193 passed with the ONE documented pre-existing QueueRecoverCommandTest failure; three sha256 pins all identical; fence counts 2 / 18 / 9 / 11 and the three-way breakage ritual re-run. VL-12 (per-visit document scoping) is STILL NOT DELIVERED and stays a GAP.
-last_updated: "2026-09-22T00:00:00.000Z"
-last_activity: 2026-09-22
+stopped_at: Phase 46.2 (Doc Creation Cockpit) — ALL 6 PLANS LANDED and DEPLOYED TO LIVE 2026-09-25. Held at its HUMAN CHECKPOINT (Plan 46.2-06, Task 3 Part B) on four rulings the user has NOT given: (a) should the read-only visit list and "0 visits" phrase come off the rows; (b) the "First fix and install" → "Worksheet" retitle; (c) DC-07, the worksheet PDF that does not exist; (d) open a cockpit and judge whether the four document forms are simple. Phases 46 and 46.1 are ALSO still held at their own checkpoints (VL-11, RV-08) — three open checkpoints, none self-approved. Code state: the cockpit is now a DOCUMENT CREATION tool — four rows (Site survey / Worksheet / RAMS / O&M manual), a per-document form rendered from CockpitDocumentFormPresenter::DOCUMENT_FIELD_MAP, generating Word and PDF from the existing generators. The visit lifecycle, engineer links, returned-evidence review and photo ZIP are ALL KEPT AND WORKING but NO LONGER SURFACED anywhere (46.2 D-02) — this is the open design question blocking Phase 47, whose premise assumes visits have a screen. Gates at hand-back: D-06 baseline 2 skipped / 159 passed / 0 failed; cockpit suite 361 passed (269 Feature + 92 Unit); three sha256 pins identical; fence counts 2 / 21 / 9 / 13 and the breakage ritual re-run four times. GAPS carried: VL-12 (per-visit document scoping) and DC-07 (worksheet PDF) both NOT DELIVERED; DC-06 only PARTIALLY verified — two of eight format cells (Worksheet .docx, site-survey .docx) have been opened and proven, RAMS Word+PDF / O&M Word+PDF / site-survey PDF have NEVER been generated (unauthorised AI spend).
+last_updated: "2026-09-26T00:00:00.000Z"
+last_activity: 2026-09-26
 progress:
   total_phases: 8
   completed_phases: 2
-  total_plans: 27
-  completed_plans: 27
+  total_plans: 39
+  completed_plans: 39
   percent: 25
 ---
 
@@ -130,10 +130,78 @@ Key facts a later agent needs:
 - **The calm budget is executable.** A reviewable returned visit spends exactly four non-photo
   anchors (the ZIP plus the three disclosures) and exactly one button (Accept).
 
+**Phase 46.2 — Doc Creation Cockpit: ALL 6 PLANS LANDED, HELD AT THE HUMAN CHECKPOINT** (not
+complete). DEPLOYED TO LIVE 2026-09-25 with `COCKPIT_ENABLED=true` already set, so this replaced the
+page PMs were using rather than shipping dark. Inserted 2026-09-22 on the user's fourth direction
+change for this page (sketch 002 → sketch 004 → PMV-style review → doc creation). **The visual design
+has held throughout; it is the panel's CONTENTS that keep changing** — which is why 46.2-04 made the
+field set DATA (`CockpitDocumentFormPresenter::DOCUMENT_FIELD_MAP`) and 46.2-05's Blade switches on
+field TYPE with no document name in it, so the next change is a map row rather than a rewrite.
+
+What it does: four module rows — Site survey · Worksheet · RAMS · O&M manual. Opening one discloses a
+form (`?action=generate`, query-string state, no JavaScript) carrying that document's fields, then
+generates Word and PDF from the generators that already existed. Site survey 13 enterable fields /
+RAMS 14 / O&M 2 + a readiness list / **Worksheet 0** — the worksheet is built from the project
+package, so its panel renders an explanation instead of inventing inputs.
+
+- **D-01 removed five rows** (Programme and commissioning, Drawings, Cable schedule, Programming,
+  Snagging), reversing sketch 004's D-16. Phase 45's invariant that every `Visit::TYPE_*` reaches
+  exactly one module row therefore CANNOT hold and was retired BY NAME, replaced by two halves: no
+  type reaches two rows, and the types reaching none are exactly three and named.
+- **D-02 is the load-bearing one: the visit work is KEPT, only UNSURFACED.** The visit model,
+  engineer links, accept/send-back/note/snag, the returned-evidence review, the photo ZIP and the
+  survey→install carry-forward all still work and are all still tested — there is simply no screen.
+  Proven byte-identical across three waves (`git diff --stat` = zero files, zero lines), and a test
+  asserts the five write routes still work with no link on the page. **⚠️ THIS BLOCKS PHASE 47**,
+  whose goal assumes snags are resolved through visits and therefore that visits have a UI. Deciding
+  where the visit workflow lives is a real open design question, not an oversight.
+- **DC-07 NOT DELIVERED and UNCHOSEN:** there is no worksheet PDF anywhere, and
+  `worksheets.engineer-report-pdf` is a different document that `abort_if`s on no engineer activity —
+  i.e. it would 404 in exactly the up-front case a PM generates from. The panel says PDF is
+  unavailable rather than offering a button that fails. Three options recorded; the user has picked none.
+- **DC-06 PARTIALLY verified — two of eight format cells have ever been opened.** Worksheet `.docx`
+  and site-survey `.docx` were walked end to end (ZIP valid, `word/document.xml` present, the PM's
+  typed value inside it). RAMS Word+PDF, O&M Word+PDF and the site-survey PDF have NEVER been
+  generated, because three of them cost real Anthropic spend the user has not authorised. Recorded by
+  name so a green phase is never mistaken for "somebody opened these files".
+- **The fence survived the most input-heavy surface it has faced, and `<select` was NOT lifted** —
+  the widest closed option set turned out to be four, so radios sufficed. Counts moved by name to
+  2 / 21 / 9 / 13; the breakage ritual was run four times and the fourth run RETRACTED a false
+  finding (`DEFERRED_AFFORDANCES` was claimed unpinned; it was pinned all along, and a grep that
+  cannot match a multi-line `assertCount` was the cause — an absence in a grep read as an absence in
+  the code).
+- **A plan instruction would have spent the user's money.** 46.2-06's plan said to run the generator
+  inline rather than fake it; `QUEUE_CONNECTION` is `sync` in `phpunit.xml`, so an un-faked dispatch
+  runs the AI builder for real. `Bus::fake()` plus `Http::fake()` were used instead. Zero model calls.
+
+Defects found by walking real workflows, still OPEN: `D-46.2-06-01` — `layouts/app.blade.php:858`
+has `<x-edit-action-bar/>` inside a CSS block comment and **Blade's tag compiler does not respect CSS
+comments**, so that component renders inside the `<style>` element of EVERY page in the app (confirmed
+in the compiled view; the file is byte-identical to `4abd2b24`, so this predates v4.0 and is not
+ours — and it sits on a sha256-pinned file, so it needs its own authorised commit).
+`D-46.2-06-02` — `WorksheetDocxService:305` casts `install_steps` to string while
+`WorksheetEditAdapter:249` writes an array, so an edited worksheet's install steps throw and do not
+render; **found only by actually building the document**, which is the argument for the live walk.
+`D-46.2-04-01`/`-03` — `programme.planned_end_time` and `programme.working_hours` dead reads.
+
 **Server note:** something switched the deploy checkout's branch to `deploy-mrgagg` between two
 deploys on 2026-09-20, which caused a build against four-month-old code. Cause unfound. Check
 `git log --oneline -1` on the server BEFORE building. Deploy as `stcav`, never root; the repo root
 is `/home/stcav/rams.21stcav.com.git` and `/home/stcav/rams.21stcav.com` is a symlink into it.
+
+**Deploy note, 2026-09-25 (the 46.1 + 46.2 + two-fix deploy, 65 commits, clean fast-forward).**
+⚠️ **The local branch's upstream is `origin/feat/worksheet-classifier-universal`, but `origin` in
+this repo is `21st-Opps-Doc-Tool.git` — a DIFFERENT PROJECT.** A bare `git push` sends RAMS code to
+the wrong repository, and it is why a count looked like 403 unpushed commits when the real figure
+against the deploy branch was 65. The RAMS remotes are `live` and `rams-live`; push explicitly:
+`git push live feat/worksheet-classifier-universal`. Server-side the remote is `origin`.
+Deploy steps that mattered: no migrations and no composer/npm dependency changes in that range, but
+`resources/css/cockpit.css` IS a Vite entry (`vite.config.js:32`), so **`npm run build` was required**
+(254 modules, `cockpit-B7rT2bVd.css` 28.52 kB — a handful of modules would have been the no-op
+signature). `php artisan view:clear` was the urgent one: 46.2-03 DELETED
+`resources/views/components/cockpit/quick-actions.blade.php`, and compiled views still referencing a
+deleted component are a hard error. `artisan` lives at the symlink root; the pull's paths are
+prefixed `rams.21stcav.com/` because the repo root is one level up.
 
 ---
 
@@ -633,6 +701,9 @@ Zero behavioural regressions across all 5 screens — every form field, every ro
 
 | ID | Date | Description | Status | Commit |
 |----|------|-------------|--------|--------|
+| 260926-s7k | 2026-09-26 | **Site-survey .docx silently dropped the PM's site logistics (D-46.2-06-06).** `SiteSurveyDocxService` rendered `general_notes` and nothing else: `parking_restraints`, `site_access_notes`, `delivery_routes`, `comms_room_access_*` and `distance_from_base_*` were on `$fillable`, on the 46.2-05 cockpit form and saved to the DB, but reached no document — a PM typed parking and access information, saw it save, and got a Word file without it. Went LIVE in the 2026-09-25 deploy, which is what made it reachable. Fixed by a new `buildSiteLogistics()` reading labels and order at RUNTIME from `SurveyCarryForward::FIELDS` (not string literals, so a rename cannot leave writer and test agreeing while both drift), reusing the shared `COMMS_ROOM_LABELS` rather than making a sixth copy of that vocabulary, and appended AFTER the templated if/else so both arms gain it with zero new unescaped string-replacements. Empty logistics render no heading — byte-identical output for a survey with nothing in those fields. RED 4 failed / 1 passed (the 1 is the empty-omission over-fix guard) → GREEN 18 passed. **TWO FINDINGS LEFT OPEN:** `pdf/site-survey/summary.blade.php` — the actual post-survey report, internal AND client variants — carries `general_notes` and `project_ref` and NOTHING else from this set, so the .docx now carries MORE than the report you would send anyone; and `access_constraints`, `site_risks`, `h_and_s_notes` reach NO document at all (only the engineer's link via the carry-forward) — two of those three are safety fields. | ✅ Complete (not yet deployed) | 8c73d301 |
+| 260925-d65 | 2026-09-25 | **`SiteSurveyDocxService` never enabled PhpWord output escaping (D-46.2-06-05).** The only one of four PhpWord writers missing `Settings::setOutputEscapingEnabled(true)`; PhpWord defaults to `false` and the setting is process-global static, so a request building ONLY a site survey escaped nothing. That path had ZERO callers until 46.2-02 wired it and 46.2-05 put five free-text fields on a form a PM types into. **PhpWord does not throw** — it writes a valid ZIP containing MALFORMED XML (bare `&`, stray `<brackets>`, cascading to `Premature end of data`), so the generator reports success and the damage only appears when Word refuses to open the file. Fixed with one statement at the top of `build()`, copying the sibling writers' placement. Vacuity defence proven three ways: reverted+defence = 2 failed, reverted+defence forced off = **2 passed VACUOUSLY**, fixed = 2 passed. | ✅ Complete → DEPLOYED 2026-09-25 | d0b50a1c |
+| 260925-d51 | 2026-09-25 | **`GET /worksheet/{token}` 500'd for any roomless worksheet (D-46-05-01) — was LIVE IN PRODUCTION.** `$signOffBlocked` assigned inside the populated-rooms branch, read outside it ⇒ `Undefined variable`. An engineer opening their link saw an error page. **A SECOND instance of the same shape was found and fixed in the same commit** (`$unreviewedRooms`), masked only because `@if($signOffBlocked)` throws first — fixing one alone would have produced a second identical 500 one line later. All 70+ branch-scoped variables were enumerated and intersected against post-`@endif` reads; there is no third. Default chosen `$signOffBlocked = false` (NOT blocked), because the real expression is `! empty($unreviewedRooms)` which for zero rooms IS false, blocking would name rooms in an empty list and offer no drawer to act in, and the gate is visual-only (the server accepts the POST regardless) so `true` would be false assurance, not safety — a canary test pins that a genuinely unreviewed room still blocks, so the ruling can be flipped without silently disarming anything. **Reachable three ways, two PERMANENT:** the generation window; `BuildWorksheetJob` throwing on zero content leaves `generated_data` NULL forever; and `WorksheetEditAdapter::applyRemoveRoom` has no last-room guard. RED 3 failed / 1 passed (canary) → GREEN 4 passed. | ✅ Complete → DEPLOYED 2026-09-25 | dfeee83d |
 | 260726-rf3 CLOSE | 2026-07-29 | **rf3 RAMS render unification phase — COMPLETE (opt-in).** Plan 05b Part 1 shipped 2 atomic commits extending DTO adoption beyond the initial 4-section footprint. (Part 1 Commit 1 — c207236) `resources/views/pdf/rams-v2.blade.php` now consumes DTO for 3 more sections: Standards & Guidance table (`$dto->standardsTable->rows`), Exclusions block (`$dto->exclusions->items`), and §7.0 Site-Specific Emergency Details (`$dto->emergency->{9 keys}` — leverages Plan 05a's 9-key EmergencySectionDto default). (Part 1 Commit 2 — 737bf2a) `DocxBuilderServiceV2` ports Exclusions block from legacy delegation to `buildExclusionsFromDto`; DocxBuilderService gains public seam so V2 can override just that section while delegating the rest. **Conservative deferrals** — executor pulled 3 candidate sections (DOCX Standards, DOCX Emergency, both formats Welfare) because a naive port would have been a CONTENT change disguised as a refactor: DOCX Standards renders nothing today when unpopulated but DTO falls back to config (would add 14KB); DOCX Emergency doesn't render a site_emergency table at all today; Welfare has shape mismatch between V1's single-field `programme.welfare_notes` and DTO's 5-key descriptor model. All 3 deferrals + fix paths documented in `deferred-items.md`. **Snapshot deltas on Tilda (v1 flag-off ↔ v2 flag-on):** PDF HTML +663 bytes (down from +779 pre-Part-1 due to cleaner whitespace), DOCX XML +100 bytes (down from +225) — both well under the 3000-byte / 1000-byte parity guards. Real-content delta = the client-contact `<br>` from Plan 04 Commit 2. 438 fast tests + 6 snapshot tests all green. **Phase-level docs shipped:** PHASE-PAUSED.md renamed → PHASE-COMPLETE.md (status: `complete_opt_in`) + new HOW-TO-CHANGE-RAMS.md one-pager covering "want to change a colour", "want to change a section's data source", "want to add a new section", "found drift between PDF and DOCX", + kill-switch operational guide. **Rollout state:** `RAMS_UNIFIED_COMPOSER=false` remains the default so existing installs get zero behaviour change. Global flag flip deferred to follow-up quick task `260805-rf3-global-flag-flip` — parked until (a) real Tilda fixture pulled from live VPS (currently hand-crafted), (b) snapshot goldens regenerated across all 5 fixture scenarios, (c) 3 DOCX deferrals resolved. Kill-switch removal is a further quick task `260812-rf3-remove-old-render-paths` after 1-week live soak. **21 total code commits across the phase + phase docs.** Zero prod risk today — flag off = legacy paths byte-for-byte unchanged. Deploy: nothing to do — no live env needs the flag flipped. | ✅ COMPLETE (opt-in) | 737bf2a |
 | 260727-wt1-p01 | 2026-07-27 | **Phase 260727-wt1 Plan 01 — Schema + seed shipped.** 4 atomic commits (5be1321 + a5aa607 + 2cd6a83 + 97119fe). New `product_taxonomy` DB table (soft-deletable, indexed on sku_pattern + manufacturer+description_pattern composite + worksheet_category + source), `App\Models\ProductTaxonomy` with SoftDeletes + category/source constants, `App\Repositories\ProductTaxonomyRepository` singleton-bound with `findByExactSku` / `findByManufacturerAndKeyword` / `findByKeywordOnly` / `learn` finders. Seeder ports config/worksheet_taxonomy.php: **996 rows** total (12 SKU entries + 895 manufacturer×keyword expansions + 89 keyword-only rows). Idempotent — re-runs are no-ops. **Deviation:** mount_inherit rules land as `worksheet_category='unclassified'` because the ENUM has no mount_inherit slot (behaviour stays driven by config('worksheet_taxonomy.mount_inherit_keywords')). Documented + tested. NO changes to WorksheetClassifier or config file — Plan 02's job. 28 new tests / 355 assertions all green. Migration reversible (up→down→up cycle verified). Prod-safe — pure additive scaffolding. Both remotes pushed. **Plans 02-05 pending** — Plan 02 refactors classifier to consume repo behind WORKSHEET_TAXONOMY_DB kill switch; Plan 03 never-drop-kit rendering; Plan 04 review-page learning writer; Plan 05 admin resource + flag flip. | ✓ Local | 97119fe |
 | 260727-fx6 | 2026-07-27 | **Throwaway config fix to unblock Tilda worksheet — SHIPPED (52dc9f3).** Extended `config/worksheet_taxonomy.php` with 3 new manufacturer rules (Crestron audio for Saros/X-Series amp, Crestron VC for 1 Beyond/Automate VX/PTZ cameras/SR camera, SurgeX for power conditioning) + extended Crestron control rule keywords (scheduling/touch screen/TSW-/TSS-/AirMedia/BYOD) + extended mount rule with Crestron manufacturer + multisurface mount kit + tier 3 keyword additions across VC/control/rack. Repositioned mount rule BEFORE Crestron control so "Mount Kit for Scheduling Panel" correctly hits mount_inherit rather than control. New test WorksheetTaxonomyRealConfigTest (16 cases / 38 assertions) loads REAL config + asserts every Tilda-flagged item classifies to a canonical category — regression guard against future reverts. Full Worksheet filter 209/209 green. Tilda worksheet regenerated should render with 0 unclassified items. Throwaway — rules get ported into 260727-wt1 Plan 01 DB seed on phase landing (partially done today via seeder porting current config) and become dead code once WORKSHEET_TAXONOMY_DB flips true. Deploy: `git pull && optimize:clear && config:cache`. NO migration. NO npm build. | ✅ Done | 52dc9f3 |
