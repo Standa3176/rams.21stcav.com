@@ -15,9 +15,9 @@ recorded in `.planning/sketches/002-install-cockpit/README.md` (cockpit + panels
 `.planning/sketches/003-quote-import/README.md` (import review). The sketches are the
 **visual contract**; where an implementation and a sketch disagree, the sketch wins unless
 the user says otherwise.
-**Total requirements:** 52 defined so far (LR-01..LR-05, Phase 44; VIS-01..VIS-10, Phase 45;
+**Total requirements:** 59 defined so far (LR-01..LR-05, Phase 44; VIS-01..VIS-10, Phase 45;
 VL-01..VL-12, Phase 46; RV-01..RV-08, Phase 46.1; DC-01..DC-11, Phase 46.2;
-DL-01..DL-06, Phase 46.3).
+DL-01..DL-06, Phase 46.3; IC-01..IC-07, Phase 46.4).
 Phases 47–51 are outlined in the roadmap but their requirement IDs are **not yet minted** — each
 will be added here when its phase is planned.
 
@@ -305,6 +305,62 @@ unchosen), the Worksheet retitle (46.2 ruling (b), still unanswered), and `D-46.
 `<x-edit-action-bar/>` inside a CSS block comment in the sha256-pinned layout — a known defect on a
 pinned file, explicitly not this phase's to fix).
 
+### Group IC — Engineer link, install capture (Phase 46.4)
+
+**Seven** requirements minted at execution time on 2026-09-26 by Plan 46.4-01. IC-01..IC-06 map
+one-to-one onto the six Phase 46.4 success criteria in `ROADMAP.md`. The prefix `IC` collides with
+none of LR / VIS / VL / RV / DC / DL already in this section, nor with the v3.0 A / B / C / D / E
+groups below.
+
+⚠️ **IC-07 HAS NO ORIGINAL ROADMAP CRITERION.** It arrived with D-07..D-10, which the user ruled
+*after* the ROADMAP's Phase 46.4 block was written. Rather than leave a requirement with no home,
+Plan 46.4-01 added **criterion 7** to that block in the same edit. The ROADMAP's criteria 1–6 are
+left exactly as they were.
+
+The group exists because there is **no field for additional kit anywhere in RAMS** — measured
+2026-09-26, a grep for `additional kit|extra kit|materials used|kit used` returns nothing. Today it
+lands in `worksheet_signoffs.comments`, a max:5000 textarea, or in a phone call.
+
+- **IC-01** — Room photos carry a **`start` / `completion` bucket** and an engineer-set **label**,
+  and **existing photos are not silently relabelled** (D-03, D-04). The label mechanism already
+  exists (`WorksheetPhoto.caption`, fillable and server-validated); the front end simply never sends
+  it. History is stamped `completion` by **explicit backfill**, justified by the tray's own verbatim
+  title `📷 Photos of completed work` — a ruling that is put back to the user at 46.4-07 step 5.
+- **IC-02** — Per room, an engineer adds **separate** additional-kit rows — engineer · qty · part
+  description — "add another" as many times as needed (D-06). **No unit field** (D-10, declined by
+  the user: "3.no."). **No kit photo** ("dont need kit pics, on serial cpature") — evidence of kit
+  is serial capture, IC-04.
+- **IC-03** — Those rows **queue offline** and drain when signal returns, **without** bumping the
+  IndexedDB version, changing `keyPath` or touching the `capturedAt` index. A kit row has **no blob
+  at all**, so it must branch BEFORE `drain()`'s unconditional `fd.append('photo', …)`, which
+  otherwise marks a blobless row "Local blob unreadable" forever.
+- **IC-04** — Captured serials are surfaced as a readable **asset list** for the project (D-05). The
+  capture mechanism (`DeviceLabelPhoto` + OCR onto a `Device`) already exists; the **list** does not.
+- **IC-05** — The office reads the additional kit as a **clean list, not free text**, and an
+  **amended row is legible as amended** rather than silently showing its latest values (D-08). The
+  acceptance test is the office admin's experience: can somebody reconcile it against the quote
+  without re-keying anything.
+- **IC-06** — **LR-04 holds on a page the client now reads** (D-01): an engineer's **name only**,
+  never email, never phone — asserted with a **realistic email and phone present on the record**, so
+  the assertion cannot pass merely because there was nothing to leak.
+- **IC-07** — **The capture surface LOCKS at sign-off, server-side on every write endpoint, and a
+  kit row is added, modified or marked-with-a-reason but NEVER DELETED** (D-07 + D-08). There is no
+  login and no second URL, so the app tells engineer from client **by STATE, not identity**: once a
+  `WorksheetSignoff` exists, every capture affordance becomes read-only. A hidden button is not a
+  permission — the token is the only credential. Nothing is ever hard deleted; a marked row stays,
+  flagged, with its reason, and the office decides.
+
+**Partially delivered by Plan 46.4-01 (2026-09-26) — schema and resolver only, NOTHING RENDERS:**
+
+| ID | Delivered by 46.4-01 | NOT delivered by 46.4-01 |
+|----|----------------------|--------------------------|
+| IC-01 | `worksheet_photos.bucket`, NOT NULL default `completion`, indexed `['worksheet_id','room_name','bucket']`; the explicit history backfill and its written ruling; `BUCKET_START`/`BUCKET_COMPLETION`/`BUCKETS` | Any tray, any capture control, any label input, any rendering |
+| IC-02 | `worksheet_additional_kit` table + `WorksheetAdditionalKit` model + factory + `Worksheet::additionalKit()`; **no unit column, asserted** | The repeater UI, the write endpoints, any validation |
+| IC-06 | `App\Support\Worksheets\AllocatedEngineers` — `Visit -> [['id','name']]`, name-only by `->select(['id','name'])` + `toClientSafeArray()`, proven against a record carrying a realistic email and phone | The client-facing render proof (plan 46.4-05) and its `LabourResourceClientSurfacePrivacyTest` home |
+| IC-07 | The **shape** only: eight audit columns off `$fillable`; `marked_for_deletion_at`/`deletion_reason`/`marked_by_actor`; the append-only `amendments` trail; no delete path, no soft-delete trait, no `deleted_at` | **Any enforcement.** The sign-off lock is not built. No write endpoint exists yet to refuse after sign-off |
+
+IC-03, IC-04 and IC-05 are untouched by Plan 46.4-01.
+
 ### Out of scope for v4.0
 
 Each is **recorded in the admin Hidden Functions register**, not forgotten:
@@ -380,6 +436,14 @@ Each is **recorded in the admin Hidden Functions register**, not forgotten:
 | DL-04 | Phase 46.3 | Complete (Plan 46.3-01, 2026-09-26). `CockpitModulePresenter::visitPhrase()` returns the empty string when the visit collection is empty, and the row's existing `@if (filled($module['count']))` guard at `module-row.blade.php:62` hides the element — ONE mechanism, no second suppression in Blade. `MODULE_MAP` is byte-unchanged; `site_survey` and `worksheet` stay on `COUNT_VISITS`. Every non-zero phrase, suffixes included, is byte-identical. `CockpitSpineTest:658` was RETIRED BY NAME citing D-04 and replaced by an assertion that drives off the presenter's own output and asserts BOTH directions; a new `test_the_reconstructed_and_superseded_disclosures_survive_on_the_closed_page()` seeds both qualifiers and asserts them on the CLOSED page. **CITATION CORRECTED BY PLAN 46.3-04 (2026-09-26): this row named `test_a_row_renders_a_count_if_and_only_if_that_count_is_non_empty()`, a method that no longer exists under that name.** Plan 46.3-02 NARROWED it by name to `test_a_row_renders_a_count_if_and_only_if_that_count_is_non_empty_on_the_closed_page()` — neither direction dropped, no `>= 1` introduced — and gave the open page its own sibling, `test_the_surviving_open_row_obeys_the_same_count_iff_property()`. ⚠️ That sibling asserts the **iff** property and NEVER "exactly one count": a zero-visit module renders no count at all, which is D-04 working as designed. The code was never wrong; the citation had simply rotted, and a requirement citing a method that cannot be found reads exactly like a requirement whose evidence was deleted. **Walked through HTTP by 46.3-04**: `CockpitInlineDrawerEndToEndTest::test_the_visit_phrase_is_hidden_at_zero_and_kept_when_it_is_not()` proves both directions on ONE fixture — `0 visits` absent from the page, and `1 visit · reconstructed` present inside the Worksheet row's own subtree |
 | DL-05 | Phase 46.3 | Complete (Plan 46.3-01, 2026-09-26). The closed-state anchor reads `Create document — Word or PDF`, or `Create document — Word` on the Worksheet, built from `$offered` and `$formatLabels` with the joining word derived from the count. Checked as a SUBSTRING against all 21 `DEFERRED_AFFORDANCES` keys and both `FORBIDDEN_MARKUP` entries before use — no collision, nothing lifted — and that check is now a real assertion (`CockpitDocumentFormTest::test_the_closed_control_copy_collides_with_no_fence_entry()`). No format key, route, field or presenter changed; the missing set is still exactly `['worksheet.pdf']`. **Walked through HTTP by 46.3-04**: `CockpitInlineDrawerEndToEndTest::test_the_generate_action_discloses_the_form_and_its_existing_format_choice()` opens `?action=generate` on all four modules and asserts the closed copy is gone, the `<form` and the Format fieldset are there, `value="word"` renders, and the submit button keeps `Generate document` because that control genuinely does generate. `::test_the_worksheet_still_states_that_its_pdf_does_not_exist()` re-proves DC-07 on the new layout. **THE WALK STOPS AT DISCLOSURE AND NEVER SUBMITS** — `QUEUE_CONNECTION` is `sync`, so an un-faked dispatch would spend real money |
 | DL-06 | Phase 46.3 | Half complete (Plan 46.3-01, 2026-09-26) — the stretched-link half. `CockpitVisualTest::test_the_whole_module_row_is_the_click_target_without_javascript()` now also proves no rule ending in `.cav-module__open` declares a `position`, that no `.cav-module` rule declares `position: static`, and (in its DOM sibling `test_each_module_row_holds_exactly_one_anchor_and_no_other_interactive_element()`) that each row holds exactly one `<a>`, carrying its own `module=` key, with no `<button>` and no `tabindex`. Proven to bite by injecting `position: absolute` into the `.cav-module__open` rule. **COMPLETED BY PLANS 46.3-02 / -03 / -04 (2026-09-26) — the fence-brackets half, with one word of the criterion corrected.** ROADMAP criterion 5 says both `cockpitRegion()` brackets are "moved deliberately"; the honest verdict is **JUDGED deliberately and NEITHER HAD TO MOVE** — the restructure happened inside `.cav-layout`, the masthead stayed the first child of `.cav-page` and `Open full project` stayed the last. Both verdicts are written into the helper's own docblock at the bracket each concerns, wave 3 re-judged rather than inherited them (the appended activity panel is the change that had the most reason to break the bottom bracket, and its position was checked, not assumed), and **the three-way breakage ritual was run in wave 2 regardless of the verdicts** — empty region, truncated region, and a real violation inside the new position, all three red on demand (`46.3-BRACKET-RITUAL.md`). No count was loosened anywhere in the phase and no `assertGreaterThanOrEqual` was introduced. 46.3-04 echoes the fence over the whole walk, reading `FORBIDDEN_MARKUP`, `BANNED_HANDLER_ATTRIBUTES` and `WRITE_SURFACE_TABLES` off the fence's own constants by reflection so the walk cannot drift from it. ⚠️ **The LIVE whole-row click is still the user's to confirm** (checkpoint step 3): an HTTP walk cannot see a stylesheet, and this failure mode is silent in every other test on the page |
+
+| IC-01 | Phase 46.4 | Partial (Plan 46.4-01, 2026-09-26) — **schema only**. `worksheet_photos.bucket` exists, NOT NULL default `completion`, on a `['worksheet_id','room_name','bucket']` index. The D-03 history ruling is **explicit**: the column arrives NULLABLE, a `whereNull('bucket')->update([...])` statement stamps every pre-existing row, and only then is the column tightened — so a schema diff shows a decision, not a silent default. `WorksheetPhotoBucketDefaultTest` holds both halves: a genuine pre-migration row round-tripped through `down()`/`up()`, and the shape of the migration file itself. Migration verified forward, back and forward again on a temp sqlite file; the `worksheets` FK and the original composite index both survive the `->change()` rebuild. ⚠️ **The tray title `📷 Photos of completed work` (`public-show.blade.php:938`) is now LOAD-BEARING** — the relabel rests on it and a later plan in this phase must not change it. **Nothing renders**: no tray, no capture control, no label input. The label half (IC-01's `caption`) is untouched |
+| IC-02 | Phase 46.4 | Partial (Plan 46.4-01, 2026-09-26) — **schema and model only**. `worksheet_additional_kit` + `WorksheetAdditionalKit` + factory + `Worksheet::additionalKit()` (ordered room, sort_order, id). `room_name` is a **STRING**, per the `WorksheetPhoto` / `DeviceLabelPhoto` convention — rooms are JSON, there is nothing to point an FK at, and **no rename was added**. `labour_resource_id` is nullable `nullOnDelete` (the D-02 fallback). **D-10 is asserted, not merely obeyed**: `test_there_is_no_unit_field_anywhere_on_a_kit_row()` checks `unit`/`units`/`uom`/`unit_of_measure` against the real column listing, because "helpfully" adding `each / metres / boxes` is the exact failure to avoid. No kit-photo column either. **No UI, no endpoints, no validation** |
+| IC-03 | Phase 46.4 | Not started. Untouched by Plan 46.4-01 — no Blade and no JavaScript was touched by that plan |
+| IC-04 | Phase 46.4 | Not started. Untouched by Plan 46.4-01 |
+| IC-05 | Phase 46.4 | Not started. Untouched by Plan 46.4-01 — there is nowhere to read the list yet |
+| IC-06 | Phase 46.4 | Partial (Plan 46.4-01, 2026-09-26) — **the door is built, and built shut**. `App\Support\Worksheets\AllocatedEngineers::forWorksheet()` resolves the visit by `source_type`/`source_id`, reads `labour_resource_ids`, and returns a **plain array of `['id','name']`** — never a model, never a collection. Two load-bearing mechanisms: an explicit `->select(['id','name'])`, so the hydrated models never HOLD an email or a phone and no future `->toArray()` can reach one; and `LabourResource::toClientSafeArray()`, which only ever builds those two keys. `AllocatedEngineersTest::test_no_returned_element_carries_anything_but_id_and_name()` walks **every** element's key set against an exact expected set (not `assertArrayNotHasKey`, which would miss a `mobile` or a nested model) **against a record seeded with a realistic `@21stcav.com` email AND a `07700 900xxx` phone** — the fixture asserts both are non-null first, so it cannot pass vacuously. `scopeActive()` is deliberately NOT applied (LR-02: deactivation preserves history), asserted. **All three D-02 fallbacks asserted not to throw**: no visit, empty allocation, deleted resource — plus a NULL allocation and an all-gone allocation. ⚠️ **The CLIENT-FACING RENDER PROOF IS NOT DONE** — that is plan 46.4-05's, in `LabourResourceClientSurfacePrivacyTest` |
+| IC-07 | Phase 46.4 | Partial (Plan 46.4-01, 2026-09-26) — **the shape, and NONE of the enforcement**. Delivered: all **eight** audit columns off `$fillable` (`created_via`, `created_by_actor`, `reconciled_at`, `marked_for_deletion_at`, `deletion_reason`, `marked_by_actor`, `amendments`, `amended_at`), proven by ONE `create()` carrying all eight and asserting every one fell to its default, plus a loop over the fillable list so a future addition goes red; `isMarked()`/`isAmended()`/`isOpen()` so plans 03 and 05 branch on one definition; an append-only `amendments` trail that reads as a **list unconditionally**, via an `Attribute` rather than an `'array'` cast, so even a raw-inserted NULL is `[]`; and **no delete path anywhere** — no soft-delete trait, no `deleted_at`, and `Worksheet::additionalKit()` returns marked rows **on purpose**, asserted present AND flagged (a count-only assertion would pass if marking silently deleted). The rejected `worksheet_additional_kit_events` table is named in the migration docblock **with the trigger that would promote the JSON column to rows** — any cross-row amendment query in Phase 47 or 49. ⚠️ **NOT delivered: the sign-off lock.** D-07's server-side refusal on every write endpoint is plan 46.4-04's, and no write endpoint exists yet. ⚠️ **KNOWN GAP: there is no `unmark` and no `restore`.** D-08 gives the engineer add, modify and mark and does not give them a way back; if an engineer marks a row by mistake, today the office fixes it. Carried to the 46.4-07 checkpoint rather than solved by inventing an endpoint the user did not ask for |
 
 *Phases 47–51 have no requirement IDs yet. Mint them into this section as each phase is planned,
 following the LR-xx / VIS-xx pattern.*

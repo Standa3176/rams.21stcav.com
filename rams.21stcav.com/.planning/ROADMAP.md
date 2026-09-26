@@ -738,6 +738,21 @@ used|kit used` returns nothing. Today it lands in `worksheet_signoffs.comments`,
 5. The office reads the additional kit as a clean list, not free text.
 6. **LR-04 holds on a page the client now reads**: an engineer's **name only** — never email, never
    phone — asserted with a realistic email and phone present on the record.
+7. **The capture surface locks at sign-off**, enforced **server-side on every write endpoint** and
+   not merely by hiding the control, and a kit row is **added, modified or marked-with-a-reason but
+   never deleted** — a marked row stays in the list, flagged, and the office decides.
+
+   > ⚠️ **Criterion 7 was ADDED ON 2026-09-26 by Plan 46.4-01**, after the user ruled D-07..D-10 —
+   > *"client cannot chage anything as they are signing to confirm work is complete"* and *"Engineer
+   > can add items, modify items and mark items for deletion (with reason)"*. Criteria 1–6 predate
+   > those rulings and are left exactly as written. It is the home for **IC-07**, which would
+   > otherwise be a requirement with no criterion. ⚠️ Criterion 2's phrase *"may delete their own
+   > rows"* is **SUPERSEDED by criterion 7** — D-08 replaced the plain delete with mark-with-a-reason,
+   > and D-09 recorded that "own" is not per-person (one token, no identity). The line is left as
+   > written rather than quietly edited to match the outcome; **IC-02 and IC-07 are the authority on
+   > what ships.**
+
+**Requirements**: IC-01..IC-07 in `.planning/REQUIREMENTS.md` § v4.0, Group IC.
 
 **UI hint**: yes (the engineer link, used one-handed on site)
 
