@@ -755,6 +755,15 @@ Route::middleware('auth')->group(function () {
     Route::post('worksheets/{worksheet}/retry-generation', [WorksheetController::class, 'retryGeneration'])
         ->name('worksheets.retry-generation')
         ->middleware('throttle:10,1'); // Re-audit S-01 — AI-cost DoS cap.
+    // ── Additional kit: the office's one write (Phase 46.4, D-08 / IC-05) ──
+    // Registered BEFORE the worksheets/{worksheet} wildcard routes below, and
+    // inside the `auth` group — the engineer link is unauthenticated and must
+    // never reach this. Reconcile is the OFFICE's act; there is deliberately
+    // no delete counterpart, because nothing is ever hard deleted (D-08) and
+    // what to do with a marked row is a conversation, not a button.
+    Route::post('worksheets/{worksheet}/additional-kit/{row}/reconcile',
+        [WorksheetController::class, 'reconcileAdditionalKit'])
+        ->name('worksheets.additional-kit.reconcile');
     // Audit M-05 — revoke the public sign-off link (regenerates the UUID).
     Route::post('worksheets/{worksheet}/revoke-token', [WorksheetController::class, 'revokeToken'])->name('worksheets.revoke-token');
     Route::delete('worksheets/{worksheet}', [WorksheetController::class, 'destroy'])->name('worksheets.destroy');

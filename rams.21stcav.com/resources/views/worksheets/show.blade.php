@@ -313,6 +313,180 @@
     </div>
 @endif
 
+{{-- ── Additional Kit (Phase 46.4 Plan 03 Task 2 — D-06 / D-08 / IC-05) ──────
+
+     THE ACCEPTANCE TEST OF THE PHASE, in the user's words: extra kit must be
+     "presented to the office admin as a clean list rather than free text."
+     Before this, the only place it could land was the max:5000 sign-off
+     comments textarea, or a phone call.
+
+     ONE TABLE. A marked row is flagged IN PLACE, never moved to a second
+     table and never dropped — the office reconciles ONE list against ONE
+     quote, and a second table is a second place to forget to look.
+
+     Row status branches on plan 01's isMarked() / isAmended() helpers and
+     NEVER re-derives them from marked_for_deletion_at or count($amendments):
+     plan 05 enforces the same states server-side and the two must not drift.
+
+     NEVER RENDERED HERE: created_by_actor, marked_by_actor, amendments[].actor
+     (all hold `ip:…|actor:<sha256 slice>`), and never an engineer's email or
+     phone — the name arrives through the constrained `:id,name` eager load in
+     WorksheetController::show(). Every echo is `{{ }}`; part_description AND
+     deletion_reason are engineer free text off an unauthenticated link, and
+     plan 05 renders these same rows on a page a CLIENT signs. --}}
+@php $kitRows = $worksheet->additionalKit; @endphp
+<div class="form-section">
+    <div class="form-section__header">
+        <h2 class="section-heading">Additional Kit ({{ $kitRows->count() }})</h2>
+    </div>
+    <div class="form-section__body">
+        @if($kitRows->isEmpty())
+            {{-- A NAMED empty state: "none used" must be distinguishable from
+                 "this screen is broken". --}}
+            <div class="card card-sm" style="color:var(--text-muted);font-size:.875rem;padding:1.25rem;text-align:center;">
+                No additional kit has been recorded on this worksheet.
+            </div>
+        @else
+            <p style="margin:0 0 .6rem;font-size:.8rem;color:var(--text-muted);line-height:1.5;">
+                Extra kit the engineers used on site, as separate lines to reconcile against the quote.
+                Marking a line reconciled records that the office has actioned it — after that
+                the engineer can no longer amend or mark it.
+            </p>
+
+            @if(session('success'))
+                <div class="alert alert-success" style="margin-bottom:.6rem;">{{ session('success') }}</div>
+            @endif
+
+            <div style="overflow-x:auto;">
+                <table class="data-table" data-kit-table style="font-size:.82rem;">
+                    <thead>
+                        <tr>
+                            <th>Room</th>
+                            <th>Engineer</th>
+                            <th>Qty</th>
+                            <th>Part description</th>
+                            <th>Captured</th>
+                            <th>Status</th>
+                            <th>Office</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @php $renderedRoom = null; @endphp
+                        @foreach($kitRows as $kitRow)
+                            @php
+                                // Plan 01's order is room_name, sort_order, id — so a
+                                // room heading is emitted the first time the room
+                                // changes, inside the SAME table.
+                                $kitRoom      = trim((string) $kitRow->room_name) !== ''
+                                    ? (string) $kitRow->room_name
+                                    : 'Room not recorded';
+                                $showRoomHead = $kitRoom !== $renderedRoom;
+                                $renderedRoom = $kitRoom;
+                            @endphp
+                            @if($showRoomHead)
+                                <tr>
+                                    <td colspan="7" style="background:var(--surface-soft);font-weight:700;font-size:.75rem;
+                                                           text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);">
+                                        {{ $kitRoom }}
+                                    </td>
+                                </tr>
+                            @endif
+                            <tr @if($kitRow->isMarked()) style="background:#FFF7F7;" @endif>
+                                <td>{{ $kitRow->room_name }}</td>
+                                <td>
+                                    @if($kitRow->labourResource)
+                                        {{ $kitRow->labourResource->name }}
+                                    @else
+                                        {{-- D-02 fallback: a NAMED gap, never a blank cell and
+                                             never a typed name. --}}
+                                        <span style="color:var(--text-faint);">Unassigned — no engineer allocated to this visit</span>
+                                    @endif
+                                </td>
+                                <td class="tabular" style="font-weight:600;">{{ $kitRow->qty }}</td>
+                                <td>
+                                    <div style="color:var(--text);">{{ $kitRow->part_description }}</div>
+
+                                    @if($kitRow->isAmended())
+                                        {{-- D-08: the CURRENT values above, and what changed
+                                             below. Showing only the latest values silently is
+                                             the exact failure this trail exists to prevent. --}}
+                                        <span style="display:inline-block;margin-top:.3rem;padding:1px 6px;border-radius:9999px;
+                                                     background:#FEF3C7;color:#92400E;font-weight:600;font-size:.7rem;">Amended</span>
+                                        <details style="margin-top:.3rem;">
+                                            <summary style="cursor:pointer;font-size:.75rem;color:var(--teal);">
+                                                What changed ({{ count($kitRow->amendments) }})
+                                            </summary>
+                                            <div style="margin-top:.3rem;font-size:.75rem;color:var(--text-muted);line-height:1.5;">
+                                                @foreach($kitRow->amendments as $entry)
+                                                    @php
+                                                        // Oldest first — the trail is append-only.
+                                                        // The entry's `actor` key is NEVER read here.
+                                                        $entryAt = rescue(
+                                                            fn () => \Illuminate\Support\Carbon::parse($entry['at'] ?? null)->format('d M Y H:i'),
+                                                            null,
+                                                            false,
+                                                        );
+                                                        $entryChanges = is_array($entry['changes'] ?? null) ? $entry['changes'] : [];
+                                                    @endphp
+                                                    <div style="margin-bottom:.25rem;">
+                                                        <span style="color:var(--text-faint);">{{ $entryAt ?? 'Date not recorded' }}</span>
+                                                        @foreach($entryChanges as $field => $change)
+                                                            @php
+                                                                $from = is_scalar($change['from'] ?? null) ? (string) $change['from'] : '—';
+                                                                $to   = is_scalar($change['to'] ?? null)   ? (string) $change['to']   : '—';
+                                                            @endphp
+                                                            <div>{{ $field }}: {{ $from }} → {{ $to }}</div>
+                                                        @endforeach
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        </details>
+                                    @endif
+                                </td>
+                                <td style="white-space:nowrap;color:var(--text-muted);">
+                                    {{ $kitRow->created_at?->format('d M H:i') }}
+                                </td>
+                                <td>
+                                    @if($kitRow->isMarked())
+                                        <span style="display:inline-block;padding:1px 6px;border-radius:9999px;
+                                                     background:#FEE2E2;color:#991B1B;font-weight:600;font-size:.7rem;">Marked for deletion</span>
+                                        <div style="margin-top:.3rem;font-size:.75rem;color:var(--text);line-height:1.4;">
+                                            {{-- Engineer free text, and exactly as dangerous as the
+                                                 part description. A legacy row with no reason says
+                                                 so rather than rendering a silent blank. --}}
+                                            Reason: {{ $kitRow->deletion_reason ?: 'No reason recorded' }}
+                                        </div>
+                                    @else
+                                        <span style="color:var(--text-muted);">Open</span>
+                                    @endif
+                                </td>
+                                <td style="white-space:nowrap;">
+                                    @if($kitRow->reconciled_at)
+                                        <span style="display:inline-block;padding:1px 6px;border-radius:9999px;
+                                                     background:#DCFCE7;color:#166534;font-weight:600;font-size:.7rem;">✓ Reconciled</span>
+                                        <div style="font-size:.72rem;color:var(--text-faint);margin-top:.2rem;">
+                                            {{ $kitRow->reconciled_at->format('d M H:i') }}
+                                        </div>
+                                    @else
+                                        {{-- Works on EVERY row state, marked included — see
+                                             WorksheetController::reconcileAdditionalKit(). --}}
+                                        <form method="POST"
+                                              action="{{ route('worksheets.additional-kit.reconcile', ['worksheet' => $worksheet->id, 'row' => $kitRow->id]) }}"
+                                              style="display:inline;">
+                                            @csrf
+                                            <button type="submit" class="btn-outline btn-sm">Mark reconciled</button>
+                                        </form>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+    </div>
+</div>
+
 {{-- Room accordion --}}
 @php
     $rooms = $worksheet->generated_data['rooms'] ?? [];

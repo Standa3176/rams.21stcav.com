@@ -6,6 +6,7 @@ use App\Jobs\BuildWorksheetJob;
 use App\Models\Project;
 use App\Models\ProjectDeliverable;
 use App\Models\Worksheet;
+use App\Models\WorksheetAdditionalKit;
 use App\Services\EngineerActivityService;
 use App\Services\PdfRenderService;
 use App\Services\ProjectDeliverablesService;
@@ -85,11 +86,67 @@ class WorksheetController extends Controller
 
         // Eager-load engineer-activity relations so the show view + the
         // EngineerActivityService below don't run N+1 queries.
-        $worksheet->load(['project', 'signoffs', 'photos']);
+        //
+        // Phase 46.4 Plan 03: `additionalKit.labourResource:id,name` is a
+        // CONSTRAINED eager load and the constraint is LOAD-BEARING, not a
+        // micro-optimisation. `LabourResource` carries `email` and `phone`;
+        // LR-04 says a name and nothing else, and plan 05 renders these same
+        // rows on the engineer link, which a CLIENT reads (D-01). A column
+        // that was never selected cannot leak through a future `->toArray()`,
+        // `@json` or `dd()`. Same mechanism as App\Support\Worksheets\
+        // AllocatedEngineers. DO NOT WIDEN THIS PROJECTION.
+        $worksheet->load([
+            'project',
+            'signoffs',
+            'photos',
+            'additionalKit.labourResource:id,name',
+        ]);
 
         $context = app(EngineerActivityService::class)->buildReportContext($worksheet);
 
         return view('worksheets.show', compact('worksheet', 'context'));
+    }
+
+    // =========================================================================
+    // RECONCILE AN ADDITIONAL-KIT LINE (Phase 46.4 Plan 03, D-08 / IC-05)
+    // =========================================================================
+
+    /**
+     * The OFFICE's one action on a kit line: "I have dealt with this."
+     *
+     * ⚠️ RECONCILE WORKS ON EVERY ROW STATE, INCLUDING A MARKED ONE. A marked
+     * row is a row the engineer has asked the office to take off — refusing to
+     * let the office tick it would leave every marked row outstanding on the
+     * list FOREVER, which is exactly the "can't action it" failure D-08 exists
+     * to prevent. Reconciling does NOT unmark; the two states are independent
+     * and both stay visible.
+     *
+     * ⚠️ `reconciled_at` is deliberately OFF `$fillable` — the engineer link is
+     * unauthenticated and a request body must never be able to claim the
+     * office has signed something off. The assignment here is therefore
+     * EXPLICIT, never a mass assignment, and there is no request payload at
+     * all: the route carries everything this action needs.
+     *
+     * Idempotent: a second post is a no-op rather than a moved timestamp,
+     * because "when did the office action this" must not drift every time
+     * somebody double-clicks.
+     *
+     * NOTE (plan 05): reconciling is a ONE-WAY DOOR for the engineer — the
+     * engineer-link endpoints refuse modify and mark on a reconciled row. The
+     * control on the show page says so in words next to the button, so nobody
+     * discovers it from a 422 reported by phone from a plant room.
+     */
+    public function reconcileAdditionalKit(Worksheet $worksheet, WorksheetAdditionalKit $row): RedirectResponse
+    {
+        abort_unless(auth()->check(), 403); // Shared workspace — same guard as show().
+        abort_unless($row->worksheet_id === $worksheet->id, 404);
+
+        if ($row->reconciled_at === null) {
+            $row->reconciled_at = now();
+            $row->save();
+        }
+
+        return back()->with('success', 'Kit line marked as reconciled.');
     }
 
     // =========================================================================
