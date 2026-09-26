@@ -52,6 +52,23 @@ it in. The module list stays visible behind it, so a PM never loses their place.
   accepted is rendered in the app's own palette, and it sits inside the real application shell.
   The `--cav-*` token set built in Plan 45-03 is **superseded for this page**. See "What happens
   to the teal tokens" below.
+> ⚠️ **D-09 IS NARROWED BY D-01 OF PHASE 46.3 (2026-09-26), shipped in Plan 46.3-02.** The user
+> opened this page for the first time and asked for the panel to open **as an inline drawer
+> directly beneath the clicked module row**, not as a right side panel — and for the other rows to
+> **collapse away** while it is open (D-02), "so you see only the one you're working in". That
+> returns to their original framing for this page, which sketch 002 had and this sketch replaced.
+>
+> **Only the POSITION changed.** The three tabs, the `--cav-*` tokens, the row design and the
+> query-string state (`?module=` opens, `?tab=` switches, the close drops both — still no
+> JavaScript) all survive exactly as decided here. "Closed at rest" survives too: a closed drawer
+> is ABSENT from the markup, not hidden.
+>
+> One consequence was designed rather than discovered: with the other rows collapsed away, the
+> header `×` was the only route back, so the drawer also carries a named anchor reading **"Back to
+> all modules"** above its tab strip.
+>
+> D-09's wording is kept below verbatim as the record of what was decided and built.
+
 - **D-09:** the drawer is a **right side panel with tabs** — `Overview` / `Files` / `Notes`.
   Not an inline `<details>` accordion. The "closed at rest" principle survives: nothing is open
   until the PM opens it, and the page at rest is a quiet list of module rows.
@@ -85,6 +102,24 @@ it in. The module list stays visible behind it, so a PM never loses their place.
 - **D-13:** the panel's **Files tab is the project's document library** — every created document
   in one place, clickable and viewable. This is the user's explicit example of what the panel is
   for.
+> ⚠️ **D-14 IS NARROWED BY D-03 OF PHASE 46.3 (2026-09-26), shipped in Plan 46.3-03.** The feed is
+> **no longer in the panel**. It moved OUT of the module panel into its **own project-level panel**
+> beside the module list — the user's words were "CAN RECENT ACTIVITY BE A SEPARATE PANEL TO THE
+> RIGHT" — and it fills the column the inline drawer vacated under D-01.
+>
+> **The feed's CONTENT and its project-wide SCOPE are unchanged.** Same rows from
+> `ProjectActivityLog`, same `CockpitPanelPresenter::activity()`, same six-entry cap, same
+> `x-cockpit.activity-row` with its avatars, and the same empty sentence. It was moved, not
+> rebuilt.
+>
+> The move follows from something D-14 already implied but never acted on: that table has **no
+> module column**, so the feed always rendered the same entries whichever module was open. It was
+> project-level data sitting inside one module's panel. Its position now matches what the data is,
+> and it renders on the bare page too — which it could never do while it lived inside a panel that
+> does not exist until `?module=`.
+>
+> D-14's wording is kept below verbatim as the record of what was decided and built.
+
 - **D-14:** a **Recent activity** feed in the panel — who did what, when, with avatars.
 - **D-15:** **Quick actions** in the panel — Create visit · Add note · Upload files. These are
   WRITES and belong to Phase 46 (visits), Phase 47 (snags) and Phase 48 (documents). They are

@@ -680,6 +680,12 @@ class CockpitVisualTest extends TestCase
             'description' => 'Left a note.',
         ]);
 
+        // JUDGED AND LEFT UNCHANGED BY 46.3 D-03. The feed moved out of the
+        // module panel into its own project-level panel, so this assertion no
+        // longer NEEDS `?module=` to see an avatar — but it is kept, because
+        // opening a module is the stricter render: it proves the hue survives
+        // on the page where the drawer is also competing for the markup. The
+        // avatar's own component and its six fills were not touched.
         $module   = array_key_first(CockpitModulePresenter::moduleMap());
         $expected = 'cav-av--'.($actor->id % self::AVATAR_HUES);
 

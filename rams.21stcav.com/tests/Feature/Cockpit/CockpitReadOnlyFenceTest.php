@@ -346,6 +346,15 @@ class CockpitReadOnlyFenceTest extends TestCase
         // elements are untouched by this plan. The string is CONTENT (the
         // project's own name, from the masthead) rather than structure, which
         // is why the restructure could not reach it.
+        //
+        // RE-JUDGED AGAINST 46.3-03 (D-03), AND THE VERDICT IS UNCHANGED.
+        // That plan adds the project-level Recent activity panel as a second
+        // child of `.cav-layout` and restores a second grid track. Both are
+        // again INSIDE `.cav-layout`; the masthead is not moved, not
+        // rewrapped and not renamed. The full three-way ritual was NOT re-run
+        // for it: the ritual re-runs when a bracket MOVES, and this one did
+        // not — re-running it on an unchanged bracket would prove nothing the
+        // 46.3-02 record does not already hold.
         $this->assertStringContainsString(
             self::PROJECT_NAME,
             $region,
@@ -363,6 +372,22 @@ class CockpitReadOnlyFenceTest extends TestCase
         // `<p class="cav-note">` that holds it is a sibling of `.cav-layout`
         // and still the final child of `.cav-page`. The restructure took place
         // one level in, so the end of the shell never moved.
+        //
+        // RE-JUDGED AGAINST 46.3-03 (D-03). VERDICT UNCHANGED, AND THIS IS
+        // THE BRACKET THAT HAD MOST REASON TO MOVE: D-03 appends a whole new
+        // panel to the page. It is appended INSIDE `.cav-layout`, as a
+        // sibling of `.cav-modules`, so `Open full project` is still the
+        // final child of `.cav-page` and still comes AFTER everything the
+        // fence must see. Had the panel been added after the `<p>` instead,
+        // this bracket would have stopped being the end of the region and a
+        // truncated extraction could have passed while missing the new panel
+        // entirely — which is precisely why the position was checked rather
+        // than assumed. The bracket was NOT loosened and was NOT moved.
+        //
+        // The feed's coverage went UP, not down: `x-cockpit.activity-row`
+        // used to render on the sixteen open regions only, and now renders on
+        // all seventeen, so the fence's no-script / no-handler / no-control
+        // assertions reach it on the bare page too.
         //
         // AND IT IS STILL THERE ON AN OPEN-MODULE RENDER, not only a closed
         // one. That is the half a restructure quietly breaks: D-02 removes

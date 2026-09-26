@@ -16,8 +16,16 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Phase 45, Plan 45-12, Task 2 — the panel's Files tab, Notes tab and the
- * Recent activity feed.
+ * Phase 45, Plan 45-12, Task 2 — the panel's Files tab and Notes tab, and
+ * the project's Recent activity feed.
+ *
+ * THE FEED IS NO LONGER "THE PANEL'S" — 46.3 D-03. This docblock said "the
+ * panel's ... Recent activity feed" until that decision moved the feed out of
+ * the module panel into its own project-level panel beside the module list.
+ * The wording is corrected rather than left standing, because a docblock that
+ * lies about where something lives is the next agent's wrong premise. The
+ * file keeps both subjects: the panel's two tabs, and the feed that used to
+ * be inside it.
  *
  * D-13, in the user's own words: "under docs a user can see all created
  * project docs in one place (ie click and view etc)". The Files tab is that
@@ -270,9 +278,39 @@ class CockpitPanelTest extends TestCase
         $this->assertSame(0, $this->countByClass($html, 'cav-pnote'));
     }
 
-    // ── Recent activity (D-14) ───────────────────────────────────────────
+    // ── Recent activity — SKETCH 004 D-14, NARROWED BY 46.3 D-03 ─────────
+    //
+    // THIS SECTION WAS HEADED "Recent activity (D-14)" AND ITS TESTS WERE
+    // WRITTEN AGAINST THE MODULE PANEL, where the feed lived until 46.3 D-03
+    // moved it to its own project-level panel. The section header is retired
+    // by name for that reason: a heading that says the feed belongs to the
+    // panel is the next agent's wrong premise.
+    //
+    // WHAT THE FEED SAYS IS UNCHANGED, so none of these tests is deleted —
+    // every one is RETARGETED at the `cav-activity` subtree and keeps every
+    // assertion it had. What each of them measured about ordering, initials,
+    // timestamps and the absent "View all" is still true and still pinned.
+    // The POSITION assertions they used to carry are superseded, by name, in
+    // the section below: `test_the_bare_cockpit_renders_exactly_one_...`,
+    // `test_every_module_and_tab_renders_exactly_one_...`,
+    // `test_the_activity_panel_is_identical_across_...` and
+    // `test_no_module_panel_carries_the_recent_activity_feed()`.
 
-    public function test_the_overview_tab_renders_the_activity_feed_newest_first(): void
+    /**
+     * RETIRED AND RENAMED BY NAME (46.3 D-03): this was
+     * `test_the_overview_tab_renders_the_activity_feed_newest_first()`. The
+     * feed is not on the Overview tab any more and is not on any tab — it is
+     * project-level, so it is asserted on the BARE page, which is the render
+     * it could never have had before.
+     *
+     * `assertStringContainsString('Recent activity', $html)` STOOD HERE and
+     * is replaced by TWO assertions rather than relocated: the page carries
+     * exactly ONE activity panel, and — in
+     * `test_no_module_panel_carries_the_recent_activity_feed()` — the module
+     * panel carries none. A single relocated assertion would have passed on a
+     * page that rendered the feed twice.
+     */
+    public function test_the_activity_panel_renders_the_feed_newest_first(): void
     {
         $project = $this->project();
 
@@ -282,9 +320,16 @@ class CockpitPanelTest extends TestCase
         $this->log($project, ['description' => 'imported the QuoteWerks package', 'created_at' => '2026-08-01 09:00:00']);
         $this->log($project, ['description' => 'approved the RAMS', 'created_at' => '2026-08-14 16:11:00']);
 
-        $html = $this->panel($project, 'rams');
+        $page = $this->page($project);
 
-        $this->assertStringContainsString('Recent activity', $html);
+        // THE TWO ASSERTIONS THAT REPLACE THE ONE AT THIS LINE. The panel
+        // exists exactly once, and what follows is measured INSIDE it rather
+        // than anywhere on the page.
+        $this->assertSame(1, $this->countByClass($page, 'cav-activity'), 'Exactly one Recent activity panel — never two, and never none.');
+        $this->assertStringContainsString('Recent activity', $page);
+
+        $html = $this->nodesByClass($page, 'cav-activity')[0];
+
         $this->assertSame(2, $this->countByClass($html, 'cav-act'));
         $this->assertStringContainsString('Alice Hartley', $html);
         $this->assertStringContainsString('AH', $html);
@@ -298,12 +343,22 @@ class CockpitPanelTest extends TestCase
         );
     }
 
+    /**
+     * RETARGETED BY 46.3 D-03 — the sentence is the ACTIVITY PANEL's now, not
+     * the module panel's, so it is asserted inside the panel's own subtree.
+     * Kept rather than folded into
+     * `test_the_activity_panel_renders_its_hint_when_the_project_has_no_activity()`:
+     * that one measures the panel's PRESENCE when empty, this one measures
+     * the SENTENCE, and one test satisfying two reasons is how a property
+     * gets lost when the other is later rewritten.
+     */
     public function test_a_project_with_no_activity_gets_one_sentence(): void
     {
-        $html = $this->panel($this->project(), 'rams');
+        $panels = $this->nodesByClass($this->page($this->project(), 'rams'), 'cav-activity');
 
-        $this->assertStringContainsString('Nothing has been recorded against this project yet.', $html);
-        $this->assertSame(0, $this->countByClass($html, 'cav-act'));
+        $this->assertCount(1, $panels, 'The panel renders when empty — this check would otherwise pass vacuously.');
+        $this->assertStringContainsString('Nothing has been recorded against this project yet.', $panels[0]);
+        $this->assertSame(0, $this->countByClass($panels[0], 'cav-act'));
     }
 
     /**
@@ -311,6 +366,18 @@ class CockpitPanelTest extends TestCase
      * column; filtering by guessing at `metadata` keys would silently drop
      * every entry that carries none. The feed is project-wide, and this test
      * pins it so it reads as a decision rather than a bug.
+     *
+     * RETARGETED BY 46.3 D-03, NOT RETIRED — and this is the test whose
+     * reasoning the move was FOUNDED on. It proved the feed was project-wide
+     * while the feed still sat inside a module's panel; D-03 finally put the
+     * markup where that proof always pointed. It now reads the activity
+     * panel's own subtree.
+     *
+     * Its stronger successor is
+     * `test_the_activity_panel_is_identical_across_every_module_every_tab_and_the_bare_page()`,
+     * which asserts EQUALITY of the subtree rather than a matching count.
+     * Both are kept: this one names the entry, that one forbids a different
+     * feed of the same length.
      */
     public function test_the_same_feed_renders_under_every_module(): void
     {
@@ -318,7 +385,11 @@ class CockpitPanelTest extends TestCase
         $this->log($project, ['description' => 'the only entry']);
 
         foreach (array_keys(CockpitModulePresenter::moduleMap()) as $module) {
-            $html = $this->panel($project, $module);
+            $found = $this->nodesByClass($this->page($project, $module), 'cav-activity');
+
+            $this->assertCount(1, $found, "{$module} lost the activity panel.");
+
+            $html = $found[0];
 
             $this->assertSame(1, $this->countByClass($html, 'cav-act'), "{$module} lost the feed.");
             $this->assertStringContainsString('the only entry', $html, "{$module} lost the feed's entry.");
@@ -329,6 +400,12 @@ class CockpitPanelTest extends TestCase
      * The design's "View all" goes to a project activity page. No such GET
      * route exists, and creating one is a new surface outside this phase — so
      * the affordance is omitted rather than pointed somewhere plausible.
+     *
+     * JUDGED AND LEFT UNCHANGED BY 46.3 D-03. `panel()` extracts the whole
+     * `cav-cockpit` subtree, not the module panel, so this "must not appear"
+     * already covers the feed's new home by construction — and a not-contains
+     * over the WHOLE page is strictly stronger than one over the panel. It
+     * would have been weakened, not maintained, by retargeting it.
      */
     public function test_no_view_all_affordance_is_rendered(): void
     {
