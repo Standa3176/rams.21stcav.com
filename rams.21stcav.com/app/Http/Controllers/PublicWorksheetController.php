@@ -9,6 +9,7 @@ use App\Models\SiteSurveyPhoto;
 use App\Models\Worksheet;
 use App\Services\DeviceLabelPhotoService;
 use App\Services\NotificationRecipientResolver;
+use App\Support\Worksheets\WorksheetCaptureLock;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -35,9 +36,26 @@ use Illuminate\View\View;
  *    worksheet_signoffs row even when one already exists for this worksheet.
  *    `Worksheet::latestSignoff()` resolves the most-recent acceptance for
  *    display + DOCX embedding.
- *  - The page remains active after sign-off so engineers can continue updating
- *    notes / photos via the admin pipeline. Re-signing produces a snag-list
- *    audit trail.
+ *  - THE PAGE REMAINS VISIBLE AFTER SIGN-OFF, BUT CAPTURE IS CLOSED (Phase
+ *    46.4, D-07). Until 2026-09-26 this paragraph claimed the opposite: that
+ *    the page stayed OPEN after sign-off for further notes / photo capture via
+ *    the admin pipeline. Half of that is now false, and the superseded sentence
+ *    is deliberately not reproduced here — a docblock must not contain a
+ *    findable claim the code contradicts, even as a quotation. The user,
+ *    verbatim: *"client cannot chage anything as they are signing to confirm
+ *    work is complete."*
+ *    Once a worksheet_signoffs row exists, every CAPTURE endpoint on this
+ *    controller refuses with 422 (see App\Support\Worksheets\WorksheetCaptureLock)
+ *    — photo uploads, photo labels, photo deletes, serial-label capture. There
+ *    is no login and no second URL, so the app cannot tell an engineer from a
+ *    client by identity; it tells them apart by STATE, and the refusal lives on
+ *    the SERVER because the token is the only credential and a hidden button
+ *    was never a permission.
+ *    Still true, and deliberately NOT locked: the page RENDERS (a signed
+ *    worksheet is a record its signer must be able to read), photos and
+ *    reference files still serve, the engineer's room-complete / survey-reviewed
+ *    status confirmations still write, and RE-SIGNING STILL WORKS — it produces
+ *    a snag-list audit trail, which is why POST /sign carries no lock.
  */
 class PublicWorksheetController extends Controller
 {
@@ -88,6 +106,13 @@ class PublicWorksheetController extends Controller
     public function uploadPhoto(Request $request, string $token): \Illuminate\Http\JsonResponse
     {
         $worksheet = $this->resolveWorksheet($token);
+
+        // D-07 — BEFORE VALIDATION, on purpose. A locked caller must not learn
+        // which field was malformed; and a queued row draining in late must be
+        // refused before its bytes reach the disk.
+        if (WorksheetCaptureLock::isLocked($worksheet)) {
+            return response()->json(['message' => WorksheetCaptureLock::MESSAGE], 422);
+        }
 
         $request->validate([
             'room_name' => ['required', 'string', 'max:200'],
@@ -166,6 +191,13 @@ class PublicWorksheetController extends Controller
     public function deletePhoto(string $token, int $photoId): \Illuminate\Http\JsonResponse
     {
         $worksheet = $this->resolveWorksheet($token);
+
+        // D-07 — before the row is even resolved. This endpoint unlinks the FILE
+        // before the row, so a guard placed any later could leave an orphan.
+        if (WorksheetCaptureLock::isLocked($worksheet)) {
+            return response()->json(['message' => WorksheetCaptureLock::MESSAGE], 422);
+        }
+
         $photo     = $worksheet->photos()->where('id', $photoId)->firstOrFail();
 
         \Illuminate\Support\Facades\Storage::disk('local')->delete($photo->storagePath());
@@ -438,6 +470,13 @@ class PublicWorksheetController extends Controller
     ): \Illuminate\Http\JsonResponse {
         $worksheet = $this->resolveWorksheet($token);
 
+        // D-07 — before validation AND before the Device::firstOrCreate below.
+        // A guard any later would mint an asset-register row for a worksheet the
+        // client has already signed.
+        if (WorksheetCaptureLock::isLocked($worksheet)) {
+            return response()->json(['message' => WorksheetCaptureLock::MESSAGE], 422);
+        }
+
         $data = $request->validate([
             'photo'            => ['required', 'file', 'image', 'max:10240'],
             'room_name'        => ['required', 'string', 'max:200'],
@@ -500,6 +539,12 @@ class PublicWorksheetController extends Controller
     ): \Illuminate\Http\JsonResponse {
         $worksheet = $this->resolveWorksheet($token);
 
+        // D-07 — confirming a label WRITES the serial / MAC / model onto the
+        // Device row in the asset register. That is capture, not status.
+        if (WorksheetCaptureLock::isLocked($worksheet)) {
+            return response()->json(['message' => WorksheetCaptureLock::MESSAGE], 422);
+        }
+
         $photo = DeviceLabelPhoto::where('id', $photoId)
             ->where('worksheet_id', $worksheet->id)
             ->firstOrFail();
@@ -532,6 +577,12 @@ class PublicWorksheetController extends Controller
         int $photoId,
     ): \Illuminate\Http\JsonResponse {
         $worksheet = $this->resolveWorksheet($token);
+
+        // D-07 — deleting the photographic evidence of a serial after the client
+        // has signed is the exact tampering this lock exists to stop.
+        if (WorksheetCaptureLock::isLocked($worksheet)) {
+            return response()->json(['message' => WorksheetCaptureLock::MESSAGE], 422);
+        }
 
         $photo = DeviceLabelPhoto::where('id', $photoId)
             ->where('worksheet_id', $worksheet->id)
