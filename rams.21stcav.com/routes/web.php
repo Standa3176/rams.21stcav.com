@@ -21,6 +21,7 @@ use App\Http\Controllers\OmManualController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectCockpitActionController;
 use App\Http\Controllers\ProjectCockpitDocumentController;
+use App\Http\Controllers\ProjectAssetListController;
 use App\Http\Controllers\ProjectCockpitEvidenceController;
 use App\Http\Controllers\ProjectCockpitController;
 use App\Http\Controllers\ProjectController;
@@ -244,6 +245,17 @@ Route::middleware('auth')->group(function () {
     Route::post('projects/{project}/deliverables', [ProjectController::class, 'updateDeliverables'])->name('projects.deliverables.update');
     Route::post('projects/{project}/archive', [ProjectController::class, 'archive'])->name('projects.archive');
     Route::post('projects/{project}/reopen', [ProjectController::class, 'reopen'])->name('projects.reopen');
+
+    // ── Project asset list (Phase 46.4, D-05 / IC-04) ─────────────────────
+    // The READ surface for serial capture that already existed. GET only —
+    // this screen writes nothing; the capture lives on the engineer link.
+    // The export's literal `.csv` segment is registered BEFORE the plain
+    // asset-list route so the dotted segment can never be eaten by a wildcard
+    // (same precaution as worksheets/{worksheet}/engineer-report.pdf).
+    Route::get('projects/{project}/asset-list/export.csv', [ProjectAssetListController::class, 'export'])
+        ->name('projects.asset-list.export');
+    Route::get('projects/{project}/asset-list', [ProjectAssetListController::class, 'index'])
+        ->name('projects.asset-list');
 
     // ── Project cockpit (Phase 45, VIS-04/VIS-06/VIS-10) ──────────────────
     // Registered UNCONDITIONALLY and gated inside the controller behind
