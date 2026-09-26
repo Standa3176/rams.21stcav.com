@@ -55,6 +55,22 @@ use Tests\TestCase;
  *     client who signed it must be able to open the link and see what they
  *     signed. Read-only, not gone.
  *
+ * ── THE FALLOUT, MEASURED AND NAMED (plan 04 task 3) ────────────────────────
+ *
+ * Every suite that could plausibly sign a worksheet and then write to it was run
+ * and read, not assumed. EXACTLY ONE existing test changed:
+ *
+ *   · `EngineerLinkPhotoTrayGuardTest::test_this_plan_ships_no_lock_of_its_own`
+ *     → INVERTED and renamed to
+ *       `…::test_the_trays_capture_controls_are_gone_once_the_worksheet_is_signed`.
+ *     The old behaviour it pinned was a KNOWN ONE-WAVE GAP, not a feature (plan
+ *     02's summary says so in terms), so D-07 supersedes it. No assertion was
+ *     deleted, no count loosened, and no assertGreaterThanOrEqual introduced.
+ *
+ * NO fixture had to move, and nothing else went red: tests/Feature/Worksheet 61,
+ * Assets 11, Visits 27, Security 14, Documents 18, Cockpit 387, D-06 baseline 159
+ * — all with 0 failed.
+ *
  * @see app/Support/Worksheets/WorksheetCaptureLock.php
  * @see .planning/phases/46.4-engineer-link-install-capture/46.4-CONTEXT.md (D-07)
  */
