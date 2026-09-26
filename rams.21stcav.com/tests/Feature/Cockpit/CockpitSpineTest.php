@@ -4,11 +4,13 @@ namespace Tests\Feature\Cockpit;
 
 use App\Models\Project;
 use App\Models\ProjectDeliverable;
+use App\Models\RamsDocument;
 use App\Models\User;
 use App\Models\Visit;
 use App\Models\Worksheet;
 use App\Support\Cockpit\CockpitModulePresenter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 use Tests\TestCase;
 
 /**
@@ -146,6 +148,24 @@ class CockpitSpineTest extends TestCase
         }
 
         $this->fail("No module row titled \"{$title}\" was rendered.");
+    }
+
+    /**
+     * What the PRESENTER says each row's count is, keyed by the row's title.
+     *
+     * The successor to the retired every-row-has-a-count assertion is driven
+     * off this rather than off a literal, so it measures the PAIRING between
+     * what the presenter produced and what the page rendered. A literal would
+     * only ever re-state the presenter's behaviour in a second place, and the
+     * two would drift.
+     *
+     * @return Collection<string, string>
+     */
+    private function presentedCounts(Project $project): Collection
+    {
+        return app(CockpitModulePresenter::class)
+            ->modules($project->fresh())
+            ->mapWithKeys(static fn (array $module): array => [$module['title'] => $module['count']]);
     }
 
     /**
@@ -637,11 +657,146 @@ class CockpitSpineTest extends TestCase
         }
     }
 
+    // -- The count phrase's iff property (D-04, revised 2026-09-26) ---------
+
+    /**
+     * THE SUCCESSOR TO `CockpitSpineTest:658`, RETIRED BY NAME CITING D-04.
+     *
+     * WHAT IT MEASURES: a row renders a `cav-module__count` element **if and
+     * only if** the presenter produced a non-empty count for that module, and
+     * when it renders, the text is the presenter's string EXACTLY.
+     *
+     * BOTH DIRECTIONS, AND THE SECOND ONE IS THE POINT. The forward half —
+     * "empty means absent" — is what D-04 asked for. The reverse half —
+     * "non-empty means present, and identical" — is what protects the ruling
+     * from being over-applied: a one-directional test would go on passing while
+     * `1 visit · reconstructed` silently stopped rendering, and that is the
+     * exact regression hide-at-zero exists to avoid (Phase 45 D-02; 24
+     * backfilled visits on live).
+     *
+     * Driven off `CockpitModulePresenter`'s own output, never a literal, so it
+     * cannot drift from the thing it is judging and a fifth module needs no
+     * edit here.
+     *
+     * Run over FOUR fixtures, because an all-empty or all-populated project
+     * proves only one direction: nothing, visits only, documents only, and both.
+     */
+    public function test_a_row_renders_a_count_if_and_only_if_that_count_is_non_empty(): void
+    {
+        $seen = ['empty' => 0, 'rendered' => 0];
+
+        foreach (['nothing', 'visits', 'documents', 'both'] as $fixture) {
+            $project = $this->project();
+
+            if (in_array($fixture, ['visits', 'both'], true)) {
+                $worksheet = Worksheet::factory()->create(['project_id' => $project->id]);
+
+                Visit::factory()->backfilledFromWorksheet($worksheet)->create([
+                    'project_id'     => $project->id,
+                    'scheduled_date' => '2026-09-02',
+                ]);
+
+                Visit::factory()->create([
+                    'project_id' => $project->id,
+                    'type'       => Visit::TYPE_SITE_SURVEY,
+                ]);
+            }
+
+            if (in_array($fixture, ['documents', 'both'], true)) {
+                RamsDocument::factory()->create(['project_id' => $project->id]);
+            }
+
+            $html = $this->render($project);
+
+            foreach ($this->presentedCounts($project) as $title => $count) {
+                if ($count === '') {
+                    $seen['empty']++;
+
+                    $this->assertSame(
+                        '',
+                        $this->rowCount($html, $title),
+                        "[{$fixture}] The \"{$title}\" row rendered a count element for an EMPTY ".
+                        'presenter count. D-04: a row with nothing to say says nothing — not an '.
+                        'empty span, not "0 visits".'
+                    );
+
+                    continue;
+                }
+
+                $seen['rendered']++;
+
+                $this->assertSame(
+                    $count,
+                    $this->rowCount($html, $title),
+                    "[{$fixture}] The \"{$title}\" row does not render the presenter's count ".
+                    "\"{$count}\" verbatim. A non-zero phrase must reach the page EXACTLY as the ".
+                    'presenter built it — its `· reconstructed` and `· superseded` suffixes are '.
+                    'the page\'s only at-rest disclosure (Phase 45 D-02).'
+                );
+            }
+        }
+
+        // NON-VACUITY, BOTH WAYS. Without this the test would pass on fixtures
+        // that never exercised one of its two directions.
+        $this->assertNotSame(0, $seen['empty'], 'No suppressed count was exercised.');
+        $this->assertNotSame(0, $seen['rendered'], 'No rendered count was exercised.');
+    }
+
+    /**
+     * THE DISCLOSURE SURVIVES THE SUPPRESSION.
+     *
+     * D-04 (revised 2026-09-26) hides the visit phrase at ZERO and at zero
+     * only. The reason it is not a full strip is Phase 45's D-02: with the
+     * panel CLOSED this phrase is the page's only disclosure that a visit was
+     * INFERRED rather than recorded, or that it has been SUPERSEDED — and
+     * there are 24 backfilled visits on live. A PM who opens nothing must
+     * still be warned.
+     *
+     * Without this test the ruling is a comment rather than a guarantee, so if
+     * you came here to tidy the phrase away: read D-04 and Phase 45 D-02 first.
+     */
+    public function test_the_reconstructed_and_superseded_disclosures_survive_on_the_closed_page(): void
+    {
+        // Case 1 — reconstructed, on the CLOSED page (no ?module=).
+        $reconstructed = $this->project();
+        $worksheet     = Worksheet::factory()->create(['project_id' => $reconstructed->id]);
+
+        Visit::factory()->backfilledFromWorksheet($worksheet)->create([
+            'project_id'     => $reconstructed->id,
+            'title'          => 'Install day one',
+            'scheduled_date' => '2026-09-02',
+        ]);
+
+        $closed = $this->render($reconstructed);
+
+        $this->assertSame(0, $this->countByClass($closed, 'cav-panel'), 'The page must be CLOSED for this to mean anything.');
+        $this->assertStringContainsString(
+            '· reconstructed',
+            $this->rowCount($closed, 'Worksheet'),
+            'A reconstructed visit is no longer disclosed at rest. D-04 hides the phrase at ZERO '.
+            'and at zero only; this is the warning Phase 45 D-02 put there.'
+        );
+
+        // Case 2 — superseded, same page state.
+        $superseded = $this->project();
+        $this->supersededVisit($superseded, 'Install day one', '2026-09-02');
+
+        $closed = $this->render($superseded);
+
+        $this->assertSame(0, $this->countByClass($closed, 'cav-panel'));
+        $this->assertStringContainsString(
+            '· superseded',
+            $this->rowCount($closed, 'Worksheet'),
+            'A superseded visit is no longer disclosed at rest, so it reads as though it still stands.'
+        );
+    }
+
     // -- Empty project ------------------------------------------------------
 
     public function test_an_empty_project_still_renders_every_module_row_waiting(): void
     {
-        $html    = $this->render($this->project());
+        $project = $this->project();
+        $html    = $this->render($project);
         $modules = CockpitModulePresenter::moduleMap();
 
         $this->assertSame(count($modules), $this->countByClass($html, 'cav-module'));
@@ -651,20 +806,61 @@ class CockpitSpineTest extends TestCase
         $this->assertSame(0, $this->countByClass($html, 'cav-schip--live'));
         $this->assertSame(0, $this->countByClass($html, 'cav-schip--file'));
 
-        // `count($modules) - 1` -> `count($modules)` by Plan 46.2-01, because
-        // 46.2 D-01 removed Programming, the only COUNT_NONE row. EVERY
-        // surviving row now carries a count phrase, so the exception is gone
-        // rather than the assertion being loosened.
-        $this->assertSame(count($modules), $this->countByClass($html, 'cav-module__count'));
+        // ── RETIRED BY NAME, PLAN 46.3-01, CITING D-04 (REVISED 2026-09-26) ──
+        //
+        // WAS, on this line:
+        //
+        //     $this->assertSame(count($modules), $this->countByClass($html, 'cav-module__count'));
+        //
+        // "Every module row renders exactly one count element." Its own
+        // history is recorded above it: `count($modules) - 1` ->
+        // `count($modules)` by Plan 46.2-01, when 46.2 D-01 removed
+        // Programming, the only COUNT_NONE row.
+        //
+        // IT CANNOT HOLD ANY MORE. D-04 hides the VISIT phrase at zero, so on
+        // an empty project the two COUNT_VISITS rows (Site survey, Worksheet)
+        // render NO count element at all. The equality is false by
+        // construction, and it was NOT deleted to make a red go green: its
+        // successor is `test_a_row_renders_a_count_if_and_only_if_that_count_is_non_empty()`
+        // below, which is STRONGER — it drives off CockpitModulePresenter's own
+        // output rather than counting elements, and it asserts BOTH DIRECTIONS.
+        // The retired version could not have noticed a non-zero phrase silently
+        // vanishing so long as the total still added up; that is precisely the
+        // regression the ruling protects against, and the successor fails on it.
+        // Recorded as A-1 in 46.3-COUNT-LEDGER.md.
+        //
+        // RETIRED IN THE SAME BREATH (A-2): the two `'0 visits'` expectations
+        // that stood where the two `''` expectations now stand. `rowCount()`
+        // already returned `''` for a row that renders no count element, so the
+        // helper needed no change and the assertions stay exact `assertSame`s
+        // rather than being loosened to a "contains".
+        //
+        // RETIRED EARLIER, by Plan 46.2-01 / 46.2 D-01: `rowCount($html,
+        // 'Programming') === ''` and `rowCount($html, 'Programme and
+        // commissioning') === '0 tasks'`. Both rows are gone.
+        //
+        // The test still ENUMERATES every row rather than sampling one.
+        $this->assertSame('', $this->rowCount($html, 'Site survey'));
+        $this->assertSame('', $this->rowCount($html, 'Worksheet'));
 
-        // RETIRED by Plan 46.2-01, 46.2 D-01: `rowCount($html, 'Programming')`
-        // === '' and `rowCount($html, 'Programme and commissioning')` ===
-        // '0 tasks'. Both rows are gone. The test still ENUMERATES every row
-        // rather than sampling one — all four phrases are asserted below.
-        $this->assertSame('0 visits', $this->rowCount($html, 'Site survey'));
-        $this->assertSame('0 visits', $this->rowCount($html, 'Worksheet'));
+        // NOT SUPPRESSED, AND DELIBERATELY SO. The ruling names the VISIT
+        // phrase; a planner does not widen a user's decision on their behalf.
+        // Whether `0 documents` reads as noise too is an OPEN QUESTION carried
+        // to Plan 46.3-04's human checkpoint (CR-2 in 46.3-COUNT-LEDGER.md).
+        // These two assertions are what keeps that scoping honest — a later
+        // agent who strips the document count without asking fails here.
         $this->assertSame('0 documents', $this->rowCount($html, 'RAMS'));
         $this->assertSame('0 documents', $this->rowCount($html, 'O&M manual'));
+
+        // The successor's empty-project case, asserted here too so this method
+        // keeps proving what its retired line proved: exactly the rows with
+        // something to say render an element, and no other. DERIVED from the
+        // presenter, never the literal 2 — a fifth module added later must not
+        // have to move a number in this file.
+        $this->assertSame(
+            $this->presentedCounts($project)->filter(static fn (string $count): bool => $count !== '')->count(),
+            $this->countByClass($html, 'cav-module__count')
+        );
 
         $this->assertStringContainsString('Nothing has been recorded on this job yet', $html);
         $this->assertStringContainsString('This cockpit reads records the app', $html);

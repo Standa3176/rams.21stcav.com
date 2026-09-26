@@ -345,9 +345,25 @@ class CockpitModulePresenterTest extends TestCase
 
     // -- Counts --------------------------------------------------------------
 
-    public function test_a_visit_module_with_no_visits_reads_zero_visits(): void
+    /**
+     * RENAMED AND RE-EXPECTED BY PLAN 46.3-01, CITING D-04 (REVISED 2026-09-26).
+     *
+     * WAS `test_a_visit_module_with_no_visits_reads_zero_visits()`, expecting
+     * `'0 visits'`. The user asked for that phrase to go: on an empty project
+     * it is pure noise. It is the ONLY existing unit assertion in this file
+     * that the ruling changes — every non-zero phrase below, suffixes
+     * included, is byte-identical to what it has always been, and that is
+     * deliberate (see `visitPhrase()`'s early return for why).
+     *
+     * The empty string, not a space and not a zero: `module-row.blade.php:62`
+     * hides the element with `@if (filled($module['count']))`, which is the
+     * one and only suppression mechanism.
+     *
+     * Recorded as A-3 in 46.3-COUNT-LEDGER.md.
+     */
+    public function test_a_visit_module_with_no_visits_reads_nothing_at_all(): void
     {
-        $this->assertSame('0 visits', $this->row($this->project(), 'site_survey')['count']);
+        $this->assertSame('', $this->row($this->project(), 'site_survey')['count']);
     }
 
     public function test_a_visit_module_pluralises_its_count(): void
