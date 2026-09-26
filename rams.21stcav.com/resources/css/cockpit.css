@@ -356,13 +356,23 @@
 .cav-cockpit .cav-stage__chip--completed      { --cav-stage-bg: var(--cav-hue-worksheet-bg);  --cav-stage-fg: var(--cav-hue-worksheet-fg); }
 .cav-cockpit .cav-stage__chip--archived       { --cav-stage-bg: var(--cav-chip-bg);           --cav-stage-fg: var(--cav-mid); }
 
-/* ── The two-column delivery layout ─────────────────────────────────────
-   The module list and the side panel. The panel COLLAPSES BELOW the list
-   rather than beside it under 1024px, so at 320px the page is one column
-   with no horizontal scroll and the list keeps its place at the top. */
+/* ── The delivery layout — ONE COLUMN since 46.3 D-01 ───────────────────
+   WAS `minmax(0, 1fr) 360px`: the module list beside a 360px side panel.
+   The panel is now an INLINE DRAWER inside the list (D-01), so there is no
+   second column to place it in and the drawer takes the list's full width.
+
+   THIS IS NOT A REVERT AND THE ORDER IS DELIBERATE. Plan 46.3-03 restores a
+   second column here for the project-level Recent activity panel (D-03).
+   Doing it the other way round would have left this wave with TWO right-hand
+   panels competing, which is the exact thing the user asked to stop. The
+   grid is kept (rather than dropped to a block) so that restoring a second
+   track is one declaration.
+
+   `align-items: start` is kept for the same reason: it is what stops a short
+   column stretching once there are two again. */
 .cav-cockpit .cav-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 360px;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--cav-s5);
     align-items: start;
     margin-top: var(--cav-s6);
@@ -581,22 +591,69 @@
     border-radius: 2px;
 }
 
-/* ── Side panel ── D-09 ─────────────────────────────────────────
-   A column in the page grid, NOT an overlay. There is no scrim, no fixed
-   positioning and no transition, because there is no JavaScript to drive
-   any of them: the panel exists in the DOM only when ?module= resolved, and
-   it is absent — not hidden — at rest. sticky keeps it beside the module
-   list while a long list scrolls; it falls back to static below 1024px,
-   where it stacks under the list instead. */
+/* ── The module drawer ── D-09, NARROWED BY 46.3 D-01 ───────────────────
+   AN INLINE DRAWER IN THE MODULE LIST, not a column and not an overlay.
+   There is no scrim, no fixed positioning and no transition, because there
+   is no JavaScript to drive any of them: the drawer exists in the DOM only
+   when ?module= resolved, and it is absent — not hidden — at rest.
+
+   `position: sticky; top: var(--cav-s4)` WAS HERE and is RETIRED BY NAME.
+   It kept a 360px side panel beside a long module list while that list
+   scrolled. The drawer now sits under its own row inside that list, so a
+   sticky drawer would detach from the row it belongs to and slide over the
+   rows below it — which, with D-02, do not exist. `static` is the honest
+   value and it is stated rather than left to the initial value, because the
+   declaration it replaces is the thing a reader will come looking for.
+
+   The drawer is pulled up by one step and given a heavier radius-matching
+   surface so it reads as CONTINUOUS with the row above it rather than as a
+   second unrelated card — the row keeps its `cav-module--active` spine and
+   tint for the same reason (see cockpit.blade.php's docblock). */
 .cav-panel {
-    position: sticky;
-    top: var(--cav-s4);
+    position: static;
     min-width: 0;
+    margin: calc(-1 * var(--cav-s1)) 0 var(--cav-s4);
     padding: var(--cav-s4);
     border: 1px solid var(--cav-border);
     border-radius: var(--cav-radius);
     background: var(--cav-surface);
     box-shadow: var(--cav-shadow);
+}
+
+/* THE WAY BACK — 46.3 D-02's designed consequence, and a requirement rather
+   than decoration. With the other rows collapsed away this and the header
+   close are the only routes to the module list, so it is sized and coloured
+   to be SEEN: 44px of target, real text, and --cav-mid (9.63:1) rather than
+   --cav-light, which fails the 4.5:1 floor on this surface.
+
+   NO `position` ANYWHERE IN THIS BLOCK. It is not inside a `.cav-module`, so
+   it cannot break the stretched link — but the rule in this file is that an
+   anchor takes no position unless it is the row overlay, and an exception
+   made quietly here is the one a later reader copies into a row. */
+.cav-cockpit .cav-panel__back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--cav-s2);
+    min-height: 44px;
+    margin: calc(-1 * var(--cav-s2)) 0 var(--cav-s2);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+    color: var(--cav-mid);
+    text-decoration: none;
+}
+
+.cav-cockpit .cav-panel__back:hover {
+    color: var(--cav-ink);
+    text-decoration: underline;
+}
+
+/* The icon map holds a right-pointing `arrow` and no left-pointing one.
+   Turning the glyph round in CSS is a decoration-only change; adding a
+   second glyph to icon.blade.php is not this plan's business. */
+.cav-cockpit .cav-panel__back-icon {
+    flex: none;
+    transform: scaleX(-1);
 }
 
 .cav-cockpit .cav-panel__head {
@@ -1602,24 +1659,33 @@
 }
 
 /* ── Responsive ─────────────────────────────────────────────────────────
-   Two breakpoints, both collapsing rather than hiding. NOTHING IS HIDDEN AT
+   TWO breakpoints since 46.3 D-01 — 860px and 680px. The third, at 1024px,
+   is retired by name immediately below. Both survivors collapse rather than
+   hide, and that ruling is unchanged. NOTHING IS HIDDEN AT
    ANY WIDTH: the count phrase and the status chip are the only places a
    module's state is disclosed to a PM who opens no panel, so a
    `display:none` on either would mislead by omission at exactly the width a
    PM is most likely reading on — on site, on a phone. This is the same
    ruling the superseded spine carried, and it survives D-08 unchanged. */
 
-/* The side panel stops sitting beside the list and stacks BELOW it, so the
-   module list keeps the top of the page. */
-@media (max-width: 1024px) {
-    .cav-cockpit .cav-layout {
-        grid-template-columns: minmax(0, 1fr);
-    }
+/* ── THE 1024px BLOCK IS RETIRED BY NAME, 46.3 D-01 ─────────────────────
+   It held exactly two declarations and both are now the BASE value, so the
+   block could only ever restate what already applies at every width:
 
-    .cav-cockpit .cav-panel {
-        position: static;
-    }
-}
+       .cav-cockpit .cav-layout { grid-template-columns: minmax(0, 1fr); }
+       .cav-cockpit .cav-panel  { position: static; }
+
+   Its job was to STACK a two-column layout. The layout is one column at
+   every width now (D-01) and the drawer is inline and static, so there is
+   nothing left to stack. It is removed rather than narrowed because a
+   breakpoint that changes nothing is worse than no breakpoint: the next
+   reader takes it as evidence that a second column exists somewhere.
+
+   IT COMES BACK IN PLAN 46.3-03, and that is not a reversal — D-03 adds a
+   project-level Recent activity column to the right, and the moment there
+   are two tracks again they must stack under 1024px exactly as these two
+   declarations made them. Restore this block in the same commit as the
+   second track, never after it. */
 
 /* Tablet — the three KPI cards stop being three across. */
 @media (max-width: 860px) {

@@ -961,4 +961,200 @@ class CockpitPageTest extends TestCase
             );
         }
     }
+
+    // -- Phase 46.3, Plan 46.3-02 -- D-01 / D-02, the inline drawer --------
+
+    /**
+     * The parsed cockpit subtree plus EVERY element in it in DOCUMENT ORDER,
+     * so two nodes can be compared for "which comes first on the page?"
+     * without a strpos race against the raw string.
+     *
+     * @return array{0: \DOMXPath, 1: \DOMNodeList}
+     */
+    private function domOf(string $html): array
+    {
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$html);
+        libxml_clear_errors();
+
+        $xpath = new \DOMXPath($dom);
+
+        return [$xpath, $xpath->query('//*')];
+    }
+
+    private function nodesByClass(\DOMXPath $xpath, string $class, ?\DOMNode $within = null): \DOMNodeList
+    {
+        $predicate = "*[contains(concat(' ', normalize-space(@class), ' '), ' ".$class." ')]";
+
+        return $within === null
+            ? $xpath->query('//'.$predicate)
+            : $xpath->query('.//'.$predicate, $within);
+    }
+
+    /** The next ELEMENT sibling, skipping the whitespace Blade leaves behind. */
+    private function nextElement(\DOMNode $node): ?\DOMNode
+    {
+        for ($next = $node->nextSibling; $next !== null; $next = $next->nextSibling) {
+            if ($next->nodeType === XML_ELEMENT_NODE) {
+                return $next;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * D-01 -- THE PANEL IS AN INLINE DRAWER, NOT A SIDE PANEL.
+     *
+     * Asserted as a DOM POSITION and never as a substring order: the panel's
+     * parent is the same `cav-modules` container its row sits in, and the
+     * panel is that row's IMMEDIATE next element sibling. A strpos race would
+     * be satisfied by a panel that merely appears later in the markup while
+     * still living in a second grid column.
+     */
+    public function test_the_open_panel_renders_inside_the_module_list_immediately_after_its_own_row(): void
+    {
+        $project = $this->projectWithInstallVisits();
+
+        foreach (array_keys(CockpitModulePresenter::moduleMap()) as $key) {
+            [$xpath] = $this->domOf($this->renderPanel($project, $key));
+
+            $panels = $this->nodesByClass($xpath, 'cav-panel');
+            $rows   = $this->nodesByClass($xpath, 'cav-module');
+
+            $this->assertSame(1, $panels->length, "Opening '{$key}' must render exactly one panel.");
+            $this->assertSame(1, $rows->length, "Opening '{$key}' must render exactly one module row (D-02).");
+
+            $row   = $rows->item(0);
+            $panel = $panels->item(0);
+
+            $this->assertSame(
+                $row->parentNode,
+                $panel->parentNode,
+                "The '{$key}' drawer is not in the same container as its row -- D-01 puts it INSIDE the module list."
+            );
+
+            $this->assertStringContainsString(
+                'cav-modules',
+                $panel->parentNode->getAttribute('class'),
+                "The '{$key}' drawer's parent is not the module list."
+            );
+
+            $this->assertSame(
+                $panel,
+                $this->nextElement($row),
+                "The '{$key}' drawer is not the immediate next element after its own row. ".
+                'D-01: it opens DIRECTLY BENEATH the row that was clicked.'
+            );
+        }
+    }
+
+    /**
+     * D-02 -- COLLAPSE AWAY. While a drawer is open you see only the module
+     * you are working in.
+     *
+     * The surviving row is asserted to be the REQUESTED one, by title and by
+     * the key its own anchor carries: "exactly one row" would otherwise be
+     * satisfied by the WRONG row surviving. The set of rendered titles is
+     * compared whole, so a stray second row cannot hide behind a count.
+     */
+    public function test_opening_a_module_collapses_every_other_row_away(): void
+    {
+        $project = $this->projectWithInstallVisits();
+        $map     = CockpitModulePresenter::moduleMap();
+
+        // Non-vacuity: collapse-away means nothing unless there is more than
+        // one row to collapse.
+        $this->assertGreaterThan(1, count($map));
+
+        foreach ($map as $key => $definition) {
+            $html = $this->renderPanel($project, $key);
+
+            [$xpath] = $this->domOf($html);
+
+            $titles = [];
+
+            foreach ($this->nodesByClass($xpath, 'cav-module') as $row) {
+                $title = $this->nodesByClass($xpath, 'cav-module__title', $row)->item(0);
+                $this->assertNotNull($title, 'A module row rendered no title.');
+                $titles[] = trim($title->textContent);
+            }
+
+            $this->assertSame(
+                [$definition['title']],
+                $titles,
+                "Opening '{$key}' must leave exactly one module row -- its own -- on the page (D-02)."
+            );
+
+            $anchor = $this->nodesByClass($xpath, 'cav-module__open')->item(0);
+            $this->assertNotNull($anchor);
+            $this->assertStringContainsString('module='.$key, $anchor->getAttribute('href'));
+        }
+
+        // And the closed page still renders the whole list, so the assertion
+        // above is measuring a COLLAPSE rather than a missing module list.
+        $this->assertSame(
+            count($map),
+            $this->countByClass($this->cockpitSubtree($this->renderCockpit($project)), 'cav-module')
+        );
+    }
+
+    /**
+     * D-02's DESIGNED CONSEQUENCE, asserted rather than styled.
+     *
+     * With the other rows collapsed away, the drawer's close control is the
+     * ONLY route back to the module list. A glyph-only close is a trap: a PM
+     * who opened the wrong module would have no visible way out. So the
+     * drawer carries a NAMED anchor with VISIBLE TEXT, pointing at the bare
+     * cockpit URL, ABOVE the tab strip -- which is the measurable form of
+     * "getting back is obvious".
+     *
+     * The header close control stays. Two ways out, not one replaced by
+     * another.
+     */
+    public function test_the_open_drawer_carries_a_named_visible_way_back_above_its_tab_strip(): void
+    {
+        $project = $this->projectWithInstallVisits();
+        $bare    = route('projects.cockpit', $project);
+
+        foreach (array_keys(CockpitModulePresenter::moduleMap()) as $key) {
+            [$xpath, $inOrder] = $this->domOf($this->renderPanel($project, $key));
+
+            $backs = $this->nodesByClass($xpath, 'cav-panel__back');
+            $this->assertSame(1, $backs->length, "The '{$key}' drawer renders no way back to the module list.");
+
+            $back = $backs->item(0);
+
+            $this->assertSame('a', $back->nodeName, 'The way back must be an anchor -- there is no JavaScript on this page.');
+            $this->assertSame($bare, $back->getAttribute('href'), 'The way back must drop ?module= entirely.');
+            $this->assertNotSame(
+                '',
+                trim($back->textContent),
+                'The way back has no VISIBLE TEXT. A glyph-only control is exactly the trap D-02 warns about.'
+            );
+
+            // The header close control still exists and still agrees with it.
+            $closes = $this->nodesByClass($xpath, 'cav-panel__close');
+            $this->assertSame(1, $closes->length, 'The header close control was replaced rather than joined.');
+            $this->assertSame($bare, $closes->item(0)->getAttribute('href'));
+
+            // DOM order: the way back precedes the tab strip.
+            $positions = [];
+
+            foreach ($inOrder as $index => $node) {
+                $positions[spl_object_id($node)] = $index;
+            }
+
+            $tabs = $this->nodesByClass($xpath, 'cav-panel__tabs')->item(0);
+            $this->assertNotNull($tabs);
+
+            $this->assertLessThan(
+                $positions[spl_object_id($tabs)],
+                $positions[spl_object_id($back)],
+                "The '{$key}' drawer's way back sits after the tab strip -- it must be reachable ".
+                'without reading past the panel body.'
+            );
+        }
+    }
 }

@@ -6,7 +6,29 @@
     The delivery cockpit — Phase 45 (VIS-04 / VIS-06 / VIS-10), sketch 004.
 
     This is the page a project is delivered from: masthead, three KPI cards,
-    one stage chip, the nine module rows, and a right-hand side panel.
+    one stage chip, the module rows, and — since Phase 46.3 (D-01) — an INLINE
+    DRAWER that opens directly beneath the row that was clicked.
+
+    THE DRAWER IS INLINE AND THE OTHER ROWS COLLAPSE AWAY (46.3 D-01 / D-02).
+    The panel used to be a sibling of .cav-modules in a two-column grid. It is
+    now rendered INSIDE the loop, immediately after its own row, and every
+    other row is skipped while a module is open — the user asked to "see only
+    the one you're working in". Sketch 004's side panel is NARROWED by that
+    ruling; its tokens, row design and query-string state all survive.
+
+    Consequence, designed rather than discovered: with the other rows gone the
+    drawer's close control is the ONLY route back to the list. panel.blade.php
+    therefore carries a NAMED anchor with visible text ("Back to all modules")
+    above its tab strip, alongside the header close control. Two ways out.
+
+    THE :active FLAG IS NOW ALWAYS TRUE WHILE A DRAWER IS OPEN, because the
+    only row rendered is the open one. `cav-module--active` is KEPT anyway, and
+    deliberately: its job has changed from "this is the open one OF FOUR" to
+    "this row owns the drawer beneath it". The 4px spine and tint are the only
+    thing visually joining a full-width drawer to the row above it, so without
+    them the pair reads as two unrelated cards. Dropping the modifier would
+    also have meant editing the `.cav-module--active` rules that
+    CockpitVisualTest's stretched-link scan covers, for no gain.
 
     READ-ONLY. ROADMAP criteria 3 and 5: this page renders records the app
     already holds and adds no new capture and no new writes. The design image
@@ -137,43 +159,62 @@
                          map edit and nothing else: never a hardcoded list and
                          never a hardcoded count. --}}
                     @foreach ($modules as $module)
+                        @php
+                            // The open row, and — while one is open — the ONLY
+                            // row. 46.3 D-02: "collapse away so you see only
+                            // the one you're working in." Derived per row from
+                            // the presenter's own key, so this file still
+                            // states no number and names no module.
+                            $isOpenRow = $openModule !== null && $openModule['key'] === $module['key'];
+                        @endphp
+
+                        @if ($openModule !== null && ! $isOpenRow)
+                            @continue
+                        @endif
+
                         <x-cockpit.module-row
                             :project="$project"
                             :module="$module"
-                            :active="$openModule !== null && $openModule['key'] === $module['key']" />
+                            :active="$isOpenRow" />
+
+                        {{-- D-01 — THE DRAWER IS HERE, INSIDE THE LIST AND
+                             IMMEDIATELY AFTER ITS OWN ROW, not a sibling of
+                             .cav-modules in a second column. Closed at rest
+                             still means ABSENT (D-09): a hidden-but-present
+                             panel would need CSS or JS to hide it and would
+                             still be read out by a screen reader. --}}
+                        @if ($isOpenRow)
+                            <x-cockpit.panel
+                                :project="$project"
+                                :module="$openModule"
+                                :tab="$tab"
+                                :progress="$progress"
+                                :files="$panelFiles"
+                                :notes="$panelNotes"
+                                :activity="$activity"
+                                {{-- SEVEN ATTRIBUTES ADDED BY PLAN 46.2-05 — the
+                                     document form's URL state and its data. All
+                                     seven are READS, derived in
+                                     ProjectCockpitController from
+                                     CockpitDocumentFormPresenter. THEY MOVED WITH
+                                     THE PANEL UNCHANGED in 46.3-02: not one prop
+                                     was added, removed or re-derived. --}}
+                                :action="$action"
+                                :doc-fields="$docFields"
+                                :doc-readiness="$docReadiness"
+                                :doc-formats="$docFormats"
+                                :doc-intro="$docIntro"
+                                :doc-values="$docValues"
+                                :doc-resources="$docResources" />
+                            {{-- FIVE ATTRIBUTES REMOVED BY 46.2 D-02 (Plan 46.2-03):
+                                 `evidence`, `action`, `action-visit-id`, `rooms` and
+                                 `people`. They fed the Create visit form and the
+                                 Returned tab, neither of which this page surfaces any
+                                 more. The capability is unsurfaced, NOT deleted — see
+                                 the routes named in panel.blade.php's docblock. --}}
+                        @endif
                     @endforeach
                 </div>
-
-                {{-- Closed at rest means ABSENT (D-09). A hidden-but-present
-                     panel would need CSS or JS to hide it and would still be
-                     read out by a screen reader. --}}
-                @if ($openModule !== null)
-                    <x-cockpit.panel
-                        :project="$project"
-                        :module="$openModule"
-                        :tab="$tab"
-                        :progress="$progress"
-                        :files="$panelFiles"
-                        :notes="$panelNotes"
-                        :activity="$activity"
-                        {{-- SEVEN ATTRIBUTES ADDED BY PLAN 46.2-05 — the document
-                             form's URL state and its data. All seven are READS,
-                             derived in ProjectCockpitController from
-                             CockpitDocumentFormPresenter. --}}
-                        :action="$action"
-                        :doc-fields="$docFields"
-                        :doc-readiness="$docReadiness"
-                        :doc-formats="$docFormats"
-                        :doc-intro="$docIntro"
-                        :doc-values="$docValues"
-                        :doc-resources="$docResources" />
-                    {{-- FIVE ATTRIBUTES REMOVED BY 46.2 D-02 (Plan 46.2-03):
-                         `evidence`, `action`, `action-visit-id`, `rooms` and
-                         `people`. They fed the Create visit form and the
-                         Returned tab, neither of which this page surfaces any
-                         more. The capability is unsurfaced, NOT deleted — see
-                         the routes named in panel.blade.php's docblock. --}}
-                @endif
             </div>
 
             <p class="cav-note">

@@ -1,6 +1,13 @@
 {{--
-    The side panel — sketch 004, D-09. Header, a three-anchor tab strip
-    (Overview / Files / Notes), a close control, and the Overview body.
+    The module drawer — sketch 004, D-09, NARROWED BY 46.3 D-01. A way back,
+    a header, a three-anchor tab strip (Overview / Files / Notes), a close
+    control, and the Overview body.
+
+    IT IS NO LONGER A SIDE PANEL. Since Phase 46.3 it renders INSIDE the module
+    list, immediately after the row that was clicked, at the full width of that
+    list — and the other rows are not rendered at all while it is open (D-02).
+    The class name `cav-panel` is kept: renaming it would have churned every
+    assertion in four test files for a word, and this file says what it is.
 
     ── THE PANEL'S STATE IS URL STATE, AND THERE IS NO JAVASCRIPT ───────────
 
@@ -163,6 +170,32 @@
 @endphp
 
 <aside class="cav-panel" aria-label="{{ $module['title'] }} details">
+    {{-- THE WAY BACK (46.3 D-02, and it is a requirement rather than styling).
+
+         The drawer is now INLINE and the other module rows COLLAPSE AWAY while
+         it is open, so this anchor and the header close control are the only
+         routes back to the list. A glyph-only close would be a trap: a PM who
+         opened the wrong module would have no visible way out.
+
+         So: a NAMED anchor with VISIBLE TEXT, first thing in the drawer and
+         above the tab strip, naming the destination in the user's words rather
+         than the app's — "Back to all modules", never "Close". It drops the
+         module from the query string entirely, so it is a plain GET and works
+         with JavaScript off, exactly like every other control on this page.
+
+         The copy was checked as a substring against all 21
+         CockpitReadOnlyFenceTest::DEFERRED_AFFORDANCES keys and both
+         FORBIDDEN_MARKUP entries before use. It collides with none.
+
+         The chevron is the existing `arrow` glyph turned round in CSS — there
+         is no left-pointing glyph in the icon map and adding one is not this
+         plan's business. It is aria-hidden, so the link's accessible name is
+         its visible text and the two cannot disagree. --}}
+    <a class="cav-panel__back" href="{{ route('projects.cockpit', $project) }}">
+        <x-cockpit.icon name="arrow" class="cav-icon cav-icon--sm cav-panel__back-icon" />
+        <span class="cav-panel__back-text">Back to all modules</span>
+    </a>
+
     <div class="cav-panel__head">
         {{-- The same tinted tile the module row draws, in the same hue, so
              the panel is visibly the row the PM just opened. The key comes
