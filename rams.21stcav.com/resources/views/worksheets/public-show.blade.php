@@ -558,14 +558,36 @@
                         {{ $latestSignoff->comments }}
                     </div>
                 @endif
+                {{-- 46.4-04 (D-07) — this line used to promise the opposite: that
+                     engineers could carry on updating notes and photos after
+                     sign-off. That is now false on the SERVER (every capture
+                     endpoint returns 422), so it could not be left saying so on a
+                     page the CLIENT reads. Corrected, not deleted. --}}
                 <div class="signed-banner__keep">
-                    This worksheet remains accessible — engineers may continue to update notes and photos.
+                    This worksheet remains accessible to read — it is now a completed record and can no longer be changed.
                 </div>
             </div>
         @endif
 
         @php
             $rooms = $worksheet->generated_data['rooms'] ?? [];
+
+            // ── 46.4-04 (D-07) — THE CAPTURE LOCK, COMPUTED ONCE ──────────────
+            // The user: *"client cannot chage anything as they are signing to
+            // confirm work is complete."* One page, one URL (D-01), so the app
+            // tells engineer from client by STATE, not identity.
+            //
+            // ONE variable, read at every branch below. NOT `isSigned()` at ten
+            // call sites, and NOT re-derived from $latestSignoff — the controller
+            // passes that in for DISPLAY and the two must never drift apart. The
+            // server enforces the same predicate through the same class
+            // (App\Support\Worksheets\WorksheetCaptureLock), so the page and the
+            // endpoint cannot disagree about what "locked" means.
+            //
+            // ⚠️ HIDING A CONTROL IS THE COURTESY, NOT THE SECURITY. The token is
+            // the only credential; the refusal that matters is the 422 in
+            // PublicWorksheetController. Never treat this flag as a permission.
+            $captureLocked = \App\Support\Worksheets\WorksheetCaptureLock::isLocked($worksheet);
 
             // ── D-46-05-01 — sign-off gate defaults, declared UNCONDITIONALLY ──
             // The real values are computed in the @else arm of `@if(empty($rooms))`
@@ -681,7 +703,24 @@
             ];
         @endphp
 
-        @if($latestSignoff)
+        {{-- ── 46.4-04 (D-07) — THE READ-ONLY BANNER ────────────────────────────
+             One neutral sentence, worded for BOTH readers on this single-URL page:
+             the engineer who wonders where the capture buttons went, and the client
+             looking at their own signature. Server-rendered @if only: no Alpine
+             directive (Alpine is never loaded on this page) and no JS toggling.
+             ⚠️ This comment deliberately names no directive — plan 02 pins their
+             occurrence COUNT, and a comment mentioning one fails that guard. --}}
+        @if($captureLocked)
+            <div style="margin-bottom:1rem;padding:.7rem .9rem;border-radius:8px;background:#F1F5F9;border:1px solid #CBD5E1;color:#334155;font-size:.85rem;line-height:1.45;">
+                ✓ Signed on <strong>{{ $latestSignoff->signed_at->format('d M Y') }}</strong> — this worksheet is a
+                completed record and can no longer be changed. Photos, labels and kit lists stay visible to read.
+            </div>
+        @endif
+
+        @if($captureLocked)
+            {{-- 46.4-04 — was `@if($latestSignoff)`. Same state, but now read through
+                 the ONE predicate the server enforces, so the page and the endpoints
+                 cannot drift. --}}
             {{-- 260504-iy4 L3 — signaled lock. Disables every nested form/button/input
                  (fieldset cascades the disabled attribute) so engineers + clients
                  can't accidentally re-submit photos / labels / reviews / sign-offs.
@@ -1007,11 +1046,15 @@
                                                      loading="lazy"
                                                      style="width:100%;height:100%;object-fit:cover;">
                                             </a>
+                                            {{-- 46.4-04 (D-07) — photo deletes are named in D-07's
+                                                 enumeration. The thumbnail itself still renders. --}}
+                                            @unless($captureLocked)
                                             <button type="button"
                                                     data-capture-control
                                                     onclick="deleteWorksheetPhoto({{ $p->id }}, '{{ $token }}', this)"
                                                     title="Remove"
                                                     style="position:absolute;top:2px;right:2px;width:20px;height:20px;border:0;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:.7rem;line-height:1;cursor:pointer;">✕</button>
+                                            @endunless
                                         </div>
                                         @if(($p->caption ?? '') !== '')
                                             {{-- Engineer free text on a page the CLIENT SIGNS: escaped echo
@@ -1021,6 +1064,12 @@
                                     </div>
                                 @endforeach
                             </div>
+                            {{-- 46.4-04 (D-07) — the whole capture control set for this tray:
+                                 the label field, the capture button and its hidden file input.
+                                 Gone once signed; the thumbnails above stay. Plan 46.4-05's kit
+                                 drawer trigger and per-row controls wire to this SAME
+                                 $captureLocked variable — do not invent a second flag. --}}
+                            @unless($captureLocked)
                             {{-- D-04 — the label rides with the capture. maxlength mirrors the
                                  server's max:200 so the field cannot promise what the endpoint
                                  will refuse. --}}
@@ -1035,7 +1084,10 @@
                                 <input type="file" accept="image/*" data-capture-control style="display:none;"
                                        onchange="uploadWorksheetPhoto(this, '{{ $token }}', '{{ addslashes($room['name'] ?? '') }}', '{{ $tray['bucket'] }}')">
                             </label>
-                            @if($tray['warn'] && $tray['photos']->count() === 0)
+                            @endunless
+                            {{-- 46.4-04 — "capture one before requesting sign-off" is advice that
+                                 only makes sense while capture is still possible. --}}
+                            @if(! $captureLocked && $tray['warn'] && $tray['photos']->count() === 0)
                                 <div class="photo-warn" style="margin-top:.55rem;">
                                     ⚠ No photos captured yet — capture at least one before requesting sign-off.
                                 </div>
@@ -1366,8 +1418,12 @@
                                             <div style="display:flex;align-items:center;gap:.5rem;">
                                                 <span class="qty-pill">{{ $itemQty }}×</span>
                                                 <span style="flex:1;">{{ $itemDesc }}</span>
-                                                @if ($isHardware)
+                                                {{-- 46.4-04 (D-07) — serial-label capture writes a
+                                                     DeviceLabelPhoto and mints/updates a Device row in
+                                                     the asset register, so it is capture, and it goes. --}}
+                                                @if ($isHardware && ! $captureLocked)
                                                     <label class="btn btn-outline btn-sm label-cap-btn"
+                                                           data-capture-control
                                                            style="display:inline-flex;align-items:center;gap:.35rem;cursor:pointer;font-size:.78rem;">
                                                         📷 Box Serial Label
                                                         <input type="file"
@@ -1396,8 +1452,13 @@
                                                                 <span style="display:inline-block;padding:1px 6px;border-radius:9999px;background:{{ $lp->confirmed ? '#DCFCE7' : '#FEF3C7' }};color:{{ $lp->confirmed ? '#166534' : '#92400E' }};font-weight:600;font-size:.65rem;">
                                                                     {{ $lp->confirmed ? '✓ Confirmed' : 'Review' }}
                                                                 </span>
-                                                                @unless($lp->confirmed)
+                                                                {{-- 46.4-04 (D-07) — "Edit / Confirm" POSTs to
+                                                                     confirmLabelPhoto, which writes the serial /
+                                                                     MAC / model onto the Device row. The READING
+                                                                     above stays visible; only the write goes. --}}
+                                                                @unless($lp->confirmed || $captureLocked)
                                                                     <button type="button"
+                                                                            data-capture-control
                                                                             onclick="reviewLabel({{ $lp->id }}, '{{ $token }}')"
                                                                             style="background:none;border:0;color:#0F766E;cursor:pointer;font-size:.7rem;text-decoration:underline;">Edit / Confirm</button>
                                                                 @endunless
@@ -1543,7 +1604,8 @@
             </form>
         </div>
 
-        @if($latestSignoff)
+        @if($captureLocked)
+            {{-- 46.4-04 — pairs with the fieldset opened above; both read $captureLocked. --}}
             </fieldset>
         @endif
 

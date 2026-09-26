@@ -299,9 +299,40 @@ class EngineerLinkPhotoTrayGuardTest extends TestCase
      * lock here would leave a second place to keep in step with 46.4-04's
      * server-side one. The trays ship unlocked for exactly one wave.
      */
-    public function test_this_plan_ships_no_lock_of_its_own(): void
+    /**
+     * ⚠️ THIS TEST WAS INVERTED BY PLAN 46.4-04 (D-07), ON PURPOSE AND BY NAME.
+     *
+     * It shipped in plan 46.4-02 as `test_this_plan_ships_no_lock_of_its_own`,
+     * asserting the OPPOSITE: that the trays were still capturable once a
+     * `WorksheetSignoff` existed. That was deliberate — plan 02 built only the
+     * `data-capture-control` hook and left the lock to plan 04, and pinning the
+     * unlocked state meant plan 04 flipping it would be a VISIBLE change rather
+     * than a silent one. This is that flip.
+     *
+     * The old behaviour it pinned was a KNOWN, TIME-LIMITED GAP, not a feature:
+     * plan 02's own summary called it "capturable after sign-off for exactly one
+     * wave". D-07 supersedes it — the user, verbatim: *"client cannot chage
+     * anything as they are signing to confirm work is complete."*
+     *
+     * NO assertion was deleted to make a red test pass. The count assertion is
+     * inverted (and its unsigned mirror added below it, so a broken selector
+     * cannot fake the lock), and the `/photos` endpoint-count assertion is kept
+     * verbatim. The SERVER-side half of D-07 is asserted in
+     * EngineerLinkSignoffLockTest, which never touches this page.
+     */
+    public function test_the_trays_capture_controls_are_gone_once_the_worksheet_is_signed(): void
     {
         $worksheet = $this->worksheet();
+
+        // MIRROR FIRST — unsigned, every control present. Without this, a typo in
+        // the selector below would "prove" the lock by finding nothing anywhere.
+        $unsignedXpath = $this->dom($this->render($worksheet));
+        $this->assertSame(
+            count(self::ROOMS) * self::TRAYS_PER_ROOM,
+            $unsignedXpath->query('//div[@data-photo-tray]//label[@data-capture-control]')->length,
+            'An UNSIGNED worksheet must still offer every capture control.',
+        );
+
         $worksheet->signoffs()->create([
             'client_name'          => 'A Client',
             'signature_png_base64' => base64_encode('not-a-real-png'),
@@ -311,24 +342,29 @@ class EngineerLinkPhotoTrayGuardTest extends TestCase
 
         $xpath = $this->dom($this->render($worksheet->fresh()));
 
-        // The trays are STILL capturable after a sign-off exists. That is not
-        // an oversight and it is not a security hole this plan opened: D-07's
-        // lock is plan 46.4-04's, applied SERVER-SIDE in one place across every
-        // write endpoint one wave from now. A second, partial, client-only lock
-        // here would be a thing to keep in step with it forever — and a hidden
-        // button was never a permission on a token-only page anyway.
+        // D-07 — not rendered, not merely disabled. Hiding is the courtesy; the
+        // security is the 422 in PublicWorksheetController.
         $this->assertSame(
-            count(self::ROOMS) * self::TRAYS_PER_ROOM,
+            0,
             $xpath->query('//div[@data-photo-tray]//label[@data-capture-control]')->length,
-            'The trays ship UNLOCKED for exactly one wave — 46.4-04 owns the lock.',
+            'A signed worksheet must render NO capture control in any tray (D-07).',
+        );
+        $this->assertSame(
+            0,
+            $xpath->query('//div[@data-photo-tray]//input[@data-photo-caption]')->length,
+            'The per-tray label field is a capture control and goes with the rest (D-07).',
         );
 
-        // What 04 gets instead: every control findable by one selector, and
-        // every write still on the EXISTING /photos endpoint — no second write
-        // surface was invented for it to have to cover.
-        $this->assertGreaterThan(0, $xpath->query('//*[@data-capture-control]')->length);
-        // Two occurrences: the original online POST and the offline wrapper's
-        // inlined copy of it. Both are the SAME endpoint.
+        // READ-ONLY, NOT GONE. The trays themselves still render — a signed
+        // worksheet is a record and its signer must be able to read it.
+        $this->assertSame(
+            count(self::ROOMS) * self::TRAYS_PER_ROOM,
+            $xpath->query('//div[@data-photo-tray]')->length,
+            'The trays must still RENDER after sign-off — only the ability to change them goes.',
+        );
+
+        // Kept verbatim from plan 02: two occurrences, the original online POST
+        // and the offline wrapper's inlined copy. Both the SAME endpoint.
         $this->assertSame(2, substr_count($this->source(), "+ '/photos'"));
     }
 
