@@ -524,6 +524,19 @@ class OfficeAdditionalKitListTest extends TestCase
         $response->assertDontSee('198.51.100.10', false);
     }
 
+    public function test_the_worksheet_links_to_the_projects_asset_list(): void
+    {
+        // Task 3 — the two install-capture artefacts are reachable from one
+        // page. The office should not have to know a URL.
+        $worksheet = $this->worksheet();
+
+        $response = $this->showAs($worksheet);
+
+        $response->assertOk();
+        $response->assertSee('Asset list', false);
+        $response->assertSee(route('projects.asset-list', $worksheet->project), false);
+    }
+
     public function test_an_engineers_email_and_phone_reach_nothing(): void
     {
         // LR-04. The same code path feeds the page a CLIENT reads (D-01).

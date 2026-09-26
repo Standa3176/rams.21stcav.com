@@ -147,6 +147,11 @@
             </form>
         @endif
         @if($worksheet->project)
+            {{-- Phase 46.4 Plan 03 Task 3 — the office should not have to know
+                 a URL to read the serials this worksheet's engineers captured.
+                 The two install-capture artefacts (kit list, asset register)
+                 are reachable from the same page. --}}
+            <a href="{{ route('projects.asset-list', $worksheet->project) }}" class="btn-outline btn-sm">Asset list</a>
             <a href="{{ route('projects.show', $worksheet->project) }}" class="btn-outline btn-sm">← Back to Project</a>
         @else
             <a href="{{ route('worksheets.index') }}" class="btn-outline btn-sm">← All Worksheets</a>
