@@ -229,6 +229,75 @@ class CockpitDocumentFormPresenterTest extends TestCase
         $this->assertNotContains('programme.planned_end_time', $targets);
     }
 
+    /**
+     * D-04's JOB SUMMARY, AND IT IS ADMITTED ONLY BECAUSE A GENERATOR READS IT.
+     *
+     * The user asked for RAMS content to come from three places: project info,
+     * the wizard's visit info, and *"userer enter job summary (if engered or
+     * project data)"*. The map's rule (46.2 D-03) is that a field is
+     * DISCOVERED, not invented, so the summary was grep-confirmed against the
+     * working tree BEFORE the row was written:
+     *
+     *   app/Services/RamsBuilderService.php:119
+     *       'works_summary' => $formData['works_description'] ?? '',
+     *   app/Services/RamsBuilderService.php:898  — the same key, into the AI brief
+     *   app/Services/RamsBuilderService.php:945  — $data['scope_of_works']
+     *
+     * The generic symbol gate above covers :119. THIS test pins the shape of
+     * the row itself — the target especially, because `form_data.` vs
+     * `reviewed_data.` is the difference between a value that reaches the
+     * document and one `normalise()` discards on the next pass.
+     */
+    public function test_the_rams_job_summary_is_one_row_targeting_form_data_works_description(): void
+    {
+        $rams = CockpitDocumentFormPresenter::documentFieldMap()['rams'];
+
+        $matches = [];
+
+        foreach ($rams['groups'] as $group) {
+            foreach ($group['fields'] as $field) {
+                if ($field['key'] === 'job_summary') {
+                    $matches[] = ['legend' => $group['legend'], 'field' => $field];
+                }
+            }
+        }
+
+        $this->assertCount(1, $matches, 'The job summary must be EXACTLY one row on the RAMS map.');
+
+        $field = $matches[0]['field'];
+
+        $this->assertSame('Job summary', $matches[0]['legend']);
+        $this->assertSame(CockpitDocumentFormPresenter::TYPE_TEXTAREA, $field['type']);
+        $this->assertSame(
+            'form_data.works_description',
+            $field['target'],
+            'The job summary has no `reviewed_data` home: normaliseProject() is exactly eleven keys '
+            .'and `works_description` is not one — the same documented exception `working_hours` already is.',
+        );
+        $this->assertSame('app/Services/RamsBuilderService.php', $field['consumer']['file']);
+        $this->assertSame("\$formData['works_description']", $field['consumer']['symbol']);
+        $this->assertSame(['nullable', 'string', 'max:5000'], $field['rules']);
+    }
+
+    /**
+     * The job summary is ADDED, and nothing about the RAMS row is otherwise
+     * moved. Its four non-group keys and its generate route are pinned here so
+     * a later edit cannot quietly re-point RAMS at a new path — D-04's
+     * *"RAMs will use existing RAM process"* as an assertion.
+     */
+    public function test_the_rams_row_still_names_the_existing_rams_process(): void
+    {
+        $rams = CockpitDocumentFormPresenter::documentFieldMap()['rams'];
+
+        foreach (['generate_route', 'formats', 'intro', 'readiness'] as $key) {
+            $this->assertArrayHasKey($key, $rams);
+        }
+
+        $this->assertSame('rams.from-project', $rams['generate_route']);
+        $this->assertSame(['word' => 'rams.download', 'pdf' => 'rams.download-pdf'], $rams['formats']);
+        $this->assertNull($rams['readiness']);
+    }
+
     // -- Contract tests for the accessors ------------------------------------
 
     public function test_fields_for_an_unknown_document_is_empty_and_never_throws(): void
