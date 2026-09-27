@@ -933,6 +933,12 @@
                     $roomPhotosByBucket = $roomPhotos
                         ->groupBy(fn ($p) => (string) ($p->bucket ?: \App\Models\WorksheetPhoto::BUCKET_COMPLETION));
                     $startPhotos      = ($roomPhotosByBucket[\App\Models\WorksheetPhoto::BUCKET_START] ?? collect())->values();
+                    // 46.5 D-06 — the third stage. Pulled exactly as the other
+                    // two are, off the SAME groupBy, so it adds no query. The
+                    // groupBy default is deliberately untouched: a NULL-bucket
+                    // row still reads as completion, which is what keeps the
+                    // 2026_09_26_100000 backfill ruling true.
+                    $duringPhotos     = ($roomPhotosByBucket[\App\Models\WorksheetPhoto::BUCKET_DURING] ?? collect())->values();
                     $completionPhotos = ($roomPhotosByBucket[\App\Models\WorksheetPhoto::BUCKET_COMPLETION] ?? collect())->values();
 
                     // ── Survey Reference (260504-dh8) — per-room engineer-feedback
@@ -1030,9 +1036,13 @@
                             'caption' => $p->caption ?? '',
                         ])->all();
 
-                        // ── 46.4-02 (D-03) — the two trays, in capture order ──────
-                        // Order is Start then Completion because that is the order the
-                        // work happens in.
+                        // ── 46.4-02 (D-03) + 46.5-03 (D-06) — THREE trays, in ─────
+                        //    capture order: Start, During, Completion. Order is the
+                        //    order the work happens in.
+                        //
+                        // 46.5 D-06 added the middle one. NO LABEL WAS CHANGED: the
+                        // trays already read as start / during / end in plain English,
+                        // and renaming Completion to End would break the ruling below.
                         //
                         // ⚠️ THE COMPLETION TRAY'S TITLE IS LOAD-BEARING AND MUST NOT
                         // CHANGE. Plan 46.4-01's migration backfilled every pre-existing
@@ -1058,12 +1068,29 @@
                                 'hint'   => 'Optional — a record of how the room looked before works began.',
                             ],
                             [
+                                'bucket' => \App\Models\WorksheetPhoto::BUCKET_DURING,
+                                'title'  => '🛠️ While the work is underway',
+                                'photos' => $duringPhotos,
+                                'warn'   => false,
+                                'hint'   => 'Optional — progress shots: cable routes, fixings and anything hidden by the finish.',
+                            ],
+                            [
                                 'bucket' => \App\Models\WorksheetPhoto::BUCKET_COMPLETION,
                                 'title'  => '📷 Photos of completed work',
                                 'photos' => $completionPhotos,
                                 'warn'   => true,
                                 'hint'   => null,
                             ],
+                        ];
+
+                        // A MAP, not a nested ternary (46.5-03). With three trays a
+                        // two-arm ternary would have to nest; a fourth tray would then
+                        // be a third nesting. As a map it is one ROW. The start and
+                        // completion labels are byte-identical to what 46.4 shipped.
+                        $trayAddLabels = [
+                            \App\Models\WorksheetPhoto::BUCKET_START      => '📸 Add start photo',
+                            \App\Models\WorksheetPhoto::BUCKET_DURING     => '🛠️ Add progress photo',
+                            \App\Models\WorksheetPhoto::BUCKET_COMPLETION => '📷 Add photo',
                         ];
                     @endphp
                     @foreach($photoTrays as $tray)
@@ -1120,7 +1147,7 @@
                                    placeholder="Label (optional) — e.g. rack before works"
                                    style="display:block;width:100%;max-width:340px;margin-bottom:.45rem;padding:.45rem .6rem;border:1px solid #D1D5DB;border-radius:8px;font-size:.85rem;min-height:40px;">
                             <label class="btn btn-outline btn-sm" data-capture-control style="display:inline-flex;align-items:center;gap:.4rem;cursor:pointer;">
-                                {{ $tray['bucket'] === \App\Models\WorksheetPhoto::BUCKET_START ? '📸 Add start photo' : '📷 Add photo' }}
+                                {{ $trayAddLabels[$tray['bucket']] ?? '📷 Add photo' }}
                                 <input type="file" accept="image/*" data-capture-control style="display:none;"
                                        onchange="uploadWorksheetPhoto(this, '{{ $token }}', '{{ addslashes($room['name'] ?? '') }}', '{{ $tray['bucket'] }}')">
                             </label>
