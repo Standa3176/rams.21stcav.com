@@ -139,11 +139,30 @@ return new class extends Migration
 
             $table->timestamps();
 
+            // ⚠️ BOTH INDEXES ARE NAMED EXPLICITLY, AND THE SECOND ONE HAS TO BE.
+            //
+            // MySQL caps an identifier at 64 characters. Laravel's generated name for the
+            // second index below is `worksheet_additional_kit_worksheet_id_marked_for_deletion_at_index`
+            // — 66 characters — and MySQL rejects the whole ALTER with
+            // "SQLSTATE[42000] ... 1059 Identifier name ... is too long".
+            //
+            // This was NOT caught by any test: the suite runs sqlite `:memory:` (phpunit.xml),
+            // and sqlite has no identifier-length limit, so every gate was green while the
+            // migration could never run on live. It failed on the first real deploy, 2026-09-27,
+            // AFTER the create statement had already succeeded — and because MySQL DDL is not
+            // transactional, that left the table present but the migration unrecorded, so the
+            // retry then failed with "table already exists" instead. Two different errors, one
+            // cause.
+            //
+            // Name any index on this table explicitly. The first one happens to fit at 53
+            // characters today, but it is named too, so a later column rename cannot push it
+            // over the limit and reproduce this on a Friday afternoon.
+
             // Every engineer-side read is "this worksheet's kit in this room".
-            $table->index(['worksheet_id', 'room_name']);
+            $table->index(['worksheet_id', 'room_name'], 'wak_worksheet_room_idx');
 
             // The office filters on the mark, so it rides its own composite.
-            $table->index(['worksheet_id', 'marked_for_deletion_at']);
+            $table->index(['worksheet_id', 'marked_for_deletion_at'], 'wak_worksheet_marked_idx');
         });
     }
 
