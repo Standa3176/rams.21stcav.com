@@ -2805,16 +2805,34 @@
                             onProgress(row);
 
                             const fd = new FormData();
-                            try {
-                                fd.append('photo', row.blob, (row.kind === 'label' ? 'label.jpg' : 'photo.jpg'));
-                            } catch (e) {
-                                // Blob gone? Skip + mark failure.
-                                row.attemptCount = (row.attemptCount || 0) + 1;
-                                row.lastError = 'Local blob unreadable';
-                                failureCount++;
-                                if (row.attemptCount >= 3) hitMaxRetry++;
-                                OfflineQueue._uploadingIds.delete(row.id);
-                                return _updateRow(row).then(function () { onFailure(row, e); });
+
+                            // ⚠️ 46.4-06 — THIS GUARD IS WHAT STOPS AN ENGINEER'S
+                            // WORK BEING LOST. A 'kit' row has NO BLOB at all
+                            // (D-10 — kit rows are text and numbers only), and
+                            // appending an undefined blob THROWS, which would
+                            // stamp the row with the unreadable-blob error below
+                            // — forever, on the one record that is the
+                            // engineer's ONLY copy of that work.
+                            // The guard MUST stay ABOVE the append — a source
+                            // POSITION assertion in OfflineQueueKitKindGuardTest
+                            // pins the ordering, so reordering these two lines
+                            // goes red rather than silent.
+                            // Positive test on the one NON-binary kind, so a
+                            // future kind that DOES carry bytes keeps working
+                            // without an edit here.
+                            const isBinary = row.kind !== 'kit';
+                            if (isBinary) {
+                                try {
+                                    fd.append('photo', row.blob, (row.kind === 'label' ? 'label.jpg' : 'photo.jpg'));
+                                } catch (e) {
+                                    // Blob gone? Skip + mark failure.
+                                    row.attemptCount = (row.attemptCount || 0) + 1;
+                                    row.lastError = 'Local blob unreadable';
+                                    failureCount++;
+                                    if (row.attemptCount >= 3) hitMaxRetry++;
+                                    OfflineQueue._uploadingIds.delete(row.id);
+                                    return _updateRow(row).then(function () { onFailure(row, e); });
+                                }
                             }
                             fd.append('room_name', row.room || '');
                             const fields = row.fields || {};
@@ -2822,7 +2840,11 @@
                                 fd.append(k, fields[k]);
                             });
 
-                            const path = row.kind === 'label' ? '/label-photo' : '/photos';
+                            // A TABLE, not a nested ternary — the next kind gets
+                            // its own line and nothing else moves.
+                            const path = row.kind === 'label' ? '/label-photo'
+                                       : row.kind === 'kit'   ? '/additional-kit'
+                                       :                        '/photos';
                             const url  = '/worksheet/' + encodeURIComponent(row.token) + path;
 
                             return fetch(url, {
@@ -3495,6 +3517,9 @@
             let activeRoomKey = '';
             let activeRowId   = null;
             let markRowId     = null;
+            // The IndexedDB key of a row being corrected ON THE DEVICE.
+            // Never a server id — a queued row does not have one yet.
+            let queuedEditId  = null;
 
             // Identical to the queue panel's helper. That one lives inside its own
             // IIFE and is not exported; copying five replaces is better than
@@ -3519,14 +3544,157 @@
                 }
             }
 
+            // ══════════════════════════════════════════════════════════════
+            //  46.4-06 — WHAT QUEUES OFFLINE, AND WHAT DOES NOT. THE REASONING
+            //  ITSELF, AT THE CODE — not a pointer to a plan file, because the
+            //  plan file will not be open when somebody next wonders.
+            //
+            //  ADD queues. A kit row has no blob at all, so it is unambiguously a
+            //  non-binary record and the drain branch is a clean split.
+            //  CORRECT and MARK on a row that is ALREADY ON THE SERVER require a
+            //  connection, and render visibly disabled reading "Needs a
+            //  connection". A row still sitting in the QUEUE can be corrected or
+            //  discarded on the device, because that is not a server operation at
+            //  all. Four reasons:
+            //
+            //  1. A QUEUED ADD HAS NO SERVER ID. A queued "modify row 41" that
+            //     arrives before the add which creates row 41 is a second,
+            //     order-dependent protocol layered on a store whose schema is
+            //     frozen at version 1 — client-side temporary ids, a drain-time
+            //     rewrite, and a merge rule for the case where the add succeeded
+            //     and the modify then 422'd. That is exactly the class of change
+            //     that STRANDS WORK, and stranding work is the failure the whole
+            //     offline queue exists to prevent.
+            //
+            //  2. THIS PAGE ALREADY HAS THIS IDIOM AND ENGINEERS HAVE MET IT.
+            //     Sign-off refuses offline by explicit design. Room-complete and
+            //     survey-reviewed are plain POST+redirect with no offline path at
+            //     all. Only photos queue today. Requiring a connection to CHANGE
+            //     something is consistent; it is not a new tax.
+            //
+            //  3. CORRECTING A QUEUED ROW NEEDS NO SERVER. The row has not left
+            //     the phone. Editing or discarding it is an IndexedDB write, and
+            //     discarding it is NOT a "mark for deletion with a reason" in
+            //     D-08's sense — nothing reached the office, so there is nothing
+            //     to explain. The confirm text says exactly that.
+            //
+            //  4. THE ENGINEER IS ALWAYS TOLD WHICH CASE THEY ARE IN. A server
+            //     row's controls read "Needs a connection" while offline; a queued
+            //     row's read Edit and Discard and genuinely work; and a queued row
+            //     that has since drained loses both and says so.
+            //     ⚠️ AN AFFORDANCE THAT APPEARS TO WORK OFFLINE AND SILENTLY
+            //     LOSES THE CHANGE IS THE ONE UNACCEPTABLE OUTCOME. Neither half
+            //     of this ruling permits one.
+            //
+            //  THE COST, STATED RATHER THAN HIDDEN: an engineer who typed the
+            //  wrong quantity offline, and has already regained signal long enough
+            //  for the row to drain, must wait for signal to correct it. That is a
+            //  real limitation. The alternative is a queued-modify protocol, which
+            //  is its own phase, not a bolt-on here.
+            // ══════════════════════════════════════════════════════════════
+
+            // The label of whichever engineer the picker currently shows — used
+            // for an optimistically grafted row, where there is no server response
+            // to read engineer_name out of. When nobody is allocated this is
+            // D-02's fallback sentence, which is what the option already says.
+            function _engineerLabel() {
+                if (!engineerEl) return '';
+                const opt = engineerEl.options[engineerEl.selectedIndex];
+                return opt ? opt.text : '';
+            }
+
+            // A row that is still ON THE DEVICE. Its controls are Edit / Discard,
+            // never Correct / Mark for deletion — see reason 3 above.
+            function queuedRowInnerHtml(queueId, fields, engineerName) {
+                const btn = ' class="btn btn-outline btn-sm" style="min-height:44px;padding:.5rem .8rem;font-size:.82rem;"';
+                return ''
+                    + '<div style="word-break:break-word;">'
+                    +   '<strong>' + _esc(fields.qty) + ' &times;</strong> ' + _esc(fields.part_description)
+                    +   ' <span class="muted">&mdash; ' + _esc(engineerName) + '</span>'
+                    + '</div>'
+                    + '<span data-kit-chip="queued" style="display:inline-block;margin-top:.25rem;padding:1px 8px;border-radius:9999px;background:#FEF3C7;color:#92400E;font-weight:700;font-size:.68rem;">'
+                    +   'Queued on this device &mdash; uploads by itself when you are online'
+                    + '</span>'
+                    + '<div data-kit-row-controls style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.4rem;">'
+                    +   '<button type="button" data-capture-control data-kit-edit'
+                    +     ' data-queued="' + _esc(queueId) + '"'
+                    +     ' data-room="' + _esc(activeRoom) + '"'
+                    +     ' data-qty="' + _esc(fields.qty) + '"'
+                    +     ' data-desc="' + _esc(fields.part_description) + '"'
+                    +     ' data-engineer="' + _esc(fields.labour_resource_id) + '"'
+                    +     btn + '>&#9999;&#65039; Edit</button>'
+                    +   '<button type="button" data-capture-control data-kit-discard'
+                    +     ' data-queued="' + _esc(queueId) + '"'
+                    +     btn + '>&#10005; Discard</button>'
+                    + '</div>';
+            }
+
+            // ADD, with no signal. The row is saved on the device and drains by
+            // itself; nothing the engineer typed is lost, and the toast is the
+            // same sentence the photo queue already uses.
+            async function enqueueKitRow(qty, desc, engineerRaw) {
+                if (!window.OfflineQueue) {
+                    statusEl.textContent = 'No connection, and this browser cannot save offline. Nothing was lost — try again when you have signal.';
+                    return;
+                }
+                let queueId = null;
+                try {
+                    queueId = await window.OfflineQueue.enqueue({
+                        token: token,
+                        kind:  'kit',
+                        room:  activeRoom,
+                        // NO BLOB. That is the whole point of the third kind.
+                        blob:  undefined,
+                        mime:  null,
+                        // The free-form fields bag — spread into the FormData at
+                        // drain exactly as the photo queue's bucket and caption
+                        // already are. NO SCHEMA CHANGE.
+                        fields: {
+                            labour_resource_id: engineerRaw,
+                            qty: qty,
+                            part_description: desc,
+                        },
+                    });
+                } catch (e) {
+                    queueId = null;
+                }
+                if (queueId == null) {
+                    statusEl.textContent = 'Could not save this item on the device. Nothing was lost — try again.';
+                    return;
+                }
+
+                const fields = { labour_resource_id: engineerRaw, qty: qty, part_description: desc };
+                const list = listFor(activeRoomKey);
+                if (list) {
+                    const li = document.createElement('li');
+                    li.setAttribute('data-kit-row', 'queued-' + queueId);
+                    li.setAttribute('data-kit-queued-row', String(queueId));
+                    li.setAttribute('style', 'padding:.5rem 0;border-bottom:1px dotted #F1F5F9;font-size:.86rem;line-height:1.45;');
+                    li.innerHTML = queuedRowInnerHtml(queueId, fields, _engineerLabel());
+                    list.appendChild(li);
+                    wireQueuedControls(li);
+                    bumpCount(activeRoomKey, 1);
+                }
+
+                qtyEl.value = '1';
+                descEl.value = '';
+                descEl.focus();
+                statusEl.textContent = 'Saved on this device. Add another — they all upload when you are back online.';
+                _toast("📥 Saved offline — will upload when you're online", 'info');
+            }
+
             // ── Open / close ──────────────────────────────────────────────────
 
             function openDrawer(mode, room, roomKey) {
                 activeRoom    = room || '';
                 activeRoomKey = roomKey || '';
                 drawer.dataset.mode = mode;
-                heading.textContent = mode === 'modify' ? 'Correct this item' : 'Add additional kit';
-                submitEl.textContent = mode === 'modify' ? 'Save correction' : 'Add';
+                heading.textContent = mode === 'modify' ? 'Correct this item'
+                    : mode === 'queued' ? 'Correct this queued item'
+                    :                     'Add additional kit';
+                submitEl.textContent = mode === 'modify' ? 'Save correction'
+                    : mode === 'queued' ? 'Save on this device'
+                    :                     'Add';
                 roomLabel.textContent = activeRoom;
                 statusEl.textContent = '';
                 if (backdrop) backdrop.hidden = false;
@@ -3538,6 +3706,7 @@
                 drawer.hidden = true;
                 if (backdrop) backdrop.hidden = true;
                 activeRowId = null;
+                queuedEditId = null;
                 drawer.dataset.mode = 'add';
             }
 
@@ -3658,6 +3827,67 @@
                 applyOnlineState();
             }
 
+            // ── A row still ON THE DEVICE: Edit / Discard ───────────────
+            // Deliberately NOT Correct / Mark for deletion. Nothing has reached
+            // the office, so there is no amendment to append and no reason to
+            // record. See the four-reason ruling at the head of this block.
+            function wireQueuedControls(scope) {
+                (scope || document).querySelectorAll('[data-kit-edit]').forEach(function (b) {
+                    if (b.dataset.wired) return;
+                    b.dataset.wired = '1';
+                    b.addEventListener('click', function () {
+                        activeRowId  = null;
+                        queuedEditId = parseInt(b.dataset.queued, 10);
+                        qtyEl.value  = b.dataset.qty || '1';
+                        descEl.value = b.dataset.desc || '';
+                        if (engineerEl) engineerEl.value = b.dataset.engineer || '';
+                        const li   = b.closest('[data-kit-row]');
+                        const list = li ? li.closest('[data-kit-list]') : null;
+                        openDrawer('queued', b.dataset.room, list ? list.dataset.roomKey : '');
+                    });
+                });
+                (scope || document).querySelectorAll('[data-kit-discard]').forEach(function (b) {
+                    if (b.dataset.wired) return;
+                    b.dataset.wired = '1';
+                    b.addEventListener('click', function () {
+                        // NO REASON IS ASKED FOR, and that is the point: this row
+                        // has not reached the office, so there is nobody to
+                        // explain it to. It is not a D-08 mark-for-deletion.
+                        if (!window.confirm('Discard this item?\n\nIt is still on this device and has NOT reached the office, so there is nothing to explain \u2014 it simply will not be sent.')) return;
+                        const qid  = parseInt(b.dataset.queued, 10);
+                        const li   = b.closest('[data-kit-row]');
+                        const list = li ? li.closest('[data-kit-list]') : null;
+                        const key  = list ? list.dataset.roomKey : '';
+                        window.OfflineQueue.remove(qid).then(function () {
+                            if (li) li.remove();
+                            if (key) bumpCount(key, -1);
+                        });
+                    });
+                });
+            }
+
+            // When a queued row DRAINS, its device-local controls quietly stop
+            // working — update() refuses a row that is no longer in the store.
+            // Leaving a dead Edit button on screen would be exactly the silent
+            // failure this plan exists to prevent, so swap the chip and drop the
+            // controls. The real row, with Correct / Mark for deletion, arrives
+            // on the next render from the database.
+            function refreshQueuedRows() {
+                if (!window.OfflineQueue) return;
+                window.OfflineQueue.list().then(function (rows) {
+                    const live = {};
+                    rows.forEach(function (r) { live[r.id] = true; });
+                    document.querySelectorAll('[data-kit-queued-row]').forEach(function (li) {
+                        const qid = parseInt(li.getAttribute('data-kit-queued-row'), 10);
+                        if (live[qid]) return;
+                        const controls = li.querySelector('[data-kit-row-controls]');
+                        if (controls) controls.remove();
+                        const chip = li.querySelector('[data-kit-chip="queued"]');
+                        if (chip) chip.textContent = 'Uploaded \u2014 reload the page to correct this item';
+                    });
+                });
+            }
+
             drawer.querySelectorAll('[data-kit-close]').forEach(function (b) {
                 b.addEventListener('click', closeDrawer);
             });
@@ -3672,6 +3902,8 @@
 
             submitEl.addEventListener('click', async function () {
                 const isModify = drawer.dataset.mode === 'modify';
+                // A row still on the device. Not a server operation at all.
+                const isQueuedEdit = drawer.dataset.mode === 'queued';
                 const qty  = parseInt(qtyEl.value, 10);
                 const desc = (descEl.value || '').trim();
 
@@ -3679,6 +3911,47 @@
                 if (desc === '') { statusEl.textContent = 'Enter a part description.'; return; }
 
                 const engineerRaw = engineerEl ? engineerEl.value : '';
+
+                // 46.4-06 — A QUEUED ROW IS CORRECTED ON THE DEVICE. No network,
+                // no server id, no amendment trail: nothing has reached the
+                // office yet, so there is nothing to amend.
+                if (isQueuedEdit) {
+                    let ok = false;
+                    try {
+                        ok = await window.OfflineQueue.update(queuedEditId, {
+                            fields: { labour_resource_id: engineerRaw, qty: qty, part_description: desc },
+                        });
+                    } catch (e) {
+                        ok = false;
+                    }
+                    if (!ok) {
+                        // It drained (or started uploading) while the drawer was
+                        // open. SAY SO rather than pretend the edit landed.
+                        statusEl.textContent = 'That item has already uploaded \u2014 reload the page to correct it.';
+                        return;
+                    }
+                    const qli = document.querySelector('[data-kit-queued-row="' + queuedEditId + '"]');
+                    if (qli) {
+                        qli.innerHTML = queuedRowInnerHtml(
+                            queuedEditId,
+                            { labour_resource_id: engineerRaw, qty: qty, part_description: desc },
+                            _engineerLabel()
+                        );
+                        wireQueuedControls(qli);
+                    }
+                    closeDrawer();
+                    _toast('Corrected on this device. It still uploads by itself.', 'info');
+                    return;
+                }
+
+                // 46.4-06 — ADD WORKS OFFLINE (D-06, "make queue"). Correct and
+                // mark do not; see the ruling above. The row goes to IndexedDB
+                // with no blob and drains itself when signal returns.
+                if (!isModify && !isOnline()) {
+                    await enqueueKitRow(qty, desc, engineerRaw);
+                    return;
+                }
+
                 const payload = {
                     qty: qty,
                     part_description: desc,
@@ -3746,6 +4019,14 @@
                     descEl.focus();
                     statusEl.textContent = 'Added. Add another, or close when you are done.';
                 } catch (e) {
+                    // The POST threw mid-flight — signal dropped between the tap
+                    // and the response. Same shape uploadWorksheetPhoto already
+                    // falls back on: queue it rather than lose what was typed.
+                    // MODIFY is NOT queued; see the ruling above.
+                    if (!isModify) {
+                        await enqueueKitRow(qty, desc, engineerRaw);
+                        return;
+                    }
                     statusEl.textContent = 'That did not save — check your signal and try again.';
                 } finally {
                     submitEl.disabled = false;
@@ -3833,7 +4114,11 @@
 
             function _kitInit() {
                 wireRowControls(document);
+                wireQueuedControls(document);
                 applyOnlineState();
+                if (window.OfflineQueue && window.OfflineQueue.subscribe) {
+                    window.OfflineQueue.subscribe(refreshQueuedRows);
+                }
             }
 
             if (document.readyState === 'loading') {
