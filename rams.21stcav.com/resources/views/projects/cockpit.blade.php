@@ -213,7 +213,16 @@
                                 :doc-formats="$docFormats"
                                 :doc-intro="$docIntro"
                                 :doc-values="$docValues"
-                                :doc-resources="$docResources" />
+                                :doc-resources="$docResources"
+                                {{-- THREE ATTRIBUTES ADDED BY PLAN 46.5-04 — the
+                                     wizard's step state, resolved in
+                                     ProjectCockpitController by
+                                     CockpitWizardPresenter. Plan 46.5-01 landed
+                                     them on the view unused by design; this is
+                                     the plan that consumes them. --}}
+                                :doc-step="$docStep"
+                                :doc-steps="$docSteps"
+                                :doc-step-title="$docStepTitle" />
                             {{-- FIVE ATTRIBUTES REMOVED BY 46.2 D-02 (Plan 46.2-03):
                                  `evidence`, `action`, `action-visit-id`, `rooms` and
                                  `people`. They fed the Create visit form and the

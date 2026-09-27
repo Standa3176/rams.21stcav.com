@@ -471,8 +471,17 @@ class CockpitInlineDrawerEndToEndTest extends TestCase
         $project = $this->project();
 
         foreach ($this->everyKey() as $key) {
+            // THE LAST STEP, SINCE PLAN 46.5-04. The document form is a wizard
+            // now, and the Format fieldset and the submit live on the final
+            // step — a PM is not asked to pick a file format three screens
+            // before it matters. The step list is read off the document's own
+            // spine, so a stepless document still renders at no step at all and
+            // this walk is unchanged for it.
+            $steps = app(\App\Support\Cockpit\CockpitWizardPresenter::class)->stepsFor($key);
+            $last  = $steps === [] ? [] : ['step' => $steps[count($steps) - 1]];
+
             $closed = $this->subtree($this->cockpit($project, ['module' => $key]), 'cav-qa');
-            $open   = $this->subtree($this->cockpit($project, ['module' => $key, 'action' => 'generate']), 'cav-qa');
+            $open   = $this->subtree($this->cockpit($project, ['module' => $key, 'action' => 'generate'] + $last), 'cav-qa');
 
             $this->assertNotSame('', $closed, "The '{$key}' row renders no document block.");
             $this->assertStringContainsString('Create document', $closed,

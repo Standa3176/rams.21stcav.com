@@ -97,6 +97,64 @@
     `DocumentFormatInventoryTest` asserts the missing set is exactly
     `worksheet -> pdf`.
 
+    ── ONE STEP AT A TIME (Phase 46.5, Plan 46.5-04; 46.5 D-02, GCW-02) ────
+
+    A 17-field wall was called "scary" and the user asked for three short
+    steps in their own words. So this file now renders ONE STEP AT A TIME —
+    and it does so WITHOUT a single branch on a document key, because the
+    step is read off each GROUP's own `step` key, which Plan 46.5-01 put on
+    the map. The slice is `($group['step'] ?? null) === $step`. That is the
+    sixth change to this page's contents and it is still a map edit.
+
+    THE COMPATIBILITY PATH IS FIRST AND IT IS ABSOLUTE: `steps === []` means
+    this document has no wizard, and it renders EXACTLY as it did before this
+    plan — every group, the Format radios, the one submit. The O&M relies on
+    that permanently and RAMS relies on it until Plan 46.5-05 mints its steps.
+
+    A group carrying `step => null` is shown by NO step. That is how the
+    Comms room group left this office form (46.5 D-03, "dont need comms
+    room") WITHOUT leaving the product: it is still captured on site through
+    the engineer link, still renders in the site-survey Word document and
+    still rides the survey->install carry-forward, where an installing
+    engineer reads the surveyor's access notes. Removing it from THOSE would
+    be a safety regression. Read the map's own comment beside that `null`.
+
+    ── CARRY-FORWARD IS HIDDEN INPUTS, AND THEY ARE NOT TRUSTED ────────────
+
+    Every field belonging to another INTEGER step, and not `readonly`, rides
+    along as a hidden input so a `next` from step 2 still submits step 1's
+    answers. A hidden input is exactly as attacker-controlled as a visible
+    one, so the server RE-VALIDATES all of them on the final submit —
+    `CockpitDocumentRequest::groupsToValidate()` adds every step's rules when
+    `intent=create`, never only the claimed step's (T-46.5-04-02/03).
+
+    A `readonly` field is NEVER carried. It holds `rules => ['prohibited']`,
+    so submitting it would turn an ordinary submission into a validation
+    failure the PM cannot fix — the same reason it is printed as a value
+    rather than as a `readonly` input a few lines further down.
+
+    ── THE WIZARD'S COPY, CHECKED BEFORE USE ──────────────────────────────
+
+    `Next`, `Back` and `Step 1 of 3` (and every `step_titles` entry the map
+    holds) were each checked AS A SUBSTRING against all 21
+    DEFERRED_AFFORDANCES keys and both FORBIDDEN_MARKUP entries before use.
+    Not one collides, and nothing was lifted — A FENCE ENTRY IS NEVER LIFTED
+    FOR A LABEL. The list stays 21, FORBIDDEN_MARKUP stays 2, and the check
+    is an assertion in CockpitDocumentFormTest so a later copy edit cannot
+    collide quietly.
+
+    `<select` IS STILL BANNED AND WAS NOT NEEDED. Every control the wizard
+    renders was already in the map's closed type set.
+
+    ── NO CSS WAS ADDED FOR THE WIZARD, ON PURPOSE ────────────────────────
+
+    The progress line reuses `.cav-qa__intro` (the existing one-line guidance
+    style) and carries `.cav-qa__step` as a test hook with no rule behind it;
+    Back reuses `.cav-qa__control`. `resources/css/cockpit.css` is a Vite
+    entry, so touching it would make the deploy need `npm run build` — and
+    the stretched-link trap lives in that file. Reusing what is there costs
+    nothing and risks nothing.
+
     ── NO COLOUR, AND NO `position` ───────────────────────────────────────
 
     Not one hex value in this file (`CockpitPageTest` greps for it) and no new
@@ -115,6 +173,13 @@
     'intro'     => null,
     'values'    => [],
     'resources' => [],
+    // THE WIZARD'S THREE (Plan 46.5-04). All three are derived in
+    // ProjectCockpitController from CockpitWizardPresenter, which slices the
+    // field map. `steps === []` is "this document has no wizard" and is the
+    // compatibility path.
+    'steps'     => [],
+    'step'      => 1,
+    'stepTitle' => null,
 ])
 
 @php
@@ -174,6 +239,56 @@
         : 'Create document — '.$offeredPhrase;
 
     $textLike = [$types::TYPE_TEXT, $types::TYPE_DATE, $types::TYPE_TIME];
+
+    // ── THE WIZARD (Plan 46.5-04) ──────────────────────────────────────────
+    //
+    // THE COMPATIBILITY PATH FIRST, because it is the one a reader must not
+    // have to hunt for: a document with no steps keeps every group and every
+    // control it had before this plan existed.
+    $stepped = $steps !== [];
+
+    $index      = $stepped ? array_search($step, $steps, true) : false;
+    $index      = $index === false ? 0 : $index;
+    $stepTotal  = count($steps);
+    $stepNumber = $index + 1;
+    $isFirst    = ! $stepped || $index === 0;
+    $isLast     = ! $stepped || $index === $stepTotal - 1;
+
+    // Sliced by the GROUP's own `step`, so this file still names no document.
+    // A `step => null` group belongs to no step and is therefore shown by
+    // none — that is the comms-room ruling (46.5 D-03), enforced by a data
+    // comparison rather than by a name.
+    $shown = $stepped
+        ? array_values(array_filter(
+            $fields,
+            static fn (array $group): bool => ($group['step'] ?? null) === $step,
+        ))
+        : $fields;
+
+    // CARRY-FORWARD: another integer step's own fields, never a `readonly`
+    // one (it is `prohibited`, so carrying it would fail a submission the PM
+    // cannot fix) and never a `step => null` one (it is off the wizard, and
+    // submitting an empty value for it would overwrite what the engineer
+    // captures on site).
+    $carried = [];
+
+    if ($stepped) {
+        foreach ($fields as $group) {
+            $groupStep = $group['step'] ?? null;
+
+            if (! is_int($groupStep) || $groupStep === $step) {
+                continue;
+            }
+
+            foreach ($group['fields'] as $field) {
+                if (($field['readonly'] ?? false) === true) {
+                    continue;
+                }
+
+                $carried[] = $field;
+            }
+        }
+    }
 @endphp
 
 <div class="cav-qa">
@@ -223,6 +338,43 @@
                  and again on the way in. --}}
             <x-cockpit.tab-field :tab="$tab" />
 
+            @if ($stepped)
+                {{-- WHICH STEP THIS SUBMISSION IS LEAVING. Membership-resolved
+                     on the way in against the document's own step list, so an
+                     edited value discloses step 1 rather than being rejected —
+                     the identical treatment `?step=` gets on the GET. --}}
+                <input type="hidden" name="step" value="{{ $step }}">
+
+                {{-- CARRY-FORWARD. See this file's header: a hidden input is as
+                     attacker-controlled as a visible one, so every value here
+                     is RE-VALIDATED on the final submit. A `readonly` field is
+                     never among them — it carries `rules => ['prohibited']`,
+                     and submitting one would turn an ordinary submission into a
+                     validation failure the PM has no way to fix. --}}
+                @foreach ($carried as $field)
+                    @php
+                        $carryKey   = $field['key'];
+                        $carryList  = in_array('array', $field['rules'], true);
+                        $carryValue = old($carryKey, $values[$carryKey] ?? '');
+                    @endphp
+
+                    @if ($carryList)
+                        @foreach (is_array($carryValue) ? $carryValue : [] as $one)
+                            <input type="hidden" name="{{ $carryKey }}[]" value="{{ $one }}">
+                        @endforeach
+                    @else
+                        <input type="hidden" name="{{ $carryKey }}" value="{{ is_array($carryValue) ? '' : $carryValue }}">
+                    @endif
+                @endforeach
+
+                {{-- WHERE THE PM IS, IN THE NUMBERS THEY CAN SEE ON THE PAGE.
+                     Both figures come from the document's own step list, so a
+                     fourth step reads correctly without an edit here. The title
+                     is the map's `step_titles` entry — named once, per
+                     document, never invented twice. --}}
+                <p class="cav-qa__intro cav-qa__step">Step {{ $stepNumber }} of {{ $stepTotal }}{{ $stepTitle === null ? '' : ' · '.$stepTitle }}</p>
+            @endif
+
             @if ($errors->any())
                 <ul class="cav-qa__errors">
                     @foreach ($errors->all() as $message)
@@ -232,7 +384,7 @@
                 </ul>
             @endif
 
-            @foreach ($fields as $group)
+            @foreach ($shown as $group)
                 <fieldset class="cav-qa__group">
                     <legend class="cav-qa__legend">{{ $group['legend'] }}</legend>
 
@@ -314,29 +466,56 @@
                 </fieldset>
             @endforeach
 
-            <fieldset class="cav-qa__set">
-                <legend class="cav-qa__legend">Format</legend>
+            {{-- THE OUTPUT CHOICE IS ON THE LAST STEP ONLY, because that is the
+                 step that produces something. Asking a PM to pick a file format
+                 on step 1 of 3 is asking a question three screens before its
+                 answer matters. A stepless document has one step by definition,
+                 so this renders for it exactly as it always did. --}}
+            @if ($isLast)
+                <fieldset class="cav-qa__set">
+                    <legend class="cav-qa__legend">Format</legend>
 
-                @foreach ($offered as $format => $routeName)
-                    <label class="cav-qa__opt">
-                        <input type="radio"
-                               name="format"
-                               value="{{ $format }}"
-                               @checked(old('format', (string) array_key_first($offered)) === $format)>
-                        <span>{{ $formatLabels[$format] ?? $format }}</span>
-                    </label>
+                    @foreach ($offered as $format => $routeName)
+                        <label class="cav-qa__opt">
+                            <input type="radio"
+                                   name="format"
+                                   value="{{ $format }}"
+                                   @checked(old('format', (string) array_key_first($offered)) === $format)>
+                            <span>{{ $formatLabels[$format] ?? $format }}</span>
+                        </label>
+                    @endforeach
+                </fieldset>
+
+                @foreach ($missing as $format)
+                    {{-- SAID, NOT HIDDEN (46.2 D-05). Recorded NOT DELIVERED rather
+                         than papered over with a control that fails, or with a
+                         different document wearing this one's name. --}}
+                    <p class="cav-qa__note">{{ $formatLabels[$format] ?? $format }} is not available for this document (DC-07).</p>
                 @endforeach
-            </fieldset>
+            @endif
 
-            @foreach ($missing as $format)
-                {{-- SAID, NOT HIDDEN (46.2 D-05). Recorded NOT DELIVERED rather
-                     than papered over with a control that fails, or with a
-                     different document wearing this one's name. --}}
-                <p class="cav-qa__note">{{ $formatLabels[$format] ?? $format }} is not available for this document (DC-07).</p>
-            @endforeach
+            {{-- THE PRIMARY ACTION IS FIRST, as it already was, and that order
+                 is load-bearing rather than cosmetic: pressing Enter in a text
+                 field submits with the FIRST submit button, so a PM who types a
+                 date and hits Enter goes FORWARD, never back.
 
+                 `intent` travels as the BUTTON's own name/value, so which
+                 control was pressed is the payload and there is no second
+                 hidden field that could disagree with it. `create` is named
+                 explicitly even on a stepless document, so one definition
+                 serves both paths — it is the same value an absent `intent`
+                 already defaults to. --}}
             <div class="cav-qa__row">
-                <button class="cav-qa__control" type="submit">Generate document</button>
+                @if ($isLast)
+                    <button class="cav-qa__control" type="submit" name="intent" value="create">Generate document</button>
+                @else
+                    <button class="cav-qa__control" type="submit" name="intent" value="next">Next</button>
+                @endif
+
+                @if (! $isFirst)
+                    <button class="cav-qa__control" type="submit" name="intent" value="back">Back</button>
+                @endif
+
                 <a class="cav-qa__cancel" href="{{ $moduleUrl }}">Cancel</a>
             </div>
         </form>

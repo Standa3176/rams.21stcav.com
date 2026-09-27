@@ -14,6 +14,7 @@ use App\Models\Worksheet;
 use App\Services\RamsReviewDataService;
 use App\Support\Cockpit\CockpitDocumentFormPresenter;
 use App\Support\Cockpit\CockpitModulePresenter;
+use App\Support\Cockpit\CockpitWizardPresenter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Tests\TestCase;
@@ -176,28 +177,98 @@ class CockpitDocumentFormTest extends TestCase
         return array_values(array_unique($names));
     }
 
+    private function wizard(): CockpitWizardPresenter
+    {
+        return app(CockpitWizardPresenter::class);
+    }
+
     /**
-     * The control names the MAP implies for a document — derived, never listed.
+     * EVERY STATE OF ONE DOCUMENT'S FORM, as a query fragment each (Plan
+     * 46.5-04).
+     *
+     * A stepless document has exactly ONE state and yields one empty fragment;
+     * a stepped one yields one per step, read off the document's own step list
+     * so a fourth step is covered the day it lands. Written as a helper because
+     * five tests in this file previously rendered ONE state and called it the
+     * form — and a test that renders one state of an N-state control proves
+     * nothing about the other N-1.
+     *
+     * @return array<int, array<string, int>>
+     */
+    private function stepQueries(string $module): array
+    {
+        $steps = $this->wizard()->stepsFor($module);
+
+        return $steps === []
+            ? [[]]
+            : array_map(static fn (int $step): array => ['step' => $step], $steps);
+    }
+
+    /** The last step's query fragment — where Format and the submit live. */
+    private function lastStepQuery(string $module): array
+    {
+        $steps = $this->wizard()->stepsFor($module);
+
+        return $steps === [] ? [] : ['step' => $steps[count($steps) - 1]];
+    }
+
+    /**
+     * The control names the MAP implies for a document ON ONE STEP — derived,
+     * never listed.
      *
      * A display-only field (`prohibited`) contributes NOTHING: it is text on the
-     * page, not a control. An `array`-ruled field contributes `key[]`.
+     * page, not a control, and it is never carried forward either. An
+     * `array`-ruled field contributes `key[]`.
+     *
+     * STEP-AWARE SINCE PLAN 46.5-04, and the three rules are the wizard's:
+     *   · the CURRENT step's fields render as visible controls;
+     *   · every OTHER integer step's non-readonly fields ride as HIDDEN inputs,
+     *     so the set of names is still the whole document — which is exactly
+     *     what makes `intent=create` able to re-validate all of them;
+     *   · a `step => null` group renders NOWHERE and carries NOWHERE. That is
+     *     the comms-room ruling (46.5 D-03): off the office form, still in the
+     *     Word document, the on-site capture and the carry-forward.
+     * `format` is on the LAST step only; `step` itself rides every stepped form.
      */
-    private function expectedControlNames(string $module): array
+    private function expectedControlNames(string $module, ?int $step = null): array
     {
+        $steps   = $this->wizard()->stepsFor($module);
+        $stepped = $steps !== [];
+
         // The three the form carries regardless of document: the CSRF token, the
         // document key (validated with `Rule::in` the map's keys before any
-        // lookup) and the tab the generation was initiated from. Plus `format`.
-        $names = ['_token', 'module', 'tab', 'format'];
+        // lookup) and the tab the generation was initiated from.
+        $names = ['_token', 'module', 'tab'];
+
+        if (! $stepped || $step === $steps[count($steps) - 1]) {
+            $names[] = 'format';
+        }
+
+        if ($stepped) {
+            $names[] = 'step';
+        }
 
         foreach (CockpitDocumentFormPresenter::documentFieldMap()[$module]['groups'] as $group) {
+            $groupStep = $group['step'] ?? null;
+
+            if ($stepped && $groupStep === null) {
+                continue;
+            }
+
             foreach ($group['fields'] as $field) {
                 if (in_array('prohibited', $field['rules'], true)) {
                     continue;
                 }
 
-                $names[] = in_array('array', $field['rules'], true)
-                    ? $field['key'].'[]'
-                    : $field['key'];
+                $isList = in_array('array', $field['rules'], true);
+
+                // A carried LIST field renders one hidden input per SELECTED
+                // value, so an unselected one contributes no name at all.
+                if ($stepped && $groupStep !== $step && $isList) {
+                    continue;
+                }
+
+                $names[] = $isList ? $field['key'].'[]' : $field['key'];
             }
         }
 
@@ -346,6 +417,106 @@ class CockpitDocumentFormTest extends TestCase
         $this->assertSame(count(CockpitModulePresenter::moduleMap()), $judged, 'Not every module was judged.');
     }
 
+    /**
+     * THE SAME CHECK, FOR THE WIZARD'S OWN COPY (Plan 46.5-04).
+     *
+     * `Next`, `Back`, `Step 1 of 3` and every `step_titles` entry are checked as
+     * SUBSTRINGS against all 21 `DEFERRED_AFFORDANCES` keys and both
+     * `FORBIDDEN_MARKUP` entries, on EVERY step of EVERY document — because the
+     * open form is where those strings actually render and the closed-control
+     * check above never sees them.
+     *
+     * The rule is unchanged: if the chosen copy collides, CHOOSE DIFFERENT COPY.
+     * A FENCE ENTRY IS NEVER LIFTED FOR A LABEL. The list stays 21, and
+     * `<select` stays banned — the wizard needed no dropdown.
+     */
+    public function test_the_wizard_copy_collides_with_no_fence_entry(): void
+    {
+        $fence = new \ReflectionClass(CockpitReadOnlyFenceTest::class);
+
+        /** @var array<string, string> $deferred */
+        $deferred = $fence->getConstant('DEFERRED_AFFORDANCES');
+        /** @var list<string> $markup */
+        $markup = $fence->getConstant('FORBIDDEN_MARKUP');
+
+        $this->assertCount(21, $deferred, 'DEFERRED_AFFORDANCES is no longer 21 — see 46.3-COUNT-LEDGER.md C-2.');
+        $this->assertCount(2, $markup, 'FORBIDDEN_MARKUP is no longer 2 — see 46.3-COUNT-LEDGER.md C-1.');
+
+        $project = $this->project();
+        $this->resources();
+
+        $states = 0;
+
+        foreach (array_keys(CockpitDocumentFormPresenter::documentFieldMap()) as $module) {
+            foreach ($this->stepQueries($module) as $query) {
+                $form = $this->docForm($project, $module, ['action' => 'generate'] + $query);
+                $states++;
+
+                foreach ($deferred as $copy => $owner) {
+                    $this->assertStringNotContainsString(
+                        $copy,
+                        $form,
+                        "The open wizard on {$module} contains \"{$copy}\", which is deferred to {$owner}. ".
+                        'CHOOSE DIFFERENT COPY — never lift a fence entry for a label.'
+                    );
+                }
+
+                foreach ($markup as $forbidden) {
+                    $this->assertStringNotContainsString($forbidden, $form, "The open wizard contains {$forbidden}.");
+                }
+            }
+        }
+
+        $this->assertSame(6, $states, 'Every one of the six form states was judged for copy.');
+    }
+
+    /**
+     * THE STEPPING ITSELF, ASSERTED ON EVERY STATE (Plan 46.5-04, GCW-02).
+     *
+     * `Next` on every step but the last, `Back` on every step but the first,
+     * `Generate document` on the last ONLY. A wizard whose Next button survived
+     * onto the final screen, or whose submit appeared on step 1, would be a
+     * creation a PM could trigger two screens early.
+     */
+    public function test_next_back_and_the_submit_appear_only_where_they_belong(): void
+    {
+        $project = $this->project();
+        $this->resources();
+
+        $module = ProjectDeliverable::KEY_SITE_SURVEY;
+        $steps  = $this->wizard()->stepsFor($module);
+        $states = 0;
+
+        foreach ($steps as $position => $step) {
+            $form   = $this->docForm($project, $module, ['action' => 'generate', 'step' => $step]);
+            $states++;
+
+            $isFirst = $position === 0;
+            $isLast  = $position === count($steps) - 1;
+
+            $this->assertSame($isLast ? 0 : 1, substr_count($form, 'value="next"'), "Step {$step}: Next.");
+            $this->assertSame($isFirst ? 0 : 1, substr_count($form, 'value="back"'), "Step {$step}: Back.");
+            $this->assertSame($isLast ? 1 : 0, substr_count($form, 'value="create"'), "Step {$step}: the submit.");
+            $this->assertSame($isLast ? 1 : 0, substr_count($form, 'Generate document'), "Step {$step}: the submit copy.");
+
+            // The progress line names the step the PM is on and the total.
+            $this->assertStringContainsString(
+                'Step '.($position + 1).' of '.count($steps),
+                $form,
+                "Step {$step}: the progress line."
+            );
+
+            // And the map's own title for it, never a second copy of the words.
+            $this->assertStringContainsString(
+                (string) $this->wizard()->stepTitle($module, $step),
+                $form,
+                "Step {$step}: the map's step title."
+            );
+        }
+
+        $this->assertSame(3, $states, 'Three steps, every one rendered.');
+    }
+
     public function test_the_control_is_absent_from_the_files_and_notes_tabs(): void
     {
         $project = $this->project();
@@ -368,27 +539,37 @@ class CockpitDocumentFormTest extends TestCase
         $this->reviewedPackage($project);
 
         $judged = 0;
+        $states = 0;
 
         foreach (array_keys(CockpitDocumentFormPresenter::documentFieldMap()) as $module) {
-            $form = $this->docForm($project, $module, ['action' => 'generate']);
-
-            $this->assertNotSame('', $form, "{$module} disclosed no form.");
             $judged++;
 
-            $this->assertSame(1, substr_count($form, '<form'), "{$module} must disclose exactly one form.");
-            $this->assertStringContainsString('method="POST"', $form);
+            // EVERY STEP, NOT THE FIRST ONE (Plan 46.5-04). The visible controls
+            // change per step and the rest ride as hidden carry inputs, so the
+            // NAME SET is still the whole document on every state — which is
+            // what lets `intent=create` re-validate all of them.
+            foreach ($this->stepQueries($module) as $query) {
+                $form = $this->docForm($project, $module, ['action' => 'generate'] + $query);
+                $states++;
 
-            $expected = $this->expectedControlNames($module);
-            $actual   = $this->controlNames($form);
+                $this->assertNotSame('', $form, "{$module} disclosed no form.");
 
-            sort($expected);
-            sort($actual);
+                $this->assertSame(1, substr_count($form, '<form'), "{$module} must disclose exactly one form.");
+                $this->assertStringContainsString('method="POST"', $form);
 
-            $this->assertSame(
-                $expected,
-                $actual,
-                "{$module}'s form does not render exactly the controls DOCUMENT_FIELD_MAP implies."
-            );
+                $expected = $this->expectedControlNames($module, $query['step'] ?? null);
+                $actual   = $this->controlNames($form);
+
+                sort($expected);
+                sort($actual);
+
+                $this->assertSame(
+                    $expected,
+                    $actual,
+                    "{$module} on step ".($query['step'] ?? 'none').
+                    " does not render exactly the controls DOCUMENT_FIELD_MAP implies."
+                );
+            }
         }
 
         $this->assertSame(
@@ -396,6 +577,11 @@ class CockpitDocumentFormTest extends TestCase
             $judged,
             'Every document in the map was judged.'
         );
+
+        // SIX STATES: site survey 3 + worksheet 1 + RAMS 1 + O&M 1. Asserted as
+        // a COUNT so a change that collapses the wizard back to one screen goes
+        // red here rather than passing quietly on a single render.
+        $this->assertSame(6, $states, 'Six form states exist across the four documents.');
     }
 
     public function test_every_group_legend_in_the_map_is_rendered_as_a_fieldset_legend(): void
@@ -403,15 +589,50 @@ class CockpitDocumentFormTest extends TestCase
         $project = $this->project();
         $this->resources();
 
+        $seen = [];
+
         foreach (CockpitDocumentFormPresenter::documentFieldMap() as $module => $definition) {
-            $form = $this->docForm($project, $module, ['action' => 'generate']);
+            foreach ($this->stepQueries($module) as $query) {
+                $form = $this->docForm($project, $module, ['action' => 'generate'] + $query);
+                $step = $query['step'] ?? null;
 
-            foreach ($definition['groups'] as $group) {
-                $this->assertStringContainsString($group['legend'], $form, "{$module} lost the {$group['legend']} group.");
+                foreach ($definition['groups'] as $group) {
+                    $groupStep = $group['step'] ?? null;
+
+                    // A `step => null` GROUP BELONGS TO NO STEP AND RENDERS ON
+                    // NONE. That is 46.5 D-03 in an assertion: the Comms room
+                    // group left THIS FORM and nothing else — it is still
+                    // captured on site, still in the Word document and still in
+                    // the survey->install carry-forward, none of which this
+                    // phase edits.
+                    if ($step !== null && $groupStep === null) {
+                        $this->assertStringNotContainsString(
+                            $group['legend'],
+                            $form,
+                            "{$module} renders the {$group['legend']} group, which carries step => null."
+                        );
+
+                        continue;
+                    }
+
+                    if ($step !== null && $groupStep !== $step) {
+                        continue;
+                    }
+
+                    $this->assertStringContainsString($group['legend'], $form, "{$module} lost the {$group['legend']} group.");
+                    $seen[$module.':'.$group['legend']] = true;
+                }
+
+                // The intro is the document's, not the step's, so it is on every
+                // state — a PM who lands on step 2 from a bookmark still reads
+                // what the document is for.
+                $this->assertStringContainsString($definition['intro'], $form, "{$module} lost its intro copy.");
             }
-
-            $this->assertStringContainsString($definition['intro'], $form, "{$module} lost its intro copy.");
         }
+
+        // THIRTEEN OF THE MAP'S FOURTEEN GROUPS RENDER. The fourteenth is Comms
+        // room, and its absence is the decision rather than an omission.
+        $this->assertCount(13, $seen, 'Every group with a step renders on the step it names.');
     }
 
     /**
@@ -424,26 +645,42 @@ class CockpitDocumentFormTest extends TestCase
         $project = $this->project();
         $this->resources();
 
+        $printed = 0;
+
         foreach (CockpitDocumentFormPresenter::documentFieldMap() as $module => $definition) {
-            $form  = $this->docForm($project, $module, ['action' => 'generate']);
-            $names = $this->controlNames($form);
+            // ON EVERY STEP, because "never a control" has to hold on all of
+            // them: the carry-forward writes hidden inputs, and a display-only
+            // field slipping into that loop would be a `prohibited` value
+            // submitted by the page itself — a failure the PM could not fix.
+            foreach ($this->stepQueries($module) as $query) {
+                $form  = $this->docForm($project, $module, ['action' => 'generate'] + $query);
+                $names = $this->controlNames($form);
+                $step  = $query['step'] ?? null;
 
-            foreach ($definition['groups'] as $group) {
-                foreach ($group['fields'] as $field) {
-                    if (! in_array('prohibited', $field['rules'], true)) {
-                        continue;
+                foreach ($definition['groups'] as $group) {
+                    foreach ($group['fields'] as $field) {
+                        if (! in_array('prohibited', $field['rules'], true)) {
+                            continue;
+                        }
+
+                        $this->assertNotContains(
+                            $field['key'],
+                            $names,
+                            "{$module}.{$field['key']} is display-only and must not be a control."
+                        );
+
+                        // And it is PRINTED on the step its group names, so the
+                        // assertion above is not passing over an absent field.
+                        if ($step === null || ($group['step'] ?? null) === $step) {
+                            $this->assertStringContainsString($field['label'], $form);
+                            $printed++;
+                        }
                     }
-
-                    $this->assertNotContains(
-                        $field['key'],
-                        $names,
-                        "{$module}.{$field['key']} is display-only and must not be a control."
-                    );
-
-                    $this->assertStringContainsString($field['label'], $form);
                 }
             }
         }
+
+        $this->assertGreaterThan(0, $printed, 'A display-only field is printed somewhere.');
 
         // And the page's own values really do reach it, so the assertion above
         // is not passing over an empty block.
@@ -472,9 +709,11 @@ class CockpitDocumentFormTest extends TestCase
         $this->assertStringContainsString('value="word"', $form);
         $this->assertStringNotContainsString('value="pdf"', $form);
 
-        // Every other document offers both.
+        // Every other document offers both — ON ITS LAST STEP, which is where
+        // the output choice lives since Plan 46.5-04. A PM is not asked to pick
+        // a file format three screens before it matters.
         foreach ([ProjectDeliverable::KEY_RAMS, ProjectDeliverable::KEY_OM, ProjectDeliverable::KEY_SITE_SURVEY] as $module) {
-            $other = $this->docForm($project, $module, ['action' => 'generate']);
+            $other = $this->docForm($project, $module, ['action' => 'generate'] + $this->lastStepQuery($module));
 
             $this->assertSame(2, substr_count($other, 'name="format"'), "{$module} offers Word and PDF.");
             $this->assertStringContainsString('value="pdf"', $other);
@@ -1008,7 +1247,8 @@ class CockpitDocumentFormTest extends TestCase
         $project = $this->project();
 
         foreach (CockpitDocumentFormPresenter::documentFieldMap() as $module => $definition) {
-            $form = $this->docForm($project, $module, ['action' => 'generate']);
+            // The Format fieldset is on the LAST step (Plan 46.5-04).
+            $form = $this->docForm($project, $module, ['action' => 'generate'] + $this->lastStepQuery($module));
 
             foreach ($definition['formats'] as $format => $routeName) {
                 if ($routeName === null) {

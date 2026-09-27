@@ -133,6 +133,12 @@
     'docIntro'     => null,
     'docValues'    => [],
     'docResources' => [],
+    // THE WIZARD'S STEP STATE (Plan 46.5-04). Passed straight through: this
+    // file decides no step of its own, exactly as it decides no field and no
+    // format of its own.
+    'docStep'      => 1,
+    'docSteps'     => [],
+    'docStepTitle' => null,
 ])
 
 @php
@@ -364,7 +370,10 @@
                 :formats="$docFormats"
                 :intro="$docIntro"
                 :values="$docValues"
-                :resources="$docResources" />
+                :resources="$docResources"
+                :steps="$docSteps"
+                :step="$docStep"
+                :step-title="$docStepTitle" />
         @elseif ($tab === 'files')
             {{-- D-13 — the project's document library for this module. Every
                  document it holds, in one place. A document whose type has no
