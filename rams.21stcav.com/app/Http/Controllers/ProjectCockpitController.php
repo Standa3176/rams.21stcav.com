@@ -7,6 +7,7 @@ use App\Models\LabourResource;
 use App\Models\Project;
 use App\Services\ProjectHealthService;
 use App\Services\RamsReviewDataService;
+use App\Services\ProjectContextResolver;
 use App\Support\Cockpit\CockpitDocumentFormPresenter;
 use App\Support\Cockpit\CockpitHeaderPresenter;
 use App\Support\Cockpit\CockpitModulePresenter;
@@ -202,7 +203,11 @@ class ProjectCockpitController extends Controller
         $docFormats   = $moduleKey === null ? [] : $this->documentFormats($moduleKey);
         $docIntro     = $moduleKey === null ? null : $this->documentIntro($moduleKey);
         $docValues    = $moduleKey === null ? [] : $this->documentValues($project, $moduleKey);
-        $docResources = $moduleKey === null ? [] : $this->resourceNames();
+        // THE SPACES JOIN THE SAME BAG the `resource-list` options travel in,
+        // keyed by the map's own `prefill` constant, so the Blade resolves an
+        // eighth type through the mechanism the seventh already uses and
+        // learns no new wiring. Both are READS (Plan 46.5-06).
+        $docResources = $moduleKey === null ? [] : $this->resourceNames() + $this->spaceNames($project);
 
         // ── THE PANEL'S FOURTH PIECE OF URL STATE (Phase 46.5, Plan 46.5-01) ─
         //
@@ -455,7 +460,13 @@ class ProjectCockpitController extends Controller
                     // `query`, `form_data`, `worksheet` and `om_context` have no
                     // readable home before the document exists. Named rather
                     // than defaulted, so a new prefix is a loud failure.
-                    'query', 'form_data', 'worksheet', 'om_context' => null,
+                    // `visit.*` belongs to the VISIT the final submit creates
+                    // alongside the document (Plan 46.5-06), not to the document
+                    // itself. There is nothing to read back before that visit
+                    // exists, and re-showing a PAST visit's date on a NEW
+                    // creation would be a wrong answer rather than a helpful
+                    // one. Named rather than defaulted, as every prefix here is.
+                    'query', 'form_data', 'worksheet', 'om_context', 'visit' => null,
                 };
 
                 if ($stored instanceof \DateTimeInterface) {
@@ -500,6 +511,55 @@ class ProjectCockpitController extends Controller
         }
 
         return $names;
+    }
+
+    /**
+     * THE SPACES A PM CONFIRMS ON STEP 3, keyed by the map's own prefill
+     * constant so the Blade resolves them exactly as it resolves a
+     * `resource-list` (Phase 46.5, Plan 46.5-06; 46.5 D-02 "default all").
+     *
+     * ⚠ THE SOURCE IS A STATED ASSUMPTION, NOT AN INSTRUCTION. The user was
+     * asked TWICE where this list should come from and did not answer, so it
+     * was INFERRED - and this is the one method to change if the inference is
+     * wrong. Read `CockpitDocumentFormPresenter::PREFILL_PROJECT_SPACES` for
+     * the full reasoning before editing.
+     *
+     * TWO SOURCES, AND WHICH ONE APPLIES IS A FACT ABOUT THE PROJECT:
+     *
+     *   · A LIVE SURVEY EXISTS -> that survey's OWN rooms. The creation will
+     *     ADOPT it (`VisitLinkIssuer::surveyFor()`), so the spaces that
+     *     actually exist on the record the engineer opens are the honest list.
+     *   · NO LIVE SURVEY -> `ProjectContextResolver::resolve()['rooms']`, the
+     *     SAME source `SurveyService::createFromProject()` seeds a new survey's
+     *     rooms from, so the ticked spaces are exactly the rooms the survey
+     *     will be created with.
+     *
+     * READ-ONLY. `ProjectContextResolver` never persists, and the survey read
+     * goes through the already-loaded relation. `project_packages` and
+     * `site_surveys` are already named in
+     * `CockpitReadOnlyFenceTest::WRITE_SURFACE_TABLES`, so this adds no table
+     * to that fence and moves it from 13.
+     *
+     * @return array<string, array<int, string>>
+     */
+    private function spaceNames(Project $project): array
+    {
+        $survey = $project->siteSurveys
+            ->whereNull('superseded_at')
+            ->whereIn('status', ['draft', 'completed'])
+            ->sortByDesc('id')
+            ->first();
+
+        $names = $survey === null
+            ? array_column(app(ProjectContextResolver::class)->resolve($project)['rooms'], 'room')
+            : $survey->rooms()->orderBy('id')->pluck('room_name')->all();
+
+        $names = array_values(array_unique(array_filter(array_map(
+            static fn (mixed $name): string => trim((string) $name),
+            $names,
+        ), static fn (string $name): bool => $name !== '')));
+
+        return [CockpitDocumentFormPresenter::PREFILL_PROJECT_SPACES => $names];
     }
 
     /**

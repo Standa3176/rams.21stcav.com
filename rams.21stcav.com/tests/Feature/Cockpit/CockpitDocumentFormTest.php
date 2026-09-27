@@ -645,7 +645,12 @@ class CockpitDocumentFormTest extends TestCase
         // Plan 46.5-05 added RAMS's `Job summary` group (D-04) and gave RAMS's
         // other five groups their steps. The comms-room exclusion is unchanged
         // and still the only one.
-        $this->assertCount(14, $seen, 'Every group with a step renders on the step it names.');
+        //
+        // 14 -> 16 BY PLAN 46.5-06, AND BOTH ARE NAMED: the site survey's
+        // `The visit` (step 1, D-02's "dates ,site contact and engineer") and
+        // `Spaces being surveyed` (step 3, D-02's "confirm space being surveys
+        // (default all)"). Two groups arrived; nothing was relaxed.
+        $this->assertCount(16, $seen, 'Every group with a step renders on the step it names.');
     }
 
     /**

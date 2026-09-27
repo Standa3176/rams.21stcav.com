@@ -128,6 +128,26 @@ final class CockpitDocumentFormPresenter
     public const TYPE_RESOURCE_LIST = 'resource-list';
 
     /**
+     * THE EIGHTH TYPE, AND THE SET MOVED 7 -> 8 (Phase 46.5, Plan 46.5-06).
+     *
+     * A list of the project's SPACES, rendered as checkboxes with EVERY ONE
+     * TICKED, so the PM confirms what is being surveyed rather than re-typing
+     * it (46.5 D-02: "confirm space being surveys (default all)").
+     *
+     * IT IS A TYPE AND NOT A `resource-list` BECAUSE ITS OPTIONS ARE PER
+     * PROJECT. The map holds no query and no option list for it; it names a
+     * SOURCE (`PREFILL_PROJECT_SPACES`) exactly as a `resource-list` names a
+     * LabourResource role, and the controller resolves it.
+     *
+     * ADDING A TYPE IS NOT FREE. `doc-form.blade.php` has a DELIBERATE ABSENCE
+     * OF A FALLBACK ARM, so an eighth type with no branch there renders
+     * NOTHING, SILENTLY. The branch shipped in the same commit as this constant
+     * and the form test's "exactly the controls the map implies" assertion is
+     * what holds it.
+     */
+    public const TYPE_SPACE_LIST = 'space-list';
+
+    /**
      * Readiness kinds. A document either delegates its readiness list to a
      * named existing validator, or has none. This is a KEY, so a fifth
      * document reusing a validator is still one row.
@@ -138,6 +158,30 @@ final class CockpitDocumentFormPresenter
     public const PREFILL_ENGINEERS = 'LabourResource::active(engineer)';
 
     public const PREFILL_PROGRAMMERS = 'LabourResource::active(programmer)';
+
+    /**
+     * THE SPACES SOURCE, NAMED RATHER THAN QUERIED (Plan 46.5-06).
+     *
+     * THIS IS A STATED ASSUMPTION, NOT AN INSTRUCTION FROM THE USER. They were
+     * asked TWICE where the confirmable space list should come from and did not
+     * answer, so it was INFERRED: `ProjectContextResolver::resolve()`'s `rooms`,
+     * which is the SAME source `SurveyService::createFromProject()` seeds a new
+     * survey's rooms from, so the spaces a PM confirms are exactly the rooms
+     * the survey will carry. It is a pure read and writes nothing.
+     *
+     * WHEN A LIVE SURVEY IS BEING ADOPTED the list comes from THAT SURVEY'S OWN
+     * rooms instead, because those are the spaces that actually exist on the
+     * record the engineer will open.
+     *
+     * THE RETIRED `ProjectCockpitController::roomNames()` READ THE LIVE SURVEY
+     * AND NOTHING ELSE. At creation time there is no survey yet, so it would
+     * have returned `[]` and step 3 would have offered nothing at all. That is
+     * why the assumption had to be made rather than deferred.
+     *
+     * CHANGING IT IS ONE METHOD: `ProjectCockpitController::spaceNames()`.
+     * Nothing else in the application reads this constant.
+     */
+    public const PREFILL_PROJECT_SPACES = 'ProjectContextResolver::resolve(rooms)';
 
     /**
      * Rules for a field the PROJECT already answers. It is rendered read-only
@@ -226,6 +270,79 @@ final class CockpitDocumentFormPresenter
                             'consumer' => ['file' => 'resources/views/pdf/site-survey/_header-meta.blade.php', 'symbol' => '$survey?->site_contact_phone'],
                             'prefill'  => null,
                             'rules'    => ['nullable', 'string', 'max:50'],
+                        ],
+                    ],
+                ],
+                [
+                    // THE VISIT, ON STEP 1 (Plan 46.5-06, D-02: "dates ,site
+                    // contact and engineer" is ONE screen).
+                    //
+                    // These two fields do NOT belong to the survey DOCUMENT.
+                    // Their target prefix is `visit.`, and `CockpitCombinedCreator`
+                    // is the only thing that reads them: they become the Visit
+                    // row the final submit creates ALONGSIDE the document, which
+                    // is D-07's "one creation, one outcome".
+                    //
+                    // EVERY SYMBOL BELOW WAS GREP-CONFIRMED against
+                    // `ProjectCockpitActionController::storeVisit()` - the visit
+                    // write that already exists - BEFORE the field was admitted,
+                    // exactly as 46.2-04 did for all 44 existing symbols.
+                    'legend' => 'The visit',
+                    'step'   => 1,
+                    'fields' => [
+                        [
+                            'key'      => 'visit_scheduled_date',
+                            'label'    => 'Visit date',
+                            'type'     => self::TYPE_DATE,
+                            'options'  => null,
+                            'target'   => 'visit.scheduled_date',
+                            'consumer' => ['file' => 'app/Http/Controllers/ProjectCockpitActionController.php', 'symbol' => "'scheduled_date'"],
+                            'prefill'  => null,
+                            'rules'    => ['nullable', 'date'],
+                        ],
+                        [
+                            // NAMES ONLY REACH THE PAGE (LR-04). The creator
+                            // resolves the ticked NAMES back to ACTIVE
+                            // LabourResource ids and DROPS anything matching
+                            // none, so an unknown name cannot become an id
+                            // (T-46.5-06-03). That is stronger than an `exists`
+                            // rule on an id the page never renders.
+                            'key'      => 'visit_engineers',
+                            'label'    => 'Engineer',
+                            'type'     => self::TYPE_RESOURCE_LIST,
+                            'options'  => null,
+                            'target'   => 'visit.labour_resource_ids',
+                            'consumer' => ['file' => 'app/Http/Controllers/ProjectCockpitActionController.php', 'symbol' => "'labour_resource_ids'"],
+                            'prefill'  => self::PREFILL_ENGINEERS,
+                            'rules'    => ['nullable', 'array'],
+                        ],
+                    ],
+                ],
+                [
+                    // D-02's THIRD STEP: "then next and confirm space being
+                    // surveys (default all)".
+                    //
+                    // DEFAULT-ALL IS A RENDER DECISION, NOT A STORED ONE. The
+                    // checkboxes are ticked when `old()` is absent, and that is
+                    // the whole mechanism - a STORED default would mean
+                    // persisting something before the final step, which GCW-03
+                    // forbids outright.
+                    //
+                    // TICKING NONE IS ALLOWED and stores an empty scope. A PM
+                    // may genuinely not know yet, and refusing the submission
+                    // would invent a requirement nobody asked for.
+                    'legend' => 'Spaces being surveyed',
+                    'step'   => 3,
+                    'fields' => [
+                        [
+                            'key'      => 'visit_rooms',
+                            'label'    => 'Spaces being surveyed',
+                            'type'     => self::TYPE_SPACE_LIST,
+                            'options'  => null,
+                            'target'   => 'visit.rooms_in_scope',
+                            'consumer' => ['file' => 'app/Http/Controllers/ProjectCockpitActionController.php', 'symbol' => "'rooms_in_scope'"],
+                            'prefill'  => self::PREFILL_PROJECT_SPACES,
+                            'rules'    => ['nullable', 'array'],
                         ],
                     ],
                 ],

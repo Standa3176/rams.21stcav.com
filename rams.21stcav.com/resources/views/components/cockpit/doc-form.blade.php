@@ -10,8 +10,11 @@
     There is no `@if` on a document key anywhere in this file, and
     `CockpitDocumentFormTest::test_the_component_names_no_document_and_switches_on_type_instead()`
     asserts it by grep. The file iterates `groups` and switches on `type`, of
-    which there are SEVEN and the set is closed
-    (`CockpitDocumentFormPresenter::TYPE_*`).
+    which there are EIGHT and the set is closed
+    (`CockpitDocumentFormPresenter::TYPE_*`). SEVEN BECAME EIGHT IN PLAN
+    46.5-06: `TYPE_SPACE_LIST` is the project's own spaces, confirmed on the
+    site survey's step 3 with every one ticked (46.5 D-02). The branch is on
+    the TYPE, so this file still names no document.
 
     The reason is this page's own history: its CONTENTS have changed four times
     (sketch 002 -> sketch 004 -> PMV-style review -> document creation) while its
@@ -395,6 +398,30 @@
                             $readonly = ($field['readonly'] ?? false) === true;
                             $current  = old($key, $values[$key] ?? '');
                             $chosen   = is_array($current) ? $current : [$current];
+
+                            // THE SPACES, AND THE DEFAULT-ALL RULE (Plan
+                            // 46.5-06; 46.5 D-02 "default all"). The options
+                            // come from the bag the controller filled, keyed by
+                            // the map's own named source - no query here, and
+                            // no per-document branch.
+                            //
+                            // DEFAULT ALL IS A RENDER DECISION AND NOTHING
+                            // ELSE. `old()` ABSENT means the PM has not
+                            // answered yet, so every space is shown ticked. A
+                            // STORED default would mean persisting something
+                            // before the final step, which GCW-03 forbids.
+                            //
+                            // THE COST, STATED: an unticked-everything answer
+                            // submits no key at all, so a Back-then-Next or a
+                            // validation bounce re-ticks all of them. Step 3 is
+                            // the LAST step, so the only way back through here
+                            // is deliberate, and re-confirming is a smaller
+                            // harm than a hidden companion input that would put
+                            // a second control name on the form.
+                            $spaces      = $resources[$field['prefill'] ?? ''] ?? [];
+                            $spaceTicked = old($key) === null
+                                ? $spaces
+                                : (is_array(old($key)) ? old($key) : []);
                         @endphp
 
                         @if ($readonly)
@@ -455,13 +482,40 @@
                                     <span class="cav-qa__value">Nobody active is on file for this. Add people under Labour resources.</span>
                                 @endforelse
                             </fieldset>
+                        @elseif ($field['type'] === $types::TYPE_SPACE_LIST)
+                            <fieldset class="cav-qa__set">
+                                <legend class="cav-qa__legend">{{ $field['label'] }}</legend>
+
+                                @forelse ($spaces as $space)
+                                    {{-- A CHECKBOX, NOT A DROPDOWN. `<select` is
+                                         still banned and was not needed, so
+                                         FORBIDDEN_MARKUP stays at 2. The value
+                                         IS the space name, because that is what
+                                         the visit's `rooms_in_scope` stores. --}}
+                                    <label class="cav-qa__opt">
+                                        <input type="checkbox"
+                                               name="{{ $key }}[]"
+                                               value="{{ $space }}"
+                                               @checked(in_array($space, $spaceTicked, true))>
+                                        <span>{{ $space }}</span>
+                                    </label>
+                                @empty
+                                    {{-- SAID, NOT LEFT BLANK. An empty fieldset
+                                         reads as "none selected", which is a
+                                         different and wrong answer. --}}
+                                    <span class="cav-qa__value">No spaces are on file for this project yet.</span>
+                                @endforelse
+                            </fieldset>
                         @endif
-                        {{-- NO `@else` ARM ON PURPOSE. The seven types are a
-                             CLOSED set; an eighth added to the map without a
+                        {{-- NO FALLBACK ARM ON PURPOSE. The EIGHT types are a
+                             CLOSED set; a NINTH added to the map without a
                              branch here renders NO control, and
                              CockpitDocumentFormTest's "exactly the controls the
                              map implies" assertion goes red. A silent fallback
-                             input would instead ship a field nothing reads. --}}
+                             input would instead ship a field nothing reads.
+                             SEVEN BECAME EIGHT IN PLAN 46.5-06 with
+                             TYPE_SPACE_LIST, and the branch shipped in the same
+                             commit as the constant. --}}
                     @endforeach
                 </fieldset>
             @endforeach

@@ -4,6 +4,7 @@ namespace Tests\Feature\Cockpit;
 
 use App\Models\LabourResource;
 use App\Models\Project;
+use App\Models\ProjectPackage;
 use App\Models\ProjectDeliverable;
 use App\Models\SiteSurvey;
 use App\Models\User;
@@ -112,6 +113,33 @@ class CockpitWizardTest extends TestCase
             'name'      => 'Ana Ruiz',
             'roles'     => [LabourResource::ROLE_PROGRAMMER],
             'is_active' => true,
+        ]);
+    }
+
+    /**
+     * SPACES ON FILE, for the same measured reason `resources()` creates a
+     * programmer (Plan 46.5-05, deviation 5).
+     *
+     * A `space-list` field renders one checkbox per space the project has, so a
+     * fixture with NO spaces renders no `visit_rooms` control at all - and the
+     * step-membership loop would then pass VACUOUSLY on an absence it exists to
+     * catch. The source is `ProjectContextResolver::resolve()['rooms']`, so a
+     * reviewed package with `room_overviews` is what puts spaces on file.
+     */
+    private function spaces(Project $project): void
+    {
+        ProjectPackage::create([
+            'project_id'     => $project->id,
+            'user_id'        => $this->user()->id,
+            'quote_filename' => 'quote.pdf',
+            'quote_path'     => 'packages/quote.pdf',
+            'extracted_data' => [
+                'room_overviews' => [
+                    ['room' => 'Boardroom', 'overview' => 'Two 75in displays.', 'summary' => 'Boardroom'],
+                    ['room' => 'Huddle 1',  'overview' => 'One soundbar.',      'summary' => 'Huddle 1'],
+                ],
+            ],
+            'status'         => ProjectPackage::STATUS_REVIEWED,
         ]);
     }
 
@@ -602,6 +630,7 @@ class CockpitWizardTest extends TestCase
     {
         $project = $this->project();
         $this->resources();
+        $this->spaces($project);
 
         $statesRendered = 0;
         $documents      = 0;
