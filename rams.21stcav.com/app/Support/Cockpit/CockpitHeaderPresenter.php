@@ -52,6 +52,17 @@ use Illuminate\Support\Carbon;
  * `on-file`, which is `pip === 'done'` from the existing section presenter:
  * `ProjectDeliverable` has no complete state, only required / not_required /
  * not_yet_decided, so that is the only defensible reading in this codebase.
+ *
+ * ── THE CLIENT COMPANY NAME (46.5 D-01) ─────────────────────────────────────
+ *
+ * This value is NOT a fourth entry in the list above: it HAS a source. It is
+ * `Project::client_name` — the project's own column — and nothing else. It is
+ * deliberately not the latest survey's `client_name` or `site_contact_name`:
+ * a survey is one act against a project and its copy of the client can be
+ * stale or simply different, whereas a PM reading the masthead is asking who
+ * the JOB is for. It is emitted through `put()`, so a project whose
+ * `client_name` is blank (NOT NULL at the schema level, but empty on older
+ * rows) carries no key at all and renders no line.
  */
 final class CockpitHeaderPresenter
 {
@@ -112,6 +123,11 @@ final class CockpitHeaderPresenter
     public function masthead(Project $project): array
     {
         $masthead = [];
+
+        // 46.5 D-01. FIRST, because the client is the identity a PM reads
+        // before the reference. See the class docblock's closing paragraph —
+        // this is the project's OWN column, never the survey's contact.
+        $this->put($masthead, 'client_name', $project->client_name);
 
         $this->put($masthead, 'ref', $project->ref);
         $this->put($masthead, 'site_address', $project->site_address);

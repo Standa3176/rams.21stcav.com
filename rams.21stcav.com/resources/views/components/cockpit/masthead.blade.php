@@ -45,6 +45,27 @@
 
     <h1 class="cav-mast__name">{{ $heading }}</h1>
 
+    {{--
+        46.5 D-01 — WHO THE JOB IS FOR. A headline fact, so it sits with the
+        site address rather than among the .cav-facts chips (those are contact
+        and date details).
+
+        It REUSES .cav-mast__site rather than introducing a selector:
+        resources/css/cockpit.css is a Vite entry, so a new rule would put
+        `npm run build` on the deploy note for one line of copy. The test hook
+        is the data attribute, which costs no CSS and carries no position or
+        transform (the stretched-link trap).
+
+        Rendered only when the key exists — CockpitHeaderPresenter OMITS a
+        blank client_name, so an older project with none shows no line at all
+        instead of an empty one.
+    --}}
+    @if (isset($masthead['client_name']))
+        <p class="cav-mast__site" data-mast-client>
+            <x-cockpit.icon name="person" class="cav-icon cav-icon--sm" />{{ $masthead['client_name'] }}
+        </p>
+    @endif
+
     @if (isset($masthead['site_address']))
         <p class="cav-mast__site">
             <x-cockpit.icon name="pin" class="cav-icon cav-icon--sm" />{{ $masthead['site_address'] }}
