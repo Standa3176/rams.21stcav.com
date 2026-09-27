@@ -46,8 +46,14 @@ class EngineerLinkPhotoTrayGuardTest extends TestCase
      */
     private const ROOMS = ['Boardroom', 'Comms Room'];
 
-    /** One Start tray and one Completion tray per room. */
-    private const TRAYS_PER_ROOM = 2;
+    /**
+     * One Start tray, one During tray and one Completion tray per room.
+     *
+     * ⚠️ MOVED 2 → 3 BY NAME by phase 46.5 D-06 ("room images start , during/
+     * end etc" — the user, 2026-09-27), which adds `WorksheetPhoto::during`.
+     * A pinned count is moved by name with its reason, never silently.
+     */
+    private const TRAYS_PER_ROOM = 3;
 
     /**
      * ALPINE, PINNED AT TODAY'S COUNT — DELIBERATELY NOT ZERO.
@@ -148,9 +154,9 @@ class EngineerLinkPhotoTrayGuardTest extends TestCase
         return html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
 
-    // ── 1. Two trays per room ────────────────────────────────────────────────
+    // ── 1. Three trays per room, in capture order ────────────────────────────
 
-    public function test_every_room_renders_one_start_tray_and_one_completion_tray(): void
+    public function test_every_room_renders_one_start_one_during_and_one_completion_tray(): void
     {
         $xpath = $this->dom($this->render($this->worksheet()));
 
@@ -161,13 +167,27 @@ class EngineerLinkPhotoTrayGuardTest extends TestCase
             $xpath->query('//div[@data-photo-tray]')->length,
             'Expected ' . self::TRAYS_PER_ROOM . ' photo trays per room.',
         );
+
+        foreach (WorksheetPhoto::BUCKETS as $bucket) {
+            $this->assertSame(
+                $rooms,
+                $xpath->query("//div[@data-photo-tray][@data-bucket='{$bucket}']")->length,
+                "Every room must render exactly one {$bucket} tray.",
+            );
+        }
+
+        // ORDER, not merely presence. Three trays in the wrong order would ask
+        // an engineer to file the job backwards, and a count assertion alone
+        // would never notice.
+        $rendered = [];
+        foreach ($xpath->query('//div[@data-photo-tray]') as $tray) {
+            $rendered[] = $tray->getAttribute('data-bucket');
+        }
+
         $this->assertSame(
-            $rooms,
-            $xpath->query("//div[@data-photo-tray][@data-bucket='" . WorksheetPhoto::BUCKET_START . "']")->length,
-        );
-        $this->assertSame(
-            $rooms,
-            $xpath->query("//div[@data-photo-tray][@data-bucket='" . WorksheetPhoto::BUCKET_COMPLETION . "']")->length,
+            array_merge(...array_fill(0, $rooms, WorksheetPhoto::BUCKETS)),
+            $rendered,
+            'Trays render in capture order — start, during, completion — for every room.',
         );
     }
 
@@ -193,21 +213,64 @@ class EngineerLinkPhotoTrayGuardTest extends TestCase
 
     // ── 2. Photos land in their own tray, asserted BY SUBTREE ────────────────
 
-    public function test_a_start_photo_appears_only_in_the_start_tray_and_a_completion_photo_only_in_the_completion_tray(): void
+    /**
+     * EXTENDED TO ALL THREE BUCKETS by 46.5 D-06. One photo per bucket in the
+     * SAME room, each asserted present in its own tray's subtree and ABSENT
+     * from the other two: 3 present + 6 absent = NINE assertions, walked by
+     * DOMXPath. A whole-page assertSee would pass with all three photos in one
+     * tray, which is the exact defect the partition can ship.
+     */
+    public function test_each_bucket_photo_appears_only_in_its_own_tray(): void
     {
         $worksheet = $this->worksheet();
-        $this->photo($worksheet, WorksheetPhoto::BUCKET_START, 'RACK-AS-FOUND');
-        $this->photo($worksheet, WorksheetPhoto::BUCKET_COMPLETION, 'RACK-AS-LEFT');
 
-        $xpath      = $this->dom($this->render($worksheet));
-        $start      = $this->traySubtree($xpath, WorksheetPhoto::BUCKET_START);
-        $completion = $this->traySubtree($xpath, WorksheetPhoto::BUCKET_COMPLETION);
+        $captions = [
+            WorksheetPhoto::BUCKET_START      => 'RACK-AS-FOUND',
+            WorksheetPhoto::BUCKET_DURING     => 'RACK-CABLES-IN-WALL',
+            WorksheetPhoto::BUCKET_COMPLETION => 'RACK-AS-LEFT',
+        ];
 
-        $this->assertStringContainsString('RACK-AS-FOUND', $start);
-        $this->assertStringNotContainsString('RACK-AS-FOUND', $completion);
+        foreach ($captions as $bucket => $caption) {
+            $this->photo($worksheet, $bucket, $caption);
+        }
 
-        $this->assertStringContainsString('RACK-AS-LEFT', $completion);
-        $this->assertStringNotContainsString('RACK-AS-LEFT', $start);
+        $xpath    = $this->dom($this->render($worksheet));
+        $subtrees = [];
+        foreach (WorksheetPhoto::BUCKETS as $bucket) {
+            $subtrees[$bucket] = $this->traySubtree($xpath, $bucket);
+            $this->assertNotSame('', $subtrees[$bucket], "The {$bucket} tray did not render at all.");
+        }
+
+        foreach ($captions as $bucket => $caption) {
+            $this->assertStringContainsString($caption, $subtrees[$bucket]);
+
+            foreach (WorksheetPhoto::BUCKETS as $other) {
+                if ($other === $bucket) {
+                    continue;
+                }
+
+                $this->assertStringNotContainsString(
+                    $caption,
+                    $subtrees[$other],
+                    "A {$bucket} photo leaked into the {$other} tray.",
+                );
+            }
+        }
+    }
+
+    /**
+     * The during tray's title, 46.5 D-06. NOT a relabel of anything: the
+     * start and completion titles are byte-identical to what 46.4 shipped,
+     * and `completion` is not renamed to `end`.
+     */
+    public function test_the_during_trays_title_renders(): void
+    {
+        $subtree = $this->traySubtree(
+            $this->dom($this->render($this->worksheet())),
+            WorksheetPhoto::BUCKET_DURING,
+        );
+
+        $this->assertStringContainsString('🛠️ While the work is underway', $subtree);
     }
 
     /**
@@ -219,6 +282,9 @@ class EngineerLinkPhotoTrayGuardTest extends TestCase
         $worksheet = $this->worksheet();
         $this->photo($worksheet, WorksheetPhoto::BUCKET_START, 'a');
         $this->photo($worksheet, WorksheetPhoto::BUCKET_START, 'b');
+        $this->photo($worksheet, WorksheetPhoto::BUCKET_DURING, 'd1');
+        $this->photo($worksheet, WorksheetPhoto::BUCKET_DURING, 'd2');
+        $this->photo($worksheet, WorksheetPhoto::BUCKET_DURING, 'd3');
         $this->photo($worksheet, WorksheetPhoto::BUCKET_COMPLETION, 'c');
 
         $xpath = $this->dom($this->render($worksheet));
@@ -232,6 +298,7 @@ class EngineerLinkPhotoTrayGuardTest extends TestCase
         };
 
         $this->assertSame('2', $count(WorksheetPhoto::BUCKET_START));
+        $this->assertSame('3', $count(WorksheetPhoto::BUCKET_DURING));
         $this->assertSame('1', $count(WorksheetPhoto::BUCKET_COMPLETION));
     }
 
@@ -266,7 +333,7 @@ class EngineerLinkPhotoTrayGuardTest extends TestCase
 
         $xpath = $this->dom($this->render($worksheet));
 
-        foreach ([WorksheetPhoto::BUCKET_START, WorksheetPhoto::BUCKET_COMPLETION] as $bucket) {
+        foreach (WorksheetPhoto::BUCKETS as $bucket) {
             $tray = "//div[@data-photo-tray][@data-bucket='{$bucket}']";
 
             $this->assertSame(
@@ -475,6 +542,35 @@ class EngineerLinkPhotoTrayGuardTest extends TestCase
         );
 
         // And the server never enforced it anyway — proven, not assumed.
+        $this->post(route('public-worksheet.room-complete', [
+            'token'    => $worksheet->access_token,
+            'roomName' => self::ROOMS[1], // a room with NO photos at all
+        ]))->assertRedirect();
+
+        $this->assertNotNull($worksheet->fresh()->roomCompletedAt(self::ROOMS[1]));
+    }
+
+    /**
+     * 46.5 D-06 takes the SAME ruling for `during` that 46.4 took for `start`:
+     * the new bucket gates NOTHING. `$photoCount` stays whole-room, so a
+     * during photo alone satisfies the visual gate, and the server still
+     * accepts the POST regardless — no new way to strand an engineer on flaky
+     * signal.
+     */
+    public function test_a_during_photo_alone_does_not_block_mark_room_complete(): void
+    {
+        $worksheet = $this->worksheet();
+        $this->photo($worksheet, WorksheetPhoto::BUCKET_DURING, 'only a progress photo');
+
+        $xpath = $this->dom($this->render($worksheet));
+
+        $buttons = $xpath->query("//button[@type='submit'][contains(., 'Mark Room Complete')]");
+        $this->assertGreaterThan(0, $buttons->length);
+        $this->assertFalse(
+            $buttons->item(0)->hasAttribute('disabled'),
+            'A during photo satisfies the whole-room count, so the visual gate opens.',
+        );
+
         $this->post(route('public-worksheet.room-complete', [
             'token'    => $worksheet->access_token,
             'roomName' => self::ROOMS[1], // a room with NO photos at all
