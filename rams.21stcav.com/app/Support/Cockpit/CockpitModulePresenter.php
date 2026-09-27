@@ -185,6 +185,45 @@ final class CockpitModulePresenter
         ],
     ];
 
+    /**
+     * THE DELIVERABLE TICK, READ AND NOT REBUILT (Phase 46.5, Plan 46.5-05;
+     * 46.5-CONTEXT D-05).
+     *
+     * The user: *"are RAMS req ? if ticked yes it follow a similar flow to site
+     * survey"*. That tick ALREADY EXISTS — `ProjectDeliverable` /
+     * `ProjectDeliverableAudit` / `ProjectDeliverablesService` shipped in phase
+     * `260822-esf`, with three states including `not_yet_decided`. So this is
+     * ONE LOOKUP against that data. No second flag, no second table, no
+     * migration, and not one line of the deliverables machinery is edited.
+     *
+     * WHAT IT DRIVES, AND WHAT IT DELIBERATELY DOES NOT. D-04 makes RAMS
+     * creation available STANDALONE — *"office user should be able to either
+     * gen independant of a visit or as part of an install"* — so the tick is
+     * not a gate. Every module panel renders in every deliverable state, and a
+     * project whose RAMS deliverable is `not_yet_decided` still creates a RAMS
+     * if a PM asks. All the tick does is put the ROUTE to the RAMS on the
+     * install that needs one: the SAME RAMS document, reached from the
+     * worksheet, never a second creation path.
+     *
+     * A ROW HERE, NOT A BRANCH. A second module that needs a second
+     * deliverable is one entry, on the same terms the module list itself is
+     * data.
+     *
+     * @var array<string, array<string, string>>
+     */
+    private const DELIVERABLE_PROMPTS = [
+        ProjectDeliverable::KEY_WORKSHEET => [
+            'requires' => ProjectDeliverable::KEY_RAMS,
+            // Checked as a SUBSTRING against all 21 DEFERRED_AFFORDANCES keys
+            // and both FORBIDDEN_MARKUP entries before use, and asserted by
+            // CockpitRamsWizardTest::test_the_rams_copy_collides_with_no_fence_entry.
+            // `Send a RAMS to the client` is the nearest fenced string and
+            // neither line contains it — this plan ships no client issue.
+            'text'     => 'RAMS are required for this project.',
+            'label'    => 'Open the RAMS step by step',
+        ],
+    ];
+
     public function __construct(
         private CockpitSectionPresenter $sections,
     ) {
@@ -223,6 +262,10 @@ final class CockpitModulePresenter
                     'chip'        => $this->chip($section),
                     'count'       => $this->count($project, $definition, $section),
                     'section'     => $section,
+                    // D-05's tick, read not rebuilt. Null on three of the four
+                    // rows and null on the fourth unless the RAMS deliverable
+                    // reads `required` — see deliverablePrompt().
+                    'prompt'      => $this->deliverablePrompt($project, $key),
                 ];
             })
             ->values();
@@ -266,6 +309,43 @@ final class CockpitModulePresenter
             'completed' => $completed,
             'total'     => $total,
             'percent'   => (int) floor(($completed / $total) * 100),
+        ];
+    }
+
+    /**
+     * The one sentence a module adds when ANOTHER module's deliverable is
+     * ticked required, or null.
+     *
+     * READ THROUGH `Project::deliverableState()`, which is the SAFE READER and
+     * is DELIBERATELY GUARDED: it returns null when the `deliverables` relation
+     * is not loaded, rather than firing a lazy query per module row. That guard
+     * is honoured here rather than worked around — an unloaded project simply
+     * offers nothing, and the page still renders. `ProjectCockpitController`
+     * eager-loads `deliverables` at the top of `show()`, which is why the real
+     * page always has a real answer.
+     *
+     * THE STATE IS NEVER RENDERED RAW (T-46.5-05-02). What reaches Blade is a
+     * fixed sentence and a fixed label, both from the const above; the enum
+     * itself never leaves this method.
+     *
+     * @return array{text: string, label: string, module: string}|null
+     */
+    public function deliverablePrompt(Project $project, string $moduleKey): ?array
+    {
+        $prompt = self::DELIVERABLE_PROMPTS[$moduleKey] ?? null;
+
+        if ($prompt === null) {
+            return null;
+        }
+
+        if ($project->deliverableState($prompt['requires']) !== ProjectDeliverable::STATE_REQUIRED) {
+            return null;
+        }
+
+        return [
+            'text'   => $prompt['text'],
+            'label'  => $prompt['label'],
+            'module' => $prompt['requires'],
         ];
     }
 

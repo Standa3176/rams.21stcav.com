@@ -92,11 +92,25 @@ class CockpitWizardTest extends TestCase
         return User::factory()->create(['name' => 'Priya Mistry']);
     }
 
+    /**
+     * BOTH resource roles, since RAMS joined the wizard (Plan 46.5-05).
+     *
+     * A `resource-list` field renders one checkbox per ACTIVE resource in its
+     * role, so a fixture with no programmer renders no `programmers` control at
+     * all — and the step-membership loop below would then pass vacuously on an
+     * absence it exists to catch.
+     */
     private function resources(): void
     {
         LabourResource::factory()->create([
             'name'      => 'Dev Chandra',
             'roles'     => [LabourResource::ROLE_ENGINEER],
+            'is_active' => true,
+        ]);
+
+        LabourResource::factory()->create([
+            'name'      => 'Ana Ruiz',
+            'roles'     => [LabourResource::ROLE_PROGRAMMER],
             'is_active' => true,
         ]);
     }
@@ -435,8 +449,14 @@ class CockpitWizardTest extends TestCase
 
     public function test_a_document_with_no_wizard_is_unchanged_by_this_plan(): void
     {
+        // THE O&M, AND NOW ONLY THE O&M. RAMS carried `step => null` on every
+        // group until Plan 46.5-05 minted its step set (D-04: "if ticked yes it
+        // follow a similar flow to site survey"), so its assertion MOVED to
+        // CockpitRamsWizardTest rather than being relaxed here. The O&M's
+        // no-wizard state is PERMANENT (46.5-CONTEXT phase boundary: two real
+        // inputs do not need three screens), which is what this test is for.
         $this->assertSame([], $this->wizard()->stepsFor(ProjectDeliverable::KEY_OM));
-        $this->assertSame([], $this->wizard()->stepsFor(ProjectDeliverable::KEY_RAMS));
+        $this->assertSame([1, 2, 3], $this->wizard()->stepsFor(ProjectDeliverable::KEY_RAMS));
 
         // And the step spine says so for the two that DO step.
         $this->assertSame([1, 2, 3], $this->wizard()->stepsFor(ProjectDeliverable::KEY_SITE_SURVEY));
@@ -509,6 +529,29 @@ class CockpitWizardTest extends TestCase
             'visible' => array_values(array_unique($visible)),
             'hidden'  => array_values(array_unique($hidden)),
         ];
+    }
+
+
+    /**
+     * The `array`-ruled field keys of one document — the multi-selects, whose
+     * carry-forward is per-VALUE rather than per-field. Derived from the map's
+     * own rules, never listed.
+     *
+     * @return array<int, string>
+     */
+    private function arrayFieldsOf(string $module): array
+    {
+        $keys = [];
+
+        foreach (CockpitDocumentFormPresenter::documentFieldMap()[$module]['groups'] as $group) {
+            foreach ($group['fields'] as $field) {
+                if (in_array('array', $field['rules'], true)) {
+                    $keys[] = $field['key'];
+                }
+            }
+        }
+
+        return $keys;
     }
 
     /**
@@ -601,6 +644,24 @@ class CockpitWizardTest extends TestCase
                         'That is the 13-field wall coming back.'
                     );
 
+                    // ⚠ AN EMPTY MULTI-SELECT CARRIES NOTHING, AND THAT IS THE
+                    //   DESIGN RATHER THAN A DROP. An `array`-ruled field is
+                    //   carried as one hidden input PER SELECTED VALUE
+                    //   (doc-form.blade.php:361-364), so with nothing selected
+                    //   there is nothing to carry — an empty `name[]` would
+                    //   submit a phantom blank engineer. The site survey and
+                    //   the worksheet have no array field off-step, which is
+                    //   why this only surfaced when RAMS joined the wizard in
+                    //   Plan 46.5-05.
+                    //
+                    //   THE CARRY IS NOT LEFT UNPROVEN: that a SELECTED
+                    //   multi-select survives a step advance and reaches the
+                    //   document is asserted end-to-end by
+                    //   CockpitRamsWizardTest::test_a_selected_multi_select_is_carried_forward_and_reaches_the_document().
+                    if (in_array($key, $this->arrayFieldsOf($module), true)) {
+                        continue;
+                    }
+
                     $this->assertContains(
                         $key,
                         $split['hidden'],
@@ -637,11 +698,13 @@ class CockpitWizardTest extends TestCase
             }
         }
 
-        // FOUR STATES ACROSS TWO STEPPED DOCUMENTS — the site survey's three and
-        // the worksheet's one. COUNTED, because a test that renders one state of
-        // an N-state control proves nothing about the other N-1.
-        $this->assertSame(2, $documents, 'Two documents step today: the site survey and the worksheet.');
-        $this->assertSame(4, $statesRendered, 'Four wizard states were rendered and asserted.');
+        // SEVEN STATES ACROSS THREE STEPPED DOCUMENTS — the site survey's three,
+        // the worksheet's one and RAMS's three (Plan 46.5-05). COUNTED, because
+        // a test that renders one state of an N-state control proves nothing
+        // about the other N-1. The numbers MOVED because a document joined the
+        // wizard; they are never relaxed to make a red test fit.
+        $this->assertSame(3, $documents, 'Three documents step: the site survey, the worksheet and RAMS.');
+        $this->assertSame(7, $statesRendered, 'Seven wizard states were rendered and asserted.');
     }
 
     /**

@@ -21,6 +21,7 @@ use App\Services\Rams\RamsDisplayPatchService;
 use App\Services\RamsReviewDataService;
 use App\Services\WorksheetDocxService;
 use App\Support\Cockpit\CockpitModulePresenter;
+use App\Support\Cockpit\CockpitWizardPresenter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
@@ -416,10 +417,23 @@ class CockpitDocCreationEndToEndTest extends TestCase
         $package = $this->reviewedPackage($project);
         $this->resources();
 
+        // RAMS'S LAST STEP. Since Plan 46.5-04 the Format radios live on the
+        // last step only, and since Plan 46.5-05 RAMS HAS steps — so the walk
+        // opens the step where the output choice actually is. The step number
+        // is read off the wizard presenter rather than typed, so a fourth RAMS
+        // step would not leave this walk asserting against step 3 forever.
+        $ramsSteps = app(CockpitWizardPresenter::class)->stepsFor(ProjectDeliverable::KEY_RAMS);
+
+        $this->assertSame([1, 2, 3], $ramsSteps, 'RAMS steps since Plan 46.5-05.');
+
         $open = $this->subtree(
             $this->cockpit(
                 $project,
-                ['module' => ProjectDeliverable::KEY_RAMS, 'action' => 'generate'],
+                [
+                    'module' => ProjectDeliverable::KEY_RAMS,
+                    'action' => 'generate',
+                    'step'   => $ramsSteps[count($ramsSteps) - 1],
+                ],
                 $pm,
             ),
             'cav-qa',

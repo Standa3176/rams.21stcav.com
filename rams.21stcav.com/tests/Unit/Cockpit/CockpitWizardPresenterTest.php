@@ -309,10 +309,10 @@ class CockpitWizardPresenterTest extends TestCase
         }
 
         $this->assertSame(
-            2,
+            3,
             $checked,
-            'This proof checked '.$checked.' documents that HAVE steps (the site survey and the worksheet). '
-            .'RAMS is plan 46.5-05 and the O&M never gets a wizard.',
+            'This proof checked '.$checked.' documents that HAVE steps (the site survey, the worksheet and '
+            .'RAMS, which Plan 46.5-05 stepped). The O&M never gets a wizard.',
         );
     }
 

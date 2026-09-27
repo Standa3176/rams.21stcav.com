@@ -354,6 +354,33 @@
                  purpose back: between 46.2-03 and 46.2-05 the cockpit could
                  generate nothing at all. --}}
 
+            {{-- D-05's TICK, AND IT IS A ROUTE RATHER THAN A GATE (Plan
+                 46.5-05). When the project's RAMS deliverable is ticked
+                 required, an install's panel says so in ONE ESCAPED SENTENCE
+                 and links to the RAMS module's own wizard at step 1. That is
+                 all "as part of an install" means here: the SAME RAMS document,
+                 reached from the worksheet. There is no second RAMS creation
+                 path, and the sentence gates nothing — the form below renders
+                 in every deliverable state.
+
+                 The presenter decides whether there is a prompt and what it
+                 says; this file decides no deliverable and no copy of its own,
+                 exactly as it decides no field and no step of its own. The enum
+                 never reaches here.
+
+                 NO NEW CSS. `.cav-hint` is the drawer's existing explainer
+                 paragraph and the anchor is a bare `<a>` inheriting the page's
+                 link styling, so `resources/css/cockpit.css` — a Vite entry —
+                 is untouched and no `npm run build` is needed. The markup is
+                 written out rather than passed to `x-cockpit.hint`, whose slot
+                 is `{{ $slot }}` and would escape the anchor into text. --}}
+            @if (($module['prompt'] ?? null) !== null)
+                <p class="cav-hint">
+                    {{ $module['prompt']['text'] }}
+                    <a href="{{ route('projects.cockpit', ['project' => $project, 'module' => $module['prompt']['module'], 'tab' => 'overview', 'action' => 'generate', 'step' => 1]) }}">{{ $module['prompt']['label'] }}</a>
+                </p>
+            @endif
+
             {{-- ONE COMPONENT, EVERY DOCUMENT. It renders whatever
                  `CockpitDocumentFormPresenter::DOCUMENT_FIELD_MAP` gives it and
                  branches on FIELD TYPE, never on which document this is. Overview

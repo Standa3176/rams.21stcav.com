@@ -118,11 +118,23 @@ class CockpitRamsWizardTest extends TestCase
         ]);
     }
 
+    /**
+     * BOTH resource roles, deliberately. A `resource-list` field renders one
+     * checkbox per ACTIVE resource in its role, so a fixture with no programmer
+     * would render no `programmers` control at all — and the step-membership
+     * assertion below would then have passed vacuously on an absence it should
+     * have caught.
+     */
     private function resources(): void
     {
         LabourResource::factory()->create([
             'name'  => 'Dev Chandra', 'email' => 'dev.chandra@example.test',
             'phone' => '07700 900111', 'roles' => [LabourResource::ROLE_ENGINEER], 'is_active' => true,
+        ]);
+
+        LabourResource::factory()->create([
+            'name'  => 'Ana Ruiz', 'email' => 'ana.ruiz@example.test',
+            'phone' => '07700 900222', 'roles' => [LabourResource::ROLE_PROGRAMMER], 'is_active' => true,
         ]);
     }
 
@@ -496,14 +508,23 @@ class CockpitRamsWizardTest extends TestCase
                 $response->assertDontSee($sentence, false);
             }
 
+            // The machine token never reaches the page, in ANY state.
+            $response->assertDontSee(ProjectDeliverable::STATE_NOT_YET_DECIDED, false);
+            $response->assertDontSee(ProjectDeliverable::STATE_NOT_REQUIRED, false);
+
             $judged++;
         }
 
         $this->assertSame(4, $judged, 'All four deliverable states were judged.');
 
-        // THE SENTENCE IS NEVER THE RAW ENUM (T-46.5-05-02).
-        foreach ([ProjectDeliverable::STATE_REQUIRED, ProjectDeliverable::STATE_NOT_YET_DECIDED] as $enum) {
+        // THE STATE IS NEVER RENDERED AS THE RAW ENUM (T-46.5-05-02). The word
+        // "required" is unavoidable in an English sentence about a requirement,
+        // and `STATE_REQUIRED` happens to be spelt the same; what must never
+        // reach a PM is a MACHINE TOKEN, so the two underscored values are the
+        // ones asserted absent — from the sentence and from every page above.
+        foreach ([ProjectDeliverable::STATE_NOT_YET_DECIDED, ProjectDeliverable::STATE_NOT_REQUIRED] as $enum) {
             $this->assertStringNotContainsString($enum, $sentence);
+            $this->assertStringNotContainsString('_', $sentence);
         }
     }
 
@@ -634,6 +655,58 @@ class CockpitRamsWizardTest extends TestCase
         }
 
         $this->assertStringNotContainsString('Send a RAMS to the client', implode(' ', $copy));
+    }
+
+    /**
+     * THE MULTI-SELECT CARRY, PROVEN WHERE IT WAS PREVIOUSLY ONLY ASSUMED.
+     *
+     * An `array`-ruled field is carried across a step as one hidden input PER
+     * SELECTED VALUE (`doc-form.blade.php:361-364`), so an EMPTY one carries
+     * nothing — an empty `name[]` would submit a phantom blank engineer. RAMS
+     * is the first stepped document with a multi-select off-step, which is why
+     * `CockpitWizardTest`'s blanket hidden-carry assertion now skips array
+     * fields, and why the real behaviour is asserted HERE rather than dropped:
+     * a SELECTED multi-select survives the advance and reaches the document.
+     */
+    public function test_a_selected_multi_select_is_carried_forward_and_reaches_the_document(): void
+    {
+        $pm      = $this->user();
+        $project = $this->project();
+        $this->reviewedPackage($project);
+        $this->resources();
+
+        // Step 2 is where the engineers and the programmers are chosen.
+        $payload = ['intent' => 'next', 'step' => 2] + $this->ramsPayload();
+        $payload['additional_engineers'] = ['Dev Chandra'];
+        $payload['programmers']          = ['Ana Ruiz'];
+
+        $this->generate($project, $payload, $pm)->assertRedirect($this->stepUrl($project, 3));
+
+        // 1. Step 3 carries both selections as hidden inputs.
+        $html = $this->actingAs($pm)->from($this->stepUrl($project, 2))
+            ->get($this->stepUrl($project, 3))
+            ->assertOk()
+            ->getContent();
+
+        $controls = $this->splitControls($html);
+
+        $this->assertContains('additional_engineers', $controls['hidden'], 'The chosen engineers were dropped on the way to step 3.');
+        $this->assertContains('programmers', $controls['hidden'], 'The chosen programmers were dropped on the way to step 3.');
+        $this->assertNotContains('additional_engineers', $controls['visible'], 'Step 3 re-asks a step 2 question.');
+
+        // 2. And a create carrying them reaches the document's own data.
+        $create = $this->ramsPayload();
+        $create['additional_engineers'] = ['Dev Chandra'];
+
+        $this->generate($project, $create, $pm)->assertRedirect();
+
+        $rams = RamsDocument::where('project_id', $project->id)->sole();
+
+        $this->assertSame(
+            ['Dev Chandra'],
+            $rams->reviewed_data['programme']['additional_engineers'] ?? null,
+            'A carried multi-select never reached the RAMS.',
+        );
     }
 
     // -- Helpers -------------------------------------------------------------

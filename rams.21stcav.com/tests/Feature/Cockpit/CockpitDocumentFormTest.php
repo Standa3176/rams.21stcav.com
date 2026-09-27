@@ -467,7 +467,7 @@ class CockpitDocumentFormTest extends TestCase
             }
         }
 
-        $this->assertSame(6, $states, 'Every one of the six form states was judged for copy.');
+        $this->assertSame(8, $states, 'Every one of the eight form states was judged for copy.');
     }
 
     /**
@@ -581,7 +581,7 @@ class CockpitDocumentFormTest extends TestCase
         // SIX STATES: site survey 3 + worksheet 1 + RAMS 1 + O&M 1. Asserted as
         // a COUNT so a change that collapses the wizard back to one screen goes
         // red here rather than passing quietly on a single render.
-        $this->assertSame(6, $states, 'Six form states exist across the four documents.');
+        $this->assertSame(8, $states, 'Eight form states exist across the four documents: 3 survey + 1 worksheet + 3 RAMS + 1 O&M.');
     }
 
     public function test_every_group_legend_in_the_map_is_rendered_as_a_fieldset_legend(): void
@@ -630,9 +630,14 @@ class CockpitDocumentFormTest extends TestCase
             }
         }
 
-        // THIRTEEN OF THE MAP'S FOURTEEN GROUPS RENDER. The fourteenth is Comms
+        // FOURTEEN OF THE MAP'S FIFTEEN GROUPS RENDER. The fifteenth is Comms
         // room, and its absence is the decision rather than an omission.
-        $this->assertCount(13, $seen, 'Every group with a step renders on the step it names.');
+        //
+        // 13 -> 14 BECAUSE A GROUP ARRIVED, NOT BECAUSE A NUMBER WAS RELAXED:
+        // Plan 46.5-05 added RAMS's `Job summary` group (D-04) and gave RAMS's
+        // other five groups their steps. The comms-room exclusion is unchanged
+        // and still the only one.
+        $this->assertCount(14, $seen, 'Every group with a step renders on the step it names.');
     }
 
     /**
@@ -684,7 +689,14 @@ class CockpitDocumentFormTest extends TestCase
 
         // And the page's own values really do reach it, so the assertion above
         // is not passing over an empty block.
-        $form = $this->docForm($project, ProjectDeliverable::KEY_RAMS, ['action' => 'generate']);
+        // ON RAMS'S LAST STEP since Plan 46.5-05: the read-only project facts
+        // sit with the Format radios and the submit, so a PM confirms what the
+        // app already knows at the moment they commit.
+        $form = $this->docForm(
+            $project,
+            ProjectDeliverable::KEY_RAMS,
+            ['action' => 'generate'] + $this->lastStepQuery(ProjectDeliverable::KEY_RAMS),
+        );
         $this->assertStringContainsString('Document Cockpit Job', $form);
         $this->assertStringContainsString('Northbank Media', $form);
     }
@@ -740,15 +752,31 @@ class CockpitDocumentFormTest extends TestCase
         $project = $this->project();
         $this->resources();
 
-        $form = $this->docForm($project, ProjectDeliverable::KEY_RAMS, ['action' => 'generate']);
+        // EVERY STEP, NOT THE DEFAULT ONE. Since Plan 46.5-05 RAMS's resource
+        // lists live on step 2, and LR-04's prohibition ("never an email,
+        // never a phone") has to hold on ALL THREE screens — a private value
+        // leaking onto a step this test never rendered is exactly the vacuous
+        // pass the phase's count assertions exist to stop.
+        $forms = [];
+
+        foreach ($this->stepQueries(ProjectDeliverable::KEY_RAMS) as $query) {
+            $forms[] = $this->docForm($project, ProjectDeliverable::KEY_RAMS, ['action' => 'generate'] + $query);
+        }
+
+        $this->assertCount(3, $forms, 'All three RAMS steps were judged for LR-04.');
+
+        $form = implode("
+", $forms);
 
         foreach (['Dev Chandra', 'Marie Okonkwo', 'Tomas Reyes'] as $name) {
             $this->assertStringContainsString($name, $form, 'The resource list supplies names.');
         }
 
         foreach (LabourResource::all() as $resource) {
-            $this->assertStringNotContainsString($resource->email, $form, 'LR-04: never an email.');
-            $this->assertStringNotContainsString($resource->phone, $form, 'LR-04: never a phone.');
+            foreach ($forms as $index => $one) {
+                $this->assertStringNotContainsString($resource->email, $one, "LR-04: never an email (step {$index}).");
+                $this->assertStringNotContainsString($resource->phone, $one, "LR-04: never a phone (step {$index}).");
+            }
         }
 
         // The selected NAME is the value, never an id — the list is a

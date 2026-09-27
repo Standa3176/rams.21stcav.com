@@ -525,16 +525,28 @@ final class CockpitDocumentFormPresenter
             'formats'        => ['word' => 'rams.download', 'pdf' => 'rams.download-pdf'],
             'intro'          => 'Install dates, the team and the site contact. These appear on the RAMS cover, the document control table and Section 4.',
             'readiness'      => null,
-            // NO STEPS IN THIS PLAN. D-04 gives RAMS the same stepped flow,
-            // but PLAN 46.5-05 OWNS ITS STEP SET - minting one here would be
-            // two authors deciding the same thing. Until that plan this
-            // document has no steps, and a document with no steps renders
-            // exactly as it does today.
-            'step_titles'    => [],
+            // RAMS'S STEPS, MINTED BY PLAN 46.5-05 (D-04). The same stepped
+            // flow the site survey got - "if ticked yes it follow a similar
+            // flow to site survey ie gather info NEXT gather more info etc
+            // then create rams based on project info , user entered visit info
+            // and userer enter job summary".
+            //
+            // THREE, AND THE SPLIT IS THE USER'S OWN SENTENCE: when the job
+            // runs, who is on it and who to ask for on site, then what the job
+            // IS plus the output. The read-only project facts sit on the last
+            // step with the Format radios and the submit, exactly where the
+            // site survey puts them - a PM confirms what the app already knows
+            // at the moment they commit, not before they have said anything.
+            //
+            // NO FIELD MOVED IN OR OUT. These are RAMS's existing five groups
+            // regrouped, plus the job summary Task 1 admitted. A field added
+            // here without a generator symbol is a red test (see the class
+            // docblock).
+            'step_titles'    => [1 => 'Dates and hours', 2 => 'Team and site contact', 3 => 'Job summary and output'],
             'groups'         => [
                 [
                     'legend' => 'When',
-                    'step'   => null,
+                    'step'   => 1,
                     'fields' => [
                         [
                             'key'      => 'planned_start_date',
@@ -609,7 +621,7 @@ final class CockpitDocumentFormPresenter
                     // Six fields — exactly at the DC-08 budget. A seventh
                     // belongs in a new group, which is why programmers has one.
                     'legend' => 'Who',
-                    'step'   => null,
+                    'step'   => 2,
                     'fields' => [
                         [
                             'key'      => 'project_manager_name',
@@ -678,7 +690,7 @@ final class CockpitDocumentFormPresenter
                 ],
                 [
                     'legend' => 'Programmers',
-                    'step'   => null,
+                    'step'   => 2,
                     'fields' => [
                         [
                             'key'      => 'programmers',
@@ -699,7 +711,7 @@ final class CockpitDocumentFormPresenter
                     // `normaliseSiteLogistics()` emits are REJECTED; see the
                     // class docblock.
                     'legend' => 'Site contact',
-                    'step'   => null,
+                    'step'   => 2,
                     'fields' => [
                         [
                             'key'      => 'contact_name',
@@ -770,7 +782,7 @@ final class CockpitDocumentFormPresenter
                     // defect, recorded in 46.5-05-SUMMARY.md and NOT fixed
                     // here, because D-04 forbids editing the RAMS process.)
                     'legend' => 'Job summary',
-                    'step'   => null,
+                    'step'   => 3,
                     'fields' => [
                         [
                             'key'      => 'job_summary',
@@ -786,7 +798,7 @@ final class CockpitDocumentFormPresenter
                 ],
                 [
                     'legend' => 'From the project',
-                    'step'   => null,
+                    'step'   => 3,
                     'fields' => [
                         [
                             'key'      => 'project_name',
