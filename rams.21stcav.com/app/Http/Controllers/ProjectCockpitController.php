@@ -12,6 +12,7 @@ use App\Support\Cockpit\CockpitHeaderPresenter;
 use App\Support\Cockpit\CockpitModulePresenter;
 use App\Support\Cockpit\CockpitPanelPresenter;
 use App\Support\Cockpit\CockpitSectionPresenter;
+use App\Support\Cockpit\CockpitWizardPresenter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
@@ -47,6 +48,12 @@ use Throwable;
  * stale bookmark, not an error worth showing a PM: it falls back silently to
  * the closed state and the page still renders 200. `show()` remains the only
  * action, and a `?module=` request is a GET that writes nothing.
+ *
+ * `?step=` JOINED THEM (Phase 46.5, Plan 46.5-01) and ADDED NO ROUTE. It is the
+ * fourth piece of URL state on this same GET, resolved by the same membership
+ * rule against the document's own step list, dropped to step 1 when unreal, and
+ * never echoed. The wizard has no JavaScript for exactly this reason: the back
+ * button, a bookmark and the read-only fence all keep working unchanged.
  */
 class ProjectCockpitController extends Controller
 {
@@ -117,6 +124,11 @@ class ProjectCockpitController extends Controller
         // `OmManualValidationService` rather than forming a second opinion about
         // what is missing, so the panel and the generator cannot disagree.
         private CockpitDocumentFormPresenter $docFormPresenter,
+        // Plan 46.5-01. Read-only in the same sense: it slices the const field
+        // map and touches no model at all. It resolves WHERE IN the document
+        // form the PM is — never WHETHER the form discloses, which is still
+        // `?action=` and `ACTIONS`.
+        private CockpitWizardPresenter $wizardPresenter,
         private RamsReviewDataService $reviewData,
     ) {
     }
@@ -192,6 +204,20 @@ class ProjectCockpitController extends Controller
         $docValues    = $moduleKey === null ? [] : $this->documentValues($project, $moduleKey);
         $docResources = $moduleKey === null ? [] : $this->resourceNames();
 
+        // ── THE PANEL'S FOURTH PIECE OF URL STATE (Phase 46.5, Plan 46.5-01) ─
+        //
+        // `?step=` says WHERE IN the document form the PM is. It ADDS NO ROUTE:
+        // it is state on the GET that already exists, exactly as `?module=`,
+        // `?tab=` and `?action=` are, so the back button and a bookmark keep
+        // working and there is no JavaScript on this page. `ACTIONS` is
+        // UNCHANGED — `generate` still discloses the form, and `step` only says
+        // where in it.
+        //
+        // NOTHING RENDERS FROM THESE YET. Plan 46.5-04 owns the stepped Blade.
+        $docStep      = $this->resolveDocStep($request, $moduleKey);
+        $docSteps     = $moduleKey === null ? [] : $this->wizardPresenter->stepsFor($moduleKey);
+        $docStepTitle = $moduleKey === null ? null : $this->wizardPresenter->stepTitle($moduleKey, $docStep);
+
         // FOUR WIRINGS REMOVED BY 46.2 D-02 (Plan 46.2-03), unsurfaced not
         // deleted — and with them four private helpers:
         //
@@ -239,6 +265,9 @@ class ProjectCockpitController extends Controller
             'docIntro',
             'docValues',
             'docResources',
+            'docStep',
+            'docSteps',
+            'docStepTitle',
         ));
     }
 
@@ -310,6 +339,35 @@ class ProjectCockpitController extends Controller
         }
 
         return in_array($submitted, self::ACTIONS, true) ? $submitted : null;
+    }
+
+    /**
+     * The step of the document form the PM is on (Plan 46.5-01, GCW-02).
+     *
+     * WRITTEN TO THE SAME RULE AS `resolveAction()` AND FOR THE SAME REASON.
+     * Resolved by MEMBERSHIP against `CockpitWizardPresenter::stepsFor()` — the
+     * document's OWN step list, never a hand-maintained duplicate, which would
+     * drift from the steps actually rendered the first time one is added — and
+     * never by `validate()`, whose redirect-with-an-error-bag is a write-shaped
+     * behaviour on a read-only page.
+     *
+     * AN UNREAL STEP IS DROPPED, NOT REJECTED. A hand-typed `?step=99`, a
+     * `?step=abc` or a `?step[]=1` discloses STEP 1: the submitted value is
+     * never echoed, the page is still 200, and the resolved value is always a
+     * step the document actually has — so nothing downstream ever builds a
+     * path, a class name or a view name out of something a browser sent. That
+     * is the identical treatment `?module=` and `?tab=` have had since 45-11,
+     * and `CockpitTabPreservationTest` records the ruling for `?tab=`.
+     *
+     * A document with NO wizard answers 1 and offers no steps, so a stale
+     * `?step=` on the O&M is simply ignored rather than being an error.
+     */
+    private function resolveDocStep(Request $request, ?string $moduleKey): int
+    {
+        // An unresolved module is an unknown document key to the presenter,
+        // which answers 1 and never throws — the same "never invents a module"
+        // contract every other presenter on this page keeps.
+        return $this->wizardPresenter->resolveStep((string) $moduleKey, $request->query('step'));
     }
 
     /**
