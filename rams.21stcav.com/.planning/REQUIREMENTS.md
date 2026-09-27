@@ -517,6 +517,24 @@ GCW-01, GCW-02, GCW-03, GCW-04, GCW-07 and GCW-08 are untouched by Plan 46.5-05.
 
 GCW-01, GCW-04, GCW-05, GCW-06 and GCW-07 are untouched by Plan 46.5-06.
 
+**Recorded by Plan 46.5-07 (2026-09-27) — the two rows nobody wrote down, and the phase closed:**
+
+⚠ **A LEDGER GAP, NOT A CODE GAP.** Plans 46.5-02 and 46.5-03 shipped GCW-01 and GCW-07 and never
+added a delivery table, so this file carried the 46.5-01 trailer saying both were "untouched" with
+nothing superseding it. Reconciled against the code by Plan 46.5-07 and recorded here.
+
+| ID | Delivered (verified against the CODE) | NOT delivered |
+|----|---------------------------------------|---------------|
+| GCW-01 | **Plan 46.5-02.** `CockpitHeaderPresenter::masthead()` puts `client_name` FIRST, before `ref`, through the same `put()` helper every masthead fact uses — a blank client carries **no key** and renders **no line**. `masthead.blade.php` renders it as `<p class="cav-mast__site" data-mast-client>`, reusing an existing class, so **`cockpit.css` is untouched and no `npm run build` is needed**. Proven by `CockpitHeaderPresenterTest` (3), `CockpitPageTest` (3, all through a real GET, including the escaped-`<script>` case) and re-walked end to end by `CockpitWizardEndToEndTest::test_walk_a_…` | Nothing. Where in the masthead it sits is a question for the checkpoint, not a gap |
+| GCW-07 | **Plan 46.5-03.** `WorksheetPhoto::BUCKET_DURING` added **between** start and completion, `BUCKETS` in capture order, three trays per room on the engineer link off the same `groupBy` (no new query). **NO MIGRATION** — `bucket` is a plain `string(20)`, so a third VALUE is not a schema change — and `PublicWorksheetController` was not edited because its `Rule::in(WorksheetPhoto::BUCKETS)` picked the value up for free. **`completion` was NOT renamed and no label changed**: `2026_09_26_100000` backfilled every legacy photo to it and justified that by quoting the tray's own title. Proven by `EngineerLinkPhotoTrayGuardTest` (15), `WorksheetPhotoBucketDefaultTest` (23), `EngineerLinkInstallCaptureEndToEndTest`, and re-walked by `CockpitWizardEndToEndTest::test_walk_c_…`, which asserts the **full ordered `data-bucket` sequence across both rooms** | Nothing withheld. **The WORDING is an open question for the user** — the trays read *Before you start* / *While the work is underway* / *Photos of completed work*, and "End" would mean deliberately rewriting a migration's written justification |
+
+**Group GCW is CLOSED: eight minted, eight delivered, none rounded up.** The full per-requirement
+evidence, the count ledger, the five walks and every place a summary disagreed with the code are in
+`.planning/phases/46.5-guided-creation-wizard/46.5-LEDGER.md`. Items carried **NOT DELIVERED** out of
+this phase (DC-06, DC-07, IC-03, the four pre-existing engineer-link findings, 46.3's unanswered
+checkpoint and 46.4's unprovable airplane-mode walk) are listed there with their reasons; **none of
+them is a GCW row.**
+
 ### Out of scope for v4.0
 
 Each is **recorded in the admin Hidden Functions register**, not forgotten:

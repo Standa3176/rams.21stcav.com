@@ -840,23 +840,33 @@ tick that already exists).
 
 **Plans** — **SEVEN**, in five waves.
 
-- [ ] 46.5-01-PLAN.md — wave 1: mint GCW-01..GCW-08; steps become ROWS on the existing field map; a
+- [x] 46.5-01-PLAN.md — wave 1: mint GCW-01..GCW-08; steps become ROWS on the existing field map; a
       `CockpitWizardPresenter` slices them; `?step=` joins `?module=`/`?tab=`/`?action=` as
       membership-resolved URL state, adding no route
-- [ ] 46.5-02-PLAN.md — wave 1: the client company name on the cockpit masthead (D-01)
-- [ ] 46.5-03-PLAN.md — wave 1: the third photo bucket — `during` ADDED, `completion` untouched, no
+- [x] 46.5-02-PLAN.md — wave 1: the client company name on the cockpit masthead (D-01)
+- [x] 46.5-03-PLAN.md — wave 1: the third photo bucket — `during` ADDED, `completion` untouched, no
       migration, `TRAYS_PER_ROOM` moved 2 → 3 by name (D-06)
-- [ ] 46.5-04-PLAN.md — wave 2: the wizard renders one step at a time with carry-forward and
+- [x] 46.5-04-PLAN.md — wave 2: the wizard renders one step at a time with carry-forward and
       per-step validation; a step advance that writes NO row; the abandoned-wizard rule asserted as
       row counts across six named tables (D-02)
-- [ ] 46.5-05-PLAN.md — wave 3: RAMS joins the flow — doc-only, standalone or reached from an
+- [x] 46.5-05-PLAN.md — wave 3: RAMS joins the flow — doc-only, standalone or reached from an
       install, driven by the existing tick, with a job summary admitted only against a
       grep-confirmed generator symbol; no link of its own, no new renderer (D-04/D-05)
-- [ ] 46.5-06-PLAN.md — wave 4: one creation, one outcome — the spaces step, one transaction, the
+- [x] 46.5-06-PLAN.md — wave 4: one creation, one outcome — the spaces step, one transaction, the
       per-module ordering, and a failure that names which half happened (D-07)
 - [ ] 46.5-07-PLAN.md — wave 5: five walks through HTTP, the reconciled ledger, every gate for real,
       the deploy note, and the **blocking human checkpoint** (`autonomous: false`, never
-      self-approved), judged by the user's own standing criterion: *"simple to use"*
+      self-approved), judged by the user's own standing criterion: *"simple to use"*.
+      **TASKS 1-2 LANDED 2026-09-27** — `CockpitWizardEndToEndTest` (7 tests, 183 assertions, 5
+      walks, 21 pages rendered through real GETs, 7 distinct wizard states, 3 documents),
+      `46.5-LEDGER.md` and `46.5-DEPLOY-NOTE.md` written, GCW-01..GCW-08 all reconciled against the
+      CODE and recorded in `REQUIREMENTS.md` (including the two rows plans 02 and 03 never wrote
+      down). Gates: cockpit **473 / 0** (365 Feature + 108 Unit), Worksheets 183, Documents 18,
+      baseline 159 passed / 0 failed, three sha256 pins MATCH. **Verified: NO migrations and NO
+      `npm run build`.**
+      ⚠ **TASK 3 IS OUTSTANDING — the BLOCKING human checkpoint is NOT answered, and the phase is
+      NOT complete until it is.** Nothing has been pushed or deployed. The open questions, led by
+      the **spaces-source assumption**, are in the ledger's "For the checkpoint" column
 
 ---
 
