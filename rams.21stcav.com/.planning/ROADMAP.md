@@ -796,6 +796,70 @@ user ruled D-07..D-10.
 
 ---
 
+### Phase 46.5: Guided Creation Wizard
+
+**Goal**: The long panel form becomes a guided, stepped creation flow, and a creation ends with
+everything the deliverable needs — the document, and where relevant the visit and the engineer
+link — in ONE pass rather than three separate acts.
+
+**Depends on**: Phase 46 (the Visit model and `VisitLinkIssuer` this phase WIRES rather than
+builds), Phase 46.2 (`DOCUMENT_FIELD_MAP` and the type-driven `doc-form` component the steps
+re-group), Phase 46.4 (the two photo buckets a third joins), phase `260822-esf` (the deliverable
+tick that already exists).
+
+**Requirements**: GCW-01..GCW-08, minted into `.planning/REQUIREMENTS.md` by Plan 46.5-01.
+
+**UI hint**: yes (the cockpit creation flow, and a third photo tray on the engineer link)
+
+> ⚠️ **MOST OF THIS ALREADY EXISTS.** The "are RAMS required?" tick is `ProjectDeliverable`, read
+> through `Project::deliverableState()`. Visit and `VisitLinkIssuer` are built. The field set is
+> already DATA and the Blade switches on field TYPE with no document name in it — **that property
+> must survive**: this page's contents have changed five times in six weeks and a sixth must be a
+> map entry, not a rewrite. Measure before you plan to build.
+
+> ⚠️ **Four things most likely to go wrong, each owned by a named plan.**
+> 1. **A half-finished wizard must not create a half-finished record.** RULED: nothing is persisted
+>    until the final step; there is no draft. An engineer link can therefore never be issued against
+>    a survey whose spaces were not confirmed. **Owned by 46.5-04.**
+> 2. **D-07's partial failure.** One action produces document + visit + link, in ONE transaction,
+>    with a stated per-module ordering and a message that names which half happened. Success is
+>    never reported for a half-run. ⚠️ `VisitLinkIssuer::worksheetFor()` has NO adoption, so an
+>    install must NOT also call `WorksheetController::generateFromProject` — that is how one click
+>    makes two worksheets. **Owned by 46.5-06.**
+> 3. **`completion` IS NOT RENAMED to `end`.** `2026_09_26_100000` backfilled every legacy photo to
+>    it and justified that by quoting the tray's own title. **`during` is ADDED**; no label changes;
+>    no migration is needed because `bucket` is a plain `string(20)`. **Owned by 46.5-03.**
+> 4. **Comms room leaves the OFFICE CREATION FORM ONLY.** It is still captured on site, still
+>    renders in the site-survey Word document, and still rides the survey→install carry-forward.
+>    Removing it from those is a **safety regression** and is out of scope. Fenced in 46.5-04 and
+>    re-walked in 46.5-07.
+
+> **SCOPE FENCE.** Phase 46.6 is not this phase: no Review report tab, no completed-survey report
+> PDF, no capture of points raised / items agreed / client items / additional comments. And
+> *"RAMs will use existing RAM process"* — **no new RAMS renderer.**
+
+**Plans** — **SEVEN**, in five waves.
+
+- [ ] 46.5-01-PLAN.md — wave 1: mint GCW-01..GCW-08; steps become ROWS on the existing field map; a
+      `CockpitWizardPresenter` slices them; `?step=` joins `?module=`/`?tab=`/`?action=` as
+      membership-resolved URL state, adding no route
+- [ ] 46.5-02-PLAN.md — wave 1: the client company name on the cockpit masthead (D-01)
+- [ ] 46.5-03-PLAN.md — wave 1: the third photo bucket — `during` ADDED, `completion` untouched, no
+      migration, `TRAYS_PER_ROOM` moved 2 → 3 by name (D-06)
+- [ ] 46.5-04-PLAN.md — wave 2: the wizard renders one step at a time with carry-forward and
+      per-step validation; a step advance that writes NO row; the abandoned-wizard rule asserted as
+      row counts across six named tables (D-02)
+- [ ] 46.5-05-PLAN.md — wave 3: RAMS joins the flow — doc-only, standalone or reached from an
+      install, driven by the existing tick, with a job summary admitted only against a
+      grep-confirmed generator symbol; no link of its own, no new renderer (D-04/D-05)
+- [ ] 46.5-06-PLAN.md — wave 4: one creation, one outcome — the spaces step, one transaction, the
+      per-module ordering, and a failure that names which half happened (D-07)
+- [ ] 46.5-07-PLAN.md — wave 5: five walks through HTTP, the reconciled ledger, every gate for real,
+      the deploy note, and the **blocking human checkpoint** (`autonomous: false`, never
+      self-approved), judged by the user's own standing criterion: *"simple to use"*
+
+---
+
 ### Phase 46.6: Survey Review + Completed Report
 
 **Goal**: The office actions what an engineer sent back and produces a completed site-survey report —
