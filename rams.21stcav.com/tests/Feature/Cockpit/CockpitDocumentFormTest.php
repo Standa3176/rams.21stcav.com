@@ -97,7 +97,15 @@ class CockpitDocumentFormTest extends TestCase
                 'overview'               => 'A prose overview the normaliser does not carry.',
                 'method_statement_notes' => 'Strip out, install, commission.',
                 'project'                => ['project_name' => 'Document Cockpit Job'],
-                'equipment'              => [['quantity' => 2, 'part_number' => 'SC-75', 'name' => '75in display']],
+                'equipment'              => [['quantity' => 2, 'part_number' => 'SC-75', 'name' => '75in display', 'area' => 'Boardroom']],
+                // SPACES ON FILE (Plan 46.5-06). A fixture with NO rooms renders
+                // no space checkbox at all, and the control-name assertion below
+                // would then pass VACUOUSLY on an absence it exists to catch -
+                // the same trap 46.5-05 hit with an empty resource list.
+                'room_overviews'         => [
+                    ['room' => 'Boardroom', 'overview' => 'Two 75in displays.', 'summary' => 'Boardroom'],
+                    ['room' => 'Huddle 1',  'overview' => 'One soundbar.',      'summary' => 'Huddle 1'],
+                ],
                 'activities'             => [['key' => 'install', 'label' => 'Install and commission']],
                 'ppe'                    => ['Gloves', 'Safety boots'],
             ],
@@ -1269,6 +1277,111 @@ class CockpitDocumentFormTest extends TestCase
     }
 
     // ── The format map is the inventory's, not a second opinion ──────────
+
+    /**
+     * THE SPACES STEP (Plan 46.5-06, D-02: "confirm space being surveys (default all)").
+     *
+     * DEFAULT-ALL IS A RENDER DECISION, NEVER A STORED ONE. Nothing is written
+     * until the final step (GCW-03), so "all" cannot be a persisted default -
+     * it is simply what the checkboxes show when `old()` is absent.
+     */
+    public function test_the_spaces_step_confirms_every_space_with_all_ticked_by_default(): void
+    {
+        $project = $this->project();
+        $this->resources();
+        $this->reviewedPackage($project);
+
+        $form = $this->docForm($project, ProjectDeliverable::KEY_SITE_SURVEY, [
+            'action' => 'generate',
+            'step'   => 3,
+        ]);
+
+        $this->assertStringContainsString('Spaces being surveyed', $form, 'Step 3 does not confirm the spaces.');
+
+        $spaces = array_column(
+            app(\App\Services\ProjectContextResolver::class)->resolve($project->fresh())['rooms'],
+            'room',
+        );
+
+        $this->assertNotSame([], $spaces, 'The fixture put no spaces on file, so this test would prove nothing.');
+
+        $ticked = 0;
+
+        foreach ($spaces as $space) {
+            $this->assertMatchesRegularExpression(
+                '/<input[^>]*name="visit_rooms\[\]"[^>]*value="'.preg_quote($space, '/').'"[^>]*checked/',
+                $form,
+                "The space [{$space}] is not offered TICKED on step 3. D-02 says default all.",
+            );
+
+            $ticked++;
+        }
+
+        $this->assertSame(count($spaces), $ticked, 'Every space on file was judged.');
+
+        // A CHECKBOX, NOT A DROPDOWN. `<select` is still banned and was not
+        // needed, so FORBIDDEN_MARKUP stays at 2.
+        $this->assertStringNotContainsString('<select', $form);
+    }
+
+    public function test_a_project_with_no_spaces_says_so_rather_than_rendering_an_empty_fieldset(): void
+    {
+        $project = $this->project();
+        $this->resources();
+
+        $form = $this->docForm($project, ProjectDeliverable::KEY_SITE_SURVEY, [
+            'action' => 'generate',
+            'step'   => 3,
+        ]);
+
+        $this->assertStringContainsString('Spaces being surveyed', $form);
+        $this->assertStringNotContainsString('name="visit_rooms[]"', $form);
+        $this->assertStringContainsString('No spaces are on file for this project yet.', $form);
+    }
+
+    public function test_the_visit_fields_are_asked_on_step_one_and_the_spaces_on_step_three(): void
+    {
+        $project = $this->project();
+        $this->resources();
+        $this->reviewedPackage($project);
+
+        $one   = $this->docForm($project, ProjectDeliverable::KEY_SITE_SURVEY, ['action' => 'generate', 'step' => 1]);
+        $three = $this->docForm($project, ProjectDeliverable::KEY_SITE_SURVEY, ['action' => 'generate', 'step' => 3]);
+
+        // D-02: "dates ,site contact and engineer" is ONE screen.
+        $this->assertStringContainsString('name="visit_scheduled_date"', $one);
+        $this->assertStringContainsString('name="visit_engineers[]"', $one);
+        $this->assertStringNotContainsString('name="visit_rooms[]"', $one);
+
+        $this->assertStringContainsString('name="visit_rooms[]"', $three);
+    }
+
+    public function test_every_space_list_field_names_a_source_rather_than_holding_a_query(): void
+    {
+        $seen = 0;
+
+        foreach (CockpitDocumentFormPresenter::documentFieldMap() as $module => $definition) {
+            foreach ($definition['groups'] as $group) {
+                foreach ($group['fields'] as $field) {
+                    if ($field['type'] !== CockpitDocumentFormPresenter::TYPE_SPACE_LIST) {
+                        continue;
+                    }
+
+                    $seen++;
+
+                    $this->assertSame(
+                        CockpitDocumentFormPresenter::PREFILL_PROJECT_SPACES,
+                        $field['prefill'],
+                        "{$module}.{$field['key']} draws its spaces from an unnamed source.",
+                    );
+
+                    $this->assertNull($field['options'], 'A space list holds no options in the map - they are per project.');
+                }
+            }
+        }
+
+        $this->assertSame(1, $seen, 'Exactly one space list exists: the site survey.');
+    }
 
     public function test_every_offered_format_points_at_a_route_that_exists(): void
     {
