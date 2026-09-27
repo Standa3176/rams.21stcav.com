@@ -734,6 +734,57 @@ final class CockpitDocumentFormPresenter
                     ],
                 ],
                 [
+                    // ── D-04's JOB SUMMARY (Phase 46.5, Plan 46.5-05) ──────
+                    //
+                    // The user's third source of RAMS content: "create rams
+                    // based on project info , user entered visit info and
+                    // userer enter job summary (if engered or project data)".
+                    //
+                    // DISCOVERED, NOT INVENTED. The symbol was re-grepped
+                    // against the working tree on 2026-09-27 BEFORE this row
+                    // was written, per 46.2 D-03 — "a field the generator
+                    // ignores is a field that teaches a PM to fill in noise":
+                    //   RamsBuilderService.php:119  'works_summary' => $formData['works_description'] ?? ''
+                    //   RamsBuilderService.php:898  the same key, into the AI brief
+                    //   RamsBuilderService.php:945  $data['scope_of_works']
+                    //
+                    // ITS HOME IS `form_data`, NOT `reviewed_data`, and that is
+                    // the SECOND instance of the documented exception
+                    // `working_hours` already is: `normaliseProject()` is
+                    // exactly eleven keys (`RamsReviewDataService.php:98`) and
+                    // `works_description` is not among them, so a
+                    // `reviewed_data` home would be discarded by the next
+                    // `normalise()`. The controller's EXISTING
+                    // `patchFormData()` already loops every `form_data.*`
+                    // target after the delegation, so this row required NO
+                    // controller edit and no new machinery.
+                    //
+                    // NO PREFILL, DELIBERATELY. D-04's "or taken from project
+                    // data" is already satisfied by the generator itself:
+                    // `RamsBuilderService.php:714-718` falls back to the
+                    // package's method-statement notes and then to an
+                    // equipment-derived scope when nothing is typed. Inventing
+                    // a prefill here would put a second author on the same
+                    // sentence. (That block's comment names `works_description`
+                    // while the code reads `method_statement_notes` — a comment
+                    // defect, recorded in 46.5-05-SUMMARY.md and NOT fixed
+                    // here, because D-04 forbids editing the RAMS process.)
+                    'legend' => 'Job summary',
+                    'step'   => null,
+                    'fields' => [
+                        [
+                            'key'      => 'job_summary',
+                            'label'    => 'Job summary',
+                            'type'     => self::TYPE_TEXTAREA,
+                            'options'  => null,
+                            'target'   => 'form_data.works_description',
+                            'consumer' => ['file' => 'app/Services/RamsBuilderService.php', 'symbol' => "\$formData['works_description']"],
+                            'prefill'  => null,
+                            'rules'    => ['nullable', 'string', 'max:5000'],
+                        ],
+                    ],
+                ],
+                [
                     'legend' => 'From the project',
                     'step'   => null,
                     'fields' => [
