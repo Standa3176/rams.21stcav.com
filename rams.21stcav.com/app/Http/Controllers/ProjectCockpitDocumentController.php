@@ -7,9 +7,12 @@ use App\Models\Project;
 use App\Models\ProjectDeliverable;
 use App\Models\SiteSurvey;
 use App\Services\RamsReviewDataService;
+use App\Support\Cockpit\CockpitCombinedCreator;
+use App\Support\Cockpit\CockpitCreationOutcome;
 use App\Support\Cockpit\CockpitDocumentFormPresenter;
 use App\Support\Cockpit\CockpitWizardPresenter;
 use Illuminate\Http\RedirectResponse;
+use Throwable;
 
 /**
  * ProjectCockpitDocumentController — the cockpit's SIXTH write, and the only
@@ -84,6 +87,7 @@ final class ProjectCockpitDocumentController extends Controller
     public function __construct(
         private RamsReviewDataService $reviewData,
         private CockpitWizardPresenter $wizard,
+        private CockpitCombinedCreator $creator,
     ) {
     }
 
@@ -116,12 +120,19 @@ final class ProjectCockpitDocumentController extends Controller
         // Every other document is a header row plus a queued build, so their
         // values live somewhere that already exists. Ordering is therefore
         // per-document and is stated here rather than hidden in a helper.
-        if ($module === ProjectDeliverable::KEY_SITE_SURVEY) {
-            $created = $this->ensureSurvey($project);
-
-            $this->persist($project, $module, $validated);
-
-            return $this->retarget($request, $created, $project, $module, $format);
+        // ── D-07: ONE CREATION, ONE OUTCOME (Plan 46.5-06) ─────────────────
+        //
+        // The two modules that HAVE an engineer link go through
+        // `CockpitCombinedCreator`, which owns the per-module ordering and runs
+        // the document, the fields, the visit and the link in ONE transaction.
+        // RAMS and the O&M keep the path below EXACTLY as it was: they issue no
+        // link of their own (D-04), and an install's link is the install's.
+        //
+        // THE PERSISTENCE STAYS HERE. The creator receives it as a closure, so
+        // there is still one place that knows where a value goes and one place
+        // that knows when it goes there.
+        if (CockpitCombinedCreator::handles($module)) {
+            return $this->createCombined($request, $project, $module, $validated, $format);
         }
 
         $this->persist($project, $module, $validated);
@@ -132,6 +143,86 @@ final class ProjectCockpitDocumentController extends Controller
         $this->patchFormData($project, $module, $validated, $before);
 
         return $this->retarget($request, $response, $project, $module, $format);
+    }
+
+    // ── The combined creation (Plan 46.5-06, D-07) ──────────────────────────
+
+    /**
+     * ONE POST -> the document, the visit and the engineer link, or NOTHING.
+     *
+     * THE FAILURE SHAPE IS `storeVisit()`'S OWN, deliberately: catch
+     * `Throwable`, `report($e)` so the detail reaches the log, and hand the PM
+     * back their input with a message that names what happened. No exception
+     * text and no submitted value reaches the screen (T-46.5-06-07).
+     *
+     * ⚠ THE MESSAGE NAMES WHICH HALF HAPPENED, and it is not one generic
+     * sentence. It is built from `CockpitCreationOutcome`, which knows whether
+     * the survey the PM can still see is one this request ADOPTED — and
+     * therefore left exactly as it was — or one that never existed at all. A
+     * rollback undoes what it wrote and nothing else; saying "nothing happened"
+     * about a survey that is still on the project would be false.
+     *
+     * ⚠ SUCCESS IS NEVER FLASHED FOR A HALF-RUN. The only way to obtain a
+     * success sentence is `successMessage()`, which returns NULL whenever
+     * `isComplete()` is false — so a caller that forgets the check gets nothing
+     * to flash rather than a lie.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function createCombined(
+        CockpitDocumentRequest $request,
+        Project $project,
+        string $module,
+        array $validated,
+        string $format,
+    ): RedirectResponse {
+        // ASKED BEFORE THE TRANSACTION OPENS, because afterwards a rollback has
+        // erased the difference between "adopted" and "never existed".
+        $preExisting = $this->creator->documentPreExists($project, $module);
+
+        try {
+            $outcome = $this->creator->create(
+                $project,
+                $module,
+                $validated,
+                $request->user(),
+                // THE DOCUMENT. `ensureSurvey()` is IDEMPOTENT and unchanged —
+                // it creates only when there is none, so the issuer's
+                // `surveyFor()` then ADOPTS the very row created here and there
+                // is never a second survey. Returns TRUE when this request
+                // created it.
+                function () use ($project): bool {
+                    if ($this->activeSurvey($project) !== null) {
+                        return false;
+                    }
+
+                    $this->ensureSurvey($project);
+
+                    return true;
+                },
+                fn () => $this->persist($project, $module, $validated),
+            );
+        } catch (Throwable $e) {
+            report($e);
+
+            $failed = CockpitCreationOutcome::rolledBack($preExisting);
+
+            return back()->withInput()->withErrors(['module' => $failed->sentence()]);
+        }
+
+        $success = $outcome->successMessage();
+
+        if ($success === null) {
+            // UNREACHABLE TODAY — `create()` either completes or throws — and
+            // guarded anyway, because "unreachable" is what every half-run
+            // looked like before it happened.
+            return back()->withInput()->withErrors(['module' => $outcome->sentence()]);
+        }
+
+        $request->session()->flash('cockpit_document_format', $format === 'pdf' ? 'PDF' : 'Word');
+        $request->session()->flash('success', $success);
+
+        return redirect()->to($this->panelUrl($project, $module, false, $request->input('tab')));
     }
 
     // ── The step advance: A WRITE ROUTE THAT WRITES NOTHING ─────────────────
@@ -268,6 +359,12 @@ final class ProjectCockpitDocumentController extends Controller
                 // a loud failure instead of a value that vanishes.
                 'form_data'      => null,
                 'query'          => null,
+                // `visit.*` is NOT a document value. It belongs to the Visit
+                // `CockpitCombinedCreator` creates alongside the document
+                // (Plan 46.5-06), which reads it off the same map by TARGET.
+                // Named rather than swept into a default arm, so a new prefix
+                // with no home is still a loud failure.
+                'visit'          => null,
             };
         }
     }
