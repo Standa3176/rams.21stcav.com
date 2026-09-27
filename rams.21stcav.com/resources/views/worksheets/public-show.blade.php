@@ -2716,6 +2716,12 @@
                                     id:           r.id,
                                     kind:         r.kind,
                                     room:         r.room,
+                                    // 46.4-06 — the free-form bag, so the panel can
+                                    // name a kit row (qty × description). The BLOB is
+                                    // still stripped, which is what kept this cheap.
+                                    // This is a PROJECTION, not a record field: the
+                                    // store's shape is unchanged.
+                                    fields:       r.fields || {},
                                     capturedAt:   r.capturedAt,
                                     attemptCount: r.attemptCount || 0,
                                     lastError:    r.lastError || null,
@@ -2752,6 +2758,44 @@
                     OfflineQueue._uploadingIds.delete(id);
                     OfflineQueue._notifyChange();
                 });
+            };
+
+            // 46.4-06 — CORRECT A ROW THAT IS STILL ON THE DEVICE.
+            // ADDITIVE: same store, same keyPath, same index, SAME RECORD SHAPE,
+            // no new field. This is not a server operation — the row has never
+            // left the phone, so there is nothing to amend and nobody to explain
+            // a change to.
+            // Returns false rather than throwing when the row is gone (it
+            // drained) or in flight, so the caller can TELL the engineer instead
+            // of silently losing the correction.
+            OfflineQueue.update = function (id, patch) {
+                if (OfflineQueue.unavailable || !('indexedDB' in window)) {
+                    return Promise.resolve(false);
+                }
+                // ⚠️ AN IN-FLIGHT ROW IS THE SERVER'S NOW. Refuse it.
+                if (OfflineQueue._uploadingIds && OfflineQueue._uploadingIds.has(id)) {
+                    return Promise.resolve(false);
+                }
+                return tx('readwrite', function (store) {
+                    const getReq = store.get(id);
+                    return new Promise(function (resolve, reject) {
+                        getReq.onsuccess = function () {
+                            const record = getReq.result;
+                            if (!record) { resolve(false); return; }
+                            const p = patch || {};
+                            if (p.fields) {
+                                record.fields = Object.assign({}, record.fields || {}, p.fields);
+                            }
+                            const putReq = store.put(record);
+                            putReq.onsuccess = function () { resolve(true); };
+                            putReq.onerror   = function () { reject(putReq.error); };
+                        };
+                        getReq.onerror = function () { reject(getReq.error); };
+                    });
+                }).then(function (ok) {
+                    if (ok) OfflineQueue._notifyChange();
+                    return ok;
+                }).catch(function () { return false; });
             };
 
             // Internal — fetch raw rows including the blob.
@@ -2866,13 +2910,25 @@
                                         onSuccess(row, json);
                                     });
                                 }
-                                row.attemptCount = (row.attemptCount || 0) + 1;
-                                row.lastError = resp.statusText || ('HTTP ' + resp.status);
-                                failureCount++;
-                                if (row.attemptCount >= 3) hitMaxRetry++;
-                                OfflineQueue._uploadingIds.delete(row.id);
-                                return _updateRow(row).then(function () {
-                                    onFailure(row, new Error(row.lastError));
+                                // 46.4-06 — THE MESSAGE ONLY. The counters, the
+                                // attemptCount >= 3 threshold and _updateRow are
+                                // deliberately untouched. Prefer the JSON body's
+                                // own sentence over statusText, so a row draining
+                                // into a worksheet the client has since signed
+                                // shows the engineer WHY — 'Unprocessable Content'
+                                // tells them nothing, and the panel renders
+                                // lastError verbatim.
+                                return resp.json().catch(function () { return {}; }).then(function (body) {
+                                    row.attemptCount = (row.attemptCount || 0) + 1;
+                                    row.lastError = (body && body.message)
+                                        || resp.statusText
+                                        || ('HTTP ' + resp.status);
+                                    failureCount++;
+                                    if (row.attemptCount >= 3) hitMaxRetry++;
+                                    OfflineQueue._uploadingIds.delete(row.id);
+                                    return _updateRow(row).then(function () {
+                                        onFailure(row, new Error(row.lastError));
+                                    });
                                 });
                             }).catch(function (err) {
                                 row.attemptCount = (row.attemptCount || 0) + 1;
@@ -3201,8 +3257,35 @@
                 return d + ' day' + (d === 1 ? '' : 's') + ' ago';
             }
 
+            // Keyed by kind with a default — THIS is where a fourth kind
+            // goes, not on the end of another ternary.
+            const KIND_ICONS = {
+                kit:   '🧰',
+                label: '📷',
+            };
+
             function _icon(kind) {
-                return kind === 'label' ? '📷' : '🖼';
+                return KIND_ICONS[kind] || '🖼';
+            }
+
+            // ⚠️ TRUNCATE BEFORE ESCAPING. Truncating already-escaped markup
+            // can cut an &amp; in half and render the fragment raw.
+            function _trunc(value, max) {
+                const v = String(value == null ? '' : value);
+                return v.length > max ? v.slice(0, max - 1) + '…' : v;
+            }
+
+            // Every row in this panel used to be a photo. A kit row carries no
+            // blob at all, so it must name itself from its fields instead.
+            function _subtitle(row) {
+                if (row.kind === 'kit') {
+                    const f = row.fields || {};
+                    return 'Additional kit · '
+                        + _esc(_trunc(f.qty, 4))
+                        + ' × '
+                        + _esc(_trunc(f.part_description, 60));
+                }
+                return row.kind === 'label' ? 'Box serial label' : 'Completed-work photo';
             }
 
             function _statusFor(row) {
@@ -3231,7 +3314,7 @@
                         +   '<div class="pending-item__meta">'
                         +     '<div class="pending-item__room">' + _esc(row.room || '(no room)') + '</div>'
                         +     '<div class="pending-item__sub">'
-                        +       (row.kind === 'label' ? 'Box serial label' : 'Completed-work photo')
+                        +       _subtitle(row)
                         +       ' · ' + _relTime(row.capturedAt)
                         +       errSub
                         +     '</div>'
