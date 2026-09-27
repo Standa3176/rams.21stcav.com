@@ -507,6 +507,16 @@ GCW-01, GCW-05, GCW-06, GCW-07 and GCW-08 are untouched by Plan 46.5-04.
 
 GCW-01, GCW-02, GCW-03, GCW-04, GCW-07 and GCW-08 are untouched by Plan 46.5-05.
 
+**Delivered by Plan 46.5-06 (2026-09-27) — one creation, one outcome:**
+
+| ID | Delivered by 46.5-06 | NOT delivered by 46.5-06 |
+|----|----------------------|--------------------------|
+| GCW-02 | **Step 3's SPACES CONFIRMATION** — `TYPE_SPACE_LIST`, the EIGHTH field type (7 → 8, named in the shipping commit), rendering one checkbox per space with **every one ticked by default** (a RENDER decision, never a stored one). Plus the visit's `scheduled_date` and engineer selection on step 1, so D-02's *"dates ,site contact and engineer"* is one screen. **No `<select`**: a space list is checkboxes, and `FORBIDDEN_MARKUP` stays 2 | Nothing for this requirement. The wizard's three steps are complete for the site survey |
+| GCW-03 | **Unchanged and re-proven.** `intent=next` onto step 3 still reaches `advance()`, which is the FIRST branch in `store()` — above the new combined-creation branch — so a half-finished wizard still writes no row in any of the six watched tables | Nothing. There is still no draft and no resumable state beyond the session flash |
+| GCW-08 | **One POST → document + visit + engineer link, in ONE `DB::transaction`,** with the ordering decided **per module** and written in `CockpitCombinedCreator`'s own docblock: the survey goes FIRST and `VisitLinkIssuer::surveyFor()` ADOPTS it; the **install's visit goes FIRST and the issuer's worksheet IS the document**, because `worksheetFor()` has no adoption and calling the generator too would make TWO worksheets and TWO queued AI builds from one click (asserted: `Worksheet::count() === 1` AND one dispatched job). A failure rolls back all of it and `CockpitCreationOutcome` tells the PM **which half happened**; `successMessage()` returns **null** whenever `isComplete()` is false, so success is structurally impossible for a half-run (all 24 states iterated). **`VisitLinkIssuer` is not edited** | The Review report tab and the completed-survey report PDF — **Phase 46.6**. RAMS and the O&M keep their existing document-only path: they issue no link of their own (D-04) |
+
+GCW-01, GCW-04, GCW-05, GCW-06 and GCW-07 are untouched by Plan 46.5-06.
+
 ### Out of scope for v4.0
 
 Each is **recorded in the admin Hidden Functions register**, not forgotten:
