@@ -298,11 +298,16 @@ class EngineerLinkInstallCaptureEndToEndTest extends TestCase
 
         $xpath = $this->dom($this->visitLink($worksheet, '01-first-open')->getContent());
 
-        $this->assertSame(4, $xpath->query('//div[@data-photo-tray]')->length,
-            'Two rooms should render two trays each — a Start tray and a Completion tray.');
+        // 46.5 D-06 — 4 became 6: two rooms, THREE trays each. Derived from
+        // the vocabulary rather than re-typed, so a fourth bucket moves it.
+        $this->assertSame(
+            2 * count(WorksheetPhoto::BUCKETS),
+            $xpath->query('//div[@data-photo-tray]')->length,
+            'Two rooms should render a Start, a During and a Completion tray each.',
+        );
 
         foreach ([self::ROOM_A, self::ROOM_B] as $room) {
-            foreach ([WorksheetPhoto::BUCKET_START, WorksheetPhoto::BUCKET_COMPLETION] as $bucket) {
+            foreach (WorksheetPhoto::BUCKETS as $bucket) {
                 $this->assertStringContainsString(
                     '(<span data-photo-count>0</span>)',
                     $this->tray($xpath, $bucket, $room),
@@ -329,6 +334,8 @@ class EngineerLinkInstallCaptureEndToEndTest extends TestCase
         // photos land in the SAME tray — precisely the bug most likely to ship.
         $this->assertStringContainsString(self::START_CAPTION, $this->tray($xpath, WorksheetPhoto::BUCKET_START, self::ROOM_A));
         $this->assertStringNotContainsString(self::START_CAPTION, $this->tray($xpath, WorksheetPhoto::BUCKET_COMPLETION, self::ROOM_A));
+        // 46.5 D-06 — and not into the new middle tray either.
+        $this->assertStringNotContainsString(self::START_CAPTION, $this->tray($xpath, WorksheetPhoto::BUCKET_DURING, self::ROOM_A));
 
         // ── 3. A completion photo. The ROOM pill counts both ─────────────────
 
