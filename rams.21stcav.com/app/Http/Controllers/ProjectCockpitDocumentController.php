@@ -8,6 +8,7 @@ use App\Models\ProjectDeliverable;
 use App\Models\SiteSurvey;
 use App\Services\RamsReviewDataService;
 use App\Support\Cockpit\CockpitDocumentFormPresenter;
+use App\Support\Cockpit\CockpitWizardPresenter;
 use Illuminate\Http\RedirectResponse;
 
 /**
@@ -82,6 +83,7 @@ final class ProjectCockpitDocumentController extends Controller
 {
     public function __construct(
         private RamsReviewDataService $reviewData,
+        private CockpitWizardPresenter $wizard,
     ) {
     }
 
@@ -94,7 +96,19 @@ final class ProjectCockpitDocumentController extends Controller
 
         $validated = $request->validated();
         $module    = (string) $validated['module'];
-        $format    = (string) $validated['format'];
+
+        // ── THE BRANCH THAT MUST COME FIRST (Plan 46.5-04, GCW-03) ──────────
+        //
+        // BEFORE `ensureSurvey()`, BEFORE `persist()` and BEFORE `delegate()`.
+        // A step advance is not a creation with fewer fields; it is a different
+        // act that touches no model at all, and putting the branch anywhere
+        // below this line would mean a half-finished wizard had already written
+        // something by the time it was recognised.
+        if ($request->intent() !== CockpitDocumentRequest::INTENT_CREATE) {
+            return $this->advance($request, $project, $module);
+        }
+
+        $format = (string) $validated['format'];
 
         // THE SITE SURVEY IS THE ONE DOCUMENT WHOSE ROW MUST EXIST BEFORE ITS
         // COLUMNS CAN BE WRITTEN, because its "generate" IS the row's creation
@@ -118,6 +132,100 @@ final class ProjectCockpitDocumentController extends Controller
         $this->patchFormData($project, $module, $validated, $before);
 
         return $this->retarget($request, $response, $project, $module, $format);
+    }
+
+    // ── The step advance: A WRITE ROUTE THAT WRITES NOTHING ─────────────────
+
+    /**
+     * MOVE THE WIZARD ON ONE STEP, AND PERSIST NOTHING WHATSOEVER.
+     *
+     * This method writes no row, creates no model, updates no column, dispatches
+     * no job, queues no build, touches no file and logs no activity. It reads
+     * the document's step list, adds or subtracts one, and returns a redirect
+     * carrying the submitted values in the session flash. That is the whole of
+     * it, and the emptiness is the POINT rather than an omission.
+     *
+     * ── WHY (46.5 D-02, requirement GCW-03; DECIDED, NOT LEFT TO CHANCE) ────
+     *
+     * A HALF-FINISHED WIZARD MUST NOT CREATE A HALF-FINISHED RECORD. NOTHING IS
+     * PERSISTED UNTIL THE FINAL STEP. THERE IS NO DRAFT, and no resumable state
+     * beyond the session flash.
+     *
+     * AN ENGINEER LINK IS THEREFORE NEVER ISSUED AGAINST A SURVEY WHOSE SPACES
+     * WERE NOT CONFIRMED, BECAUSE UNTIL THE FINAL SUBMIT THERE IS NO SURVEY.
+     * That is the named worst case in D-02 and this is the design that makes it
+     * unreachable rather than merely unlikely.
+     *
+     * A resumable draft was the alternative and was rejected: a draft IS a
+     * half-finished record — the exact thing D-02 forbids — and it would need a
+     * table, a cleanup job and a rule about when a draft goes stale. The session
+     * flash needs none of the three and forgets an abandoned wizard by itself.
+     *
+     * THE COST, STATED: close the tab on step 2 and the answers are gone. That
+     * was accepted at plan time. Losing two short steps of typing is a smaller
+     * harm than an engineer arriving on site against a survey nobody finished.
+     *
+     * `CockpitWizardTest::test_a_step_advance_writes_no_row_in_any_of_the_six_tables()`
+     * holds this to row counts across `site_surveys`, `visits`, `worksheets`,
+     * `rams_documents`, `project_activity_logs` and `project_packages`, so a
+     * later change that gives this method a model call goes RED rather than
+     * quietly leaving an orphan behind every abandoned wizard.
+     *
+     * NO ROUTE OF ITS OWN. This is the same POST the creation uses, told apart
+     * by `intent`. A second route would move `CockpitPageTest`'s exact 6/3
+     * counts, and that red is correct behaviour rather than a number to update.
+     */
+    private function advance(CockpitDocumentRequest $request, Project $project, string $module): RedirectResponse
+    {
+        $steps = $this->wizard->stepsFor($module);
+        $step  = $request->step();
+
+        // CLAMPED TO THE DOCUMENT'S OWN LIST, so `next` on the last step and
+        // `back` on the first stay where they are rather than resolving to a
+        // step the document does not have. The list is the map's, never a range
+        // assumed here.
+        $index  = array_search($step, $steps, true);
+        $index  = $index === false ? 0 : $index;
+        $target = $request->intent() === 'next' ? $index + 1 : $index - 1;
+        $target = max(0, min($target, max(0, count($steps) - 1)));
+
+        return redirect()
+            ->to($this->wizardUrl($project, $module, $steps[$target] ?? $step, $request->input('tab')))
+            ->withInput();
+    }
+
+    /**
+     * The URL of one step of the open wizard.
+     *
+     * It sits beside `panelUrl()` and shares its tab resolution
+     * (`resolveTab()`), so the two cannot drift about which tab is legal or
+     * what an unreal one falls back to. `action=generate` is always present:
+     * an advance lands the PM back INSIDE the form they are filling in, never
+     * on the closed control.
+     */
+    private function wizardUrl(Project $project, string $module, int $step, mixed $submittedTab): string
+    {
+        return route('projects.cockpit', [
+            'project' => $project->getKey(),
+            'module'  => $module,
+            'tab'     => $this->resolveTab($submittedTab),
+            'action'  => 'generate',
+            'step'    => $step,
+        ]);
+    }
+
+    /**
+     * ONE definition of "which tab is legal", used by both URL builders.
+     *
+     * An unreal value was already dropped by the request, so this is the second
+     * of two membership checks and `TABS[0]` is the fallback. Nothing submitted
+     * is ever reflected.
+     */
+    private function resolveTab(mixed $submittedTab): string
+    {
+        return is_string($submittedTab) && in_array($submittedTab, ProjectCockpitController::TABS, true)
+            ? $submittedTab
+            : ProjectCockpitController::TABS[0];
     }
 
     // ── Persistence ─────────────────────────────────────────────────────────
@@ -389,9 +497,7 @@ final class ProjectCockpitDocumentController extends Controller
      */
     private function panelUrl(Project $project, string $module, bool $failed, mixed $submittedTab): string
     {
-        $tab = is_string($submittedTab) && in_array($submittedTab, ProjectCockpitController::TABS, true)
-            ? $submittedTab
-            : ProjectCockpitController::TABS[0];
+        $tab = $this->resolveTab($submittedTab);
 
         return route('projects.cockpit', array_filter([
             'project' => $project->getKey(),

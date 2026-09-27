@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Http\Controllers\ProjectCockpitController;
 use App\Support\Cockpit\CockpitDocumentFormPresenter;
+use App\Support\Cockpit\CockpitWizardPresenter;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -44,12 +45,69 @@ use Illuminate\Validation\Rule;
  * than a silent overwrite of something the app knows. The Blade therefore
  * renders those fields as TEXT and not as inputs — a `readonly` input still
  * submits, and would trip this rule on an ordinary submission.
+ *
+ * ── THE WIZARD'S TWO NEW INPUTS (Phase 46.5, Plan 46.5-04; GCW-02/GCW-03) ──
+ *
+ * `intent` is one of `next`, `back`, `create`, and it decides whether this
+ * request is a STEP ADVANCE or THE CREATION. An unrecognised value is a
+ * validation failure that writes nothing and is never echoed (T-46.5-04-01) —
+ * it is deliberately NOT treated as `create`, because "I did not understand
+ * what you asked for, so I created the document" is the worst of the three
+ * outcomes. An ABSENT value defaults to `create`, which is the same courtesy
+ * `tab` already gets and is what keeps every caller written before this plan
+ * behaving exactly as it did.
+ *
+ * `step` is resolved by MEMBERSHIP against `CockpitWizardPresenter::stepsFor()`
+ * — the document's own step list — and an unreal value falls back to the first
+ * step rather than being rejected. Identical to `?step=` on the GET (Plan
+ * 46.5-01), for the identical reason: a stale bookmark or a probe is not an
+ * error worth showing a PM, and the resolved value is always a step the
+ * document actually has.
+ *
+ * ── THE RULES NARROW TO THE CURRENT STEP, BUT ONLY ON AN ADVANCE ───────────
+ *
+ * On `next`/`back` only the CURRENT step's fields carry their rules, so a PM
+ * does not reach step 3 to learn step 1 was wrong and is not refused step 1
+ * for a step-3 field they have not seen. On `create` EVERY step's rules are
+ * added, exactly as before this plan — which is what makes a carried-forward
+ * hidden input safe (T-46.5-04-02, T-46.5-04-03). A hidden field is as
+ * attacker-controlled as a visible one, so the final submit re-validates all
+ * of them and a hand-crafted POST claiming `step=1` cannot skip step 2's rules.
+ *
+ * `format` is required on `create` only: the format radios live on the LAST
+ * step, so an advance from step 1 has none to send.
  */
 final class CockpitDocumentRequest extends FormRequest
 {
+    /**
+     * The three things this form can be asking for. A closed set, matched
+     * exactly — never a prefix, never case-insensitively.
+     *
+     * @var array<int, string>
+     */
+    public const INTENTS = ['next', 'back', 'create'];
+
+    /** The intent an absent value means, so every pre-46.5 caller is unchanged. */
+    public const INTENT_CREATE = 'create';
+
     public function authorize(): bool
     {
         return auth()->check();
+    }
+
+    /** The resolved intent — always one of `INTENTS`, or the submitted rubbish. */
+    public function intent(): string
+    {
+        $intent = $this->input('intent');
+
+        return is_string($intent) ? $intent : self::INTENT_CREATE;
+    }
+
+    /** The resolved step. Always a step this document has (or 1). */
+    public function step(): int
+    {
+        return app(CockpitWizardPresenter::class)
+            ->resolveStep((string) $this->input('module'), $this->input('step'));
     }
 
     /**
@@ -70,6 +128,21 @@ final class CockpitDocumentRequest extends FormRequest
             $this->request->remove('tab');
             $this->replace($this->all());
         }
+
+        // AN ABSENT `intent` IS `create`, so every caller and every test written
+        // before Plan 46.5-04 submits exactly what it always did. A PRESENT but
+        // unrecognised one is left alone on purpose — `rules()` then rejects it,
+        // rather than this method quietly turning `intent=rubbish` into a
+        // document creation.
+        if ($this->input('intent') === null) {
+            $this->merge(['intent' => self::INTENT_CREATE]);
+        }
+
+        // MEMBERSHIP, NOT VALIDATION. `?step=9`, `?step=abc` and `?step[]=1`
+        // all resolve to the document's first step; the submitted value never
+        // survives this line, so nothing downstream can echo it or build
+        // anything out of it.
+        $this->merge(['step' => $this->step()]);
     }
 
     /**
@@ -79,9 +152,18 @@ final class CockpitDocumentRequest extends FormRequest
     {
         $map = CockpitDocumentFormPresenter::documentFieldMap();
 
+        $isCreate = $this->intent() === self::INTENT_CREATE;
+
         $rules = [
             'module' => ['required', 'string', Rule::in(array_keys($map))],
-            'format' => ['required', 'string'],
+            // THE WIZARD'S OWN TWO. `intent` is a closed set (T-46.5-04-01) and
+            // `step` has already been membership-resolved, so this rule is the
+            // belt to that braces rather than the guard itself.
+            'intent' => ['required', 'string', Rule::in(self::INTENTS)],
+            'step'   => ['nullable', 'integer'],
+            // Required on the CREATION only: the format radios render on the
+            // last step, so a step advance has none to send.
+            'format' => $isCreate ? ['required', 'string'] : ['nullable', 'string'],
             // The tab the generation was initiated FROM, on the same mechanism
             // and against the same constant the four visit acts use
             // (`x-cockpit.tab-field`, Plan 46.1-06). Membership-resolved on the
@@ -103,9 +185,11 @@ final class CockpitDocumentRequest extends FormRequest
             static fn (?string $routeName): bool => $routeName !== null,
         ));
 
-        $rules['format'] = ['required', 'string', Rule::in($offered)];
+        $rules['format'] = $isCreate
+            ? ['required', 'string', Rule::in($offered)]
+            : ['nullable', 'string', Rule::in($offered)];
 
-        foreach ($map[$module]['groups'] as $group) {
+        foreach ($this->groupsToValidate($module, $isCreate) as $group) {
             foreach ($group['fields'] as $field) {
                 $rules[$field['key']] = $field['rules'];
 
@@ -120,6 +204,39 @@ final class CockpitDocumentRequest extends FormRequest
         }
 
         return $rules;
+    }
+
+    /**
+     * WHICH GROUPS' RULES THIS REQUEST CARRIES, AND WHY THE TWO CASES DIFFER.
+     *
+     * ON `create` — EVERY group, exactly as before Plan 46.5-04. This is the
+     * line that makes the wizard's hidden carry-forward inputs safe: they are
+     * attacker-controlled, so they are RE-VALIDATED on the final submit rather
+     * than trusted because an earlier step validated them. A hand-crafted POST
+     * claiming `step=1` therefore cannot skip step 2's rules (T-46.5-04-02),
+     * and a forged `readonly` field still trips `prohibited` (T-46.5-04-03).
+     *
+     * ON `next`/`back` — the CURRENT step's groups only, so a PM never reaches
+     * step 3 to learn step 1 was wrong, and is never refused step 1 for a field
+     * they have not been shown. Safe because an advance PERSISTS NOTHING: the
+     * narrower rule set guards a request that writes no row.
+     *
+     * A document with NO steps falls back to every group, because a stepless
+     * document has no current step to narrow to and must behave exactly as it
+     * did before this plan.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function groupsToValidate(string $module, bool $isCreate): array
+    {
+        $wizard = app(CockpitWizardPresenter::class);
+        $all    = CockpitDocumentFormPresenter::documentFieldMap()[$module]['groups'];
+
+        if ($isCreate || $wizard->stepsFor($module) === []) {
+            return $all;
+        }
+
+        return $wizard->groupsForStep($module, $this->step());
     }
 
     /**
@@ -157,6 +274,10 @@ final class CockpitDocumentRequest extends FormRequest
             'module.in'       => 'That document is not one this page produces.',
             'module.required' => 'Choose a document to generate.',
             'format.in'       => 'That format is not available for this document.',
+            // NAMES NO SUBMITTED VALUE. The message says what is wrong without
+            // echoing what was sent (T-46.5-04-06).
+            'intent.in'       => 'That is not something this form can do.',
+            'intent.required' => 'That is not something this form can do.',
         ];
     }
 }
