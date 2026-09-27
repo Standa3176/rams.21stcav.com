@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Project Cockpit
 status: executing
-stopped_at: Phase 46.2 (Doc Creation Cockpit) — ALL 6 PLANS LANDED and DEPLOYED TO LIVE 2026-09-25. Held at its HUMAN CHECKPOINT (Plan 46.2-06, Task 3 Part B) on four rulings the user has NOT given: (a) should the read-only visit list and "0 visits" phrase come off the rows; (b) the "First fix and install" → "Worksheet" retitle; (c) DC-07, the worksheet PDF that does not exist; (d) open a cockpit and judge whether the four document forms are simple. Phases 46 and 46.1 are ALSO still held at their own checkpoints (VL-11, RV-08) — three open checkpoints, none self-approved. Code state: the cockpit is now a DOCUMENT CREATION tool — four rows (Site survey / Worksheet / RAMS / O&M manual), a per-document form rendered from CockpitDocumentFormPresenter::DOCUMENT_FIELD_MAP, generating Word and PDF from the existing generators. The visit lifecycle, engineer links, returned-evidence review and photo ZIP are ALL KEPT AND WORKING but NO LONGER SURFACED anywhere (46.2 D-02) — this is the open design question blocking Phase 47, whose premise assumes visits have a screen. Gates at hand-back: D-06 baseline 2 skipped / 159 passed / 0 failed; cockpit suite 361 passed (269 Feature + 92 Unit); three sha256 pins identical; fence counts 2 / 21 / 9 / 13 and the breakage ritual re-run four times. GAPS carried: VL-12 (per-visit document scoping) and DC-07 (worksheet PDF) both NOT DELIVERED; DC-06 only PARTIALLY verified — two of eight format cells (Worksheet .docx, site-survey .docx) have been opened and proven, RAMS Word+PDF / O&M Word+PDF / site-survey PDF have NEVER been generated (unauthorised AI spend).
-last_updated: "2026-09-26T00:00:00.000Z"
-last_activity: 2026-09-26
+stopped_at: THREE PHASES ARE CODE-COMPLETE AND HELD AT HUMAN CHECKPOINTS, and a fourth is deployed. 46.3 (Inline Drawer Layout) DEPLOYED 2026-09-26 — the drawer opens beneath its row, the others collapse away, Recent activity is its own right-hand panel, the visit phrase hides at zero but KEEPS '1 visit / reconstructed'. A follow-up quick task (260927-tgl) made the open row TOGGLE CLOSED after the user found it could not be closed by clicking — the assertion that should have caught it was VACUOUS, rendering only the closed page. 46.4 (Engineer Link Install Capture) DEPLOYED 2026-09-27 — start/completion photo trays with labels, an asset list, and per-room additional-kit rows (engineer from the visit, qty, part description) that queue offline; the capture surface LOCKS at sign-off, server-side on eight endpoints; nothing is ever hard deleted (mark-with-reason). Its deploy hit a MySQL-only migration failure (64-char index name) that sqlite could never catch — fixed in 57a4f954. 46.5 (Guided Creation Wizard) CODE-COMPLETE, NOT DEPLOYED, 34 commits unpushed — the long form is three steps, one creation yields document + visit + engineer link in one transaction, RAMS joined as doc-only driven by the EXISTING ProjectDeliverable tick, a third photo stage 'during', and the client company name on the masthead. Cockpit suite 473 passed / 0 failed. OPEN CHECKPOINTS, none self-approved: VL-11 (46), RV-08 (46.1 — ⚠️ NO LONGER JUDGEABLE FROM THE PAGE, 46.2 unsurfaced the tab), DC-08 (46.2), 46.3, 46.4 (⚠️ its airplane-mode walk is the ONLY proof the offline queue works and NOTHING IN THE REPO CAN SUBSTITUTE), 46.5. ⚠️ 46.5's spaces source is an INFERRED ASSUMPTION — the user was asked twice and did not answer; it reads the project's rooms, all ticked, and the assumption is written at two code sites.
+last_updated: "2026-09-27T00:00:00.000Z"
+last_activity: 2026-09-27
 progress:
   total_phases: 8
   completed_phases: 2
-  total_plans: 39
-  completed_plans: 39
+  total_plans: 57
+  completed_plans: 57
   percent: 25
 ---
 
