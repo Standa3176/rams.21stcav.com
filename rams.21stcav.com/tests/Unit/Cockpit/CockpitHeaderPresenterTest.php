@@ -118,6 +118,63 @@ class CockpitHeaderPresenterTest extends TestCase
         $this->assertSame('2026-10-05', $masthead['planned_start']->toDateString());
     }
 
+    // -- The client company name (46.5 D-01) ---------------------------------
+
+    /**
+     * D-01, asked for off the live page: a PM must be able to see WHICH CLIENT
+     * a job is for without leaving the cockpit.
+     */
+    public function test_the_masthead_carries_the_projects_client_company_name(): void
+    {
+        $project = $this->project(['client_name' => 'Acme Facilities Ltd']);
+
+        $masthead = $this->presenter()->masthead($project->fresh());
+
+        $this->assertSame('Acme Facilities Ltd', $masthead['client_name']);
+    }
+
+    /**
+     * ABSENT, not null and not ''. `projects.client_name` is NOT NULL at the
+     * schema level but blank on older rows, so the blank row is the real state
+     * this has to survive — and `array_key_exists` is asserted rather than a
+     * falsy value, because a present-but-empty key would render an empty line.
+     */
+    public function test_a_blank_or_whitespace_client_name_leaves_no_key_at_all(): void
+    {
+        foreach (['', '   '] as $blank) {
+            $masthead = $this->presenter()->masthead($this->project(['client_name' => $blank])->fresh());
+
+            $this->assertFalse(
+                array_key_exists('client_name', $masthead),
+                'A blank client_name must leave NO key — not a null, not an empty string.'
+            );
+        }
+    }
+
+    /**
+     * The value is `Project::client_name` and nothing else. The survey here
+     * carries a DIFFERENT contact name, so a wire-up to the survey — the one
+     * plausible-looking substitute — goes red instead of shipping.
+     */
+    public function test_the_client_name_is_the_projects_own_never_the_surveys_contact(): void
+    {
+        $project = $this->project(['client_name' => 'Acme Facilities Ltd']);
+
+        $this->survey($project, [
+            'client_name'        => 'A Different Client Plc',
+            'site_contact_name'  => 'Dana Holt',
+            'site_contact_phone' => '020 7946 0000',
+            'pm_email'           => 'pm@example.com',
+        ]);
+
+        $masthead = $this->presenter()->masthead($project->fresh());
+
+        $this->assertSame('Acme Facilities Ltd', $masthead['client_name']);
+        $this->assertNotSame('A Different Client Plc', $masthead['client_name']);
+        $this->assertNotSame('Dana Holt', $masthead['client_name']);
+        $this->assertNotContains('pm@example.com', $masthead);
+    }
+
     // -- The three sourceless values -----------------------------------------
 
     public function test_no_contact_email_key_exists_in_any_project_state(): void

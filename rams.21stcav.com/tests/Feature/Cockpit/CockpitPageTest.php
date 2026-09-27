@@ -319,6 +319,109 @@ class CockpitPageTest extends TestCase
     }
 
     /**
+     * 46.5 D-01 — the client company name is on the masthead, and the <h1> is
+     * still the project's ref-or-name rather than the client's. Asserted
+     * INSIDE the `.cav-mast` subtree, because a page-level assertSee would
+     * pass on a client name that landed anywhere on the page.
+     */
+    public function test_the_masthead_renders_the_client_company_name_and_keeps_its_h1(): void
+    {
+        config(['cockpit.enabled' => true]);
+
+        $project = Project::factory()->create([
+            'name'         => 'Cockpit Test Job',
+            'client_name'  => 'Acme Facilities Ltd',
+            'site_address' => '12 Example Street, Leeds',
+            'status'       => Project::STATUS_INSTALLING,
+        ]);
+
+        $mast = $this->mastheadSubtree($this->renderCockpit($project));
+
+        $this->assertStringContainsString('Acme Facilities Ltd', $mast);
+        $this->assertSame(1, substr_count($mast, '<h1'), 'Exactly one h1.');
+        $this->assertMatchesRegularExpression(
+            '/<h1[^>]*>\s*Cockpit Test Job\s*<\/h1>/',
+            $mast,
+            'The h1 stays the project ref-or-name; the client is a separate line.'
+        );
+    }
+
+    /**
+     * A project with no client company shows NO client line — omitted, never
+     * an empty element. `projects.client_name` is NOT NULL but blank on older
+     * rows, so this is a real state and not a hypothetical one.
+     */
+    public function test_a_project_with_no_client_name_renders_no_client_line(): void
+    {
+        config(['cockpit.enabled' => true]);
+
+        $project = Project::factory()->create([
+            'name'         => 'Clientless Job',
+            'client_name'  => '   ',
+            'site_address' => '12 Example Street, Leeds',
+            'status'       => Project::STATUS_INSTALLING,
+        ]);
+
+        $mast = $this->mastheadSubtree($this->renderCockpit($project));
+
+        $this->assertSame(
+            0,
+            substr_count($mast, 'data-mast-client'),
+            'No client name means no client element at all, empty or otherwise.'
+        );
+
+        // Non-vacuity: the populated case above DOES emit that hook, so a zero
+        // here cannot come from a renamed class nobody noticed.
+        $populated = Project::factory()->create([
+            'name'        => 'Populated Job',
+            'client_name' => 'Acme Facilities Ltd',
+            'status'      => Project::STATUS_INSTALLING,
+        ]);
+
+        $this->assertSame(
+            1,
+            substr_count($this->mastheadSubtree($this->renderCockpit($populated)), 'data-mast-client'),
+        );
+    }
+
+    /**
+     * T-46.5-02-02 — client_name is operator-entered text. Escaped echo only.
+     */
+    public function test_a_client_name_containing_script_renders_escaped(): void
+    {
+        config(['cockpit.enabled' => true]);
+
+        $project = Project::factory()->create([
+            'name'        => 'XSS Job',
+            'client_name' => '<script>alert(1)</script>',
+            'status'      => Project::STATUS_INSTALLING,
+        ]);
+
+        // RAW html, deliberately un-decoded — the subtree helper decodes.
+        $html = $this->renderCockpit($project);
+
+        $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $html);
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $html);
+    }
+
+    /** The `.cav-mast` element only, entities decoded. */
+    private function mastheadSubtree(string $html): string
+    {
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$html);
+        libxml_clear_errors();
+
+        $node = (new \DOMXPath($dom))
+            ->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' cav-mast ')]")
+            ->item(0);
+
+        $this->assertNotNull($node, 'The cav-mast element was not found in the response.');
+
+        return html_entity_decode($dom->saveHTML($node), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
+    /**
      * The three facts the design asks for that have no source stay absent —
      * 45-10 settled each one and this asserts the Blade layer did not quietly
      * reinstate them.
