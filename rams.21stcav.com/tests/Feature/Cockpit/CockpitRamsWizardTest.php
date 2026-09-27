@@ -11,6 +11,7 @@ use App\Models\RamsDocument;
 use App\Models\User;
 use App\Models\Visit;
 use App\Support\Cockpit\CockpitDocumentFormPresenter;
+use App\Support\Cockpit\CockpitModulePresenter;
 use App\Support\Cockpit\CockpitWizardPresenter;
 use App\Support\Visits\VisitLinkIssuer;
 use DOMDocument;
@@ -36,7 +37,7 @@ use Tests\TestCase;
  *   1. THE JOB SUMMARY REACHES THE DOCUMENT the existing generator builds,
  *      through the controller's EXISTING `patchFormData()` — no controller edit,
  *      no new route, no new build job.
- *   2. RAMS HAS THREE STEPS and every one of its 17 fields reaches exactly one
+ *   2. RAMS HAS THREE STEPS and every one of its 19 fields reaches exactly one
  *      of them, asserted by SET EQUALITY against the map rather than by counting.
  *   3. THE TICK DRIVES THE FLOW, IT DOES NOT GATE THE PAGE. Every deliverable
  *      state renders, in every mode, and the COUNT of states rendered is itself
@@ -290,5 +291,416 @@ class CockpitRamsWizardTest extends TestCase
         $this->generate($project, $payload, $pm)->assertRedirect()->assertSessionHasNoErrors();
 
         $this->assertSame(1, RamsDocument::where('project_id', $project->id)->count());
+    }
+
+    // -- 2. RAMS'S THREE STEPS -----------------------------------------------
+
+    public function test_rams_has_exactly_three_steps_with_the_titles_the_map_names(): void
+    {
+        $this->assertSame([1, 2, 3], $this->wizard()->stepsFor(ProjectDeliverable::KEY_RAMS));
+
+        $this->assertSame('Dates and hours', $this->wizard()->stepTitle(ProjectDeliverable::KEY_RAMS, 1));
+        $this->assertSame('Team and site contact', $this->wizard()->stepTitle(ProjectDeliverable::KEY_RAMS, 2));
+        $this->assertSame('Job summary and output', $this->wizard()->stepTitle(ProjectDeliverable::KEY_RAMS, 3));
+
+        // A step with no title would render a wizard heading from nowhere.
+        $this->assertNull($this->wizard()->stepTitle(ProjectDeliverable::KEY_RAMS, 4));
+    }
+
+    /**
+     * SET EQUALITY, NOT A COUNT - the plan's own instruction. A count would pass
+     * while one field moved onto a step as another fell off, and RAMS's existing
+     * fields must ALL survive the regrouping: not one is added, removed,
+     * renamed or reworded by the stepping.
+     *
+     * The measured total is 19 (When 4 - Who 6 - Programmers 1 - Site contact 3
+     * - Job summary 1 - From the project 4). The plan said "17"; that was
+     * planning arithmetic. The set equality below is what actually holds the
+     * invariant, so the measured number is reported rather than the planned one
+     * obeyed.
+     */
+    public function test_every_rams_field_reaches_exactly_one_step(): void
+    {
+        $map = CockpitDocumentFormPresenter::documentFieldMap()[ProjectDeliverable::KEY_RAMS];
+
+        $onTheMap = [];
+
+        foreach ($map['groups'] as $group) {
+            $this->assertIsInt(
+                $group['step'] ?? null,
+                "RAMS group `{$group['legend']}` has no step. Every RAMS group is on the wizard now - "
+                .'a `null` here would silently drop its fields off the form.',
+            );
+
+            foreach ($group['fields'] as $field) {
+                $onTheMap[] = $field['key'];
+            }
+        }
+
+        $onAStep = [];
+
+        foreach ($this->wizard()->stepsFor(ProjectDeliverable::KEY_RAMS) as $step) {
+            foreach ($this->wizard()->groupsForStep(ProjectDeliverable::KEY_RAMS, $step) as $group) {
+                foreach ($group['fields'] as $field) {
+                    $onAStep[] = $field['key'];
+                }
+            }
+        }
+
+        sort($onTheMap);
+        sort($onAStep);
+
+        $this->assertSame($onTheMap, $onAStep, 'A RAMS field reaches no step, or reaches two.');
+        $this->assertSame(count($onTheMap), count(array_unique($onTheMap)), 'A RAMS field key is duplicated.');
+        $this->assertCount(19, $onAStep, 'RAMS asks 19 questions across its three steps.');
+    }
+
+    /**
+     * Step membership by SUBTREE, not by `assertSee`. With carry-forward every
+     * step's answers are somewhere in the document, so a whole-page string
+     * search cannot tell "a control the PM must answer" from "a value riding
+     * along hidden" - and would pass with all 19 fields back on one screen.
+     */
+    public function test_each_rams_step_renders_its_own_controls_and_not_the_others(): void
+    {
+        $project = $this->project();
+        $this->reviewedPackage($project);
+        $this->resources();
+
+        $rendered = 0;
+
+        foreach ($this->wizard()->stepsFor(ProjectDeliverable::KEY_RAMS) as $step) {
+            $html = $this->actingAs($this->user())->get($this->stepUrl($project, $step))
+                ->assertOk()
+                ->getContent();
+
+            $controls = $this->splitControls($html);
+            $expected = $this->fieldsByStep($step);
+
+            $this->assertNotEmpty($expected['own'], "RAMS step {$step} asks nothing.");
+
+            foreach ($expected['own'] as $key) {
+                $this->assertContains($key, $controls['visible'], "RAMS step {$step} does not ask `{$key}`.");
+            }
+
+            foreach ($expected['others'] as $key) {
+                $this->assertNotContains(
+                    $key,
+                    $controls['visible'],
+                    "RAMS step {$step} renders `{$key}`, which belongs to another step.",
+                );
+            }
+
+            $rendered++;
+        }
+
+        $this->assertSame(3, $rendered, 'Three RAMS steps were rendered and asserted.');
+    }
+
+    // -- 3. THE TICK DRIVES THE FLOW, IT DOES NOT GATE THE PAGE --------------
+
+    /**
+     * EVERY STATE, COUNTED. Two modes x four deliverable states, and the
+     * standalone mode is rendered at every one of its three steps:
+     *
+     *   standalone       4 states x 3 steps = 12
+     *   from an install  4 states x 1 panel =  4
+     *                                        ---
+     *                                         16
+     *
+     * The count is asserted because a test that renders ONE state proves nothing
+     * about the others - two days before this plan the user found a defect 387
+     * tests missed for exactly that reason.
+     */
+    public function test_every_rams_state_renders_in_every_mode_and_every_deliverable_state(): void
+    {
+        $rendered = 0;
+
+        foreach (self::DELIVERABLE_STATES as $state) {
+            $project = $this->project();
+            $this->reviewedPackage($project);
+            $this->resources();
+            $this->tick($project, $state);
+
+            $label = $state ?? 'no row';
+
+            // MODE 1 - STANDALONE. "office user should be able to ... gen
+            // independant of a visit". Every step, in every state: the tick
+            // DRIVES the flow, it does not GATE the page, so a project whose
+            // RAMS deliverable is `not_yet_decided` still creates a RAMS if a
+            // PM asks for one.
+            foreach ($this->wizard()->stepsFor(ProjectDeliverable::KEY_RAMS) as $step) {
+                $this->actingAs($this->user())->get($this->stepUrl($project, $step))
+                    ->assertOk()
+                    ->assertSee('RAMS', false);
+
+                $rendered++;
+            }
+
+            // MODE 2 - REACHED FROM AN INSTALL. The worksheet panel renders in
+            // every state too; only its ROUTE to the RAMS is conditional.
+            $this->actingAs($this->user())->get(route('projects.cockpit', [
+                'project' => $project,
+                'module'  => ProjectDeliverable::KEY_WORKSHEET,
+                'tab'     => 'overview',
+            ]))->assertOk();
+
+            $rendered++;
+
+            $this->assertSame(
+                $state ?? ProjectDeliverable::STATE_NOT_YET_DECIDED,
+                $project->fresh()->load('deliverables')->deliverableState(ProjectDeliverable::KEY_RAMS),
+                "The guarded reader disagreed about the `{$label}` state.",
+            );
+        }
+
+        $this->assertSame(16, $rendered, 'Sixteen RAMS states were rendered: 2 modes x 4 deliverable states.');
+    }
+
+    /**
+     * D-05, and the ONLY thing the tick actually changes: "are RAMS req ? if
+     * ticked yes it follow a similar flow to site survey". When the project's
+     * RAMS deliverable reads `required`, the WORKSHEET panel says so in one
+     * escaped sentence and links to the RAMS module's own wizard. It is the SAME
+     * RAMS document, reached from the install - never a second creation path.
+     */
+    public function test_only_a_required_rams_deliverable_puts_the_route_on_the_install(): void
+    {
+        $sentence = 'RAMS are required for this project.';
+
+        $link = static fn (Project $project): string => route('projects.cockpit', [
+            'project' => $project,
+            'module'  => ProjectDeliverable::KEY_RAMS,
+            'tab'     => 'overview',
+            'action'  => 'generate',
+            'step'    => 1,
+        ]);
+
+        $judged = 0;
+
+        foreach (self::DELIVERABLE_STATES as $state) {
+            $project = $this->project();
+            $this->resources();
+            $this->tick($project, $state);
+
+            $response = $this->actingAs($this->user())->get(route('projects.cockpit', [
+                'project' => $project,
+                'module'  => ProjectDeliverable::KEY_WORKSHEET,
+                'tab'     => 'overview',
+            ]))->assertOk();
+
+            if ($state === ProjectDeliverable::STATE_REQUIRED) {
+                $response->assertSee($sentence, false);
+                $response->assertSee(e($link($project)), false);
+            } else {
+                $response->assertDontSee($sentence, false);
+            }
+
+            $judged++;
+        }
+
+        $this->assertSame(4, $judged, 'All four deliverable states were judged.');
+
+        // THE SENTENCE IS NEVER THE RAW ENUM (T-46.5-05-02).
+        foreach ([ProjectDeliverable::STATE_REQUIRED, ProjectDeliverable::STATE_NOT_YET_DECIDED] as $enum) {
+            $this->assertStringNotContainsString($enum, $sentence);
+        }
+    }
+
+    /**
+     * `Project::deliverableState()` IS DELIBERATELY GUARDED - it returns null
+     * when the `deliverables` relation is not loaded, so a caller cannot make it
+     * fire a lazy query per module row. The prompt honours that guard: an
+     * unloaded project reads null, offers nothing, and the page still renders.
+     *
+     * Asserted with lazy loading PREVENTED, so working around the guard with a
+     * lazy query would be an exception rather than a silent N+1.
+     */
+    public function test_an_unloaded_deliverables_relation_reads_null_and_offers_nothing(): void
+    {
+        $project = $this->project();
+        $this->tick($project, ProjectDeliverable::STATE_REQUIRED);
+
+        $unloaded = Project::query()->findOrFail($project->id);
+
+        $this->assertFalse($unloaded->relationLoaded('deliverables'));
+        $this->assertNull(
+            $unloaded->deliverableState(ProjectDeliverable::KEY_RAMS),
+            'deliverableState() answered without the relation loaded - the guard was worked around.',
+        );
+
+        Project::preventLazyLoading();
+
+        try {
+            $this->assertNull(
+                app(CockpitModulePresenter::class)->deliverablePrompt($unloaded, ProjectDeliverable::KEY_WORKSHEET),
+                'The prompt answered from an unloaded relation.',
+            );
+        } finally {
+            Project::preventLazyLoading(false);
+        }
+
+        // And the page - which DOES eager-load - is still 200 and still offers it.
+        $this->actingAs($this->user())->get(route('projects.cockpit', [
+            'project' => $project,
+            'module'  => ProjectDeliverable::KEY_WORKSHEET,
+            'tab'     => 'overview',
+        ]))->assertOk()->assertSee('RAMS are required for this project.', false);
+    }
+
+    // -- 4. RAMS ISSUES NO ENGINEER LINK AND CREATES NO VISIT ----------------
+
+    /**
+     * D-04, asserted rather than trusted: "issues no engineer link of its own".
+     * An install's link is the install's.
+     *
+     * `VisitLinkIssuer::VISIT_MODULES` has exactly two entries and RAMS is not
+     * one of them, so the guarantee is DATA - and the wizard is walked
+     * end-to-end anyway, because a new call to the issuer would not show up in
+     * that constant.
+     */
+    public function test_the_rams_module_issues_no_engineer_link_and_creates_no_visit(): void
+    {
+        $this->assertSame([], VisitLinkIssuer::typesFor(ProjectDeliverable::KEY_RAMS));
+        $this->assertSame(
+            [ProjectDeliverable::KEY_SITE_SURVEY, ProjectDeliverable::KEY_WORKSHEET],
+            array_keys(VisitLinkIssuer::VISIT_MODULES),
+            'A module gained an engineer link. RAMS must not be one of them.',
+        );
+
+        $pm      = $this->user();
+        $project = $this->project();
+        $this->reviewedPackage($project);
+        $this->resources();
+
+        $visitsBefore  = DB::table('visits')->count();
+        $surveysBefore = DB::table('site_surveys')->count();
+
+        // The whole wizard, step by step, then the create.
+        foreach ([1, 2] as $step) {
+            $this->generate($project, ['intent' => 'next', 'step' => $step] + $this->ramsPayload(), $pm)
+                ->assertRedirect($this->stepUrl($project, $step + 1));
+        }
+
+        $this->generate($project, $this->ramsPayload(), $pm)->assertRedirect();
+
+        $this->assertSame(1, RamsDocument::where('project_id', $project->id)->count(), 'The RAMS itself was not created.');
+
+        $this->assertSame($visitsBefore, DB::table('visits')->count(), 'The RAMS wizard created a visit.');
+        $this->assertSame(0, Visit::where('project_id', $project->id)->count());
+        $this->assertSame(
+            $surveysBefore,
+            DB::table('site_surveys')->count(),
+            'The RAMS wizard created a survey - and every survey carries an engineer link.',
+        );
+    }
+
+    /**
+     * The copy, checked as a SUBSTRING against all 21 `DEFERRED_AFFORDANCES`
+     * keys and both `FORBIDDEN_MARKUP` entries - before use, and now as an
+     * assertion so a later copy edit cannot collide quietly.
+     *
+     * `Send a RAMS to the client` is the entry this plan's copy sits closest to,
+     * and no line may contain it: this plan ships no client issue.
+     */
+    public function test_the_rams_copy_collides_with_no_fence_entry(): void
+    {
+        $copy = [
+            'RAMS are required for this project.',
+            'Open the RAMS step by step',
+            'Job summary',
+            'Dates and hours',
+            'Team and site contact',
+            'Job summary and output',
+        ];
+
+        $fence = new \ReflectionClass(CockpitReadOnlyFenceTest::class);
+
+        $banned = array_merge(
+            array_keys($fence->getConstant('DEFERRED_AFFORDANCES')),
+            $fence->getConstant('FORBIDDEN_MARKUP'),
+        );
+
+        $this->assertCount(23, $banned, 'The fence is 21 deferred affordances and 2 forbidden markup entries.');
+
+        foreach ($copy as $line) {
+            foreach ($banned as $entry) {
+                $this->assertStringNotContainsString(
+                    $entry,
+                    $line,
+                    "RAMS wizard copy `{$line}` contains the fenced string `{$entry}`.",
+                );
+            }
+        }
+
+        $this->assertStringNotContainsString('Send a RAMS to the client', implode(' ', $copy));
+    }
+
+    // -- Helpers -------------------------------------------------------------
+
+    /**
+     * @return array{visible: array<int, string>, hidden: array<int, string>}
+     */
+    private function splitControls(string $html): array
+    {
+        $dom = new DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$html);
+        libxml_clear_errors();
+
+        $xpath   = new DOMXPath($dom);
+        $visible = [];
+        $hidden  = [];
+
+        foreach ($xpath->query('//input[@name] | //textarea[@name]') as $node) {
+            $name = rtrim($node->getAttribute('name'), '[]');
+
+            if (strtolower($node->getAttribute('type')) === 'hidden') {
+                $hidden[] = $name;
+
+                continue;
+            }
+
+            $visible[] = $name;
+        }
+
+        return [
+            'visible' => array_values(array_unique($visible)),
+            'hidden'  => array_values(array_unique($hidden)),
+        ];
+    }
+
+    /**
+     * @return array{own: array<int, string>, others: array<int, string>}
+     */
+    private function fieldsByStep(int $step): array
+    {
+        $own    = [];
+        $others = [];
+
+        foreach (CockpitDocumentFormPresenter::documentFieldMap()[ProjectDeliverable::KEY_RAMS]['groups'] as $group) {
+            $groupStep = $group['step'] ?? null;
+
+            if (! is_int($groupStep)) {
+                continue;
+            }
+
+            foreach ($group['fields'] as $field) {
+                // A display-only field is never a control anywhere.
+                if (in_array('prohibited', $field['rules'], true)) {
+                    continue;
+                }
+
+                if ($groupStep === $step) {
+                    $own[] = $field['key'];
+
+                    continue;
+                }
+
+                $others[] = $field['key'];
+            }
+        }
+
+        return ['own' => $own, 'others' => $others];
     }
 }
