@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\ProjectDeliverable;
 use App\Models\SiteSurvey;
 use App\Models\User;
+use App\Models\Visit;
 use App\Support\Cockpit\CockpitDocumentFormPresenter;
 use App\Support\Cockpit\CockpitWizardPresenter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -440,6 +441,484 @@ class CockpitWizardTest extends TestCase
         // And the step spine says so for the two that DO step.
         $this->assertSame([1, 2, 3], $this->wizard()->stepsFor(ProjectDeliverable::KEY_SITE_SURVEY));
         $this->assertSame([1], $this->wizard()->stepsFor(ProjectDeliverable::KEY_WORKSHEET));
+    }
+
+    // ── 2. EVERY STEP OF EVERY STEPPED DOCUMENT IS RENDERED ─────────────────
+
+    /** The `cav-qa` subtree of the open panel, or '' when nothing disclosed. */
+    private function docForm(Project $project, string $module, array $query = []): string
+    {
+        $body = $this->actingAs($this->user())
+            ->get(route('projects.cockpit', ['project' => $project, 'module' => $module] + $query))
+            ->assertOk()
+            ->getContent();
+
+        return $this->subtree($body, 'cav-qa');
+    }
+
+    private function subtree(string $html, string $class): string
+    {
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$html);
+        libxml_clear_errors();
+
+        $node = (new \DOMXPath($dom))
+            ->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' {$class} ')]")
+            ->item(0);
+
+        return $node === null ? '' : html_entity_decode($dom->saveHTML($node), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
+    /**
+     * Control names by XPath, split into VISIBLE and HIDDEN.
+     *
+     * The split is the whole point of using `DOMXPath` here rather than
+     * `assertSee`: with carry-forward every step's fields are somewhere in the
+     * document, so a whole-page string search cannot tell "rendered as a
+     * control the PM must answer" from "riding along as a hidden value". A test
+     * that could not tell them apart would pass with all 13 fields back on one
+     * screen — the wall the user called scary.
+     *
+     * @return array{visible: array<int, string>, hidden: array<int, string>}
+     */
+    private function splitControls(string $html): array
+    {
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$html);
+        libxml_clear_errors();
+
+        $xpath   = new \DOMXPath($dom);
+        $visible = [];
+        $hidden  = [];
+
+        foreach ($xpath->query('//input[@name] | //textarea[@name]') as $node) {
+            $name = rtrim($node->getAttribute('name'), '[]');
+
+            if (strtolower($node->getAttribute('type')) === 'hidden') {
+                $hidden[] = $name;
+
+                continue;
+            }
+
+            $visible[] = $name;
+        }
+
+        return [
+            'visible' => array_values(array_unique($visible)),
+            'hidden'  => array_values(array_unique($hidden)),
+        ];
+    }
+
+    /**
+     * @return array{own: array<int, string>, others: array<int, string>}
+     */
+    private function fieldsByStep(string $module, int $step): array
+    {
+        $own    = [];
+        $others = [];
+
+        foreach (CockpitDocumentFormPresenter::documentFieldMap()[$module]['groups'] as $group) {
+            $groupStep = $group['step'] ?? null;
+
+            if (! is_int($groupStep)) {
+                continue;
+            }
+
+            foreach ($group['fields'] as $field) {
+                // A display-only field is never a control anywhere, so it takes
+                // no part in this comparison.
+                if (in_array('prohibited', $field['rules'], true)) {
+                    continue;
+                }
+
+                if ($groupStep === $step) {
+                    $own[] = $field['key'];
+
+                    continue;
+                }
+
+                $others[] = $field['key'];
+            }
+        }
+
+        return ['own' => $own, 'others' => $others];
+    }
+
+    /**
+     * THE TEST THIS TASK EXISTS FOR.
+     *
+     * Every step of every STEPPED document, by looping the presenter's own step
+     * list rather than hand-listing three numbers — so a fourth step added to
+     * the map is covered the day it lands. Five things are asserted per step,
+     * and the COUNT of states rendered is asserted at the end so a change that
+     * collapses the wizard cannot pass by rendering one screen well.
+     */
+    public function test_every_step_of_every_stepped_document_renders_its_own_fields_and_only_those(): void
+    {
+        $project = $this->project();
+        $this->resources();
+
+        $statesRendered = 0;
+        $documents      = 0;
+
+        foreach (array_keys(CockpitDocumentFormPresenter::documentFieldMap()) as $module) {
+            $steps = $this->wizard()->stepsFor($module);
+
+            if ($steps === []) {
+                continue;
+            }
+
+            $documents++;
+
+            foreach ($steps as $position => $step) {
+                $form = $this->docForm($project, $module, ['action' => 'generate', 'step' => $step]);
+                $statesRendered++;
+
+                $this->assertNotSame('', $form, "{$module} step {$step} disclosed no form.");
+
+                $split  = $this->splitControls($form);
+                $fields = $this->fieldsByStep($module, $step);
+
+                // 1. THE STEP'S OWN FIELDS ARE THERE, as controls to answer.
+                foreach ($fields['own'] as $key) {
+                    $this->assertContains(
+                        $key,
+                        $split['visible'],
+                        "{$module} step {$step} does not ask for {$key}, which its own groups name."
+                    );
+                }
+
+                // 2. EVERY OTHER STEP'S FIELDS ARE NOT — not as controls. They
+                //    ARE present as hidden carry inputs, and that is asserted
+                //    separately below, because the two are different sentences.
+                foreach ($fields['others'] as $key) {
+                    $this->assertNotContains(
+                        $key,
+                        $split['visible'],
+                        "{$module} step {$step} renders {$key}, which belongs to another step. ".
+                        'That is the 13-field wall coming back.'
+                    );
+
+                    $this->assertContains(
+                        $key,
+                        $split['hidden'],
+                        "{$module} step {$step} drops {$key} instead of carrying it forward."
+                    );
+                }
+
+                $isFirst = $position === 0;
+                $isLast  = $position === count($steps) - 1;
+
+                // 3. The progress line names this step and the total.
+                $this->assertStringContainsString(
+                    'Step '.($position + 1).' of '.count($steps),
+                    $form,
+                    "{$module} step {$step} does not say where the PM is."
+                );
+
+                // 4. Next on every step but the last; the submit and the Format
+                //    radios on the LAST and nowhere else.
+                $this->assertSame($isLast ? 0 : 1, substr_count($form, 'value="next"'), "{$module} step {$step}: Next.");
+                $this->assertSame(
+                    $isLast ? 1 : 0,
+                    substr_count($form, 'Generate document'),
+                    "{$module} step {$step}: the submit belongs to the last step only."
+                );
+                $this->assertSame(
+                    $isLast ? 1 : 0,
+                    (int) str_contains($form, 'name="format"'),
+                    "{$module} step {$step}: the Format choice belongs to the last step only."
+                );
+
+                // 5. Back everywhere but the first step.
+                $this->assertSame($isFirst ? 0 : 1, substr_count($form, 'value="back"'), "{$module} step {$step}: Back.");
+            }
+        }
+
+        // FOUR STATES ACROSS TWO STEPPED DOCUMENTS — the site survey's three and
+        // the worksheet's one. COUNTED, because a test that renders one state of
+        // an N-state control proves nothing about the other N-1.
+        $this->assertSame(2, $documents, 'Two documents step today: the site survey and the worksheet.');
+        $this->assertSame(4, $statesRendered, 'Four wizard states were rendered and asserted.');
+    }
+
+    /**
+     * COMMS ROOM IS ON NO STEP, AND THEREFORE ON NO SCREEN OF THIS FORM.
+     *
+     * 46.5 D-03, asserted where a PM would see it. The group is NOT deleted
+     * from the map, NOT dropped from the Word document, NOT removed from the
+     * on-site capture and NOT taken out of the survey->install carry-forward —
+     * an installing engineer reads the surveyor's comms-room access notes, and
+     * removing it from those is a safety regression. It simply is not asked for
+     * on the office creation form any more.
+     */
+    public function test_comms_room_is_asked_for_on_no_step_of_the_office_form(): void
+    {
+        $project = $this->project();
+        $module  = ProjectDeliverable::KEY_SITE_SURVEY;
+        $states  = 0;
+
+        foreach ($this->wizard()->stepsFor($module) as $step) {
+            $form   = $this->docForm($project, $module, ['action' => 'generate', 'step' => $step]);
+            $split  = $this->splitControls($form);
+            $states++;
+
+            foreach (['comms_room_access_status', 'comms_room_access_notes'] as $key) {
+                $this->assertNotContains($key, $split['visible'], "Step {$step} asks for {$key}.");
+                // Nor carried: a hidden empty value would OVERWRITE what the
+                // engineer captured on site.
+                $this->assertNotContains($key, $split['hidden'], "Step {$step} carries {$key}.");
+            }
+
+            $this->assertStringNotContainsString('Comms room', $form, "Step {$step} renders the Comms room group.");
+        }
+
+        $this->assertSame(3, $states, 'All three steps were checked for comms room.');
+
+        // AND IT IS STILL IN THE MAP, on no step. Absent from the form is not
+        // absent from the product.
+        $legends = [];
+
+        foreach (CockpitDocumentFormPresenter::documentFieldMap()[$module]['groups'] as $group) {
+            $legends[$group['legend']] = $group['step'] ?? null;
+        }
+
+        $this->assertArrayHasKey('Comms room', $legends, 'The Comms room group was DELETED. It should be step => null.');
+        $this->assertNull($legends['Comms room'], 'Comms room belongs to no step.');
+    }
+
+    /**
+     * THE WALK, THROUGH HTTP, AS A PM DOES IT.
+     *
+     * Open, answer step 1, Next, see step 1's answers riding hidden on step 2,
+     * Next again, then Back — and step 1's answers are still there. This is the
+     * user's own acceptance test ("simple to use"): a PM finishes without
+     * scrolling back, and nothing they typed is lost on the way.
+     */
+    public function test_the_walk_from_step_one_to_three_and_back_carries_every_answer(): void
+    {
+        $project = $this->project();
+        $this->resources();
+        $module  = ProjectDeliverable::KEY_SITE_SURVEY;
+        $user    = $this->user();
+        $visited = [];
+
+        // Step 1, opened.
+        $form = $this->docForm($project, $module, ['action' => 'generate']);
+        $this->assertStringContainsString('Step 1 of 3', $form);
+        $visited[] = 1;
+
+        // Next, with step 1's answers.
+        $response = $this->actingAs($user)->post(
+            route('projects.cockpit.documents.store', $project),
+            ['module' => $module, 'intent' => 'next', 'step' => 1, 'tab' => 'overview'] + $this->stepOneValues(),
+        );
+
+        $step2 = $this->subtree(
+            $this->actingAs($user)->get((string) $response->headers->get('location'))->assertOk()->getContent(),
+            'cav-qa',
+        );
+        $visited[] = 2;
+
+        $this->assertStringContainsString('Step 2 of 3', $step2);
+
+        // The submitted values, riding hidden — asserted as VALUES, not merely
+        // as names, because a carry input with the wrong value loses the answer
+        // just as completely as no input at all.
+        foreach ($this->stepOneValues() as $key => $value) {
+            $this->assertMatchesRegularExpression(
+                '/<input type="hidden" name="'.preg_quote($key, '/').'" value="'.preg_quote($value, '/').'">/',
+                $step2,
+                "Step 2 lost step 1's {$key}."
+            );
+        }
+
+        // Next again, carrying step 1 forward exactly as the form does.
+        $response = $this->actingAs($user)->post(
+            route('projects.cockpit.documents.store', $project),
+            [
+                'module'        => $module,
+                'intent'        => 'next',
+                'step'          => 2,
+                'tab'           => 'overview',
+                'general_notes' => 'Lift access booked.',
+            ] + $this->stepOneValues(),
+        );
+
+        $step3 = $this->subtree(
+            $this->actingAs($user)->get((string) $response->headers->get('location'))->assertOk()->getContent(),
+            'cav-qa',
+        );
+        $visited[] = 3;
+
+        $this->assertStringContainsString('Step 3 of 3', $step3);
+        $this->assertStringContainsString('Generate document', $step3, 'The last step is where the document is asked for.');
+        $this->assertStringContainsString('Lift access booked.', $step3, 'Step 3 lost step 2\'s notes.');
+
+        // Back.
+        $response = $this->actingAs($user)->post(
+            route('projects.cockpit.documents.store', $project),
+            [
+                'module'        => $module,
+                'intent'        => 'back',
+                'step'          => 3,
+                'tab'           => 'overview',
+                'general_notes' => 'Lift access booked.',
+            ] + $this->stepOneValues(),
+        );
+
+        $backTo2 = $this->subtree(
+            $this->actingAs($user)->get((string) $response->headers->get('location'))->assertOk()->getContent(),
+            'cav-qa',
+        );
+        $visited[] = 2;
+
+        $this->assertStringContainsString('Step 2 of 3', $backTo2);
+        $this->assertStringContainsString('Lift access booked.', $backTo2, 'Back lost the notes the PM typed.');
+        $this->assertStringContainsString('value="Dev Chandra"', $backTo2, 'Back lost step 1.');
+
+        $this->assertSame([1, 2, 3, 2], $visited, 'Four states were walked through, in order.');
+
+        // AND THE WHOLE WALK WROTE NOTHING.
+        foreach (self::UNTOUCHED_TABLES as $table) {
+            $this->assertSame(0, DB::table($table)->count(), "The walk wrote to `{$table}`.");
+        }
+    }
+
+    // ── 3. THE ABANDONED-WIZARD RULE (GCW-03) ───────────────────────────────
+
+    /**
+     * WALK AWAY, THE WAY A PM ACTUALLY DOES: back to the bare module URL (the
+     * form's own Cancel target) and then off the page entirely.
+     */
+    private function walkAway(Project $project, string $module, User $user): void
+    {
+        $this->actingAs($user)
+            ->get(route('projects.cockpit', ['project' => $project, 'module' => $module]))
+            ->assertOk();
+
+        $this->actingAs($user)
+            ->get(route('projects.cockpit', $project))
+            ->assertOk();
+    }
+
+    public function test_a_wizard_abandoned_after_step_one_persists_nothing(): void
+    {
+        $project = $this->project();
+        $user    = $this->user();
+        $module  = ProjectDeliverable::KEY_SITE_SURVEY;
+
+        $before = $this->rowCounts();
+
+        $this->actingAs($user)->post(
+            route('projects.cockpit.documents.store', $project),
+            ['module' => $module, 'intent' => 'next', 'step' => 1, 'tab' => 'overview'] + $this->stepOneValues(),
+        )->assertSessionHasNoErrors();
+
+        $this->walkAway($project, $module, $user);
+
+        foreach ($this->rowCounts() as $table => $count) {
+            $this->assertSame(
+                $before[$table],
+                $count,
+                "A wizard abandoned after step one left a row in `{$table}`."
+            );
+        }
+
+        $this->assertSame(0, Visit::where('project_id', $project->id)->count(), 'No visit exists for an abandoned wizard.');
+        $this->assertCount(6, $before, 'Six tables, named individually, were snapshotted.');
+    }
+
+    public function test_a_wizard_abandoned_after_step_two_persists_nothing(): void
+    {
+        $project = $this->project();
+        $user    = $this->user();
+        $module  = ProjectDeliverable::KEY_SITE_SURVEY;
+
+        $before = $this->rowCounts();
+
+        foreach ([1, 2] as $step) {
+            $this->actingAs($user)->post(
+                route('projects.cockpit.documents.store', $project),
+                [
+                    'module'        => $module,
+                    'intent'        => 'next',
+                    'step'          => $step,
+                    'tab'           => 'overview',
+                    'general_notes' => 'Two steps in, then the phone rang.',
+                ] + $this->stepOneValues(),
+            )->assertSessionHasNoErrors();
+        }
+
+        $this->walkAway($project, $module, $user);
+
+        foreach ($this->rowCounts() as $table => $count) {
+            $this->assertSame(
+                $before[$table],
+                $count,
+                "A wizard abandoned after step two left a row in `{$table}`."
+            );
+        }
+
+        $this->assertSame(0, Visit::where('project_id', $project->id)->count(), 'No visit exists for an abandoned wizard.');
+        $this->assertCount(6, $before, 'Six tables, named individually, were snapshotted.');
+    }
+
+    /**
+     * D-02'S NAMED WORST CASE, AND IT GETS ITS OWN NAME.
+     *
+     * "Do not leave an engineer link issued against a survey whose rooms were
+     * never confirmed." Every `SiteSurvey` is given an `access_token` on
+     * creation — that token IS the engineer link (`SiteSurvey::publicUrl()`) —
+     * so the only way to guarantee no link exists is for no survey to exist.
+     * That is precisely what nothing-until-the-final-step buys, and this test
+     * holds it: walk two steps of the wizard, abandon it, and there is no
+     * survey, no token and therefore no link for an engineer to open.
+     */
+    public function test_no_engineer_link_exists_for_a_project_whose_wizard_was_abandoned(): void
+    {
+        $project = $this->project();
+        $user    = $this->user();
+        $module  = ProjectDeliverable::KEY_SITE_SURVEY;
+
+        foreach ([1, 2] as $step) {
+            $this->actingAs($user)->post(
+                route('projects.cockpit.documents.store', $project),
+                ['module' => $module, 'intent' => 'next', 'step' => $step, 'tab' => 'overview'] + $this->stepOneValues(),
+            )->assertSessionHasNoErrors();
+        }
+
+        $this->walkAway($project, $module, $user);
+
+        $this->assertSame(
+            0,
+            SiteSurvey::where('project_id', $project->id)->whereNotNull('access_token')->count(),
+            'An engineer link exists for a survey whose spaces were never confirmed.'
+        );
+
+        $this->assertSame(0, SiteSurvey::where('project_id', $project->id)->count(), 'There is no survey at all — that is the point.');
+        $this->assertSame(0, Visit::where('project_id', $project->id)->count());
+
+        // THE MIRROR, so the assertions above are not vacuous: finish the wizard
+        // and the survey — and its link — DO appear.
+        $this->actingAs($user)->post(
+            route('projects.cockpit.documents.store', $project),
+            [
+                'module' => $module,
+                'intent' => 'create',
+                'step'   => 3,
+                'format' => 'word',
+                'tab'    => 'overview',
+            ] + $this->stepOneValues(),
+        )->assertSessionHasNoErrors();
+
+        $this->assertSame(
+            1,
+            SiteSurvey::where('project_id', $project->id)->whereNotNull('access_token')->count(),
+            'The final submit DOES create the survey — so the absence above was the rule, not a broken form.'
+        );
     }
 
     /**
