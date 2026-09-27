@@ -154,6 +154,14 @@ final class CockpitDocumentFormPresenter
      * module can never render a panel with no fields and a fifth field row can
      * never exist with no module.
      *
+     * EVERY GROUP CARRIES A `step` (Phase 46.5, Plan 46.5-01) — an integer, or
+     * `null` WITH THE REASON WRITTEN BESIDE IT. That is the whole of the guided
+     * creation wizard's spine: a step is a ROW HERE, not a branch in a template,
+     * so the sixth change to this page's contents is one integer rather than a
+     * rewrite. `step_titles` names each step once, per document.
+     * `CockpitWizardPresenter` slices the map; `CockpitWizardPresenterTest`
+     * ITERATES it, so a group added later with no `step` key is a red test.
+     *
      * `formats` mirrors `46.2-FORMAT-INVENTORY.md` EXACTLY. `worksheet.pdf` is
      * null on purpose (DC-07, NOT DELIVERED): there is no worksheet PDF Blade,
      * and `worksheets.engineer-report-pdf` is a different document that
@@ -168,9 +176,16 @@ final class CockpitDocumentFormPresenter
             'formats'        => ['word' => 'site-surveys.docx', 'pdf' => 'site-surveys.pdf'],
             'intro'          => 'These answers appear on the survey report and on the printable field form the surveyor takes to site.',
             'readiness'      => null,
+            // D-02, THE USER'S OWN STEPS IN THEIR OWN ORDER: "dates ,site
+            // contact and engineer then next button Then notes (dont need comms
+            // room) . then next and confirm space being surveys (default all)".
+            // Step 3's spaces confirmation is Plan 46.5-06; the step is named
+            // here so its title is not invented twice.
+            'step_titles'    => [1 => 'Dates, contact and engineer', 2 => 'Notes', 3 => 'Spaces and output'],
             'groups'         => [
                 [
                     'legend' => 'The survey',
+                    'step'   => 1,
                     'fields' => [
                         [
                             'key'      => 'survey_date',
@@ -212,6 +227,21 @@ final class CockpitDocumentFormPresenter
                             'prefill'  => null,
                             'rules'    => ['nullable', 'string', 'max:50'],
                         ],
+                    ],
+                ],
+                [
+                    // D-02's SECOND STEP, AND A GROUP EDIT RATHER THAN A FIELD
+                    // EDIT. `general_notes` moved out of `The survey` because
+                    // the user's own steps put notes AFTER dates, contact and
+                    // engineer. A step is one key per GROUP, so a field that
+                    // changes step must change group - and the field row below
+                    // moved byte-identical. Nothing was renamed, added or
+                    // dropped by the split, which
+                    // `CockpitWizardPresenterTest::test_no_field_is_orphaned_by_the_step_split()`
+                    // proves by unioning every step's fields back together.
+                    'legend' => 'Notes',
+                    'step'   => 2,
+                    'fields' => [
                         [
                             'key'      => 'general_notes',
                             'label'    => 'General notes',
@@ -229,6 +259,7 @@ final class CockpitDocumentFormPresenter
                     // PDFs via `_header-meta.blade.php`, which SurveyPdfService
                     // renders at `:78` and `:100`.
                     'legend' => 'Access and logistics',
+                    'step'   => 2,
                     'fields' => [
                         [
                             'key'      => 'site_access_notes',
@@ -284,6 +315,22 @@ final class CockpitDocumentFormPresenter
                 ],
                 [
                     'legend' => 'Comms room',
+                    // D-03 / GCW-04 - COMMS ROOM IS ON NO STEP, AND THAT IS
+                    // ABOUT THIS FORM ONLY. The user said "dont need comms
+                    // room" while looking at the OFFICE CREATION FORM. Comms
+                    // room is STILL captured on site through the engineer link,
+                    // STILL renders in the site-survey Word document, and STILL
+                    // rides the survey-to-install carry-forward, where AN
+                    // INSTALLING ENGINEER READS THE SURVEYOR'S COMMS-ROOM
+                    // ACCESS NOTES. Removing it from any of those is a SAFETY
+                    // REGRESSION, not the rest of a job half done.
+                    // `SiteSurveyDocxService`, `pdf/site-survey/_header-meta.blade.php`,
+                    // `PublicSurveyController` and
+                    // `SurveyCarryForwardOnEngineerLinkTest` are UNTOUCHED by
+                    // Phase 46.5 and must stay that way. The group keeps its
+                    // fields and still renders wherever the whole map renders;
+                    // it is only the WIZARD that does not ask.
+                    'step'   => null,
                     'fields' => [
                         [
                             // OPTIONS ARE THE STORED VOCABULARY, not the
@@ -331,6 +378,7 @@ final class CockpitDocumentFormPresenter
                     // `! $internal`, so it appears on the CLIENT report ONLY.
                     // The internal PDF never shows it.
                     'legend' => 'Client report only',
+                    'step'   => 2,
                     'fields' => [
                         [
                             'key'      => 'office_review_notes',
@@ -346,6 +394,7 @@ final class CockpitDocumentFormPresenter
                 ],
                 [
                     'legend' => 'From the project',
+                    'step'   => 3,
                     'fields' => [
                         [
                             'key'      => 'project_name',
@@ -412,9 +461,15 @@ final class CockpitDocumentFormPresenter
             'formats'        => ['word' => 'worksheets.download', 'pdf' => null],
             'intro'          => 'The worksheet is built from the project package, so there is nothing to fill in here. Install dates, engineers and the site contact belong to the RAMS. Word only — there is no worksheet PDF (DC-07).',
             'readiness'      => null,
+            // ONE STEP, because the worksheet has ZERO PM-enterable fields
+            // and that is a FINDING, not an omission (see the block comment
+            // above). A one-step wizard is still a wizard: the PM confirms what
+            // the project already answers, and creates.
+            'step_titles'    => [1 => 'Confirm and create'],
             'groups'         => [
                 [
                     'legend' => 'From the project',
+                    'step'   => 1,
                     'fields' => [
                         [
                             'key'      => 'project_name',
@@ -470,9 +525,16 @@ final class CockpitDocumentFormPresenter
             'formats'        => ['word' => 'rams.download', 'pdf' => 'rams.download-pdf'],
             'intro'          => 'Install dates, the team and the site contact. These appear on the RAMS cover, the document control table and Section 4.',
             'readiness'      => null,
+            // NO STEPS IN THIS PLAN. D-04 gives RAMS the same stepped flow,
+            // but PLAN 46.5-05 OWNS ITS STEP SET - minting one here would be
+            // two authors deciding the same thing. Until that plan this
+            // document has no steps, and a document with no steps renders
+            // exactly as it does today.
+            'step_titles'    => [],
             'groups'         => [
                 [
                     'legend' => 'When',
+                    'step'   => null,
                     'fields' => [
                         [
                             'key'      => 'planned_start_date',
@@ -547,6 +609,7 @@ final class CockpitDocumentFormPresenter
                     // Six fields — exactly at the DC-08 budget. A seventh
                     // belongs in a new group, which is why programmers has one.
                     'legend' => 'Who',
+                    'step'   => null,
                     'fields' => [
                         [
                             'key'      => 'project_manager_name',
@@ -615,6 +678,7 @@ final class CockpitDocumentFormPresenter
                 ],
                 [
                     'legend' => 'Programmers',
+                    'step'   => null,
                     'fields' => [
                         [
                             'key'      => 'programmers',
@@ -635,6 +699,7 @@ final class CockpitDocumentFormPresenter
                     // `normaliseSiteLogistics()` emits are REJECTED; see the
                     // class docblock.
                     'legend' => 'Site contact',
+                    'step'   => null,
                     'fields' => [
                         [
                             'key'      => 'contact_name',
@@ -670,6 +735,7 @@ final class CockpitDocumentFormPresenter
                 ],
                 [
                     'legend' => 'From the project',
+                    'step'   => null,
                     'fields' => [
                         [
                             'key'      => 'project_name',
@@ -732,9 +798,15 @@ final class CockpitDocumentFormPresenter
             'formats'        => ['word' => 'om-manuals.download', 'pdf' => 'om-manuals.download-pdf'],
             'intro'          => 'The O&M is built from the project rooms, equipment and drawings. Only the handover date and the issue mode are entered here.',
             'readiness'      => self::READINESS_OM_VALIDATOR,
+            // PERMANENTLY NO STEPS. An O&M wizard is OUT OF SCOPE for this
+            // milestone (46.5-CONTEXT, phase boundary). Two real inputs do not
+            // need three screens, and this row says so rather than leaving the
+            // next author to wonder whether it was forgotten.
+            'step_titles'    => [],
             'groups'         => [
                 [
                     'legend' => 'Handover',
+                    'step'   => null,
                     'fields' => [
                         [
                             'key'      => 'handover_date',
@@ -766,6 +838,7 @@ final class CockpitDocumentFormPresenter
                 ],
                 [
                     'legend' => 'From the project',
+                    'step'   => null,
                     'fields' => [
                         [
                             'key'      => 'project_name',
