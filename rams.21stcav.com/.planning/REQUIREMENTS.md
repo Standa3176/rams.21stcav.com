@@ -488,6 +488,16 @@ this section, nor with the v3.0 A / B / C / D / E groups below.
 
 GCW-01, GCW-03, GCW-05, GCW-06, GCW-07 and GCW-08 are untouched by Plan 46.5-01.
 
+**Delivered by Plan 46.5-04 (2026-09-27) — the stepping, the carry-forward and the persistence rule:**
+
+| ID | Delivered by 46.5-04 | NOT delivered by 46.5-04 |
+|----|----------------------|--------------------------|
+| GCW-02 | One step renders at a time, sliced by each GROUP's own `step` key so the component still names no document; a progress line; `Next` / `Back` as submits carrying `intent`; per-step validation; hidden carry-forward re-validated in full on the final submit. **No route added, no JavaScript, no `<select`** | **Step 3's SPACES CONFIRMATION** — step 3 is today's read-only project facts, the Format radios and the submit. The space list is Plan 46.5-06, in the commit that consumes it |
+| GCW-03 | `intent=next`/`back` returns `redirect()->withInput()` and touches **no model, no job, no log**. Proven by row counts across `site_surveys`, `visits`, `worksheets`, `rams_documents`, `project_activity_logs` and `project_packages`, and by `test_no_engineer_link_exists_for_a_project_whose_wizard_was_abandoned` | Nothing — the rule is complete. There is no draft and no resumable state beyond the session flash |
+| GCW-04 | Held STRUCTURALLY: the Comms room group renders on no step and is carried on no step, and the five files named by the phase's scope fence are untouched by this plan's diff | Nothing to deliver |
+
+GCW-01, GCW-05, GCW-06, GCW-07 and GCW-08 are untouched by Plan 46.5-04.
+
 ### Out of scope for v4.0
 
 Each is **recorded in the admin Hidden Functions register**, not forgotten:
