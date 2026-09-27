@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\Visit;
 use App\Services\ProjectHealthService;
 use App\Support\Cockpit\CockpitModulePresenter;
+use App\Support\Cockpit\CockpitWizardPresenter;
 use Illuminate\Foundation\Testing\Concerns\InteractsWithViews;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -1189,5 +1190,145 @@ class CockpitPageTest extends TestCase
                 'without reading past the panel body.'
             );
         }
+    }
+
+    // ── Phase 46.5, Plan 46.5-01, Task 3 — `?step=` IS THE PANEL'S FOURTH ──
+    //    PIECE OF URL STATE, and it ADDS NO ROUTE.
+    //
+    //    The proof that it adds no route is the pair of EXACT counts in
+    //    `test_the_cockpit_read_route_is_still_get_only_and_every_write_is_a_post_elsewhere()`
+    //    above — `assertSame(3, $gets)` and `assertSame(6, $writes)`. Neither
+    //    was relaxed for this plan, and neither may be: if either moves, the
+    //    wizard has added a route it was not supposed to add, and that is a
+    //    STOP rather than a number to update. `?step=` is state on the GET that
+    //    already exists, exactly as `?module=`, `?tab=` and `?action=` are.
+    //
+    //    ⚠️ AND THESE TESTS COUNT THE STATES THEY RENDERED. A wizard has N
+    //    states; a test that renders one proves nothing about the others. That
+    //    is the shape of the defect the user found by clicking two days ago —
+    //    an open row that would not close, missed because the assertion only
+    //    ever rendered the closed page.
+
+    private function getCockpit(Project $project, array $query = []): \Illuminate\Testing\TestResponse
+    {
+        config(['cockpit.enabled' => true]);
+
+        return $this->actingAs(User::factory()->create())
+            ->get(route('projects.cockpit', array_merge(['project' => $project], $query)));
+    }
+
+    public function test_every_site_survey_step_resolves_and_the_page_is_200_on_each(): void
+    {
+        $project = $this->project();
+        $steps   = (new CockpitWizardPresenter())->stepsFor('site_survey');
+
+        // Non-vacuity: the wizard really does have three states, so "every step
+        // resolved" cannot pass because there was nothing to step through.
+        $this->assertSame([1, 2, 3], $steps, 'The site survey lost its steps — this proof would be vacuous.');
+
+        $rendered = 0;
+
+        foreach ($steps as $step) {
+            $response = $this->getCockpit($project, [
+                'module' => 'site_survey',
+                'action' => 'generate',
+                'step'   => (string) $step,
+            ])->assertOk();
+
+            $this->assertSame($step, $response->viewData('docStep'), "?step={$step} did not resolve to step {$step}.");
+            $this->assertSame($steps, $response->viewData('docSteps'), "Step {$step} offered a different step list.");
+            $this->assertIsString(
+                $response->viewData('docStepTitle'),
+                "Step {$step} reached the view with no title.",
+            );
+
+            $rendered++;
+        }
+
+        $this->assertSame(
+            3,
+            $rendered,
+            'This proof rendered '.$rendered.' of the wizard\'s 3 states. Assert the count, so a future '
+            .'change that collapses the states goes red instead of quiet.',
+        );
+    }
+
+    /**
+     * AN UNREAL STEP IS DROPPED, NOT REJECTED — the identical ruling `?tab=`
+     * has had since 45-11 and `CockpitTabPreservationTest` records. A
+     * hand-typed `?step=99` shows step 1, not a 404 and not an error bag.
+     */
+    public function test_an_unreal_step_is_dropped_not_rejected_and_is_never_echoed(): void
+    {
+        $project = $this->project();
+
+        // Each marker is deliberately unmistakable, so "not echoed" is asserted
+        // against the RESPONSE BODY and not merely against the variable — a
+        // short value like `9` appears on a page full of numbers and would make
+        // the assertion meaningless.
+        $unreal = [
+            'zqxunrealstepmarkerone',
+            'zqxunrealstepmarkertwo',
+            '9',
+            '0',
+            '-1',
+            'abc',
+            '02',
+        ];
+
+        $dropped = 0;
+
+        foreach ($unreal as $value) {
+            $response = $this->getCockpit($project, [
+                'module' => 'site_survey',
+                'action' => 'generate',
+                'step'   => $value,
+            ])->assertOk();
+
+            $this->assertSame(
+                1,
+                $response->viewData('docStep'),
+                "?step={$value} must disclose step 1 rather than being rejected or helpfully corrected.",
+            );
+
+            if (str_starts_with($value, 'zqx')) {
+                $this->assertStringNotContainsString(
+                    $value,
+                    $response->getContent(),
+                    "?step={$value} was echoed into the response body.",
+                );
+            }
+
+            $dropped++;
+        }
+
+        // An array-shaped step: `?step[]=1`. Never flattened, never indexed.
+        $response = $this->getCockpit($project, [
+            'module' => 'site_survey',
+            'action' => 'generate',
+            'step'   => ['1'],
+        ])->assertOk();
+
+        $this->assertSame(1, $response->viewData('docStep'), '?step[]=1 must disclose step 1.');
+        $dropped++;
+
+        $this->assertSame(
+            8,
+            $dropped,
+            'This proof submitted '.$dropped.' unreal steps, including an array-shaped one.',
+        );
+    }
+
+    public function test_a_document_with_no_wizard_answers_step_one_and_offers_no_steps(): void
+    {
+        $response = $this->getCockpit($this->project(), [
+            'module' => 'om',
+            'action' => 'generate',
+            'step'   => '2',
+        ])->assertOk();
+
+        $this->assertSame(1, $response->viewData('docStep'));
+        $this->assertSame([], $response->viewData('docSteps'), 'The O&M has no wizard and never gets one.');
+        $this->assertNull($response->viewData('docStepTitle'));
     }
 }
