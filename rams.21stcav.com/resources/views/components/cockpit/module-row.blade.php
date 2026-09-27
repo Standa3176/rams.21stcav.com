@@ -63,20 +63,59 @@
         <span class="cav-module__count">{{ $module['count'] }}</span>
     @endif
 
-    {{-- THE ANCHOR NOW HAS NO VISIBLE TEXT, so the aria-label is its ONLY
-         accessible name and is not optional. It names the module because
-         nine links all reading the same word would be indistinguishable in
-         a screen reader's link list.
+    {{-- THE ROW IS A TOGGLE (quick task 260927-tgl). The user opened Site
+         Survey on the live cockpit and then could not shut it again: "i
+         cannot click it again to close it (to see the other options again".
 
-         The copy dropped from "Open drawer: {title}" to "Open {title}" when
-         the visible "Open drawer" text was replaced by the glyph: "drawer"
-         was a reference to on-screen copy that no longer exists, so it had
-         become jargon naming nothing. The module title stays either way.
+         The cause was one href serving two states. Every row pointed at
+         `?module={its own key}`, so while a row was OPEN its anchor pointed
+         at the URL the browser was already on — the stretched link fired,
+         navigated to the current page, and re-rendered something identical.
+         Nothing was broken; the anchor was aimed at the wrong place in one
+         of its two states.
 
-         The glyph is decorative and x-cockpit.icon always renders it
-         aria-hidden — it must stay that way, or the link would announce
-         itself twice. --}}
+         So the OPEN row's anchor now drops `module=` and points at the bare
+         cockpit URL, exactly as the drawer's own two close controls do.
+         CLOSED rows are unchanged. Still URL state, still no JavaScript, so
+         the back button and a bookmark keep agreeing with the page — and
+         still exactly one anchor per row, which is what the stretched link
+         and the read-only fence both require.
+
+         ALL THREE CHANNELS MOVE TOGETHER, or the row would lie about what a
+         click does:
+
+           * the DESTINATION, above;
+           * the GLYPH — the existing `close` mark, the same one the drawer
+             header already shows for the same destination. A right-pointing
+             arrow on a control that closes is the wrong picture, and the
+             picture is all most people read. It is swapped, never rotated:
+             a `transform` belongs to no rule on this anchor, because
+             transforming it would make it a containing block and collapse
+             the full-row overlay onto the 28px glyph, silently;
+           * the ACCESSIBLE NAME — "Close {title}" while open. The glyph is
+             aria-hidden, so this label is the link's ONLY name, and a name
+             reading "Open" on a control that closes is the same lie in the
+             screen-reader channel.
+
+         NO `aria-expanded`, considered and refused. There is no id on the
+         drawer to pair one with through `aria-controls`, and this anchor
+         NAVIGATES rather than toggling anything in place; announcing a
+         disclosure widget the page does not implement would be a worse
+         claim than the name, which already states the state in words.
+
+         `cav-module--active` keeps the meaning 46.3 wave 2 gave it — "this
+         row owns the drawer beneath it" — and neither the tint nor the spine
+         moves here. The drawer's `Back to all modules` link and its header
+         close BOTH stay: this is a third way out, not a replacement for
+         either. --}}
+    @php
+        $isOpenState = (bool) $active;
+        $openHref    = $isOpenState
+            ? route('projects.cockpit', $project)
+            : route('projects.cockpit', ['project' => $project, 'module' => $module['key']]);
+    @endphp
+
     <a class="cav-module__open"
-       aria-label="Open {{ $module['title'] }}"
-       href="{{ route('projects.cockpit', ['project' => $project, 'module' => $module['key']]) }}"><x-cockpit.icon name="arrow" class="cav-icon cav-icon--sm" /></a>
+       aria-label="{{ $isOpenState ? 'Close' : 'Open' }} {{ $module['title'] }}"
+       href="{{ $openHref }}"><x-cockpit.icon :name="$isOpenState ? 'close' : 'arrow'" class="cav-icon cav-icon--sm" /></a>
 </div>

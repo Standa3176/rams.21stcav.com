@@ -1054,10 +1054,15 @@ class CockpitPageTest extends TestCase
      * D-02 -- COLLAPSE AWAY. While a drawer is open you see only the module
      * you are working in.
      *
-     * The surviving row is asserted to be the REQUESTED one, by title and by
-     * the key its own anchor carries: "exactly one row" would otherwise be
-     * satisfied by the WRONG row surviving. The set of rendered titles is
-     * compared whole, so a stray second row cannot hide behind a count.
+     * The surviving row is asserted to be the REQUESTED one BY TITLE:
+     * "exactly one row" would otherwise be satisfied by the WRONG row
+     * surviving. The set of rendered titles is compared whole, so a stray
+     * second row cannot hide behind a count.
+     *
+     * It used to be identified by its anchor's key as well. Quick task
+     * 260927-tgl retired that second check with its reason recorded inline
+     * below -- the open row's anchor is now the way back OUT, so what the
+     * anchor asserts here is the CLOSING half of the row toggle instead.
      */
     public function test_opening_a_module_collapses_every_other_row_away(): void
     {
@@ -1089,7 +1094,35 @@ class CockpitPageTest extends TestCase
 
             $anchor = $this->nodesByClass($xpath, 'cav-module__open')->item(0);
             $this->assertNotNull($anchor);
-            $this->assertStringContainsString('module='.$key, $anchor->getAttribute('href'));
+
+            // RETIRED BY QUICK TASK 260927-tgl, by name and with the reason:
+            // this used to read
+            //
+            //     assertStringContainsString('module='.$key, $href)
+            //
+            // and it was identifying the surviving row by the key its own
+            // anchor carried. That row is the OPEN one, and its anchor is now
+            // the way OUT -- the bare cockpit URL. The user could not shut a
+            // drawer from the row that opened it, because the href pointed at
+            // the URL the browser was already on.
+            //
+            // The row's identity is NOT weakened by the change: the title
+            // comparison above already pins which row survived, whole-set and
+            // in one assertion. What replaces the href check is the closing
+            // half of the toggle, which is a property this test could not
+            // state before.
+            $this->assertSame(
+                route('projects.cockpit', $project),
+                $anchor->getAttribute('href'),
+                "The surviving '{$key}' row must close the drawer when clicked again, so its ".
+                'anchor is the bare cockpit URL.'
+            );
+
+            $this->assertStringNotContainsString(
+                'module=',
+                urldecode($anchor->getAttribute('href')),
+                "The open '{$key}' row still carries a `module=`, which is the URL it is already on."
+            );
         }
 
         // And the closed page still renders the whole list, so the assertion

@@ -283,7 +283,8 @@ class CockpitVisualTest extends TestCase
         $first = array_key_first($map);
 
         foreach ([[], ['module' => $first]] as $query) {
-            $html = $this->page($project, $query);
+            $html   = $this->page($project, $query);
+            $isOpen = $query !== [];
 
             $this->assertStringNotContainsString('<button', $html, 'A <button> appeared in the cockpit region.');
 
@@ -293,10 +294,30 @@ class CockpitVisualTest extends TestCase
                 'The row-open affordance is no longer an anchor.'
             );
 
+            // NARROWED PER STATE BY QUICK TASK 260927-tgl. This used to assert
+            // `aria-label="Open {title}"` in BOTH renders. It cannot any more,
+            // and narrowing it is the honest move rather than deleting it: the
+            // row is now a TOGGLE, so while it is open its anchor closes the
+            // drawer, and a name reading "Open" on a control that closes is a
+            // lie in the one channel a screen-reader user has (the glyph is
+            // aria-hidden, so this label is the link's ONLY name).
+            //
+            // The wrong name is asserted ABSENT in each state as well as the
+            // right one PRESENT, so a row that names both states at once — or
+            // that reverts to naming one of them in both — fails here.
+            $expected = ($isOpen ? 'Close ' : 'Open ').$map[$first]['title'];
+            $wrong    = ($isOpen ? 'Open ' : 'Close ').$map[$first]['title'];
+
             $this->assertStringContainsString(
-                'aria-label="Open '.$map[$first]['title'].'"',
+                'aria-label="'.$expected.'"',
                 $html,
                 'The chevron link lost the accessible name that is now its only one.'
+            );
+
+            $this->assertStringNotContainsString(
+                'aria-label="'.$wrong.'"',
+                $html,
+                'The row-open affordance names the state it is NOT in.'
             );
 
             $this->assertStringNotContainsString('Open drawer', $html);
@@ -512,80 +533,170 @@ class CockpitVisualTest extends TestCase
      * relies on. A wrapper introduced later must be covered there too.
      *
      * Plan 46.3-01, DL-06.
+     *
+     * ── ONE ASSERTION RETIRED BY NAME, QUICK TASK 260927-tgl ────────────────
+     *
+     * RETIRED: the single-state href check that read, for EVERY row,
+     *
+     *     assertStringContainsString('module='.$keyForTitle[$title], $href)
+     *
+     * It was never wrong; it was VACUOUS for the row that matters. This test
+     * rendered only the CLOSED page, where no row is open, so it could not
+     * see the open row at all — and the open row's anchor pointing at
+     * `?module={its own key}` was exactly the defect the user reported: the
+     * URL the browser is already on, so a second click did nothing and the
+     * drawer could not be shut from the row that opened it.
+     *
+     * SUCCESSOR, and it is strictly stronger because it asserts BOTH HALVES
+     * of the toggle over BOTH renders:
+     *
+     *   * a CLOSED row's anchor opens that module — `module={its own key}`;
+     *   * the OPEN row's anchor returns to the BARE list — it equals the
+     *     bare cockpit URL and carries no `module=` at all.
+     *
+     * Either half alone is satisfiable by a broken page. Only the closed half
+     * passes on the defect that was shipped. Only the open half passes on a
+     * page where EVERY row closes the drawer and nothing opens one. Both
+     * together are the property, and both are counted below so that a render
+     * producing none of one kind fails loudly rather than passing on an empty
+     * loop.
      */
-    public function test_each_module_row_holds_exactly_one_anchor_and_no_other_interactive_element(): void
+    public function test_a_closed_row_opens_its_module_and_the_open_row_returns_to_the_list(): void
     {
-        $html = $this->page();
+        $project = Project::factory()->create([
+            'name'   => 'Toggle Contract Job',
+            'status' => Project::STATUS_INSTALLING,
+        ]);
 
-        $dom = new \DOMDocument();
-        libxml_use_internal_errors(true);
-        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$html);
-        libxml_clear_errors();
+        $map     = CockpitModulePresenter::moduleMap();
+        $openKey = array_key_first($map);
+        $bare    = route('projects.cockpit', $project);
 
-        $xpath = new \DOMXPath($dom);
-        $rows  = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' cav-module ')]");
-
-        $this->assertSame(
-            count(CockpitModulePresenter::moduleMap()),
-            $rows->length,
-            'The row list did not render in full, so this test would be measuring an empty page.'
-        );
-
-        // Title -> key, read off the presenter's own map: the href must carry
-        // the key of the row it sits in, never a neighbour's. Nine rows all
-        // linking to the first module is a real regression a per-page
-        // `assertStringContainsString` cannot see.
+        // Title -> key, read off the presenter's own map: a closed row's href
+        // must carry the key of the row it sits in, never a neighbour's. Nine
+        // rows all linking to the first module is a real regression a
+        // per-page `assertStringContainsString` cannot see.
         $keyForTitle = [];
 
-        foreach (CockpitModulePresenter::moduleMap() as $key => $definition) {
+        foreach ($map as $key => $definition) {
             $keyForTitle[$definition['title']] = $key;
         }
 
-        foreach ($rows as $row) {
-            $titleNode = $xpath->query(".//*[contains(concat(' ', normalize-space(@class), ' '), ' cav-module__title ')]", $row)->item(0);
-            $this->assertNotNull($titleNode, 'A module row rendered no title.');
+        $closedSeen = 0;
+        $openSeen   = 0;
 
-            $title = trim($titleNode->textContent);
-            $this->assertArrayHasKey($title, $keyForTitle, "The row titled \"{$title}\" is in no module map.");
+        foreach ([[], ['module' => $openKey]] as $query) {
+            $html = $this->page($project, $query);
 
-            $anchors = $xpath->query('.//a', $row);
+            $dom = new \DOMDocument();
+            libxml_use_internal_errors(true);
+            $dom->loadHTML('<?xml encoding="utf-8" ?>'.$html);
+            libxml_clear_errors();
 
+            $xpath = new \DOMXPath($dom);
+            $rows  = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' cav-module ')]");
+
+            // Derived, never literal: the whole list while nothing is open,
+            // and the one surviving row once something is (46.3 D-02). The
+            // collapse-away guard itself lives in CockpitPageTest; this is
+            // only the non-vacuity floor for the loop below.
             $this->assertSame(
-                1,
-                $anchors->length,
-                "The \"{$title}\" row holds {$anchors->length} anchors. The stretched link needs ".
-                'EXACTLY ONE: a second anchor sits under the full-row overlay and cannot be '.
-                'clicked, which no CSS assertion in this file can see.'
+                $query === [] ? count($map) : 1,
+                $rows->length,
+                'The row list did not render as expected, so this test would be measuring the wrong page.'
             );
 
-            $anchor = $anchors->item(0);
+            foreach ($rows as $row) {
+                $titleNode = $xpath->query(".//*[contains(concat(' ', normalize-space(@class), ' '), ' cav-module__title ')]", $row)->item(0);
+                $this->assertNotNull($titleNode, 'A module row rendered no title.');
 
-            $this->assertSame(
-                $row,
-                $anchor->parentNode,
-                "The \"{$title}\" row's anchor is no longer a direct child of the row. A wrapper ".
-                'between them may introduce a containing block of its own — extend the '.
-                'containing-block scan in the sibling test to cover it, in this same commit.'
-            );
+                $title = trim($titleNode->textContent);
+                $this->assertArrayHasKey($title, $keyForTitle, "The row titled \"{$title}\" is in no module map.");
 
-            $this->assertStringContainsString(
-                'module='.$keyForTitle[$title],
-                urldecode($anchor->getAttribute('href')),
-                "The \"{$title}\" row's anchor opens a different module."
-            );
+                $anchors = $xpath->query('.//a', $row);
 
-            $this->assertSame(
-                0,
-                $xpath->query('.//button', $row)->length,
-                "The \"{$title}\" row holds a <button>. Opening a module is a GET, and the fence bans it."
-            );
+                $this->assertSame(
+                    1,
+                    $anchors->length,
+                    "The \"{$title}\" row holds {$anchors->length} anchors. The stretched link needs ".
+                    'EXACTLY ONE: a second anchor sits under the full-row overlay and cannot be '.
+                    'clicked, which no CSS assertion in this file can see.'
+                );
 
-            $this->assertSame(
-                0,
-                $xpath->query('.//*[@tabindex]', $row)->length,
-                "The \"{$title}\" row holds a `tabindex`. The one anchor is the whole tab stop."
-            );
+                $anchor = $anchors->item(0);
+
+                $this->assertSame(
+                    $row,
+                    $anchor->parentNode,
+                    "The \"{$title}\" row's anchor is no longer a direct child of the row. A wrapper ".
+                    'between them may introduce a containing block of its own — extend the '.
+                    'containing-block scan in the sibling test to cover it, in this same commit.'
+                );
+
+                $href     = $anchor->getAttribute('href');
+                $isOpenRow = $query !== [] && $keyForTitle[$title] === $openKey;
+
+                if ($isOpenRow) {
+                    ++$openSeen;
+
+                    $this->assertSame(
+                        $bare,
+                        $href,
+                        "The \"{$title}\" row is OPEN, so its anchor must go back to the bare module ".
+                        'list. Pointing it at its own key aims it at the URL the browser is already '.
+                        'on, which is the defect the user reported: the row that opened the drawer '.
+                        'could not shut it.'
+                    );
+
+                    $this->assertStringNotContainsString(
+                        'module=',
+                        urldecode($href),
+                        "The \"{$title}\" row is OPEN and still carries a `module=` in its href."
+                    );
+
+                    // The name is the link's ONLY name — the glyph is
+                    // aria-hidden — so it has to move with the destination.
+                    $this->assertSame(
+                        'Close '.$title,
+                        $anchor->getAttribute('aria-label'),
+                        "The \"{$title}\" row closes the drawer but does not say so."
+                    );
+                } else {
+                    ++$closedSeen;
+
+                    $this->assertStringContainsString(
+                        'module='.$keyForTitle[$title],
+                        urldecode($href),
+                        "The \"{$title}\" row is CLOSED, so its anchor must open its own module."
+                    );
+
+                    $this->assertSame(
+                        'Open '.$title,
+                        $anchor->getAttribute('aria-label'),
+                        "The \"{$title}\" row opens a module but does not say so."
+                    );
+                }
+
+                $this->assertSame(
+                    0,
+                    $xpath->query('.//button', $row)->length,
+                    "The \"{$title}\" row holds a <button>. Opening a module is a GET, and the fence bans it."
+                );
+
+                $this->assertSame(
+                    0,
+                    $xpath->query('.//*[@tabindex]', $row)->length,
+                    "The \"{$title}\" row holds a `tabindex`. The one anchor is the whole tab stop."
+                );
+            }
         }
+
+        // NON-VACUITY, one count per half. A page where every row is a toggle
+        // leaves `closedSeen` at zero; a page where no row is leaves
+        // `openSeen` at zero. Either would otherwise pass on a loop that
+        // simply never reached the branch it was meant to prove.
+        $this->assertSame(count($map), $closedSeen, 'No closed row was measured — the opening half is vacuous.');
+        $this->assertSame(1, $openSeen, 'No open row was measured — the closing half is vacuous.');
     }
 
     /**

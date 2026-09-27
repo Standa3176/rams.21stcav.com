@@ -584,8 +584,26 @@ class CockpitInlineDrawerEndToEndTest extends TestCase
      * which was proven to BITE in Plan 46.3-01 by injecting a competing
      * `position` and watching it go red. What this test adds is the half the
      * walk CAN judge: on every page of the walk, every rendered row still
-     * holds exactly one anchor and it carries that row's own module key. A
-     * second anchor in the row is the other way the whole-row target dies.
+     * holds exactly one anchor and that anchor goes where the row's state
+     * says it should. A second anchor in the row is the other way the
+     * whole-row target dies.
+     *
+     * NARROWED BY QUICK TASK 260927-tgl, by name and with the reason. The
+     * retired assertion was
+     *
+     *     assertStringContainsString('module=', $anchors[0])
+     *
+     * applied to EVERY row at EVERY step. It cannot hold at the four steps of
+     * this walk that have a drawer open: the surviving row is the OPEN one and
+     * its anchor is now the way back OUT, because the user could not shut a
+     * drawer from the row that opened it — the href was the URL the browser
+     * was already on.
+     *
+     * The successor asserts BOTH HALVES rather than dropping the weaker one:
+     * a CLOSED row's anchor carries its own key, the OPEN row's anchor is the
+     * bare cockpit URL and carries no `module=`. Both are counted, so a walk
+     * that produced only one kind of row fails instead of passing on a branch
+     * it never reached.
      *
      * DL-06.
      */
@@ -593,9 +611,17 @@ class CockpitInlineDrawerEndToEndTest extends TestCase
     {
         $project = $this->project();
         $user    = $this->user();
+        $bare    = route('projects.cockpit', $project);
+
+        $closedSeen = 0;
+        $openSeen   = 0;
 
         foreach ($this->walkSteps() as $label => $query) {
             $body = $this->cockpit($project, $query, $user);
+
+            // A drawer is open at this step iff the step asked for one, and
+            // D-02 means the only row rendered then is that drawer's own.
+            $drawerIsOpen = isset($query['module']);
 
             foreach ($this->nodesByClass($body, 'cav-module') as $row) {
                 $anchors = [];
@@ -605,10 +631,30 @@ class CockpitInlineDrawerEndToEndTest extends TestCase
                 }
 
                 $this->assertCount(1, $anchors, "A module row at {$label} must hold exactly one anchor.");
-                $this->assertStringContainsString('module=', $anchors[0],
-                    "The row anchor at {$label} must carry its own module key.");
+
+                if ($drawerIsOpen) {
+                    ++$openSeen;
+
+                    $this->assertSame($bare, $anchors[0],
+                        "The open row at {$label} must close the drawer when clicked again, so its ".
+                        'anchor is the bare cockpit URL.');
+
+                    $this->assertStringNotContainsString('module=', urldecode($anchors[0]),
+                        "The open row at {$label} still points at the URL the page is already on.");
+                } else {
+                    ++$closedSeen;
+
+                    $this->assertStringContainsString('module=', $anchors[0],
+                        "The closed row anchor at {$label} must carry its own module key.");
+                }
             }
         }
+
+        $this->assertSame(count(CockpitModulePresenter::moduleMap()), $closedSeen,
+            'No closed row was measured on the walk — the opening half is vacuous.');
+
+        $this->assertGreaterThan(0, $openSeen,
+            'No open row was measured on the walk — the closing half is vacuous.');
     }
 
     // ── STEP 9 — a GET walk writes nothing ──────────────────────────────────
