@@ -796,6 +796,39 @@ user ruled D-07..D-10.
 
 ---
 
+### Phase 46.6: Survey Review + Completed Report
+
+**Goal**: The office actions what an engineer sent back and produces a completed site-survey report —
+so a survey ends as a structured document somebody can act on, not a folder of photos.
+
+**Depends on**: Phase 46.1 (the evidence review and per-room photo ZIP this re-surfaces), Phase 46.5
+(the creation flow that issues the link).
+
+**Decided 2026-09-27, before planning:**
+- The report PDF carries five sections: **rooms summary · points raised / possible issues · items
+  agreed with client · client's list of items required · additional comments.** Typically internal.
+- **The ENGINEER raises points on site; the OFFICE edits them.** The user's words, asked and answered.
+
+> ⚠️ **That second decision collides with a rule this milestone has enforced twice, and the collision
+> must be designed, not discovered.** Phase 46 D-02: *"an office note never changes what the engineer
+> said — the engineer's record stays intact."* Phase 46.1 D-04: everything on the review surface is
+> **read-only with respect to engineer capture**, and there are tests. So "the office edits them"
+> cannot mean overwriting the engineer's text in place.
+>
+> The shape that satisfies both: the engineer's points are captured and **immutable**; the report's
+> copy is a **separate editable layer seeded from them**; the original stays viewable beside the
+> edit. That keeps the audit trail (what the engineer actually said on site) while letting the office
+> write the version that goes to a client. **Confirm this reading with the user at the checkpoint
+> rather than assuming it.**
+
+- **Rooms summary is DERIVED** from the survey; the other four sections are **new capture**.
+- Per-space image download already exists — `VisitPhotoZipBuilder` groups by room and is built,
+  tested and merely unsurfaced.
+
+**UI hint**: yes (an office review surface plus a new PDF)
+
+---
+
 ### Phase 47: Snagging
 
 **Goal**: Snags are tracked items with a life of their own, resolved through visits but not dependent
