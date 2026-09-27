@@ -754,6 +754,35 @@ used|kit used` returns nothing. Today it lands in `worksheet_signoffs.comments`,
 
 **Requirements**: IC-01..IC-07 in `.planning/REQUIREMENTS.md` § v4.0, Group IC.
 
+**Plans** — **SEVEN**, in six waves. The block carried **no plan list at all** until Plan 46.4-07
+added this one on 2026-09-27; the phase was re-planned from six plans to seven on 2026-09-26 when the
+user ruled D-07..D-10.
+
+- [x] 46.4-01-PLAN.md — wave 1: the schema and the resolver — `worksheet_photos.bucket` with an
+      explicit history backfill, `worksheet_additional_kit`, and `AllocatedEngineers` as the only
+      door an engineer's name comes through (D-02/D-03/D-06, and IC-07's shape)
+- [x] 46.4-02-PLAN.md — wave 2: two photo trays, a per-tray label, and the dead lightbox fixed
+      (D-03/D-04)
+- [x] 46.4-03-PLAN.md — wave 2: the two office screens — the project asset list (D-05's missing
+      half) and the per-worksheet additional-kit table with its three legible row states (D-08)
+- [x] 46.4-04-PLAN.md — wave 3: the sign-off lock — one definition, five endpoints guarded
+      server-side before validation, and the reflection test that forces wave 4's three into the
+      same guard (D-07)
+- [x] 46.4-05-PLAN.md — wave 4: add / modify / mark-with-a-reason, the vanilla drawer and the
+      engineer picker, and LR-04 proven across four client-facing renderings (D-08/D-09/D-01)
+- [x] 46.4-06-PLAN.md — wave 5: the offline queue's third kind — a blobless kit row branching
+      before the blob append, with the queue schema untouched (D-06)
+- [ ] 46.4-07-PLAN.md — wave 6: the fourteen-step walk through HTTP, every gate run for real, the
+      deploy note, Group IC closed, and the blocking human checkpoint. **The work is done and
+      committed; this box stays unticked until the user answers the checkpoint — it is
+      `autonomous: false` and must never be self-approved.**
+
+> ⚠️ **IC-03 (offline queue) IS NOT PROVEN BY ANY TEST IN THIS REPO.** There is no browser harness,
+> so `OfflineQueueKitKindGuardTest` pins the IndexedDB schema, the branch ordering and both drain
+> shapes **by static source scan only**. The real proof is checkpoint step 3 of `46.4-07-PLAN.md`:
+> airplane mode, queue one photo AND one kit row, restore signal, confirm both arrive. Criterion 3
+> must not be read as green until that has been walked.
+
 **UI hint**: yes (the engineer link, used one-handed on site)
 
 > ⚠️ **Three traps.** The offline queue carries **binaries only** — `drain()` unconditionally appends
