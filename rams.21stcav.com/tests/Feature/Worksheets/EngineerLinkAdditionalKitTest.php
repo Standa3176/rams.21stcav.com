@@ -7,10 +7,13 @@ use App\Models\Project;
 use App\Models\User;
 use App\Models\Visit;
 use App\Models\Worksheet;
+use App\Models\WorksheetPhoto;
 use App\Models\WorksheetAdditionalKit;
 use App\Support\Worksheets\WorksheetCaptureLock;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
@@ -969,5 +972,149 @@ class EngineerLinkAdditionalKitTest extends TestCase
                 "Route {$name} is not on the worksheet-kit-write limiter — a leaked token could flood it.",
             );
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  46.4-06 — THE TWO DRAIN PAYLOAD SHAPES, AGAINST THE SAME WORKSHEET
+    //
+    //  ⚠️ WHAT THESE DO **NOT** PROVE. They do not exercise IndexedDB. Two rows
+    //  actually sitting in a browser's store and BOTH draining is a browser
+    //  fact, and this repo has no browser-driving harness (puppeteer is a
+    //  dependency, but PdfRenderService uses it to render HTML to PDF, not to
+    //  drive a live app). The real coexistence proof is step 3 of plan
+    //  46.4-07's blocking human checkpoint: airplane mode, one photo and one
+    //  kit row queued, signal restored, both arrive.
+    //
+    //  What they DO prove is the server half: neither endpoint's validation is
+    //  disturbed by the other's payload shape, so a mixed queue cannot fail
+    //  for a reason that lives on this side of the wire.
+    //  See OfflineQueueKitKindGuardTest for the source-position guards.
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Built EXACTLY as OfflineQueue.drain() builds a `kit` row: multipart, with
+     * `room_name` and the free-form fields bag spread in, AND NO `photo` PART.
+     *
+     * @param array<string,mixed> $fields
+     */
+    private function drainKitRow(Worksheet $worksheet, string $room, array $fields): \Illuminate\Testing\TestResponse
+    {
+        return $this->call(
+            'POST',
+            $this->addUrl($worksheet),
+            array_merge(['room_name' => $room], $fields),
+            [],
+            [], // ← THE POINT: no file part at all.
+            ['HTTP_ACCEPT' => 'application/json'],
+        );
+    }
+
+    public function test_both_drain_payload_shapes_are_accepted_against_the_same_worksheet(): void
+    {
+        Storage::fake('local');
+
+        $worksheet = $this->worksheet();
+        $engineer  = $this->engineer('Dean Whitcombe');
+        $this->visit($worksheet, [$engineer->id]);
+
+        // ── The KIT shape: no blob, three values in the fields bag. ──────────
+        $kit = $this->drainKitRow($worksheet, self::ROOMS[0], [
+            'labour_resource_id' => (string) $engineer->id,
+            'qty'                => '4',
+            'part_description'   => 'Trunking, 50x50 white',
+        ]);
+
+        $kit->assertStatus(201);
+        $kit->assertJson(['qty' => 4, 'part_description' => 'Trunking, 50x50 white']);
+
+        // ── The PHOTO shape: a photo part plus bucket and caption (46.4-02). ─
+        $photo = $this->call(
+            'POST',
+            '/worksheet/' . $worksheet->access_token . '/photos',
+            [
+                'room_name' => self::ROOMS[0],
+                'bucket'    => WorksheetPhoto::BUCKET_START,
+                'caption'   => 'Rack before work',
+            ],
+            [],
+            ['photo' => UploadedFile::fake()->image('photo.jpg')],
+            ['HTTP_ACCEPT' => 'application/json'],
+        );
+
+        // 200, not 201 — uploadPhoto has always returned a bare
+        // response()->json(). MEASURED, not assumed: the plan predicted 201.
+        $photo->assertStatus(200);
+
+        // ⚠️ BOTH, ON THE SAME WORKSHEET, IN THE SAME TEST. That is the server
+        // half of "they coexist" — a mixed queue drains into two endpoints and
+        // neither one's validation is disturbed by the other's shape.
+        $this->assertSame(1, WorksheetAdditionalKit::where('worksheet_id', $worksheet->id)->count());
+        $this->assertSame(1, $worksheet->photos()->count());
+
+        $row = WorksheetAdditionalKit::where('worksheet_id', $worksheet->id)->sole();
+        $this->assertSame($engineer->id, $row->labour_resource_id);
+        $this->assertSame(4, $row->qty);
+
+        $stored = $worksheet->photos()->sole();
+        $this->assertSame(WorksheetPhoto::BUCKET_START, $stored->bucket);
+        $this->assertSame('Rack before work', $stored->caption);
+    }
+
+    /**
+     * `fd.append(k, fields[k])` STRINGIFIES. A kit row queued with nobody
+     * selected carries `labour_resource_id: ''`, and that empty string is what
+     * actually arrives — not a null. If this ever 422s, the drawer must stop
+     * sending the key unless an id was chosen.
+     */
+    public function test_the_drain_shape_sends_an_empty_string_engineer_and_it_stores_null(): void
+    {
+        $worksheet = $this->worksheet();
+        $this->visit($worksheet, []);
+
+        $response = $this->drainKitRow($worksheet, self::ROOMS[0], [
+            'labour_resource_id' => '',
+            'qty'                => '2',
+            'part_description'   => 'Cable ties, black',
+        ]);
+
+        $response->assertStatus(201);
+
+        $row = WorksheetAdditionalKit::where('worksheet_id', $worksheet->id)->sole();
+
+        // NULL, not 0 — a zero would be a real id that nobody holds.
+        $this->assertNull($row->labour_resource_id);
+        $this->assertSame(2, $row->qty);
+        $this->assertSame('Cable ties, black', $row->part_description);
+    }
+
+    /**
+     * The whole reason drain()'s error path now prefers the JSON body's own
+     * `message` over `resp.statusText`: a row queued in a plant room can drain
+     * hours later into a worksheet the client has since signed, and the
+     * engineer must read a sentence, not "Unprocessable Content".
+     */
+    public function test_a_kit_row_draining_into_a_signed_worksheet_returns_a_readable_sentence(): void
+    {
+        $worksheet = $this->worksheet();
+        $this->sign($worksheet);
+
+        $response = $this->drainKitRow($worksheet, self::ROOMS[0], [
+            'labour_resource_id' => '',
+            'qty'                => '1',
+            'part_description'   => 'Trunking, 50x50 white',
+        ]);
+
+        $response->assertStatus(422);
+
+        // assertJson decodes first — the message carries an em dash, which
+        // json_encode escapes, so a raw-body string comparison would fail on
+        // the ENCODING rather than the behaviour (carried from plan 05).
+        $response->assertJson(['message' => WorksheetCaptureLock::MESSAGE]);
+
+        // A sentence, not a status code — this is what the queue panel shows.
+        $this->assertStringContainsString(' ', WorksheetCaptureLock::MESSAGE);
+
+        // And nothing was written.
+        $this->assertSame(0, WorksheetAdditionalKit::where('worksheet_id', $worksheet->id)->count());
     }
 }
