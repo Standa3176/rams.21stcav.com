@@ -7,6 +7,7 @@ use App\Services\DocumentArtifactStorage;
 use App\Services\DocumentTemplateService;
 use App\Services\Rams\RamsDisplayPatchService;
 use App\Support\Rams\EquipmentScheduleFallback;
+use App\Support\Rams\RamsRiskBand;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
 use PhpOffice\PhpWord\Settings;
@@ -54,10 +55,11 @@ class DocxBuilderService
     private const MID_GREY         = '666666';
     private const ROW_ALT          = 'F4FBFB';   // 21CAV brand pale-teal tint — corrected 2026-09-12, see 29-UAT.md gap 4
     private const WHITE            = 'FFFFFF';
-    private const RISK_GREEN       = 'D4EDDA';
-    private const RISK_AMBER       = 'FFF3CD';
-    private const RISK_ORANGE      = 'FFD0A0';
-    private const RISK_RED         = 'FFDEDE';
+    // quick-260927-rb4 — the RISK_GREEN / RISK_AMBER / RISK_ORANGE / RISK_RED
+    // constants are GONE on purpose. Risk-band fills are owned solely by
+    // App\Support\Rams\RamsRiskBand, shared with both PDF blades. A local copy
+    // here is how the DOCX came to paint HIGH as FFDEDE while the PDF used
+    // F8D7DA, and how a fourth band could be missing from both. Do not re-add.
 
     // ─── Page geometry (twips: 1 cm ≈ 567 twips) ─────────────────────────────
     // Portrait A4 (11906 wide) minus 2 × 1.8 cm margins (1020 each) = 9866
@@ -1131,7 +1133,8 @@ class DocxBuilderService
         // ── D6 — 5×5 Risk Matrix grid (matches PDF rams.blade.php:1197-1215) ──
         //   Header row: empty | Severity 1..5 (Minor → Fatal)
         //   Body rows : Likelihood 1..5 (Unlikely → Almost Certain) + 5 L×S cells
-        //   Cell bg   : riskColour(L*S) — 3-band palette (green/amber/red)
+        //   Cell bg   : riskColour(L*S) — RamsRiskBand 4-band palette
+        //               (green / amber / red / deep-salmon Very High)
         $section->addText(
             'The risk scoring matrix below is used throughout this assessment. Likelihood (L) × Severity (S) = Risk Score (R).',
             $this->font(9),
@@ -1167,23 +1170,25 @@ class DocxBuilderService
 
         $section->addTextBreak(1);
 
-        // ── D6 — 3-band footer legend (matches PDF rams.blade.php:1218-1227) ──
+        // ── quick-260927-rb4 — FOUR-band footer legend, one row per band ──
+        //   Iterated from RamsRiskBand::legend() (the same helper riskColour()
+        //   and both PDF blades use) so the band, its range, its fill and its
+        //   action wording can never disagree. One row per band rather than the
+        //   old single 6-cell row: four bands will not fit across the page, and
+        //   the old row had no fourth band at all.
         $legendTable = $section->addTable($this->tableStyle());
-        $bandW = 1200; // band cell
-        $descW = 3850; // description cell
-        $lr = $legendTable->addRow(420);
-        $lr->addCell($bandW, ['bgColor' => self::RISK_GREEN])
-            ->addText("1–4\nLOW", $this->font(9, bold: true), ['alignment' => Jc::CENTER]);
-        $lr->addCell($descW, ['bgColor' => self::WHITE])
-            ->addText('Acceptable. Monitor and maintain controls.', $this->font(9));
-        $lr->addCell($bandW, ['bgColor' => self::RISK_AMBER])
-            ->addText("5–9\nMEDIUM", $this->font(9, bold: true), ['alignment' => Jc::CENTER]);
-        $lr->addCell($descW, ['bgColor' => self::WHITE])
-            ->addText('Action required to reduce risk.', $this->font(9));
-        $lr->addCell($bandW, ['bgColor' => self::RISK_RED])
-            ->addText("10+\nHIGH", $this->font(9, bold: true), ['alignment' => Jc::CENTER]);
-        $lr->addCell(($matrixCellW * 6) - (3 * $bandW) - (2 * $descW), ['bgColor' => self::WHITE])
-            ->addText('Stop work. Implement immediate controls.', $this->font(9));
+        $bandW  = 1600; // "17 – 25 / VERY HIGH" cell
+        $rangeW = 1400; // score-range cell
+        $descW  = ($matrixCellW * 6) - $bandW - $rangeW;
+        foreach (RamsRiskBand::legend() as $band) {
+            $lr = $legendTable->addRow(420);
+            $lr->addCell($bandW, ['bgColor' => $band->fill])
+                ->addText($band->legendCode, $this->font(9, bold: true), ['alignment' => Jc::CENTER]);
+            $lr->addCell($rangeW, ['bgColor' => $band->fill])
+                ->addText($band->range, $this->font(9, bold: true), ['alignment' => Jc::CENTER]);
+            $lr->addCell($descW, ['bgColor' => self::WHITE])
+                ->addText($band->action, $this->font(9));
+        }
 
         $section->addTextBreak(1);
 
@@ -2357,39 +2362,36 @@ class DocxBuilderService
     /**
      * Return the risk-score background colour.
      *
-     * D6/D7 — collapsed to PDF's 3-band palette (rams.blade.php:443-447):
-     *   1-4   = LOW    (green)
-     *   5-9   = MEDIUM (amber)
-     *   10+   = HIGH   (red)
+     * quick-260927-rb4 — delegates to App\Support\Rams\RamsRiskBand, the single
+     * source of truth shared with both PDF blades. FOUR bands:
+     *   1-4   = LOW       (green)
+     *   5-9   = MEDIUM    (amber)
+     *   10-16 = HIGH      (red)
+     *   17-25 = VERY HIGH (deep salmon)
      *
-     * The legacy 4-band palette (RISK_ORANGE) is no longer used.
+     * The previous D6/D7 3-band collapse capped at `10+ = HIGH`, so a 5×5 = 25
+     * — the worst score a 5×5 matrix can produce — got the same fill as a 10.
+     * Do NOT reintroduce thresholds or hex literals in this method.
      */
     private function riskColour(int $score): string
     {
-        return match (true) {
-            $score <= 4  => self::RISK_GREEN,
-            $score <= 9  => self::RISK_AMBER,
-            default      => self::RISK_RED,
-        };
+        return RamsRiskBand::for($score)->fill;
     }
 
     /**
      * Return a SHORT risk badge label for the given score.
      *
-     * D7 — thresholds aligned with PDF rams.blade.php:448-452:
-     *   <5    = LOW
-     *   5-9   = MED
-     *   10+   = HIGH
+     * quick-260927-rb4 — delegates to App\Support\Rams\RamsRiskBand so the badge
+     * can never disagree with the cell fill beside it or the legend below it:
+     *   1-4 = LOW · 5-9 = MED · 10-16 = HIGH · 17-25 = VERY HIGH
      *
-     * Previous DOCX threshold (>= 7 => MED) mis-labelled scores 5-6 as LOW.
+     * Previously capped at `>= 10 => HIGH`, so a 25 read as "HIGH" — the same
+     * word as a 10. (An earlier D7 fix corrected `>= 7 => MED`, which had
+     * mis-labelled scores 5-6 as LOW; that threshold is preserved by the helper.)
      */
     private function riskBadge(int $score): string
     {
-        return match (true) {
-            $score >= 10 => 'HIGH',
-            $score >= 5  => 'MED',
-            default      => 'LOW',
-        };
+        return RamsRiskBand::for($score)->code;
     }
 
     /** Build a font style array. */

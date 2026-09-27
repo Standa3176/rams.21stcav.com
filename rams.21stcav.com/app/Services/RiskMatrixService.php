@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Support\Rams\RamsRiskBand;
+
 /**
  * Provides a static hazard library for AV installation projects.
  *
@@ -11,15 +13,18 @@ namespace App\Services;
  * when no ceiling works are detected).
  *
  * Risk score = Likelihood (1–5) × Severity (1–5)
- * Colour bands:
- *   Low      ≤ 3   (green)
- *   Medium   4–6   (amber)
- *   High     7–12  (orange)
- *   Critical ≥ 13  (red)
+ *
+ * Banding is NOT defined here. quick-260927-rb4 — this class used to carry a
+ * FIFTH, differently-cut copy of the bands (Low ≤3 · Medium 4-6 · High 7-12 ·
+ * Critical ≥13) that agreed with neither PDF blade nor the DOCX builder.
+ * App\Support\Rams\RamsRiskBand is the single source of truth:
+ *   1-4 Low · 5-9 Medium · 10-16 High · 17-25 Very High
  */
 class RiskMatrixService
 {
-    // ── Risk colour hex values (matching DocxBuilderService palette) ──────────
+    // ── Risk colour hex values ────────────────────────────────────────────────
+    // Retained as a public API only; they are no longer consulted by riskColour()
+    // below. Fills come from RamsRiskBand — do not band by these constants.
     public const RISK_GREEN  = 'D4EDDA';
     public const RISK_AMBER  = 'FFF3CD';
     public const RISK_ORANGE = 'FFD0A0';
@@ -238,27 +243,22 @@ class RiskMatrixService
 
     /**
      * Return the background hex colour for a given risk score.
+     *
+     * quick-260927-rb4 — delegates to the single source of truth.
      */
     public function riskColour(int $score): string
     {
-        return match (true) {
-            $score <= 3  => self::RISK_GREEN,
-            $score <= 6  => self::RISK_AMBER,
-            $score <= 12 => self::RISK_ORANGE,
-            default      => self::RISK_RED,
-        };
+        return RamsRiskBand::for($score)->fill;
     }
 
     /**
      * Return the human-readable risk band label for a given score.
+     *
+     * quick-260927-rb4 — delegates to the single source of truth. The old
+     * "Critical" label is now "Very High", matching every renderer.
      */
     public function riskLabel(int $score): string
     {
-        return match (true) {
-            $score <= 3  => 'Low',
-            $score <= 6  => 'Medium',
-            $score <= 12 => 'High',
-            default      => 'Critical',
-        };
+        return RamsRiskBand::for($score)->name;
     }
 }

@@ -6,6 +6,7 @@ use App\Models\Project;
 use App\Models\RamsDocument;
 use App\Models\User;
 use App\Services\DocxBuilderService;
+use App\Support\Rams\RamsRiskBand;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -317,34 +318,42 @@ class DocxBuilderPdfParityTest extends TestCase
         $this->assertSame('MED',  $method->invoke($builder, 6), 'D7: score 6 must be MED, not LOW.');
         $this->assertSame('MED',  $method->invoke($builder, 9), 'Score 9 must remain MED.');
         $this->assertSame('HIGH', $method->invoke($builder, 10), 'Score 10 must be HIGH.');
+        // quick-260927-rb4 — the fourth band. 16 stays HIGH, 17 escalates.
+        $this->assertSame('HIGH',      $method->invoke($builder, 16), 'Score 16 is the top of HIGH.');
+        $this->assertSame('VERY HIGH', $method->invoke($builder, 17), 'Score 17 opens VERY HIGH.');
+        $this->assertSame('VERY HIGH', $method->invoke($builder, 25), 'Score 25 must not read as HIGH.');
     }
 
-    public function test_risk_colour_uses_three_band_palette(): void
+    public function test_risk_colour_uses_the_shared_four_band_palette(): void
     {
-        // D6 — riskColour() must collapse to 3 bands matching the PDF
-        // (green ≤4, amber 5-9, red 10+). The legacy 4-band palette with
-        // RISK_ORANGE must no longer fire.
+        // D6 kept PDF/DOCX parity but at THREE bands, capping at "red 10+" —
+        // so a 5×5 = 25 was painted identically to a 10. quick-260927-rb4
+        // replaced both copies with App\Support\Rams\RamsRiskBand, which is
+        // where parity now lives: this asserts the DOCX reads that helper,
+        // rather than re-asserting hex literals that could drift again.
+        // Four-band coverage across every renderer is in
+        // Tests\Feature\Rams\RiskBandingFourBandTest.
         $builder = app(DocxBuilderService::class);
         $ref = new ReflectionClass($builder);
         $method = $ref->getMethod('riskColour');
         $method->setAccessible(true);
 
-        $green = 'D4EDDA';
-        $amber = 'FFF3CD';
-        $red   = 'FFDEDE';
-
-        $this->assertSame($green, $method->invoke($builder, 4));
-        $this->assertSame($amber, $method->invoke($builder, 5));
-        $this->assertSame($amber, $method->invoke($builder, 9));
-        $this->assertSame($red,   $method->invoke($builder, 10));
-        $this->assertSame($red,   $method->invoke($builder, 25));
+        $this->assertSame(RamsRiskBand::FILL_LOW,   $method->invoke($builder, 4));
+        $this->assertSame(RamsRiskBand::FILL_MED,   $method->invoke($builder, 5));
+        $this->assertSame(RamsRiskBand::FILL_MED,   $method->invoke($builder, 9));
+        $this->assertSame(RamsRiskBand::FILL_HIGH,  $method->invoke($builder, 10));
+        $this->assertSame(RamsRiskBand::FILL_HIGH,  $method->invoke($builder, 16));
+        $this->assertSame(RamsRiskBand::FILL_VHIGH, $method->invoke($builder, 17),
+            'D6 capped at 10+; 17-25 is a fourth band and must not reuse the High fill.');
+        $this->assertSame(RamsRiskBand::FILL_VHIGH, $method->invoke($builder, 25));
     }
 
-    public function test_risk_legend_emits_five_by_five_grid_and_three_band_footer(): void
+    public function test_risk_legend_emits_five_by_five_grid_and_four_band_footer(): void
     {
         // D6 — buildRiskAssessment() must emit the 5×5 likelihood/severity
         // grid (header row "Severity 1..5" + row headers "Likelihood 1..5"
-        // + 25 body cells) AND a 3-band footer ("LOW", "MEDIUM", "HIGH").
+        // + 25 body cells) AND the footer legend. quick-260927-rb4 took the
+        // footer from three bands to FOUR — a 5×5 grid reaches 25.
         $record = $this->makeRams(
             generatedOverrides: [
                 'hazards' => [
@@ -363,10 +372,12 @@ class DocxBuilderPdfParityTest extends TestCase
         $this->assertStringContainsString('Likelihood 1', $xml, 'D6: 5×5 grid missing "Likelihood 1" header.');
         $this->assertStringContainsString('Likelihood 5', $xml, 'D6: 5×5 grid missing "Likelihood 5" header.');
         $this->assertStringContainsString('Almost Certain', $xml, 'D6: 5×5 grid likelihood-label "Almost Certain" missing.');
-        // 3-band footer
-        $this->assertStringContainsString('LOW',    $xml);
-        $this->assertStringContainsString('MEDIUM', $xml);
-        $this->assertStringContainsString('HIGH',   $xml);
+        // 4-band footer
+        $this->assertStringContainsString('LOW',       $xml);
+        $this->assertStringContainsString('MEDIUM',    $xml);
+        $this->assertStringContainsString('HIGH',      $xml);
+        $this->assertStringContainsString('VERY HIGH', $xml,
+            'D6/rb4: the footer legend must carry the fourth band.');
     }
 
     public function test_method_step_header_does_not_double_prefix_step_n(): void

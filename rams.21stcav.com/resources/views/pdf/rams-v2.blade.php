@@ -511,17 +511,16 @@ p { margin: 3pt 0; }
     // Decommissioning enabled when flag set OR scope has decommission items
     $decommEnabled = ! empty($decommData['enabled']) || $hasDecomm;
 
-    // Risk helpers — LOW ≤4, MED 5–9, HIGH ≥10 (matching reference)
-    $riskBg = function(int $score): string {
-        if ($score >= 10) return '#F8D7DA';  // HIGH red
-        if ($score >= 5)  return '#FFF3CD';  // MED amber
-        return '#D4EDDA';                     // LOW green
-    };
-    $riskLabel = function(int $score): string {
-        if ($score >= 10) return 'HIGH';
-        if ($score >= 5)  return 'MED';
-        return 'LOW';
-    };
+    // Risk helpers — the SINGLE source of truth is App\Support\Rams\RamsRiskBand.
+    // FOUR bands: 1–4 Low · 5–9 Medium · 10–16 High · 17–25 Very High. A 5×5
+    // matrix reaches 25, so 17+ is a genuine step above a 10–16 High; this blade
+    // used to stop at `>= 10 => HIGH` and printed the worst possible score in the
+    // same pink, with the same word, as a 10 (quick-260927-rb4).
+    // Do NOT reintroduce thresholds or hex values here — the legend below and the
+    // DOCX builder read the same helper so they can never disagree.
+    $riskBand  = fn(int $score) => \App\Support\Rams\RamsRiskBand::for($score);
+    $riskBg    = fn(int $score): string => $riskBand($score)->cssFill();
+    $riskLabel = fn(int $score): string => $riskBand($score)->code;
     // Matrix cell colour helper
     $matCell = function(int $l, int $s) use ($riskBg): string {
         return $riskBg($l * $s);
@@ -1357,16 +1356,17 @@ p { margin: 3pt 0; }
     @endforeach
 </table>
 
-{{-- Risk key legend (3 bands matching reference) --}}
+{{-- Risk key legend — FOUR bands, one row each, iterated from RamsRiskBand so a
+     band can never go missing or disagree with the matrix cells above it. Action
+     wording is the sibling SCC application's reviewed safety copy, verbatim
+     (quick-260927-rb4). --}}
 <table class="risk-key-row" style="margin-bottom: 10pt;">
+    @foreach(\App\Support\Rams\RamsRiskBand::legend() as $band)
     <tr>
-        <td class="rk-band" style="background-color:#D4EDDA;">1&ndash;4<br><strong>LOW</strong></td>
-        <td style="font-size:8.5pt;">Acceptable. Monitor and maintain controls.</td>
-        <td class="rk-band" style="background-color:#FFF3CD;">5&ndash;9<br><strong>MEDIUM</strong></td>
-        <td style="font-size:8.5pt;">Action required to reduce risk.</td>
-        <td class="rk-band" style="background-color:#F8D7DA;">10+<br><strong>HIGH</strong></td>
-        <td style="font-size:8.5pt;">Stop work. Implement immediate controls.</td>
+        <td class="rk-band" style="background-color:{{ $band->cssFill() }};">{{ $band->range }}<br><strong>{{ $band->legendCode }}</strong></td>
+        <td style="font-size:8.5pt;">{{ $band->action }}</td>
     </tr>
+    @endforeach
 </table>
 
 {{-- Hazard register --}}

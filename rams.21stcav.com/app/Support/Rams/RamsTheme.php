@@ -131,6 +131,21 @@ final readonly class RamsTheme
     }
 
     /**
+     * Risk-band lookup — convenience seam for renderers that already hold a
+     * theme instance (pdf.rams-v2 receives `$theme`).
+     *
+     * Deliberately a pass-through to {@see RamsRiskBand::for()} rather than a
+     * second implementation: the bands are NOT theme tokens, because a band
+     * bundles a threshold, a label, a score range and reviewed legend wording
+     * alongside its fill, and config/rams_theme.php can only carry the fill.
+     * Splitting them is exactly how the renderers drifted (quick-260927-rb4).
+     */
+    public function riskBand(int $score): RamsRiskBand
+    {
+        return RamsRiskBand::for($score);
+    }
+
+    /**
      * Canonical section slug order (16 slugs, matching Sections/ DTOs).
      *
      * @return array<int, string>
