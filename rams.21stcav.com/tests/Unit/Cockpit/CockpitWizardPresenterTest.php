@@ -33,6 +33,27 @@ class CockpitWizardPresenterTest extends TestCase
 
     private const COMMS_ROOM_LEGEND = 'Comms room';
 
+    /**
+     * EVERY GROUP THE WIZARD DELIBERATELY DOES NOT ASK, BY NAME. Two, not one,
+     * since 2026-09-27: the user asked for `Delivery routes`, `Distance from
+     * base` and the travel notes to leave the OFFICE CREATION FORM, and they
+     * left it the same way Comms room did — `step => null` — because
+     * `SurveyCarryForward` carries them to the INSTALLING engineer and the
+     * survey PDF, the Word document and the engineer link all render them. The
+     * surveyor is still asked; the office PM is not.
+     *
+     * NAMED RATHER THAN DERIVED FROM `step === null`, on purpose. A third group
+     * quietly acquiring `step => null` — which is how a field silently stops
+     * being asked — must land as a RED TEST here, and it does:
+     * `test_exactly_these_groups_are_on_no_step()` asserts set equality.
+     *
+     * @var list<string>
+     */
+    private const STEPLESS_LEGENDS = [
+        'Comms room',
+        'For the install that follows',
+    ];
+
     private function presenter(): CockpitWizardPresenter
     {
         return new CockpitWizardPresenter();
@@ -148,9 +169,10 @@ class CockpitWizardPresenterTest extends TestCase
             .'red instead of quiet.',
         );
         $this->assertSame(
-            count($this->mapGroups(self::SITE_SURVEY)) - 1,
+            count($this->mapGroups(self::SITE_SURVEY)) - count(self::STEPLESS_LEGENDS),
             $groupsSeen,
-            'Every site-survey group except Comms room must be reachable from some step.',
+            'Every site-survey group except the '.count(self::STEPLESS_LEGENDS).' on no step ('
+            .implode(', ', self::STEPLESS_LEGENDS).') must be reachable from some step.',
         );
     }
 
@@ -191,6 +213,42 @@ class CockpitWizardPresenterTest extends TestCase
         }
 
         $this->assertSame(10, $probed, 'This proof probed '.$probed.' step numbers, 0 through 9.');
+    }
+
+    /**
+     * EXACTLY TWO GROUPS ARE ON NO STEP, AND THEY ARE THESE TWO.
+     *
+     * `step => null` is the mechanism for "the office form does not ask this",
+     * and it is also the mechanism by which a field SILENTLY STOPS BEING ASKED.
+     * Set equality is therefore the assertion: a third group acquiring
+     * `step => null` is red here, and so is one of these two acquiring a step.
+     *
+     * The second entry arrived on 2026-09-27 (the user's items 6 and 7), and it
+     * arrived the same way the first did — off this form only. See
+     * `CockpitSurveyFeedbackFieldsTest`, which proves the surveyor is still
+     * asked and the carry-forward still carries.
+     */
+    public function test_exactly_these_groups_are_on_no_step(): void
+    {
+        $stepless = [];
+
+        foreach ($this->mapGroups(self::SITE_SURVEY) as $group) {
+            if ($group['step'] === null) {
+                $stepless[] = $group['legend'];
+            }
+        }
+
+        sort($stepless);
+
+        $expected = self::STEPLESS_LEGENDS;
+        sort($expected);
+
+        $this->assertSame(
+            $expected,
+            $stepless,
+            'The set of site-survey groups on NO step changed. Each one is a deliberate ruling with its reason '
+            .'written beside it in the map — add or remove one only by editing STEPLESS_LEGENDS in the same commit.',
+        );
     }
 
     // ── The whole map, iterated — never a sample ─────────────────────────
@@ -272,9 +330,9 @@ class CockpitWizardPresenterTest extends TestCase
             $expected = [];
 
             foreach ($document['groups'] as $group) {
-                // Comms room is the map's ONE deliberate omission from the
-                // wizard (D-03), asserted BY NAME here rather than remembered.
-                if ($group['legend'] === self::COMMS_ROOM_LEGEND) {
+                // The map's deliberate omissions from the wizard are asserted
+                // BY NAME here rather than remembered — see STEPLESS_LEGENDS.
+                if (in_array($group['legend'], self::STEPLESS_LEGENDS, true)) {
                     continue;
                 }
 
@@ -299,8 +357,8 @@ class CockpitWizardPresenterTest extends TestCase
             $this->assertSame(
                 $expected,
                 $reached,
-                "On {$documentKey}, the fields reachable from a step do not equal its full non-Comms-room "
-                .'field set. A field that reaches no step is a field that silently stops being asked.',
+                "On {$documentKey}, the fields reachable from a step do not equal its full field set minus "
+                .'the groups on no step. A field that reaches no step is a field that silently stops being asked.',
             );
 
             $this->assertNotEmpty($reached, "{$documentKey} has steps but no field on any of them.");

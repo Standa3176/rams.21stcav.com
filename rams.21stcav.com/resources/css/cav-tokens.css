@@ -235,6 +235,29 @@
        Source: the app's own red status-badge ink, app.blade.php:459. */
     --cav-destructive: #991B1B;
 
+    /* ── GO — the generate action's own green (2026-09-27) ────────────────
+       The user asked for every generate button to be green. Colour lives here
+       or nowhere, so the pair is declared here and `cockpit.css` carries only
+       `var()` references on `.cav-qa__control--go`.
+
+       CONTRAST, MEASURED AND RECORDED AS THIS FILE'S DOCBLOCK REQUIRES (text
+       4.5:1). Both are backgrounds for WHITE (`--cav-surface`) 13px/600 button
+       text:
+
+         --cav-go       #15803D   white on it = 5.01:1   PASSES AA
+         --cav-go-dark  #166534   white on it = 7.12:1   PASSES AA (and AAA)
+
+       ⚠ THE HOVER GOES DARKER, WHICH IS THE OPPOSITE OF THE TEAL PAIR ABOVE
+       (`--cav-teal-dark` hovering to the LIGHTER `--cav-teal`). That is not an
+       inconsistency, it is the measurement: the obvious lighter green,
+       #16A34A, is only 3.29:1 under white text and FAILS. A hover state that
+       drops below AA is a hover state that hides the label, so the direction
+       was chosen by the figure rather than by the neighbouring pattern. Do not
+       "tidy" this into a lighter hover without re-measuring. */
+    --cav-go: #15803D;
+
+    --cav-go-dark: #166534;
+
     /* ── Spacing scale — all multiples of 4 ──────────────────────────────
        UNCHANGED by D-08: the reversal is a palette and type decision, and
        re-deriving spacing would have made the diff unreviewable. Non-spacing

@@ -12,6 +12,7 @@ use App\Models\SiteSurvey;
 use App\Models\User;
 use App\Models\Worksheet;
 use App\Services\RamsReviewDataService;
+use App\Support\Cockpit\CockpitCombinedCreator;
 use App\Support\Cockpit\CockpitDocumentFormPresenter;
 use App\Support\Cockpit\CockpitModulePresenter;
 use App\Support\Cockpit\CockpitWizardPresenter;
@@ -248,9 +249,13 @@ class CockpitDocumentFormTest extends TestCase
         // lookup) and the tab the generation was initiated from.
         $names = ['_token', 'module', 'tab'];
 
-        if (! $stepped || $step === $steps[count($steps) - 1]) {
-            $names[] = 'format';
-        }
+        // NO `format` CONTROL ON ANY STEP SINCE 2026-09-27 (the user's item 8).
+        // The radios asked which file the PM wanted and the answer changed
+        // nothing but a flash word — one creation already produces the document,
+        // the visit, the engineer link, the Word file and the PDF. The last step
+        // now NAMES those outputs instead of asking about them. The map's
+        // `formats` are untouched and `format` is still validated on the
+        // request, defaulted from the map when absent.
 
         if ($stepped) {
             $names[] = 'step';
@@ -729,19 +734,27 @@ class CockpitDocumentFormTest extends TestCase
         $this->assertStringContainsString('DC-07', $form);
         $this->assertStringContainsString('PDF is not available', $form);
 
-        // One format radio, not two.
-        $this->assertSame(1, substr_count($form, 'name="format"'));
-        $this->assertStringContainsString('value="word"', $form);
-        $this->assertStringNotContainsString('value="pdf"', $form);
+        // NO FORMAT RADIO AT ALL SINCE 2026-09-27 (item 8) — and the worksheet
+        // still names WORD and still refuses to name a PDF it does not have.
+        $this->assertSame(0, substr_count($form, 'name="format"'), 'The format radios are back.');
+        $this->assertStringContainsString('Generating creates the engineer link and Word.', $form);
+        $this->assertStringNotContainsString('and PDF.', $form, 'The worksheet must not be promised a PDF.');
 
-        // Every other document offers both — ON ITS LAST STEP, which is where
-        // the output choice lives since Plan 46.5-04. A PM is not asked to pick
-        // a file format three screens before it matters.
-        foreach ([ProjectDeliverable::KEY_RAMS, ProjectDeliverable::KEY_OM, ProjectDeliverable::KEY_SITE_SURVEY] as $module) {
+        // Every other document names BOTH files — ON ITS LAST STEP, which is
+        // where the output line lives since Plan 46.5-04. RAMS and the O&M issue
+        // no engineer link (D-04), so theirs names the two files only; the site
+        // survey names the link as well.
+        $expected = [
+            ProjectDeliverable::KEY_RAMS        => 'Generating creates Word and PDF.',
+            ProjectDeliverable::KEY_OM          => 'Generating creates Word and PDF.',
+            ProjectDeliverable::KEY_SITE_SURVEY => 'Generating creates the engineer link, Word and PDF.',
+        ];
+
+        foreach ($expected as $module => $sentence) {
             $other = $this->docForm($project, $module, ['action' => 'generate'] + $this->lastStepQuery($module));
 
-            $this->assertSame(2, substr_count($other, 'name="format"'), "{$module} offers Word and PDF.");
-            $this->assertStringContainsString('value="pdf"', $other);
+            $this->assertSame(0, substr_count($other, 'name="format"'), "{$module} still asks for a format.");
+            $this->assertStringContainsString($sentence, $other, "{$module} does not name its outputs.");
             $this->assertStringNotContainsString('DC-07', $other);
         }
     }
@@ -898,13 +911,19 @@ class CockpitDocumentFormTest extends TestCase
         $this->generate($project, [
             'module'                   => ProjectDeliverable::KEY_SITE_SURVEY,
             'format'                   => 'word',
-            'survey_date'              => '2026-10-01',
+            // ONE DATE, TWO COLUMNS (2026-09-27, item 1). `survey_date` is no
+            // longer asked; the one visible date writes it through
+            // `also_target`, and the assertion below proves the column filled.
+            'visit_scheduled_date'     => '2026-10-01',
             'surveyor_name'            => 'Kit Farrow',
             'site_contact_name'        => 'Sam Bright',
             'site_contact_phone'       => '07700 900444',
             'general_notes'            => 'Lift access booked.',
             'site_access_notes'        => 'Report to the east gate.',
-            'parking_restraints'       => 'Two bays behind the loading dock.',
+            // A CLOSED CHOICE NOW, and the stored value is the sentence the Word
+            // document, the survey PDF, the engineer link and the carry-forward
+            // all print.
+            'parking_restraints'       => 'No parking',
             'delivery_routes'          => 'Goods lift only.',
             'distance_from_base_miles' => '42',
             'distance_from_base_notes' => 'M1 then A64.',
@@ -920,9 +939,175 @@ class CockpitDocumentFormTest extends TestCase
         $this->assertSame('Kit Farrow', $survey->surveyor_name);
         $this->assertSame('Sam Bright', $survey->site_contact_name);
         $this->assertSame('Report to the east gate.', $survey->site_access_notes);
+        // THE SECOND TARGET, PROVEN ON A REAL WRITE. The form asked ONE date and
+        // `survey.survey_date` — which the Word document reads — is filled from
+        // it. Without this, item 1 would have quietly emptied the document's own
+        // date.
+        $this->assertSame('2026-10-01', $survey->survey_date?->format('Y-m-d'));
+        $this->assertSame('No parking', $survey->parking_restraints);
         $this->assertSame('outsourced', $survey->comms_room_access_status);
         $this->assertSame('42', (string) $survey->distance_from_base_miles);
         $this->assertSame('Client copy only.', $survey->office_review_notes);
+    }
+
+    // ── 2026-09-27: the eight pieces of live-wizard feedback, RENDERED ──────
+
+    /**
+     * PARKING IS THREE RADIOS, AND THE FREE-TEXT BOX IS GONE (item 5).
+     *
+     * RENDERED, not inferred from the map — the map is asserted separately in
+     * `CockpitDocumentFormPresenterTest`. The step is read off the field's own
+     * group so this cannot drift onto the wrong screen.
+     */
+    public function test_parking_renders_as_three_radios_and_no_free_text_box(): void
+    {
+        $project = $this->project();
+
+        // EVERY STEP, so "the radios render" cannot be true on one screen and
+        // false on the two the user also walks.
+        $seenOn = [];
+
+        foreach ($this->stepQueries(ProjectDeliverable::KEY_SITE_SURVEY) as $query) {
+            $form = $this->docForm($project, ProjectDeliverable::KEY_SITE_SURVEY, ['action' => 'generate'] + $query);
+
+            // THE FREE-TEXT BOX IS GONE FROM EVERY STATE.
+            $this->assertDoesNotMatchRegularExpression(
+                '/<textarea[^>]*name="parking_restraints"/s',
+                $form,
+                'Parking still renders a textarea on step '.($query['step'] ?? 'none').'.',
+            );
+
+            // AND NO DROPDOWN, ANYWHERE — FORBIDDEN_MARKUP entry 1 stands at 2.
+            $this->assertStringNotContainsString('<select', $form);
+
+            foreach (['Parking onsite', 'No parking', 'Unknown'] as $option) {
+                if (str_contains($form, 'value="'.$option.'"')) {
+                    $seenOn[$option][] = $query['step'] ?? 0;
+                }
+            }
+        }
+
+        foreach (['Parking onsite', 'No parking', 'Unknown'] as $option) {
+            $this->assertArrayHasKey($option, $seenOn, "The parking option [{$option}] renders on no step at all.");
+            $this->assertCount(
+                1,
+                $seenOn[$option],
+                "The parking option [{$option}] renders on ".count($seenOn[$option]).' steps. A control belongs '
+                .'to exactly one.',
+            );
+        }
+
+        // On its own step it is a RADIO group, with the legend the map gives it.
+        $step = $seenOn['No parking'][0];
+        $form = $this->docForm($project, ProjectDeliverable::KEY_SITE_SURVEY, ['action' => 'generate', 'step' => $step]);
+
+        $this->assertMatchesRegularExpression(
+            '/<input\s+type="radio"\s+name="parking_restraints"\s+value="No parking"/',
+            $form,
+            'Parking is not a radio on the step that asks it.',
+        );
+        $this->assertStringContainsString('Parking arrangements', $form, 'The legend went with the control type.');
+    }
+
+    /**
+     * THE ENGINEER EMPTY STATE READS AS THE CONTROL'S OWN REPLY (item 4).
+     *
+     * ⚠ RENDERED WITH NO `LabourResource` ROWS AT ALL, which is LIVE'S OWN STATE
+     * and the one the user was looking at. Every other test in this file calls
+     * `resources()` first, so this state was rendered by nothing — which is
+     * exactly how it shipped looking like stray prose.
+     *
+     * IT IS NOT HIDDEN AND THE CONTROL IS NOT HIDDEN. Both halves asserted: the
+     * fieldset and its legend still render, and the message carries the empty
+     * class rather than the value class.
+     */
+    public function test_the_engineer_empty_state_is_the_controls_own_and_is_never_hidden(): void
+    {
+        $this->assertSame(0, LabourResource::count(), 'This proof needs live\'s own no-engineers state.');
+
+        $project = $this->project();
+
+        $form = $this->docForm($project, ProjectDeliverable::KEY_SITE_SURVEY, [
+            'action' => 'generate',
+            'step'   => 1,
+        ]);
+
+        // THE CONTROL IS STILL THERE — its legend and its fieldset.
+        $this->assertStringContainsString('Engineer', $form, 'The engineer control was hidden instead of answered.');
+
+        // AND THE MESSAGE IS THE CONTROL'S OWN EMPTY STATE, NOT AN ANSWER.
+        $this->assertStringContainsString(
+            '<span class="cav-qa__empty">Nobody active is on file for this. Add people under Labour resources.</span>',
+            $form,
+            'The empty state is not carrying its own class, so it renders as a value would.',
+        );
+
+        $this->assertStringNotContainsString(
+            '<span class="cav-qa__value">Nobody active',
+            $form,
+            'The empty state still wears the VALUE class — that is the defect the user reported.',
+        );
+
+        // NON-VACUITY: with engineers on file the message is absent and the
+        // checkboxes are present, so the assertion above is about the EMPTY
+        // state rather than about a string that never renders.
+        $this->resources();
+
+        $filled = $this->docForm($project, ProjectDeliverable::KEY_SITE_SURVEY, ['action' => 'generate', 'step' => 1]);
+
+        $this->assertStringNotContainsString('cav-qa__empty', $filled);
+        $this->assertStringContainsString('name="visit_engineers[]"', $filled);
+    }
+
+    /**
+     * GREEN IS ON THE GENERATE CONTROLS AND ON NOTHING ELSE (item 9).
+     *
+     * Both states of every document: the closed opener and the open form's
+     * submit wear `cav-qa__go`; Next, Back and Cancel do not. Asserted as
+     * MARKUP here and as a token pair in `CockpitVisualTest`, because a class
+     * that resolves to no token fails silently in CSS.
+     */
+    public function test_only_the_generate_controls_are_green(): void
+    {
+        $project = $this->project();
+        $this->resources();
+        $judged = 0;
+
+        foreach (array_keys(CockpitDocumentFormPresenter::documentFieldMap()) as $module) {
+            // CLOSED: one control, and it is green.
+            $closed = $this->docForm($project, $module);
+
+            $this->assertSame(
+                1,
+                substr_count($closed, 'class="cav-qa__control cav-qa__go"'),
+                "{$module}'s closed control is not the one green control."
+            );
+
+            foreach ($this->stepQueries($module) as $query) {
+                $form   = $this->docForm($project, $module, ['action' => 'generate'] + $query);
+                $isLast = $query === $this->lastStepQuery($module);
+
+                // The submit is green on the last step; Next is NOT green on the
+                // others, and Back is never green.
+                $this->assertSame(
+                    $isLast ? 1 : 0,
+                    substr_count($form, 'class="cav-qa__control cav-qa__go" type="submit" name="intent" value="create"'),
+                    "{$module} step ".($query['step'] ?? 'none').': the green submit is on the wrong step.'
+                );
+
+                foreach (['next', 'back'] as $intent) {
+                    $this->assertStringNotContainsString(
+                        'cav-qa__go" type="submit" name="intent" value="'.$intent.'"',
+                        $form,
+                        "{$module}: [{$intent}] is green, and it generates nothing."
+                    );
+                }
+
+                $judged++;
+            }
+        }
+
+        $this->assertSame(8, $judged, 'This proof rendered '.$judged.' open states across four documents.');
     }
 
     // ── T-46.2-12: the module key is never trusted ─────────────────────────
@@ -1388,18 +1573,27 @@ class CockpitDocumentFormTest extends TestCase
         $this->assertSame(1, $seen, 'Exactly one space list exists: the site survey.');
     }
 
+    /**
+     * EVERY OFFERED FORMAT STILL POINTS AT A REAL ROUTE, AND THE LAST STEP NOW
+     * NAMES IT INSTEAD OF ASKING ABOUT IT.
+     *
+     * The route half is load-bearing and is UNCHANGED: a `formats` entry naming
+     * a route that does not exist is a promise the panel cannot keep. The radios
+     * went on 2026-09-27 (item 8) because their answer changed nothing; what
+     * replaced them is a sentence built from the SAME map entry, so it can still
+     * only name what exists. NO FORMAT WAS INVENTED.
+     */
     public function test_every_offered_format_points_at_a_route_that_exists(): void
     {
         $project = $this->project();
+        $judged  = 0;
 
         foreach (CockpitDocumentFormPresenter::documentFieldMap() as $module => $definition) {
-            // The Format fieldset is on the LAST step (Plan 46.5-04).
+            // The outcome line is on the LAST step (Plan 46.5-04).
             $form = $this->docForm($project, $module, ['action' => 'generate'] + $this->lastStepQuery($module));
 
             foreach ($definition['formats'] as $format => $routeName) {
                 if ($routeName === null) {
-                    $this->assertStringNotContainsString("value=\"{$format}\"", $form);
-
                     continue;
                 }
 
@@ -1407,8 +1601,39 @@ class CockpitDocumentFormTest extends TestCase
                     \Illuminate\Support\Facades\Route::has($routeName),
                     "{$module}'s {$format} route {$routeName} does not exist — 46.2-02 proved it did."
                 );
-                $this->assertStringContainsString("value=\"{$format}\"", $form);
             }
+
+            // NOT ONE FORMAT RADIO, on any document, on its last step.
+            $this->assertStringNotContainsString('name="format"', $form, "{$module} still asks for a format.");
+
+            // WHAT STANDS THERE INSTEAD, DERIVED FROM THE MAP RATHER THAN TYPED
+            // OUT: the engineer link when this module issues one, then each
+            // offered format's own word, in map order.
+            $words = [];
+
+            if (CockpitCombinedCreator::handles($module)) {
+                $words[] = 'the engineer link';
+            }
+
+            foreach ($definition['formats'] as $format => $routeName) {
+                if ($routeName !== null) {
+                    $words[] = ['word' => 'Word', 'pdf' => 'PDF'][$format] ?? $format;
+                }
+            }
+
+            $list = count($words) === 1
+                ? $words[0]
+                : implode(', ', array_slice($words, 0, -1)).' and '.$words[count($words) - 1];
+
+            $this->assertStringContainsString(
+                'Generating creates '.$list.'.',
+                $form,
+                "{$module}'s last step does not name what the creation produces."
+            );
+
+            $judged++;
         }
+
+        $this->assertSame(4, $judged, 'This proof rendered the last step of '.$judged.' documents.');
     }
 }

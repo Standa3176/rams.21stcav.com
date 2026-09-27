@@ -417,11 +417,11 @@ class CockpitDocCreationEndToEndTest extends TestCase
         $package = $this->reviewedPackage($project);
         $this->resources();
 
-        // RAMS'S LAST STEP. Since Plan 46.5-04 the Format radios live on the
-        // last step only, and since Plan 46.5-05 RAMS HAS steps — so the walk
-        // opens the step where the output choice actually is. The step number
-        // is read off the wizard presenter rather than typed, so a fourth RAMS
-        // step would not leave this walk asserting against step 3 forever.
+        // RAMS'S LAST STEP. Since Plan 46.5-04 the output half of the form
+        // lives on the last step only, and since Plan 46.5-05 RAMS HAS steps —
+        // so the walk opens the step where the output actually is. The step
+        // number is read off the wizard presenter rather than typed, so a fourth
+        // RAMS step would not leave this walk asserting against step 3 forever.
         $ramsSteps = app(CockpitWizardPresenter::class)->stepsFor(ProjectDeliverable::KEY_RAMS);
 
         $this->assertSame([1, 2, 3], $ramsSteps, 'RAMS steps since Plan 46.5-05.');
@@ -439,10 +439,12 @@ class CockpitDocCreationEndToEndTest extends TestCase
             'cav-qa',
         );
 
-        // The format radio points at routes that exist — both cells, asserted
-        // here on the page the PM actually sees.
-        $this->assertStringContainsString('value="word"', $open);
-        $this->assertStringContainsString('value="pdf"', $open);
+        // THE OUTPUTS ARE NAMED AND BOTH ROUTES EXIST — asserted here on the
+        // page the PM actually sees. The Format radios stood here until
+        // 2026-09-27 (item 8); the sentence that replaced them is built from the
+        // same `formats` map, so it still cannot promise a file with no route.
+        $this->assertStringContainsString('Generating creates Word and PDF.', $open);
+        $this->assertStringNotContainsString('name="format"', $open);
         $this->assertTrue(Route::has('rams.download'));
         $this->assertTrue(Route::has('rams.download-pdf'));
 
@@ -596,7 +598,9 @@ class CockpitDocCreationEndToEndTest extends TestCase
             'module'                   => ProjectDeliverable::KEY_SITE_SURVEY,
             'format'                   => 'word',
             'tab'                      => 'overview',
-            'survey_date'              => '2026-10-01',
+            // ONE DATE SINCE 2026-09-27 (item 1): the visible `Visit date`
+            // writes `visit.scheduled_date` AND `survey.survey_date`.
+            'visit_scheduled_date'     => '2026-10-01',
             'surveyor_name'            => 'Kit Farrow',
             'site_contact_name'        => 'Sam Bright',
             'site_contact_phone'       => '07700 900444',
@@ -611,6 +615,8 @@ class CockpitDocCreationEndToEndTest extends TestCase
         $this->assertSame('Kit Farrow', $survey->surveyor_name);
         $this->assertSame('Report to the east gate.', $survey->site_access_notes);
         $this->assertSame('outsourced', $survey->comms_room_access_status);
+        // The one date reached the column the Word document reads.
+        $this->assertSame('2026-10-01', $survey->survey_date?->format('Y-m-d'));
 
         // DELIBERATE `$fillable` OMISSIONS (security re-audit): a token is never
         // mass-assignable, and this page cannot become the first surface that

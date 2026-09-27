@@ -466,17 +466,16 @@ class CockpitInlineDrawerEndToEndTest extends TestCase
      *
      * STOPS AT DISCLOSURE. The form is never submitted; see the class docblock.
      */
-    public function test_the_generate_action_discloses_the_form_and_its_existing_format_choice(): void
+    public function test_the_generate_action_discloses_the_form_and_names_its_outputs(): void
     {
         $project = $this->project();
 
         foreach ($this->everyKey() as $key) {
             // THE LAST STEP, SINCE PLAN 46.5-04. The document form is a wizard
-            // now, and the Format fieldset and the submit live on the final
-            // step — a PM is not asked to pick a file format three screens
-            // before it matters. The step list is read off the document's own
-            // spine, so a stepless document still renders at no step at all and
-            // this walk is unchanged for it.
+            // now, and the output half plus the submit live on the final step.
+            // The step list is read off the document's own spine, so a stepless
+            // document still renders at no step at all and this walk is
+            // unchanged for it.
             $steps = app(\App\Support\Cockpit\CockpitWizardPresenter::class)->stepsFor($key);
             $last  = $steps === [] ? [] : ['step' => $steps[count($steps) - 1]];
 
@@ -489,14 +488,18 @@ class CockpitInlineDrawerEndToEndTest extends TestCase
             $this->assertSame(0, substr_count($closed, '<form'), 'Closed discloses no form.');
 
             // Open: the closed copy is gone, the submit button is the one that
-            // genuinely generates, and the Format fieldset is on the page.
+            // genuinely generates, and the page NAMES what generating produces.
+            // It used to ask for a format instead (item 8, 2026-09-27) — a
+            // question whose answer changed nothing but a flash word.
             $this->assertStringNotContainsString('Create document', $open,
                 'The closed-state copy must not survive onto the open form.');
             $this->assertStringContainsString('<form', $open);
             $this->assertStringContainsString('Generate document', $open,
                 'The submit control keeps its name, because it does generate.');
-            $this->assertStringContainsString('Format', $open, 'The Format fieldset discloses the choice (D-05).');
-            $this->assertStringContainsString('value="word"', $open, 'Word already existed and still does.');
+            $this->assertStringContainsString('Generating creates ', $open,
+                'The open form does not say what generating produces (D-05).');
+            $this->assertStringContainsString('Word', $open, 'Word already existed and still does.');
+            $this->assertStringNotContainsString('name="format"', $open, 'The format question is back.');
         }
     }
 
@@ -516,7 +519,11 @@ class CockpitInlineDrawerEndToEndTest extends TestCase
         );
 
         $this->assertStringContainsString('PDF is not available for this document (DC-07).', $open);
-        $this->assertStringNotContainsString('value="pdf"', $open);
+        // The outcome line names Word and, crucially, NOT a PDF. `value="pdf"`
+        // was the old radio's proof; the sentence is the new one, and the DC-07
+        // note above is why "and PDF." must be absent rather than "PDF".
+        $this->assertStringContainsString('Generating creates the engineer link and Word.', $open);
+        $this->assertStringNotContainsString('and PDF.', $open);
     }
 
     // ── STEP 7 — the activity panel is the SAME at every step ───────────────

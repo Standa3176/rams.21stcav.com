@@ -266,7 +266,8 @@ class CockpitWizardEndToEndTest extends TestCase
     private function stepOne(): array
     {
         return [
-            'survey_date'          => '2026-10-14',
+            // ONE DATE SINCE 2026-09-27 (item 1). `survey_date` is no longer
+            // asked; `visit_scheduled_date` below writes BOTH columns.
             'surveyor_name'        => 'Dev Chandra',
             'site_contact_name'    => 'Ruth Okafor',
             'site_contact_phone'   => '07700 900123',
@@ -326,14 +327,15 @@ class CockpitWizardEndToEndTest extends TestCase
 
         $this->assertStringContainsString('Step 1 of 3 · Dates, contact and engineer', $one);
 
-        foreach (['survey_date', 'surveyor_name', 'site_contact_name', 'site_contact_phone', 'visit_scheduled_date'] as $key) {
+        foreach (['surveyor_name', 'site_contact_name', 'site_contact_phone', 'visit_scheduled_date'] as $key) {
             $this->assertStringContainsString('name="'.$key.'"', $one, "Step 1 does not ask for [{$key}].");
         }
 
         $this->assertStringContainsString('name="visit_engineers[]"', $one, 'Step 1 does not offer the engineer.');
         $this->assertStringContainsString('value="next"', $one, 'Step 1 offers no Next.');
         $this->assertStringNotContainsString('value="back"', $one, 'Step 1 offers a Back to nowhere.');
-        $this->assertStringNotContainsString('name="format"', $one, 'The Format radios are three screens early.');
+        $this->assertStringNotContainsString('name="format"', $one, 'No step asks for a format (item 8).');
+        $this->assertStringNotContainsString('name="survey_date"', $one, 'The second date question is back (item 1).');
         $this->assertStringNotContainsString('Generate document', $one, 'Step 1 offers the submit.');
         // A CONTROL THE PM MUST ANSWER, TOLD APART FROM A VALUE RIDING ALONG.
         // `general_notes` IS present on step 1 — as a hidden CARRY input, which
@@ -348,7 +350,12 @@ class CockpitWizardEndToEndTest extends TestCase
         );
         $this->assertStringNotContainsString('name="general_notes"', $oneVisible, 'Step 2 is ASKED on step 1.');
         $this->assertStringNotContainsString('name="visit_rooms[]"', $oneVisible, 'Step 3 is ASKED on step 1.');
-        $this->assertStringContainsString('name="survey_date"', $oneVisible, 'Step 1 asks nothing at all — the strip was too greedy.');
+        $this->assertStringContainsString('name="visit_scheduled_date"', $oneVisible, 'Step 1 asks nothing at all — the strip was too greedy.');
+        // THE LABEL THAT SURVIVED, RENDERED. One date, and it is the visit's.
+        $this->assertStringContainsString('Visit date', $oneVisible);
+        $this->assertStringNotContainsString('Survey date', $oneVisible);
+        // AND THE LABEL CHANGE (item 3), on the state that renders it.
+        $this->assertStringContainsString('Survey Engineer', $oneVisible);
 
         // ── 4. NO COMMS ROOM FIELD IS ON THIS FORM (GCW-04) ─────────────────
         foreach (['comms_room_access_status', 'comms_room_access_notes'] as $key) {
@@ -365,12 +372,12 @@ class CockpitWizardEndToEndTest extends TestCase
 
         $this->assertStringContainsString('Step 2 of 3 · Notes', $two);
         $this->assertStringContainsString('name="general_notes"', $two, 'Step 2 does not ask for the notes.');
-        $this->assertStringContainsString('<input type="hidden" name="survey_date" value="2026-10-14">', $two);
+        $this->assertStringContainsString('<input type="hidden" name="visit_scheduled_date" value="2026-10-14">', $two);
         $this->assertStringContainsString('<input type="hidden" name="surveyor_name" value="Dev Chandra">', $two);
         $this->assertStringContainsString('<input type="hidden" name="site_contact_name" value="Ruth Okafor">', $two);
         $this->assertStringContainsString('<input type="hidden" name="visit_engineers[]" value="Dev Chandra">', $two);
         $this->assertStringContainsString('value="back"', $two, 'Step 2 offers no Back.');
-        $this->assertStringNotContainsString('name="format"', $two, 'The Format radios are two screens early.');
+        $this->assertStringNotContainsString('name="format"', $two, 'No step asks for a format (item 8).');
 
         foreach (['comms_room_access_status', 'comms_room_access_notes'] as $key) {
             $this->assertStringNotContainsString($key, $two, "Comms room is on step 2, which D-03 forbids: [{$key}].");
@@ -396,7 +403,14 @@ class CockpitWizardEndToEndTest extends TestCase
             );
         }
 
-        $this->assertStringContainsString('name="format"', $three, 'Step 3 offers no Format.');
+        // THE OUTPUTS, NAMED ON THE STEP THAT PRODUCES THEM — in the user's own
+        // three words (item 8). No format radio on any step.
+        $this->assertStringContainsString(
+            'Generating creates the engineer link, Word and PDF.',
+            $three,
+            'Step 3 does not name what generating produces.',
+        );
+        $this->assertStringNotContainsString('name="format"', $three, 'The format question is back.');
         $this->assertStringContainsString('Generate document', $three, 'Step 3 offers no submit.');
         $this->assertStringNotContainsString('value="next"', $three, 'The last step offers a Next.');
 
@@ -413,7 +427,7 @@ class CockpitWizardEndToEndTest extends TestCase
         $backTwo = $this->docForm($backTwo);
 
         $this->assertStringContainsString('Step 2 of 3 · Notes', $backTwo);
-        $this->assertStringContainsString('<input type="hidden" name="survey_date" value="2026-10-14">', $backTwo);
+        $this->assertStringContainsString('<input type="hidden" name="visit_scheduled_date" value="2026-10-14">', $backTwo);
 
         [, $threeAgain] = $this->advance(
             $project,

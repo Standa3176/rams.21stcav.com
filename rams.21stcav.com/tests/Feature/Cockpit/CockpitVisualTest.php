@@ -169,6 +169,76 @@ class CockpitVisualTest extends TestCase
         }
     }
 
+    /**
+     * THE GENERATE GREEN RESOLVES TO A REAL TOKEN PAIR (2026-09-27, item 9).
+     *
+     * A token typo fails SILENTLY in CSS — the rule applies and the background
+     * simply does not change, so the button stays teal and every markup
+     * assertion still passes. The class, the rule and both tokens are therefore
+     * asserted together, and the CONTRAST FIGURES are asserted as recorded text
+     * because the token file's own docblock requires them (text 4.5:1).
+     */
+    public function test_the_generate_green_has_a_rule_and_a_token_pair_with_recorded_contrast(): void
+    {
+        $css    = file_get_contents(resource_path('css/cockpit.css'));
+        $tokens = file_get_contents(resource_path('css/cav-tokens.css'));
+
+        $this->assertMatchesRegularExpression(
+            '/\.cav-cockpit \.cav-qa__go \{[^}]*background:\s*var\(--cav-go\)/s',
+            $css,
+            'The green generate control has no rule, or it does not read the token.'
+        );
+
+        $this->assertMatchesRegularExpression(
+            '/\.cav-cockpit \.cav-qa__go:hover \{[^}]*background:\s*var\(--cav-go-dark\)/s',
+            $css,
+            'The green hover state has no rule, or it does not read the token.'
+        );
+
+        foreach (['--cav-go:', '--cav-go-dark:'] as $token) {
+            $this->assertStringContainsString($token, $tokens, "{$token} is not declared as a token.");
+        }
+
+        // RECORDED, not just measured once and forgotten. White button text on
+        // both greens passes AA; the hover is DARKER for that reason.
+        $this->assertStringContainsString('5.01:1', $tokens, 'The --cav-go contrast figure is not recorded.');
+        $this->assertStringContainsString('7.12:1', $tokens, 'The --cav-go-dark contrast figure is not recorded.');
+
+        // ── THE STRETCHED-LINK TRAP, RE-CHECKED FOR THIS RULE BY NAME ───────
+        // `.cav-qa__go` lands on an anchor inside `.cav-module`, where
+        // `position: relative` on the row plus `inset: 0` on
+        // `.cav-module__open::after` is what makes the WHOLE ROW clickable. A
+        // `position` OR a `transform` in this rule collapses that target onto a
+        // 28px glyph with nothing else failing.
+        $scanned = 0;
+
+        foreach ($this->cssRules($css) as $rule) {
+            $touchesGo = false;
+
+            foreach ($rule['selectors'] as $selector) {
+                if (str_contains($selector, '.cav-qa__go')) {
+                    $touchesGo = true;
+                }
+            }
+
+            if (! $touchesGo) {
+                continue;
+            }
+
+            foreach (['position:', 'transform:'] as $property) {
+                $this->assertStringNotContainsString(
+                    $property,
+                    $rule['body'],
+                    'The green control rule declares '.$property.' — that collapses the row click target.'
+                );
+            }
+
+            $scanned++;
+        }
+
+        $this->assertSame(2, $scanned, 'This proof scanned '.$scanned.' `.cav-qa__go` rules: the base and the hover.');
+    }
+
     // -- 2. No colour outside the token file ---------------------------------
 
     /**

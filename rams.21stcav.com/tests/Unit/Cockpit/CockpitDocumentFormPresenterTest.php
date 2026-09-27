@@ -3,6 +3,7 @@
 namespace Tests\Unit\Cockpit;
 
 use App\Models\Project;
+use App\Models\SiteSurvey;
 use App\Support\Cockpit\CockpitDocumentFormPresenter;
 use App\Support\Cockpit\CockpitModulePresenter;
 use Illuminate\Support\Facades\Route;
@@ -93,6 +94,207 @@ class CockpitDocumentFormPresenterTest extends TestCase
                 .'Either the generator renamed the field (re-derive it) or the field consumes nothing (remove it).',
             );
         }
+    }
+
+    /**
+     * `also_target` GETS THE SAME GATE AS `target`. The site survey's `Visit
+     * date` writes TWO columns, and the second one is no less a claim about a
+     * generator than the first. Without this, a second target could be admitted
+     * with no reader — exactly the D-03 failure the first target cannot have.
+     */
+    public function test_every_also_consumer_symbol_is_found_in_its_named_generator(): void
+    {
+        $checked = 0;
+
+        foreach ($this->allFields() as $entry) {
+            $field = $entry['field'];
+
+            if (! array_key_exists('also_target', $field)) {
+                $this->assertArrayNotHasKey(
+                    'also_consumer',
+                    $field,
+                    "Field {$entry['document']}.{$field['key']} names a second consumer with no second target.",
+                );
+
+                continue;
+            }
+
+            $this->assertArrayHasKey(
+                'also_consumer',
+                $field,
+                "Field {$entry['document']}.{$field['key']} writes a second target and declares no consumer for "
+                .'it — DC-04 applies to both targets.',
+            );
+
+            $this->assertStringContainsString('.', $field['also_target'], 'A target is `prefix.leaf`.');
+
+            $this->assertFileExists(base_path($field['also_consumer']['file']));
+
+            $this->assertStringContainsString(
+                $field['also_consumer']['symbol'],
+                $this->contents($field['also_consumer']['file']),
+                "Field {$entry['document']}.{$field['key']} claims {$field['also_consumer']['file']} consumes "
+                ."`{$field['also_consumer']['symbol']}`, and it does not.",
+            );
+
+            $checked++;
+        }
+
+        $this->assertSame(
+            1,
+            $checked,
+            'This proof checked '.$checked.' second target(s). Exactly one exists today: the site survey'
+            ."'s `Visit date`, which also writes `survey.survey_date`. A second one must be a deliberate edit here.",
+        );
+    }
+
+    /**
+     * ONE DATE, TWO TARGETS — AND THE SECOND QUESTION IS GONE (2026-09-27,
+     * item 1).
+     *
+     * The form asked `Survey date` AND `Visit date` side by side. For a creation
+     * that makes both rows in one action they are the same day, and the user
+     * could not tell them apart. `Visit date` survived, because it names the
+     * real-world event the PM is arranging.
+     *
+     * BOTH HALVES ARE ASSERTED: the second question is gone AND the column it
+     * fed is still written. Asserting only the first would pass just as well if
+     * `survey.survey_date` had been abandoned, which would empty the Word
+     * document's own date.
+     */
+    public function test_the_survey_date_question_is_gone_and_its_column_is_still_written(): void
+    {
+        $keys    = array_map(fn (array $e): string => $e['field']['key'], $this->allFields());
+        $targets = array_map(fn (array $e): string => $e['field']['target'], $this->allFields());
+
+        $this->assertNotContains(
+            'survey_date',
+            $keys,
+            'The `Survey date` question is back. One date is asked; it writes both columns.',
+        );
+
+        $visitDate = null;
+
+        foreach ($this->allFields() as $entry) {
+            if ($entry['field']['key'] === 'visit_scheduled_date') {
+                $visitDate = $entry['field'];
+            }
+        }
+
+        $this->assertNotNull($visitDate, 'The one surviving date field is missing entirely.');
+        $this->assertSame('Visit date', $visitDate['label'], 'The label that survived is `Visit date`.');
+        $this->assertSame('visit.scheduled_date', $visitDate['target']);
+        $this->assertSame(
+            'survey.survey_date',
+            $visitDate['also_target'],
+            'The one date must STILL write `survey.survey_date`, or the Word document loses its date.',
+        );
+
+        // `survey.survey_date` reaches the map through the SECOND target and
+        // through no primary one, so nothing writes it from two answers.
+        $this->assertNotContains('survey.survey_date', $targets);
+    }
+
+    /**
+     * SURVEYOR BECAME SURVEY ENGINEER (2026-09-27, item 3). A LABEL ONLY — the
+     * key, the target and the consumer are untouched, so no stored value and no
+     * generator moved.
+     */
+    public function test_the_surveyor_field_is_labelled_survey_engineer_and_nothing_else_moved(): void
+    {
+        $surveyor = null;
+
+        foreach ($this->allFields() as $entry) {
+            if ($entry['field']['key'] === 'surveyor_name') {
+                $surveyor = $entry['field'];
+            }
+        }
+
+        $this->assertNotNull($surveyor, 'The surveyor field left the map.');
+        $this->assertSame('Survey Engineer', $surveyor['label']);
+        $this->assertSame('survey.surveyor_name', $surveyor['target'], 'The COLUMN did not get renamed.');
+        $this->assertSame('$survey->surveyor_name', $surveyor['consumer']['symbol']);
+    }
+
+    /**
+     * THE MAP'S SECOND DELIBERATE OMISSION, ASSERTED BY NAME.
+     *
+     * On 2026-09-27 the user asked for a "time of visit" beside the visit date.
+     * Three candidates were grepped and all three fail D-03:
+     *   • `visits` has NO time column at all — `scheduled_date` is a DATE
+     *     (`2026_09_19_140000_create_visits_table.php:70`, cast `'date'`).
+     *   • `site_surveys.visit_time` EXISTS but its only readers are the legacy
+     *     create/edit Blades that WRITE it. No DOCX builder, no survey PDF
+     *     Blade, no engineer link and no `SurveyCarryForward` reads it.
+     *   • `programme.planned_start_time` is mapped already, but it is the RAMS
+     *     INSTALL programme's field, not this visit's.
+     * A field here would teach a PM to type into something no output renders.
+     * NOT ADMITTED — and admissible only once a consumer exists.
+     */
+    public function test_visit_time_is_not_a_field(): void
+    {
+        foreach ($this->allFields() as $entry) {
+            $this->assertNotSame(
+                'visit_time',
+                $entry['field']['key'],
+                'visit_time is excluded on purpose: no generator reads site_surveys.visit_time.',
+            );
+            $this->assertNotSame('survey.visit_time', $entry['field']['target']);
+            $this->assertNotSame('visit.visit_time', $entry['field']['target']);
+            $this->assertNotSame('survey.visit_time', $entry['field']['also_target'] ?? null);
+        }
+
+        // NON-VACUITY: the column really does exist, so the omission is a ruling
+        // about a real candidate rather than a name that never existed.
+        $this->assertContains(
+            'visit_time',
+            (new SiteSurvey())->getFillable(),
+            'site_surveys.visit_time has gone, so this omission no longer describes anything.',
+        );
+    }
+
+    /**
+     * PARKING IS A CLOSED CHOICE, AND WHAT IT STORES IS WHAT FOUR READERS PRINT
+     * (2026-09-27, item 5).
+     *
+     * `parking_restraints` is a STRING column and its four readers — the Word
+     * document, the survey PDF, the engineer link and the carry-forward — render
+     * it as prose with no code-to-label map anywhere. So the OPTION VALUE IS THE
+     * SENTENCE. Storing `onsite` would print `onsite` to an engineer on site.
+     */
+    public function test_parking_is_three_radios_storing_the_sentence_they_show(): void
+    {
+        $parking = null;
+
+        foreach ($this->allFields() as $entry) {
+            if ($entry['field']['key'] === 'parking_restraints') {
+                $parking = $entry['field'];
+            }
+        }
+
+        $this->assertNotNull($parking, 'The parking field left the map.');
+        $this->assertSame(CockpitDocumentFormPresenter::TYPE_RADIO, $parking['type'], 'Free text became RADIOS.');
+
+        $this->assertSame(
+            ['Parking onsite', 'No parking', 'Unknown'],
+            array_keys($parking['options']),
+            'The user asked for exactly these three, in this order.',
+        );
+
+        foreach ($parking['options'] as $value => $label) {
+            $this->assertSame(
+                $value,
+                $label,
+                "Parking option [{$value}] stores something other than the words it shows. All four readers "
+                .'print this column raw, so a code would reach an engineer on site.',
+            );
+        }
+
+        $this->assertContains(
+            'in:Parking onsite,No parking,Unknown',
+            $parking['rules'],
+            'The stored set must be closed server-side too, or a hand-crafted POST writes free text.',
+        );
     }
 
     public function test_the_document_keys_match_the_module_keys_exactly(): void

@@ -58,6 +58,12 @@
       `Upload files`, `Issue to client`, `Mark as sent`, `Download`, `Export CSV`,
       `Open register` — IS banned. That is why the copy is the retired
       quick-actions' own word.
+      RE-CHECKED ON 2026-09-27 FOR THE STRINGS THIS CHANGE ADDED:
+      `Generating creates the engineer link, Word and PDF.`, `Parking onsite` /
+      `No parking` / `Unknown` (the parking radios, which live in the MAP) and
+      `Survey Engineer`. None is a substring of any of the 21 entries and none
+      contains `<select` or `<script`. NOTHING WAS LIFTED — the list stays 21
+      and FORBIDDEN_MARKUP stays 2.
       RE-CHECKED BY PLAN 46.3-01 FOR THE CLOSED CONTROL'S NEW COPY (D-05):
       `Create document — Word or PDF` / `Create document — Word` collides with no
       entry as a substring, and with neither FORBIDDEN_MARKUP entry. Nothing was
@@ -91,14 +97,29 @@
 
     ── FORMATS, AND THE ONE GAP (46.2 D-05, DC-07) ────────────────────────
 
-    The two radios come from the map's `formats`, which mirrors
-    `46.2-FORMAT-INVENTORY.md` exactly. A NULL cell is not hidden — it is SAID,
-    because a control that 404s is worse than a sentence that explains. The
-    worksheet has no PDF: there is no worksheet PDF Blade, and
-    `worksheets.engineer-report-pdf` is a different document that 404s for
-    exactly the PM this panel serves. Recorded NOT DELIVERED;
+    THE FORMAT RADIOS ARE GONE (2026-09-27, the user's item 8) AND THE MAP'S
+    `formats` ARE UNTOUCHED. The radios asked which file the PM wanted; the
+    answer travelled no further than a flash word, because ONE creation already
+    produces the document, the visit and the engineer link together and both
+    files are served by routes that exist. A question whose answer changes
+    nothing is a leftover. What stands in its place NAMES the outputs — engineer
+    link, Word, PDF — and is built from `$offered`, so it can promise only what
+    the map holds. NO FORMAT WAS INVENTED.
+
+    `formats` still mirrors `46.2-FORMAT-INVENTORY.md` exactly and a NULL cell
+    is still SAID, not hidden, because a control that 404s is worse than a
+    sentence that explains. The worksheet has no PDF: there is no worksheet PDF
+    Blade, and `worksheets.engineer-report-pdf` is a different document that
+    404s for exactly the PM this panel serves. Recorded NOT DELIVERED;
     `DocumentFormatInventoryTest` asserts the missing set is exactly
-    `worksheet -> pdf`.
+    `worksheet -> pdf`, and it is GREEN across this change.
+
+    `format` itself still exists on the request, is still `required` on a
+    creation and is still membership-checked against THIS document's offered
+    keys. An ABSENT one now defaults to the first offered format in
+    `CockpitDocumentRequest::prepareForValidation()`; a PRESENT but unoffered
+    one is still a validation error, so `format=pdf` on the worksheet still
+    fails exactly as it did.
 
     ── ONE STEP AT A TIME (Phase 46.5, Plan 46.5-04; 46.5 D-02, GCW-02) ────
 
@@ -111,7 +132,7 @@
 
     THE COMPATIBILITY PATH IS FIRST AND IT IS ABSOLUTE: `steps === []` means
     this document has no wizard, and it renders EXACTLY as it did before this
-    plan — every group, the Format radios, the one submit. The O&M relies on
+    plan — every group, the outcome line, the one submit. The O&M relies on
     that permanently and RAMS relies on it until Plan 46.5-05 mints its steps.
 
     A group carrying `step => null` is shown by NO step. That is how the
@@ -160,10 +181,19 @@
 
     ── NO COLOUR, AND NO `position` ───────────────────────────────────────
 
-    Not one hex value in this file (`CockpitPageTest` greps for it) and no new
-    colour in `cockpit.css` — every class is `cav-`-prefixed and reuses the
-    existing `.cav-qa__*` family. Nothing here carries `position`, because this
-    block sits inside `.cav-module`'s panel.
+    Not one hex value in this file (`CockpitPageTest` greps for it) — every
+    class is `cav-`-prefixed and reuses the existing `.cav-qa__*` family.
+    Nothing here carries `position` OR `transform`, because this block sits
+    inside `.cav-module`'s panel and either property on an anchor there
+    collapses the row's stretched click target onto a 28px glyph with nothing
+    failing.
+
+    THE GREEN GENERATE CONTROL (2026-09-27, item 9) IS A MODIFIER CLASS,
+    `.cav-qa__go`, and its colour is the `--cav-go` / `--cav-go-dark`
+    token pair on `.cav-brand` in `cav-tokens.css`. The rule added to
+    `cockpit.css` sets `background` and `border-color` and nothing else — no
+    `position`, no `transform`. It is on the two controls that GENERATE and on
+    neither Next nor Back, so the colour keeps meaning one thing.
 --}}
 @props([
     'project',
@@ -241,6 +271,31 @@
         ? 'Create document'
         : 'Create document — '.$offeredPhrase;
 
+    // THE OUTCOME, IN PLACE OF THE FORMAT QUESTION (2026-09-27, item 8).
+    // Every part is DERIVED: the formats from `$offeredPhrase` above, the
+    // engineer link from `CockpitCombinedCreator::handles()`, which is the same
+    // predicate the controller branches on. Read, never re-decided here.
+    $issuesLink = \App\Support\Cockpit\CockpitCombinedCreator::handles($module['key']);
+
+    // The user's own three words, in their own order: "engineer link / word /
+    // pdf". The format words come from the map, so a document without a PDF
+    // names only what it has.
+    $outcomeParts = array_values(array_filter(array_merge(
+        [$issuesLink ? 'the engineer link' : null],
+        $offeredWords,
+    )));
+
+    $outcomeList = match (true) {
+        $outcomeParts === []       => '',
+        count($outcomeParts) === 1 => $outcomeParts[0],
+        default                    => implode(', ', array_slice($outcomeParts, 0, -1))
+                                      .' and '.$outcomeParts[count($outcomeParts) - 1],
+    };
+
+    $outcomeSentence = $outcomeList === ''
+        ? 'Generating creates this document.'
+        : 'Generating creates '.$outcomeList.'.';
+
     $textLike = [$types::TYPE_TEXT, $types::TYPE_DATE, $types::TYPE_TIME];
 
     // ── THE WIZARD (Plan 46.5-04) ──────────────────────────────────────────
@@ -304,7 +359,7 @@
              it even inside a comment and leaves the PHP block unterminated. The
              submit button below keeps "Generate document", because that control
              genuinely does generate. --}}
-        <a class="cav-qa__control" href="{{ $openUrl }}">{{ $openLabel }}</a>
+        <a class="cav-qa__control cav-qa__go" href="{{ $openUrl }}">{{ $openLabel }}</a>
     @else
         @if ($intro !== null)
             <p class="cav-qa__intro">{{ $intro }}</p>
@@ -479,7 +534,24 @@
                                         <span>{{ $name }}</span>
                                     </label>
                                 @empty
-                                    <span class="cav-qa__value">Nobody active is on file for this. Add people under Labour resources.</span>
+                                    {{-- THE CONTROL'S OWN EMPTY STATE, NOT A
+                                         PARAGRAPH AFTER IT. It used to carry
+                                         `.cav-qa__value` — 13px in `--cav-ink`,
+                                         byte-for-byte the styling of an ANSWER
+                                         — inside a wrapping flex row, so it
+                                         read as stray prose at the foot of the
+                                         group rather than as this fieldset's
+                                         reply. `.cav-qa__empty` is muted and
+                                         claims its own full row directly under
+                                         the legend it belongs to.
+
+                                         IT IS NOT HIDDEN AND THE CONTROL IS NOT
+                                         HIDDEN EITHER. There are genuinely no
+                                         active LabourResource rows on live;
+                                         saying so, with the fix, is the honest
+                                         answer. A hidden control would read as
+                                         "engineers cannot be chosen here". --}}
+                                    <span class="cav-qa__empty">Nobody active is on file for this. Add people under Labour resources.</span>
                                 @endforelse
                             </fieldset>
                         @elseif ($field['type'] === $types::TYPE_SPACE_LIST)
@@ -503,7 +575,7 @@
                                     {{-- SAID, NOT LEFT BLANK. An empty fieldset
                                          reads as "none selected", which is a
                                          different and wrong answer. --}}
-                                    <span class="cav-qa__value">No spaces are on file for this project yet.</span>
+                                    <span class="cav-qa__empty">No spaces are on file for this project yet.</span>
                                 @endforelse
                             </fieldset>
                         @endif
@@ -526,19 +598,26 @@
                  answer matters. A stepless document has one step by definition,
                  so this renders for it exactly as it always did. --}}
             @if ($isLast)
-                <fieldset class="cav-qa__set">
-                    <legend class="cav-qa__legend">Format</legend>
+                {{-- WHAT THIS PRODUCES, STATED — NOT A QUESTION ABOUT IT.
+                     The Format radios stood here until 2026-09-27. They were a
+                     leftover: one creation already produces the document, the
+                     visit and the engineer link together, and the chosen
+                     format only ever changed a flash word. Nothing read it.
 
-                    @foreach ($offered as $format => $routeName)
-                        <label class="cav-qa__opt">
-                            <input type="radio"
-                                   name="format"
-                                   value="{{ $format }}"
-                                   @checked(old('format', (string) array_key_first($offered)) === $format)>
-                            <span>{{ $formatLabels[$format] ?? $format }}</span>
-                        </label>
-                    @endforeach
-                </fieldset>
+                     The sentence is BUILT FROM `$offered` — the map's own
+                     `formats` — so no format is invented and the worksheet,
+                     which has no PDF, cannot be promised one. The engineer-link
+                     half is read from the creator's own `handles()`, the single
+                     source of truth for which modules issue a link, so this
+                     line and the creation cannot disagree.
+
+                     No affordance is added: the outputs are named, not offered
+                     as controls. `Download` is FORBIDDEN copy (a fence entry is
+                     never lifted for a label) and the link is surfaced by the
+                     visit row that already exists. --}}
+                <p class="cav-qa__note">
+                    {{ $outcomeSentence }}
+                </p>
 
                 @foreach ($missing as $format)
                     {{-- SAID, NOT HIDDEN (46.2 D-05). Recorded NOT DELIVERED rather
@@ -561,7 +640,14 @@
                  already defaults to. --}}
             <div class="cav-qa__row">
                 @if ($isLast)
-                    <button class="cav-qa__control" type="submit" name="intent" value="create">Generate document</button>
+                    {{-- GREEN IS "THIS ONE PRODUCES SOMETHING" (item 9). The
+                         modifier is on the two GENERATE controls only — this
+                         submit and the closed opener above. Next, Back and
+                         Cancel are navigation and stay as they were, so the
+                         colour keeps meaning one thing. The colour itself is a
+                         `--cav-go*` token pair on `.cav-brand`; no hex reaches
+                         this file. --}}
+                    <button class="cav-qa__control cav-qa__go" type="submit" name="intent" value="create">Generate document</button>
                 @else
                     <button class="cav-qa__control" type="submit" name="intent" value="next">Next</button>
                 @endif

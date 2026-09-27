@@ -52,6 +52,24 @@ use Throwable;
  *   each). `survey_type` is additionally documented as a DEAD COLUMN at
  *   `BackfillVisitsCommand.php:48`.
  *
+ *   ⚠ `visit_time` RE-CHECKED AND RE-REJECTED ON 2026-09-27, when the user
+ *   asked for "time of visit to page 1 neat visit date". THREE places were
+ *   grepped before answering:
+ *     • `visits` table — `2026_09_19_140000_create_visits_table.php:70` declares
+ *       `scheduled_date` as a DATE and there is NO time column on the row at
+ *       all. `Visit::casts()` casts it `'date'`.
+ *     • `site_surveys.visit_time` — the column DOES exist (string, 100), and
+ *       its only readers are the legacy `site-survey/create|edit` Blades that
+ *       WRITE it. No DOCX builder, no survey PDF Blade, no engineer link and no
+ *       `SurveyCarryForward` reads it (0 hits).
+ *     • `programme.planned_start_time` ("Start time on site") — mapped, but it
+ *       is the RAMS INSTALL programme's field, not the survey visit's.
+ *   So a "visit time" on this form would write into something no output
+ *   renders, which is the D-03 failure this map exists to prevent. THE FIELD IS
+ *   NOT ADMITTED and `test_visit_time_is_not_a_field()` asserts the omission by
+ *   name. Admitting it needs a consumer FIRST — a reader in the survey PDF
+ *   header or the engineer link — and that is a different piece of work.
+ *
  *   RAMS — `programme.ongoing`. Emitted by
  *   `RamsReviewDataService::normaliseProgramme()` and read by nothing (0 hits
  *   outside the normaliser, in the whole application).
@@ -231,19 +249,14 @@ final class CockpitDocumentFormPresenter
                     'legend' => 'The survey',
                     'step'   => 1,
                     'fields' => [
-                        [
-                            'key'      => 'survey_date',
-                            'label'    => 'Survey date',
-                            'type'     => self::TYPE_DATE,
-                            'options'  => null,
-                            'target'   => 'survey.survey_date',
-                            'consumer' => ['file' => 'app/Services/SiteSurveyDocxService.php', 'symbol' => '$survey->survey_date'],
-                            'prefill'  => null,
-                            'rules'    => ['nullable', 'date'],
-                        ],
+                        // `survey_date` WAS ASKED HERE AND IS NOT ANY MORE — see
+                        // the `visit_scheduled_date` row below, which now writes
+                        // BOTH `visit.scheduled_date` AND `survey.survey_date`.
+                        // The column is not dropped and no consumer lost its
+                        // value; only the SECOND question went.
                         [
                             'key'      => 'surveyor_name',
-                            'label'    => 'Surveyor',
+                            'label'    => 'Survey Engineer',
                             'type'     => self::TYPE_TEXT,
                             'options'  => null,
                             'target'   => 'survey.surveyor_name',
@@ -291,14 +304,36 @@ final class CockpitDocumentFormPresenter
                     'step'   => 1,
                     'fields' => [
                         [
-                            'key'      => 'visit_scheduled_date',
-                            'label'    => 'Visit date',
-                            'type'     => self::TYPE_DATE,
-                            'options'  => null,
-                            'target'   => 'visit.scheduled_date',
-                            'consumer' => ['file' => 'app/Http/Controllers/ProjectCockpitActionController.php', 'symbol' => "'scheduled_date'"],
-                            'prefill'  => null,
-                            'rules'    => ['nullable', 'date'],
+                            // ONE DATE, TWO TARGETS (the user's item 1).
+                            //
+                            // The form used to ask `Survey date` AND `Visit
+                            // date` next to each other. For a creation that
+                            // makes the survey and the visit in ONE action they
+                            // are the same day by construction, and the user —
+                            // looking at the live wizard — could not tell which
+                            // was which. A question a PM cannot answer
+                            // confidently is a question that gets answered
+                            // wrongly.
+                            //
+                            // `Visit date` IS THE LABEL THAT SURVIVED, because
+                            // it is the one that names a real-world event the
+                            // PM is arranging. `also_target` carries the same
+                            // value to `survey.survey_date`, so the Word
+                            // document's `$survey->survey_date` is filled
+                            // exactly as it was before — nothing downstream
+                            // lost an input. `persist()` honours `also_target`
+                            // for the `survey.` prefix; the creator still reads
+                            // `target` for the visit, untouched.
+                            'key'           => 'visit_scheduled_date',
+                            'label'         => 'Visit date',
+                            'type'          => self::TYPE_DATE,
+                            'options'       => null,
+                            'target'        => 'visit.scheduled_date',
+                            'consumer'      => ['file' => 'app/Http/Controllers/ProjectCockpitActionController.php', 'symbol' => "'scheduled_date'"],
+                            'also_target'   => 'survey.survey_date',
+                            'also_consumer' => ['file' => 'app/Services/SiteSurveyDocxService.php', 'symbol' => '$survey->survey_date'],
+                            'prefill'       => null,
+                            'rules'         => ['nullable', 'date'],
                         ],
                         [
                             // NAMES ONLY REACH THE PAGE (LR-04). The creator
@@ -372,9 +407,13 @@ final class CockpitDocumentFormPresenter
                     ],
                 ],
                 [
-                    // All five are consumed by the field-form and blank-form
+                    // Both are consumed by the field-form and blank-form
                     // PDFs via `_header-meta.blade.php`, which SurveyPdfService
-                    // renders at `:78` and `:100`.
+                    // renders at `:78` and `:100`. THIS GROUP WAS FIVE FIELDS.
+                    // The other three moved, byte-identical bar their new
+                    // group, into `For the install that follows` below, which
+                    // is `step => null` — a GROUP edit, because `step` is one
+                    // key per group.
                     'legend' => 'Access and logistics',
                     'step'   => 2,
                     'fields' => [
@@ -389,15 +428,77 @@ final class CockpitDocumentFormPresenter
                             'rules'    => ['nullable', 'string', 'max:2000'],
                         ],
                         [
+                            // A CLOSED CHOICE, AND WHAT IT STORES IS THE LABEL
+                            // ITSELF (the user's item 5).
+                            //
+                            // `parking_restraints` is a STRING column and FOUR
+                            // readers render it as prose: the Word document
+                            // (`SiteSurveyDocxService::LOGISTICS_KEYS`), the
+                            // survey PDF (`_header-meta.blade.php:22`), the
+                            // engineer link and `SurveyCarryForward::FIELDS`.
+                            // None of them owns a code->label map, so storing
+                            // `onsite` / `none` / `unknown` would print those
+                            // words verbatim to an engineer on site.
+                            //
+                            // The OPTION VALUE IS THEREFORE THE SENTENCE, and
+                            // all four readers keep rendering exactly what they
+                            // rendered before — a short human string. This is
+                            // the opposite ruling to `comms_room_access_status`
+                            // above, and deliberately so: that column has a
+                            // validator (`in:yes,no,outsourced,unknown`) and
+                            // label maps in two generators, so its stored
+                            // vocabulary wins. This one has neither.
+                            //
+                            // RADIOS, NOT A DROPDOWN — `<select` is still
+                            // FORBIDDEN_MARKUP entry 1 and was not needed, so
+                            // the fence stays at 2.
+                            //
+                            // Rows written before today hold free text. They
+                            // simply match no radio and render unchanged
+                            // everywhere; nothing rewrites them.
                             'key'      => 'parking_restraints',
                             'label'    => 'Parking arrangements',
-                            'type'     => self::TYPE_TEXTAREA,
-                            'options'  => null,
+                            'type'     => self::TYPE_RADIO,
+                            'options'  => [
+                                'Parking onsite' => 'Parking onsite',
+                                'No parking'     => 'No parking',
+                                'Unknown'        => 'Unknown',
+                            ],
                             'target'   => 'survey.parking_restraints',
                             'consumer' => ['file' => 'resources/views/pdf/site-survey/_header-meta.blade.php', 'symbol' => '$survey?->parking_restraints'],
                             'prefill'  => null,
-                            'rules'    => ['nullable', 'string', 'max:2000'],
+                            'rules'    => ['nullable', 'string', 'in:Parking onsite,No parking,Unknown'],
                         ],
+                    ],
+                ],
+                [
+                    // THE SURVEYOR'S HAND-OFF TO THE INSTALL — ON NO STEP, AND
+                    // ON NO STEP ONLY IN THIS FORM. This is the comms-room
+                    // ruling (D-03 / GCW-04) applied a second time, to the
+                    // user's items 6 and 7.
+                    //
+                    // The user said "Remove Delivery routes as this is a survey
+                    // not install with kit delievery" and asked for "distance
+                    // from base" and the travel notes to go, while looking at
+                    // the OFFICE CREATION FORM. THAT REASON IS EXACTLY WHY THE
+                    // SURVEYOR IS STILL ASKED: these three are what the
+                    // INSTALLING engineer later reads. `SurveyCarryForward`
+                    // carries `delivery_routes` and `distance_from_base_miles`
+                    // forward onto the install worksheet, and the survey PDF,
+                    // the Word document and the engineer link all render them.
+                    // An office PM at creation time does not know them; the
+                    // surveyor finds them out on site. Asking the PM was the
+                    // mistake, not capturing the answer.
+                    //
+                    // REMOVING THEM FROM `SiteSurveyDocxService`,
+                    // `pdf/site-survey/*`, `PublicSurveyController`,
+                    // `SurveyController` or `SurveyCarryForward` WOULD BE A
+                    // SAFETY REGRESSION. All five are untouched, and
+                    // `CockpitSurveyFeedbackFieldsTest` proves the surveyor is
+                    // still asked and the carry-forward still carries.
+                    'legend' => 'For the install that follows',
+                    'step'   => null,
+                    'fields' => [
                         [
                             'key'      => 'delivery_routes',
                             'label'    => 'Delivery routes',

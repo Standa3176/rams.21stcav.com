@@ -158,7 +158,9 @@ class CockpitCombinedCreationTest extends TestCase
             'intent'               => 'create',
             'step'                 => 3,
             'format'               => 'word',
-            'survey_date'          => '2026-10-05',
+            // One date since 2026-09-27 (item 1); `visit_scheduled_date` below
+            // writes `survey.survey_date` too.
+
             'surveyor_name'        => 'Dev Chandra',
             'site_contact_name'    => 'Alice Brand',
             'site_contact_phone'   => '07700 900123',

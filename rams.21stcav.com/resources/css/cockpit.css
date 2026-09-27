@@ -1624,6 +1624,35 @@
     border-color: var(--cav-teal);
 }
 
+/* GREEN MEANS "THIS ONE PRODUCES SOMETHING" (2026-09-27, the user's item 9).
+   Worn by the two GENERATE controls — the closed opener and the create submit —
+   and by neither Next nor Back, so the colour carries one meaning.
+
+   ⚠ NOT NAMED `.cav-qa__control--go`, WHICH IS WHAT BEM WOULD SUGGEST.
+   `CockpitDocumentFormTest` counts the controls on a closed module with
+   `substr_count($block, 'cav-qa__control')` and asserts ONE. A modifier
+   containing the block name would make every control count twice and turn a
+   real guard into a number nobody could read. The class is therefore a sibling,
+   `.cav-qa__go`, and the control keeps `.cav-qa__control` exactly once.
+
+   TWO PROPERTIES, DELIBERATELY. No `position` and no `transform`: this rule
+   lands on an anchor inside `.cav-module`, where `position: relative` on the row
+   plus `inset: 0` on `.cav-module__open::after` is what makes the WHOLE ROW
+   clickable. Either property here would collapse that target onto a 28px glyph
+   while every existing assertion still passed. `CockpitVisualTest` scans for it.
+
+   The hover is DARKER, not lighter — see the contrast figures beside
+   `--cav-go` in cav-tokens.css. The lighter green fails AA under white text. */
+.cav-cockpit .cav-qa__go {
+    background: var(--cav-go);
+    border-color: var(--cav-go);
+}
+
+.cav-cockpit .cav-qa__go:hover {
+    background: var(--cav-go-dark);
+    border-color: var(--cav-go-dark);
+}
+
 .cav-cockpit .cav-qa__control:focus-visible,
 .cav-cockpit .cav-qa__cancel:focus-visible,
 .cav-cockpit .cav-qa__input:focus-visible {
@@ -2042,6 +2071,28 @@
     font-size: 13px;
     line-height: 1.5;
     color: var(--cav-ink);
+}
+
+/* A CONTROL'S OWN EMPTY STATE, AND IT MUST NOT READ AS AN ANSWER (2026-09-27,
+   the user's item 4). "Nobody active is on file for this" used to carry
+   `.cav-qa__value` — 13px in `--cav-ink`, byte-for-byte the styling of a real
+   value — inside a wrapping flex row, so it read as stray prose at the foot of
+   the section rather than as the Engineer fieldset's own reply. The user
+   reported exactly that.
+
+   `flex: 1 0 100%` claims the full row so it sits directly under the legend it
+   answers, never trailing another option; the muted `--cav-mid` at 12px tells
+   it apart from an answered value at a glance. 9.45:1 on `--cav-surface`
+   (recorded in cav-tokens.css beside the token).
+
+   IT IS NOT HIDDEN, AND NEITHER IS ITS CONTROL. There are genuinely no active
+   LabourResource rows on live; that is a data state, not a defect, and hiding
+   either would tell the PM engineers cannot be chosen here. */
+.cav-cockpit .cav-qa__empty {
+    flex: 1 0 100%;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--cav-mid);
 }
 
 /* A textarea needs the full column; a date or a phone number does not, which

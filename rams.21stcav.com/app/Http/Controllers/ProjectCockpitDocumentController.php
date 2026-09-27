@@ -341,9 +341,22 @@ final class ProjectCockpitDocumentController extends Controller
                     continue;
                 }
 
-                [$prefix, $leaf] = explode('.', $field['target'], 2);
+                // ONE ANSWER MAY HAVE TWO HOMES. `also_target` exists for
+                // exactly one row today — the site survey's `Visit date`, which
+                // writes BOTH `visit.scheduled_date` and `survey.survey_date`
+                // because the two were the same day and asking twice confused
+                // the PM. It is read here, through the SAME bucketing every
+                // other target uses, so a second target cannot reach a
+                // different persister than a first one would.
+                foreach ([$field['target'], $field['also_target'] ?? null] as $target) {
+                    if ($target === null) {
+                        continue;
+                    }
 
-                $buckets[$prefix][$leaf] = $validated[$field['key']];
+                    [$prefix, $leaf] = explode('.', $target, 2);
+
+                    $buckets[$prefix][$leaf] = $validated[$field['key']];
+                }
             }
         }
 

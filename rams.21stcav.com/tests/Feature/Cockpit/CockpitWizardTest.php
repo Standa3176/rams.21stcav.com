@@ -181,10 +181,13 @@ class CockpitWizardTest extends TestCase
     private function stepOneValues(): array
     {
         return [
-            'survey_date'        => '2026-10-14',
-            'surveyor_name'      => 'Dev Chandra',
-            'site_contact_name'  => 'Ruth Okafor',
-            'site_contact_phone' => '07700 900123',
+            // ONE DATE SINCE 2026-09-27 (item 1). `Visit date` is the label that
+            // survived and `also_target` carries the same value to
+            // `survey.survey_date`, so the Word document still has its date.
+            'visit_scheduled_date' => '2026-10-14',
+            'surveyor_name'        => 'Dev Chandra',
+            'site_contact_name'    => 'Ruth Okafor',
+            'site_contact_phone'   => '07700 900123',
         ];
     }
 
@@ -253,9 +256,10 @@ class CockpitWizardTest extends TestCase
             'intent'      => 'next',
             'step'        => 1,
             'tab'         => 'overview',
-            'survey_date' => 'not-a-date',
+            // The ONE date field step 1 now asks for (item 1).
+            'visit_scheduled_date' => 'not-a-date',
         ])
-            ->assertSessionHasErrors('survey_date')
+            ->assertSessionHasErrors('visit_scheduled_date')
             ->assertRedirect();
 
         // A PM must not reach step 3 to learn step 1 was wrong.
@@ -397,7 +401,7 @@ class CockpitWizardTest extends TestCase
             // A forged step, claiming the document is on step 1 so that step 2's
             // rules "do not apply".
             'step'        => 1,
-            'survey_date' => '2026-10-14',
+            'visit_scheduled_date' => '2026-10-14',
             // A step-2 field, carried forward as a hidden input and therefore
             // attacker-controlled: it is RE-VALIDATED, never trusted.
             'general_notes' => str_repeat('z', 5001),
@@ -444,11 +448,20 @@ class CockpitWizardTest extends TestCase
         $this->assertSame('Ruth Okafor', $survey->site_contact_name);
     }
 
-    public function test_the_format_is_only_required_on_the_final_submit(): void
+    /**
+     * `format` IS NO LONGER ASKED, AND IS STILL BOUNDED (2026-09-27, item 8).
+     *
+     * The radios went because their answer changed nothing but a flash word. The
+     * RULE did not go: an ABSENT `format` is now defaulted from the document's
+     * own `formats` map, and a PRESENT but unoffered one is still rejected. Both
+     * halves are asserted here, because dropping the radios without the second
+     * half would have turned `format` into a free string on a POST.
+     */
+    public function test_the_format_is_defaulted_from_the_map_and_a_bogus_one_is_still_refused(): void
     {
         $project = $this->project();
 
-        // An advance carries no format — the radios are on the last step only.
+        // An advance carries no format and never did.
         $this->submit($project, [
             'module' => ProjectDeliverable::KEY_SITE_SURVEY,
             'intent' => 'next',
@@ -456,10 +469,23 @@ class CockpitWizardTest extends TestCase
             'tab'    => 'overview',
         ])->assertSessionHasNoErrors();
 
-        // The creation still demands one.
+        // A CREATION WITH NO FORMAT NOW SUCCEEDS, because the page no longer
+        // asks. The default is the map's first offered key for this document.
         $this->submit($project, [
             'module' => ProjectDeliverable::KEY_SITE_SURVEY,
             'intent' => 'create',
+            'tab'    => 'overview',
+        ] + $this->stepOneValues())->assertSessionHasNoErrors();
+
+        $this->assertSame(1, SiteSurvey::count(), 'The creation with no format did not happen.');
+
+        // AND A FORMAT THIS DOCUMENT DOES NOT OFFER IS STILL A VALIDATION ERROR.
+        // The worksheet has no PDF (DC-07), so this is the real boundary rather
+        // than a value the page happened not to render.
+        $this->submit($project, [
+            'module' => ProjectDeliverable::KEY_WORKSHEET,
+            'intent' => 'create',
+            'format' => 'pdf',
             'tab'    => 'overview',
         ])->assertSessionHasErrors('format');
     }
@@ -708,8 +734,9 @@ class CockpitWizardTest extends TestCase
                     "{$module} step {$step} does not say where the PM is."
                 );
 
-                // 4. Next on every step but the last; the submit and the Format
-                //    radios on the LAST and nowhere else.
+                // 4. Next on every step but the last; the submit and the OUTCOME
+                //    LINE on the LAST and nowhere else. (The Format radios stood
+                //    where the outcome line now stands until 2026-09-27, item 8.)
                 $this->assertSame($isLast ? 0 : 1, substr_count($form, 'value="next"'), "{$module} step {$step}: Next.");
                 $this->assertSame(
                     $isLast ? 1 : 0,
@@ -717,9 +744,14 @@ class CockpitWizardTest extends TestCase
                     "{$module} step {$step}: the submit belongs to the last step only."
                 );
                 $this->assertSame(
+                    0,
+                    substr_count($form, 'name="format"'),
+                    "{$module} step {$step}: no step asks for a format any more."
+                );
+                $this->assertSame(
                     $isLast ? 1 : 0,
-                    (int) str_contains($form, 'name="format"'),
-                    "{$module} step {$step}: the Format choice belongs to the last step only."
+                    (int) str_contains($form, 'Generating creates '),
+                    "{$module} step {$step}: the outcome line belongs to the last step only."
                 );
 
                 // 5. Back everywhere but the first step.

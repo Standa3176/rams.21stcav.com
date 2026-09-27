@@ -143,6 +143,34 @@ final class CockpitDocumentRequest extends FormRequest
         // survives this line, so nothing downstream can echo it or build
         // anything out of it.
         $this->merge(['step' => $this->step()]);
+
+        // AN ABSENT `format` IS THE DOCUMENT'S FIRST OFFERED FORMAT, and only
+        // an ABSENT one. The Format radios were removed from the last step
+        // (2026-09-27, the user's item 8): the creation already produces the
+        // engineer link, the Word document AND the PDF together, so the radio
+        // asked a question whose answer changed nothing but a flash word.
+        //
+        // The default is read from the map's OWN `formats`, never hard-coded,
+        // so no format is invented here and the worksheet — which has no PDF
+        // (DC-07) — still defaults to the only thing it has. A PRESENT but
+        // unoffered `format` is LEFT ALONE and `rules()` rejects it, exactly as
+        // `intent` above: a posted `format=pdf` on the worksheet is still a
+        // validation error.
+        if ($this->input('format') === null) {
+            $module = $this->input('module');
+            $map    = CockpitDocumentFormPresenter::documentFieldMap();
+
+            if (is_string($module) && array_key_exists($module, $map)) {
+                $offered = array_keys(array_filter(
+                    $map[$module]['formats'],
+                    static fn (?string $routeName): bool => $routeName !== null,
+                ));
+
+                if ($offered !== []) {
+                    $this->merge(['format' => $offered[0]]);
+                }
+            }
+        }
     }
 
     /**
