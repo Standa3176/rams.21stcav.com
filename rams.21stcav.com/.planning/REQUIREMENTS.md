@@ -498,6 +498,15 @@ GCW-01, GCW-03, GCW-05, GCW-06, GCW-07 and GCW-08 are untouched by Plan 46.5-01.
 
 GCW-01, GCW-05, GCW-06, GCW-07 and GCW-08 are untouched by Plan 46.5-04.
 
+**Delivered by Plan 46.5-05 (2026-09-27) — RAMS joins the stepped flow:**
+
+| ID | Delivered by 46.5-05 | NOT delivered by 46.5-05 |
+|----|----------------------|--------------------------|
+| GCW-05 | RAMS runs the SAME stepped flow — `1 Dates and hours · 2 Team and site contact · 3 Job summary and output` — **standalone or reached from an install**, and it **issues no engineer link and creates no visit** (asserted: `VisitLinkIssuer::typesFor('rams') === []`, zero rows in `visits` and `site_surveys` after a full wizard walk). The job summary is ONE map row at `form_data.works_description`, grep-confirmed against `RamsBuilderService.php:119/:898/:945` and reaching the document through the controller's EXISTING `patchFormData()`. **No renderer, no generate route, no build job and no controller edited** | The **one-action** "document + visit + link" creation, which is GCW-08 / Plan 46.5-06. RAMS has no visit to create, so that plan's combined action does not change this one |
+| GCW-06 | `CockpitModulePresenter::deliverablePrompt()` READS the existing tick through `Project::deliverableState()` — the deliberately guarded reader — and puts one escaped sentence plus a link to `?module=rams&action=generate&step=1` on the WORKSHEET panel when the project's RAMS deliverable is `required`. **No second flag, no second table, no migration, and not one line of `ProjectDeliverable` / `ProjectDeliverableAudit` / `ProjectDeliverablesService` edited** | Nothing. The tick DRIVES the flow rather than GATING it, by decision: every deliverable state still creates a RAMS if a PM asks, and all four states are rendered and asserted |
+
+GCW-01, GCW-02, GCW-03, GCW-04, GCW-07 and GCW-08 are untouched by Plan 46.5-05.
+
 ### Out of scope for v4.0
 
 Each is **recorded in the admin Hidden Functions register**, not forgotten:
