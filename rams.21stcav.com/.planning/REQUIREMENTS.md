@@ -15,9 +15,9 @@ recorded in `.planning/sketches/002-install-cockpit/README.md` (cockpit + panels
 `.planning/sketches/003-quote-import/README.md` (import review). The sketches are the
 **visual contract**; where an implementation and a sketch disagree, the sketch wins unless
 the user says otherwise.
-**Total requirements:** 59 defined so far (LR-01..LR-05, Phase 44; VIS-01..VIS-10, Phase 45;
+**Total requirements:** 67 defined so far (LR-01..LR-05, Phase 44; VIS-01..VIS-10, Phase 45;
 VL-01..VL-12, Phase 46; RV-01..RV-08, Phase 46.1; DC-01..DC-11, Phase 46.2;
-DL-01..DL-06, Phase 46.3; IC-01..IC-07, Phase 46.4).
+DL-01..DL-06, Phase 46.3; IC-01..IC-07, Phase 46.4; GCW-01..GCW-08, Phase 46.5).
 Phases 47–51 are outlined in the roadmap but their requirement IDs are **not yet minted** — each
 will be added here when its phase is planned.
 
@@ -442,6 +442,51 @@ Phase 46.4 block, verified in `ROADMAP.md` on 2026-09-27, together with the note
 phrase *"may delete their own rows"* is **SUPERSEDED** by criterion 7 — D-08 replaced the plain
 delete with mark-with-a-reason and D-09 recorded that "own" is not per-person. The superseded line is
 left as written; **IC-02 and IC-07 are the authority on what shipped.**
+
+### Group GCW — Guided creation wizard (Phase 46.5)
+
+**Eight** requirements minted at execution time on 2026-09-27 by Plan 46.5-01, on the precedent
+IC-01..IC-07 set one phase earlier: a phase's IDs exist in this file **before** any of that phase's
+code ships. Each row below names the decision in `.planning/phases/46.5-guided-creation-wizard/46.5-CONTEXT.md`
+it comes from. The prefix `GCW` collides with none of LR / VIS / VL / RV / DC / DL / IC already in
+this section, nor with the v3.0 A / B / C / D / E groups below.
+
+- **GCW-01** (D-01) — The cockpit masthead carries the **client company name**, read from
+  `Project::client_name`, beside the facts the masthead already holds.
+- **GCW-02** (D-02) — Document creation is a **stepped wizard**. Step state is query-string
+  (`?module=…&action=generate&step=N`), resolved by **MEMBERSHIP**, never validated and never
+  echoed. **No JavaScript, no Alpine.** For the site survey the steps are the user's own:
+  (1) dates, site contact, engineer; (2) notes; (3) confirm the spaces being surveyed,
+  defaulting to all.
+- **GCW-03** (D-02 ⚠) — **An abandoned wizard persists nothing.** No row is written until the final
+  step's submit. There is no draft, and an engineer link is **NEVER** issued against a survey whose
+  rooms were not confirmed.
+- **GCW-04** (D-03) — Comms room leaves the **office creation form ONLY**. It is **still** captured
+  on site through the engineer link, **still** renders in the site-survey Word document, and
+  **still** rides the survey→install carry-forward. Removing it from any of those is a **safety
+  regression** and is out of scope.
+- **GCW-05** (D-04) — RAMS is **document creation only**: standalone or attached to an install, on
+  the same stepped flow, fed by project info + wizard-entered visit info + a user-entered job
+  summary. It issues **no engineer link of its own**, and **no new renderer is written**
+  (*"RAMs will use existing RAM process"*).
+- **GCW-06** (D-05) — The flow is driven by the deliverable tick **that already exists**, read
+  through `Project::deliverableState()` — the deliberately-guarded safe reader. `ProjectDeliverable`
+  is **not rebuilt**.
+- **GCW-07** (D-06) — An install records **three** photo stages: start · during · end. `during` is
+  **ADDED**. `completion` is **NOT renamed**, because `2026_09_26_100000` backfilled every legacy
+  photo to it and justified that by quoting the tray's own title.
+- **GCW-08** (D-07) — **One creation, one outcome**: document + visit + engineer link from one
+  action, with a stated per-module ordering, and a report that names **which half** happened when
+  only one did. Success is never reported for a half-run.
+
+**Delivered by Plan 46.5-01 (2026-09-27) — the step spine only, NOTHING RENDERS:**
+
+| ID | Delivered by 46.5-01 | NOT delivered by 46.5-01 |
+|----|----------------------|--------------------------|
+| GCW-02 | Steps as **data**: a `step` key on every group of `CockpitDocumentFormPresenter::DOCUMENT_FIELD_MAP`, a per-document `step_titles` row, `CockpitWizardPresenter` slicing them, and `?step=` resolved by membership on the cockpit GET that already exists — **no new route** | Any rendering. The stepped Blade is Plan 46.5-04 |
+| GCW-04 | The Comms room group carries **`'step' => null`** with the D-03 reason written beside it in code, naming the four files this phase must not touch | Nothing to deliver — the requirement is that three surfaces stay **untouched**, and they are |
+
+GCW-01, GCW-03, GCW-05, GCW-06, GCW-07 and GCW-08 are untouched by Plan 46.5-01.
 
 ### Out of scope for v4.0
 
