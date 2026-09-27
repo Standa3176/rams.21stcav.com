@@ -101,15 +101,108 @@ class WorksheetPhotoBucketDefaultTest extends TestCase
         $this->assertSame('start', $photo->fresh()->bucket);
     }
 
-    public function test_there_are_exactly_two_buckets(): void
+    /**
+     * ⚠️ RENAMED AND MOVED FROM TWO TO THREE BY PHASE 46.5 D-06, BY NAME.
+     *
+     * It shipped in 46.4 as `test_there_are_exactly_two_buckets`, whose message
+     * read: "A third bucket would have to be rendered somewhere forever, and
+     * the office would have to learn what it means. D-03 rejected that
+     * explicitly." That rejection was about an `unknown` bucket for rows nobody
+     * ever classified, and IT STILL STANDS — there is no `unknown` bucket here
+     * and there will not be one. `during` is a different thing: a stage an
+     * engineer deliberately CAPTURES, with its own tray and its own label.
+     *
+     * ORDER IS A DECISION, not formatting. The array is in capture order, so
+     * anything that later sorts by position on this array sorts by the order
+     * the work actually happens in.
+     */
+    public function test_there_are_exactly_three_buckets_in_capture_order(): void
     {
         $this->assertSame(
-            ['start', 'completion'],
+            ['start', 'during', 'completion'],
             WorksheetPhoto::BUCKETS,
-            'A third bucket would have to be rendered somewhere forever, and the office '
-            . 'would have to learn what it means. D-03 rejected that explicitly.'
+            'Three buckets, in the order the work happens: start, during, completion.'
         );
-        $this->assertCount(2, WorksheetPhoto::BUCKETS);
+        $this->assertCount(3, WorksheetPhoto::BUCKETS);
+    }
+
+    /**
+     * The stored value is asserted as a LITERAL, deliberately. `completion` is
+     * what `2026_09_26_100000` backfilled every pre-existing photo to, and that
+     * ruling is justified by the tray title it quotes. A later rename to `end`
+     * would be a data migration that retroactively falsifies a written
+     * decision — so it fails HERE, loudly, rather than shipping quietly.
+     */
+    public function test_completion_is_still_spelled_completion(): void
+    {
+        $this->assertSame('completion', WorksheetPhoto::BUCKET_COMPLETION);
+        $this->assertSame('start', WorksheetPhoto::BUCKET_START);
+        $this->assertSame('during', WorksheetPhoto::BUCKET_DURING);
+    }
+
+    public function test_a_photo_created_as_during_reads_during(): void
+    {
+        $photo = WorksheetPhoto::create([
+            'worksheet_id'  => $this->worksheet()->id,
+            'room_name'     => 'Boardroom',
+            'filename'      => 'worksheets/c.jpg',
+            'original_name' => 'c.jpg',
+            'mime_type'     => 'image/jpeg',
+            'bucket'        => WorksheetPhoto::BUCKET_DURING,
+        ]);
+
+        $this->assertSame('during', $photo->fresh()->bucket);
+    }
+
+    /**
+     * T-46.5-03-01 — the upload endpoint's `Rule::in(WorksheetPhoto::BUCKETS)`
+     * picks the third value up for free, and an unknown bucket is STILL a
+     * validation failure. Asserted with NO edit to PublicWorksheetController.
+     */
+    public function test_the_upload_endpoint_accepts_during_and_still_refuses_an_unknown_bucket(): void
+    {
+        $worksheet = $this->worksheet();
+        $token     = $worksheet->access_token;
+
+        \Illuminate\Support\Facades\Storage::fake('local');
+
+        $this->postJson(route('public-worksheet.photos.upload', ['token' => $token]), [
+            'room_name' => 'Boardroom',
+            'photo'     => \Illuminate\Http\UploadedFile::fake()->image('progress.jpg'),
+            'bucket'    => WorksheetPhoto::BUCKET_DURING,
+        ])->assertOk();
+
+        $this->assertSame(
+            'during',
+            DB::table('worksheet_photos')->where('worksheet_id', $worksheet->id)->value('bucket'),
+        );
+
+        $this->postJson(route('public-worksheet.photos.upload', ['token' => $token]), [
+            'room_name' => 'Boardroom',
+            'photo'     => \Illuminate\Http\UploadedFile::fake()->image('rubbish.jpg'),
+            'bucket'    => 'rubbish',
+        ])->assertStatus(422);
+
+        $this->assertSame(
+            1,
+            DB::table('worksheet_photos')->where('worksheet_id', $worksheet->id)->count(),
+            'The refused upload must not have stored a row.',
+        );
+    }
+
+    /**
+     * And the controller was NOT edited to admit the third value — the
+     * constant is the single vocabulary, read through `Rule::in`.
+     */
+    public function test_the_controller_reads_the_bucket_vocabulary_off_the_constant(): void
+    {
+        $source = file_get_contents(base_path('app/Http/Controllers/PublicWorksheetController.php'));
+
+        $this->assertMatchesRegularExpression(
+            '/Rule::in\(\s*\\\\?(App\\\\Models\\\\)?WorksheetPhoto::BUCKETS\s*\)/',
+            (string) $source,
+            'A hardcoded list here would drift from the model the moment a bucket is added.',
+        );
     }
 
     // ── The history ruling, proven by migration ordering ─────────────────────
