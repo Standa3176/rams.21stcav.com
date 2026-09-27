@@ -10,7 +10,24 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
 /**
- * Phase 44 Plan 02 — admin CRUD for labour resources.
+ * Labour resources CRUD — Phase 44 Plan 02, widened to the whole workspace by
+ * quick task 260927-lr7.
+ *
+ * NOT ADMIN-ONLY ANY MORE. Phase 44 registered these routes inside
+ * `Route::middleware('admin')`, and nothing in the UI ever linked to them, so
+ * the page was effectively unreachable and live carried zero labour resources —
+ * which is why the survey wizard's engineer step offered nobody but
+ * "Unassigned". 260927-lr7 moved the routes to the plain `auth` group and added
+ * a top-level "Labour" nav item, so any signed-in user can add, edit and
+ * deactivate resources. This class holds NO gate of its own, by design: the
+ * route group is the single place authorization is expressed. Do not add a
+ * middleware call or an abort_unless here without moving the route too —
+ * a gate in two places is a gate nobody can reason about.
+ *
+ * LR-04 is NOT relaxed by this. A resource carries `email` and `phone`; those
+ * must never reach a client. This is a staff surface behind `auth`, and the
+ * client-facing prohibition is enforced separately by
+ * tests/Feature/Security/LabourResourceClientSurfacePrivacyTest.php.
  *
  * Deliberately has NO destroy() method and no delete route. D-02
  * (44-CONTEXT.md) requires deactivation, never hard-delete, because a
@@ -20,6 +37,11 @@ use Illuminate\View\View;
  * own that a delete would corrupt, but a labour resource is referenced by
  * past visit records. `toggleActive()` is the only lifecycle transition
  * this controller exposes beyond create/edit.
+ *
+ * The class namespace and the view directory both still say "admin". That is
+ * file organisation only, invisible to a user, and moving them was out of
+ * scope for 260927-lr7 — the URL and the route names are what a person sees,
+ * and both dropped the prefix.
  */
 class LabourResourceController extends Controller
 {
@@ -60,13 +82,13 @@ class LabourResourceController extends Controller
             'is_active' => true,
         ]);
 
-        Log::info('Admin: labour resource created', [
+        Log::info('Labour resource created', [
             'new_resource_id' => $resource->id,
             'new_resource'    => $resource->name,
-            'admin_id'        => auth()->id(),
+            'actor_id'        => auth()->id(),
         ]);
 
-        return redirect()->route('admin.labour-resources.index')
+        return redirect()->route('labour-resources.index')
             ->with('success', "Labour resource {$resource->name} created successfully.");
     }
 
@@ -97,12 +119,12 @@ class LabourResourceController extends Controller
             'user_id' => $validated['user_id'] ?? null,
         ]);
 
-        Log::info('Admin: labour resource updated', [
+        Log::info('Labour resource updated', [
             'target_resource_id' => $labourResource->id,
-            'admin_id'           => auth()->id(),
+            'actor_id'           => auth()->id(),
         ]);
 
-        return redirect()->route('admin.labour-resources.index')
+        return redirect()->route('labour-resources.index')
             ->with('success', "Labour resource {$labourResource->name} updated.");
     }
 
@@ -116,9 +138,9 @@ class LabourResourceController extends Controller
 
         $action = $labourResource->is_active ? 'reactivated' : 'deactivated';
 
-        Log::info("Admin: labour resource {$action}", [
+        Log::info("Labour resource {$action}", [
             'target_resource_id' => $labourResource->id,
-            'admin_id'            => auth()->id(),
+            'actor_id'            => auth()->id(),
         ]);
 
         return back()->with('success', "Labour resource {$labourResource->name} {$action}.");

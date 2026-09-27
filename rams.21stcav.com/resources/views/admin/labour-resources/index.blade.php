@@ -1,13 +1,21 @@
 {{--
-    Phase 44 Plan 02 — admin-only labour resources index.
+    Labour resources index — Phase 44 Plan 02, opened to the whole workspace
+    by quick task 260927-lr7.
 
-    This view is intentionally EXCLUDED from Plan 44-04's client-facing
-    privacy-boundary scan. It sits behind the real `admin` route-group
-    middleware (EnsureUserIsAdmin), not a client-facing or tokenised route,
-    so the Contact column below deliberately shows email/phone — D-04
-    ("A client must never be given an engineer's phone or email. Name
-    only.") explicitly permits contact details "visible to the PM and
-    admin only." Do not mistake these columns for a privacy bug.
+    The gate is the plain `auth` route group, NOT `admin` any more: any
+    signed-in user reaches this page from the top-level "Labour" nav item.
+    A guest cannot — the `auth` middleware bounces them to login.
+
+    This view is still intentionally EXCLUDED from Plan 44-04's client-facing
+    privacy-boundary scan, and that exclusion is still correct after the
+    widening: the scan covers pages a CLIENT can open (public survey and
+    worksheet token routes, generated documents), and this is a staff page
+    behind authentication. D-04 / LR-04 ("A client must never be given an
+    engineer's phone or email. Name only.") is unchanged and still enforced
+    by tests/Feature/Security/LabourResourceClientSurfacePrivacyTest.php.
+    The Contact column below therefore still shows email/phone to staff on
+    purpose. Do not mistake these columns for a privacy bug, and do NOT add
+    this file to that test's CLIENT_FACING_PATHS — it is not client-facing.
 --}}
 @extends('layouts.app')
 
@@ -76,7 +84,7 @@
         <div class="page-subtitle">Add, edit or deactivate engineers, programmers and other labour resources.</div>
     </div>
     <div class="page-header-actions">
-        <a href="{{ route('admin.labour-resources.create') }}" class="btn btn-teal btn-sm">
+        <a href="{{ route('labour-resources.create') }}" class="btn btn-teal btn-sm">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
                 <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
@@ -131,7 +139,7 @@
 
                     <td>
                         <div class="lr-actions">
-                            <a href="{{ route('admin.labour-resources.edit', $r) }}" class="btn btn-outline btn-sm">
+                            <a href="{{ route('labour-resources.edit', $r) }}" class="btn btn-outline btn-sm">
                                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                     <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
                                 </svg>
@@ -139,7 +147,7 @@
                             </a>
 
                             <form method="POST"
-                                  action="{{ route('admin.labour-resources.toggle-active', $r) }}"
+                                  action="{{ route('labour-resources.toggle-active', $r) }}"
                                   data-confirm="{{ $r->is_active ? 'Deactivate' : 'Reactivate' }} {{ $r->name }}?"
                                   data-confirm-label="{{ $r->is_active ? 'Deactivate' : 'Reactivate' }}"
                                   @if($r->is_active) data-confirm-danger="1" @endif

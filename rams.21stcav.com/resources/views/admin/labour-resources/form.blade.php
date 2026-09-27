@@ -41,7 +41,7 @@
         <h1 class="page-title">{{ $resource ? 'Edit Labour Resource' : 'Add Labour Resource' }}</h1>
     </div>
     <div class="page-header-actions">
-        <a href="{{ route('admin.labour-resources.index') }}" class="btn btn-outline btn-sm">
+        <a href="{{ route('labour-resources.index') }}" class="btn btn-outline btn-sm">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
@@ -62,7 +62,7 @@
 
 <div class="card" style="max-width:560px;padding:24px 28px;">
     <form method="POST"
-          action="{{ $resource ? route('admin.labour-resources.update', $resource) : route('admin.labour-resources.store') }}">
+          action="{{ $resource ? route('labour-resources.update', $resource) : route('labour-resources.store') }}">
         @csrf
         @if ($resource) @method('PUT') @endif
 
@@ -130,7 +130,7 @@
             <button type="submit" class="btn btn-primary">
                 {{ $resource ? 'Save Changes' : 'Create Resource' }}
             </button>
-            <a href="{{ route('admin.labour-resources.index') }}" class="btn btn-outline btn-sm">Cancel</a>
+            <a href="{{ route('labour-resources.index') }}" class="btn btn-outline btn-sm">Cancel</a>
         </div>
     </form>
 </div>

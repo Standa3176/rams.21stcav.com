@@ -431,21 +431,6 @@ Route::middleware('auth')->group(function () {
         Route::put('/admin/devices/{device}', [DeviceController::class, 'update'])
             ->name('admin.devices.update');
 
-        // ── Labour Resources — Phase 44 admin CRUD (D-02: deactivate, never
-        // delete — no destroy route or method exists on this controller) ──
-        Route::get('/admin/labour-resources', [LabourResourceController::class, 'index'])
-            ->name('admin.labour-resources.index');
-        Route::get('/admin/labour-resources/create', [LabourResourceController::class, 'create'])
-            ->name('admin.labour-resources.create');
-        Route::post('/admin/labour-resources', [LabourResourceController::class, 'store'])
-            ->name('admin.labour-resources.store');
-        Route::get('/admin/labour-resources/{labourResource}/edit', [LabourResourceController::class, 'edit'])
-            ->name('admin.labour-resources.edit');
-        Route::put('/admin/labour-resources/{labourResource}', [LabourResourceController::class, 'update'])
-            ->name('admin.labour-resources.update');
-        Route::post('/admin/labour-resources/{labourResource}/toggle-active', [LabourResourceController::class, 'toggleActive'])
-            ->name('admin.labour-resources.toggle-active');
-
         // ── Device Stencils — Phase 24 curation queue (DRAW-50) ──────────────
         // List-only surface shipped by Plan 24-03 (Wave 2). D-14: explicit
         // named routes only, no bare Route::resource, no create/store/destroy
@@ -520,6 +505,38 @@ Route::middleware('auth')->group(function () {
             [\App\Http\Controllers\Admin\DrawIoSpikeController::class, 'exportSvg'])
             ->name('admin.drawings.draw-io-spike.export-svg');
     });
+
+    // ── Labour Resources — shared-workspace CRUD (quick task 260927-lr7) ────
+    //
+    // DELIBERATELY OUTSIDE the Route::middleware('admin') group above. Phase 44
+    // shipped this behind the admin gate, which is why it was reachable by
+    // nobody and live carried zero labour resources — so the survey wizard's
+    // engineer step showed "Unassigned" for everyone. 260927-lr7 widens it to
+    // any authenticated user, matching this app's shared-workspace posture
+    // (see tests/Feature/Authorization/SharedWorkspaceFieldOpsAccessTest.php).
+    // The surrounding 'auth' group is still the gate: a guest gets bounced to
+    // login. LR-04 is unaffected — a resource's email/phone still never reaches
+    // a client, which is a separate, still-enforced rule.
+    //
+    // Path is /labour-resources, NOT /admin/labour-resources: a non-admin page
+    // under /admin/ misreads as forbidden. Route names dropped the 'admin.'
+    // prefix for the same reason; every caller was updated in the same commit.
+    //
+    // D-02 (44-CONTEXT.md) still binds: deactivate, never delete. There is no
+    // destroy route and no destroy method, and a test asserts both the old and
+    // the new destroy route names resolve to nothing.
+    Route::get('/labour-resources', [LabourResourceController::class, 'index'])
+        ->name('labour-resources.index');
+    Route::get('/labour-resources/create', [LabourResourceController::class, 'create'])
+        ->name('labour-resources.create');
+    Route::post('/labour-resources', [LabourResourceController::class, 'store'])
+        ->name('labour-resources.store');
+    Route::get('/labour-resources/{labourResource}/edit', [LabourResourceController::class, 'edit'])
+        ->name('labour-resources.edit');
+    Route::put('/labour-resources/{labourResource}', [LabourResourceController::class, 'update'])
+        ->name('labour-resources.update');
+    Route::post('/labour-resources/{labourResource}/toggle-active', [LabourResourceController::class, 'toggleActive'])
+        ->name('labour-resources.toggle-active');
 
     // ── Quote upload (before resource to prevent {rams} capturing "upload") ─
     Route::get('/rams/upload', [QuoteUploadController::class, 'create'])->name('rams.upload.create');

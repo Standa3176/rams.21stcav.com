@@ -298,6 +298,23 @@
         Projects
     </a>
 
+    {{-- Labour — quick task 260927-lr7. Sits OUTSIDE every isAdmin conditional
+         in this file, on purpose: the whole point of the task is that a
+         non-admin can add engineers, and every other link in this row except
+         Projects is admin-gated. Top level rather than inside the Admin
+         dropdown, because that dropdown only renders for admins at all. --}}
+    <a href="{{ route('labour-resources.index') }}"
+       class="tnav-link {{ request()->routeIs('labour-resources.*') ? 'active' : '' }}"
+       title="Engineers, programmers and other labour resources">
+        <svg class="tnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        Labour
+    </a>
+
     @if ($isAdmin)
         <a href="{{ route('rams.index') }}"
            class="tnav-link {{ request()->routeIs('rams.*') && ! request()->routeIs('rams.upload*') && ! request()->routeIs('rams.settings*') ? 'active' : '' }}">
