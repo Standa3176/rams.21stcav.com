@@ -132,11 +132,32 @@ class BuildRamsDocumentJob implements ShouldQueue
                 $record->status !== RamsDocument::STATUS_FAILED &&
                 $record->status !== RamsDocument::STATUS_COMPLETED
             ) {
-                $record->update([
-                    'status' => $isManualFormGeneration
-                        ? RamsDocument::STATUS_FOR_REVIEW
-                        : RamsDocument::STATUS_COMPLETED,
-                ]);
+                // ONE TERMINAL STATUS, BOTH PATHS (quick task 260928-dq2).
+                //
+                // THIS BRANCH WAS THE BUG. The manual create form set
+                // STATUS_FOR_REVIEW here, so a RAMS built from that form NEVER
+                // REACHED `completed` — the .docx was written, the record was
+                // fine, and the status said the work was still outstanding
+                // forever. That is what the user saw: *"once a rams is
+                // generate it defaults to review rams eventhough they have
+                // been created"*.
+                //
+                // AND IT SILENTLY SUPPRESSED THE COMPLETION EMAIL. The
+                // notification twelve lines below is gated on
+                // `status === STATUS_COMPLETED`, so NOTF-01 has never fired
+                // for a manual-form RAMS. Fixing the status therefore STARTS
+                // SENDING MAIL on a path that sent none, which is a
+                // consequence a reader must not have to discover — it is named
+                // here and asserted in ManualRamsCreationTest.
+                //
+                // NOTHING IS LOST BY COMPLETING IT. Review stays reachable:
+                // `rams.store` still redirects to `rams.review`, which is the
+                // edit form (its own comment at review.blade.php:541 calls it
+                // "Edit & Download form"). `RamsDocument::isStale()` already
+                // lists STATUS_COMPLETED, and `canBeApproved()` returns false
+                // for it — correctly, since a manual-form record carries
+                // form_data and no reviewed_data to approve.
+                $record->update(['status' => RamsDocument::STATUS_COMPLETED]);
             }
 
             Log::info('BuildRamsDocumentJob: completed successfully', [

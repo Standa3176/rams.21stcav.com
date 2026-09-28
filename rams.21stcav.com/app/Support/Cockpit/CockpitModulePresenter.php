@@ -262,6 +262,21 @@ final class CockpitModulePresenter
                     'chip'        => $this->chip($section),
                     'count'       => $this->count($project, $definition, $section),
                     'section'     => $section,
+                    // WHETHER THIS MODULE CAN HOLD VISITS AT ALL (quick task
+                    // 260928-dq2). Derived from the map's OWN `visit_types`,
+                    // never from a module key — so the panel can ask "does
+                    // this module report visits or documents?" as a DATA
+                    // question and no view has to know that RAMS is RAMS.
+                    //
+                    // It is the same rule `VisitLinkIssuer::VISIT_MODULES`
+                    // states and that docblock (:21-27) says is not arbitrary:
+                    // only the site survey and the worksheet have an engineer
+                    // link, so only those two can hold a visit. RAMS and the
+                    // O&M carry `'visit_types' => []` above, which is why
+                    // their Overview said "nothing recorded" however many
+                    // documents the project held — the sentence was the
+                    // `@else` of a visit loop.
+                    'has_visits'  => $definition['visit_types'] !== [],
                     // D-05's tick, read not rebuilt. Null on three of the four
                     // rows and null on the fourth unless the RAMS deliverable
                     // reads `required` — see deliverablePrompt().

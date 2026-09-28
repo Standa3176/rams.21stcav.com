@@ -148,7 +148,25 @@ class ManualRamsCreationTest extends TestCase
         }
     }
 
-    public function test_rams_status_is_for_review_after_successful_generation(): void
+    /**
+     * RENAMED AND RE-EXPECTED BY QUICK TASK 260928-dq2, BY NAME AND WITH THE
+     * REASON — never deleted to make a red test green.
+     *
+     * WAS `test_rams_status_is_for_review_after_successful_generation()`,
+     * asserting `STATUS_FOR_REVIEW`. That assertion PINNED A BUG.
+     * `BuildRamsDocumentJob` set FOR_REVIEW on the manual-form path only, so a
+     * manual-form RAMS could never reach `completed` however well the build
+     * went, and the completion notification twelve lines below that branch —
+     * gated on `status === STATUS_COMPLETED` — has never fired for this path
+     * at all. The user saw the first half: *"once a rams is generate it
+     * defaults to review rams eventhough they have been created"*.
+     *
+     * Review is NOT lost by completing it: `rams.store` still redirects to
+     * `rams.review`, which IS the edit form, and
+     * `test_successful_creation_redirects_to_review_page()` in this file still
+     * proves that.
+     */
+    public function test_rams_status_is_completed_after_successful_generation(): void
     {
         $user = User::factory()->create();
 
@@ -163,7 +181,66 @@ class ManualRamsCreationTest extends TestCase
         $record = RamsDocument::where('project_ref', 'STATUS-001')->first();
 
         $this->assertNotNull($record, 'RamsDocument was not created.');
-        $this->assertSame(RamsDocument::STATUS_FOR_REVIEW, $record->status);
+        $this->assertSame(RamsDocument::STATUS_COMPLETED, $record->status);
+
+        $candidate = storage_path('app/rams/' . $record->filename);
+        if (file_exists($candidate)) {
+            $this->generatedFiles[] = $candidate;
+        }
+    }
+
+    /**
+     * THE SIDE EFFECT OF THE STATUS FIX, NAMED AND ASSERTED (260928-dq2).
+     *
+     * A status fix that quietly starts sending email is a surprise, so the mail
+     * is pinned rather than left to be discovered on live. The notification is
+     * NOTF-01 / Phase 09, it is gated on `STATUS_COMPLETED`, and it is
+     * idempotent through `completion_email_sent_at` — so this asserts BOTH the
+     * mailable and the stamp that stops a retry sending it twice.
+     */
+    public function test_completing_a_manual_form_rams_sends_the_completion_notification(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+
+        // The resolver falls back to the first admin when the document has no
+        // project owner, and a manual-form RAMS has no project at all — so an
+        // admin is what makes this path have a recipient.
+        User::factory()->create(['role' => 'admin', 'email' => 'office@example.test']);
+
+        $user = User::factory()->create();
+
+        $this->fakeClaudeResponse([
+            ['title' => 'Phase 1: Planning', 'steps' => ['Step one', 'Step two', 'Step three']],
+        ]);
+
+        $this->actingAs($user)->post(route('rams.store'), $this->validFormPayload([
+            'project_ref' => 'NOTIFY-001',
+        ]));
+
+        $record = RamsDocument::where('project_ref', 'NOTIFY-001')->first();
+
+        $this->assertNotNull($record, 'RamsDocument was not created.');
+        $this->assertSame(RamsDocument::STATUS_COMPLETED, $record->status);
+
+        // NOTE the second argument is Laravel's CALLBACK/address parameter, not
+        // a failure message — so the reason is asserted separately below rather
+        // than smuggled in here, where it would read as an email address.
+        //
+        // THE REASON: the completion notification is gated on STATUS_COMPLETED,
+        // so while the manual-form path set FOR_REVIEW it sent nothing at all.
+        // Fixing the status starts sending mail on a path that sent none, and
+        // that consequence is pinned rather than discovered on live.
+        //
+        // `assertQueued`, not `assertSent`: `RamsReadyMail implements
+        // ShouldQueue` (its own docblock says so, plan 09-05), so `Mail::to()
+        // ->send()` hands it to the queue rather than the transport. Measured,
+        // not assumed — `assertSent` was red here first.
+        \Illuminate\Support\Facades\Mail::assertQueued(\App\Mail\RamsReadyMail::class);
+
+        $this->assertNotNull(
+            $record->completion_email_sent_at,
+            'The idempotency stamp was not set, so a job retry would email twice.'
+        );
 
         $candidate = storage_path('app/rams/' . $record->filename);
         if (file_exists($candidate)) {
@@ -185,7 +262,10 @@ class ManualRamsCreationTest extends TestCase
         $record = RamsDocument::where('project_ref', 'FALLBACK-001')->first();
 
         $this->assertNotNull($record, 'RamsDocument not created when AI was unavailable.');
-        $this->assertSame(RamsDocument::STATUS_FOR_REVIEW, $record->status);
+        // RE-EXPECTED BY 260928-dq2, same reason as the status test above: the
+        // fallback build SUCCEEDS, so its terminal status is `completed`. The
+        // redirect to the review/edit page below is unchanged.
+        $this->assertSame(RamsDocument::STATUS_COMPLETED, $record->status);
         $response->assertRedirectToRoute('rams.review', $record);
 
         $candidate = storage_path('app/rams/' . $record->filename);

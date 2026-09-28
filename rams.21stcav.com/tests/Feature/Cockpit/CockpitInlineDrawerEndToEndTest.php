@@ -483,8 +483,30 @@ class CockpitInlineDrawerEndToEndTest extends TestCase
             $open   = $this->subtree($this->cockpit($project, ['module' => $key, 'action' => 'generate'] + $last), 'cav-qa');
 
             $this->assertNotSame('', $closed, "The '{$key}' row renders no document block.");
-            $this->assertStringContainsString('Create document', $closed,
-                'D-05: the closed control reads as OPENING A FORM.');
+
+            // RE-EXPECTED BY QUICK TASK 260928-dq2, BY NAME AND FROM THE DATA.
+            //
+            // The closed control's VERB now follows the facts: `Create
+            // document` while the module holds nothing, `Regenerate` once it
+            // holds something — because "Create document" on a module with two
+            // documents already on file is the same class of defect D-05 fixed,
+            // a control whose copy does not describe what is behind it. This
+            // fixture's project genuinely holds a worksheet, which is why this
+            // assertion had to become a derivation rather than a string: the
+            // expectation is read from the SAME collection the Blade reads, so
+            // it cannot drift.
+            //
+            // D-05 IS NOT WEAKENED. Both verbs still read as opening a form,
+            // neither is the submit's `Generate document`, and the format
+            // phrase is still appended — the assertions below are untouched.
+            $holdsDocument = app(\App\Support\Cockpit\CockpitPanelPresenter::class)
+                ->files($project->fresh(), $key)
+                ->isNotEmpty();
+
+            $this->assertStringContainsString($holdsDocument ? 'Regenerate' : 'Create document', $closed,
+                'D-05: the closed control reads as OPENING A FORM, with the verb the module\'s own contents call for.');
+            $this->assertStringNotContainsString('Generate document', $closed,
+                'The closed control must never read as the submit that genuinely generates.');
             $this->assertSame(0, substr_count($closed, '<form'), 'Closed discloses no form.');
 
             // Open: the closed copy is gone, the submit button is the one that

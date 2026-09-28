@@ -76,6 +76,15 @@ final class CockpitPanelPresenter
      * each enforces its own authorisation; the panel adds no new read path and
      * exposes no id the project page does not already expose (T-45-12-02).
      *
+     * `action` (quick task 260928-dq2) IS THE WORD THE OVERVIEW ROW PRINTS on
+     * that same route, and it is DATA rather than a suffix rule, because the
+     * two are not the same question: `rams.review` and `om-manuals.edit` land
+     * on a form the PM can change and save, so they read "Edit"; the other
+     * four land on a page that shows, so they read "View". Deriving it from
+     * the route NAME would have called `site-surveys.show` an edit the first
+     * time someone renamed it. The Files tab does NOT read this key — its copy
+     * is the literal "View" it has always been, and its own test still says so.
+     *
      * `install_programme`, `programming` and `snagging` are ABSENT on purpose:
      * no document relation exists for them anywhere in this codebase, so their
      * file list is empty rather than invented.
@@ -88,6 +97,7 @@ final class CockpitPanelPresenter
             'label'        => 'Site survey',
             'name_fields'  => ['filename'],
             'route'        => 'site-surveys.show',
+            'action'       => 'View',
             'route_params' => ['document'],
         ],
         'worksheet' => [
@@ -95,6 +105,7 @@ final class CockpitPanelPresenter
             'label'        => 'Worksheet',
             'name_fields'  => ['filename'],
             'route'        => 'worksheets.show',
+            'action'       => 'View',
             'route_params' => ['document'],
         ],
         'rams' => [
@@ -102,6 +113,7 @@ final class CockpitPanelPresenter
             'label'        => 'RAMS document',
             'name_fields'  => ['filename'],
             'route'        => 'rams.review',
+            'action'       => 'Edit',
             'route_params' => ['document'],
         ],
         'drawings' => [
@@ -110,6 +122,7 @@ final class CockpitPanelPresenter
             'name_fields'  => ['filename'],
             // The only two-segment route in the map: projects/{project}/drawings/{drawing}.
             'route'        => 'projects.drawings.show',
+            'action'       => 'View',
             'route_params' => ['project', 'drawing'],
         ],
         'om' => [
@@ -117,6 +130,7 @@ final class CockpitPanelPresenter
             'label'        => 'O&M manual',
             'name_fields'  => ['filename', 'source_filename'],
             'route'        => 'om-manuals.edit',
+            'action'       => 'Edit',
             'route_params' => ['document'],
         ],
         'cable_schedule' => [
@@ -124,6 +138,7 @@ final class CockpitPanelPresenter
             'label'        => 'Cable schedule',
             'name_fields'  => ['source_filename', 'filename'],
             'route'        => 'cable-schedules.edit',
+            'action'       => 'Edit',
             'route_params' => ['document'],
         ],
     ];
@@ -205,7 +220,11 @@ final class CockpitPanelPresenter
      * force-deleted source simply is not there — there is nothing to exclude
      * and nothing to fail on.
      *
-     * @return Collection<int, array{name: string, produced_at: \Illuminate\Support\Carbon|null, status: string, route: string|null}>
+     * `formats` was ADDED by quick task 260928-dq2 and is ADDITIVE — every
+     * existing key keeps its meaning and its shape. It is the finished
+     * artefact, per format the module actually offers; see formatLinks().
+     *
+     * @return Collection<int, array{name: string, produced_at: \Illuminate\Support\Carbon|null, status: string, route: string|null, action: string, formats: array<int, array{label: string, url: string}>}>
      */
     public function files(Project $project, string $moduleKey): Collection
     {
@@ -228,6 +247,8 @@ final class CockpitPanelPresenter
                 'produced_at' => $this->asDate($document->created_at),
                 'status'      => $this->statusLabel($document->status ?? null),
                 'route'       => $this->viewRoute($project, $document, $definition),
+                'action'      => $definition['action'] ?? 'View',
+                'formats'     => $this->formatLinks($document, $moduleKey),
             ])
             ->values();
     }
@@ -444,6 +465,58 @@ final class CockpitPanelPresenter
         }
 
         return route($name, $parameters);
+    }
+
+    /**
+     * THE FINISHED ARTEFACT, one entry per format the module actually offers
+     * (quick task 260928-dq2).
+     *
+     * The user: *"the actual doc/pdf be presented ready for download"*. The
+     * routes for that already exist — `rams.download` / `rams.download-pdf`,
+     * `om-manuals.download` / `om-manuals.download-pdf` — and they are already
+     * ENUMERATED, in `CockpitDocumentFormPresenter::documentFieldMap()`'s own
+     * `formats` key, which mirrors `46.2-FORMAT-INVENTORY.md`. That map is read
+     * here rather than copied, so a document row and the Generate control above
+     * it can never promise different formats: both derive from the one map.
+     *
+     * A NULL ROUTE NAME IS AN HONEST ABSENCE, not an omission to fix. The
+     * worksheet carries `'pdf' => null` because DC-07 says there is no
+     * worksheet PDF, and a module whose route was renamed fails `Route::has`
+     * and simply offers that format no anchor — the same degradation
+     * `viewRoute()` has always had.
+     *
+     * THE LABELS ARE `Word` AND `PDF`, AND THE WORD `Download` IS NOT USED.
+     * That string is entry 21 of `CockpitReadOnlyFenceTest::DEFERRED_AFFORDANCES`
+     * (returned there by 46.2 D-02) and it is NOT LIFTED by this task, because
+     * nothing here needs it: a format name says what the anchor gives you and
+     * reads correctly beside the row's "Edit". A fence entry is lifted for a
+     * capability, never for a label.
+     *
+     * @return array<int, array{label: string, url: string}>
+     */
+    private function formatLinks(Model $document, string $moduleKey): array
+    {
+        $formats = CockpitDocumentFormPresenter::documentFieldMap()[$moduleKey]['formats'] ?? [];
+
+        // The only two format words the cockpit uses, keyed by the map's own
+        // keys — so a third format added to the map renders its key rather
+        // than silently vanishing. Same treatment as `doc-form.blade.php`.
+        $labels = ['word' => 'Word', 'pdf' => 'PDF'];
+
+        $links = [];
+
+        foreach ($formats as $key => $routeName) {
+            if (! is_string($routeName) || ! Route::has($routeName)) {
+                continue;
+            }
+
+            $links[] = [
+                'label' => $labels[$key] ?? $key,
+                'url'   => route($routeName, $document),
+            ];
+        }
+
+        return $links;
     }
 
     /**

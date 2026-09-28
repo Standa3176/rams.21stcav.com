@@ -430,7 +430,20 @@ class ReviewWorkflowTest extends TestCase
         $job->handle($builderMock);
 
         $record->refresh();
-        $this->assertEquals(RamsDocument::STATUS_FOR_REVIEW, $record->status);
+
+        // RE-EXPECTED BY QUICK TASK 260928-dq2, BY NAME AND WITH THE REASON.
+        //
+        // WAS `STATUS_FOR_REVIEW`, which PINNED A BUG: BuildRamsDocumentJob set
+        // that status on the manual-form path ONLY, so a manual-form RAMS never
+        // reached `completed` however well the build went — the user's *"once a
+        // rams is generate it defaults to review rams eventhough they have been
+        // created"* — and the completion notification, gated on
+        // STATUS_COMPLETED, never fired for the path at all.
+        //
+        // WHAT THIS TEST IS ACTUALLY FOR IS UNCHANGED and is the two builder
+        // expectations above: the manual-form source reaches `buildFromForm`
+        // and never `buildFromReview`. Only the terminal status moved.
+        $this->assertEquals(RamsDocument::STATUS_COMPLETED, $record->status);
     }
 
     // ─────────────────────────────────────────────────────────────────────────

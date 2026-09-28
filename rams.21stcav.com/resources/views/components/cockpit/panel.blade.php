@@ -176,6 +176,55 @@
     // different sentence from "none produced yet" — the first is permanent.
     $hasLibrary = in_array($module['key'], \App\Support\Cockpit\CockpitPanelPresenter::documentModules(), true);
 
+    // ── WHAT THIS MODULE REPORTS ON OVERVIEW (quick task 260928-dq2) ────────
+    //
+    // THE DEFECT THIS FIXES, IN THE USER'S WORDS: *"iN OVERVIEW , TXT SAYS
+    // RAMS has nothing recorded against it yet. EVEN THOUGH THERE ARE 2
+    // VERSIONS OF RAMS UNDER FILES"*.
+    //
+    // The empty sentence below used to be the `@else` of `@if ($visits->
+    // isNotEmpty())`, so it measured VISITS AND ONLY VISITS. RAMS and the O&M
+    // have no visits BY DESIGN — `CockpitModulePresenter::MODULE_MAP` gives
+    // both `'visit_types' => []`, and `VisitLinkIssuer`'s docblock (:21-27)
+    // states the rule and says it is not arbitrary: the site survey and the
+    // worksheet are the only two modules with an engineer link, so they are
+    // the only two that can hold a visit. That made "nothing recorded" a
+    // PERMANENT sentence on two of the four rows, however many documents the
+    // project held.
+    //
+    // THE DISCRIMINATOR IS A BOOLEAN, NOT A DOCUMENT KEY. `has_visits` is
+    // derived in the presenter from `visit_types`. There is no `@if` on
+    // `$module['key']` here and there must never be one — this component
+    // switches on TYPE and names no document, and that property has survived
+    // six reshapes.
+    $hasVisitTypes = (bool) ($module['has_visits'] ?? false);
+
+    // THE VISITS CARD IS NOW GATED ON THE TYPE, not merely on the collection
+    // being non-empty. A module with no visit types can never render a visits
+    // card even if a row appeared against it by some other route, which is the
+    // structural half of this fix: the card and the sentence now agree about
+    // what kind of thing this module holds.
+    $reportsVisits = $hasVisitTypes && $visits->isNotEmpty();
+
+    // DOCUMENTS ARE REPORTED BY EVERY MODULE THAT HAS ANY. `$files` is the SAME
+    // per-module collection the Files tab renders, already derived by
+    // `CockpitPanelPresenter::files()` and already passed to this panel on
+    // every tab by the controller — so nothing new is queried or wired, and the
+    // two tabs cannot disagree about what exists.
+    //
+    // NOT gated on `! $hasVisitTypes`, deliberately. A worksheet with two
+    // worksheets on file and no visit booked yet is ALSO not "nothing
+    // recorded", and gating this card on the module type would have left that
+    // second false sentence in place for the next person to find. The Files tab
+    // stays what it is — it asks "what does the project hold?" and answers
+    // "View"; Overview asks "what do I do with it?" and answers with the
+    // module's own mapped action and the finished artefact.
+    $documents = $files;
+
+    // AND THE EMPTY SENTENCE MEASURES BOTH KINDS, for all four modules. It
+    // appears only when this module genuinely holds nothing at all.
+    $reportsNothing = ! $reportsVisits && $documents->isEmpty();
+
     $ringSentence = $progress === null
         ? null
         : $progress['completed'].' of '.$progress['total'].' '.($progress['total'] === 1 ? 'visit' : 'visits').' completed';
@@ -287,7 +336,7 @@
                 </div>
             @endif
 
-            @if ($visits->isNotEmpty())
+            @if ($reportsVisits)
                 <div class="cav-panel__card">
                     <span class="cav-panel__card-head">Visits</span>
 
@@ -316,7 +365,41 @@
                             :module="$module" />
                     @endforeach
                 </div>
-            @else
+            @endif
+
+            {{-- WHAT THIS MODULE HAS ACTUALLY PRODUCED (quick task 260928-dq2).
+
+                 This is the card whose absence was the defect: the drawer had
+                 no way to report a document at all on Overview, so two of the
+                 four rows could only ever say "nothing recorded".
+
+                 It is a SECOND surface for the same records, and that is the
+                 point rather than a duplication: Overview is where the PM
+                 decides what to do next, so each row carries the module's own
+                 mapped action — `Edit` for the RAMS and the O&M, whose routes
+                 land on a form, `View` for the rest — and the finished Word and
+                 PDF. The word is read from the presenter, not written here.
+
+                 Every value is escaped. `formats` defaults to `[]` so a caller
+                 that passes an older row shape renders a plain row rather than
+                 throwing. --}}
+            @if ($documents->isNotEmpty())
+                <div class="cav-panel__card">
+                    <span class="cav-panel__card-head">Documents</span>
+
+                    @foreach ($documents as $document)
+                        <x-cockpit.document-row
+                            :name="$document['name']"
+                            :produced="$document['produced_at']"
+                            :status="$document['status']"
+                            :route="$document['route']"
+                            :action="$document['action'] ?? 'View'"
+                            :formats="$document['formats'] ?? []" />
+                    @endforeach
+                </div>
+            @endif
+
+            @if ($reportsNothing)
                 <x-cockpit.hint>{{ $module['title'] }} has nothing recorded against it yet.</x-cockpit.hint>
             @endif
 
@@ -398,6 +481,16 @@
                 :intro="$docIntro"
                 :values="$docValues"
                 :resources="$docResources"
+                {{-- WHAT THE MODULE ALREADY HOLDS, so the closed control can
+                     say "Regenerate" instead of "Create document" once a
+                     document exists (quick task 260928-dq2, the user's
+                     *"ONCE A DOC HAS BEEN CREATED , CAN THE BUTTON UNDER
+                     OVERVIEW CHANGES TO REGENERATE"*). The SAME collection
+                     the Documents card above renders — one derivation, so the
+                     card and the control cannot disagree about whether this
+                     module has anything. Passed for all four modules: a
+                     worksheet that already exists is regenerated too. --}}
+                :documents="$files"
                 :steps="$docSteps"
                 :step="$docStep"
                 :step-title="$docStepTitle" />

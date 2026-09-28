@@ -206,6 +206,12 @@
     'intro'     => null,
     'values'    => [],
     'resources' => [],
+    // WHAT THIS MODULE ALREADY HOLDS (quick task 260928-dq2) — the same
+    // per-module collection `CockpitPanelPresenter::files()` gives the panel.
+    // Read ONLY for its emptiness; not one field of a document is rendered
+    // here, so this file still shows no document CONTENT and needs no
+    // `patchRamsForDisplay()` (see the closed control below).
+    'documents' => [],
     // THE WIZARD'S THREE (Plan 46.5-04). All three are derived in
     // ProjectCockpitController from CockpitWizardPresenter, which slices the
     // field map. `steps === []` is "this document has no wizard" and is the
@@ -267,9 +273,43 @@
     // banned. A fence entry is NEVER lifted for a label. The check is itself
     // asserted by CockpitDocumentFormTest so a later copy edit cannot collide
     // quietly.
+    // ── THE VERB FOLLOWS THE FACTS (quick task 260928-dq2) ─────────────────
+    //
+    // The user: *"ONCE A DOC HAS BEEN CREATED , CAN THE BUTTON UNDER OVERVIEW
+    // CHANGES TO REGENERATE AND EDIT"*. "Create document" on a module that
+    // already holds two documents is the same class of defect D-05 fixed
+    // above — a control whose copy does not describe what is behind it.
+    //
+    // IT IS THE SAME CONTROL AND THE SAME ROUTE. The form still posts to
+    // `projects.cockpit.documents.store`, which already produces a NEW
+    // document every time, so "Regenerate" is a TRUE description of what this
+    // does rather than a new capability. No route is added.
+    //
+    // `RamsController::regenerate` is DELIBERATELY NOT CALLED HERE. It exists
+    // (~:949) and it does the supersede-and-rebuild dance properly, but it is
+    // a RAMS-ONLY POST — wiring it would put a document key back into a file
+    // whose whole discipline is that it holds none. The cockpit's own
+    // generation path is document-agnostic and already regenerates.
+    //
+    // EDIT IS NOT HERE, AND THAT IS ON PURPOSE. It belongs to a DOCUMENT, not
+    // to the module, so it is an anchor on each `x-cockpit.document-row`
+    // above. Putting it here would also break
+    // `CockpitDocumentFormTest`'s ruling that the closed form carries EXACTLY
+    // ONE `cav-qa__control`, and that ruling is kept rather than weakened.
+    //
+    // THE COPY WAS CHECKED AS A SUBSTRING against all 21
+    // `DEFERRED_AFFORDANCES` keys and both `FORBIDDEN_MARKUP` entries before
+    // use, the same check 46.2-05 and 46.3-01 made. "Regenerate" collides with
+    // none. It is ALSO deliberately not "Regenerate document": the closed
+    // control must never read as the open form's submit, whose copy is the
+    // one that genuinely generates.
+    $holdsDocument = collect($documents)->isNotEmpty();
+
+    $createVerb = $holdsDocument ? 'Regenerate' : 'Create document';
+
     $openLabel = $offeredPhrase === ''
-        ? 'Create document'
-        : 'Create document — '.$offeredPhrase;
+        ? $createVerb
+        : $createVerb.' — '.$offeredPhrase;
 
     // THE OUTCOME, IN PLACE OF THE FORMAT QUESTION (2026-09-27, item 8).
     // Every part is DERIVED: the formats from `$offeredPhrase` above, the
