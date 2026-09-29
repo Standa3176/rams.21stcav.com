@@ -25,8 +25,13 @@ use Tests\TestCase;
  * ── WHY EVERY TEST HERE IS A PAIR ───────────────────────────────────────────
  *
  * A lock that refuses everything always is not a lock, it is an outage. Each of
- * the five capture endpoints gets TWO tests: it refuses on a signed worksheet,
+ * the SIX capture endpoints gets TWO tests: it refuses on a signed worksheet,
  * and the SAME request succeeds on an unsigned one.
+ *
+ * ⚠️ IT WAS FIVE UNTIL 46.7-03 ADDED `saveRoomNotes`. A sixth locked endpoint
+ * belongs HERE, not in a parallel file: this is the ONE place that says what
+ * "capture is closed" means, and a future reader will not know to check a second
+ * one. When a seventh arrives, it comes here too.
  *
  * ── WHY EVERY REFUSAL ALSO ASSERTS NO SIDE EFFECT ───────────────────────────
  *
@@ -49,6 +54,14 @@ use Tests\TestCase;
  *     checkpoint step 6 of plan 46.4-07 rather than decided silently — so a
  *     future reader sees a decision, not an oversight. Threat T-46.4-04-06,
  *     disposition ACCEPT.
+ *
+ *     ⚠️ AND THIS IS WHY `saveRoomNotes` IS *NOT* HERE WITH THEM, even though
+ *     all three are room-scoped writes to the same JSON column. The two above
+ *     record that somebody LOOKED at something. A note is free text that appears
+ *     on the page a client signs and on the office's report — it IS the captured
+ *     record, not a confirmation about it. So it locks, like a photo or a serial
+ *     reading does, and it stays off the allow-list below so the reflection test
+ *     ENFORCES that rather than excusing it.
  *
  *  3. Anything that only READS. `show`, `servePhoto`, `serveSurveyPhoto` and
  *     `downloadReferenceFile` stay open: a signed worksheet is a RECORD, and a
@@ -83,7 +96,8 @@ class EngineerLinkSignoffLockTest extends TestCase
 
     /**
      * The public worksheet write routes carry per-route throttles
-     * (`throttle:worksheet-photo-write`, `…-status-write`, `…-label-photo-upload`).
+     * (`throttle:worksheet-photo-write`, `…-status-write`, `…-label-photo-upload`,
+     * and since 46.7-03 `…-notes-write`).
      * Several tests here drive the same endpoint twice in a pair. Disabling ONLY
      * the throttler keeps every guard under test genuinely exercised instead of
      * turning a 422 assertion into a 429 that says nothing about the lock.
@@ -359,6 +373,98 @@ class EngineerLinkSignoffLockTest extends TestCase
         $this->assertDatabaseMissing('device_label_photos', ['id' => $label->id]);
     }
 
+    // ── 6. saveRoomNotes (46.7-03) ───────────────────────────────────────────
+
+    /**
+     * ⚠️ THE SIXTH LOCKED ENDPOINT, AND THE ONE MOST LIKELY TO BE ARGUED ABOUT.
+     *
+     * `saveRoomNotes` writes `pre_install_confirmations` — the same column as
+     * `markRoomComplete` and `markSurveyReviewed`, which are BOTH on the
+     * allow-list. The column is not what decides it. **What is written decides
+     * it:** a note is engineer free text that appears on the page a client signs,
+     * so it is the captured record and it freezes with the record.
+     *
+     * The no-side-effect assertion compares the WHOLE `pre_install_confirmations`
+     * array, not just the absence of a `room_notes` key — because this is a
+     * SHARED JSON column and a refusal that still read-modify-wrote it could
+     * clobber a sibling namespace on its way out.
+     */
+    public function test_save_room_notes_is_refused_after_signoff_and_writes_nothing(): void
+    {
+        $worksheet = $this->worksheet();
+
+        // Give the column real sibling content first, so "unchanged" is a
+        // statement about something rather than about null.
+        $worksheet->pre_install_confirmations = [
+            'survey_review' => [self::ROOMS[0] => ['reviewed_at' => '2026-09-01T09:00:00+00:00', 'reviewed_by' => 'ip:1.2.3.4|actor:deadbeefcafe']],
+            'room_complete' => [self::ROOMS[1] => ['completed_at' => '2026-09-01T10:00:00+00:00', 'completed_by' => 'ip:1.2.3.4|actor:deadbeefcafe']],
+        ];
+        $worksheet->save();
+
+        $this->sign($worksheet);
+
+        $before = $worksheet->fresh()->pre_install_confirmations;
+
+        $this->postJson(route('public-worksheet.room-notes', [
+            'token' => $worksheet->access_token, 'roomName' => self::ROOMS[0],
+        ]), ['notes' => 'a note typed after the client had already signed'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', WorksheetCaptureLock::MESSAGE);
+
+        // NO SIDE EFFECT — the WHOLE array, compared as a whole array.
+        $this->assertSame(
+            $before,
+            $worksheet->fresh()->pre_install_confirmations,
+            'A refused note changed pre_install_confirmations. Either the note landed on a '
+            . 'signed record, or the refusal clobbered a sibling namespace on the way out — '
+            . 'and both are silent.',
+        );
+    }
+
+    public function test_save_room_notes_still_succeeds_on_an_unsigned_worksheet(): void
+    {
+        $worksheet = $this->worksheet();
+
+        $this->postJson(route('public-worksheet.room-notes', [
+            'token' => $worksheet->access_token, 'roomName' => self::ROOMS[0],
+        ]), ['notes' => 'cracked backbox behind the rack'])
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $confirmations = (array) $worksheet->fresh()->pre_install_confirmations;
+
+        $this->assertSame(
+            'cracked backbox behind the rack',
+            $confirmations['room_notes'][self::ROOMS[0]]['notes'] ?? null,
+            'The lock refuses a note on an UNSIGNED worksheet too. That is not a lock, it is '
+            . 'an outage — the notes box would never work at all.',
+        );
+    }
+
+    /**
+     * A draft held on a phone with no signal drains in after the client has
+     * signed. The refusal is correct; the engineer must READ the sentence.
+     * 46.7-01's `markRefused` keeps the draft and shows exactly this string.
+     */
+    public function test_a_held_note_draining_in_after_signoff_gets_the_sentence_the_page_displays(): void
+    {
+        $worksheet = $this->worksheet();
+        $this->sign($worksheet);
+
+        $response = $this->postJson(route('public-worksheet.room-notes', [
+            'token' => $worksheet->access_token, 'roomName' => self::ROOMS[0],
+        ]), ['notes' => 'held in a plant room with no signal for forty minutes']);
+
+        $response->assertStatus(422);
+        $this->assertSame(
+            WorksheetCaptureLock::MESSAGE,
+            $response->json('message'),
+            'The refused draft gets no sentence to show. The engineer is left with words on '
+            . 'their screen and no idea why they will not send.',
+        );
+        $this->assertStringContainsString('signed off', WorksheetCaptureLock::MESSAGE);
+    }
+
     // ── Existence, not equality ──────────────────────────────────────────────
 
     public function test_a_worksheet_signed_twice_is_still_locked(): void
@@ -485,6 +591,24 @@ class EngineerLinkSignoffLockTest extends TestCase
             'markRoomComplete'      => 'engineer status confirmation, not the captured record (T-46.4-04-06)',
             'markSurveyReviewed'    => 'engineer status confirmation, not the captured record (T-46.4-04-06)',
         ];
+
+        // ⚠️ SEVEN. 46.7-03 added a sixth LOCKED endpoint (`saveRoomNotes`) and
+        // deliberately did NOT add an eighth allow-list entry. If this number has
+        // grown, something was excused rather than guarded — read the new entry's
+        // reason and decide whether it is a status confirmation or the record.
+        $this->assertCount(
+            7,
+            $allowed,
+            'The capture-lock allow-list has changed size. An entry added to silence a failure '
+            . 'is an unguarded write endpoint with a note attached.',
+        );
+        $this->assertArrayNotHasKey(
+            'saveRoomNotes',
+            $allowed,
+            'saveRoomNotes has been excused from the capture lock. A note is the captured '
+            . 'record the client signed, not a status confirmation about it — it must freeze '
+            . 'when the record freezes. Guard the method; do not list it.',
+        );
 
         $reflection = new \ReflectionClass(\App\Http\Controllers\PublicWorksheetController::class);
         $source     = file($reflection->getFileName());
