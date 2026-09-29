@@ -4239,5 +4239,283 @@
         })();
     </script>
 
+    <script>
+        (function () {
+            'use strict';
+
+            var WORKSHEET_ID = {{ (int) $worksheet->id }};
+
+            /*
+             * ══════════════════════════════════════════════════════════════════
+             * 46.7-01 — WHAT AUTOSAVE DOES WHEN THERE IS NO SIGNAL
+             * ══════════════════════════════════════════════════════════════════
+             *
+             * This page is used one-handed, on a phone, in plant rooms and
+             * basement comms cupboards. That is where notes are worth having and
+             * it is where there is no signal. The page it replaces was honest by
+             * accident: every action was a full-page POST, so a failure was
+             * visible. Autosave that fails quietly would be strictly WORSE than
+             * that. So the offline half is ruled here, in full, before any
+             * autosave endpoint exists.
+             *
+             * ── AUTOSAVE USES localStorage, NEVER THE PHOTO QUEUE ─────────────
+             *
+             * The device photo store is schema-frozen and holds real unsent work
+             * on real engineers' phones. Its creation handler only ever CREATES
+             * the store — there is no migration branch — so touching its version
+             * number, its primary key or its timestamp index would strand every
+             * photo already waiting on every phone. Autosave needs none of that
+             * machinery: an autosave payload is the WHOLE value of one field, so
+             * only the latest matters and a single overwritten key is already a
+             * complete record. Adding a kind to the frozen store to get that
+             * would risk everybody's pending photos for nothing. This is a
+             * separate store, so the frozen one is never even opened. The
+             * sibling service app made the same separation, for the same reason.
+             *
+             * ── A DRAFT HELD ON THE DEVICE IS A DRAFT THE ENGINEER CAN SEE ────
+             *
+             * Text that has not reached the office is shown as not-yet-sent, in
+             * words, and it is shown again after a reload. The engineer is never
+             * looking at a field that appears saved and is not. This is the rule
+             * the whole milestone has held: no control may appear to work
+             * offline and silently lose the change, and the engineer is always
+             * told which case they are in.
+             *
+             * ── LAST WRITE WINS, AND THAT IS SAFE HERE BECAUSE THE PAYLOAD IS WHOLE
+             *
+             * A notes field is REPLACED, not merged. There is no two-writers
+             * merge to get wrong and no queued-add-with-no-server-id problem.
+             * That last point is why this EXTENDS the shipped offline ruling of
+             * plan 46.4-06 rather than contradicting it: 46.4-06 refused an
+             * offline correction to a row already on the server because a queued
+             * row has no identity to modify — an identity problem, not a
+             * principle. A room's notes are keyed by the room name, always have
+             * an identity, and carry the whole field, so an overwrite is
+             * deterministic. 46.4-06's other three reasons carry over unchanged.
+             * The one place order still matters is an acknowledgement arriving
+             * after a newer keystroke, which markSent below refuses to apply.
+             *
+             * ── A DRAFT THE SERVER REFUSES IS NEVER DISCARDED ─────────────────
+             *
+             * If the client signs while a draft is still on the device, the
+             * capture lock refuses it — correctly, because the client signed a
+             * record. The draft then STAYS on the device, the engineer is shown
+             * the server's own sentence, and the text stays selectable so it can
+             * be read out or copied to the office. Silently dropping it would be
+             * the exact data loss this ruling exists to prevent.
+             *
+             * ── THE COST, STATED AND NOT HIDDEN ───────────────────────────────
+             *
+             * An undrained draft lives only on THAT phone, in THAT browser
+             * profile. A wiped handset, cleared site data, or picking up a
+             * different phone loses a note that never got out. And a draft
+             * refused by the sign-off lock will never reach the office by
+             * itself — somebody has to read it off the screen. The user was told
+             * this before choosing it.
+             *
+             * Storage can also simply refuse to work — private browsing, cleared
+             * data, a full quota. Every read and write below is wrapped, and a
+             * store that cannot hold a draft SAYS SO rather than accepting two
+             * hundred words it will lose.
+             *
+             * WIRED TO NOTHING IN THIS PLAN. No field listens to it, no endpoint
+             * exists yet, nothing is fetched. Plan 03 wires it.
+             * ══════════════════════════════════════════════════════════════════
+             */
+
+            // ── DRAFTSTORE-EXTRACT-BEGIN ──────────────────────────────────
+            // Everything between these two markers is plain browser JS with no
+            // template syntax in it, so it can be lifted out and exercised
+            // directly by EngineerLinkAutosaveOfflineRulingTest.
+            var DRAFT_EVENT = 'worksheet-draft-change';
+
+            var DraftStore = {
+                // null until probed; false once a read or write has thrown.
+                storageWorks: null,
+                lastError:    null,
+                _warned:      false,
+            };
+
+            function _notify() {
+                try {
+                    window.dispatchEvent(new CustomEvent(DRAFT_EVENT));
+                } catch (e) {
+                    // Very old browser with no CustomEvent constructor. The
+                    // store still works; only the live indicator misses a tick.
+                }
+            }
+
+            // A failure to hold a draft is SURFACED, never swallowed.
+            function _fail(op, err) {
+                DraftStore.storageWorks = false;
+                DraftStore.lastError = op + ': ' + ((err && err.name) ? err.name : 'unknown');
+                DraftStore.warnIfUnusable();
+                _notify();
+            }
+
+            DraftStore.warnIfUnusable = function () {
+                if (DraftStore.storageWorks !== false) return false;
+                if (DraftStore._warned) return true;
+                DraftStore._warned = true;
+
+                var msg = 'This phone cannot keep notes on the device. Stay on a signal while you '
+                        + 'type — anything typed with no signal will NOT be kept.';
+
+                try {
+                    var bar = document.getElementById('ws-draft-storage-warning');
+                    if (! bar) {
+                        bar = document.createElement('div');
+                        bar.id = 'ws-draft-storage-warning';
+                        bar.setAttribute('role', 'alert');
+                        bar.style.cssText = 'background:#FEE2E2;color:#991B1B;border:1px solid #FCA5A5;'
+                            + 'border-radius:10px;padding:.6rem .9rem;margin:.6rem;font-size:.85rem;'
+                            + 'font-weight:600;text-align:center;';
+                        // textContent only — never markup, on a page a client signs.
+                        bar.textContent = msg;
+                        if (document.body) document.body.insertBefore(bar, document.body.firstChild);
+                    }
+                } catch (e) {
+                    // No DOM yet. The toast below is the fallback.
+                }
+
+                try {
+                    if (window.__wsShowToast) window.__wsShowToast(msg, 'error', 9000);
+                } catch (e) {}
+
+                return true;
+            };
+
+            function _readAll() {
+                var raw;
+                try {
+                    raw = window.localStorage.getItem('wsDraft_' + WORKSHEET_ID);
+                } catch (e) {
+                    _fail('read', e);
+                    return {};
+                }
+                if (! raw) return {};
+                var parsed;
+                try {
+                    parsed = JSON.parse(raw);
+                } catch (e) {
+                    // Corrupt payload. Treat as empty rather than throwing into
+                    // whatever was typing at the time.
+                    return {};
+                }
+                if (! parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+                return parsed;
+            }
+
+            function _writeAll(map) {
+                try {
+                    window.localStorage.setItem('wsDraft_' + WORKSHEET_ID, JSON.stringify(map));
+                } catch (e) {
+                    // Quota exceeded, private mode, or site data blocked.
+                    _fail('write', e);
+                    return false;
+                }
+                DraftStore.storageWorks = true;
+                DraftStore.lastError = null;
+                return true;
+            }
+
+            function _asText(value) {
+                if (value === null || value === undefined) return '';
+                return String(value);
+            }
+
+            // Probe once, so a store that cannot hold anything is known BEFORE
+            // the engineer types into it rather than after.
+            DraftStore.probe = function () {
+                try {
+                    window.localStorage.setItem('wsDraftProbe_' + WORKSHEET_ID, '1');
+                    window.localStorage.removeItem('wsDraftProbe_' + WORKSHEET_ID);
+                } catch (e) {
+                    _fail('probe', e);
+                    return false;
+                }
+                DraftStore.storageWorks = true;
+                return true;
+            };
+
+            // Last write wins, per field key. The payload is the whole field.
+            DraftStore.put = function (fieldKey, value) {
+                if (typeof fieldKey !== 'string' || fieldKey === '') return false;
+                var map = _readAll();
+                map[fieldKey] = {
+                    value:    _asText(value),
+                    queuedAt: Date.now(),
+                    sent:     false,
+                };
+                var ok = _writeAll(map);
+                _notify();
+                return ok;
+            };
+
+            DraftStore.get = function (fieldKey) {
+                var map = _readAll();
+                return Object.prototype.hasOwnProperty.call(map, fieldKey) ? map[fieldKey] : null;
+            };
+
+            DraftStore.all = function () {
+                return _readAll();
+            };
+
+            DraftStore.count = function () {
+                return Object.keys(_readAll()).length;
+            };
+
+            // An acknowledgement only clears the draft it actually acknowledges.
+            // A round trip that started before the engineer's last keystroke must
+            // NOT retire the newer text, or the words are lost with the field
+            // looking saved. Returns false when the draft is kept.
+            DraftStore.markSent = function (fieldKey, sentValue) {
+                var map = _readAll();
+                if (! Object.prototype.hasOwnProperty.call(map, fieldKey)) return true;
+                var entry = map[fieldKey];
+                if (! entry || entry.value !== _asText(sentValue)) {
+                    return false;
+                }
+                delete map[fieldKey];
+                var ok = _writeAll(map);
+                _notify();
+                return ok;
+            };
+
+            // The server said no — most likely the capture lock on a signed
+            // worksheet. KEEP the draft, record the server's own sentence.
+            DraftStore.markRefused = function (fieldKey, serverMessage) {
+                var map = _readAll();
+                if (! Object.prototype.hasOwnProperty.call(map, fieldKey)) return false;
+                map[fieldKey].refused = true;
+                map[fieldKey].refusedMessage = _asText(serverMessage);
+                map[fieldKey].sent = false;
+                var ok = _writeAll(map);
+                _notify();
+                return ok;
+            };
+
+            DraftStore.clear = function (fieldKey) {
+                var map = _readAll();
+                if (! Object.prototype.hasOwnProperty.call(map, fieldKey)) return true;
+                delete map[fieldKey];
+                var ok = _writeAll(map);
+                _notify();
+                return ok;
+            };
+
+            DraftStore.subscribe = function (handler) {
+                window.addEventListener(DRAFT_EVENT, handler);
+            };
+            // ── DRAFTSTORE-EXTRACT-END ────────────────────────────────────
+
+            DraftStore.probe();
+
+            // Exposed the way OfflineQueue is, so plan 03 can wire a field to
+            // it. Nothing on the page reads it yet — that is deliberate.
+            window.DraftStore = DraftStore;
+        })();
+    </script>
+
 </body>
 </html>
