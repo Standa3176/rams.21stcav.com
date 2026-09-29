@@ -1472,6 +1472,76 @@
                     @endforeach
 
                     {{-- ════════════════════════════════════════════════════════════════
+                         46.7-03 (D-03 / D-07) — WHAT THE ENGINEER FOUND IN THIS ROOM
+
+                         The one typed field on this page that saves itself. Everything
+                         else an engineer types either rides a photo upload or has its
+                         own queued endpoint; this is the field D-03 was written for and
+                         the one the user asked for by name.
+
+                         ⚠️ THE LARGEST FREE-TEXT FIELD ON A PAGE A CLIENT SIGNS. The
+                         stored value is emitted as ELEMENT CONTENT with the escaping
+                         echo — never as an attribute, never raw. There is exactly one
+                         raw echo in this file and a test pins that count at one.
+
+                         maxlength mirrors the server's own limit so the field cannot
+                         promise what the endpoint will refuse — the same rule the tray
+                         caption field follows.
+
+                         ⚠️ SIGNED WORKSHEET: the notes STILL RENDER, read-only, as
+                         escaped static text. A signed worksheet is a record and its
+                         signer must be able to read what they signed. Only the control
+                         goes — exactly how the trays keep their thumbnails and captions
+                         and lose only the capture buttons. It is wrapped in the SAME
+                         flag as every other capture control; there is one flag on this
+                         page and a new field must not introduce a second.
+                    ════════════════════════════════════════════════════════════════ --}}
+                    @php
+                        // The array-path form of data_get() treats each segment as
+                        // opaque, so a room called "Floor 2.5" is not parsed as nested
+                        // keys — the same reason the two sibling accessors use it.
+                        $roomNotesValue = (string) (data_get(
+                            $worksheet->pre_install_confirmations,
+                            ['room_notes', $room['name'] ?? '', 'notes'],
+                        ) ?? '');
+                    @endphp
+                    <div style="margin-bottom:1rem;padding-bottom:.85rem;border-bottom:1px dashed #E5E7EB;">
+                        <div class="photo-tray-title">📝 What you found in this room</div>
+                        @unless($captureLocked)
+                            <div class="muted" style="font-size:.78rem;margin:.15rem 0 .4rem;">
+                                Anything the office should know — damage, access problems, work left to do.
+                                Saves itself; you do not need to tap anything.
+                            </div>
+                            {{-- The endpoint URL is built by the ROUTER, server-side, and
+                                 carried on the element — never assembled in JS from the
+                                 room name. A room called "Comms Room (Next to
+                                 Breakout/Townhall Area)" would otherwise be
+                                 percent-encoded into a slash the web server rejects
+                                 before Laravel ever sees the request. Same reason the
+                                 Mark Room Complete form takes its action from route(). --}}
+                            <textarea data-room-notes
+                                      data-room-name="{{ $tab['name'] }}"
+                                      data-notes-url="{{ route('public-worksheet.room-notes', ['token' => $token, 'roomName' => $room['name'] ?? '']) }}"
+                                      data-capture-control
+                                      maxlength="5000"
+                                      rows="4"
+                                      aria-label="What you found in {{ $tab['name'] }}"
+                                      style="width:100%;box-sizing:border-box;padding:.6rem .7rem;border:1px solid #D1D5DB;border-radius:10px;font:inherit;font-size:.9rem;line-height:1.45;resize:vertical;min-height:88px;">{{ $roomNotesValue }}</textarea>
+                            <div data-room-notes-status
+                                 data-room-name="{{ $tab['name'] }}"
+                                 role="status"
+                                 aria-live="polite"
+                                 class="muted"
+                                 style="font-size:.78rem;margin-top:.3rem;min-height:1.1em;"></div>
+                        @else
+                            {{-- Read-only, and NOT a disabled textarea: a disabled control
+                                 reads as "broken" rather than "finished", and a signed
+                                 record should look like a record. --}}
+                            <div data-room-notes-readonly style="font-size:.88rem;line-height:1.5;white-space:pre-wrap;word-break:break-word;margin-top:.3rem;">{{ $roomNotesValue !== '' ? $roomNotesValue : '— nothing recorded for this room —' }}</div>
+                        @endunless
+                    </div>
+
+                    {{-- ════════════════════════════════════════════════════════════════
                          46.4-05 (D-06 / D-08 / D-02 / D-10) — ADDITIONAL KIT, PER ROOM
 
                          The thing this phase is named for. Until now the only place
@@ -5020,9 +5090,301 @@
 
             DraftStore.probe();
 
-            // Exposed the way OfflineQueue is, so plan 03 can wire a field to
-            // it. Nothing on the page reads it yet — that is deliberate.
+            // Exposed the way OfflineQueue is. 46.7-03 wires the per-room notes
+            // field to it below; nothing else on the page reads it.
             window.DraftStore = DraftStore;
+
+            /*
+             * ══════════════════════════════════════════════════════════════════
+             * 46.7-03 — THE PER-ROOM NOTES FIELD, WIRED TO THE RULING ABOVE
+             * ══════════════════════════════════════════════════════════════════
+             *
+             * THREE STATES AND ONLY THREE, because a fourth is a state an
+             * engineer standing in a plant room has to interpret:
+             *
+             *   1. "Saved" with the time            — the office has it
+             *   2. "Held on this phone — not sent yet" — it is on the device and
+             *      will send itself; SHOWN AGAIN AFTER A RELOAD, read back out
+             *      of the draft store rather than from a variable that dies with
+             *      the page
+             *   3. the server's OWN sentence        — shown verbatim when the
+             *      server refuses, with the words KEPT
+             *
+             * There is deliberately no state that reads "Saving…" and stays
+             * there. A request that neither resolves nor rejects — the signature
+             * of a captive-portal wifi that answers the handshake and nothing
+             * else — times out into the HELD state after 8 seconds, reusing the
+             * same race idiom the sign-off drain already uses rather than
+             * inventing a second timeout.
+             *
+             * ORDER IS THE RULING: the device copy is written BEFORE the network
+             * is touched, on every keystroke, synchronously. If that order ever
+             * flips, a note typed in a dead spot is gone the moment the fetch
+             * throws. A source-position assertion pins it.
+             *
+             * DEBOUNCE 1200ms. Long enough that a whole sentence is one request
+             * instead of forty; short enough that putting the phone back in a
+             * pocket mid-thought has already saved. The device copy is not
+             * debounced at all — only the network call is.
+             * ══════════════════════════════════════════════════════════════════
+             */
+
+            // ── NOTESWIRING-EXTRACT-BEGIN ─────────────────────────────────
+            // Everything between these two markers is plain browser JS with no
+            // template syntax in it, so EngineerLinkRoomNotesAutosaveTest can
+            // lift it out and exercise it in node against stubs — the same
+            // technique plan 46.7-01 used on DraftStore itself.
+            var NOTES_DEBOUNCE_MS = 1200;
+            var NOTES_TIMEOUT_MS  = 8000;
+            var NOTES_RETRY_MS    = 30000;
+
+            var HELD_SENTENCE = 'Held on this phone — not sent yet';
+
+            // roomName -> { el, statusEl, url, timer, inFlight, pending, refused }
+            var notesRooms = {};
+
+            function _notesKey(roomName) {
+                return 'notes:' + roomName;
+            }
+
+            function _notesSay(room, text) {
+                // textContent, never markup — this is a page a client signs and
+                // the text being reported back is engineer free text.
+                if (room.statusEl) room.statusEl.textContent = text;
+            }
+
+            function _notesSayHeld(room) {
+                _notesSay(room, HELD_SENTENCE);
+            }
+
+            function _notesTime(iso) {
+                var d = iso ? new Date(iso) : new Date();
+                if (isNaN(d.getTime())) d = new Date();
+                var hh = ('0' + d.getHours()).slice(-2);
+                var mm = ('0' + d.getMinutes()).slice(-2);
+                return hh + ':' + mm;
+            }
+
+            // Reflect whatever the store currently holds for this room. Called on
+            // load and on every draft change, so the held state survives a reload
+            // without anybody having to remember to re-render it.
+            function _notesRender(room) {
+                var entry = DraftStore.get(_notesKey(room.name));
+
+                if (! entry) {
+                    if (! room.everSaved) _notesSay(room, '');
+                    return;
+                }
+                if (entry.refused) {
+                    _notesSay(room, entry.refusedMessage || HELD_SENTENCE);
+                    return;
+                }
+                _notesSayHeld(room);
+            }
+
+            function _notesOnInput(room) {
+                // ⚠️ THE DEVICE COPY IS WRITTEN FIRST, SYNCHRONOUSLY, BEFORE ANY
+                // NETWORK CALL IS SCHEDULED OR MADE. Flip this order and a note
+                // typed where there is no signal is lost the instant the request
+                // fails. A source-position test asserts this call sits above the
+                // request below.
+                DraftStore.put(_notesKey(room.name), room.el.value);
+                room.refused = false;
+                _notesSayHeld(room);
+
+                if (room.timer) clearTimeout(room.timer);
+                room.timer = setTimeout(function () {
+                    room.timer = null;
+                    _notesSend(room);
+                }, NOTES_DEBOUNCE_MS);
+            }
+
+            function _notesSend(room) {
+                if (room.refused) return;              // stop retrying a locked room
+                if (room.inFlight) { room.pending = true; return; }
+
+                var entry = DraftStore.get(_notesKey(room.name));
+                if (! entry) return;                   // nothing held, nothing to send
+
+                var value = entry.value;
+
+                if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+                    _notesSayHeld(room);
+                    return;
+                }
+
+                room.inFlight = true;
+
+                var csrf = '';
+                try {
+                    csrf = document.querySelector('meta[name=csrf-token]').content;
+                } catch (e) {}
+
+                var attempt = fetch(room.url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrf,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ notes: value }),
+                }).then(function (res) {
+                    return res.json().catch(function () { return {}; })
+                        .then(function (body) { return { status: res.status, ok: res.ok, body: body }; });
+                });
+
+                // A request that never settles must not leave the engineer looking
+                // at a field that claims to be saving forever.
+                var raced = Promise.race([
+                    attempt,
+                    new Promise(function (resolve) {
+                        setTimeout(function () { resolve({ timedOut: true }); }, NOTES_TIMEOUT_MS);
+                    }),
+                ]);
+
+                raced.then(function (result) {
+                    room.inFlight = false;
+
+                    if (result && result.timedOut) {
+                        _notesSayHeld(room);
+                        return;
+                    }
+
+                    if (result && result.ok) {
+                        // markSent clears ONLY if the echoed value still matches
+                        // what is held, so a slow round trip cannot retire a
+                        // newer keystroke.
+                        var echoed = (result.body && typeof result.body.notes === 'string')
+                            ? result.body.notes
+                            : value;
+                        var retired = DraftStore.markSent(_notesKey(room.name), echoed);
+                        room.everSaved = true;
+
+                        if (retired) {
+                            _notesSay(room, 'Saved ' + _notesTime(result.body && result.body.saved_at));
+                        } else {
+                            // The engineer typed again while this was in flight.
+                            // The newer text is still held and must still go.
+                            _notesSayHeld(room);
+                            room.pending = true;
+                        }
+                    } else {
+                        var msg = (result && result.body && result.body.message) ? result.body.message : '';
+
+                        if (result && result.status === 422 && msg) {
+                            // The capture lock, almost certainly. KEEP the words,
+                            // show the server's own sentence, and stop retrying
+                            // this room — retrying a signed worksheet forever
+                            // would just flash the same refusal.
+                            DraftStore.markRefused(_notesKey(room.name), msg);
+                            room.refused = true;
+                            _notesSay(room, msg);
+                            return;
+                        }
+                        // Anything else — a 500, a captive portal's HTML, a
+                        // dropped connection — is a HELD draft, not a lost one.
+                        _notesSayHeld(room);
+                    }
+
+                    // A follow-up save goes back through the DEBOUNCE, never
+                    // straight back into _notesSend. Re-entering directly would
+                    // let a server that keeps echoing a value we do not hold spin
+                    // a tight request loop — and the first thing that loop does
+                    // is exhaust the rate limiter, which is the silent 429 D-04
+                    // forbids. The harness found this by hanging; it is not
+                    // theoretical.
+                    if (room.pending && ! room.refused) {
+                        room.pending = false;
+                        if (room.timer) clearTimeout(room.timer);
+                        room.timer = setTimeout(function () {
+                            room.timer = null;
+                            _notesSend(room);
+                        }, NOTES_DEBOUNCE_MS);
+                    }
+                }).catch(function () {
+                    room.inFlight = false;
+                    _notesSayHeld(room);
+                });
+            }
+
+            function _notesDrainAll(reason) {
+                Object.keys(notesRooms).forEach(function (name) {
+                    var room = notesRooms[name];
+                    if (room.refused) return;
+                    if (DraftStore.get(_notesKey(name))) _notesSend(room);
+                });
+            }
+
+            function _notesInit() {
+                var fields = document.querySelectorAll('textarea[data-room-notes]');
+
+                Array.prototype.forEach.call(fields, function (el) {
+                    var name = el.getAttribute('data-room-name') || '';
+                    if (name === '') return;
+
+                    var room = {
+                        name:      name,
+                        el:        el,
+                        url:       el.getAttribute('data-notes-url') || '',
+                        statusEl:  document.querySelector('[data-room-notes-status][data-room-name="' + name.replace(/"/g, '\\"') + '"]'),
+                        timer:     null,
+                        inFlight:  false,
+                        pending:   false,
+                        refused:   false,
+                        everSaved: false,
+                    };
+                    notesRooms[name] = room;
+
+                    // A draft held from the LAST session is newer than whatever
+                    // the server rendered — it was typed after that render — so
+                    // it goes back into the field, and the field says so.
+                    var held = DraftStore.get(_notesKey(name));
+                    if (held && typeof held.value === 'string' && held.value !== el.value) {
+                        el.value = held.value;
+                    }
+
+                    el.addEventListener('input', function () { _notesOnInput(room); });
+                    // A phone that goes to sleep or backgrounds the tab fires no
+                    // further input. Flush what is held rather than waiting for
+                    // the debounce that will never land.
+                    el.addEventListener('blur', function () {
+                        if (room.timer) { clearTimeout(room.timer); room.timer = null; }
+                        _notesSend(room);
+                    });
+
+                    _notesRender(room);
+                });
+
+                if (fields.length === 0) return;
+
+                // A page opened with a draft from the last session must TRY to
+                // send it, without the engineer having to touch the field.
+                _notesDrainAll('load');
+
+                window.addEventListener('online', function () { _notesDrainAll('online-event'); });
+                setInterval(function () {
+                    if (typeof navigator === 'undefined' || navigator.onLine !== false) {
+                        _notesDrainAll('timer');
+                    }
+                }, NOTES_RETRY_MS);
+
+                // Keep every indicator honest when the store changes underneath
+                // it — a drain, a refusal, or another tab in the same browser.
+                DraftStore.subscribe(function () {
+                    Object.keys(notesRooms).forEach(function (n) {
+                        var r = notesRooms[n];
+                        if (! r.inFlight) _notesRender(r);
+                    });
+                });
+            }
+
+            // ── NOTESWIRING-EXTRACT-END ───────────────────────────────────
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', _notesInit);
+            } else {
+                _notesInit();
+            }
         })();
     </script>
 

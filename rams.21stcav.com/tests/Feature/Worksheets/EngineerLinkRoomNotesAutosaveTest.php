@@ -474,4 +474,1076 @@ class EngineerLinkRoomNotesAutosaveTest extends TestCase
             . 'normalise to the empty string so the column holds one shape.',
         );
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  THE FIELD — rendered, counted, escaped
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * NON-VACUITY GATE. Every count below is worthless if the page did not
+     * actually render — an error body or an empty shell would satisfy a
+     * "contains nothing" guard for the wrong reason.
+     */
+    public function test_the_fixture_renders_a_real_page(): void
+    {
+        $worksheet = $this->worksheet();
+
+        $html = $this->get(route('public-worksheet.show', ['token' => $worksheet->access_token]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertGreaterThan(50000, strlen($html), 'The rendered page is too small to be the engineer link.');
+
+        foreach (self::ROOMS as $room) {
+            $this->assertStringContainsString($room, $html, "Room {$room} did not render at all.");
+        }
+
+        foreach (['Undefined', 'Division by zero', 'Warning:', 'Deprecated:', 'ErrorException'] as $noise) {
+            $this->assertStringNotContainsString($noise, $html, "The page rendered a PHP {$noise}.");
+        }
+    }
+
+    public function test_the_notes_textarea_renders_exactly_once_per_room(): void
+    {
+        $worksheet = $this->worksheet();
+
+        $html = $this->get(route('public-worksheet.show', ['token' => $worksheet->access_token]))
+            ->assertOk()
+            ->getContent();
+
+        $xpath = $this->xpath($html);
+
+        $this->assertSame(
+            count(self::ROOMS),
+            $xpath->query('//textarea[@data-room-notes]')->length,
+            'There is not exactly one notes box per room. Either a room cannot record what the '
+            . 'engineer found, or two boxes in one room will fight over the same draft key.',
+        );
+
+        foreach (self::ROOMS as $room) {
+            $this->assertSame(
+                1,
+                $xpath->query('//textarea[@data-room-notes][@data-room-name=' . $this->xq($room) . ']')->length,
+                "Room {$room} has no notes box of its own.",
+            );
+            $this->assertSame(
+                1,
+                $xpath->query('//*[@data-room-notes-status][@data-room-name=' . $this->xq($room) . ']')->length,
+                "Room {$room} has a notes box with no save indicator. An engineer would have no "
+                . 'way to know whether the words reached the office.',
+            );
+        }
+    }
+
+    public function test_each_notes_box_carries_its_own_server_built_endpoint_url(): void
+    {
+        $worksheet = $this->worksheet();
+
+        $html  = $this->get(route('public-worksheet.show', ['token' => $worksheet->access_token]))->getContent();
+        $xpath = $this->xpath($html);
+
+        $checked = 0;
+
+        foreach (self::ROOMS as $room) {
+            $node = $xpath->query('//textarea[@data-room-notes][@data-room-name=' . $this->xq($room) . ']')->item(0);
+            $this->assertNotNull($node);
+
+            $this->assertSame(
+                $this->url($worksheet, $room),
+                $node->getAttribute('data-notes-url'),
+                "The notes box for {$room} does not carry the router's own URL. A URL assembled "
+                . 'in JS would percent-encode a slash in a room name into something the web '
+                . 'server rejects before Laravel ever sees it.',
+            );
+            $checked++;
+        }
+
+        $this->assertSame(count(self::ROOMS), $checked, 'The URL loop checked a different number of rooms than exist.');
+    }
+
+    public function test_the_stored_note_is_rendered_into_the_textarea_as_element_content(): void
+    {
+        $worksheet = $this->worksheet();
+        $this->postJson($this->url($worksheet, self::ROOM_A), ['notes' => 'cracked backbox behind the rack'])->assertOk();
+
+        $html  = $this->get(route('public-worksheet.show', ['token' => $worksheet->access_token]))->getContent();
+        $xpath = $this->xpath($html);
+
+        $node = $xpath->query('//textarea[@data-room-notes][@data-room-name=' . $this->xq(self::ROOM_A) . ']')->item(0);
+
+        $this->assertNotNull($node);
+        $this->assertSame(
+            'cracked backbox behind the rack',
+            $node->textContent,
+            'A saved note does not come back into the field. The engineer would reopen the room '
+            . 'and see an empty box, and type it again.',
+        );
+        $this->assertSame(
+            '',
+            $node->getAttribute('value'),
+            'The note is emitted as a value ATTRIBUTE. A textarea value must be element content '
+            . 'so the escaping rules of an attribute context can never apply to it.',
+        );
+    }
+
+    /**
+     * ⚠️ ENGINEER FREE TEXT ON A PAGE A CLIENT SIGNS. The payload carries a bare
+     * tag AND an ampersand, because the ampersand is what catches a
+     * double-escape or an escape applied in the wrong order.
+     */
+    public function test_a_note_containing_markup_round_trips_escaped(): void
+    {
+        $worksheet = $this->worksheet();
+        $payload   = '<script>alert(1)</script> Smith & Sons blanking plate "missing"';
+
+        $this->postJson($this->url($worksheet, self::ROOM_B), ['notes' => $payload])->assertOk();
+
+        $html = $this->get(route('public-worksheet.show', ['token' => $worksheet->access_token]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString(
+            '<script>alert(1)</script>',
+            $html,
+            'AN ENGINEER TYPED A SCRIPT TAG INTO THE PAGE A CLIENT SIGNS AND IT CAME BACK AS '
+            . 'MARKUP. The largest free-text field on this page is an injection vector.',
+        );
+        $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $html, 'The markup was not escaped — it was stripped or lost.');
+        $this->assertStringContainsString('Smith &amp; Sons', $html, 'The ampersand was not escaped, or was escaped twice.');
+
+        // And the STORED value is the raw text — escaping is an output concern.
+        $this->assertSame($payload, $this->notesOf($worksheet, self::ROOM_B)['notes']);
+    }
+
+    // ── The signed state: gone as a control, still readable as a record ──────
+
+    /**
+     * ⚠️ THE UNSIGNED MIRROR RUNS FIRST, IN THIS SAME TEST. A broken selector
+     * would otherwise "prove" the lock by finding nothing anywhere.
+     */
+    public function test_a_signed_worksheet_shows_the_note_as_text_with_no_textarea(): void
+    {
+        $unsigned = $this->worksheet();
+        $this->postJson($this->url($unsigned, self::ROOM_A), ['notes' => 'isolator still to be fitted'])->assertOk();
+
+        $mirror = $this->xpath($this->get(route('public-worksheet.show', ['token' => $unsigned->access_token]))->getContent());
+        $this->assertSame(
+            count(self::ROOMS),
+            $mirror->query('//textarea[@data-room-notes]')->length,
+            'The selector finds no notes box on an UNSIGNED worksheet, so the signed assertion '
+            . 'below would pass by finding nothing rather than by the lock working.',
+        );
+
+        // Now the same worksheet, signed.
+        $this->sign($unsigned);
+
+        $html  = $this->get(route('public-worksheet.show', ['token' => $unsigned->access_token]))->assertOk()->getContent();
+        $xpath = $this->xpath($html);
+
+        $this->assertSame(
+            0,
+            $xpath->query('//textarea[@data-room-notes]')->length,
+            'A signed worksheet still offers an editable notes box. The client signed a record '
+            . 'and the page invites somebody to change it.',
+        );
+        $this->assertSame(
+            0,
+            $xpath->query('//textarea[@data-room-notes][@data-capture-control]')->length,
+            'A capture control survived the lock.',
+        );
+        $this->assertStringContainsString(
+            'isolator still to be fitted',
+            $html,
+            'The note VANISHED on a signed worksheet. A signed worksheet is a record and its '
+            . 'signer must be able to read what they signed — read-only, not gone.',
+        );
+        $this->assertGreaterThanOrEqual(
+            1,
+            $xpath->query('//*[@data-room-notes-readonly]')->length,
+            'There is no read-only rendering of the notes on a signed worksheet.',
+        );
+    }
+
+    public function test_a_signed_worksheet_with_no_note_says_so_rather_than_showing_an_empty_box(): void
+    {
+        $worksheet = $this->worksheet();
+        $this->sign($worksheet);
+
+        $html = $this->get(route('public-worksheet.show', ['token' => $worksheet->access_token]))->assertOk()->getContent();
+
+        $this->assertStringContainsString(
+            'nothing recorded for this room',
+            $html,
+            'A signed room with no note renders a blank gap. The reader cannot tell "nothing '
+            . 'was found" from "the page is broken".',
+        );
+    }
+
+    public function test_the_roomless_worksheet_renders_no_notes_box_and_no_php_error(): void
+    {
+        $worksheet = $this->worksheet([]);
+
+        $html = $this->get(route('public-worksheet.show', ['token' => $worksheet->access_token]))->assertOk()->getContent();
+
+        $this->assertSame(0, $this->xpath($html)->query('//textarea[@data-room-notes]')->length);
+
+        foreach (['Undefined', 'Division by zero', 'Warning:', 'Deprecated:', 'ErrorException'] as $noise) {
+            $this->assertStringNotContainsString($noise, $html, "A roomless worksheet rendered a PHP {$noise}.");
+        }
+    }
+
+    public function test_the_field_promises_the_same_limit_the_server_keeps(): void
+    {
+        $worksheet = $this->worksheet();
+
+        $html  = $this->get(route('public-worksheet.show', ['token' => $worksheet->access_token]))->getContent();
+        $xpath = $this->xpath($html);
+
+        $node = $xpath->query('//textarea[@data-room-notes]')->item(0);
+
+        $this->assertNotNull($node);
+        $this->assertSame(
+            '5000',
+            $node->getAttribute('maxlength'),
+            'The field does not carry the server\'s own max:5000. An engineer would type past '
+            . 'the limit and every save from then on would be silently refused.',
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  THE WIRING — asserted by source ORDER, which is the ruling
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * ⚠️ THE ORDER IS THE RULING. The device copy is written before the network
+     * is touched. The assertion is by source POSITION because that is the only
+     * thing a non-browser test can honestly check about it.
+     *
+     * Both positions are `assertIsInt`-checked FIRST: without that, a missing
+     * needle returns `false` and `false < 12345` passes.
+     */
+    public function test_the_draft_is_written_before_the_request_is_attempted(): void
+    {
+        $source = $this->source();
+
+        $put   = strpos($source, 'DraftStore.put(_notesKey(room.name), room.el.value);');
+        $fetch = strpos($source, 'var attempt = fetch(room.url,');
+
+        $this->assertIsInt($put, 'The notes input handler no longer writes a draft at all. Every word typed with no signal is lost.');
+        $this->assertIsInt($fetch, 'The notes request is gone from the page — the ordering guard below is measuring nothing.');
+
+        $this->assertLessThan(
+            $fetch,
+            $put,
+            'DraftStore.put NO LONGER SITS ABOVE THE REQUEST. A note typed in a plant room with '
+            . 'no signal is now lost the instant the fetch fails, because nothing wrote it to '
+            . 'the device first. This ordering is the whole of the 46.7-01 ruling.',
+        );
+    }
+
+    public function test_the_debounce_and_the_timeout_are_the_documented_numbers(): void
+    {
+        $source = $this->source();
+
+        $this->assertStringContainsString(
+            'var NOTES_DEBOUNCE_MS = 1200;',
+            $source,
+            'The debounce interval changed. Too long and a phone going into a pocket loses the '
+            . 'sentence; too short and every keystroke is a request on a dying signal.',
+        );
+        $this->assertStringContainsString(
+            'var NOTES_TIMEOUT_MS  = 8000;',
+            $source,
+            'The 8-second race is gone. A request that neither resolves nor rejects — a captive '
+            . 'portal answering the handshake and nothing else — would leave the engineer '
+            . 'looking at a field that never resolves either way.',
+        );
+    }
+
+    public function test_the_held_sentence_and_the_locks_sentence_are_both_on_the_page(): void
+    {
+        $source = $this->source();
+
+        $this->assertStringContainsString(
+            "var HELD_SENTENCE = 'Held on this phone — not sent yet';",
+            $source,
+            'The held-state sentence is gone. A draft on the device with nothing saying so is a '
+            . 'field that LOOKS saved and is not — the exact failure D-04 exists to prevent.',
+        );
+        $this->assertStringContainsString(
+            'DraftStore.markRefused(_notesKey(room.name), msg);',
+            $source,
+            'A refused draft is no longer KEPT with the server\'s reason. The next 422 deletes '
+            . 'an engineer\'s words.',
+        );
+        $this->assertStringContainsString(
+            '_notesSay(room, msg);',
+            $source,
+            'The server\'s own sentence is no longer shown verbatim, so an engineer whose note '
+            . 'will never send is never told why.',
+        );
+    }
+
+    public function test_a_refused_room_stops_retrying_and_a_typed_room_resumes(): void
+    {
+        $source = $this->source();
+
+        $this->assertStringContainsString(
+            'if (room.refused) return;              // stop retrying a locked room',
+            $source,
+            'A room refused by the capture lock keeps retrying forever, flashing the same '
+            . 'refusal at an engineer who can do nothing about it.',
+        );
+        $this->assertStringContainsString(
+            'room.refused = false;',
+            $source,
+            'A refused room can never resume. If the refusal was transient the engineer would '
+            . 'have to reload the page to get autosave back.',
+        );
+    }
+
+    public function test_a_late_acknowledgement_cannot_retire_newer_text(): void
+    {
+        $source = $this->source();
+
+        $markSent = strpos($source, 'var retired = DraftStore.markSent(_notesKey(room.name), echoed);');
+
+        $this->assertIsInt(
+            $markSent,
+            'The acknowledgement no longer carries the value it acknowledges, so it cannot tell '
+            . 'a stale round trip from a current one and would retire text the engineer has '
+            . 'since changed.',
+        );
+        $this->assertStringContainsString(
+            'if (retired) {',
+            $source,
+            'The return value of markSent is ignored. A refused retirement would be reported to '
+            . 'the engineer as "Saved" while the newer words sit unsent on the device.',
+        );
+    }
+
+    public function test_the_page_retries_on_the_online_event_on_a_timer_and_on_load(): void
+    {
+        $source = $this->source();
+
+        $this->assertStringContainsString(
+            "window.addEventListener('online', function () { _notesDrainAll('online-event'); });",
+            $source,
+            'Nothing retries when the signal comes back. A held note would sit on the phone '
+            . 'until the engineer happened to type in that field again.',
+        );
+        $this->assertStringContainsString(
+            "_notesDrainAll('load');",
+            $source,
+            'A page opened with a draft from the LAST session never tries to send it.',
+        );
+        $this->assertStringContainsString(
+            'var NOTES_RETRY_MS    = 30000;',
+            $source,
+            'The periodic retry is gone. A device whose `online` event never fires would hold '
+            . 'the note indefinitely.',
+        );
+    }
+
+    public function test_the_held_state_is_driven_by_the_store_and_not_by_a_page_variable(): void
+    {
+        $source = $this->source();
+
+        $render = strpos($source, 'function _notesRender(room) {');
+        $get    = strpos($source, 'var entry = DraftStore.get(_notesKey(room.name));', (int) $render);
+
+        $this->assertIsInt($render, 'The indicator renderer is gone.');
+        $this->assertIsInt(
+            $get,
+            'The indicator no longer reads the STORE. Driven by a page variable instead, the '
+            . 'held state would die with the page and a reload would show a note as saved when '
+            . 'it is still only on the phone.',
+        );
+        $this->assertStringContainsString(
+            'if (held && typeof held.value === \'string\' && held.value !== el.value) {',
+            $source,
+            'A draft held from the last session is not restored into the field on load. The '
+            . 'engineer reopens the page and their words are not on screen.',
+        );
+    }
+
+    public function test_the_indicator_is_written_with_textcontent_and_never_as_markup(): void
+    {
+        $source = $this->source();
+
+        $this->assertStringContainsString(
+            'if (room.statusEl) room.statusEl.textContent = text;',
+            $source,
+            'The save indicator no longer uses textContent. The server message and the engineer\'s '
+            . 'own text would reach the DOM as markup on a page a client signs.',
+        );
+
+        // The notes wiring must not introduce an innerHTML anywhere near itself.
+        $start = strpos($source, '46.7-03 — THE PER-ROOM NOTES FIELD, WIRED TO THE RULING ABOVE');
+        $this->assertIsInt($start, 'The notes wiring block is gone — the innerHTML guard is measuring nothing.');
+
+        $this->assertStringNotContainsString(
+            'innerHTML',
+            substr($source, $start),
+            'The notes wiring assigns innerHTML. Engineer free text reaching innerHTML on a page '
+            . 'a client signs is an injection, not a formatting choice.',
+        );
+    }
+
+    public function test_the_wiring_adds_no_sixth_script_tag_and_lives_in_the_draftstore_iife(): void
+    {
+        $source = $this->source();
+
+        $store  = strpos($source, 'window.DraftStore = DraftStore;');
+        $wiring = strpos($source, 'function _notesInit() {');
+        $end    = strpos($source, '</body>');
+
+        $this->assertIsInt($store);
+        $this->assertIsInt($wiring, 'The notes wiring is gone.');
+        $this->assertIsInt($end);
+
+        $this->assertGreaterThan($store, $wiring, 'The notes wiring runs before DraftStore is exposed.');
+        $this->assertStringNotContainsString(
+            '<script',
+            substr($source, $store, $end - $store),
+            'A new script tag was opened after DraftStore. The wiring belongs inside the same '
+            . 'IIFE — a sixth tag is a sixth place to look for why autosave stopped.',
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  THE PINS — re-asserted here because this plan edits the page
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * ⚠️ These needles match COMMENTS as well as attributes. Naming a directive
+     * in a comment fails the guard; nine near-misses so far.
+     */
+    public function test_this_plan_adds_no_alpine_directive_to_a_page_that_loads_no_alpine(): void
+    {
+        $source = $this->source();
+
+        $expected = [
+            ' x-data'           => 1,
+            ' x-show'           => 1,
+            ' x-model'          => 2,
+            ' x-cloak'          => 1,
+            '@click'            => 0,
+            '<x-photo-lightbox' => 0,
+        ];
+
+        foreach ($expected as $needle => $count) {
+            $this->assertSame(
+                $count,
+                substr_count($source, $needle),
+                "Alpine occurrence count for '{$needle}' moved. Alpine is NOT loaded on this page; "
+                . 'a directive added here is a control that silently does nothing.',
+            );
+        }
+
+        // Non-vacuity: if every needle were mistyped, the zeros would still pass.
+        $this->assertGreaterThan(0, array_sum($expected));
+        $this->assertStringContainsString(' x-data', $source, 'The x-data pin is measuring nothing.');
+    }
+
+    public function test_the_view_still_has_exactly_one_unescaped_echo_and_it_is_the_tab_panels(): void
+    {
+        $source = $this->source();
+
+        $this->assertSame(
+            1,
+            substr_count($source, '{!!'),
+            'The unescaped-echo count moved. This plan adds the LARGEST free-text field on a page '
+            . 'a client signs; a raw echo here is an injection.',
+        );
+        $this->assertStringContainsString('{!! $skipRestoreAttr !!}', $source, 'The one permitted raw echo is gone.');
+        $this->assertMatchesRegularExpression(
+            '/<section class="ws-tab-panel card[^>]*\{!! \$skipRestoreAttr !!\}/s',
+            $source,
+            'The one raw echo has drifted off the tab panel element. A bare count would still '
+            . 'pass while it sat somewhere it has never been reviewed.',
+        );
+    }
+
+    /**
+     * ⚠️ THE FROZEN PHOTO STORE IS NOT THIS PLAN'S. Its creation handler only
+     * ever CREATES — there is no migration branch — so a version bump, a key
+     * change or an index change STRANDS EVERY PENDING PHOTO on every engineer's
+     * phone. Drafts live in `localStorage`; the frozen store is never opened.
+     */
+    public function test_the_frozen_photo_store_is_untouched_by_this_plan(): void
+    {
+        $source = $this->source();
+
+        $expected = [
+            'DB_VERSION'            => 3,
+            'const DB_VERSION = 1;' => 1,
+            "keyPath: 'id'"         => 1,
+            'capturedAt'            => 10,
+            'pending_uploads'       => 1,
+            'createObjectStore'     => 1,
+        ];
+
+        foreach ($expected as $needle => $count) {
+            // Non-vacuity before the equality, so a mistyped needle cannot make
+            // an equality pass against zero.
+            $this->assertStringContainsString($needle, $source, "The frozen-store needle '{$needle}' is gone — this pin is measuring nothing.");
+            $this->assertSame(
+                $count,
+                substr_count($source, $needle),
+                "The frozen photo store's '{$needle}' count moved. THIS IS NOT A NUMBER TO UPDATE: "
+                . 'it means the notes autosave reached into the schema-frozen queue, and every '
+                . "photo sitting unsent on every engineer's phone is at risk.",
+            );
+        }
+
+        $this->assertStringNotContainsString(
+            'indexedDB',
+            substr($source, (int) strpos($source, '46.7-03 — THE PER-ROOM NOTES FIELD, WIRED TO THE RULING ABOVE')),
+            'The notes wiring opens IndexedDB. Drafts belong in localStorage — that separation is '
+            . 'the only reason the frozen store is safe.',
+        );
+    }
+
+    public function test_the_is_binary_guard_still_sits_above_the_blob_append(): void
+    {
+        // ⚠️ SCOPED TO drain(). The page appends a photo to a FormData in four
+        // other places by design, so a whole-file strpos would compare the
+        // guard against an unrelated upload path and fail for the wrong reason.
+        // (It did, on the first run of this file — recorded rather than glossed.)
+        $source = $this->source();
+
+        $sliceStart = strpos($source, 'OfflineQueue.drain = function');
+        $sliceEnd   = strpos($source, 'OfflineQueue._notifyChange = function', (int) $sliceStart);
+
+        $this->assertIsInt($sliceStart, 'drain() is gone from the page — this ordering guard cannot run.');
+        $this->assertIsInt($sliceEnd, 'The member after drain() is gone — the drain slice is unbounded.');
+
+        $slice = substr($source, $sliceStart, $sliceEnd - $sliceStart);
+
+        $guard  = strpos($slice, 'const isBinary');
+        $append = strpos($slice, "fd.append('photo'");
+
+        $this->assertIsInt($guard, 'The isBinary guard is gone from drain().');
+        $this->assertIsInt($append, 'The blob append is gone from drain() — this ordering guard is measuring nothing.');
+
+        $this->assertLessThan(
+            $append,
+            $guard,
+            'The isBinary guard is no longer ABOVE the blob append. A blobless kit row will now be '
+            . "stamped unreadable forever and the engineer's work is gone. Plan 46.4-06 exists "
+            . 'for this one ordering; 46.7-03 must not have moved it.',
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  THE SEVEN STATES, EXECUTED IN NODE — not scanned for
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Lifts BOTH the `DraftStore` body and the notes wiring out of the view
+     * between their extract markers and runs them in node against a stubbed
+     * `localStorage`, a stubbed DOM, a stubbed `fetch` and controllable timers.
+     *
+     * Every state an engineer can be in is driven and the indicator's text is
+     * read back: empty, typed, saving, saved, offline-held, server-refused, and
+     * signed-and-locked — plus the late-acknowledgement case, which is the one
+     * that silently loses words.
+     *
+     * ⚠️ WHAT THIS DOES NOT PROVE. It is node with stubs, not a phone. It does
+     * not prove a real `localStorage` in Safari private mode, a real full-page
+     * reload, a real `online` event from a real radio, real touch input, or that
+     * any of this is legible one-handed in a plant room. It proves the shipped
+     * lines do what they say when given those inputs. **The real proof is step 2
+     * of plan 46.7-04's blocking human checkpoint.**
+     */
+    public function test_the_notes_wiring_renders_every_state_it_can_be_in(): void
+    {
+        $node = $this->resolveNode();
+
+        if ($node === null) {
+            $this->markTestSkipped(
+                'node is not reachable from PHP on this machine, so the notes-wiring harness '
+                . 'cannot run. Every SOURCE pin and every ENDPOINT test in this file still ran. '
+                . 'Re-run where node is on PATH.',
+            );
+        }
+
+        $source = $this->source();
+
+        $harness = $this->harnessScript(
+            $this->slice($source, '// ── DRAFTSTORE-EXTRACT-BEGIN', '// ── DRAFTSTORE-EXTRACT-END'),
+            $this->slice($source, '// ── NOTESWIRING-EXTRACT-BEGIN', '// ── NOTESWIRING-EXTRACT-END'),
+        );
+
+        $file = rtrim(sys_get_temp_dir(), '\\/') . '/notes-wiring-' . bin2hex(random_bytes(8)) . '.mjs';
+        file_put_contents($file, $harness);
+
+        $out  = [];
+        $code = 0;
+        exec(escapeshellarg($node) . ' ' . escapeshellarg($file) . ' 2>&1', $out, $code);
+        @unlink($file);
+
+        $raw = implode("\n", $out);
+
+        $this->assertSame(0, $code, "The notes-wiring harness did not run cleanly. Output:\n" . $raw);
+
+        $result = json_decode($raw, true);
+        $this->assertIsArray($result, "The harness did not emit JSON. Output:\n" . $raw);
+
+        // ── STATE 1: empty ──────────────────────────────────────────────
+        $this->assertSame('', $result['empty']['status'], 'An untouched notes box already claims something. The indicator must say nothing until there is something to say.');
+        $this->assertSame(0, $result['empty']['requests'], 'The page fired a save for a field nobody has typed in.');
+
+        // ── STATE 2: typed ──────────────────────────────────────────────
+        $this->assertSame(
+            'Held on this phone — not sent yet',
+            $result['typed']['status'],
+            'The instant after typing, the field does not say the words are only on the phone. '
+            . 'A field that looks saved before it is saved is the exact D-04 failure.',
+        );
+        $this->assertSame(
+            'cracked backbox behind the rack',
+            $result['typed']['draft'],
+            'THE DEVICE COPY WAS NOT WRITTEN ON INPUT. Everything typed with no signal is lost.',
+        );
+        $this->assertSame(0, $result['typed']['requests'], 'The save fired before the debounce — every keystroke would be a request.');
+
+        // ── STATE 3: saving (debounce elapsed, response not yet back) ────
+        $this->assertSame(1, $result['saving']['requests'], 'The debounce elapsed and no request was made — the note never leaves the phone.');
+        $this->assertSame(
+            'Held on this phone — not sent yet',
+            $result['saving']['status'],
+            'While a save is in flight the field claims something other than held. There is '
+            . 'deliberately no "Saving…" state: until the office has it, it is held.',
+        );
+
+        // ── STATE 4: saved ──────────────────────────────────────────────
+        $this->assertStringStartsWith('Saved ', $result['saved']['status'], 'A successful save does not say so, with a time.');
+        $this->assertSame(0, $result['saved']['draftCount'], 'An acknowledged draft is still held on the device. It would be re-sent forever.');
+
+        // ── STATE 5: offline-held, and it SURVIVES A RELOAD ─────────────
+        $this->assertSame(
+            'Held on this phone — not sent yet',
+            $result['offline']['status'],
+            'Typing with navigator.onLine false does not report the held state.',
+        );
+        $this->assertSame(0, $result['offline']['requests'], 'The page tried to send while known-offline instead of holding.');
+        $this->assertSame(
+            'no isolator fitted in the plant room',
+            $result['offline']['afterReloadDraft'],
+            'A held note did not survive a reload. The engineer reopens the page and the words are gone.',
+        );
+        $this->assertSame(
+            'Held on this phone — not sent yet',
+            $result['offline']['afterReloadStatus'],
+            'After a reload the field no longer SAYS the note is only on the phone. The held state '
+            . 'must be read back out of the store, not from a variable that died with the page.',
+        );
+        $this->assertSame(
+            'no isolator fitted in the plant room',
+            $result['offline']['afterReloadFieldValue'],
+            'The held text was not restored into the textarea on load — the engineer cannot see '
+            . 'or copy what is still unsent.',
+        );
+
+        // ── STATE 6: the signal comes back ──────────────────────────────
+        $this->assertSame(1, $result['reconnect']['requests'], 'The `online` event did not drain the held note. It would sit there until the engineer typed again.');
+        $this->assertStringStartsWith('Saved ', $result['reconnect']['status'], 'A drained note does not report as saved.');
+        $this->assertSame(0, $result['reconnect']['draftCount'], 'A drained note is still held.');
+
+        // ── STATE 7: signed and locked ──────────────────────────────────
+        $this->assertSame(
+            WorksheetCaptureLock::MESSAGE,
+            $result['refused']['status'],
+            "The server's own sentence is not what the engineer reads. A refused note with no "
+            . 'reason is a field that just stops working.',
+        );
+        $this->assertSame(
+            'something found after the client had signed',
+            $result['refused']['draft'],
+            'A REFUSED DRAFT WAS DISCARDED. The words are gone and nobody can even read them off '
+            . 'the screen. This is the exact loss the 46.7-01 ruling forbids.',
+        );
+        $this->assertSame(
+            1,
+            $result['refused']['requestsAfterRetry'],
+            'A locked room kept retrying. The engineer would watch the same refusal flash forever '
+            . 'with nothing they can do about it.',
+        );
+        $this->assertSame(
+            WorksheetCaptureLock::MESSAGE,
+            $result['refused']['afterReloadStatus'],
+            'The refusal and its sentence did not survive a reload, so a reload makes a note that '
+            . 'will never send look merely unsent.',
+        );
+
+        // ── The late acknowledgement ─────────────────────────────────────
+        $this->assertSame(
+            'second thoughts — it is the NEXT backbox',
+            $result['lateAck']['draft'],
+            'AN ACKNOWLEDGEMENT FOR THE OLD TEXT RETIRED THE NEWER DRAFT. The engineer\'s latest '
+            . 'keystrokes would be dropped while the field showed as saved.',
+        );
+        $this->assertSame(
+            'Held on this phone — not sent yet',
+            $result['lateAck']['status'],
+            'A stale acknowledgement was reported to the engineer as "Saved" while newer words '
+            . 'sat unsent on the device.',
+        );
+
+        // ── A request that never settles times out into held ─────────────
+        $this->assertSame(
+            'Held on this phone — not sent yet',
+            $result['hang']['status'],
+            'A request that neither resolves nor rejects — a captive portal answering the '
+            . 'handshake and nothing else — leaves the indicator stuck. It must time out into '
+            . 'the held state.',
+        );
+
+        // Non-vacuity: both slices are real.
+        $this->assertGreaterThan(2000, $result['storeSliceLength'], 'The extracted DraftStore slice is too small to be the real store.');
+        $this->assertGreaterThan(4000, $result['wiringSliceLength'], 'The extracted notes-wiring slice is too small to be the real wiring.');
+        $this->assertSame(7, $result['statesRendered'], 'The harness did not render all seven states.');
+    }
+
+    private function slice(string $source, string $begin, string $end): string
+    {
+        $start = strpos($source, $begin);
+        $stop  = strpos($source, $end);
+
+        $this->assertIsInt($start, "The extract marker '{$begin}' is gone — the harness cannot run.");
+        $this->assertIsInt($stop, "The extract marker '{$end}' is gone — the harness cannot run.");
+        $this->assertGreaterThan($start, $stop, 'The extract markers are out of order.');
+
+        return substr($source, $start, $stop - $start);
+    }
+
+    private function resolveNode(): ?string
+    {
+        foreach (['node', 'C:\\Program Files\\nodejs\\node.exe'] as $candidate) {
+            $out  = [];
+            $code = 0;
+            exec(escapeshellarg($candidate) . ' --version 2>&1', $out, $code);
+
+            if ($code === 0 && preg_match('/^v\d+\./', (string) ($out[0] ?? ''))) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The harness. Stubs only what the wiring touches: one localStorage, one
+     * window with listeners, a document with two rooms' worth of elements, a
+     * controllable fetch, and manual timer pumping so a 1200ms debounce does not
+     * cost the suite 1200ms. Both slices are inserted VERBATIM.
+     */
+    private function harnessScript(string $storeSlice, string $wiringSlice): string
+    {
+        $store  = json_encode($storeSlice);
+        $wiring = json_encode($wiringSlice);
+        $locked = json_encode(WorksheetCaptureLock::MESSAGE);
+
+        return <<<JS
+        const STORE_BODY  = {$store};
+        const WIRING_BODY = {$wiring};
+        const LOCK_MSG    = {$locked};
+
+        let backing = {};
+
+        const localStorageStub = {
+            getItem(k) { return Object.prototype.hasOwnProperty.call(backing, k) ? backing[k] : null; },
+            setItem(k, v) { backing[k] = String(v); },
+            removeItem(k) { delete backing[k]; },
+        };
+
+        // ── A DOM with two rooms ─────────────────────────────────────────
+        function makeEl(attrs, tag) {
+            return {
+                tagName: tag || 'TEXTAREA',
+                _attrs: attrs || {},
+                value: '',
+                textContent: '',
+                style: {},
+                _handlers: {},
+                getAttribute(n) { return Object.prototype.hasOwnProperty.call(this._attrs, n) ? this._attrs[n] : null; },
+                setAttribute(n, v) { this._attrs[n] = v; },
+                addEventListener(n, h) { (this._handlers[n] = this._handlers[n] || []).push(h); },
+                fire(n) { (this._handlers[n] || []).forEach((h) => h({})); },
+            };
+        }
+
+        const ROOM_A = 'Boardroom';
+        const ROOM_B = 'Comms Room';
+
+        const fields = {};
+        const statuses = {};
+        [ROOM_A, ROOM_B].forEach((name) => {
+            fields[name]   = makeEl({ 'data-room-notes': '', 'data-room-name': name, 'data-notes-url': '/worksheet/tok/rooms/' + name + '/notes' });
+            statuses[name] = makeEl({ 'data-room-notes-status': '', 'data-room-name': name }, 'DIV');
+        });
+
+        const windowHandlers = {};
+        const draftHandlers  = [];
+
+        globalThis.window = {
+            localStorage: localStorageStub,
+            addEventListener(n, h) {
+                if (n === 'worksheet-draft-change') { draftHandlers.push(h); return; }
+                (windowHandlers[n] = windowHandlers[n] || []).push(h);
+            },
+            dispatchEvent(e) { draftHandlers.forEach((h) => h(e)); return true; },
+        };
+        globalThis.CustomEvent = class CustomEvent { constructor(n) { this.type = n; } };
+        // node's own globalThis.navigator is getter-only, so the stub is a
+        // plain local passed into the factory rather than a global assignment.
+        const navigatorStub = { onLine: true };
+
+        globalThis.document = {
+            readyState: 'complete',
+            body: { firstChild: null, insertBefore() {} },
+            getElementById() { return null; },
+            createElement() { return makeEl({}, 'DIV'); },
+            addEventListener() {},
+            createTextNode(t) { return { textContent: t }; },
+            querySelectorAll(sel) {
+                if (sel === 'textarea[data-room-notes]') return [fields[ROOM_A], fields[ROOM_B]];
+                return [];
+            },
+            querySelector(sel) {
+                if (sel === 'meta[name=csrf-token]') return { content: 'csrf-stub' };
+                const m = /data-room-name="(.*)"/.exec(sel);
+                if (m && sel.indexOf('data-room-notes-status') !== -1) return statuses[m[1]] || null;
+                return null;
+            },
+        };
+
+        // ── Controllable timers ──────────────────────────────────────────
+        let pending = [];
+        let clock   = 0;
+        let seq     = 0;
+
+        globalThis.setTimeout = function (fn, ms) {
+            const id = ++seq;
+            pending.push({ id, fn, at: clock + (ms || 0), interval: null });
+            return id;
+        };
+        globalThis.setInterval = function (fn, ms) {
+            const id = ++seq;
+            pending.push({ id, fn, at: clock + (ms || 0), interval: ms || 1 });
+            return id;
+        };
+        globalThis.clearTimeout = function (id) { pending = pending.filter((t) => t.id !== id); };
+        globalThis.clearInterval = globalThis.clearTimeout;
+
+        function advance(ms) {
+            clock += ms;
+            for (let guard = 0; guard < 200; guard++) {
+                const due = pending.filter((t) => t.at <= clock).sort((a, b) => a.at - b.at)[0];
+                if (! due) break;
+                if (due.interval) { due.at = clock + due.interval; } else { pending = pending.filter((t) => t !== due); }
+                due.fn();
+            }
+        }
+
+        // Drain the microtask queue so promise chains settle.
+        const settle = () => new Promise((r) => process.nextTick(() => process.nextTick(() => process.nextTick(r))));
+
+        // ── Controllable fetch ───────────────────────────────────────────
+        let requests = [];
+        let mode     = 'ok';          // ok | offline-throw | refused | hang | stale-ack
+        let staleAckValue = null;
+
+        globalThis.fetch = function (url, opts) {
+            const body = JSON.parse(opts.body);
+            requests.push({ url, notes: body.notes });
+
+            if (mode === 'offline-throw') return Promise.reject(new TypeError('Failed to fetch'));
+            if (mode === 'hang')          return new Promise(() => {});
+            if (mode === 'refused') {
+                return Promise.resolve({
+                    status: 422, ok: false,
+                    json: () => Promise.resolve({ message: LOCK_MSG }),
+                });
+            }
+            // The stale echo applies to the FIRST request only. A stub that
+            // echoed a mismatched value forever is not a server — it span the
+            // re-send path until node ran out of heap, which is how the tight
+            // loop in the wiring was found.
+            let echoed = body.notes;
+            if (mode === 'stale-ack' && staleAckValue !== null) { echoed = staleAckValue; staleAckValue = null; }
+            return Promise.resolve({
+                status: 200, ok: true,
+                json: () => Promise.resolve({ ok: true, notes: echoed, saved_at: '2026-09-29T11:04:00+00:00' }),
+            });
+        };
+
+        function boot() {
+            const factory = new Function('window', 'document', 'CustomEvent', 'navigator', 'WORKSHEET_ID',
+                'setTimeout', 'clearTimeout', 'setInterval', 'fetch', 'Promise', 'JSON',
+                STORE_BODY + '\\n' + WIRING_BODY + '\\n DraftStore.probe(); _notesInit(); return DraftStore;');
+            return factory(globalThis.window, globalThis.document, globalThis.CustomEvent, navigatorStub, 9001,
+                globalThis.setTimeout, globalThis.clearTimeout, globalThis.setInterval, globalThis.fetch, Promise, JSON);
+        }
+
+        function reset() {
+            requests = [];
+            pending  = [];
+            clock    = 0;
+            draftHandlers.length = 0;
+            Object.keys(windowHandlers).forEach((k) => delete windowHandlers[k]);
+            [ROOM_A, ROOM_B].forEach((n) => { fields[n].value = ''; statuses[n].textContent = ''; fields[n]._handlers = {}; });
+        }
+
+        // ⚠️ READ DEFENSIVELY. JSON.stringify DROPS an undefined value, so a
+        // draft destroyed by a bug would reach PHP as a MISSING KEY and report as
+        // "Undefined array key" instead of the crafted sentence written for it.
+        // An assertion that crashes instead of reporting is an assertion nobody
+        // can read at 8pm. (Plan 46.7-01 paid for this lesson once already.)
+        function heldValue(store, room) {
+            const e = store.get('notes:' + room);
+            return (e && typeof e.value === 'string') ? e.value : null;
+        }
+
+        const out = { statesRendered: 0, storeSliceLength: STORE_BODY.length, wiringSliceLength: WIRING_BODY.length };
+
+        (async () => {
+            // ── STATE 1: empty ───────────────────────────────────────────
+            backing = {}; reset();
+            let store = boot();
+            await settle();
+            out.empty = { status: statuses[ROOM_A].textContent, requests: requests.length };
+            out.statesRendered++;
+
+            // ── STATE 2: typed ───────────────────────────────────────────
+            fields[ROOM_A].value = 'cracked backbox behind the rack';
+            fields[ROOM_A].fire('input');
+            await settle();
+            out.typed = {
+                status: statuses[ROOM_A].textContent,
+                draft: heldValue(store, ROOM_A),
+                requests: requests.length,
+            };
+            out.statesRendered++;
+
+            // ── STATE 3: saving — debounce elapsed, response not back ────
+            mode = 'hang';
+            advance(1300);
+            await settle();
+            out.saving = { status: statuses[ROOM_A].textContent, requests: requests.length };
+            out.statesRendered++;
+
+            // ── STATE 3b: a request that NEVER settles times out ─────────
+            advance(8100);
+            await settle();
+            out.hang = { status: statuses[ROOM_A].textContent };
+
+            // ── STATE 4: saved ───────────────────────────────────────────
+            backing = {}; reset(); mode = 'ok';
+            store = boot();
+            await settle();
+            fields[ROOM_A].value = 'two blanking plates still to fit';
+            fields[ROOM_A].fire('input');
+            advance(1300);
+            await settle();
+            out.saved = { status: statuses[ROOM_A].textContent, draftCount: store.count(), requests: requests.length };
+            out.statesRendered++;
+
+            // ── STATE 5: offline-held, then a reload ─────────────────────
+            backing = {}; reset();
+            store = boot();
+            await settle();
+            navigatorStub.onLine = false;
+            fields[ROOM_A].value = 'no isolator fitted in the plant room';
+            fields[ROOM_A].fire('input');
+            advance(1300);
+            await settle();
+            const offline = { status: statuses[ROOM_A].textContent, requests: requests.length };
+
+            // RELOAD: same backing storage, a brand new page.
+            reset();
+            store = boot();
+            await settle();
+            offline.afterReloadDraft      = heldValue(store, ROOM_A);
+            offline.afterReloadStatus     = statuses[ROOM_A].textContent;
+            offline.afterReloadFieldValue = fields[ROOM_A].value;
+            out.offline = offline;
+            out.statesRendered++;
+
+            // ── STATE 6: the signal comes back ───────────────────────────
+            requests = [];
+            navigatorStub.onLine = true;
+            (windowHandlers['online'] || []).forEach((h) => h({}));
+            await settle();
+            out.reconnect = { status: statuses[ROOM_A].textContent, draftCount: store.count(), requests: requests.length };
+            out.statesRendered++;
+
+            // ── STATE 7: signed and locked ───────────────────────────────
+            backing = {}; reset(); mode = 'refused';
+            store = boot();
+            await settle();
+            fields[ROOM_B].value = 'something found after the client had signed';
+            fields[ROOM_B].fire('input');
+            advance(1300);
+            await settle();
+            const refused = {
+                status: statuses[ROOM_B].textContent,
+                draft: heldValue(store, ROOM_B),
+            };
+            // Retrying must NOT happen for a locked room.
+            (windowHandlers['online'] || []).forEach((h) => h({}));
+            advance(31000);
+            await settle();
+            refused.requestsAfterRetry = requests.length;
+
+            reset();
+            store = boot();
+            await settle();
+            refused.afterReloadStatus = statuses[ROOM_B].textContent;
+            out.refused = refused;
+            out.statesRendered++;
+
+            // ── The late acknowledgement ─────────────────────────────────
+            backing = {}; reset(); mode = 'stale-ack'; staleAckValue = 'first pass';
+            store = boot();
+            await settle();
+            fields[ROOM_A].value = 'first pass';
+            fields[ROOM_A].fire('input');
+            // The engineer types again while the first save is still in flight.
+            fields[ROOM_A].value = 'second thoughts — it is the NEXT backbox';
+            fields[ROOM_A].fire('input');
+            advance(1300);
+            await settle();
+            out.lateAck = {
+                draft: heldValue(store, ROOM_A),
+                status: statuses[ROOM_A].textContent,
+            };
+
+            process.stdout.write(JSON.stringify(out));
+        })().catch((e) => {
+            process.stdout.write(JSON.stringify({ harnessError: String(e && e.stack || e) }));
+            process.exit(1);
+        });
+        JS;
+    }
+
+    // ── Helpers for the DOM assertions ───────────────────────────────────────
+
+    private function xpath(string $html): \DOMXPath
+    {
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML($html);
+        libxml_clear_errors();
+
+        return new \DOMXPath($dom);
+    }
+
+    /** Quote a room name for an xpath literal — room names contain spaces and quotes. */
+    private function xq(string $value): string
+    {
+        return '"' . $value . '"';
+    }
 }
