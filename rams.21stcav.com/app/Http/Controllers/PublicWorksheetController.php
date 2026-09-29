@@ -362,6 +362,114 @@ class PublicWorksheetController extends Controller
             ->with('success', "Room marked complete: {$roomName}");
     }
 
+    /**
+     * POST /worksheet/{token}/rooms/{roomName}/notes
+     *
+     * 46.7-03 (D-03 / D-07) — AUTOSAVE THE ONE THING AN ENGINEER TYPES PER ROOM.
+     *
+     * The per-room notes box: what the engineer FOUND in this room, saved without
+     * a tap. Called on a debounce from the field itself, so it answers JSON and
+     * never a redirect — a redirect here would be a full page load per save.
+     *
+     * ── WHY THIS ONE CARRIES THE CAPTURE LOCK, AND ITS TWO ROOM-SCOPED ───────
+     *    SIBLINGS DO NOT
+     *
+     * `markRoomComplete` and `markSurveyReviewed` are engineer STATUS
+     * confirmations — they record that somebody looked at something. They are on
+     * the reflection allow-list for that reason (T-46.4-04-06).
+     *
+     * **A note is not a status. A note is the captured record itself** — free
+     * text that appears on the page a CLIENT signs and on the office's report.
+     * It must therefore freeze at the instant the record freezes, exactly like a
+     * photo, a photo caption or a serial reading. So this method is DELIBERATELY
+     * NOT on `EngineerLinkSignoffLockTest`'s allow-list, and that test will fail
+     * BY NAME if the guard below is ever removed. Do not add it to the list to
+     * silence a failure — the failure is the feature.
+     *
+     * ── WHY 422 AND NOT 423 ─────────────────────────────────────────────────
+     *
+     * 423 Locked is arguably more correct and is deliberately not used: the
+     * engineer page's hand-rolled fetch handlers have never seen a 423, and 422
+     * is already this controller's refusal idiom. Same reasoning as
+     * WorksheetCaptureLock's own docblock.
+     *
+     * ── GUARD ORDER, AND IT IS NOT NEGOTIABLE ───────────────────────────────
+     *
+     *   1. resolveWorksheet          — 404/410 on an unknown or expired token
+     *   2. WorksheetCaptureLock      — BEFORE validation (T-46.4-04-05: a locked
+     *                                  caller must not learn which field was
+     *                                  malformed)
+     *   3. room-name inclusion list  — copied from markRoomComplete, so a forged
+     *                                  name cannot mint an arbitrary key in the
+     *                                  shared JSON column
+     *   4. validate
+     *   5. write
+     *
+     * ⚠️ `pre_install_confirmations` IS A SHARED COLUMN. `survey_review` and
+     * `room_complete` already live in it; `room_notes` joins them. The whole
+     * array is read, modified and written back exactly as the two siblings do —
+     * a careless overwrite would clobber a sibling namespace SILENTLY.
+     *
+     * The stored value is echoed back so the page's draft store can refuse to
+     * acknowledge a value the engineer has since changed (46.7-01): an
+     * acknowledgement that arrives after a newer keystroke must not retire the
+     * newer text.
+     */
+    public function saveRoomNotes(Request $request, string $token, string $roomName): \Illuminate\Http\JsonResponse
+    {
+        $worksheet = $this->resolveWorksheet($token);
+
+        // D-07 — BEFORE VALIDATION, on purpose. A note is the captured record,
+        // not a status confirmation, so it freezes when the record freezes; and
+        // a locked caller must not learn which field was malformed. A draft held
+        // on a phone that drains in after the client signed takes this 422 and
+        // the page shows this sentence VERBATIM while KEEPING the draft.
+        if (WorksheetCaptureLock::isLocked($worksheet)) {
+            return response()->json(['message' => WorksheetCaptureLock::MESSAGE], 422);
+        }
+
+        // Forged-room-name guard — mirrors markRoomComplete / markSurveyReviewed.
+        $validRoomNames = collect((array) ($worksheet->generated_data['rooms'] ?? []))
+            ->pluck('name')
+            ->filter()
+            ->values()
+            ->all();
+
+        abort_if(empty($validRoomNames), 422,
+            'Worksheet has no rooms — cannot save notes for a room.');
+
+        if (! in_array($roomName, $validRoomNames, true)) {
+            abort(422, 'Unknown room name.');
+        }
+
+        $validated = $request->validate([
+            'notes' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $notes = (string) ($validated['notes'] ?? '');
+
+        // Audit M-06 (2026-07): see markSurveyReviewed above for the rationale.
+        // saved_by carries IP + an SHA-256 hash prefix of the token instead of
+        // the token itself — actor correlation without leaking a URL-bearing
+        // auth secret into a persisted row.
+        $confirmations = (array) ($worksheet->pre_install_confirmations ?? []);
+        $savedAt = now()->toIso8601String();
+        $confirmations['room_notes'][$roomName] = [
+            'notes'    => $notes,
+            'saved_at' => $savedAt,
+            'saved_by' => 'ip:' . ($request->ip() ?: 'unknown')
+                          . '|actor:' . substr(hash('sha256', $token), 0, 12),
+        ];
+        $worksheet->pre_install_confirmations = $confirmations;
+        $worksheet->save();
+
+        return response()->json([
+            'ok'       => true,
+            'saved_at' => $savedAt,
+            'notes'    => $notes,
+        ]);
+    }
+
     // ─── Additional kit (46.4-05 — D-06 / D-08 / D-02 / D-10) ────────────────
 
     /**

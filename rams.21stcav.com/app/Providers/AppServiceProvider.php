@@ -268,6 +268,34 @@ class AppServiceProvider extends ServiceProvider
             fn (Request $request) => Limit::perMinute(30)
                 ->by((string) $request->route('token') ?: $request->ip())
         );
+        // ── 46.7-03 (D-03) — the per-room notes autosave endpoint ────────────
+        //
+        // 60/min, and the number is a data-loss argument, not a security one.
+        //
+        // A debounced field cannot legitimately emit more than a few saves a
+        // minute per room. But an engineer working fast across seven rooms, plus
+        // the offline drain retrying held drafts when the signal comes back, can
+        // burst well past a handful — and being 429'd mid-note is exactly the
+        // silent loss D-04 forbids: the engineer sees no failure, walks away, and
+        // the words never arrive. So the budget sits with the status-write band
+        // (60) rather than the tighter photo band (30). There is nothing
+        // expensive behind this route — no AI call, no file I/O, one JSON column
+        // write — so a leaked token has no costly worst case to bound.
+        //
+        // Deliberately a SEPARATE limiter and not a reuse of
+        // `worksheet-status-write`: that budget is shaped for deliberate button
+        // taps, this one for a field that saves itself, and the two must be able
+        // to move independently without one change silently re-tuning the other.
+        //
+        // Keyed per-token with the same load-bearing `?: $request->ip()` fallback
+        // as every limiter above — without it, a request reaching this route with
+        // no token resolves to an empty-string key, i.e. one shared unlimited
+        // bucket for every such request.
+        RateLimiter::for(
+            'worksheet-notes-write',
+            fn (Request $request) => Limit::perMinute(60)
+                ->by((string) $request->route('token') ?: $request->ip())
+        );
         // Covers survey-photo serve. Unchanged numeric budget, now per-token.
         RateLimiter::for(
             'worksheet-survey-photo-read',

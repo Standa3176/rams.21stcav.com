@@ -148,6 +148,24 @@ Route::post('worksheet/{token}/rooms/{roomName}/complete', [PublicWorksheetContr
     ->name('public-worksheet.room-complete')->middleware('throttle:worksheet-status-write')
     ->where('roomName', '.*');
 
+// ── 46.7-03 (D-03 / D-07) — the per-room notes box's autosave endpoint ───────
+// The THIRD room-scoped write, kept adjacent to its two siblings so all three
+// read together. Same `where('roomName', '.*')` constraint the other two carry —
+// a route constraint the siblings have and this one does not is a gap, not a
+// simplification.
+//
+// Its own limiter (`worksheet-notes-write`, 60/min per token) and deliberately
+// NOT `worksheet-status-write`: that budget is shaped for button taps, this one
+// for a debounced field plus an offline drain retrying, and the two must be able
+// to move independently.
+//
+// ⚠️ THIS ENDPOINT CARRIES THE SIGN-OFF LOCK and is deliberately absent from
+// EngineerLinkSignoffLockTest's reflection allow-list. A note is the captured
+// record, not a status confirmation.
+Route::post('worksheet/{token}/rooms/{roomName}/notes', [PublicWorksheetController::class, 'saveRoomNotes'])
+    ->name('public-worksheet.room-notes')->middleware('throttle:worksheet-notes-write')
+    ->where('roomName', '.*');
+
 // ── 46.4-05 (D-06 / D-08) — additional kit an engineer used on site ─────────
 // Three endpoints and THREE ONLY: add, modify, mark-for-deletion-with-a-reason.
 //
