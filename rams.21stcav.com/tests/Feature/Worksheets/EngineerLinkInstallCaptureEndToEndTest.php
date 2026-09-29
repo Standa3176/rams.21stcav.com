@@ -570,6 +570,12 @@ class EngineerLinkInstallCaptureEndToEndTest extends TestCase
                 route('public-worksheet.additional-kit.mark-deleted', ['token' => $token, 'row' => $rowOne]),
                 ['deletion_reason' => 'Marked after the client signed'],
             ),
+            // 46.7-03 — the NINTH guarded write. Added because the derivation
+            // below demanded it by name, which is the derivation working.
+            'saveRoomNotes' => fn () => $this->postJson(
+                route('public-worksheet.room-notes', ['token' => $token, 'roomName' => self::ROOM_A]),
+                ['notes' => 'typed after the client had already signed'],
+            ),
         ];
 
         // ⚠️ THE LIST IS DERIVED. A ninth guarded write added to the controller
@@ -598,6 +604,9 @@ class EngineerLinkInstallCaptureEndToEndTest extends TestCase
         ];
         $rowOneQty     = WorksheetAdditionalKit::find($rowOne)->qty;
         $rowOneChanges = count(WorksheetAdditionalKit::find($rowOne)->amendments);
+        // 46.7-03 — the shared JSON column is what a refused NOTE could move,
+        // and nothing above would notice: it is not a row, a file or a count.
+        $confirmationsBefore = $worksheet->fresh()->pre_install_confirmations;
 
         foreach ($attempts as $method => $attempt) {
             $this->capture(
@@ -619,6 +628,13 @@ class EngineerLinkInstallCaptureEndToEndTest extends TestCase
         $this->assertSame($rowOneQty, WorksheetAdditionalKit::find($rowOne)->qty, 'A refused modify still changed the row.');
         $this->assertSame($rowOneChanges, count(WorksheetAdditionalKit::find($rowOne)->amendments), 'A refused modify still appended to the trail.');
         $this->assertFalse(WorksheetAdditionalKit::find($rowOne)->isMarked(), 'A refused mark still flagged the row.');
+        $this->assertSame(
+            $confirmationsBefore,
+            $worksheet->fresh()->pre_install_confirmations,
+            'A refused write moved pre_install_confirmations. Either a note landed on a signed '
+            . 'record, or a refusal clobbered the survey_review / room_complete namespaces that '
+            . 'share that column — and both are completely silent.',
+        );
         $this->assertFalse((bool) $labelPhoto->fresh()->confirmed);
         $this->assertSame(self::SERIAL, $device->fresh()->serial_number, 'A refused confirm overwrote a captured serial.');
 
