@@ -82,7 +82,7 @@ class EngineerLinkInstallCaptureEndToEndTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** Room A, then room B. `Str::slug()` of each is the `details` id on the page. */
+    /** Room A, then room B. `Str::slug()` of each is the room panel's id on the page. */
     private const ROOM_A = 'Boardroom';
 
     private const ROOM_B = 'Comms Room';
@@ -353,13 +353,25 @@ class EngineerLinkInstallCaptureEndToEndTest extends TestCase
         $this->assertStringContainsString('(<span data-photo-count>1</span>)', $this->tray($xpath, WorksheetPhoto::BUCKET_START, self::ROOM_A));
         $this->assertStringContainsString('(<span data-photo-count>1</span>)', $this->tray($xpath, WorksheetPhoto::BUCKET_COMPLETION, self::ROOM_A));
 
-        // The room-summary pill stays WHOLE-ROOM — bucketing changed how photos
-        // are filed, not how many the room has. The Mark Room Complete soft gate
+        // The room pill stays WHOLE-ROOM — bucketing changed how photos are
+        // filed, not how many the room has. The Mark Room Complete soft gate
         // reads this same number.
+        //
+        // ⚠️ THE XPATH WAS RETARGETED BY 46.7-02, AND THE COUNT WAS NOT TOUCHED.
+        // This assertion read `//details[@id='room-boardroom']/summary` from
+        // 46.4-02 until phase 46.7 turned the outer per-room `<details>` into a
+        // tab panel (D-01): the element is now `<section class="ws-tab-panel">`
+        // and the pills moved from its `<summary>` onto an `<h2
+        // class="room-panel-head">`. THE ELEMENT CHANGED; THE COUNTED THING DID
+        // NOT. `📷 2` is still exactly `📷 2`, still whole-room, still the number
+        // the Mark Room Complete gate reads — the assertion is superseded in its
+        // selector only, never loosened. If you are tempted to relax this to a
+        // greater-than-or-equal, stop: the whole point is that two photos in two
+        // different buckets add up to two on ONE pill.
         $this->assertStringContainsString(
             '📷 2',
-            $this->subtree($xpath, "//details[@id='" . self::ROOM_A_ID . "']/summary"),
-            'The room-summary pill did not count both buckets.',
+            $this->subtree($xpath, "//section[@id='" . self::ROOM_A_ID . "']/h2"),
+            'The room pill did not count both buckets.',
         );
 
         // ── 4. Three kit rows: two in room A, one in room B ──────────────────

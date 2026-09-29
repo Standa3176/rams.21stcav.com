@@ -459,6 +459,143 @@
             0%, 100% { opacity: 0.3; transform: scale(0.8); }
             50%      { opacity: 1.0; transform: scale(1.1); }
         }
+
+        /* ══════════════════════════════════════════════════════════════════
+           46.7-02 (D-01 / D-02) — TABBED ROOMS AND THE STICKY STATUS BAR
+           ──────────────────────────────────────────────────────────────────
+           EVERY RULE BELOW LIVES HERE, IN THE PAGE'S OWN STYLE BLOCK, ON
+           PURPOSE. This view is standalone: no layout, no bundler, no asset
+           pipeline. Three files are sha256-pinned to the phase 45 baseline
+           (the app layout, the app stylesheet and the tailwind config) and a
+           tabbed layout is exactly the kind of change that wants to reach for
+           them. It must not. A pinned hash is never refreshed to fit a diff.
+
+           THE BAR SCROLLS, IT DOES NOT WRAP. A wrapping bar changes height
+           with the room count, so the same button sits at a different place
+           on a 3-room job and a 9-room job — and this page is used one-handed
+           with a thumb that learns one position. Horizontal scroll keeps the
+           bar exactly one row tall on every worksheet.
+           ══════════════════════════════════════════════════════════════════ */
+
+        /* Only the active panel is in the flow. A plain class rule, so the
+           server decides what is visible and the page is already correct
+           before any script runs. */
+        .ws-tab-panel { display: none; }
+        .ws-tab-panel.is-active { display: block; }
+
+        /* The panel head replaces the old room <summary>. It carries the same
+           pills in the same order, but it is NOT interactive any more — the
+           bar does the switching, so a tap on the head must do nothing rather
+           than collapse the room the engineer just navigated to. */
+        .room-panel-head {
+            margin: -1.1rem -1.2rem .85rem;
+            padding: .9rem 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: .65rem;
+            background: #ECFEFF;
+            border-radius: 8px;
+            border-bottom: 1px solid #67E8F9;
+            font-size: 1rem;
+            font-weight: 700;
+        }
+        .room-panel-head:focus { outline: 2px solid #2E7BFF; outline-offset: 2px; }
+        .room-panel-head:focus:not(:focus-visible) { outline: none; }
+
+        .ws-tab-bar {
+            position: fixed;
+            left: 0; right: 0; bottom: 0;
+            z-index: 70;
+            display: flex;
+            gap: .4rem;
+            align-items: stretch;
+            padding: .4rem .5rem calc(.4rem + env(safe-area-inset-bottom, 0px));
+            background: #FFFFFF;
+            border-top: 1px solid #E5E7EB;
+            box-shadow: 0 -4px 16px rgba(15, 23, 42, .10);
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        .ws-tab-bar::-webkit-scrollbar { display: none; }
+
+        .ws-tab-btn {
+            flex: 0 0 auto;
+            /* 44px is the page's existing minimum tap target. A status bar you
+               cannot hit with a thumb is not a status bar. */
+            min-height: 44px;
+            min-width: 44px;
+            max-width: 11rem;
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            padding: .3rem .6rem;
+            border: 1px solid #E5E7EB;
+            border-radius: 10px;
+            background: #F9FAFB;
+            color: #334155;
+            font: inherit;
+            font-size: .78rem;
+            font-weight: 700;
+            line-height: 1.2;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .ws-tab-btn[aria-selected="true"] {
+            background: #2E7BFF;
+            border-color: #2E7BFF;
+            color: #FFFFFF;
+        }
+        .ws-tab-btn__name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        /* The glyph carries the status in TEXT as well as colour. An engineer
+           in bright sunlight on a cheap screen reads the shape, not the hue,
+           and a colour-blind engineer reads nothing else. */
+        .ws-tab-btn__glyph { flex: 0 0 auto; font-size: .85rem; }
+        .ws-tab-btn__count {
+            flex: 0 0 auto;
+            font-size: .66rem;
+            font-weight: 700;
+            opacity: .85;
+        }
+
+        /* Status, server-emitted. These four rules are the point of the
+           phase: an engineer sees which rooms are done WITHOUT opening one. */
+        .ws-tab-btn.tab--status-unreviewed  { background: #FEF3C7; border-color: #FCD34D; color: #92400E; }
+        .ws-tab-btn.tab--status-complete    { background: #DCFCE7; border-color: #86EFAC; color: #166534; }
+        .ws-tab-btn.tab--status-in-progress { background: #E0F2FE; border-color: #7DD3FC; color: #075985; }
+        .ws-tab-btn.tab--status-todo        { background: #F1F5F9; border-color: #CBD5E1; color: #475569; }
+        /* Selected wins over status so the engineer always knows where they
+           are; the glyph still says what the status is. */
+        .ws-tab-btn.tab--status-unreviewed[aria-selected="true"],
+        .ws-tab-btn.tab--status-complete[aria-selected="true"],
+        .ws-tab-btn.tab--status-in-progress[aria-selected="true"],
+        .ws-tab-btn.tab--status-todo[aria-selected="true"] {
+            background: #0F172A;
+            border-color: #0F172A;
+            color: #FFFFFF;
+        }
+
+        .ws-tab-summary {
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            padding: .15rem .55rem;
+            border-radius: 14px;
+            background: #EFF6FF;
+            color: #1D4ED8;
+            font-size: .72rem;
+            font-weight: 700;
+        }
+
+        /* ⚠️ WITHOUT THIS THE PAGE IS UNUSABLE. The bar is fixed, so the last
+           thing in the document — the client's Sign & Submit button — sits
+           UNDER it and cannot be tapped. Bar height plus the safe area. */
+        body { padding-bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px)); }
     </style>
 </head>
 <body>
@@ -471,39 +608,16 @@
         <div class="ws-header__inner">
             <div class="ws-header__brand">21st Century AV — Installation Worksheet</div>
             <div class="ws-header__title">{{ $worksheet->project_name }}</div>
-            <div class="ws-header__meta">
-                @if($worksheet->client_name){{ $worksheet->client_name }}@endif
-                @if($worksheet->project_ref) · Ref: {{ $worksheet->project_ref }}@endif
-                @if($worksheet->site_address) · {{ $worksheet->site_address }}@endif
-            </div>
-            {{-- ── 260602-mlt — Site contact line ──────────────────────────────
-                 Sourced from $worksheet->project->latestPackage->extracted_data
-                 ['ship_contact' / 'ship_phone'] (top-level keys, NOT nested under
-                 'project'). UK normalisation: leading '0' → '+44' in the tel:
-                 href; visible label preserves original formatting. Renders
-                 nothing when BOTH name AND phone are empty (no dangling
-                 "Site contact: ·" debris). --}}
-            @php
-                $pkg = optional($worksheet->project)->latestPackage;
-                $ed  = is_array($pkg?->extracted_data) ? $pkg->extracted_data : [];
-                $siteContactName  = trim((string) ($ed['ship_contact'] ?? ''));
-                $siteContactPhone = trim((string) ($ed['ship_phone']   ?? ''));
-                $telHref = '';
-                if ($siteContactPhone !== '') {
-                    $digits = preg_replace('/\s+/', '', $siteContactPhone);
-                    $telHref = (str_starts_with($digits, '0'))
-                        ? '+44' . substr($digits, 1)
-                        : $digits;
-                }
-            @endphp
-            @if($siteContactName !== '' || $siteContactPhone !== '')
-                <div class="ws-header__meta ws-header__contact" style="margin-top:.2rem;">
-                    Site contact:
-                    @if($siteContactName !== ''){{ ' ' . $siteContactName }}@endif
-                    @if($siteContactName !== '' && $siteContactPhone !== '') · @endif
-                    @if($siteContactPhone !== '')<a href="tel:{{ $telHref }}" style="color:inherit;text-decoration:underline;">{{ $siteContactPhone }}</a>@endif
-                </div>
-            @endif
+            {{-- ── 46.7-02 (D-02) — WHAT STAYS IN THE HEADER, AND WHY ──────────
+                 The ribbon, the brand line and the project name stay: they are
+                 the page's always-visible identity, and an engineer who has to
+                 open a tab to find out which job they are looking at is worse
+                 off than before. The client · reference · address strip and the
+                 site-contact line MOVED into the site tab below — they are
+                 reference detail, read on arrival and rarely again, and on a
+                 phone they were pushing the first room below the fold.
+                 They are MOVED, not copied: duplicating them would put the
+                 same three facts in two places where only one can be right. --}}
 
             {{-- ── 260603-eha — Offline photo queue chip + panel ────────
                  Hidden by default; the OfflineQueue UI controller (bottom of
@@ -736,6 +850,104 @@
                 'screen_cables' => 'Screen / display cables', 'rack_to_room' => 'Rack to room',
                 'other' => 'Other',
             ];
+
+            // ── 46.7-02 (D-01) — ROOM STATUS, DERIVED EXACTLY ONCE ────────────
+            // THE POINT OF THIS PHASE is that an engineer sees which rooms are
+            // done without opening one. That means the same fact — this room's
+            // status — is rendered in TWO places: the sticky bar at the bottom
+            // of the screen and the head of the room's own panel. The bar
+            // renders AFTER the room loop closes, so it cannot read the loop's
+            // locals; the obvious move is to derive status a second time down
+            // there, and that is exactly how a bar and a panel come to disagree.
+            // A bar that says a room is done when it is not is worse than no bar
+            // at all, because an engineer trusts it and leaves site.
+            //
+            // So it is derived HERE, once, and consumed twice: the loop body
+            // reads its own row out of $roomTabs, and the bar walks the same
+            // array. There is no second derivation to drift.
+            //
+            // ⚠️ THIS ADDS NO QUERY. $photoCounts is passed in by the
+            // controller; $roomsRequiringReview was built above out of the ONE
+            // survey query this page makes; surveyReviewedAt() and
+            // roomCompletedAt() read already-loaded columns on $worksheet. A
+            // database call inside this loop would be an N+1 on the page an
+            // engineer opens on site signal, which is the one place this
+            // application must not be slow.
+            //
+            // EVERY room gets a row, including one with a blank name. A panel
+            // with no button in the bar is a room an engineer cannot reach.
+            $roomTabs = [];
+            foreach ($rooms as $i => $r) {
+                $rName        = trim((string) ($r['name'] ?? ''));
+                $rKey         = strtolower($rName);
+                $rPhotoCount  = $rName === '' ? 0 : (int) ($photoCounts[$rKey] ?? 0);
+                // $roomsRequiringReview is the page-level set built above, and
+                // it is documented there as having to match the per-room drawer
+                // condition exactly. Reading it here rather than recomputing
+                // $hasEF keeps that single definition single.
+                $rGateApplies = $rName !== '' && in_array($rKey, $roomsRequiringReview, true);
+                $rIsReviewed  = $rName !== '' && $worksheet->surveyReviewedAt($rName) !== null;
+                $rIsComplete  = $rName !== '' && $worksheet->roomCompletedAt($rName) !== null;
+
+                // FOUR STATUSES, IN THIS PRECEDENCE, AND THE ORDER MATTERS.
+                // `unreviewed` outranks everything because it is the state that
+                // BLOCKS the client's signature. A room showing green while
+                // still holding up sign-off would send an engineer off site
+                // with an unsignable job — the worst outcome this bar can have.
+                if ($rGateApplies && ! $rIsReviewed) {
+                    $rStatus = 'unreviewed';
+                } elseif ($rIsComplete) {
+                    $rStatus = 'complete';
+                } elseif ($rPhotoCount > 0) {
+                    $rStatus = 'in-progress';
+                } else {
+                    $rStatus = 'todo';
+                }
+
+                $roomTabs[$i] = [
+                    'name'           => $rName !== '' ? $rName : 'Unknown Room',
+                    'hasName'        => $rName !== '',
+                    // Byte-identical to the slug the room anchors have always
+                    // used, because the sign-off-blocked banner links to
+                    // #room-{slug} and that link must keep landing.
+                    'slug'           => \Illuminate\Support\Str::slug((string) ($r['name'] ?? ('room-' . $i))),
+                    'tabKey'         => 'room-' . ($i + 1),
+                    'photoCount'     => $rPhotoCount,
+                    'gateApplies'    => $rGateApplies,
+                    'isReviewed'     => $rIsReviewed,
+                    'isRoomComplete' => $rIsComplete,
+                    'status'         => $rStatus,
+                    'skipRestore'    => $rIsComplete,
+                    // Text, not colour. Read in sunlight, on a cheap screen, by
+                    // an engineer who may not see the hue at all.
+                    'glyph'          => match ($rStatus) {
+                        'unreviewed'  => '⚠',
+                        'complete'    => '✓',
+                        'in-progress' => '◐',
+                        default       => '○',
+                    },
+                ];
+            }
+
+            $roomsTotal      = count($roomTabs);
+            $roomsDoneCount  = count(array_filter($roomTabs, fn ($t) => $t['isRoomComplete']));
+
+            // ── 260504-iy4 H1 — auto-collapse on completion, now auto-ACTIVATE ──
+            // MOVED HERE from the in-rooms @php block by 46.7-02. It has to be
+            // page-level now because the sticky bar renders outside that block
+            // and has to mark the same tab selected that the panel marks active.
+            // Same rule as before: the default room is the first one NOT yet
+            // marked complete. When every room is complete — or there are no
+            // rooms at all — the SITE tab is the one that opens, which is the
+            // tabbed equivalent of the clean "all done" page H1 shipped.
+            $firstIncompleteIdx = null;
+            foreach ($roomTabs as $i => $t) {
+                if (! $t['hasName']) continue;
+                if (! $t['isRoomComplete']) { $firstIncompleteIdx = $i; break; }
+            }
+            $activeTabKey = $firstIncompleteIdx !== null
+                ? $roomTabs[$firstIncompleteIdx]['tabKey']
+                : 'site';
         @endphp
 
         {{-- ── 46.4-04 (D-07) — THE READ-ONLY BANNER ────────────────────────────
@@ -764,6 +976,79 @@
                  intentional (snag-list workflow — out of scope for v1.3). --}}
             <fieldset disabled style="border:0;padding:0;margin:0;">
         @endif
+
+        {{-- ══════════════════════════════════════════════════════════════════
+             46.7-02 (D-02) — THE SITE TAB
+             ──────────────────────────────────────────────────────────────────
+             First tab, always present — including on a roomless worksheet,
+             which is the state that 500'd in production once already and which
+             RoomlessWorksheetPublicLinkTest renders. With no rooms this is the
+             ONLY tab, the bar carries one button, and the chip reads `0 of 0`
+             rather than dividing by a room count that does not exist.
+
+             NO NEW FIELD IS SURFACED HERE (T-46.7-02-04). Client, reference,
+             address and site contact all already rendered on this same page to
+             this same token-holder; they have MOVED out of the header, not
+             appeared. `device_label_photos.captured_by`,
+             `worksheet_signoffs.ip_address` and `user_agent` are not rendered
+             on this page and must never become "useful site context".
+             ══════════════════════════════════════════════════════════════════ --}}
+        @php
+            // ── 260602-mlt — Site contact line ──────────────────────────────
+            // Sourced from $worksheet->project->latestPackage->extracted_data
+            // ['ship_contact' / 'ship_phone'] (top-level keys, NOT nested under
+            // 'project'). UK normalisation: leading '0' → '+44' in the tel:
+            // href; visible label preserves original formatting. Renders
+            // nothing when BOTH name AND phone are empty (no dangling
+            // "Site contact: ·" debris).
+            // MOVED from the page header into the site tab by 46.7-02 (D-02).
+            // PublicWorksheetHeaderContactTest asserts the label, the name, the
+            // tel: href and the un-normalised display number BY CONTENT, not by
+            // container — so the move keeps it green and deleting any of those
+            // four strings would not.
+            $pkg = optional($worksheet->project)->latestPackage;
+            $ed  = is_array($pkg?->extracted_data) ? $pkg->extracted_data : [];
+            $siteContactName  = trim((string) ($ed['ship_contact'] ?? ''));
+            $siteContactPhone = trim((string) ($ed['ship_phone']   ?? ''));
+            $telHref = '';
+            if ($siteContactPhone !== '') {
+                $digits = preg_replace('/\s+/', '', $siteContactPhone);
+                $telHref = (str_starts_with($digits, '0'))
+                    ? '+44' . substr($digits, 1)
+                    : $digits;
+            }
+        @endphp
+        <section class="ws-tab-panel card{{ $activeTabKey === 'site' ? ' is-active' : '' }}"
+                 data-tab="site"
+                 id="ws-tab-site"
+                 role="tabpanel"
+                 aria-label="Site details"
+                 tabindex="-1">
+            <h2 class="room-panel-head">
+                <span class="room-summary-name">Site details</span>
+                <span class="ws-tab-summary">{{ $roomsDoneCount }} of {{ $roomsTotal }} rooms marked complete</span>
+            </h2>
+
+            <div style="font-size:.9rem;color:#374151;line-height:1.6;">
+                @if($worksheet->client_name)
+                    <div><strong>Client:</strong> {{ $worksheet->client_name }}</div>
+                @endif
+                @if($worksheet->project_ref)
+                    <div><strong>Ref:</strong> {{ $worksheet->project_ref }}</div>
+                @endif
+                @if($worksheet->site_address)
+                    <div><strong>Site address:</strong> {{ $worksheet->site_address }}</div>
+                @endif
+                @if($siteContactName !== '' || $siteContactPhone !== '')
+                    <div class="ws-header__contact" style="margin-top:.35rem;">
+                        Site contact:
+                        @if($siteContactName !== ''){{ ' ' . $siteContactName }}@endif
+                        @if($siteContactName !== '' && $siteContactPhone !== '') · @endif
+                        @if($siteContactPhone !== '')<a href="tel:{{ $telHref }}">{{ $siteContactPhone }}</a>@endif
+                    </div>
+                @endif
+            </div>
+        </section>
 
         @if(empty($rooms))
             <div class="card">
@@ -845,9 +1130,10 @@
             @endif
 
             <p class="muted" style="font-size:.85rem;margin-bottom:.85rem;">
-                Tap each space to expand. Use the drawers inside to switch between AV
-                works summary, kit list, and install steps. Photos required per space
-                before sign-off.
+                Use the bar at the bottom of the screen to move between spaces — each
+                button shows that space's status. Use the drawers inside a space to
+                switch between AV works summary, kit list, and install steps. Photos
+                required per space before sign-off.
             </p>
 
             @php
@@ -875,18 +1161,11 @@
                     : '';
 
                 // ── 260504-iy4 H1 — auto-collapse on completion ──
-                // Default open-room is the first room that is NOT yet marked complete.
-                // When every room is complete, leave them all closed so the engineer
-                // sees a clean "all done" page that they can review-or-collapse-on-demand.
-                $firstIncompleteIdx = null;
-                foreach ($rooms as $i => $r) {
-                    $rName = (string) ($r['name'] ?? '');
-                    if ($rName === '') continue;
-                    if (! $worksheet->roomCompletedAt($rName)) {
-                        $firstIncompleteIdx = $i;
-                        break;
-                    }
-                }
+                // MOVED to the page-level @php block by 46.7-02, together with
+                // $roomTabs, because the sticky bar renders outside this block and
+                // has to mark the SAME tab selected that the panel marks active.
+                // Deriving it twice is how the two would disagree. $firstIncompleteIdx
+                // and $activeTabKey are both already in scope here.
             @endphp
 
             {{-- 260504-ij9 fix H2 — TOP banner mirrors the bottom Sign-Off banner so
@@ -916,7 +1195,11 @@
                           ), fn ($s) => $s !== ''))
                         : [];
                     $roomKey      = strtolower(trim((string) ($room['name'] ?? '')));
-                    $photoCount   = $photoCounts[$roomKey] ?? 0;
+                    // 46.7-02 — this room's row out of the ONE page-level derivation.
+                    // The sticky bar walks the same array, so the bar and this panel
+                    // cannot report different statuses for the same room.
+                    $tab          = $roomTabs[$idx];
+                    $photoCount   = $tab['photoCount'];
                     $roomPhotos   = $worksheet->photos
                         ->filter(fn ($p) => strtolower(trim((string) $p->room_name)) === $roomKey);
 
@@ -977,16 +1260,19 @@
                     // ── Per-room review status (260504-ij9 fix B2 + 260504-iy4 H4 namespace) ──
                     // Pill renders alongside the photo-count pill on the room <summary>.
                     // No pill at all when the room has no survey to review (gate doesn't apply).
-                    $thisRoomReviewedStamp  = $worksheet->surveyReviewedAt($room['name'] ?? '');
-                    $gateApplies            = $hasEF; // EF data OR survey photos already folded into $hasEF
-                    $isReviewed             = $thisRoomReviewedStamp !== null;
+                    // 46.7-02 — READ, not recomputed. $gateApplies used to be local
+                    // $hasEF; it now comes off $roomTabs, which derives it from the
+                    // page-level $roomsRequiringReview set that the drawer condition
+                    // above is already documented as having to match. One definition.
+                    $gateApplies            = $tab['gateApplies'];
+                    $isReviewed             = $tab['isReviewed'];
                     $isUnreviewedWithGate   = $gateApplies && ! $isReviewed;
-                    $roomIdSlug             = \Illuminate\Support\Str::slug((string) ($room['name'] ?? ('room-' . $idx)));
+                    $roomIdSlug             = $tab['slug'];
 
                     // ── 260504-iy4 H1 — per-room completion status ──
                     $roomCompletedAt = $worksheet->roomCompletedAt($room['name'] ?? '');
                     $roomCompletedBy = $worksheet->roomCompletedBy($room['name'] ?? '');
-                    $isRoomComplete  = $roomCompletedAt !== null;
+                    $isRoomComplete  = $tab['isRoomComplete'];
                     try {
                         $roomCompletedDisplay = $isRoomComplete ? \Carbon\Carbon::parse($roomCompletedAt)->format('d M Y H:i') : '';
                     } catch (\Throwable $e) {
@@ -999,16 +1285,39 @@
 
                     // Skip-restore flag — used by the H3 scroll-restore JS so a room that was just
                     // completed DOES NOT get reopened on reload (auto-collapse must win).
-                    $skipRestoreAttr = $isRoomComplete ? 'data-skip-restore="1"' : '';
+                    // 46.7-02: the flag now sits on the room's TAB PANEL and its meaning
+                    // is "do not auto-ACTIVATE this tab" rather than "do not auto-OPEN
+                    // this drawer". Same intent, same restore handler, same one place
+                    // the rule is written — so a room the engineer has just marked
+                    // complete still does not pull them back into it on reload.
+                    $skipRestoreAttr = $tab['skipRestore'] ? 'data-skip-restore="1"' : '';
 
                     // 46.4-05 — this room's additional-kit rows, out of the ONE
                     // query partitioned in the page-level @php block above.
                     $kitRows = $kitByRoom[$roomKey] ?? [];
                 @endphp
 
-                <details class="card" id="room-{{ $roomIdSlug }}" {!! $skipRestoreAttr !!} {{ $idx === $firstIncompleteIdx ? 'open' : '' }}>
-                    <summary class="room-summary">
-                        <span class="room-chevron">▶</span>
+                {{-- 46.7-02 (D-01) — the outer per-room <details> becomes a TAB PANEL.
+                     The `id="room-{slug}"` is UNCHANGED and load-bearing: the
+                     sign-off-blocked banner's "Jump to first unreviewed room →" link
+                     points at it, and the tab script resolves that fragment to this
+                     panel and ACTIVATES it. Only the OUTER element changed — every
+                     room-drawer <details> inside stays a drawer, because within-room
+                     disclosure was never the page-length problem. --}}
+                <section class="ws-tab-panel card{{ $idx === $firstIncompleteIdx ? ' is-active' : '' }}"
+                         data-tab="{{ $tab['tabKey'] }}"
+                         data-room-name="{{ $tab['name'] }}"
+                         id="room-{{ $roomIdSlug }}" {!! $skipRestoreAttr !!}
+                         role="tabpanel"
+                         aria-label="{{ $tab['name'] }}"
+                         tabindex="-1">
+                    {{-- The panel head is not interactive: the bar switches rooms now,
+                         so a tap here must do nothing rather than collapse the room the
+                         engineer just navigated to. The pills are UNCHANGED, in the same
+                         order — the bar is the at-a-glance view, this is the in-room
+                         confirmation, and an engineer standing in the room still wants
+                         it without looking down at the bar. --}}
+                    <h2 class="room-panel-head">
                         <span class="room-summary-name">{{ $room['name'] ?? 'Unknown Room' }}</span>
                         @if($isUnreviewedWithGate)
                             <span style="display:inline-flex;align-items:center;gap:.25rem;padding:1px 8px;border-radius:9999px;background:#FEF3C7;color:#92400E;font-weight:700;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;">⚠ Survey not reviewed</span>
@@ -1021,7 +1330,7 @@
                         <span class="photo-count-pill {{ $photoCount === 0 ? 'zero' : '' }}">
                             📷 {{ $photoCount }}
                         </span>
-                    </summary>
+                    </h2>
 
                     {{-- 260504-ij9 fix B3 — Photo tray moved to TOP of room body so engineers
                          see the action item (capture proof of completed work) FIRST, before
@@ -1662,7 +1971,7 @@
                     @endif
 
                     {{-- 260504-ij9 fix B3 — Photo tray moved to TOP of room body (above). --}}
-                </details>
+                </section>
             @endforeach
 
             {{-- ════════════════════════════════════════════════════════════════════
@@ -1904,6 +2213,64 @@
         @endif
 
     </div>
+
+    {{-- ══════════════════════════════════════════════════════════════════════
+         46.7-02 (D-01) — THE STICKY STATUS BAR. THIS IS THE PHASE.
+         ──────────────────────────────────────────────────────────────────────
+         The user's framing, recorded in 46.7-CONTEXT.md: *"the accordions are
+         not bad — they are just long. The win is the sticky bar showing which
+         rooms are done, not tabs for their own sake. If a room's status is not
+         visible in the bar, the phase has missed its point."*
+
+         ⚠️ THE STATUS IS SERVER-EMITTED — `data-room-status` AND a class, both
+         written by PHP. That is deliberate and it is the whole reliability
+         argument: this page is read in plant rooms and comms cupboards on a
+         dying signal, and a bar whose colours are painted by JavaScript shows
+         an engineer NOTHING on the one device-and-day where it matters. With
+         scripting off, the bar is still correct; the buttons simply stop
+         switching and every panel the server did not activate stays hidden.
+
+         Rendered OUTSIDE the $captureLocked fieldset and outside the
+         empty($rooms) branch, on purpose:
+           · A SIGNED worksheet still gets a bar. It is a completed record and
+             the client or the office reading it back still has to navigate it.
+             The bar emits no write — it is navigation only (T-46.7-02-03), so
+             it does not belong inside a fieldset that disables controls.
+           · A ROOMLESS worksheet gets the site button and nothing else. No
+             empty <nav>, and the chip above reads `0 of 0` with nothing
+             divided by a room count that is zero.
+
+         NO `documents` AND NO `wrap` TAB. 46.7-CONTEXT.md leaves this to
+         discretion and the ruling is NO: reference files are per-project
+         downloads that already live in a drawer inside the rooms, and the
+         sign-off card IS the wrap-up and is always visible below the panels.
+         Two empty tabs on a phone are two mis-taps.
+         ══════════════════════════════════════════════════════════════════════ --}}
+    <nav class="ws-tab-bar" role="tablist" aria-label="Worksheet sections" data-ws-tab-bar>
+        <button type="button"
+                class="ws-tab-btn"
+                role="tab"
+                data-tab-target="site"
+                aria-selected="{{ $activeTabKey === 'site' ? 'true' : 'false' }}"
+                aria-controls="ws-tab-site">
+            <span class="ws-tab-btn__glyph" aria-hidden="true">🏢</span>
+            <span class="ws-tab-btn__name">Site</span>
+        </button>
+        @foreach($roomTabs as $tabBtn)
+            <button type="button"
+                    class="ws-tab-btn tab--status-{{ $tabBtn['status'] }}"
+                    role="tab"
+                    data-tab-target="{{ $tabBtn['tabKey'] }}"
+                    data-room-status="{{ $tabBtn['status'] }}"
+                    aria-selected="{{ $activeTabKey === $tabBtn['tabKey'] ? 'true' : 'false' }}"
+                    aria-controls="room-{{ $tabBtn['slug'] }}"
+                    title="{{ $tabBtn['name'] }} — {{ $tabBtn['status'] }}, {{ $tabBtn['photoCount'] }} photo{{ $tabBtn['photoCount'] === 1 ? '' : 's' }}">
+                <span class="ws-tab-btn__glyph" aria-hidden="true">{{ $tabBtn['glyph'] }}</span>
+                <span class="ws-tab-btn__name">{{ $tabBtn['name'] }}</span>
+                <span class="ws-tab-btn__count">📷{{ $tabBtn['photoCount'] }}</span>
+            </button>
+        @endforeach
+    </nav>
 
     <script>
         // ── Signature pad — vanilla canvas, no npm dependencies ────────────────
@@ -2555,8 +2922,116 @@
         // back at the top with all rooms collapsed. Capture state on submit, restore
         // on next DOMContentLoaded. SessionStorage scoped per worksheet ID. State
         // expires after 5 minutes (avoids stale restore on a fresh tab).
+        // ── 46.7-02 (D-05) — TAB STATE LIVES IN THIS SAME IIFE ──
+        // Photo upload and sign-off still redirect back to GET /worksheet/{token}.
+        // A bar that resets to the first room after every photo would be a
+        // REGRESSION against the accordions it replaces, so the active tab is
+        // restored by the same code that already restores scroll position.
+        //
+        // Folded in here rather than added as a new script: one sessionStorage
+        // key per worksheet, one five-minute stale guard, one restore ordering,
+        // and the data-skip-restore check this handler already performs is
+        // exactly the rule a just-completed room's tab needs too.
+        //
+        // TWO CARRIERS, DELIBERATELY, BECAUSE EACH COVERS THE OTHER'S GAP:
+        //   · location.hash, written with history.replaceState — NEVER
+        //     pushState. On a phone the back button must LEAVE the page, not
+        //     walk back through nine rooms one tap at a time. Survives a manual
+        //     refresh and makes a room shareable as a link.
+        //   · the wsState_ record — survives the SERVER REDIRECT, which drops
+        //     the fragment entirely. This is the carrier that actually does the
+        //     D-05 work; the hash alone would not.
         (function () {
             var KEY = 'wsState_' + {{ (int) $worksheet->id }};
+
+            function panels() {
+                return Array.prototype.slice.call(document.querySelectorAll('.ws-tab-panel[data-tab]'));
+            }
+
+            function buttons() {
+                return Array.prototype.slice.call(document.querySelectorAll('.ws-tab-btn[data-tab-target]'));
+            }
+
+            // A hash is fully attacker-controlled: anyone can hand an engineer a
+            // URL with any fragment (T-46.7-02-01). It is therefore only ever a
+            // LOOKUP KEY against panels that already exist in the DOM — never
+            // interpolated into a selector, never into markup. Unknown fragment
+            // gives up silently and the server's choice stands.
+            function panelFor(key) {
+                if (! key) return null;
+                var found = null;
+                panels().forEach(function (p) {
+                    if (! found && p.getAttribute('data-tab') === key) found = p;
+                });
+                if (found) return found;
+                // Second chance: the sign-off-blocked banner links to
+                // #room-{slug}, which is the panel's id, NOT its data-tab.
+                // Without this, "Jump to first unreviewed room →" silently does
+                // nothing and the engineer is stranded at a sign-off they cannot
+                // complete. This is the single most likely regression here.
+                panels().forEach(function (p) {
+                    if (! found && p.id && p.id === key) found = p;
+                });
+                return found;
+            }
+
+            function activate(panel, opts) {
+                if (! panel) return false;
+                var key = panel.getAttribute('data-tab');
+                if (! key) return false;
+
+                panels().forEach(function (p) { p.classList.toggle('is-active', p === panel); });
+                buttons().forEach(function (b) {
+                    var on = b.getAttribute('data-tab-target') === key;
+                    b.setAttribute('aria-selected', on ? 'true' : 'false');
+                    if (on) {
+                        // Room 7 of 9 must not be off-screen in the bar after a
+                        // reload — the engineer would think the bar had lost it.
+                        if (b.scrollIntoView) {
+                            try { b.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (e) { }
+                        }
+                    }
+                });
+
+                if (! (opts && opts.silentHash)) {
+                    // replaceState, never pushState — see the block comment above.
+                    try {
+                        if (window.history && window.history.replaceState) {
+                            window.history.replaceState(null, '', '#' + key);
+                        }
+                    } catch (e) { /* file:// or a locked-down browser — the tab still switched */ }
+                }
+
+                if (opts && opts.focus) {
+                    var head = panel.querySelector('.room-panel-head');
+                    if (head) { try { head.focus(); } catch (e) { } }
+                }
+                if (opts && opts.toTop) window.scrollTo(0, 0);
+
+                return true;
+            }
+
+            function activeKey() {
+                var found = '';
+                panels().forEach(function (p) {
+                    if (! found && p.classList.contains('is-active')) found = p.getAttribute('data-tab') || '';
+                });
+                return found;
+            }
+
+            buttons().forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    activate(panelFor(btn.getAttribute('data-tab-target')), { focus: true, toTop: true });
+                });
+            });
+
+            // hashchange, not only load. Tapping the banner's jump link on a page
+            // that is ALREADY loaded fires hashchange and nothing else, so a
+            // load-only handler would leave that link dead.
+            window.addEventListener('hashchange', function () {
+                var key = (location.hash || '').replace(/^#/, '');
+                activate(panelFor(key), { silentHash: true, focus: true, toTop: true });
+            });
 
             // Save on any form submit (capture phase — fires before navigation).
             document.addEventListener('submit', function () {
@@ -2567,6 +3042,7 @@
                     sessionStorage.setItem(KEY, JSON.stringify({
                         scrollY: window.scrollY,
                         openDetails: openIds,
+                        activeTab: activeKey(),
                         ts: Date.now()
                     }));
                 } catch (e) { /* sessionStorage disabled — silently skip */ }
@@ -2574,6 +3050,24 @@
 
             // Restore on load.
             window.addEventListener('DOMContentLoaded', function () {
+                // ── 46.7-02 (D-05) — RESTORE PRECEDENCE, FIRST MATCH WINS ──
+                //   1. a hash naming a real panel (explicit, and possibly a link
+                //      somebody was just handed),
+                //   2. activeTab out of a NON-STALE wsState_ record, provided its
+                //      panel is not data-skip-restore="1" — the room the engineer
+                //      has just marked complete must not pull them back in,
+                //   3. the panel the SERVER already marked is-active.
+                //
+                // That third step is not code: it is the absence of code. The
+                // server has already chosen, so this script NEVER has to pick a
+                // default — which is why the page is correct before it runs, and
+                // stays correct if it never runs at all.
+                var tabDone = false;
+                var hashKey = (location.hash || '').replace(/^#/, '');
+                if (hashKey) {
+                    tabDone = activate(panelFor(hashKey), { silentHash: true, focus: true });
+                }
+
                 var raw;
                 try { raw = sessionStorage.getItem(KEY); } catch (e) { return; }
                 if (! raw) return;
@@ -2593,7 +3087,22 @@
                     if (d && d.dataset.skipRestore !== '1') d.open = true;
                 });
 
+                // 46.7-02 (D-05) — step 2 of the precedence above. This is the
+                // carrier that survives the server redirect after a photo upload,
+                // which drops the fragment. The skip-restore check is the SAME
+                // rule the drawer restore above applies, read off the panel.
+                if (! tabDone && state.activeTab) {
+                    var target = panelFor(state.activeTab);
+                    if (target && target.dataset.skipRestore !== '1') {
+                        activate(target, { silentHash: true });
+                    }
+                }
+
                 // Restore scroll — defer to next paint so layout has settled.
+                // ⚠️ KEPT, and NOT replaced by a scroll-to-top. An engineer who
+                // uploaded a photo half way down a room wants to be back where
+                // they were — that is the entire reason this code exists. Only a
+                // deliberate TAB TAP scrolls to the top.
                 if (typeof state.scrollY === 'number') {
                     requestAnimationFrame(function () { window.scrollTo(0, state.scrollY); });
                 }
