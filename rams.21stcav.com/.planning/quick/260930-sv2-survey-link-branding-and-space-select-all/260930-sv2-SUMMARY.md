@@ -42,6 +42,7 @@ decisions:
   - "D-06: the headline hues #01889F and #D4AF37 are DECORATIVE ONLY and live as literals in the <style> block, not as Tailwind tokens — only CSS gradients use them, and an unused token is a drift risk"
   - "D-07: the new CSS classes are prefixed `sv-`, NEVER `cav-`. `cav-` is the cockpit's namespace and FlagOffBehaviourUnchangedTest bans it from the public token pages"
   - "D-08: no decorative colour was added to any status-bearing surface. The one new mark (the section spine) is proven to be structure by asserting its count is identical across every state"
+commit: f2eb0c38
 metrics:
   duration: ~2 h
   completed: 2026-09-30
