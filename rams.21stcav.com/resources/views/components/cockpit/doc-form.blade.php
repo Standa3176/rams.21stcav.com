@@ -486,7 +486,7 @@
                  ONE (quick task 260930-qcy). There is no JS and no copy
                  button (this plan's constraints), so the URL is rendered as
                  plain, visible, selectable text — the link text IS the URL.
-                 Escaped via {{ }} only (T-46.2-17), never {!! !!}. Checked as
+                 Escaped output only (T-46.2-17), never the unescaped directive. Checked as
                  a substring against all 21 DEFERRED_AFFORDANCES keys and both
                  FORBIDDEN_MARKUP entries before use: collides with none. --}}
             @if (session('cockpit_existing_link') !== null)

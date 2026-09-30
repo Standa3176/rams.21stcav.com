@@ -346,11 +346,16 @@ class CockpitSpaceSelectAllTest extends TestCase
     /**
      * The closed set stays closed. Adding two intents must not open the door to
      * a third by accident.
+     *
+     * MOVED, BY NAME, 5 -> 6 BY QUICK TASK 260930-qcy: `regenerate-document`
+     * joined the set for the site survey's document-only regenerate action
+     * (Task 3), which is a legitimate sixth member rather than a widened
+     * floor — `rubbish` below still proves the set stays closed.
      */
-    public function test_the_intent_set_is_exactly_five_and_rubbish_is_still_refused(): void
+    public function test_the_intent_set_is_exactly_six_and_rubbish_is_still_refused(): void
     {
         $this->assertSame(
-            ['next', 'back', 'create', 'spaces-all', 'spaces-none'],
+            ['next', 'back', 'create', 'spaces-all', 'spaces-none', 'regenerate-document'],
             CockpitDocumentRequest::INTENTS
         );
         $this->assertSame(['spaces-all', 'spaces-none'], CockpitDocumentRequest::SPACE_INTENTS);
