@@ -180,6 +180,33 @@ final class ProjectCockpitDocumentController extends Controller
         // erased the difference between "adopted" and "never existed".
         $preExisting = $this->creator->documentPreExists($project, $module);
 
+        // ── QUICK TASK 260930-qcy: THE PERMANENT COLLISION, REFUSED BEFORE IT
+        //    CAN REACH THE DATABASE ────────────────────────────────────────
+        //
+        // A naive retry on a project with a live survey ADOPTS the survey
+        // (safe) and then tries to create a SECOND visit against the same
+        // `(source_type, source_id)` an EARLIER visit already claims — the
+        // exact shape `visits_source_unique` refuses with `SQLSTATE[23000]`
+        // on live. That is not a transient failure the PM can retry away: the
+        // survey and its visit are BOTH still there, so the message states
+        // the true, permanent reason and hands back the existing engineer
+        // link rather than saying "try again".
+        if ($module === ProjectDeliverable::KEY_SITE_SURVEY) {
+            $claimingVisit = $this->creator->visitAlreadyClaimsSurvey($project);
+
+            if ($claimingVisit !== null) {
+                $request->session()->flash(
+                    'cockpit_existing_link',
+                    $this->creator->liveSurvey($project)?->publicUrl(),
+                );
+
+                return back()->withInput()->withErrors(['module' =>
+                    'This project already has a survey visit and an engineer link. '
+                    .'You can regenerate the document without a new visit, or start a genuinely fresh survey.'
+                ]);
+            }
+        }
+
         try {
             $outcome = $this->creator->create(
                 $project,

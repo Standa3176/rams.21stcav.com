@@ -686,4 +686,135 @@ class CockpitCombinedCreationTest extends TestCase
 
         $this->assertSame(0, RamsDocument::where('project_id', $project->id)->count());
     }
+
+    // ── Quick task 260930-qcy: THE VISIT-COLLISION CASE ─────────────────────
+
+    /**
+     * THE LIVE SHAPE, EXACTLY (Test A). `test_a_project_with_a_live_survey_adopts_it_and_mints_no_second_token()`
+     * proves adoption is safe when NO visit yet claims the survey; this proves
+     * the DIFFERENT case, where a visit ALREADY wraps it — the shape that hit
+     * `SQLSTATE[23000]` on live (project 99, `site_survey-33`/`34`).
+     *
+     * The survey and the claiming visit are both built directly, independently
+     * of the wizard, so this reproduces the live row shape rather than
+     * whatever the wizard itself would have produced.
+     */
+    public function test_a_retry_when_a_visit_already_claims_the_live_survey_is_refused_not_rolled_back(): void
+    {
+        $project = $this->project();
+        $this->engineer();
+
+        $existing = app(\App\Core\Modules\Survey\SurveyService::class)
+            ->createFromProject($project, $this->user());
+
+        $token = $existing->access_token;
+
+        $claimingVisit = new Visit();
+        $claimingVisit->fill([
+            'project_id'          => $project->id,
+            'type'                => Visit::TYPE_SITE_SURVEY,
+            'status'              => Visit::STATUS_PLANNED,
+            'source_type'         => Visit::SOURCE_SITE_SURVEY,
+            'source_id'           => $existing->id,
+            'rooms_in_scope'      => [],
+            'labour_resource_ids' => [],
+        ]);
+        $claimingVisit->is_backfilled = false;
+        $claimingVisit->created_by_user_id = $this->user()->id;
+        $claimingVisit->save();
+
+        $response = $this->submit($project, $this->surveyPayload());
+
+        // NOT A 500. The SQL integrity violation never reaches the HTTP layer.
+        $response->assertRedirect();
+        $this->assertLessThan(500, $response->getStatusCode());
+
+        // NO SECOND VISIT.
+        $this->assertSame(1, Visit::where('project_id', $project->id)->count(), 'A second visit was created.');
+
+        // BOTH PRE-EXISTING ROWS LEFT EXACTLY AS THEY WERE.
+        $existing->refresh();
+        $claimingVisit->refresh();
+
+        $this->assertSame($existing->id, SiteSurvey::where('project_id', $project->id)->sole()->id);
+        $this->assertSame($token, $existing->access_token, 'The pre-existing token was rotated.');
+        $this->assertSame($claimingVisit->id, Visit::where('project_id', $project->id)->sole()->id);
+
+        // THE MESSAGE IS PERMANENT, NOT TRANSIENT.
+        $response->assertSessionHasErrors('module');
+
+        $message = (string) session('errors')->first('module');
+
+        $this->assertStringNotContainsString('rolled back', $message, 'A permanent collision is not a rollback sentence.');
+        $this->assertStringNotContainsString('try again', $message, 'A permanent collision cannot be fixed by retrying.');
+
+        // AND THE EXISTING LINK IS HANDED BACK.
+        $this->assertSame($existing->publicUrl(), session('cockpit_existing_link'));
+    }
+
+    /** Test B: `back()`, and the PM's free-text input survives too. */
+    public function test_the_visit_collision_refusal_returns_to_the_form_with_the_pms_input_kept(): void
+    {
+        $project = $this->project();
+        $this->engineer();
+
+        $existing = app(\App\Core\Modules\Survey\SurveyService::class)
+            ->createFromProject($project, $this->user());
+
+        $claimingVisit = new Visit();
+        $claimingVisit->fill([
+            'project_id'          => $project->id,
+            'type'                => Visit::TYPE_SITE_SURVEY,
+            'status'              => Visit::STATUS_PLANNED,
+            'source_type'         => Visit::SOURCE_SITE_SURVEY,
+            'source_id'           => $existing->id,
+            'rooms_in_scope'      => [],
+            'labour_resource_ids' => [],
+        ]);
+        $claimingVisit->is_backfilled = false;
+        $claimingVisit->created_by_user_id = $this->user()->id;
+        $claimingVisit->save();
+
+        $from = route('projects.cockpit', [
+            'project' => $project,
+            'module'  => ProjectDeliverable::KEY_SITE_SURVEY,
+            'action'  => 'generate',
+        ]);
+
+        $response = $this->from($from)->submit($project, $this->surveyPayload());
+
+        $response->assertRedirect($from);
+        $this->assertSame('Two spaces, one riser.', session('_old_input')['general_notes'] ?? null);
+    }
+
+    /**
+     * Test C (non-regression): the pre-existing adoption path — a live survey
+     * with NO visit yet claiming it — must still succeed exactly as before.
+     * The guard must only fire when a VISIT already claims the survey, never
+     * merely because a survey exists.
+     */
+    public function test_adoption_with_no_claiming_visit_still_succeeds_exactly_as_before(): void
+    {
+        $project = $this->project();
+        $this->engineer();
+
+        $existing = app(\App\Core\Modules\Survey\SurveyService::class)
+            ->createFromProject($project, $this->user());
+
+        $token = $existing->access_token;
+
+        $this->submit($project, $this->surveyPayload())->assertRedirect();
+
+        $this->assertSame(1, SiteSurvey::where('project_id', $project->id)->count());
+
+        $existing->refresh();
+
+        $this->assertSame($token, $existing->access_token);
+
+        $visit = Visit::where('project_id', $project->id)->firstOrFail();
+
+        $this->assertSame($existing->id, $visit->source_id);
+        $this->assertNotNull(session('success'));
+        $this->assertNull(session()->get('errors')?->any() ? true : null);
+    }
 }

@@ -482,6 +482,17 @@
                 </ul>
             @endif
 
+            {{-- THE EXISTING ENGINEER LINK, WHEN A COLLISION REFUSAL FLASHED
+                 ONE (quick task 260930-qcy). There is no JS and no copy
+                 button (this plan's constraints), so the URL is rendered as
+                 plain, visible, selectable text — the link text IS the URL.
+                 Escaped via {{ }} only (T-46.2-17), never {!! !!}. Checked as
+                 a substring against all 21 DEFERRED_AFFORDANCES keys and both
+                 FORBIDDEN_MARKUP entries before use: collides with none. --}}
+            @if (session('cockpit_existing_link') !== null)
+                <p class="cav-qa__note">Existing engineer link: <a href="{{ session('cockpit_existing_link') }}">{{ session('cockpit_existing_link') }}</a></p>
+            @endif
+
             @foreach ($shown as $group)
                 <fieldset class="cav-qa__group">
                     <legend class="cav-qa__legend">{{ $group['legend'] }}</legend>

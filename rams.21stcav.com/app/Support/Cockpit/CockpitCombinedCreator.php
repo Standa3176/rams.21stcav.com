@@ -7,6 +7,7 @@ use App\Models\LabourResource;
 use App\Models\Project;
 use App\Models\ProjectActivityLog;
 use App\Models\ProjectDeliverable;
+use App\Models\SiteSurvey;
 use App\Models\User;
 use App\Models\Visit;
 use App\Support\Visits\VisitLinkIssuer;
@@ -45,6 +46,15 @@ use Illuminate\Support\Facades\DB;
  *   there is no partial success. A retry on a project that ALREADY had a live
  *   survey ADOPTS it, which is the existing, tested behaviour: survey count
  *   stays 1 and the token is the one that was already there.
+ *
+ *   ⚠ QUICK TASK 260930-qcy CORRECTS THE OVERSTATEMENT ABOVE. Adoption is safe
+ *   for the SURVEY, but was NOT safe for the VISIT: if an EARLIER visit
+ *   already claims that survey's `(source_type, source_id)` — a prior
+ *   SUCCESSFUL cockpit creation — a naive retry adopts the survey and then
+ *   tries to create a SECOND visit pointing at the same `(source_type,
+ *   source_id)`, which the `visits_source_unique` index refuses with
+ *   `SQLSTATE[23000]`. That case is now refused BEFORE the transaction opens
+ *   by `visitAlreadyClaimsSurvey()`, never attempted and rolled back.
  *
  * ── worksheet: ⚠ THE TRAP. THE VISIT GOES FIRST AND THE ISSUER'S ──────────
  *    WORKSHEET *IS* THE DOCUMENT.
@@ -231,6 +241,45 @@ final class CockpitCombinedCreator
     {
         return $module === ProjectDeliverable::KEY_SITE_SURVEY
             && $this->issuer->liveSurveyFor($project) !== null;
+    }
+
+    /**
+     * THE PROJECT'S LIVE SURVEY, OR NULL (quick task 260930-qcy).
+     *
+     * A thin passthrough to the issuer's own four-clause predicate — never a
+     * second copy of it — so this reader and `VisitLinkIssuer::surveyFor()`'s
+     * adoption can never disagree about which survey is "live".
+     */
+    public function liveSurvey(Project $project): ?SiteSurvey
+    {
+        return $this->issuer->liveSurveyFor($project);
+    }
+
+    /**
+     * IS THERE ALREADY A VISIT CLAIMING THIS PROJECT'S LIVE SURVEY? (260930-qcy)
+     *
+     * Reads back the EXACT predicate `visits_source_unique` enforces at the DB
+     * layer — `(source_type, source_id)` — so the app can refuse a collision
+     * BEFORE hitting the constraint, rather than letting `Visit::save()` throw
+     * `SQLSTATE[23000]` from inside the transaction.
+     *
+     * Asked BEFORE the transaction opens, same as `documentPreExists()`: a
+     * naive retry on a project with a live survey ADOPTS the survey (safe) and
+     * then tries to create a SECOND visit against the same `(source_type,
+     * source_id)` an EARLIER visit already claims — the permanent collision
+     * this quick task fixes.
+     */
+    public function visitAlreadyClaimsSurvey(Project $project): ?Visit
+    {
+        $survey = $this->liveSurvey($project);
+
+        if ($survey === null) {
+            return null;
+        }
+
+        return Visit::where('source_type', Visit::SOURCE_SITE_SURVEY)
+            ->where('source_id', $survey->id)
+            ->first();
     }
 
     /**
